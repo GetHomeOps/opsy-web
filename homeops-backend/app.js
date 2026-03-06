@@ -54,6 +54,9 @@ const billingRoutes = require("./routes/billing");
 
 const app = express();
 
+// Trust proxy (Railway, Heroku, nginx, etc.) so X-Forwarded-For is used for rate limiting
+app.set('trust proxy', 1);
+
 const corsOptions = {
   origin: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
