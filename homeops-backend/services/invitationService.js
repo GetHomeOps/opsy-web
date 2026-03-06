@@ -22,7 +22,6 @@ const bcrypt = require("bcrypt");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const { BCRYPT_WORK_FACTOR } = require("../config");
 const Subscription = require("../models/subscription");
-const SubscriptionProduct = require("../models/subscriptionProduct");
 const { onUserCreated } = require("./resourceAutoSend");
 const Notification = require("../models/notification");
 const { sendInvitationEmail } = require("./emailService");
@@ -199,21 +198,7 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
           const newAccount = await Account.linkNewUserToAccount({ name: userName, userId: user.id });
 
           try {
-            const productName = (user.role === 'agent') ? 'professional' : 'basic';
-            const product = await SubscriptionProduct.getByName(productName)
-              || await SubscriptionProduct.getByName("basic");
-            if (product) {
-              const today = new Date();
-              const endDate = new Date(today);
-              endDate.setMonth(endDate.getMonth() + 1);
-              await Subscription.create({
-                accountId: newAccount.id,
-                subscriptionProductId: product.id,
-                status: "active",
-                currentPeriodStart: today.toISOString(),
-                currentPeriodEnd: endDate.toISOString(),
-              });
-            }
+            await Subscription.ensureDefaultForAccount(newAccount.id, user.role || "homeowner");
           } catch (subErr) {
             console.error("Warning: failed to auto-create subscription for existing user account", newAccount.id, subErr.message);
           }
@@ -246,21 +231,7 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
       const newAccount = await Account.linkNewUserToAccount({ name, userId: user.id });
 
       try {
-        const productName = (user.role === 'agent') ? 'professional' : 'basic';
-        const product = await SubscriptionProduct.getByName(productName)
-          || await SubscriptionProduct.getByName("basic");
-        if (product) {
-          const today = new Date();
-          const endDate = new Date(today);
-          endDate.setMonth(endDate.getMonth() + 1);
-          await Subscription.create({
-            accountId: newAccount.id,
-            subscriptionProductId: product.id,
-            status: "active",
-            currentPeriodStart: today.toISOString(),
-            currentPeriodEnd: endDate.toISOString(),
-          });
-        }
+        await Subscription.ensureDefaultForAccount(newAccount.id, user.role || "homeowner");
       } catch (subErr) {
         console.error("Warning: failed to auto-create subscription for invited user account", newAccount.id, subErr.message);
       }

@@ -10,6 +10,16 @@ const subscriptionUpdateSchema = require("../schemas/subscriptionUpdate.json");
 
 const router = express.Router();
 
+/** POST /backfill - Create free subscriptions for accounts that have none. Super admin only. */
+router.post("/backfill", ensureSuperAdmin, async function (req, res, next) {
+  try {
+    const created = await Subscription.backfillMissingSubscriptions();
+    return res.json({ created, message: `Created ${created} default subscription(s) for accounts without one.` });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** GET / - List subscriptions. Query: status, accountId. Platform admin only. */
 router.get("/", ensurePlatformAdmin, async function (req, res, next) {
   try {

@@ -110,7 +110,7 @@ function DropdownReminders({align = "right"}) {
         onClick={() => setDropdownOpen(!dropdownOpen)}
         aria-expanded={dropdownOpen}
       >
-        <span className="sr-only">Reminders</span>
+        <span className="sr-only">Events</span>
         <Clock3
           className="w-5 h-5 text-gray-500 dark:text-gray-400"
           strokeWidth={1.75}
@@ -139,7 +139,7 @@ function DropdownReminders({align = "right"}) {
         >
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700/60">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-              Upcoming reminders
+              Events
             </h3>
           </div>
 
@@ -154,7 +154,7 @@ function DropdownReminders({align = "right"}) {
                   className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600"
                   strokeWidth={1.5}
                 />
-                <p>No upcoming reminders</p>
+                <p>No upcoming events</p>
                 <p className="mt-1 text-xs">
                   Scheduled inspections and maintenance appear here
                 </p>

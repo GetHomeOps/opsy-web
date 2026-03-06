@@ -363,6 +363,7 @@ function PropertyFormContainer() {
   const invitationIdFromUrl =
     searchParams.get("invitation")?.trim?.() || searchParams.get("invitation");
   const isInvitationView = Boolean(invitationIdFromUrl && uid !== "new");
+  const tabFromUrl = searchParams.get("tab");
   const {t} = useTranslation();
   const {
     currentAccount,
@@ -456,6 +457,15 @@ function PropertyFormContainer() {
     clearUrl: clearMainPhotoPresignedUrl,
     currentKey: mainPhotoPresignedKey,
   } = usePresignedPreview();
+
+  /* Sync active tab from URL ?tab=documents (e.g. from homeowner quick action) */
+  useEffect(() => {
+    if (uid === "new" || !tabFromUrl) return;
+    const validTabs = ["identity", "systems", "maintenance", "documents", "media", "photos"];
+    if (validTabs.includes(tabFromUrl)) {
+      dispatch({type: "SET_ACTIVE_TAB", payload: tabFromUrl});
+    }
+  }, [uid, tabFromUrl]);
 
   /* Google Places Autocomplete for Identity tab address field */
   const handleIdentityPlaceSelected = useCallback((parsed) => {

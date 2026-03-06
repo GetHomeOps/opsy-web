@@ -3,6 +3,7 @@ import {useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 
 import Sidebar from "../../partials/Sidebar";
+import {useAuth} from "../../context/AuthContext";
 import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import Banner from "../../partials/containers/Banner";
@@ -15,7 +16,7 @@ import ListDropdown from "../../partials/buttons/ListDropdown";
 
 const PAGE_STORAGE_KEY = "subscriptions_list_page";
 
-const initialState = {
+  const initialState = {
   currentPage: 1,
   itemsPerPage: 10,
   searchTerm: "",
@@ -71,10 +72,13 @@ function SubscriptionsList() {
   const navigate = useNavigate();
   const {t} = useTranslation();
   const {currentAccount} = useCurrentAccount();
+  const {currentUser} = useAuth();
+  const isSuperAdmin = currentUser?.role === "super_admin";
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
   // Sort state
   const [sortConfig, setSortConfig] = useState({key: null, direction: null});
+  const [isBackfilling, setIsBackfilling] = useState(false);
 
   // Fetch subscriptions on mount
   useEffect(() => {
@@ -311,6 +315,37 @@ function SubscriptionsList() {
     }
   }
 
+  async function handleBackfill() {
+    try {
+      setIsBackfilling(true);
+      const res = await AppApi.backfillSubscriptions();
+      const created = res?.created ?? 0;
+      if (created > 0) {
+        const subscriptions = await AppApi.getAllSubscriptions();
+        dispatch({type: "SET_SUBSCRIPTIONS", payload: subscriptions || []});
+      }
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message: res?.message ?? t("subscriptions.backfillSuccess", { count: created }),
+        },
+      });
+    } catch (err) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: `${t("subscriptions.backfillError")}: ${err.message || err}`,
+        },
+      });
+    } finally {
+      setIsBackfilling(false);
+    }
+  }
+
   // Status badge renderer
   function renderStatusBadge(value) {
     const statusColors = {
@@ -507,6 +542,18 @@ function SubscriptionsList() {
                   hasSelection={state.selectedItems.length > 0}
                   onDelete={handleDeleteClick}
                 />
+
+                {/* Backfill button (Super Admin only) - create default subscriptions for accounts without one */}
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    className="btn border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+                    onClick={handleBackfill}
+                    disabled={isBackfilling}
+                  >
+                    {isBackfilling ? t("subscriptions.backfilling") : t("subscriptions.backfill")}
+                  </button>
+                )}
 
                 {/* Add Subscription button */}
                 <button

@@ -147,6 +147,61 @@ class Subscription {
     return { deleted: id };
   }
 
+  /** Ensure account has at least one active subscription. Creates free tier if none exists. */
+  static async ensureDefaultForAccount(accountId, userRole = "homeowner") {
+    const existing = await db.query(
+      `SELECT id FROM account_subscriptions WHERE account_id = $1 AND status = 'active' LIMIT 1`,
+      [accountId]
+    );
+    if (existing.rows.length > 0) return existing.rows[0].id;
+
+    const planCode = userRole === "agent" ? "agent_basic" : "homeowner_free";
+    const productRes = await db.query(
+      `SELECT id FROM subscription_products WHERE (code = $1 OR (code IS NULL AND LOWER(name) = 'free')) AND (is_active IS NULL OR is_active = true) LIMIT 1`,
+      [planCode]
+    );
+    let productId = productRes.rows[0]?.id;
+    if (!productId) {
+      const fallback = await db.query(
+        `SELECT id FROM subscription_products WHERE (is_active IS NULL OR is_active = true) ORDER BY price ASC LIMIT 1`
+      );
+      productId = fallback.rows[0]?.id;
+    }
+    if (!productId) return null;
+
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + 1);
+
+    const result = await db.query(
+      `INSERT INTO account_subscriptions
+              (account_id, subscription_product_id, status, current_period_start, current_period_end)
+       VALUES ($1, $2, 'active', $3, $4)
+       RETURNING id`,
+      [accountId, productId, today.toISOString(), endDate.toISOString()]
+    );
+    return result.rows[0]?.id;
+  }
+
+  /** Backfill: create default subscription for every account that has none. Returns count created. */
+  static async backfillMissingSubscriptions() {
+    const accountsWithoutSub = await db.query(
+      `SELECT a.id, a.owner_user_id
+       FROM accounts a
+       WHERE NOT EXISTS (
+         SELECT 1 FROM account_subscriptions s WHERE s.account_id = a.id
+       )`
+    );
+    let created = 0;
+    for (const row of accountsWithoutSub.rows) {
+      const userRes = await db.query(`SELECT role FROM users WHERE id = $1`, [row.owner_user_id]);
+      const userRole = userRes.rows[0]?.role || "homeowner";
+      const id = await this.ensureDefaultForAccount(row.id, userRole);
+      if (id) created++;
+    }
+    return created;
+  }
+
   static async getSummary() {
     const totalRes = await db.query(`SELECT COUNT(*)::int AS count FROM account_subscriptions`);
     const byStatusRes = await db.query(

@@ -14,6 +14,7 @@ import ModalBlank from "../../components/ModalBlank";
 import {
   Bell,
   Calendar,
+  CalendarClock,
   CheckCircle2,
   Home,
   Wrench,
@@ -26,14 +27,15 @@ import {
   MapPin,
   BookOpen,
   Hammer,
-  Camera,
-  ClipboardList,
   Settings,
   ChevronLeft,
   X,
   MoreVertical,
   Phone,
   Mail,
+  Search,
+  Upload,
+  Plus,
 } from "lucide-react";
 
 // ─── Skeleton components for loading states ─────
@@ -409,11 +411,39 @@ function HomeownerHome() {
     : "";
 
   const quickActions = [
-    {icon: ClipboardList, label: "Log Maintenance", color: "bg-blue-500"},
-    {icon: Camera, label: "Add Photos", color: "bg-purple-500"},
-    {icon: FileText, label: "Documents", color: "bg-emerald-500"},
-    {icon: Settings, label: "Settings", color: "bg-gray-500"},
+    {
+      icon: CalendarClock,
+      label: t("homeownerHome.schedule") || "Schedule",
+      color: "bg-blue-500",
+      onClick: () => navigate(`/${accountUrl}/calendar`),
+    },
+    {
+      icon: Upload,
+      label: t("homeownerHome.uploadDocument") || "Upload document",
+      color: "bg-emerald-500",
+      onClick: () => {
+        if (hasProperties && activeProperty) {
+          const uid = activeProperty.property_uid ?? activeProperty.id;
+          navigate(`/${accountUrl}/properties/${uid}?tab=documents`);
+        } else {
+          navigate(`/${accountUrl}/properties/new`);
+        }
+      },
+    },
+    {
+      icon: Search,
+      label: t("homeownerHome.searchProfessionals") || "Search Professionals",
+      color: "bg-purple-500",
+      onClick: () => navigate(`/${accountUrl}/professionals/search`),
+    },
   ];
+
+  const createPropertyAction = !hasProperties && {
+    icon: Plus,
+    label: t("homeownerHome.createProperty"),
+    color: "bg-[#456564]",
+    onClick: () => navigate(accountUrl ? `/${accountUrl}/properties/new` : "/"),
+  };
 
   // When no properties, show dashboard with empty state (no early return)
   const hasProperties = properties && totalProperties > 0;
@@ -447,8 +477,9 @@ function HomeownerHome() {
                   <button
                     type="button"
                     onClick={() => navigate(accountUrl ? `/${accountUrl}/properties/new` : "/")}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition-colors"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#456564] hover:bg-[#3a5554] text-white text-sm font-semibold transition-colors shadow-lg hover:shadow-xl"
                   >
+                    <Plus className="w-4 h-4" />
                     {t("homeownerHome.createProperty")}
                   </button>
                 </div>
@@ -758,19 +789,35 @@ function HomeownerHome() {
       <div className="h-20 lg:h-16" />
 
       {/* ============================================ */}
-      {/* QUICK ACTIONS - Horizontal Scroll */}
+      {/* QUICK ACTIONS - Schedule, Upload document, Search Professionals */}
       {/* ============================================ */}
       <div className="px-0 sm:px-4 lg:px-5 xxl:px-12">
         <div className="flex items-center gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
+          {createPropertyAction && (
+            <button
+              type="button"
+              onClick={createPropertyAction.onClick}
+              className="flex items-center gap-3 px-5 py-3.5 bg-[#456564] hover:bg-[#3a5554] text-white rounded-xl shadow-sm hover:shadow transition-all flex-shrink-0"
+            >
+              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
+                <createPropertyAction.icon className="w-5 h-5" />
+              </div>
+              <span className="text-sm font-semibold whitespace-nowrap">
+                {createPropertyAction.label}
+              </span>
+            </button>
+          )}
           {quickActions.map((action, idx) => (
             <button
               key={idx}
-              className="flex items-center gap-2.5 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-600 transition-colors flex-shrink-0"
+              type="button"
+              onClick={action.onClick}
+              className="flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all flex-shrink-0"
             >
               <div
-                className={`w-8 h-8 ${action.color} rounded-lg flex items-center justify-center`}
+                className={`w-9 h-9 ${action.color} rounded-lg flex items-center justify-center`}
               >
-                <action.icon className="w-4 h-4 text-white" />
+                <action.icon className="w-5 h-5 text-white" />
               </div>
               <span className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
                 {action.label}

@@ -79,7 +79,7 @@ export default function InspectionAnalysisModalContent({
     return (
       <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Select or create a property to view analysis.
+          Save the property first to analyze reports.
         </p>
       </div>
     );

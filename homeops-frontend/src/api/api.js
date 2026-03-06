@@ -737,7 +737,15 @@ class AppApi {
 
   static async getAllSubscriptions(filters = {}) {
     let res = await this.request(`subscriptions`, filters);
-    return res.subscriptions;
+    const raw = res.subscriptions || [];
+    return raw.map((s) => ({
+      ...s,
+      databaseName: s.accountName ?? s.databaseName,
+      userName: s.ownerName ?? s.userName,
+      userEmail: s.ownerEmail ?? s.userEmail,
+      subscriptionProductName: s.productName ?? s.subscriptionProductName,
+      subscriptionStatus: s.status ?? s.subscriptionStatus,
+    }));
   }
 
   static async getSubscription(id) {
@@ -767,8 +775,12 @@ class AppApi {
   }
 
   static async deleteSubscription(id) {
-    let res = await this.request(`subscriptions/${id}`, {}, "DELETE");
-    return res;
+    return this.request(`subscriptions/${id}`, {}, "DELETE");
+  }
+
+  /** Backfill: create default subscription for accounts that have none. Super admin only. */
+  static async backfillSubscriptions() {
+    return this.request(`subscriptions/backfill`, {}, "POST");
   }
 
   /* --------- Subscription Products --------- */
