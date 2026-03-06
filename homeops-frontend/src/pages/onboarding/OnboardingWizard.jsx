@@ -393,7 +393,6 @@ function Step2Plan({
             })}
           </div>
         )}
-      </div>
     </div>
   );
 }
