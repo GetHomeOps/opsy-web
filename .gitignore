@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+homeops-backend/public/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# OS & IDE
+.DS_Store
+*.local
+
+# Debug / temp
+rentcast-debug.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Vite
+*.local
+
+# Optional: lockfiles (uncomment if you want to ignore)
+# pnpm-lock.yaml
+# package-lock.json

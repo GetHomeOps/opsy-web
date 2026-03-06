@@ -1,0 +1,162 @@
+"use strict";
+
+const express = require("express");
+const jsonschema = require("jsonschema");
+const { ensureSuperAdmin, ensurePlatformAdmin, ensureLoggedIn, ensureUserCanAccessAccountByParam } = require("../middleware/auth");
+const { BadRequestError, ForbiddenError } = require("../expressError");
+const Contact = require("../models/contact");
+const Tag = require("../models/tag");
+const { canAddContact } = require("../services/tierService");
+const contactUpdateSchema = require("../schemas/contactUpdate.json");
+const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
+
+const router = express.Router();
+
+/** GET /all - List all contacts. Platform admin only. */
+router.get("/all", ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    const contacts = await Contact.getAll();
+    const contactsWithUrls = await addPresignedUrlsToItems(contacts, "image", "image_url");
+    return res.json({ contacts: contactsWithUrls });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /account/:accountId/tags - List tags for an account. Requires account access. */
+router.get("/account/:accountId/tags", ensureLoggedIn, ensureUserCanAccessAccountByParam("accountId"), async function (req, res, next) {
+  try {
+    const tags = await Tag.getByAccountId(req.params.accountId);
+    return res.json({ tags });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST /account/:accountId/tags - Create a tag for an account. */
+router.post("/account/:accountId/tags", ensureLoggedIn, ensureUserCanAccessAccountByParam("accountId"), async function (req, res, next) {
+  try {
+    const { name, color } = req.body || {};
+    if (!name || typeof name !== "string" || !name.trim()) {
+      throw new BadRequestError("name is required");
+    }
+    const tag = await Tag.create({
+      accountId: req.params.accountId,
+      name: name.trim(),
+      color: color || null,
+    });
+    return res.status(201).json({ tag });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** DELETE /account/:accountId/tags/:tagId - Delete a tag. Tag must belong to account. */
+router.delete("/account/:accountId/tags/:tagId", ensureLoggedIn, ensureUserCanAccessAccountByParam("accountId"), async function (req, res, next) {
+  try {
+    const tag = await Tag.get(req.params.tagId);
+    if (Number(tag.account_id) !== Number(req.params.accountId)) {
+      throw new ForbiddenError("Tag does not belong to this account");
+    }
+    await Tag.remove(req.params.tagId);
+    return res.json({ deleted: req.params.tagId });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /account/:accountId - List contacts for an account. Requires account access. */
+router.get("/account/:accountId", ensureLoggedIn, ensureUserCanAccessAccountByParam("accountId"), async function (req, res, next) {
+  try {
+    const contacts = await Contact.getByAccountId(req.params.accountId);
+    const contactsWithUrls = await addPresignedUrlsToItems(contacts, "image", "image_url");
+    return res.json({ contacts: contactsWithUrls });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /:id - Get single contact by id. */
+router.get("/:id", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const contact = await Contact.get(req.params.id);
+    const contactWithUrl = await addPresignedUrlToItem(contact, "image", "image_url");
+    return res.json({ contact: contactWithUrl });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST / - Create contact. Optionally link to account via accountId in body. */
+router.post("/", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const validator = jsonschema.validate(req.body, contactUpdateSchema);
+    if (!validator.valid) {
+      const errs = validator.errors.map(e => e.stack);
+      throw new BadRequestError(errs);
+    }
+    const { accountId, ...contactData } = req.body;
+    if (accountId && res.locals.user?.role !== "super_admin" && res.locals.user?.role !== "admin") {
+      const tierCheck = await canAddContact(accountId);
+      if (!tierCheck.allowed) {
+        throw new ForbiddenError(`Contact limit reached (${tierCheck.current}/${tierCheck.max}). Upgrade your plan.`);
+      }
+    }
+    const contact = await Contact.create(contactData);
+    const contactWithUrl = await addPresignedUrlToItem(contact, "image", "image_url");
+    let contactAccount = null;
+    if (accountId) {
+      contactAccount = await Contact.addToAccount({ contactId: contact.id, accountId });
+    }
+    const response = { contact: contactWithUrl };
+    if (contactAccount) response.contactAccount = contactAccount;
+    return res.status(201).json(response);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST /account_contacts - Link contact to account. Body: { contactId, accountId }. */
+router.post("/account_contacts", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const { accountId } = req.body || {};
+    if (accountId && res.locals.user?.role !== "super_admin" && res.locals.user?.role !== "admin") {
+      const tierCheck = await canAddContact(accountId);
+      if (!tierCheck.allowed) {
+        throw new ForbiddenError(`Contact limit reached (${tierCheck.current}/${tierCheck.max}). Upgrade your plan.`);
+      }
+    }
+    const contactAccount = await Contact.addToAccount(req.body);
+    return res.status(201).json({ contactAccount });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** PATCH /:id - Update contact. */
+router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const validator = jsonschema.validate(req.body, contactUpdateSchema);
+    if (!validator.valid) {
+      const errs = validator.errors.map(e => e.stack);
+      throw new BadRequestError(errs);
+    }
+    const contact = await Contact.update(req.params.id, req.body);
+    const contactWithUrl = await addPresignedUrlToItem(contact, "image", "image_url");
+    return res.json({ contact: contactWithUrl });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** DELETE /:id - Remove contact. */
+router.delete("/:id", ensureLoggedIn, async function (req, res, next) {
+  try {
+    await Contact.remove(req.params.id);
+    return res.json({ deleted: req.params.id });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+module.exports = router;

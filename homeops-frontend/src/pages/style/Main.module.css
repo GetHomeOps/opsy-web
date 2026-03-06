@@ -1,0 +1,16 @@
+/* Apps Menu on Main page */
+.apps-menu__container {
+  display: grid;
+  width: 100%;
+  /* background-color: red; */
+}
+
+.apps-menu {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-gap: 30px;
+  justify-content: center;
+  max-width: 85%;
+  margin: 0 auto;
+}
