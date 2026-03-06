@@ -162,32 +162,51 @@ function buildFallbackPlans(role, subscriptionProducts = []) {
   });
 }
 
-/** Merge plan limits (from BillingPlansEditor) into feature labels for display. */
+const LIMIT_KEYWORDS = {
+  properties: /propert/i,
+  contacts: /contact/i,
+  tokens: /token|data ingestion/i,
+};
+
+/**
+ * Build the final display features for a plan card.
+ * Generates limit items directly from plan_limits, then appends
+ * stored features (skipping any that duplicate the limit items).
+ */
 function getDisplayFeatures(plan) {
   const features = plan.features || [];
   const limits = plan.limits || {};
   const maxProps = limits.maxProperties ?? limits.properties;
-  const maxContactsVal = limits.maxContacts ?? limits.contacts;
+  const maxContacts = limits.maxContacts ?? limits.contacts;
   const tokens = limits.aiTokenMonthlyQuota;
 
-  return features.map((f) => {
-    const label = f.label || "";
-    const lower = label.toLowerCase();
-    let displayLabel = label;
+  const limitFeatures = [];
+  if (maxProps != null) {
+    const label = typeof maxProps === "number"
+      ? (maxProps === 1 ? "1 property" : `Up to ${maxProps} properties`)
+      : String(maxProps);
+    limitFeatures.push({ id: "_lim_props", label, included: true, _limitKey: "properties" });
+  }
+  if (maxContacts != null) {
+    const label = typeof maxContacts === "number"
+      ? `Up to ${maxContacts.toLocaleString()} contacts`
+      : String(maxContacts);
+    limitFeatures.push({ id: "_lim_contacts", label, included: true, _limitKey: "contacts" });
+  }
+  if (tokens != null && tokens > 0) {
+    limitFeatures.push({ id: "_lim_tokens", label: `${tokens.toLocaleString()} tokens/month`, included: true, _limitKey: "tokens" });
+  }
 
-    if ((lower.includes("propert") || lower === "properties") && maxProps != null && maxProps !== "") {
-      const val = typeof maxProps === "number" ? `${maxProps} ${maxProps === 1 ? "property" : "properties"}` : String(maxProps);
-      displayLabel = lower.includes(":") ? label.replace(/:.*$/, `: ${val}`) : `Properties: ${val}`;
-    } else if ((lower.includes("contact") || lower === "contacts") && maxContactsVal != null && maxContactsVal !== "") {
-      const val = typeof maxContactsVal === "number" ? `${maxContactsVal} contacts` : String(maxContactsVal);
-      displayLabel = lower.includes(":") ? label.replace(/:.*$/, `: ${val}`) : `Contacts: ${val}`;
-    } else if ((lower.includes("token") || lower.startsWith("data ingestion")) && tokens != null && tokens > 0) {
-      const val = `${(tokens).toLocaleString()} tokens/month`;
-      displayLabel = lower.includes(":") ? label.replace(/:.*$/, `: ${val}`) : `AI tokens: ${val}`;
+  const coveredKeys = new Set(limitFeatures.map((l) => l._limitKey));
+  const filtered = features.filter((f) => {
+    const lower = (f.label || "").toLowerCase();
+    for (const [key, re] of Object.entries(LIMIT_KEYWORDS)) {
+      if (coveredKeys.has(key) && re.test(lower)) return false;
     }
-
-    return { ...f, label: displayLabel };
+    return true;
   });
+
+  return [...limitFeatures, ...filtered];
 }
 
 function Step2Plan({
