@@ -9,12 +9,13 @@
  * Key operations:
  * - create / get / getAll / getByName: CRUD for products
  * - getByRole: Fetch active products for a target role (homeowner, agent)
- * - initializeDefaultProducts: Seed free, basic, professional, enterprise tiers
+ * - initializeDefaultProducts: Seed from data/plans.json (fallback when planSeedService fails)
  */
 
 const db = require("../db");
 const { NotFoundError, BadRequestError } = require("../expressError");
 const { sqlForPartialUpdate } = require("../helpers/sql");
+const { loadPlans } = require("../services/planSeedService");
 
 async function upsertPlanLimits(productId, limits) {
   const { maxProperties, maxContacts, maxViewers, maxTeamMembers, aiTokenMonthlyQuota } = limits || {};
@@ -351,12 +352,11 @@ class SubscriptionProduct {
   }
 
   static async initializeDefaultProducts() {
-    const DEFAULT_PRODUCTS = [
-      { name: "free", targetRole: "homeowner", price: 0, maxProperties: 1, maxContacts: 10, maxViewers: 1, maxTeamMembers: 2 },
-      { name: "basic", targetRole: "homeowner", price: 9.99, maxProperties: 3, maxContacts: 50, maxViewers: 3, maxTeamMembers: 5 },
-      { name: "professional", targetRole: "agent", price: 29.99, maxProperties: 25, maxContacts: 200, maxViewers: 10, maxTeamMembers: 15 },
-      { name: "enterprise", targetRole: "agent", price: 99.99, maxProperties: 100, maxContacts: 1000, maxViewers: 50, maxTeamMembers: 50 },
-    ];
+    const plans = loadPlans();
+    if (plans.length === 0) {
+      console.warn("[initializeDefaultProducts] No plans in plans.json, skipping.");
+      return this.getAll();
+    }
     try {
       const existing = await this.getAll();
       if (existing.length > 0) {
@@ -364,11 +364,25 @@ class SubscriptionProduct {
         return existing;
       }
       const created = [];
-      for (const prod of DEFAULT_PRODUCTS) {
-        const product = await this.create(prod);
+      for (const plan of plans) {
+        const limits = plan.limits || {};
+        const product = await this.create({
+          name: plan.name,
+          description: plan.description || `${plan.name} plan`,
+          targetRole: plan.targetRole,
+          price: plan.price ?? 0,
+          code: plan.code,
+          sortOrder: plan.sortOrder ?? 99,
+          trialDays: plan.trialDays,
+          maxProperties: limits.maxProperties ?? 1,
+          maxContacts: limits.maxContacts ?? 25,
+          maxViewers: limits.maxViewers ?? 2,
+          maxTeamMembers: limits.maxTeamMembers ?? 5,
+          aiTokenMonthlyQuota: limits.aiTokenMonthlyQuota,
+        });
         created.push(product);
       }
-      console.log(`Default products created: ${created.map(p => p.name).join(", ")}`);
+      console.log(`Default products created from plans.json: ${created.map(p => p.name).join(", ")}`);
       return created;
     } catch (err) {
       console.error("Error initializing default products:", err.message);

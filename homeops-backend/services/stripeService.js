@@ -182,9 +182,11 @@ async function handleCheckoutCompleted(session) {
   const cancelAtPeriodEnd = subscription.cancel_at_period_end || false;
 
   if (!periodStart || !periodEnd) {
-    console.warn("[webhooks/stripe] checkout.session.completed: missing period dates, skipping insert");
-    return;
+    console.warn("[webhooks/stripe] checkout.session.completed: missing period dates, using fallback");
   }
+
+  const safeStart = periodStart || new Date();
+  const safeEnd = periodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   await db.query(
     `INSERT INTO account_subscriptions
@@ -195,7 +197,7 @@ async function handleCheckoutCompleted(session) {
      DO UPDATE SET status = EXCLUDED.status, stripe_price_id = EXCLUDED.stripe_price_id,
        current_period_start = EXCLUDED.current_period_start, current_period_end = EXCLUDED.current_period_end,
        cancel_at_period_end = EXCLUDED.cancel_at_period_end, updated_at = NOW()`,
-    [accountId, subscriptionProductId, subscription.id, session.customer, priceId, status, periodStart, periodEnd, cancelAtPeriodEnd]
+    [accountId, subscriptionProductId, subscription.id, session.customer, priceId, status, safeStart, safeEnd, cancelAtPeriodEnd]
   );
 }
 
@@ -252,9 +254,11 @@ async function handleSubscriptionUpdated(subscription) {
   if (!subscriptionProductId) return;
 
   if (!periodStart || !periodEnd) {
-    console.warn("[webhooks/stripe] subscription.updated: missing period dates, skipping insert");
-    return;
+    console.warn("[webhooks/stripe] subscription.updated: missing period dates, using fallback");
   }
+
+  const safeStart = periodStart || new Date();
+  const safeEnd = periodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   await db.query(
     `INSERT INTO account_subscriptions
@@ -265,7 +269,7 @@ async function handleSubscriptionUpdated(subscription) {
      DO UPDATE SET status = EXCLUDED.status, stripe_price_id = EXCLUDED.stripe_price_id,
        current_period_start = EXCLUDED.current_period_start, current_period_end = EXCLUDED.current_period_end,
        cancel_at_period_end = EXCLUDED.cancel_at_period_end, updated_at = NOW()`,
-    [accountByCustomer.rows[0].id, subscriptionProductId, subId, customerId, priceId, status, periodStart, periodEnd, cancelAtPeriodEnd]
+    [accountByCustomer.rows[0].id, subscriptionProductId, subId, customerId, priceId, status, safeStart, safeEnd, cancelAtPeriodEnd]
   );
 }
 

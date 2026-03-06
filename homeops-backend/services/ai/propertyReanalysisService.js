@@ -157,9 +157,8 @@ async function getPreviousAiSummary(propertyId) {
 }
 
 async function saveAiSummary(propertyId, state, triggerSource, triggerId, previousState) {
-  const client = await db.connect();
   try {
-    await client.query("BEGIN");
+    await db.query("BEGIN");
 
     const auditRow = {
       property_id: propertyId,
@@ -169,7 +168,7 @@ async function saveAiSummary(propertyId, state, triggerSource, triggerId, previo
       new_state: JSON.stringify(state),
     };
 
-    await client.query(
+    await db.query(
       `INSERT INTO property_ai_summary_state
        (property_id, updated_systems, newly_detected_systems, maintenance_recommendations,
         risk_flags, summary_delta, report_analysis, last_reanalysis_at, updated_at)
@@ -194,7 +193,7 @@ async function saveAiSummary(propertyId, state, triggerSource, triggerId, previo
       ]
     );
 
-    await client.query(
+    await db.query(
       `INSERT INTO property_ai_reanalysis_audit
        (property_id, trigger_source, trigger_id, previous_state, new_state)
        VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)`,
@@ -207,12 +206,10 @@ async function saveAiSummary(propertyId, state, triggerSource, triggerId, previo
       ]
     );
 
-    await client.query("COMMIT");
+    await db.query("COMMIT");
   } catch (e) {
-    await client.query("ROLLBACK");
+    await db.query("ROLLBACK");
     throw e;
-  } finally {
-    client.release();
   }
 }
 
