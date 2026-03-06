@@ -111,20 +111,41 @@ function Step1Role({role, onSelect}) {
   );
 }
 
-function buildFallbackPlans(role) {
+/** Build fallback plans using structure from onboardingPlans, prices from subscription products API. */
+function buildFallbackPlans(role, subscriptionProducts = []) {
   const hardcoded = role === "homeowner" ? HOMEOWNER_PLANS : AGENT_PLANS;
-  return hardcoded.map((p) => ({
-    ...p,
-    code: p.code || p.id,
-    features: p.features
-      ? [...(p.features.core || []), ...(p.features.advanced || [])].map((f, i) => ({
-          id: `${p.code}_f${i}`,
-          label: `${f.label}: ${f.value}`,
-          included: f.value !== "None",
-        }))
-      : [],
-    limits: PLAN_LIMITS[role]?.[p.code] || {},
-  }));
+  return hardcoded.map((p) => {
+    const code = p.code || p.id;
+    const product = subscriptionProducts.find((sp) => (sp.code || sp.id) === code);
+    let stripePricesFromApi = null;
+    if (product) {
+      const monthPrice = product.prices?.find((pr) => pr.billingInterval === "month");
+      const yearPrice = product.prices?.find((pr) => pr.billingInterval === "year");
+      if (monthPrice?.unitAmount != null || yearPrice?.unitAmount != null) {
+        stripePricesFromApi = {};
+        if (monthPrice?.unitAmount != null) {
+          stripePricesFromApi.month = { unitAmount: monthPrice.unitAmount, currency: monthPrice.currency || "usd" };
+        }
+        if (yearPrice?.unitAmount != null) {
+          stripePricesFromApi.year = { unitAmount: yearPrice.unitAmount, currency: yearPrice.currency || "usd" };
+        }
+      }
+    }
+    return {
+      ...p,
+      code,
+      price: p.price === 0 ? 0 : null,
+      stripePrices: stripePricesFromApi,
+      features: p.features
+        ? [...(p.features.core || []), ...(p.features.advanced || [])].map((f, i) => ({
+            id: `${code}_f${i}`,
+            label: `${f.label}: ${f.value}`,
+            included: f.value !== "None",
+          }))
+        : [],
+      limits: PLAN_LIMITS[role]?.[code] || {},
+    };
+  });
 }
 
 function Step2Plan({
@@ -134,10 +155,13 @@ function Step2Plan({
   billingInterval,
   onBillingIntervalChange,
   apiPlans,
+  subscriptionProducts = [],
   apiLoading,
 }) {
-  const plans = apiPlans && apiPlans.length > 0 ? apiPlans : buildFallbackPlans(role);
-  const hasPaidPlans = plans.some((p) => p.price != null && p.price > 0);
+  const plans = apiPlans && apiPlans.length > 0 ? apiPlans : buildFallbackPlans(role, subscriptionProducts);
+  const hasPaidPlans = plans.some((p) =>
+    p.stripePrices?.month?.unitAmount > 0 || p.stripePrices?.year?.unitAmount > 0 || (p.price != null && p.price > 0)
+  );
   const gridCols = plans.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3";
 
   return (
@@ -205,27 +229,23 @@ function Step2Plan({
 
               const features = p.features || [];
 
-              const isYearly =
-                hasPaidPlans &&
-                billingInterval === "year" &&
-                p.price != null &&
-                p.price > 0;
+              const isPaidPlan = p.stripePrices?.month?.unitAmount > 0 || p.stripePrices?.year?.unitAmount > 0 || (p.price != null && p.price > 0);
+              const isYearly = hasPaidPlans && billingInterval === "year" && isPaidPlan;
 
               let displayPrice;
               let yearlyTotal = null;
-              if (p.price === 0 || p.price == null) {
+              if (p.price === 0 && !isPaidPlan) {
                 displayPrice = "Free";
               } else if (isYearly && p.stripePrices?.year?.unitAmount) {
                 const monthlyEquiv = p.stripePrices.year.unitAmount / 100 / 12;
                 displayPrice = `$${monthlyEquiv.toFixed(2)}`;
                 yearlyTotal = (p.stripePrices.year.unitAmount / 100).toFixed(2);
-              } else if (isYearly) {
-                displayPrice = `$${(p.price * 0.8).toFixed(2)}`;
-                yearlyTotal = (p.price * 12 * 0.8).toFixed(2);
               } else if (p.stripePrices?.month?.unitAmount) {
                 displayPrice = `$${(p.stripePrices.month.unitAmount / 100).toFixed(2)}`;
+              } else if (!isPaidPlan) {
+                displayPrice = "Free";
               } else {
-                displayPrice = `$${Number(p.price).toFixed(2)}`;
+                displayPrice = "—";
               }
 
               return (
@@ -381,6 +401,7 @@ export default function OnboardingWizard() {
   const [plan, setPlan] = useState(null);
   const [billingInterval, setBillingInterval] = useState("month");
   const [apiPlans, setApiPlans] = useState([]);
+  const [subscriptionProducts, setSubscriptionProducts] = useState([]);
   const [apiLoading, setApiLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -388,10 +409,13 @@ export default function OnboardingWizard() {
   useEffect(() => {
     if (role) {
       setApiLoading(true);
-      AppApi.getBillingPlans(role)
-        .then((r) => setApiPlans(r.plans || []))
-        .catch(() => setApiPlans([]))
-        .finally(() => setApiLoading(false));
+      Promise.all([
+        AppApi.getBillingPlans(role).then((r) => r.plans || []).catch(() => []),
+        AppApi.getSubscriptionProductsByRole(role).catch(() => []),
+      ]).then(([plans, products]) => {
+        setApiPlans(plans);
+        setSubscriptionProducts(Array.isArray(products) ? products : []);
+      }).finally(() => setApiLoading(false));
     }
   }, [role]);
 
@@ -462,6 +486,7 @@ export default function OnboardingWizard() {
               billingInterval={billingInterval}
               onBillingIntervalChange={setBillingInterval}
               apiPlans={apiPlans}
+              subscriptionProducts={subscriptionProducts}
               apiLoading={apiLoading}
             />
           )}

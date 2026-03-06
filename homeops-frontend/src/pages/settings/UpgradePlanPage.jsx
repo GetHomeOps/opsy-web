@@ -103,10 +103,8 @@ function UpgradePlanPage() {
       const amount = priceObj.unitAmount / 100;
       return `$${amount % 1 === 0 ? amount : amount.toFixed(2)}`;
     }
-    if (plan.price != null) {
-      return plan.price === 0 ? "Free" : `$${plan.price}`;
-    }
-    return plan.priceLabel || "—";
+    if (plan.price === 0) return "Free";
+    return "—";
   }
 
   function getPlanFeatures(plan) {

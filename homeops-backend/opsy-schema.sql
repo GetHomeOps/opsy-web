@@ -405,7 +405,7 @@ CREATE INDEX idx_invitations_property ON invitations(property_id, status);
 
 CREATE TABLE subscription_products (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
     description TEXT,
     target_role user_role NOT NULL,
     stripe_product_id VARCHAR(255),

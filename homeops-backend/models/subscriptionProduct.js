@@ -78,13 +78,6 @@ class SubscriptionProduct {
     if (!name) throw new BadRequestError("Name is required.");
     if (!targetRole) throw new BadRequestError("Target role is required.");
 
-    const duplicateCheck = await db.query(
-      `SELECT id FROM subscription_products WHERE LOWER(name) = LOWER($1)`,
-      [name]
-    );
-    if (duplicateCheck.rows.length > 0) {
-      throw new BadRequestError(`Product "${name}" already exists.`);
-    }
     const hasBilling = await hasBillingColumns();
     if (hasBilling && code) {
       const codeCheck = await db.query(
@@ -165,22 +158,39 @@ class SubscriptionProduct {
     );
     const products = result.rows;
     try {
-      const priceRes = await db.query(
-        `SELECT subscription_product_id AS "subscriptionProductId", billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId", unit_amount AS "unitAmount", currency
-         FROM plan_prices ORDER BY subscription_product_id, billing_interval`
-      );
+      const [priceRes, limitsRes] = await Promise.all([
+        db.query(
+          `SELECT subscription_product_id AS "subscriptionProductId", billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId", unit_amount AS "unitAmount", currency
+           FROM plan_prices ORDER BY subscription_product_id, billing_interval`
+        ),
+        db.query(
+          `SELECT subscription_product_id AS "subscriptionProductId", max_properties AS "maxProperties", max_contacts AS "maxContacts",
+                  ai_token_monthly_quota AS "aiTokenMonthlyQuota"
+           FROM plan_limits`
+        ),
+      ]);
       const pricesByProduct = {};
       for (const row of priceRes.rows) {
         const pid = row.subscriptionProductId;
         if (!pricesByProduct[pid]) pricesByProduct[pid] = [];
         pricesByProduct[pid].push({ billingInterval: row.billingInterval, stripePriceId: row.stripePriceId, unitAmount: row.unitAmount, currency: row.currency });
       }
+      const limitsByProduct = {};
+      for (const row of limitsRes.rows) {
+        limitsByProduct[row.subscriptionProductId] = {
+          maxProperties: row.maxProperties,
+          maxContacts: row.maxContacts,
+          aiTokenMonthlyQuota: row.aiTokenMonthlyQuota,
+        };
+      }
       for (const p of products) {
         p.prices = pricesByProduct[p.id] || [];
+        p.limits = limitsByProduct[p.id] || null;
       }
     } catch (e) {
       for (const p of products) {
         p.prices = [];
+        p.limits = null;
       }
     }
     return products;
@@ -210,6 +220,17 @@ class SubscriptionProduct {
   static async update(id, data) {
     const { limits, prices, ...productData } = data;
     const hasBilling = await hasBillingColumns();
+
+    if (productData.code != null && productData.code !== "") {
+      const codeCheck = await db.query(
+        `SELECT id FROM subscription_products WHERE code = $1 AND id != $2`,
+        [productData.code, id]
+      );
+      if (codeCheck.rows.length > 0) {
+        throw new BadRequestError(`Product with code "${productData.code}" already exists. Use a unique code (e.g. maintain-agent, maintain-homeowner).`);
+      }
+    }
+
     const jsToSql = {
       name: "name",
       description: "description",
@@ -227,11 +248,18 @@ class SubscriptionProduct {
     };
     const { setCols, values } = sqlForPartialUpdate(productData, jsToSql);
     if (setCols) {
-      const idVarIdx = "$" + (values.length + 1);
-      await db.query(
-        `UPDATE subscription_products SET ${setCols}, updated_at = NOW() WHERE id = ${idVarIdx}`,
-        [...values, id]
-      );
+      try {
+        const idVarIdx = "$" + (values.length + 1);
+        await db.query(
+          `UPDATE subscription_products SET ${setCols}, updated_at = NOW() WHERE id = ${idVarIdx}`,
+          [...values, id]
+        );
+      } catch (e) {
+        if (e.code === "23505" && e.constraint === "subscription_products_code_key") {
+          throw new BadRequestError(`Product with code "${productData.code}" already exists. Use a unique code (e.g. maintain-agent, maintain-homeowner).`);
+        }
+        throw e;
+      }
     }
     try {
       if (limits) await upsertPlanLimits(id, limits);

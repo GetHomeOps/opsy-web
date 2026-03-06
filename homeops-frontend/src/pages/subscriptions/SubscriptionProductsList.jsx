@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useReducer, useMemo} from "react";
+import React, {useState, useEffect, useReducer, useMemo, useRef} from "react";
 import {useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 
@@ -6,7 +6,6 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import Banner from "../../partials/containers/Banner";
-import ModalBlank from "../../components/ModalBlank";
 import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
@@ -14,14 +13,16 @@ import AppApi from "../../api/api";
 
 const PAGE_STORAGE_KEY = "subscription_products_list_page";
 
+const FILTER_CATEGORIES = [
+  {type: "userType", labelKey: "subscriptionProducts.userType"},
+];
+
 const initialState = {
   currentPage: 1,
   itemsPerPage: 10,
   searchTerm: "",
-  showArchived: false,
+  activeFilters: [],
   isLoading: true,
-  isSubmitting: false,
-  dangerModalOpen: false,
   bannerOpen: false,
   bannerType: "success",
   bannerMessage: "",
@@ -38,14 +39,33 @@ function reducer(state, action) {
       return {...state, itemsPerPage: action.payload};
     case "SET_SEARCH_TERM":
       return {...state, searchTerm: action.payload};
-    case "SET_SHOW_ARCHIVED":
-      return {...state, showArchived: action.payload};
+    case "ADD_FILTER": {
+      const exists = state.activeFilters.some(
+        (f) =>
+          f.type === action.payload.type && f.value === action.payload.value,
+      );
+      if (exists) return state;
+      return {
+        ...state,
+        activeFilters: [...state.activeFilters, action.payload],
+        currentPage: 1,
+      };
+    }
+    case "REMOVE_FILTER":
+      return {
+        ...state,
+        activeFilters: state.activeFilters.filter(
+          (f) =>
+            !(
+              f.type === action.payload.type && f.value === action.payload.value
+            ),
+        ),
+        currentPage: 1,
+      };
+    case "CLEAR_FILTERS":
+      return {...state, activeFilters: [], currentPage: 1};
     case "SET_LOADING":
       return {...state, isLoading: action.payload};
-    case "SET_SUBMITTING":
-      return {...state, isSubmitting: action.payload};
-    case "SET_DANGER_MODAL":
-      return {...state, dangerModalOpen: action.payload};
     case "SET_BANNER":
       return {
         ...state,
@@ -62,6 +82,186 @@ function reducer(state, action) {
     default:
       return state;
   }
+}
+
+/* ─── Filter Dropdown (like PropertiesList) ───────────────────── */
+
+function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
+  const [open, setOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(null);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setOpen(false);
+        setActiveCategory(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const isFilterActive = (type, value) =>
+    activeFilters.some((f) => f.type === type && f.value === value);
+
+  const toggleFilter = (type, value, label) => {
+    if (isFilterActive(type, value)) {
+      onRemove({type, value});
+    } else {
+      onAdd({type, value, label});
+    }
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((v) => !v);
+          setActiveCategory(null);
+        }}
+        className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+      >
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+          />
+        </svg>
+        {t("filter")}
+        {activeFilters.length > 0 && (
+          <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
+            {activeFilters.length}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-30 min-w-[200px] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+          {!activeCategory ? (
+            <ul className="py-1.5">
+              {FILTER_CATEGORIES.map((cat) => {
+                const count = activeFilters.filter(
+                  (f) => f.type === cat.type,
+                ).length;
+                return (
+                  <li key={cat.type}>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                      onClick={() => setActiveCategory(cat.type)}
+                    >
+                      <span>{t(cat.labelKey)}</span>
+                      <span className="flex items-center gap-1 text-gray-400">
+                        {count > 0 && (
+                          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
+                            {count}
+                          </span>
+                        )}
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div>
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:bg-gray-50 dark:hover:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700/60 transition-colors"
+                onClick={() => setActiveCategory(null)}
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+                {t(
+                  FILTER_CATEGORIES.find((c) => c.type === activeCategory)
+                    ?.labelKey,
+                )}
+              </button>
+              <ul className="py-1.5 max-h-64 overflow-y-auto">
+                {(filterOptions[activeCategory] ?? []).map((opt) => {
+                  const active = isFilterActive(activeCategory, opt.value);
+                  return (
+                    <li key={opt.value}>
+                      <button
+                        type="button"
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                        onClick={() =>
+                          toggleFilter(activeCategory, opt.value, opt.label)
+                        }
+                      >
+                        <span
+                          className={`flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                            active
+                              ? "bg-violet-500 border-violet-500"
+                              : "border-gray-300 dark:border-gray-600"
+                          }`}
+                        >
+                          {active && (
+                            <svg
+                              className="w-3 h-3 text-white"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={3}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="truncate">{opt.label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+                {(filterOptions[activeCategory] ?? []).length === 0 && (
+                  <li className="px-3 py-3 text-sm text-gray-400 dark:text-gray-500 text-center">
+                    {t("noItemsFound")}
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SubscriptionProductsList() {
@@ -132,6 +332,17 @@ function SubscriptionProductsList() {
     }
   }, [state.bannerOpen, state.bannerType, state.bannerMessage]);
 
+  // Filter options derived from products
+  const filterOptions = useMemo(() => {
+    const userTypes = [
+      {value: "agent", label: t("subscriptionProducts.agent") || "Agent"},
+      {value: "homeowner", label: t("subscriptionProducts.homeowner") || "Homeowner"},
+    ];
+    return {
+      userType: userTypes,
+    };
+  }, [t]);
+
   // Sorting
   function handleSort(key) {
     setSortConfig((prev) => {
@@ -145,12 +356,7 @@ function SubscriptionProductsList() {
 
   // Filtered and sorted products
   const filteredProducts = useMemo(() => {
-    let items = [...state.products];
-
-    // Archived filter
-    if (!state.showArchived) {
-      items = items.filter((p) => p.isActive !== false);
-    }
+    let items = state.products.filter((p) => p.isActive !== false);
 
     // Search
     if (state.searchTerm) {
@@ -159,13 +365,29 @@ function SubscriptionProductsList() {
         const name = (product.name || "").toLowerCase();
         const description = (product.description || "").toLowerCase();
         const price = String(product.price || "");
+        const targetRole = (product.targetRole || "").toLowerCase();
 
         return (
           name.includes(searchLower) ||
           description.includes(searchLower) ||
-          price.includes(searchLower)
+          price.includes(searchLower) ||
+          targetRole.includes(searchLower)
         );
       });
+    }
+
+    // Active filters (OR within same type, AND across types)
+    const filtersByType = {};
+    state.activeFilters.forEach((f) => {
+      if (!filtersByType[f.type]) filtersByType[f.type] = [];
+      filtersByType[f.type].push(f.value);
+    });
+    if (filtersByType.userType?.length) {
+      items = items.filter((p) =>
+        filtersByType.userType.includes(
+          (p.targetRole || "").toLowerCase().trim(),
+        ),
+      );
     }
 
     // Sort
@@ -180,7 +402,7 @@ function SubscriptionProductsList() {
     }
 
     return items;
-  }, [state.products, state.searchTerm, sortConfig]);
+  }, [state.products, state.searchTerm, state.activeFilters, sortConfig]);
 
   // Current page items
   const currentProducts = useMemo(() => {
@@ -256,95 +478,28 @@ function SubscriptionProductsList() {
     });
   }
 
-  // Archive handlers (no deletion)
-  function handleArchiveClick() {
-    if (state.selectedItems.length === 0) {
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "error",
-          message:
-            t("subscriptionProducts.selectToArchive") ||
-            "Select products to archive.",
-        },
-      });
-      return;
-    }
-    dispatch({type: "SET_DANGER_MODAL", payload: true});
+  const DESCRIPTION_MAX_LENGTH = 50;
+
+  /** Truncate description with ellipsis */
+  function truncateDescription(text) {
+    if (!text) return "—";
+    if (text.length <= DESCRIPTION_MAX_LENGTH) return text;
+    return `${text.slice(0, DESCRIPTION_MAX_LENGTH).trim()}...`;
   }
 
-  async function handleArchive() {
-    if (state.selectedItems.length === 0) return;
-
-    dispatch({type: "SET_DANGER_MODAL", payload: false});
-    dispatch({type: "SET_SUBMITTING", payload: true});
-
-    try {
-      const archivedIds = [];
-      for (const productId of state.selectedItems) {
-        try {
-          await AppApi.archiveSubscriptionProduct(productId);
-          archivedIds.push(productId);
-        } catch (error) {
-          console.error(`Error archiving product ${productId}:`, error);
-        }
-      }
-
-      if (archivedIds.length > 0) {
-        const updated = state.products.map((p) =>
-          archivedIds.includes(p.id) ? {...p, isActive: false} : p,
-        );
-        dispatch({type: "SET_PRODUCTS", payload: updated});
-        dispatch({
-          type: "SET_SELECTED_ITEMS",
-          payload: state.selectedItems.filter(
-            (id) => !archivedIds.includes(id),
-          ),
-        });
-        dispatch({
-          type: "SET_BANNER",
-          payload: {
-            open: true,
-            type: "success",
-            message: `${archivedIds.length} ${t("subscriptionProducts.archivedSuccessfully") || "product(s) archived"}`,
-          },
-        });
-      }
-    } catch (error) {
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "error",
-          message: `${t("subscriptionProducts.archiveError") || "Archive failed"}: ${error}`,
-        },
-      });
-    } finally {
-      dispatch({type: "SET_SUBMITTING", payload: false});
-    }
-  }
-
-  /** Resolve display price from Stripe-linked plan_prices or fall back to legacy price */
-  function getProductDisplayPrice(product) {
+  /** Get display price for a specific billing interval (month or year). Exclusively from Stripe. */
+  function getPriceForInterval(product, interval) {
     const prices = product?.prices || [];
-    if (prices.length > 0 && stripePrices.length > 0) {
-      const parts = [];
-      for (const pr of prices) {
-        const sp = stripePrices.find((s) => s.id === pr.stripePriceId);
-        if (sp?.unitAmount != null) {
-          const formatted = new Intl.NumberFormat("en-US", {style: "currency", currency: sp.currency || "usd"}).format(sp.unitAmount / 100);
-          const interval = pr.billingInterval === "year" ? "yr" : "mo";
-          parts.push(`${formatted}/${interval}`);
-        } else if (pr.stripePriceId) {
-          parts.push(`Linked`);
-        }
+    const pr = prices.find((p) => p.billingInterval === interval);
+    if (pr) {
+      if (pr.unitAmount != null) {
+        return new Intl.NumberFormat("en-US", {style: "currency", currency: pr.currency || "usd"}).format(pr.unitAmount / 100);
       }
-      if (parts.length > 0) return parts.join(" · ");
-    }
-    const legacy = Number(product?.price ?? 0);
-    if (legacy > 0) {
-      return `$${legacy.toFixed(2)}`;
+      const sp = stripePrices.find((s) => s.id === pr.stripePriceId);
+      if (sp?.unitAmount != null) {
+        return new Intl.NumberFormat("en-US", {style: "currency", currency: sp.currency || "usd"}).format(sp.unitAmount / 100);
+      }
+      if (pr.stripePriceId) return "Linked";
     }
     return "—";
   }
@@ -355,34 +510,93 @@ function SubscriptionProductsList() {
       key: "name",
       label: t("name"),
       sortable: true,
-      render: (value, item) => (
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-800 dark:text-gray-100 capitalize">
-            {value || "—"}
-          </span>
-          {item?.isActive === false && (
-            <span className="text-xs px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-              Archived
-            </span>
-          )}
-        </div>
+      render: (value) => (
+        <span className="font-medium text-gray-800 dark:text-gray-100 capitalize">
+          {value || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "code",
+      label: t("subscriptionProducts.code") || "Code",
+      sortable: true,
+      render: (value) => (
+        <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">
+          {value || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "targetRole",
+      label: t("subscriptionProducts.userType") || "User Type",
+      sortable: true,
+      render: (value) => (
+        <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">
+          {value ? t(`subscriptionProducts.${value}`) || value : "—"}
+        </span>
       ),
     },
     {
       key: "description",
       label: t("description"),
       sortable: true,
-      render: (value) => value || "—",
-    },
-    {
-      key: "price",
-      label: t("subscriptionProducts.price"),
-      sortable: true,
-      render: (value, item) => (
-        <span className="font-medium text-gray-800 dark:text-gray-100">
-          {getProductDisplayPrice(item)}
+      className: "max-w-[160px] text-left",
+      render: (value) => (
+        <span className="block max-w-[160px] truncate" title={value || undefined}>
+          {truncateDescription(value)}
         </span>
       ),
+    },
+    {
+      key: "monthlyPrice",
+      label: t("subscriptionProducts.monthly") || "Monthly",
+      sortable: false,
+      render: (value, item) => (
+        <span className="font-medium text-gray-800 dark:text-gray-100">
+          {getPriceForInterval(item, "month")}
+        </span>
+      ),
+    },
+    {
+      key: "yearlyPrice",
+      label: t("subscriptionProducts.yearly") || "Yearly",
+      sortable: false,
+      render: (value, item) => (
+        <span className="font-medium text-gray-800 dark:text-gray-100">
+          {getPriceForInterval(item, "year")}
+        </span>
+      ),
+    },
+    {
+      key: "maxProperties",
+      label: t("subscriptionProducts.properties") || "Properties",
+      sortable: false,
+      render: (value, item) => {
+        const lim = item.limits || {};
+        const v = lim.maxProperties ?? item.maxProperties ?? "—";
+        return <span className="text-gray-700 dark:text-gray-300">{v}</span>;
+      },
+    },
+    {
+      key: "maxContacts",
+      label: t("subscriptionProducts.contacts") || "Contacts",
+      sortable: false,
+      render: (value, item) => {
+        const lim = item.limits || {};
+        const v = lim.maxContacts ?? item.maxContacts ?? "—";
+        return <span className="text-gray-700 dark:text-gray-300">{v}</span>;
+      },
+    },
+    {
+      key: "aiTokenMonthlyQuota",
+      label: t("subscriptionProducts.tokens") || "Tokens",
+      sortable: false,
+      render: (value, item) => {
+        const lim = item.limits || {};
+        const v = lim.aiTokenMonthlyQuota;
+        if (v == null) return <span className="text-gray-500">—</span>;
+        return <span className="text-gray-700 dark:text-gray-300">{v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}</span>;
+      },
     },
     {
       key: "createdAt",
@@ -446,65 +660,6 @@ function SubscriptionProductsList() {
           </Banner>
         </div>
 
-        {/* Danger Modal */}
-        <div className="m-1.5">
-          <ModalBlank
-            id="danger-modal"
-            modalOpen={state.dangerModalOpen}
-            setModalOpen={(open) =>
-              dispatch({type: "SET_DANGER_MODAL", payload: open})
-            }
-          >
-            <div className="p-5 flex space-x-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-gray-100 dark:bg-gray-700">
-                <svg
-                  className="shrink-0 fill-current text-red-500"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 16 16"
-                >
-                  <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 12c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm1-3H7V4h2v5z" />
-                </svg>
-              </div>
-              <div>
-                <div className="mb-2">
-                  <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                    {t("subscriptionProducts.archiveTitle", {
-                      count: state.selectedItems.length,
-                    }) || `Archive ${state.selectedItems.length} product(s)?`}
-                  </div>
-                </div>
-                <div className="text-sm mb-10">
-                  <p>
-                    {t("subscriptionProducts.archiveConfirmation") ||
-                      "Products will be hidden from active plans. Enable 'Show archived' to see them."}
-                  </p>
-                </div>
-                <div className="flex flex-wrap justify-end space-x-2">
-                  <button
-                    className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      dispatch({type: "SET_DANGER_MODAL", payload: false});
-                    }}
-                  >
-                    {t("cancel")}
-                  </button>
-                  <button
-                    className="btn-sm bg-amber-500 hover:bg-amber-600 text-white"
-                    onClick={handleArchive}
-                    disabled={state.isSubmitting}
-                  >
-                    {state.isSubmitting
-                      ? t("subscriptionProducts.archiving") || "Archiving..."
-                      : t("subscriptionProducts.archive") || "Archive"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </ModalBlank>
-        </div>
-
         <main className="grow">
           <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             {/* Page header */}
@@ -516,19 +671,6 @@ function SubscriptionProductsList() {
               </div>
 
               <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
-                {/* Archive button (when items selected) */}
-                {state.selectedItems.length > 0 && (
-                  <button
-                    className="btn border-gray-200 dark:border-gray-700/60 hover:border-amber-400 dark:hover:border-amber-500 text-amber-600 dark:text-amber-400"
-                    onClick={handleArchiveClick}
-                  >
-                    <span>
-                      {t("subscriptionProducts.archive") || "Archive"} (
-                      {state.selectedItems.length})
-                    </span>
-                  </button>
-                )}
-
                 {/* Add Product button */}
                 <button
                   className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
@@ -551,52 +693,96 @@ function SubscriptionProductsList() {
               </div>
             </div>
 
-            {/* Search bar + Show archived */}
-            <div className="mb-6">
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="relative flex-1 min-w-[200px]">
+            {/* Search + Filter (like PropertiesList) */}
+            <div className="mb-5 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                {/* Search - extends full width of table */}
+                <div className="relative flex-1 min-w-0">
                   <input
                     type="text"
-                    className="form-input w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-gray-300 dark:focus:border-gray-600 rounded-lg shadow-sm"
+                    className="form-input w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-gray-300 dark:focus:border-gray-600 rounded-lg shadow-sm text-sm"
                     placeholder={t("subscriptionProducts.searchPlaceholder")}
                     value={state.searchTerm}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "SET_SEARCH_TERM",
-                        payload: e.target.value,
-                      })
-                    }
+                    onChange={(e) => {
+                      dispatch({type: "SET_SEARCH_TERM", payload: e.target.value});
+                      dispatch({type: "SET_CURRENT_PAGE", payload: 1});
+                    }}
                   />
-                  <div className="absolute inset-0 flex items-center pointer-events-none pl-3">
+                  <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none pl-3">
                     <svg
-                      className="shrink-0 fill-current text-gray-400 dark:text-gray-500 ml-1 mr-2"
+                      className="shrink-0 fill-current text-gray-400 dark:text-gray-500 ml-1"
                       width="16"
                       height="16"
                       viewBox="0 0 16 16"
-                      xmlns="http://www.w3.org/2000/svg"
                     >
                       <path d="M7 14c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zM7 2C4.243 2 2 4.243 2 7s2.243 5 5 5 5-2.243 5-5-2.243-5-5-5z" />
                       <path d="M15.707 14.293L13.314 11.9a8.019 8.019 0 01-1.414 1.414l2.393 2.393a.997.997 0 001.414 0 .999.999 0 000-1.414z" />
                     </svg>
                   </div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={state.showArchived}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "SET_SHOW_ARCHIVED",
-                        payload: e.target.checked,
-                      })
+
+                {/* Filter button */}
+                <div className="flex items-center shrink-0">
+                  <FilterDropdown
+                    filterOptions={filterOptions}
+                    activeFilters={state.activeFilters}
+                    onAdd={(f) => dispatch({type: "ADD_FILTER", payload: f})}
+                    onRemove={(f) =>
+                      dispatch({type: "REMOVE_FILTER", payload: f})
                     }
-                    className="form-checkbox text-amber-500"
+                    t={t}
                   />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {t("subscriptionProducts.showArchived") || "Show archived"}
-                  </span>
-                </label>
+                </div>
               </div>
+
+              {/* Active filter chips */}
+              {state.activeFilters.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {state.activeFilters.map((f) => (
+                    <span
+                      key={`${f.type}-${f.value}`}
+                      className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20"
+                    >
+                      <span className="text-violet-400 dark:text-violet-500 font-normal">
+                        {t(
+                          FILTER_CATEGORIES.find((c) => c.type === f.type)
+                            ?.labelKey ?? f.type,
+                        )}
+                        :
+                      </span>
+                      {f.label}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          dispatch({type: "REMOVE_FILTER", payload: f})
+                        }
+                        className="ml-0.5 p-0.5 rounded-full hover:bg-violet-200 dark:hover:bg-violet-500/20 transition-colors"
+                      >
+                        <svg
+                          className="w-3 h-3"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2.5}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => dispatch({type: "CLEAR_FILTERS"})}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                  >
+                    {t("clearAll", {defaultValue: "Clear all"})}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Loading state */}

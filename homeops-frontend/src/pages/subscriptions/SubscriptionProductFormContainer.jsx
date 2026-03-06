@@ -2,7 +2,6 @@ import React, {useReducer, useEffect, useState} from "react";
 import {useNavigate, useParams, useLocation} from "react-router-dom";
 import {AlertCircle, Package} from "lucide-react";
 import Banner from "../../partials/containers/Banner";
-import ModalBlank from "../../components/ModalBlank";
 import {useTranslation} from "react-i18next";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
@@ -62,7 +61,6 @@ const initialState = {
   isNew: false,
   isLoading: true,
   bannerOpen: false,
-  dangerModalOpen: false,
   bannerType: "success",
   bannerMessage: "",
   formDataChanged: false,
@@ -101,8 +99,6 @@ function reducer(state, action) {
         bannerType: action.payload.type,
         bannerMessage: action.payload.message,
       };
-    case "SET_DANGER_MODAL":
-      return {...state, dangerModalOpen: action.payload};
     case "SET_FORM_CHANGED":
       return {
         ...state,
@@ -344,32 +340,6 @@ function SubscriptionProductFormContainer() {
     }
   }
 
-  /** Archive product (no deletion) */
-  async function confirmArchive() {
-    try {
-      dispatch({type: "SET_DANGER_MODAL", payload: false});
-      await AppApi.archiveSubscriptionProduct(Number(id));
-      navigate(`/${accountUrl}/subscription-products`);
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "success",
-          message: t("subscriptionProducts.archivedSuccessfully") || "Product archived successfully.",
-        },
-      });
-    } catch (error) {
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "error",
-          message: `${t("subscriptionProducts.archiveError") || "Archive failed"}: ${error.message || error}`,
-        },
-      });
-    }
-  }
-
   /** Cancel / Reset */
   function handleCancel() {
     if (state.product) {
@@ -506,58 +476,6 @@ function SubscriptionProductFormContainer() {
         </Banner>
       </div>
 
-      {/* Delete Modal */}
-      <div className="m-1.5">
-        <ModalBlank
-          id="danger-modal"
-          modalOpen={state.dangerModalOpen}
-          setModalOpen={(open) =>
-            dispatch({type: "SET_DANGER_MODAL", payload: open})
-          }
-        >
-          <div className="p-5 flex space-x-4">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-gray-100 dark:bg-gray-700">
-              <svg
-                className="shrink-0 fill-current text-red-500"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-              >
-                <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 12c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm1-3H7V4h2v5z" />
-              </svg>
-            </div>
-            <div>
-              <div className="mb-2">
-                <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                  {t("subscriptionProducts.archiveTitle") || "Archive product?"}
-                </div>
-              </div>
-              <div className="text-sm mb-10">
-                <p>
-                  {t("subscriptionProducts.archiveConfirmation") || "This will hide the product from active plans. You can restore it later."}
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-end space-x-2">
-                <button
-                  className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-                  onClick={() =>
-                    dispatch({type: "SET_DANGER_MODAL", payload: false})
-                  }
-                >
-                  {t("cancel")}
-                </button>
-                <button
-                  className="btn-sm bg-amber-500 hover:bg-amber-600 text-white"
-                  onClick={confirmArchive}
-                >
-                  {t("subscriptionProducts.archive") || "Archive"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </ModalBlank>
-      </div>
-
       <div className="px-0 sm:px-4 lg:px-5 xxl:px-12">
         {/* Navigation */}
         <div className="flex justify-between items-center mb-2">
@@ -579,16 +497,6 @@ function SubscriptionProductFormContainer() {
           </button>
 
           <div className="flex items-center gap-3">
-            {state.product && (
-              <button
-                className="btn border-gray-200 dark:border-gray-700/60 hover:border-amber-400 dark:hover:border-amber-500 text-amber-600 dark:text-amber-400"
-                onClick={() =>
-                  dispatch({type: "SET_DANGER_MODAL", payload: true})
-                }
-              >
-                {t("subscriptionProducts.archive") || "Archive"}
-              </button>
-            )}
             <button
               className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
               onClick={() => navigate(`/${accountUrl}/subscription-products/new`)}
@@ -726,7 +634,7 @@ function SubscriptionProductFormContainer() {
                       </select>
                     </div>
 
-                    {/* Code */}
+                    {/* Code — unique identifier; allows same display name for different roles (e.g. maintain-agent, maintain-homeowner) */}
                     <div>
                       <label className={getLabelClasses()} htmlFor="code">
                         Plan Code
@@ -737,8 +645,11 @@ function SubscriptionProductFormContainer() {
                         type="text"
                         value={state.formData.code}
                         onChange={handleChange}
-                        placeholder="e.g. homeowner_maintain"
+                        placeholder="e.g. maintain-agent, maintain-homeowner"
                       />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Unique identifier. Use this to differentiate products with the same name (e.g. maintain-agent, maintain-homeowner).
+                      </p>
                     </div>
 
                     {/* Sort Order & Trial Days */}
