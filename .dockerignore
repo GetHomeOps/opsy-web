@@ -1,0 +1,10 @@
+node_modules
+homeops-backend/node_modules
+homeops-frontend/node_modules
+homeops-backend/public
+.git
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
