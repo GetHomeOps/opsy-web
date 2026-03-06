@@ -378,15 +378,15 @@ router.post("/confirm", async function (req, res, next) {
 
 function redirectWithError(code) {
   const origin = process.env.APP_WEB_ORIGIN || "http://localhost:5173";
-  const base = (AUTH_SUCCESS_REDIRECT || `${origin}/#/auth/callback`).replace(/\/$/, "");
-  // HashRouter: #/auth/callback?error=...
+  const base = (AUTH_SUCCESS_REDIRECT || `${origin}/auth/callback`).replace(/\/$/, "");
+  // BrowserRouter: /auth/callback?error=...
   const sep = base.includes("?") ? "&" : "?";
   return `${base}${sep}error=${encodeURIComponent(code)}`;
 }
 
 function redirectWithToken(accessToken, refreshToken) {
   const origin = process.env.APP_WEB_ORIGIN || "http://localhost:5173";
-  const base = AUTH_SUCCESS_REDIRECT || `${origin}/#/auth/callback`;
+  const base = AUTH_SUCCESS_REDIRECT || `${origin}/auth/callback`;
   const params = new URLSearchParams({ token: accessToken, provider: "google" });
   if (refreshToken) params.set("refreshToken", refreshToken);
   const sep = base.includes("?") ? "&" : "?";

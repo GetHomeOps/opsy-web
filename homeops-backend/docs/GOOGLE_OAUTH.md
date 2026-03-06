@@ -9,7 +9,7 @@ This document describes how to configure "Sign in with Google" and "Sign up with
 3. Navigate to **APIs & Services** → **Credentials**
 4. Click **Create Credentials** → **OAuth client ID**
 5. Choose **Web application**
-6. Add **Authorized redirect URIs**:
+6. Add **Authorized redirect URIs** (must match exactly—no typos or truncation):
    - Local: `http://localhost:3000/auth/google/callback/signin`, `http://localhost:3000/auth/google/callback/signup`
    - Production: `https://your-api.example.com/auth/google/callback/signin`, `https://your-api.example.com/auth/google/callback/signup`
 7. Copy the **Client ID** and **Client secret**
@@ -28,7 +28,7 @@ APP_WEB_ORIGIN=http://localhost:5173
 
 ### Production
 
-Set `APP_WEB_ORIGIN` to your production frontend URL. The OAuth redirect will default to `{APP_WEB_ORIGIN}/#/auth/callback`:
+Set `APP_WEB_ORIGIN` to your production frontend URL. The OAuth redirect will default to `{APP_WEB_ORIGIN}/auth/callback` (path-based, for BrowserRouter):
 
 ```env
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
@@ -36,14 +36,14 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 GOOGLE_REDIRECT_URI_SIGNIN=https://api.yourdomain.com/auth/google/callback/signin
 GOOGLE_REDIRECT_URI_SIGNUP=https://api.yourdomain.com/auth/google/callback/signup
 APP_WEB_ORIGIN=https://app.yourdomain.com
-# Optional: override the redirect (defaults to https://app.yourdomain.com/#/auth/callback)
-# AUTH_SUCCESS_REDIRECT=https://app.yourdomain.com/#/auth/callback
+# Optional: override the redirect (defaults to https://app.yourdomain.com/auth/callback)
+# AUTH_SUCCESS_REDIRECT=https://app.yourdomain.com/auth/callback
 ```
 
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: From Google Console
-- `GOOGLE_REDIRECT_URI_*`: Must match exactly what you configured in Google Console (backend URL)
+- `GOOGLE_REDIRECT_URI_*`: Must match exactly what you configured in Google Console (backend URL). Ensure the signup URI ends with `/signup` (not truncated).
 - `APP_WEB_ORIGIN`: **Required when Google OAuth is enabled.** Your frontend origin (local: `http://localhost:5173`, production: `https://your-app.com`)
-- `AUTH_SUCCESS_REDIRECT`: Optional. Defaults to `{APP_WEB_ORIGIN}/#/auth/callback` (HashRouter). If your frontend uses BrowserRouter in production, set this to `{APP_WEB_ORIGIN}/auth/callback` instead.
+- `AUTH_SUCCESS_REDIRECT`: Optional. Defaults to `{APP_WEB_ORIGIN}/auth/callback` (path-based for BrowserRouter).
 - `SECRET_KEY` or `JWT_SECRET`: Used to sign JWTs (should already exist)
 
 If `GOOGLE_CLIENT_ID` is not set, Google OAuth is disabled. The server starts normally; the sign-in/sign-up pages will show the Google buttons, but clicking them returns 503 (not configured).
@@ -79,9 +79,9 @@ UPDATE users SET onboarding_completed = true WHERE onboarding_completed IS NULL;
 4. Go to `http://localhost:5173/signin` or `/signup`
 5. Click "Sign in with Google" or "Sign up with Google"
 6. Complete the Google consent flow
-7. You should be redirected to `/auth/callback` with a token in the hash, then to the app home
+7. You should be redirected to `/auth/callback` with a token in the query string, then to onboarding (new signups) or app home
 
-## Error Codes (in URL hash)
+## Error Codes (in URL query or hash)
 
 | Code           | Meaning                                                                 |
 |----------------|-------------------------------------------------------------------------|

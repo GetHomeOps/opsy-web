@@ -25,7 +25,7 @@ function AuthCallback() {
     if (processed.current) return;
     processed.current = true;
 
-    // HashRouter: token in hash (#/auth/callback?token=... or #token=...)
+    // Token in query params (BrowserRouter: /auth/callback?token=...) or hash (legacy)
     const queryParams = Object.fromEntries(searchParams);
     const hashRaw = window.location.hash?.slice(1) || "";
     const hashQuery = hashRaw.includes("?") ? hashRaw.split("?")[1] : hashRaw;

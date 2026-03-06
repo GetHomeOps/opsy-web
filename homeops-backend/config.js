@@ -24,8 +24,8 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI_SIGNIN = process.env.GOOGLE_REDIRECT_URI_SIGNIN;
 const GOOGLE_REDIRECT_URI_SIGNUP = process.env.GOOGLE_REDIRECT_URI_SIGNUP;
 const APP_WEB_ORIGIN = process.env.APP_WEB_ORIGIN;
-// HashRouter uses #/path; redirect must be origin + #/auth/callback
-const AUTH_SUCCESS_REDIRECT = process.env.AUTH_SUCCESS_REDIRECT || (process.env.APP_WEB_ORIGIN ? `${process.env.APP_WEB_ORIGIN}/#/auth/callback` : null);
+// BrowserRouter uses path-based URLs; redirect to origin + /auth/callback (no hash)
+const AUTH_SUCCESS_REDIRECT = process.env.AUTH_SUCCESS_REDIRECT || (process.env.APP_WEB_ORIGIN ? `${process.env.APP_WEB_ORIGIN}/auth/callback` : null);
 
 // Use dev database, testing database, or via env var, production database
 function getDatabaseUri() {
