@@ -207,6 +207,15 @@ async function handleCheckoutCompleted(session) {
        cancel_at_period_end = EXCLUDED.cancel_at_period_end, updated_at = NOW()`,
     [accountId, subscriptionProductId, subscription.id, session.customer, priceId, status, safeStart, safeEnd, cancelAtPeriodEnd]
   );
+
+  // Cancel any placeholder free subscriptions created at signup (before Stripe checkout).
+  // The paid subscription from Stripe is now the single active source of truth.
+  await db.query(
+    `UPDATE account_subscriptions
+     SET status = 'canceled', updated_at = NOW()
+     WHERE account_id = $1 AND stripe_subscription_id IS NULL AND status = 'active'`,
+    [accountId]
+  );
 }
 
 /** Process customer.subscription.updated / deleted */
@@ -267,6 +276,7 @@ async function handleSubscriptionUpdated(subscription) {
 
   const safeStart = toSafeTimestamp(periodStart, new Date());
   const safeEnd = toSafeTimestamp(periodEnd, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+  const accountId = accountByCustomer.rows[0].id;
 
   await db.query(
     `INSERT INTO account_subscriptions
@@ -277,8 +287,18 @@ async function handleSubscriptionUpdated(subscription) {
      DO UPDATE SET status = EXCLUDED.status, stripe_price_id = EXCLUDED.stripe_price_id,
        current_period_start = EXCLUDED.current_period_start, current_period_end = EXCLUDED.current_period_end,
        cancel_at_period_end = EXCLUDED.cancel_at_period_end, updated_at = NOW()`,
-    [accountByCustomer.rows[0].id, subscriptionProductId, subId, customerId, priceId, status, safeStart, safeEnd, cancelAtPeriodEnd]
+    [accountId, subscriptionProductId, subId, customerId, priceId, status, safeStart, safeEnd, cancelAtPeriodEnd]
   );
+
+  // Supersede placeholder free subscriptions when Stripe subscription is active
+  if (status === "active" || status === "trialing") {
+    await db.query(
+      `UPDATE account_subscriptions
+       SET status = 'canceled', updated_at = NOW()
+       WHERE account_id = $1 AND stripe_subscription_id IS NULL AND status = 'active'`,
+      [accountId]
+    );
+  }
 }
 
 /** Process invoice.payment_succeeded / invoice.payment_failed */
