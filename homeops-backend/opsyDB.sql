@@ -23,6 +23,8 @@ DROP TABLE IF EXISTS ai_action_drafts CASCADE;
 DROP TABLE IF EXISTS ai_messages CASCADE;
 DROP TABLE IF EXISTS ai_conversations CASCADE;
 DROP TABLE IF EXISTS property_ai_profiles CASCADE;
+DROP TABLE IF EXISTS property_ai_summary_state CASCADE;
+DROP TABLE IF EXISTS property_ai_reanalysis_audit CASCADE;
 DROP TABLE IF EXISTS inspection_checklist_items CASCADE;
 DROP TABLE IF EXISTS inspection_analysis_results CASCADE;
 DROP TABLE IF EXISTS inspection_analysis_jobs CASCADE;
@@ -61,41 +63,21 @@ DROP TABLE IF EXISTS refresh_tokens CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS resources CASCADE;
 DROP TABLE IF EXISTS user_api_usage CASCADE;
-DROP TABLE IF EXISTS invitations CASCADE;
-DROP TABLE IF EXISTS notifications CASCADE;
-DROP TABLE IF EXISTS document_chunks CASCADE;
-DROP TABLE IF EXISTS property_documents CASCADE;
-DROP TABLE IF EXISTS contractor_report_tokens CASCADE;
-DROP TABLE IF EXISTS property_maintenance CASCADE;
-DROP TABLE IF EXISTS property_systems CASCADE;
-DROP TABLE IF EXISTS property_users CASCADE;
-DROP TABLE IF EXISTS properties CASCADE;
-DROP TABLE IF EXISTS contact_tags CASCADE;
-DROP TABLE IF EXISTS account_contacts CASCADE;
-DROP TABLE IF EXISTS contacts CASCADE;
-DROP TABLE IF EXISTS tags CASCADE;
-DROP TABLE IF EXISTS account_users CASCADE;
-DROP TABLE IF EXISTS accounts CASCADE;
-DROP TABLE IF EXISTS mfa_backup_codes CASCADE;
-DROP TABLE IF EXISTS mfa_enrollment_temp CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS password_reset_tokens CASCADE;
-DROP TABLE IF EXISTS refresh_tokens CASCADE;
-DROP TABLE IF EXISTS resources CASCADE;
-DROP TABLE IF EXISTS user_api_usage CASCADE;
-DROP TABLE IF EXISTS property_ai_summary_state CASCADE;
-DROP TABLE IF EXISTS property_ai_reanalysis_audit CASCADE;
 
--- Drop old views
+-- Drop old views (legacy – may not exist in current schema)
 DROP VIEW IF EXISTS daily_platform_metrics CASCADE;
 DROP VIEW IF EXISTS database_analytics CASCADE;
-DROP VIEW IF EXISTS daily_platform_metrics CASCADE;
-DROP VIEW IF EXISTS daily_metrics_snapshot CASCADE;
-DROP VIEW IF EXISTS account_analytics_snapshot CASCADE;
 DROP VIEW IF EXISTS notifications_view CASCADE;
-DROP VIEW IF EXISTS property_ai_summary_state CASCADE;
-DROP VIEW IF EXISTS property_ai_reanalysis_audit CASCADE;
 
+-- Drop existing extensions
+DROP EXTENSION IF EXISTS pgvector CASCADE;
+DROP EXTENSION IF EXISTS pgcrypto CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_statements CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache_sample CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache_sample_history CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache_sample_history_summary CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache_sample_history_summary_daily CASCADE;
 
 
 -- Drop existing types
