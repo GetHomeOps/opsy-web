@@ -163,7 +163,27 @@ class SubscriptionProduct {
     const result = await db.query(
       `SELECT ${cols} FROM subscription_products ORDER BY name ASC`
     );
-    return result.rows;
+    const products = result.rows;
+    try {
+      const priceRes = await db.query(
+        `SELECT subscription_product_id AS "subscriptionProductId", billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId", unit_amount AS "unitAmount", currency
+         FROM plan_prices ORDER BY subscription_product_id, billing_interval`
+      );
+      const pricesByProduct = {};
+      for (const row of priceRes.rows) {
+        const pid = row.subscriptionProductId;
+        if (!pricesByProduct[pid]) pricesByProduct[pid] = [];
+        pricesByProduct[pid].push({ billingInterval: row.billingInterval, stripePriceId: row.stripePriceId, unitAmount: row.unitAmount, currency: row.currency });
+      }
+      for (const p of products) {
+        p.prices = pricesByProduct[p.id] || [];
+      }
+    } catch (e) {
+      for (const p of products) {
+        p.prices = [];
+      }
+    }
+    return products;
   }
 
   static async getByName(name) {

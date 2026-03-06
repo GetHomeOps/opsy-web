@@ -77,14 +77,20 @@ function SubscriptionProductsList() {
 
   // Sort state
   const [sortConfig, setSortConfig] = useState({key: null, direction: null});
+  const [stripePrices, setStripePrices] = useState([]);
 
-  // Fetch products on mount
+  // Fetch products and Stripe prices on mount
   useEffect(() => {
     async function fetchProducts() {
       try {
         dispatch({type: "SET_LOADING", payload: true});
-        const products = await AppApi.getAllSubscriptionProducts();
-        dispatch({type: "SET_PRODUCTS", payload: products || []});
+        const [productsRes, stripeRes] = await Promise.allSettled([
+          AppApi.getAllSubscriptionProducts(),
+          AppApi.getStripePrices().catch(() => ({prices: []})),
+        ]);
+        const products = productsRes.status === "fulfilled" ? (productsRes.value || []) : [];
+        dispatch({type: "SET_PRODUCTS", payload: products});
+        setStripePrices(stripeRes.status === "fulfilled" ? (stripeRes.value?.prices || []) : []);
       } catch (err) {
         console.error("Error fetching subscription products:", err);
         dispatch({
@@ -319,6 +325,30 @@ function SubscriptionProductsList() {
     }
   }
 
+  /** Resolve display price from Stripe-linked plan_prices or fall back to legacy price */
+  function getProductDisplayPrice(product) {
+    const prices = product?.prices || [];
+    if (prices.length > 0 && stripePrices.length > 0) {
+      const parts = [];
+      for (const pr of prices) {
+        const sp = stripePrices.find((s) => s.id === pr.stripePriceId);
+        if (sp?.unitAmount != null) {
+          const formatted = new Intl.NumberFormat("en-US", {style: "currency", currency: sp.currency || "usd"}).format(sp.unitAmount / 100);
+          const interval = pr.billingInterval === "year" ? "yr" : "mo";
+          parts.push(`${formatted}/${interval}`);
+        } else if (pr.stripePriceId) {
+          parts.push(`Linked`);
+        }
+      }
+      if (parts.length > 0) return parts.join(" · ");
+    }
+    const legacy = Number(product?.price ?? 0);
+    if (legacy > 0) {
+      return `$${legacy.toFixed(2)}`;
+    }
+    return "—";
+  }
+
   // Table columns
   const columns = [
     {
@@ -348,9 +378,9 @@ function SubscriptionProductsList() {
       key: "price",
       label: t("subscriptionProducts.price"),
       sortable: true,
-      render: (value) => (
+      render: (value, item) => (
         <span className="font-medium text-gray-800 dark:text-gray-100">
-          ${Number(value || 0).toFixed(2)}
+          {getProductDisplayPrice(item)}
         </span>
       ),
     },

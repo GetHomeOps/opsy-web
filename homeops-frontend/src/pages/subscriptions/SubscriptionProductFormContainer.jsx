@@ -412,17 +412,32 @@ function SubscriptionProductFormContainer() {
     };
   }
 
-  /** Display price from Stripe-linked plan_prices (match stripePrices) or placeholder */
+  /** Display price from form selections or product's plan_prices (match stripePrices) */
   function getDisplayPrice() {
-    const priceMonth = state.product?.prices?.find((p) => p.billingInterval === "month" || p.billing_interval === "month");
-    const priceYear = state.product?.prices?.find((p) => p.billingInterval === "year" || p.billing_interval === "year");
-    const stripeId = priceMonth?.stripePriceId ?? priceYear?.stripePriceId;
-    if (stripeId && stripePrices.length > 0) {
-      const sp = stripePrices.find((p) => p.id === stripeId);
-      if (sp?.unitAmount != null) return formatStripePrice(sp.unitAmount, sp.currency);
-      return "Linked to Stripe";
+    const idMonth = state.formData.stripePriceIdMonth || state.product?.prices?.find((p) => p.billingInterval === "month" || p.billing_interval === "month")?.stripePriceId;
+    const idYear = state.formData.stripePriceIdYear || state.product?.prices?.find((p) => p.billingInterval === "year" || p.billing_interval === "year")?.stripePriceId;
+    const parts = [];
+    if (idMonth && stripePrices.length > 0) {
+      const sp = stripePrices.find((p) => p.id === idMonth);
+      if (sp?.unitAmount != null) parts.push(`${formatStripePrice(sp.unitAmount, sp.currency)}/mo`);
+      else if (idMonth) parts.push("Monthly linked");
     }
+    if (idYear && stripePrices.length > 0) {
+      const sp = stripePrices.find((p) => p.id === idYear);
+      if (sp?.unitAmount != null) parts.push(`${formatStripePrice(sp.unitAmount, sp.currency)}/yr`);
+      else if (idYear) parts.push("Annual linked");
+    }
+    if (parts.length > 0) return parts.join(" · ");
     return "Select from Stripe";
+  }
+
+  /** Get display text for a selected Stripe price ID */
+  function getSelectedPriceLabel(stripePriceId, interval) {
+    if (!stripePriceId || stripePrices.length === 0) return null;
+    const sp = stripePrices.find((p) => p.id === stripePriceId);
+    if (!sp) return "Stripe price selected";
+    const amt = sp.unitAmount != null ? formatStripePrice(sp.unitAmount, sp.currency) : (sp.nickname || "Custom");
+    return `${sp.productName || "Product"} — ${amt}/${sp.interval || interval}`;
   }
 
   const getLabelClasses = () =>
@@ -649,7 +664,7 @@ function SubscriptionProductFormContainer() {
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 capitalize">
                   {getPageTitle()}
                 </h1>
-                {state.product && (
+                {getDisplayPrice() !== "Select from Stripe" && (
                   <div className="mt-2 space-y-1">
                     <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
                       <span className="font-medium">{getDisplayPrice()}</span>
@@ -810,20 +825,34 @@ function SubscriptionProductFormContainer() {
                     Select prices from your Stripe account. Ensure STRIPE_SECRET_KEY is set.
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <StripePriceSelect
-                      label="Monthly price"
-                      prices={stripePrices}
-                      value={state.formData.stripePriceIdMonth}
-                      onChange={(v) => handleStripePriceChange("month", v)}
-                      disabled={state.isSubmitting}
-                    />
-                    <StripePriceSelect
-                      label="Annual price"
-                      prices={stripePrices}
-                      value={state.formData.stripePriceIdYear}
-                      onChange={(v) => handleStripePriceChange("year", v)}
-                      disabled={state.isSubmitting}
-                    />
+                    <div>
+                      <StripePriceSelect
+                        label="Monthly price"
+                        prices={stripePrices}
+                        value={state.formData.stripePriceIdMonth}
+                        onChange={(v) => handleStripePriceChange("month", v)}
+                        disabled={state.isSubmitting}
+                      />
+                      {state.formData.stripePriceIdMonth && getSelectedPriceLabel(state.formData.stripePriceIdMonth, "month") && (
+                        <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
+                          Selected: {getSelectedPriceLabel(state.formData.stripePriceIdMonth, "month")}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <StripePriceSelect
+                        label="Annual price"
+                        prices={stripePrices}
+                        value={state.formData.stripePriceIdYear}
+                        onChange={(v) => handleStripePriceChange("year", v)}
+                        disabled={state.isSubmitting}
+                      />
+                      {state.formData.stripePriceIdYear && getSelectedPriceLabel(state.formData.stripePriceIdYear, "year") && (
+                        <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
+                          Selected: {getSelectedPriceLabel(state.formData.stripePriceIdYear, "year")}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   {stripePrices.length === 0 && (
                     <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
