@@ -48,12 +48,16 @@ if (install.status !== 0) {
 }
 
 // Build frontend (Vite outputs to dist/)
-// VITE_BASE_URL="" for same-origin API calls when served from backend
+// Pass VITE_* vars so they're baked into the bundle at build time
 const build = spawnSync('pnpm', ['run', 'build'], {
   cwd: frontendPath,
   stdio: 'inherit',
   shell: true,
-  env: { ...process.env, VITE_BASE_URL: process.env.VITE_BASE_URL || '' },
+  env: {
+    ...process.env,
+    VITE_BASE_URL: process.env.VITE_BASE_URL || '',
+    VITE_GOOGLE_PLACES_API_KEY: process.env.VITE_GOOGLE_PLACES_API_KEY || '',
+  },
 });
 if (build.status !== 0) {
   console.error('Frontend build failed');

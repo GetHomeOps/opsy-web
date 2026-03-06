@@ -1,5 +1,12 @@
 FROM node:20-slim
 
+# Build args for Vite client env vars (baked into bundle at build time)
+# Railway passes env vars as build args when building
+ARG VITE_BASE_URL
+ARG VITE_GOOGLE_PLACES_API_KEY
+ENV VITE_BASE_URL=$VITE_BASE_URL
+ENV VITE_GOOGLE_PLACES_API_KEY=$VITE_GOOGLE_PLACES_API_KEY
+
 WORKDIR /app
 
 # Copy everything (frontend + backend)
