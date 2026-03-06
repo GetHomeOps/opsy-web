@@ -1,8 +1,15 @@
-// In dev, use '' to hit same-origin (Vite proxy forwards to backend). Otherwise use explicit URL.
+// In dev/same-origin, use '' (fetch relative to current origin). Otherwise use explicit URL.
 export const API_BASE_URL =
   import.meta.env.VITE_BASE_URL ??
   (import.meta.env.DEV ? "" : "http://localhost:3000");
 const BASE_URL = API_BASE_URL;
+
+// new URL() requires absolute URL; use window.location.origin when BASE_URL is empty (same-origin deploy)
+function buildApiUrl(endpoint) {
+  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const base = BASE_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+  return new URL(path, base);
+}
 
 const TOKEN_STORAGE_KEY = "app-token";
 const REFRESH_TOKEN_STORAGE_KEY = "app-refresh-token";
@@ -104,7 +111,7 @@ class AppApi {
   }
 
   static async request(endpoint, data = {}, method = "GET", customHeaders = {}) {
-    const url = new URL(`${BASE_URL}/${endpoint}`);
+    const url = buildApiUrl(endpoint);
     const token = await AppApi.ensureValidToken(endpoint);
     const headers = {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -138,7 +145,7 @@ class AppApi {
   }
 
   static async requestFormData(endpoint, formData, method = "POST") {
-    const url = new URL(`${BASE_URL}/${endpoint}`);
+    const url = buildApiUrl(endpoint);
     const token = await AppApi.ensureValidToken(endpoint);
     const headers = { ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
