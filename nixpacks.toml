@@ -5,7 +5,8 @@ nixPkgs = ["nodejs_20", "npm", "corepack"]
 cmds = ["cd homeops-backend && npm install"]
 
 [phases.build]
+dependsOn = ["install"]
 cmds = ["cd homeops-backend && npm run build"]
 
 [start]
-cmd = "cd homeops-backend && npm start"
+cmd = "cd homeops-backend && node server.js"
