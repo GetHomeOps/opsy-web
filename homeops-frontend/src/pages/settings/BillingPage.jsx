@@ -1,7 +1,7 @@
 import React, {useState, useEffect} from "react";
 import {useTranslation} from "react-i18next";
 import {useNavigate} from "react-router-dom";
-import {Sparkles, Loader2} from "lucide-react";
+import {Sparkles, Loader2, CreditCard, FileText, ExternalLink} from "lucide-react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
@@ -22,6 +22,8 @@ function BillingPage() {
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const [billing, setBilling] = useState(null);
   const [plans, setPlans] = useState([]);
+  const [paymentMethod, setPaymentMethod] = useState(null);
+  const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -40,16 +42,16 @@ function BillingPage() {
     async function fetch() {
       try {
         setError(null);
-        const [statusRes, plansRes] = await Promise.all([
-          AppApi.getBillingStatus(accountId)
-            .then((r) => r)
-            .catch(() => null),
-          AppApi.getBillingPlans(targetRole)
-            .then((r) => r.plans || [])
-            .catch(() => []),
+        const [statusRes, plansRes, pmRes, invoicesRes] = await Promise.all([
+          AppApi.getBillingStatus(accountId).then((r) => r).catch(() => null),
+          AppApi.getBillingPlans(targetRole).then((r) => r.plans || []).catch(() => []),
+          AppApi.getBillingPaymentMethod(accountId).then((r) => r?.paymentMethod).catch(() => null),
+          AppApi.getBillingInvoices(accountId).then((r) => r?.invoices || []).catch(() => []),
         ]);
         setBilling(statusRes);
         setPlans(plansRes);
+        setPaymentMethod(pmRes);
+        setInvoices(invoicesRes);
       } catch (err) {
         setError(err?.message || "Failed to load billing data");
       } finally {
@@ -202,6 +204,120 @@ function BillingPage() {
                     )}
                   </div>
                 </section>
+
+                {(sub || billing?.mockMode) && (
+                  <section className="rounded-xl bg-white dark:bg-gray-800 shadow-xs overflow-hidden">
+                    <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700/60 flex flex-wrap items-center justify-between gap-4">
+                      <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                        {t("settings.paymentMethod") || "Payment Method"}
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={handleManageBilling}
+                        disabled={portalLoading}
+                        className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
+                      >
+                        {paymentMethod
+                          ? (t("settings.updatePaymentMethod") || "Update")
+                          : (t("settings.addPaymentMethod") || "Add payment method")}
+                      </button>
+                    </div>
+                    <div className="p-6">
+                      {paymentMethod ? (
+                        <div className="flex items-center gap-3">
+                          <CreditCard className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                          <span className="text-gray-800 dark:text-gray-100 capitalize">
+                            {paymentMethod.brand} •••• {paymentMethod.last4}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {t("settings.noPaymentMethod") ||
+                            "No payment method on file. Use Manage billing to add one."}
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {(sub || billing?.mockMode) && (
+                  <section className="rounded-xl bg-white dark:bg-gray-800 shadow-xs overflow-hidden">
+                    <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700/60">
+                      <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                        {t("settings.invoiceHistory") || "Invoice History"}
+                      </h2>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {t("settings.invoiceHistoryDescription") ||
+                          "View and download your past invoices."}
+                      </p>
+                    </div>
+                    <div className="p-6">
+                      {invoices.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                                <th className="pb-3 font-medium">{t("settings.invoiceDate") || "Date"}</th>
+                                <th className="pb-3 font-medium">{t("settings.invoiceAmount") || "Amount"}</th>
+                                <th className="pb-3 font-medium text-right">{t("settings.invoiceActions") || "Actions"}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {invoices.map((inv) => (
+                                <tr
+                                  key={inv.id}
+                                  className="border-b border-gray-100 dark:border-gray-700/60"
+                                >
+                                  <td className="py-3 text-gray-800 dark:text-gray-200">
+                                    {inv.created
+                                      ? formatDate(inv.created)
+                                      : "—"}
+                                  </td>
+                                  <td className="py-3 text-gray-800 dark:text-gray-200">
+                                    {inv.currency?.toUpperCase() === "USD"
+                                      ? `$${((inv.amountDue || 0) / 100).toFixed(2)}`
+                                      : `${(inv.amountDue || 0) / 100} ${(inv.currency || "").toUpperCase()}`}
+                                  </td>
+                                  <td className="py-3 text-right">
+                                    <div className="flex justify-end gap-2">
+                                      {inv.hostedInvoiceUrl && (
+                                        <a
+                                          href={inv.hostedInvoiceUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400 hover:underline"
+                                        >
+                                          <ExternalLink className="w-4 h-4" />
+                                          {t("settings.viewInvoice") || "View"}
+                                        </a>
+                                      )}
+                                      {inv.invoicePdf && (
+                                        <a
+                                          href={inv.invoicePdf}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-violet-600 dark:text-violet-400 hover:underline"
+                                        >
+                                          <FileText className="w-4 h-4" />
+                                          PDF
+                                        </a>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {t("settings.noInvoices") ||
+                            "No invoices yet. Invoices appear here after your first payment."}
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                )}
 
                 {limits && (
                   <section className="rounded-xl bg-white dark:bg-gray-800 shadow-xs overflow-hidden">

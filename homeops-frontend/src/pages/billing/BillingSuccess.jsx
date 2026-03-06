@@ -28,9 +28,12 @@ export default function BillingSuccess() {
         return;
       }
 
+      let accountId = null;
       try {
         await AppApi.completeOnboarding({role, subscriptionTier: plan});
-        await refreshCurrentUser();
+        const user = await refreshCurrentUser();
+        const accounts = await AppApi.getUserAccounts(user?.id).catch(() => []);
+        accountId = accounts?.[0]?.id;
       } catch (err) {
         if (!cancelled) setError(err?.message || "Failed to complete setup.");
         return;
@@ -40,7 +43,7 @@ export default function BillingSuccess() {
       const poll = async () => {
         if (cancelled || Date.now() - start > POLL_TIMEOUT_MS) return;
         try {
-          const res = await AppApi.getBillingStatus();
+          const res = await AppApi.getBillingStatus(accountId);
           if (res?.subscription?.status === "active" || res?.subscription?.status === "trialing" || res?.mockMode) {
             setStatus("active");
             const user = await refreshCurrentUser();

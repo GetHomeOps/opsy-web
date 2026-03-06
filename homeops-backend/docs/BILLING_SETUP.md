@@ -87,3 +87,37 @@ stripe listen --forward-to localhost:3000/webhooks/stripe
 ## Free Trial
 
 Plans can have a `trial_days` value (editable in Super Admin Billing Plans). Default: 14 days for paid tiers, null for free.
+
+---
+
+## Production Go-Live Checklist
+
+Before going live, complete these steps:
+
+1. **Switch to live keys**
+   - Replace `sk_test_` / `pk_test_` / `whsec_` (test) with `sk_live_` / `pk_live_` (live) in your production `.env`
+   - Use a **new** webhook secret from a live webhook endpoint (not the Stripe CLI secret)
+
+2. **Create production webhook**
+   - Stripe Dashboard → Developers → Webhooks → Add endpoint
+   - URL: `https://your-api.com/webhooks/stripe`
+   - Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
+   - Copy the signing secret to `STRIPE_WEBHOOK_SECRET`
+
+3. **Create live products and prices**
+   - Test-mode products/prices are not available in live mode
+   - Create Products and Prices in Stripe Dashboard (live mode)
+   - Map Price IDs in Super Admin > Billing Plans, or via `STRIPE_PRICE_IDS` env
+
+4. **Set production URLs**
+   - `APP_BASE_URL` = your production app URL
+   - `STRIPE_SUCCESS_URL` and `STRIPE_CANCEL_URL` (or they default from `APP_BASE_URL`)
+
+5. **Rotate API keys**
+   - Rotate keys in Stripe Dashboard before or right after go-live if they were used in development
+   - Update `.env` with the new keys
+
+6. **Verify**
+   - Run a test subscription in live mode (you can refund immediately)
+   - Confirm webhook events appear in Stripe Dashboard and subscription syncs correctly
+   - Test Customer Portal (Manage billing) and invoice downloads

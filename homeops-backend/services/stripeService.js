@@ -314,6 +314,58 @@ async function listActivePrices() {
   }));
 }
 
+/** Get default payment method for a Stripe customer. Returns { brand, last4 } or null. */
+async function getCustomerPaymentMethod(stripeCustomerId) {
+  if (BILLING_MOCK_MODE || !stripe || !stripeCustomerId) return null;
+
+  try {
+    const customer = await stripe.customers.retrieve(stripeCustomerId, {
+      expand: ["invoice_settings.default_payment_method"],
+    });
+    if (customer.deleted) return null;
+
+    const pmId = customer.invoice_settings?.default_payment_method
+      || customer.default_source;
+    if (!pmId) return null;
+
+    // When expanded, pmId may be the full PaymentMethod object
+    const pm = typeof pmId === "string" && pmId.startsWith("pm_")
+      ? await stripe.paymentMethods.retrieve(pmId)
+      : pmId;
+
+    if (pm?.card) {
+      return {
+        brand: pm.card.brand || "card",
+        last4: pm.card.last4 || "••••",
+      };
+    }
+  } catch {
+    // Customer not found or invalid - return null gracefully
+  }
+  return null;
+}
+
+/** List invoices for a Stripe customer. Returns array of { id, created, amountDue, status, hostedInvoiceUrl, invoicePdf }. */
+async function listCustomerInvoices(stripeCustomerId, limit = 12) {
+  if (BILLING_MOCK_MODE || !stripe || !stripeCustomerId) return [];
+
+  const invoices = await stripe.invoices.list({
+    customer: stripeCustomerId,
+    limit,
+    status: "paid",
+  });
+
+  return (invoices.data || []).map((inv) => ({
+    id: inv.id,
+    created: inv.created ? new Date(inv.created * 1000).toISOString() : null,
+    amountDue: inv.amount_paid ?? inv.amount_due,
+    currency: inv.currency,
+    status: inv.status,
+    hostedInvoiceUrl: inv.hosted_invoice_url || null,
+    invoicePdf: inv.invoice_pdf || null,
+  }));
+}
+
 module.exports = {
   stripe,
   getOrCreateStripeCustomer,
@@ -324,4 +376,6 @@ module.exports = {
   isEventProcessed,
   handleSubscriptionUpdated,
   listActivePrices,
+  getCustomerPaymentMethod,
+  listCustomerInvoices,
 };

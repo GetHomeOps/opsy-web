@@ -368,6 +368,17 @@ class AppApi {
     return res;
   }
 
+  static async getBillingPaymentMethod(accountId) {
+    const params = accountId ? { accountId } : {};
+    return this.request(`billing/payment-method`, params);
+  }
+
+  static async getBillingInvoices(accountId, limit = 12) {
+    const params = { limit };
+    if (accountId) params.accountId = accountId;
+    return this.request(`billing/invoices`, params);
+  }
+
   /** Super Admin: list all plans with limits and prices */
   static async getBillingPlansAll() {
     const res = await this.request(`billing/plans`);

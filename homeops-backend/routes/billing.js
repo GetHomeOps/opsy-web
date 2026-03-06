@@ -16,6 +16,7 @@ const db = require("../db");
 const stripeService = require("../services/stripeService");
 const planModel = require("../models/plan");
 const { BILLING_MOCK_MODE } = require("../config");
+const { wrapStripeErrors } = require("../utils/stripeErrors");
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ const router = express.Router();
  *  Body: { planCode, billingInterval?, accountId?, successUrl?, cancelUrl? }
  *  Returns: { url }
  */
-router.post("/checkout-session", ensureLoggedIn, async function (req, res, next) {
+router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
   try {
     const userId = res.locals.user?.id;
     if (!userId) throw new ForbiddenError("Authentication required");
@@ -68,13 +69,13 @@ router.post("/checkout-session", ensureLoggedIn, async function (req, res, next)
   } catch (err) {
     return next(err);
   }
-});
+}));
 
 /** POST /billing/portal-session
  *  Body: { accountId?, returnUrl? }
  *  Returns: { url }
  */
-router.post("/portal-session", ensureLoggedIn, async function (req, res, next) {
+router.post("/portal-session", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
   try {
     const userId = res.locals.user?.id;
     if (!userId) throw new ForbiddenError("Authentication required");
@@ -101,7 +102,7 @@ router.post("/portal-session", ensureLoggedIn, async function (req, res, next) {
   } catch (err) {
     return next(err);
   }
-});
+}));
 
 /** GET /billing/status
  *  Query: accountId (optional) - defaults to user's primary account.
@@ -232,6 +233,85 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
     return next(err);
   }
 });
+
+/** GET /billing/payment-method
+ *  Query: accountId (optional)
+ *  Returns { paymentMethod: { brand, last4 } | null }
+ */
+router.get("/payment-method", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
+  try {
+    const userId = res.locals.user?.id;
+    if (!userId) throw new ForbiddenError("Authentication required");
+
+    let accountId = req.query.accountId ? parseInt(req.query.accountId, 10) : null;
+    if (!accountId) {
+      const accRes = await db.query(
+        `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
+        [userId, userId]
+      );
+      accountId = accRes.rows[0]?.account_id;
+    }
+    if (!accountId) return res.json({ paymentMethod: null });
+
+    const hasAccess = await db.query(
+      `SELECT 1 FROM account_users WHERE account_id = $1 AND user_id = $2`,
+      [accountId, userId]
+    );
+    if (!hasAccess.rows[0]) throw new ForbiddenError("Access denied to this account");
+
+    const acc = await db.query(`SELECT stripe_customer_id FROM accounts WHERE id = $1`, [accountId]);
+    if (!acc.rows[0]?.stripe_customer_id) return res.json({ paymentMethod: null });
+
+    if (BILLING_MOCK_MODE) {
+      return res.json({ paymentMethod: { brand: "visa", last4: "4242" } });
+    }
+
+    const paymentMethod = await stripeService.getCustomerPaymentMethod(acc.rows[0].stripe_customer_id);
+    return res.json({ paymentMethod });
+  } catch (err) {
+    return next(err);
+  }
+}));
+
+/** GET /billing/invoices
+ *  Query: accountId (optional), limit (optional, default 12)
+ *  Returns { invoices: [{ id, created, amountDue, currency, status, hostedInvoiceUrl, invoicePdf }] }
+ */
+router.get("/invoices", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
+  try {
+    const userId = res.locals.user?.id;
+    if (!userId) throw new ForbiddenError("Authentication required");
+
+    let accountId = req.query.accountId ? parseInt(req.query.accountId, 10) : null;
+    if (!accountId) {
+      const accRes = await db.query(
+        `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
+        [userId, userId]
+      );
+      accountId = accRes.rows[0]?.account_id;
+    }
+    if (!accountId) return res.json({ invoices: [] });
+
+    const hasAccess = await db.query(
+      `SELECT 1 FROM account_users WHERE account_id = $1 AND user_id = $2`,
+      [accountId, userId]
+    );
+    if (!hasAccess.rows[0]) throw new ForbiddenError("Access denied to this account");
+
+    const acc = await db.query(`SELECT stripe_customer_id FROM accounts WHERE id = $1`, [accountId]);
+    if (!acc.rows[0]?.stripe_customer_id) return res.json({ invoices: [] });
+
+    if (BILLING_MOCK_MODE) {
+      return res.json({ invoices: [] });
+    }
+
+    const limit = Math.min(parseInt(req.query.limit, 10) || 12, 50);
+    const invoices = await stripeService.listCustomerInvoices(acc.rows[0].stripe_customer_id, limit);
+    return res.json({ invoices });
+  } catch (err) {
+    return next(err);
+  }
+}));
 
 /** GET /billing/plans/:audience - Get plans for homeowner or agent (for plan selection UI) */
 router.get("/plans/:audience", ensureLoggedIn, async function (req, res, next) {
