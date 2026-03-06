@@ -95,9 +95,8 @@ const SYSTEM_FIELD_PREFIXES = {
 
 /** Extract system-specific context from propertyData for AI analysis. */
 function buildSystemContext(propertyData, systemType) {
-  const prefix =
-    SYSTEM_FIELD_PREFIXES[systemType] || systemType;
-  const merged = { ...propertyData, ...(propertyData?.identity || {}) };
+  const prefix = SYSTEM_FIELD_PREFIXES[systemType] || systemType;
+  const merged = {...propertyData, ...(propertyData?.identity || {})};
   const context = {};
   const fieldSuffixes = [
     "LastInspection",
@@ -115,8 +114,7 @@ function buildSystemContext(propertyData, systemType) {
     const key = `${prefix}${suffix}`;
     const val = merged[key];
     if (val != null && String(val).trim() !== "") {
-      const contextKey =
-        suffix.charAt(0).toLowerCase() + suffix.slice(1);
+      const contextKey = suffix.charAt(0).toLowerCase() + suffix.slice(1);
       context[contextKey] = val;
     }
   }

@@ -5,15 +5,24 @@
  * Includes per-system scheduling like AIFindingsPanel in the setup modal.
  */
 
-import React, { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, AlertCircle, Calendar, ExternalLink, ArrowUpCircle, Upload, ClipboardList } from "lucide-react";
-import { useInspectionAnalysis } from "../../../hooks/useInspectionAnalysis";
-import { PROPERTY_SYSTEMS } from "../constants/propertySystems";
+import React, {useEffect, useRef, useState} from "react";
+import {useNavigate, useParams} from "react-router-dom";
+import {
+  Loader2,
+  AlertCircle,
+  Calendar,
+  ExternalLink,
+  ArrowUpCircle,
+  Upload,
+  ClipboardList,
+} from "lucide-react";
+import {useInspectionAnalysis} from "../../../hooks/useInspectionAnalysis";
+import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 import InspectionChecklistPanel from "./InspectionChecklistPanel";
 
 const CONDITION_BADGES = {
-  excellent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  excellent:
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   good: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
   fair: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   poor: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
@@ -23,7 +32,8 @@ const CONDITION_BADGES = {
 const PRIORITY_BADGES = {
   high: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
   urgent: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  medium:
+    "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   low: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300",
 };
 
@@ -53,9 +63,11 @@ export default function InspectionAnalysisModalContent({
   onUploadReport,
 }) {
   const navigate = useNavigate();
-  const { accountUrl } = useParams();
-  const professionalsPath = accountUrl ? `/${accountUrl}/professionals` : "/professionals";
-  const { status, data, error, generate, refresh, load } =
+  const {accountUrl} = useParams();
+  const professionalsPath = accountUrl
+    ? `/${accountUrl}/professionals`
+    : "/professionals";
+  const {status, data, error, generate, refresh, load} =
     useInspectionAnalysis(propertyId);
   const tierRestrictionNotifiedRef = useRef(false);
 
@@ -66,7 +78,11 @@ export default function InspectionAnalysisModalContent({
   }, [isOpen, propertyId, load]);
 
   useEffect(() => {
-    if (status === "quota_exceeded" && onTierRestriction && !tierRestrictionNotifiedRef.current) {
+    if (
+      status === "quota_exceeded" &&
+      onTierRestriction &&
+      !tierRestrictionNotifiedRef.current
+    ) {
       tierRestrictionNotifiedRef.current = true;
       onTierRestriction(error);
     }
@@ -111,7 +127,8 @@ export default function InspectionAnalysisModalContent({
           AI usage limit reached
         </p>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm">
-          {error || "You've used all your AI tokens for this month. Upgrade your plan for more."}
+          {error ||
+            "You've used all your AI tokens for this month. Upgrade your plan for more."}
         </p>
         <button
           type="button"
@@ -153,7 +170,8 @@ export default function InspectionAnalysisModalContent({
           No analysis available yet.
         </p>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm mb-4">
-          Upload an inspection report in the Documents tab, then generate analysis.
+          Upload an inspection report in the Documents tab, then generate
+          analysis.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
           {onUploadReport && (
@@ -180,25 +198,35 @@ export default function InspectionAnalysisModalContent({
 
   if (status === "ready" && data) {
     const condition = data.property_state ?? data.conditionRating ?? "unknown";
-    const conditionClass = CONDITION_BADGES[condition] ?? CONDITION_BADGES.unknown;
+    const conditionClass =
+      CONDITION_BADGES[condition] ?? CONDITION_BADGES.unknown;
     const rawSystems = data.systems_detected ?? data.systemsDetected ?? [];
     // Deduplicate by system type (AI may suggest same system multiple times, e.g. waterHeater twice)
     const seenKeys = new Set();
     const systems = rawSystems.filter((s) => {
-      const key = (s.systemType ?? s.system_key ?? s.name ?? "").toString().toLowerCase().trim();
+      const key = (s.systemType ?? s.system_key ?? s.name ?? "")
+        .toString()
+        .toLowerCase()
+        .trim();
       if (!key || seenKeys.has(key)) return false;
       seenKeys.add(key);
       return true;
     });
     // Support both recommended_actions (normalized) and maintenanceSuggestions (raw API)
-    const rawActions = data.recommended_actions ?? data.maintenanceSuggestions ?? data.maintenance_suggestions ?? [];
+    const rawActions =
+      data.recommended_actions ??
+      data.maintenanceSuggestions ??
+      data.maintenance_suggestions ??
+      [];
     const actions = rawActions.map((a) => {
-      const item = typeof a === "object" ? a : { title: a };
-      const sysType = item.systemType ?? item.system_type ?? item.category ?? "general";
+      const item = typeof a === "object" ? a : {title: a};
+      const sysType =
+        item.systemType ?? item.system_type ?? item.category ?? "general";
       return {
         task: item.task ?? item.title ?? getSystemLabel(sysType),
         systemType: sysType,
-        suggestedWhen: item.suggestedWhen ?? item.suggested_schedule_window ?? "",
+        suggestedWhen:
+          item.suggestedWhen ?? item.suggested_schedule_window ?? "",
         rationale: item.rationale ?? item.reason ?? "",
         priority: item.priority ?? "medium",
       };
@@ -260,19 +288,26 @@ export default function InspectionAnalysisModalContent({
                       className="border-t border-neutral-100 dark:border-neutral-700/50 bg-neutral-50/50 dark:bg-neutral-800/30 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                     >
                       <td className="py-2 px-3 font-medium text-neutral-800 dark:text-neutral-200">
-                        {(getSystemLabel(s.systemType ?? s.system_key ?? s.name) || s.name) ?? "—"}
+                        {(getSystemLabel(
+                          s.systemType ?? s.system_key ?? s.name,
+                        ) ||
+                          s.name) ??
+                          "—"}
                       </td>
                       <td className="py-2 px-3">
                         <span
                           className={`inline-flex text-xs px-2 py-0.5 rounded capitalize ${
-                            CONDITION_BADGES[s.condition] ?? CONDITION_BADGES.unknown
+                            CONDITION_BADGES[s.condition] ??
+                            CONDITION_BADGES.unknown
                           }`}
                         >
                           {formatCondition(s.condition)}
                         </span>
                       </td>
                       <td className="py-2 px-3 text-right text-neutral-500 dark:text-neutral-400 tabular-nums">
-                        {(s.condition || "").toLowerCase() === "unknown" ? "—" : formatConfidence(s.confidence)}
+                        {(s.condition || "").toLowerCase() === "unknown"
+                          ? "—"
+                          : formatConfidence(s.confidence)}
                       </td>
                     </tr>
                   ))}
@@ -289,7 +324,8 @@ export default function InspectionAnalysisModalContent({
             Inspection Checklist
           </h3>
           <p className="text-xs text-neutral-400 dark:text-neutral-500 mb-3">
-            Track progress on items identified in the inspection report. Mark items as done when completed.
+            Track progress on items identified in the inspection report. Mark
+            items as done when completed.
           </p>
           <InspectionChecklistPanel
             propertyId={propertyId}
@@ -328,7 +364,9 @@ export default function InspectionAnalysisModalContent({
                     </div>
                     {(a.suggestedWhen || a.rationale) && (
                       <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                        {[a.suggestedWhen, a.rationale].filter(Boolean).join(" — ")}
+                        {[a.suggestedWhen, a.rationale]
+                          .filter(Boolean)
+                          .join(" — ")}
                       </p>
                     )}
                   </div>
@@ -352,8 +390,14 @@ export default function InspectionAnalysisModalContent({
                       <button
                         type="button"
                         onClick={() => {
-                          const origin = typeof window !== "undefined" ? window.location.origin : "";
-                          const cleanPath = (professionalsPath || "").replace(/^\//, "");
+                          const origin =
+                            typeof window !== "undefined"
+                              ? window.location.origin
+                              : "";
+                          const cleanPath = (professionalsPath || "").replace(
+                            /^\//,
+                            "",
+                          );
                           window.open(`${origin}/${cleanPath}`, "_blank");
                         }}
                         className="inline-flex items-center gap-0.5 text-[11px] text-neutral-500 hover:text-[#456564] dark:text-neutral-400 dark:hover:text-[#7aa3a2] transition-colors"

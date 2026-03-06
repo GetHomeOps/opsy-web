@@ -1,7 +1,13 @@
 import React, {useState, useEffect} from "react";
 import {useTranslation} from "react-i18next";
 import {useNavigate} from "react-router-dom";
-import {Sparkles, Loader2, CreditCard, FileText, ExternalLink} from "lucide-react";
+import {
+  Sparkles,
+  Loader2,
+  CreditCard,
+  FileText,
+  ExternalLink,
+} from "lucide-react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
@@ -43,10 +49,18 @@ function BillingPage() {
       try {
         setError(null);
         const [statusRes, plansRes, pmRes, invoicesRes] = await Promise.all([
-          AppApi.getBillingStatus(accountId).then((r) => r).catch(() => null),
-          AppApi.getBillingPlans(targetRole).then((r) => r.plans || []).catch(() => []),
-          AppApi.getBillingPaymentMethod(accountId).then((r) => r?.paymentMethod).catch(() => null),
-          AppApi.getBillingInvoices(accountId).then((r) => r?.invoices || []).catch(() => []),
+          AppApi.getBillingStatus(accountId)
+            .then((r) => r)
+            .catch(() => null),
+          AppApi.getBillingPlans(targetRole)
+            .then((r) => r.plans || [])
+            .catch(() => []),
+          AppApi.getBillingPaymentMethod(accountId)
+            .then((r) => r?.paymentMethod)
+            .catch(() => null),
+          AppApi.getBillingInvoices(accountId)
+            .then((r) => r?.invoices || [])
+            .catch(() => []),
         ]);
         setBilling(statusRes);
         setPlans(plansRes);
@@ -218,8 +232,9 @@ function BillingPage() {
                         className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
                       >
                         {paymentMethod
-                          ? (t("settings.updatePaymentMethod") || "Update")
-                          : (t("settings.addPaymentMethod") || "Add payment method")}
+                          ? t("settings.updatePaymentMethod") || "Update"
+                          : t("settings.addPaymentMethod") ||
+                            "Add payment method"}
                       </button>
                     </div>
                     <div className="p-6">
@@ -257,9 +272,15 @@ function BillingPage() {
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                                <th className="pb-3 font-medium">{t("settings.invoiceDate") || "Date"}</th>
-                                <th className="pb-3 font-medium">{t("settings.invoiceAmount") || "Amount"}</th>
-                                <th className="pb-3 font-medium text-right">{t("settings.invoiceActions") || "Actions"}</th>
+                                <th className="pb-3 font-medium">
+                                  {t("settings.invoiceDate") || "Date"}
+                                </th>
+                                <th className="pb-3 font-medium">
+                                  {t("settings.invoiceAmount") || "Amount"}
+                                </th>
+                                <th className="pb-3 font-medium text-right">
+                                  {t("settings.invoiceActions") || "Actions"}
+                                </th>
                               </tr>
                             </thead>
                             <tbody>

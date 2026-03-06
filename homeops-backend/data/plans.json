@@ -47,7 +47,7 @@
       "price": 19,
       "priceYear": 190,
       "sortOrder": 2,
-      "trialDays": 14,
+      "trialDays": null,
       "popular": true,
       "limits": {
         "maxProperties": 1,
@@ -80,7 +80,7 @@
       "price": 49,
       "priceYear": 490,
       "sortOrder": 3,
-      "trialDays": 14,
+      "trialDays": null,
       "popular": false,
       "limits": {
         "maxProperties": 3,
@@ -108,13 +108,13 @@
     },
     {
       "code": "agent_basic",
-      "name": "Basic",
+      "name": "Maintain",
       "description": "Stay organized. Maintenance tracking, branded communications, limited homeowner invites.",
       "targetRole": "agent",
       "price": 39,
       "priceYear": null,
       "sortOrder": 4,
-      "trialDays": 14,
+      "trialDays": null,
       "popular": false,
       "limits": {
         "maxProperties": 5,
@@ -140,13 +140,13 @@
     },
     {
       "code": "agent_pro",
-      "name": "Pro",
+      "name": "Growth",
       "description": "Scale smart. Unlimited homeowner invites, AI inspection summaries, reporting dashboard, communication campaigns, branded portal access.",
       "targetRole": "agent",
       "price": 99,
       "priceYear": null,
       "sortOrder": 5,
-      "trialDays": 14,
+      "trialDays": null,
       "popular": true,
       "limits": {
         "maxProperties": 25,
@@ -172,13 +172,13 @@
     },
     {
       "code": "agent_premium",
-      "name": "Premium",
+      "name": "Win",
       "description": "Portfolio control. Advanced analytics, workflow automations, API access, white-label options, priority support.",
       "targetRole": "agent",
       "price": 249,
       "priceYear": null,
       "sortOrder": 6,
-      "trialDays": 14,
+      "trialDays": null,
       "popular": false,
       "limits": {
         "maxProperties": 999,
@@ -210,7 +210,7 @@
       "price": 499,
       "priceYear": null,
       "sortOrder": 7,
-      "trialDays": 30,
+      "trialDays": null,
       "popular": false,
       "limits": {
         "maxProperties": 999999,

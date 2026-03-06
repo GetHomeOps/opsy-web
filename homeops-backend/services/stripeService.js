@@ -81,6 +81,7 @@ async function createCheckoutSession({ accountId, userId, planCode, billingInter
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customer.id,
+    payment_method_types: ["card"],
     line_items: [{
       price: plan.rows[0].stripe_price_id,
       quantity: 1,
@@ -155,6 +156,15 @@ async function markEventProcessed(stripeEventId) {
   );
 }
 
+/** Safely convert Stripe unix timestamp to Date. Returns null if invalid. */
+function toValidDate(unixTimestamp) {
+  if (unixTimestamp == null || typeof unixTimestamp !== "number" || !Number.isFinite(unixTimestamp)) {
+    return null;
+  }
+  const d = new Date(unixTimestamp * 1000);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
 /** Process checkout.session.completed */
 async function handleCheckoutCompleted(session) {
   const accountId = session.metadata?.account_id;
@@ -167,9 +177,14 @@ async function handleCheckoutCompleted(session) {
   const subscription = await stripe.subscriptions.retrieve(sub, { expand: ["items.data.price"] });
   const priceId = subscription.items?.data?.[0]?.price?.id;
   const status = subscription.status;
-  const periodStart = new Date(subscription.current_period_start * 1000);
-  const periodEnd = new Date(subscription.current_period_end * 1000);
+  const periodStart = toValidDate(subscription.current_period_start);
+  const periodEnd = toValidDate(subscription.current_period_end);
   const cancelAtPeriodEnd = subscription.cancel_at_period_end || false;
+
+  if (!periodStart || !periodEnd) {
+    console.warn("[webhooks/stripe] checkout.session.completed: missing period dates, skipping insert");
+    return;
+  }
 
   await db.query(
     `INSERT INTO account_subscriptions
@@ -193,8 +208,8 @@ async function handleSubscriptionUpdated(subscription) {
   );
 
   const status = subscription.status;
-  const periodStart = new Date(subscription.current_period_start * 1000);
-  const periodEnd = new Date(subscription.current_period_end * 1000);
+  const periodStart = toValidDate(subscription.current_period_start);
+  const periodEnd = toValidDate(subscription.current_period_end);
   const cancelAtPeriodEnd = subscription.cancel_at_period_end || false;
   const priceId = subscription.items?.data?.[0]?.price?.id || null;
 
@@ -204,12 +219,19 @@ async function handleSubscriptionUpdated(subscription) {
         `UPDATE account_subscriptions SET status = $1, updated_at = NOW() WHERE stripe_subscription_id = $2`,
         [status, subId]
       );
-    } else {
+    } else if (periodStart && periodEnd) {
       await db.query(
         `UPDATE account_subscriptions SET status = $1, stripe_price_id = COALESCE($2, stripe_price_id),
          current_period_start = $3, current_period_end = $4, cancel_at_period_end = $5, updated_at = NOW()
          WHERE stripe_subscription_id = $6`,
         [status, priceId, periodStart, periodEnd, cancelAtPeriodEnd, subId]
+      );
+    } else {
+      await db.query(
+        `UPDATE account_subscriptions SET status = $1, stripe_price_id = COALESCE($2, stripe_price_id),
+         cancel_at_period_end = $3, updated_at = NOW()
+         WHERE stripe_subscription_id = $4`,
+        [status, priceId, cancelAtPeriodEnd, subId]
       );
     }
     return;
@@ -228,6 +250,11 @@ async function handleSubscriptionUpdated(subscription) {
   const subscriptionProductId = productByPrice.rows[0]?.subscription_product_id
     || (await db.query(`SELECT id FROM subscription_products WHERE code = 'homeowner_free' LIMIT 1`)).rows[0]?.id;
   if (!subscriptionProductId) return;
+
+  if (!periodStart || !periodEnd) {
+    console.warn("[webhooks/stripe] subscription.updated: missing period dates, skipping insert");
+    return;
+  }
 
   await db.query(
     `INSERT INTO account_subscriptions
@@ -255,16 +282,24 @@ async function handleInvoicePayment(invoice) {
   if (accountRes.rows.length === 0) return;
 
   const status = subscription.status;
-  const periodStart = new Date(subscription.current_period_start * 1000);
-  const periodEnd = new Date(subscription.current_period_end * 1000);
+  const periodStart = toValidDate(subscription.current_period_start);
+  const periodEnd = toValidDate(subscription.current_period_end);
   const priceId = subscription.items?.data?.[0]?.price?.id || null;
 
-  await db.query(
-    `UPDATE account_subscriptions SET status = $1, stripe_price_id = COALESCE($2, stripe_price_id),
-     current_period_start = $3, current_period_end = $4, updated_at = NOW()
-     WHERE stripe_subscription_id = $5`,
-    [status, priceId, periodStart, periodEnd, subId]
-  );
+  if (periodStart && periodEnd) {
+    await db.query(
+      `UPDATE account_subscriptions SET status = $1, stripe_price_id = COALESCE($2, stripe_price_id),
+       current_period_start = $3, current_period_end = $4, updated_at = NOW()
+       WHERE stripe_subscription_id = $5`,
+      [status, priceId, periodStart, periodEnd, subId]
+    );
+  } else {
+    await db.query(
+      `UPDATE account_subscriptions SET status = $1, stripe_price_id = COALESCE($2, stripe_price_id), updated_at = NOW()
+       WHERE stripe_subscription_id = $3`,
+      [status, priceId, subId]
+    );
+  }
 }
 
 /** Process webhook event (idempotent). */

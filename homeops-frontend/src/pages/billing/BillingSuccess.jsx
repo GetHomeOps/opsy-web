@@ -4,7 +4,8 @@ import {Loader2, CheckCircle, AlertCircle} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 
-const POLL_INTERVAL_MS = 2000;
+const INITIAL_DELAY_MS = 3000;  // Let Stripe webhooks process before polling
+const POLL_INTERVAL_MS = 3500;  // Avoid rate limits (429) during activation
 const POLL_TIMEOUT_MS = 60000;
 
 export default function BillingSuccess() {
@@ -30,7 +31,15 @@ export default function BillingSuccess() {
 
       let accountId = null;
       try {
-        await AppApi.completeOnboarding({role, subscriptionTier: plan});
+        // Retry once on 429 (rate limit) - common when returning from Stripe
+        try {
+          await AppApi.completeOnboarding({role, subscriptionTier: plan});
+        } catch (err) {
+          if (err?.status === 429) {
+            await new Promise((r) => setTimeout(r, 2000));
+            if (!cancelled) await AppApi.completeOnboarding({role, subscriptionTier: plan});
+          } else throw err;
+        }
         const user = await refreshCurrentUser();
         const accounts = await AppApi.getUserAccounts(user?.id).catch(() => []);
         accountId = accounts?.[0]?.id;
@@ -38,6 +47,10 @@ export default function BillingSuccess() {
         if (!cancelled) setError(err?.message || "Failed to complete setup.");
         return;
       }
+
+      // Give Stripe webhooks time to process before polling
+      await new Promise((r) => setTimeout(r, INITIAL_DELAY_MS));
+      if (cancelled) return;
 
       const start = Date.now();
       const poll = async () => {

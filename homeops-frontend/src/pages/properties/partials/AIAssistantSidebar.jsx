@@ -21,7 +21,10 @@ import {
 import Transition from "../../../utils/Transition";
 import AppApi from "../../../api/api";
 import DatePickerInput from "../../../components/DatePickerInput";
-import {PROPERTY_SYSTEMS, DEFAULT_SYSTEM_IDS} from "../constants/propertySystems";
+import {
+  PROPERTY_SYSTEMS,
+  DEFAULT_SYSTEM_IDS,
+} from "../constants/propertySystems";
 
 function AIAssistantSidebar({
   isOpen,
@@ -37,14 +40,20 @@ function AIAssistantSidebar({
 }) {
   const navigate = useNavigate();
   const {accountUrl} = useParams();
-  const professionalsPath = accountUrl ? `/${accountUrl}/professionals` : "/professionals";
+  const professionalsPath = accountUrl
+    ? `/${accountUrl}/professionals`
+    : "/professionals";
   const [messages, setMessages] = useState([]);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState(null);
-  const [activeSystemId, setActiveSystemId] = useState(systemContext?.systemId ?? null);
-  const [activeSystemName, setActiveSystemName] = useState(systemContext?.systemName ?? systemLabel ?? null);
+  const [activeSystemId, setActiveSystemId] = useState(
+    systemContext?.systemId ?? null,
+  );
+  const [activeSystemName, setActiveSystemName] = useState(
+    systemContext?.systemName ?? systemLabel ?? null,
+  );
   const [changeSystemOpen, setChangeSystemOpen] = useState(false);
   const hasSentInitialPromptRef = useRef(false);
   const [contractors, setContractors] = useState([]);
@@ -128,7 +137,7 @@ function AIAssistantSidebar({
                 role: m.role,
                 content: m.content,
                 uiDirectives: m.uiDirectives,
-              }))
+              })),
           );
           if (data.conversation.systemId) {
             setActiveSystemId(data.conversation.systemId);
@@ -157,7 +166,8 @@ function AIAssistantSidebar({
         systemCondition: ctx.systemCondition,
         lastMaintenanceDate: ctx.lastMaintenanceDate,
         upcomingEvents: ctx.upcomingEvents,
-        inspectionFindingsForThisSystemOnly: ctx.inspectionFindingsForThisSystemOnly,
+        inspectionFindingsForThisSystemOnly:
+          ctx.inspectionFindingsForThisSystemOnly,
       };
       setOverrideSystemContext(mergedCtx);
       setActiveSystemId(mergedCtx.systemId);
@@ -180,7 +190,14 @@ function AIAssistantSidebar({
       hasSentInitialPromptRef.current = false;
       return;
     }
-    if (!initialPrompt || !propertyId || hasSentInitialPromptRef.current || loading || loadingHistory) return;
+    if (
+      !initialPrompt ||
+      !propertyId ||
+      hasSentInitialPromptRef.current ||
+      loading ||
+      loadingHistory
+    )
+      return;
     hasSentInitialPromptRef.current = true;
     setMessages((prev) => [...prev, {role: "user", content: initialPrompt}]);
     setLoading(true);
@@ -230,7 +247,13 @@ function AIAssistantSidebar({
         ]);
       })
       .finally(() => setLoading(false));
-  }, [isOpen, initialPrompt, propertyId, effectiveSystemContext, loadingHistory]);
+  }, [
+    isOpen,
+    initialPrompt,
+    propertyId,
+    effectiveSystemContext,
+    loadingHistory,
+  ]);
 
   useEffect(() => {
     if (!propertyId || !scheduleDraft) return;
@@ -285,13 +308,17 @@ function AIAssistantSidebar({
         setScheduleNotes("");
       }
     } catch (err) {
-      if (err?.status === 403 && err?.message?.toLowerCase().includes("quota")) {
+      if (
+        err?.status === 403 &&
+        err?.message?.toLowerCase().includes("quota")
+      ) {
         setUpgradePromptOpen(true);
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: "You've reached your AI usage limit for this month. Upgrade your plan for more.",
+            content:
+              "You've reached your AI usage limit for this month. Upgrade your plan for more.",
           },
         ]);
       } else {
@@ -336,7 +363,13 @@ function AIAssistantSidebar({
   };
 
   const handleConfirmSchedule = async () => {
-    if (!scheduleDraft?.actionDraftId || !selectedContractor || !eventType || !scheduledFor) return;
+    if (
+      !scheduleDraft?.actionDraftId ||
+      !selectedContractor ||
+      !eventType ||
+      !scheduledFor
+    )
+      return;
     setScheduling(true);
     try {
       const res = await AppApi.aiConfirmSchedule(scheduleDraft.actionDraftId, {
@@ -360,7 +393,7 @@ function AIAssistantSidebar({
     ? contractors.filter(
         (c) =>
           c.name?.toLowerCase().includes(contractorSearch.toLowerCase()) ||
-          c.email?.toLowerCase().includes(contractorSearch.toLowerCase())
+          c.email?.toLowerCase().includes(contractorSearch.toLowerCase()),
       )
     : contractors;
 
@@ -430,49 +463,63 @@ function AIAssistantSidebar({
             )}
             {inspectionDate && (
               <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                Using inspection findings from {formatInspectionDate(inspectionDate)}
+                Using inspection findings from{" "}
+                {formatInspectionDate(inspectionDate)}
               </span>
             )}
           </div>
         )}
 
-        {(activeSystemId || systemContext?.systemId) && (activeSystemName || systemLabel || systemContext?.systemName) && (
-          <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Discussing: <span className="font-medium text-gray-700 dark:text-gray-300">{activeSystemName || systemLabel || systemContext?.systemName} System</span>
-            </p>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setChangeSystemOpen((o) => !o)}
-                className="flex items-center gap-0.5 text-xs text-[#456564] hover:text-[#34514f] dark:text-[#7aa3a2] font-medium"
-              >
-                Change system <ChevronDown className={`w-3.5 h-3.5 transition-transform ${changeSystemOpen ? "rotate-180" : ""}`} />
-              </button>
-              {changeSystemOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setChangeSystemOpen(false)} aria-hidden="true" />
-                  <div className="absolute right-0 top-full mt-1 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto min-w-[160px]">
-                    {changeSystemOptions.map((sys) => (
-                      <button
-                        key={sys.id}
-                        type="button"
-                        onClick={() => handleChangeSystem(sys)}
-                        className={`w-full text-left px-3 py-1.5 text-xs ${
-                          sys.id === (activeSystemId || systemContext?.systemId)
-                            ? "bg-[#456564]/10 text-[#456564] dark:text-[#7aa3a2] font-medium"
-                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        }`}
-                      >
-                        {sys.name}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+        {(activeSystemId || systemContext?.systemId) &&
+          (activeSystemName || systemLabel || systemContext?.systemName) && (
+            <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Discussing:{" "}
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {activeSystemName || systemLabel || systemContext?.systemName}{" "}
+                  System
+                </span>
+              </p>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setChangeSystemOpen((o) => !o)}
+                  className="flex items-center gap-0.5 text-xs text-[#456564] hover:text-[#34514f] dark:text-[#7aa3a2] font-medium"
+                >
+                  Change system{" "}
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform ${changeSystemOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {changeSystemOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setChangeSystemOpen(false)}
+                      aria-hidden="true"
+                    />
+                    <div className="absolute right-0 top-full mt-1 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto min-w-[160px]">
+                      {changeSystemOptions.map((sys) => (
+                        <button
+                          key={sys.id}
+                          type="button"
+                          onClick={() => handleChangeSystem(sys)}
+                          className={`w-full text-left px-3 py-1.5 text-xs ${
+                            sys.id ===
+                            (activeSystemId || systemContext?.systemId)
+                              ? "bg-[#456564]/10 text-[#456564] dark:text-[#7aa3a2] font-medium"
+                              : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          }`}
+                        >
+                          {sys.name}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         <div className="flex-1 overflow-auto p-4 space-y-4">
           {loadingHistory && messages.length === 0 && (
@@ -508,35 +555,56 @@ function AIAssistantSidebar({
                 <p className="whitespace-pre-wrap">{msg.content}</p>
                 {msg.uiDirectives?.type === "SCHEDULE_PROPOSAL" && (
                   <p className="mt-2 text-xs opacity-90">
-                    I can help you schedule. Choose the event type, contractor, date, and time below.
+                    I can help you schedule. Choose the event type, contractor,
+                    date, and time below.
                   </p>
                 )}
-                {msg.role === "assistant" && (activeSystemId || systemContext?.systemId) && idx === messages.length - 1 && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {onOpenScheduleModal && (
+                {msg.role === "assistant" &&
+                  (activeSystemId || systemContext?.systemId) &&
+                  idx === messages.length - 1 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {onOpenScheduleModal && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenScheduleModal({
+                              systemId:
+                                activeSystemId || systemContext?.systemId,
+                              systemLabel:
+                                activeSystemName ||
+                                systemContext?.systemName ||
+                                activeSystemId,
+                              systemType:
+                                activeSystemId || systemContext?.systemId,
+                              serviceType: "inspection",
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[#456564]/20 text-[#456564] dark:text-[#7aa3a2] hover:bg-[#456564]/30 border border-[#456564]/30"
+                        >
+                          <Calendar className="w-3 h-3" />
+                          Schedule Inspection
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => onOpenScheduleModal({ systemId: activeSystemId || systemContext?.systemId, systemLabel: activeSystemName || systemContext?.systemName || activeSystemId, systemType: activeSystemId || systemContext?.systemId, serviceType: "inspection" })}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[#456564]/20 text-[#456564] dark:text-[#7aa3a2] hover:bg-[#456564]/30 border border-[#456564]/30"
+                        onClick={() => {
+                          const origin =
+                            typeof window !== "undefined"
+                              ? window.location.origin
+                              : "";
+                          const cleanPath = (professionalsPath || "").replace(
+                            /^\//,
+                            "",
+                          );
+                          window.open(`${origin}/${cleanPath}`, "_blank");
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
                       >
-                        <Calendar className="w-3 h-3" />
-                        Schedule Inspection
+                        <UserPlus className="w-3 h-3" />
+                        Find Contractor
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const origin = typeof window !== "undefined" ? window.location.origin : "";
-                        const cleanPath = (professionalsPath || "").replace(/^\//, "");
-                        window.open(`${origin}/${cleanPath}`, "_blank");
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
-                    >
-                      <UserPlus className="w-3 h-3" />
-                      Find Contractor
-                    </button>
-                  </div>
-                )}
+                    </div>
+                  )}
               </div>
             </div>
           ))}
@@ -643,8 +711,14 @@ function AIAssistantSidebar({
                       <button
                         type="button"
                         onClick={() => {
-                          const origin = typeof window !== "undefined" ? window.location.origin : "";
-                          const cleanPath = (professionalsPath || "").replace(/^\//, "");
+                          const origin =
+                            typeof window !== "undefined"
+                              ? window.location.origin
+                              : "";
+                          const cleanPath = (professionalsPath || "").replace(
+                            /^\//,
+                            "",
+                          );
                           window.open(`${origin}/${cleanPath}`, "_blank");
                         }}
                         className="text-[#456564] hover:underline font-medium inline-flex items-center gap-0.5"
@@ -700,7 +774,12 @@ function AIAssistantSidebar({
               <button
                 type="button"
                 onClick={handleConfirmSchedule}
-                disabled={!selectedContractor || !eventType || !scheduledFor || scheduling}
+                disabled={
+                  !selectedContractor ||
+                  !eventType ||
+                  !scheduledFor ||
+                  scheduling
+                }
                 className="w-full py-2 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {scheduling ? (
@@ -726,7 +805,9 @@ function AIAssistantSidebar({
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !e.shiftKey && handleSend()
+                }
                 placeholder="Ask about your property..."
                 className="form-input flex-1 rounded-lg text-sm py-2"
                 disabled={loading}

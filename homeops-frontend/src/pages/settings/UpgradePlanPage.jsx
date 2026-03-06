@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, {useState, useEffect} from "react";
+import {useNavigate} from "react-router-dom";
 import {
   Check,
   Sparkles,
@@ -11,16 +11,16 @@ import {
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
-import { useAuth } from "../../context/AuthContext";
+import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
-import { PAGE_LAYOUT } from "../../constants/layout";
-import { HOMEOWNER_PLANS, AGENT_PLANS } from "../onboarding/onboardingPlans";
+import {PAGE_LAYOUT} from "../../constants/layout";
+import {HOMEOWNER_PLANS, AGENT_PLANS} from "../onboarding/onboardingPlans";
 
 function UpgradePlanPage() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentAccount } = useCurrentAccount();
-  const { currentUser } = useAuth();
+  const {currentAccount} = useCurrentAccount();
+  const {currentUser} = useAuth();
   const [billing, setBilling] = useState(null);
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +31,9 @@ function UpgradePlanPage() {
   const accountId = currentAccount?.id;
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const userRole = (currentUser?.role || "homeowner").toLowerCase();
-  const targetRole = ["agent", "admin"].includes(userRole) ? "agent" : "homeowner";
+  const targetRole = ["agent", "admin"].includes(userRole)
+    ? "agent"
+    : "homeowner";
   const fallbackPlans = targetRole === "agent" ? AGENT_PLANS : HOMEOWNER_PLANS;
 
   useEffect(() => {
@@ -59,7 +61,9 @@ function UpgradePlanPage() {
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [accountId, targetRole]);
 
   const currentPlanCode = billing?.plan?.code;
@@ -75,10 +79,11 @@ function UpgradePlanPage() {
 
     setCheckoutLoading(plan.code);
     try {
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
       const successUrl = `${origin}/billing/success?role=${encodeURIComponent(userRole)}&plan=${encodeURIComponent(plan.code)}`;
       const cancelUrl = `${origin}/${accountUrl}/settings/upgrade`;
-      const { url } = await AppApi.createCheckoutSession({
+      const {url} = await AppApi.createCheckoutSession({
         planCode: plan.code,
         billingInterval,
         successUrl,
@@ -122,14 +127,15 @@ function UpgradePlanPage() {
     const lim = plan.limits || {};
     const items = [];
     if (lim.maxProperties != null)
-      items.push(`${lim.maxProperties} ${lim.maxProperties === 1 ? "property" : "properties"}`);
+      items.push(
+        `${lim.maxProperties} ${lim.maxProperties === 1 ? "property" : "properties"}`,
+      );
     if (lim.maxContacts != null) items.push(`${lim.maxContacts} contacts`);
     if (lim.aiTokenMonthlyQuota != null)
-      items.push(`${(lim.aiTokenMonthlyQuota).toLocaleString()} AI tokens/mo`);
+      items.push(`${lim.aiTokenMonthlyQuota.toLocaleString()} AI tokens/mo`);
     if (lim.maxDocumentsPerSystem != null)
       items.push(`${lim.maxDocumentsPerSystem} docs per system`);
-    if (lim.maxViewers != null)
-      items.push(`${lim.maxViewers} shared viewers`);
+    if (lim.maxViewers != null) items.push(`${lim.maxViewers} shared viewers`);
     if (lim.maxTeamMembers != null)
       items.push(`${lim.maxTeamMembers} team members`);
     return items;
@@ -171,13 +177,22 @@ function UpgradePlanPage() {
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
                 Unlock more properties, contacts, AI features, and storage.
                 {currentPlanCode && (
-                  <> You're currently on the <strong className="text-gray-700 dark:text-gray-300 capitalize">{billing?.plan?.name || currentPlanCode}</strong> plan.</>
+                  <>
+                    {" "}
+                    You're currently on the{" "}
+                    <strong className="text-gray-700 dark:text-gray-300 capitalize">
+                      {billing?.plan?.name || currentPlanCode}
+                    </strong>{" "}
+                    plan.
+                  </>
                 )}
               </p>
             </div>
 
             {/* Billing interval toggle */}
-            {plans.some((p) => p.stripePrices?.year || p.stripePrices?.annual) && (
+            {plans.some(
+              (p) => p.stripePrices?.year || p.stripePrices?.annual,
+            ) && (
               <div className="flex justify-center mb-8">
                 <div className="inline-flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
                   <button
@@ -201,7 +216,9 @@ function UpgradePlanPage() {
                     }`}
                   >
                     Yearly
-                    <span className="ml-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Save 20%</span>
+                    <span className="ml-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                      Save 20%
+                    </span>
                   </button>
                 </div>
               </div>
@@ -334,11 +351,13 @@ function UpgradePlanPage() {
             {/* Footer note */}
             {!loading && (
               <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
-                All plans include SSL encryption and secure data storage.
-                Need help choosing?{" "}
+                All plans include SSL encryption and secure data storage. Need
+                help choosing?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate(`/${accountUrl}/settings/support/new`)}
+                  onClick={() =>
+                    navigate(`/${accountUrl}/settings/support/new`)
+                  }
                   className="text-violet-600 dark:text-violet-400 hover:underline"
                 >
                   Contact support

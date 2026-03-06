@@ -14,7 +14,8 @@ import {
 import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 
 const CONDITION_COLORS = {
-  excellent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  excellent:
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   good: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
   fair: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   poor: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
@@ -42,8 +43,11 @@ function AIFindingsPanel({
 }) {
   const navigate = useNavigate();
   const {accountUrl} = useParams();
-  const professionalsPath = accountUrl ? `/${accountUrl}/professionals` : "/professionals";
-  const [needsAttentionExpanded, setNeedsAttentionExpanded] = React.useState(true);
+  const professionalsPath = accountUrl
+    ? `/${accountUrl}/professionals`
+    : "/professionals";
+  const [needsAttentionExpanded, setNeedsAttentionExpanded] =
+    React.useState(true);
   const [maintenanceExpanded, setMaintenanceExpanded] = React.useState(true);
 
   if (status === "queued" || status === "processing") {
@@ -56,7 +60,9 @@ function AIFindingsPanel({
               Analyzing report…
             </p>
             {progress && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">{progress}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {progress}
+              </p>
             )}
           </div>
         </div>
@@ -108,7 +114,13 @@ function AIFindingsPanel({
     const sys = PROPERTY_SYSTEMS.find((s) => s.id === systemKey);
     if (sys?.name) return sys.name;
     if (typeof systemKey === "string" && systemKey) {
-      return systemKey.charAt(0).toUpperCase() + systemKey.slice(1).replace(/([A-Z])/g, " $1").trim();
+      return (
+        systemKey.charAt(0).toUpperCase() +
+        systemKey
+          .slice(1)
+          .replace(/([A-Z])/g, " $1")
+          .trim()
+      );
     }
     return systemKey;
   };
@@ -137,7 +149,9 @@ function AIFindingsPanel({
               : undefined
           }
         >
-          {(conditionRating || "").toLowerCase() === "unknown" ? "Not specified" : conditionRating}
+          {(conditionRating || "").toLowerCase() === "unknown"
+            ? "Not specified"
+            : conditionRating}
         </span>
         {summary && (
           <p className="text-xs text-gray-600 dark:text-gray-400 max-w-md">
@@ -164,10 +178,7 @@ function AIFindingsPanel({
           {needsAttentionExpanded && (
             <ul className="mt-2 space-y-2">
               {topNeeds.map((item, idx) => (
-                <li
-                  key={idx}
-                  className="flex flex-col gap-0.5 text-xs pl-6"
-                >
+                <li key={idx} className="flex flex-col gap-0.5 text-xs pl-6">
                   <span
                     className={`font-medium ${
                       SEVERITY_COLORS[item.severity] || ""
@@ -224,7 +235,9 @@ function AIFindingsPanel({
                   )}
                   <span
                     className={`text-sm font-medium block leading-tight pt-0.5 ${
-                      isSelected ? "text-gray-900 dark:text-white" : "text-gray-700 dark:text-gray-300"
+                      isSelected
+                        ? "text-gray-900 dark:text-white"
+                        : "text-gray-700 dark:text-gray-300"
                     }`}
                   >
                     {label}
@@ -257,7 +270,7 @@ function AIFindingsPanel({
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             {suggestedSystemsToAdd.every((s) =>
-              selectedSuggestedSystems.includes(s.systemType || s.system_key)
+              selectedSuggestedSystems.includes(s.systemType || s.system_key),
             )
               ? "Deselect Suggested Systems"
               : "Select Suggested Systems"}
@@ -292,9 +305,7 @@ function AIFindingsPanel({
                       {item.task || getSystemLabel(item.systemType)}
                     </p>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                      {item.suggestedWhen && (
-                        <span>{item.suggestedWhen}</span>
-                      )}
+                      {item.suggestedWhen && <span>{item.suggestedWhen}</span>}
                       {item.rationale && (
                         <span className="ml-1">— {item.rationale}</span>
                       )}
@@ -320,8 +331,14 @@ function AIFindingsPanel({
                       <button
                         type="button"
                         onClick={() => {
-                          const origin = typeof window !== "undefined" ? window.location.origin : "";
-                          const cleanPath = (professionalsPath || "").replace(/^\//, "");
+                          const origin =
+                            typeof window !== "undefined"
+                              ? window.location.origin
+                              : "";
+                          const cleanPath = (professionalsPath || "").replace(
+                            /^\//,
+                            "",
+                          );
                           window.open(`${origin}/${cleanPath}`, "_blank");
                         }}
                         className="inline-flex items-center gap-0.5 text-[11px] text-gray-500 hover:text-[#456564] dark:text-gray-400 dark:hover:text-[#7aa3a2] transition-colors"
