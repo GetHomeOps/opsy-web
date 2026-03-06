@@ -50,6 +50,7 @@ function CollapsibleSection({
   onOpenInspectionReport,
   maintenanceEvents = [],
   maintenanceRecords = [],
+  checklistSystemKey,
 }) {
   const formStatus = useMemo(
     () =>
@@ -435,7 +436,7 @@ function CollapsibleSection({
         <div className="px-6 pb-2">
           <InspectionChecklistPanel
             propertyId={propertyId}
-            systemKey={systemType}
+            systemKey={checklistSystemKey ?? systemType}
             onScheduleMaintenance={onScheduleInspection ? (data) => onScheduleInspection(data) : undefined}
             maintenanceRecords={maintenanceRecords}
             compact

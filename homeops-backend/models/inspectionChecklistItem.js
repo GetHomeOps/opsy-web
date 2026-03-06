@@ -25,7 +25,7 @@ class InspectionChecklistItem {
       rows.push({
         analysis_result_id: analysisResultId,
         property_id,
-        system_key: (n.systemType || "general").toLowerCase(),
+        system_key: n.systemType || "general",
         source: "needs_attention",
         source_index: i,
         title: n.title || n.suggestedAction || "Inspection finding",
@@ -42,7 +42,7 @@ class InspectionChecklistItem {
       rows.push({
         analysis_result_id: analysisResultId,
         property_id,
-        system_key: (m.systemType || "general").toLowerCase(),
+        system_key: m.systemType || "general",
         source: "maintenance_suggestion",
         source_index: i,
         title: m.task || "Maintenance task",
@@ -90,7 +90,7 @@ class InspectionChecklistItem {
     let idx = 2;
 
     if (systemKey) {
-      conditions.push(`system_key = $${idx++}`);
+      conditions.push(`LOWER(system_key) = LOWER($${idx++})`);
       params.push(systemKey);
     }
     if (status) {

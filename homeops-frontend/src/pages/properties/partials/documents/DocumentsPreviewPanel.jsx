@@ -72,7 +72,6 @@ function DocumentsPreviewPanel({
     );
   }
 
-  const DocIcon = getDocumentIcon?.(selectedDocument.type) || FileText;
   const SystemIcon =
     systemCategories.find((sc) => sc.id === selectedDocument.system)?.icon ||
     Folder;
@@ -83,58 +82,49 @@ function DocumentsPreviewPanel({
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-800 overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate pr-2 min-w-0">
+      <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-2">
+        <button
+          onClick={() => setMetadataOpen((o) => !o)}
+          className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 transition-colors flex-shrink-0"
+          title={metadataOpen ? "Hide details" : "Show details"}
+        >
+          {metadataOpen ? (
+            <PanelRightClose className="w-4 h-4" />
+          ) : (
+            <PanelRightOpen className="w-4 h-4" />
+          )}
+        </button>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate min-w-0 flex-1">
           Document Preview
         </h3>
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          <button
-            onClick={() => setMetadataOpen((o) => !o)}
-            className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 transition-colors"
-            title={metadataOpen ? "Hide details" : "Show details"}
-          >
-            {metadataOpen ? (
-              <PanelRightClose className="w-4 h-4" />
-            ) : (
-              <PanelRightOpen className="w-4 h-4" />
-            )}
-          </button>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 transition-colors"
-            title="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 transition-colors flex-shrink-0"
+          title="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Content: on small screens metadata on top, on lg+ metadata left | preview right */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
         {/* Metadata - on small: top, collapsible accordion; on lg+: left sidebar */}
         {metadataOpen ? (
-          <div className="flex-shrink-0 w-full lg:w-72 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50/50 dark:bg-gray-900/30 overflow-y-auto order-first lg:order-none">
+          <div className="flex-shrink-0 w-full lg:w-52 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50/50 dark:bg-gray-900/30 overflow-y-auto order-first lg:order-none">
             <div className="p-4 space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center">
-                    <DocIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1 break-words">
-                    {selectedDocument.name}
-                  </h4>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      getFileTypeColor?.(selectedDocument.type) ||
-                      "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400"
-                    }`}
-                  >
-                    {documentTypes.find((dt) => dt.id === selectedDocument.type)
-                      ?.label || selectedDocument.type}
-                  </span>
-                </div>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1 break-words">
+                  {selectedDocument.name}
+                </h4>
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    getFileTypeColor?.(selectedDocument.type) ||
+                    "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400"
+                  }`}
+                >
+                  {documentTypes.find((dt) => dt.id === selectedDocument.type)
+                    ?.label || selectedDocument.type}
+                </span>
               </div>
 
               <div className="space-y-3 pt-3 border-t border-gray-200 dark:border-gray-700">
@@ -165,12 +155,12 @@ function DocumentsPreviewPanel({
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-2">
+              <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-1.5">
                 <button
                   onClick={() => onOpenInNewTab?.(selectedDocument)}
-                  className="w-full btn-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5"
+                  className="w-full text-xs px-2 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <ExternalLink className="w-3 h-3" />
                   Open in new tab
                 </button>
                 {(selectedDocument.system === "inspectionReport" ||
@@ -183,27 +173,27 @@ function DocumentsPreviewPanel({
                         e.stopPropagation();
                         onOpenAIReport();
                       }}
-                      className="w-full btn-sm border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 dark:hover:bg-[#5a7a78]/20 flex items-center justify-center gap-1.5"
+                      className="w-full text-xs px-2 py-1.5 rounded-md border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 dark:hover:bg-[#5a7a78]/20 flex items-center justify-center gap-1"
                       title="View report analysis in AI"
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
+                      <Sparkles className="w-3 h-3" />
                       AI Report Analysis
                     </button>
                   )}
                 <button
                   onClick={() => onDelete?.(selectedDocument.id)}
-                  className="w-full btn-sm border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-700 text-red-600 dark:text-red-400 flex items-center justify-center gap-1.5"
+                  className="w-full text-xs px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-700 text-red-600 dark:text-red-400 flex items-center justify-center gap-1"
                   title="Delete"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-3 h-3" />
                   Delete
                 </button>
                 <button
                   type="button"
                   onClick={() => setMetadataOpen(false)}
-                  className="lg:hidden w-full btn-sm border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center gap-1.5"
+                  className="lg:hidden w-full text-xs px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center gap-1"
                 >
-                  <ChevronUp className="w-3.5 h-3.5" />
+                  <ChevronUp className="w-3 h-3" />
                   Collapse details
                 </button>
               </div>

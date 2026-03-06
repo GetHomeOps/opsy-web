@@ -2562,28 +2562,10 @@ function PropertyFormContainer() {
                 )}
 
                 {state.activeTab === "media" && (
-                  <div className="space-y-8">
-                    <div>
-                      <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-4">
-                        Media Content
-                      </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {(state.formData.identity?.photos ?? []).map(
-                          (photo, index) => (
-                            <div
-                              key={photo}
-                              className="relative overflow-hidden rounded-xl h-48 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/50"
-                            >
-                              <img
-                                src={photo}
-                                alt={`Property photo ${index + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          ),
-                        )}
-                      </div>
-                    </div>
+                  <div className="flex flex-col items-center justify-center py-24 text-center">
+                    <p className="text-neutral-500 dark:text-neutral-400 text-lg font-medium">
+                      Coming Soon
+                    </p>
                   </div>
                 )}
 

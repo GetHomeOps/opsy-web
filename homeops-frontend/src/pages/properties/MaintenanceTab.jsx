@@ -6,9 +6,9 @@ import React, {
   useContext,
 } from "react";
 import {createPortal} from "react-dom";
-import {Settings, PanelLeftClose, ChevronRight, Menu} from "lucide-react";
+import {PanelLeftClose, ChevronRight, Menu} from "lucide-react";
 import {useParams} from "react-router-dom";
-import {PROPERTY_SYSTEMS} from "./constants/propertySystems";
+import {PROPERTY_SYSTEMS, CUSTOM_SYSTEM_DEFAULT_ICON} from "./constants/propertySystems";
 import {
   MaintenanceTreeView,
   MaintenanceFormPanel,
@@ -63,7 +63,7 @@ function MaintenanceTab({
     ...customSystemNames.map((name, index) => ({
       id: `custom-${name}-${index}`,
       name,
-      icon: Settings,
+      icon: CUSTOM_SYSTEM_DEFAULT_ICON,
     })),
   ];
 

@@ -6,7 +6,6 @@ import {
   Upload,
   PanelLeftClose,
   File,
-  FileText,
 } from "lucide-react";
 
 function formatDate(dateString) {
@@ -148,21 +147,19 @@ function DocumentsTreeView({
                   {categoryDocs.length > 0 ? (
                     categoryDocs.map((doc) => {
                       const isSelected = selectedDocumentId === doc.id;
-                      const DocIcon = getDocumentIcon?.(doc.type) || FileText;
                       return (
                         <div
                           key={doc.id}
                           onClick={() => onSelectDocument?.(doc)}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors border ${
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors border ${
                             isSelected
                               ? "bg-slate-100/90 dark:bg-slate-700/40 border-slate-400/60 dark:border-slate-500/50"
                               : "border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
                           }`}
                         >
-                          <DocIcon className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div
-                              className={`text-sm font-medium truncate ${
+                              className={`text-xs font-medium truncate ${
                                 isSelected
                                   ? "text-slate-800 dark:text-slate-100"
                                   : "text-gray-800 dark:text-gray-200"
@@ -172,7 +169,7 @@ function DocumentsTreeView({
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span
-                                className={`text-xs px-1.5 py-0.5 rounded ${
+                                className={`text-[10px] px-1 py-0.5 rounded ${
                                   getFileTypeColor?.(doc.type) ||
                                   "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
                                 }`}
@@ -180,7 +177,7 @@ function DocumentsTreeView({
                                 {documentTypes.find((dt) => dt.id === doc.type)
                                   ?.label || doc.type}
                               </span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400">
                                 {formatDate(
                                   doc.document_date || doc.created_at
                                 )}

@@ -7,6 +7,9 @@ import {
   FileCheck,
 } from "lucide-react";
 
+/** Default icon for custom systems (user-added, e.g. Solar, Pool). */
+export const CUSTOM_SYSTEM_DEFAULT_ICON = Home;
+
 /** Predefined property systems used by Systems tab, Maintenance tab, and SystemsSetupModal. */
 export const PROPERTY_SYSTEMS = [
   { id: "roof", name: "Roof", icon: Building, description: "Shingles, tiles, flashing & drainage" },

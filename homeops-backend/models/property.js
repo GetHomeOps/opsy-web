@@ -82,7 +82,7 @@ class Property {
 
   /* Create a new property from provided data (any subset of columns) */
   static async create(data = {}) {
-    const withUid = { ...data, property_uid: data.property_uid || nanoid(12) };
+    const withUid = { ...data, property_uid: data.property_uid || nanoid(8) };
     if (!withUid.passport_id && withUid.state != null && withUid.zip != null) {
       withUid.passport_id = generatePassportId({ state: withUid.state, zip: withUid.zip });
     }

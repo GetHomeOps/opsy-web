@@ -382,8 +382,12 @@ export default function InspectionChecklistPanel({
   }
 
   if (systemKey) {
-    const sysItems = groupedItems[systemKey] || [];
-    const sysProgress = progress?.bySystem?.[systemKey];
+    const sysKeyLower = systemKey.toLowerCase();
+    const sysItems = groupedItems[systemKey]
+      || Object.entries(groupedItems).find(([k]) => k.toLowerCase() === sysKeyLower)?.[1]
+      || [];
+    const sysProgress = progress?.bySystem?.[systemKey]
+      ?? Object.entries(progress?.bySystem || {}).find(([k]) => k.toLowerCase() === sysKeyLower)?.[1];
     if (sysItems.length === 0) return null;
     return (
       <div className="space-y-1.5">

@@ -40,7 +40,7 @@ function normalizeRawType(raw) {
     }
   }
   const matched = CANONICAL_IDS.find((s) => lower.includes(s) || s.includes(lower));
-  return matched ? [matched] : null;
+  return matched ? [matched] : [raw.trim()];
 }
 
 

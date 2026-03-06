@@ -20,6 +20,7 @@ import {
 import {
   PROPERTY_SYSTEMS,
   DEFAULT_SYSTEM_IDS,
+  CUSTOM_SYSTEM_DEFAULT_ICON,
 } from "./constants/propertySystems";
 
 function ScoreCard({propertyData, onCompleteOutstandingTasks}) {
@@ -415,7 +416,7 @@ function ScoreCard({propertyData, onCompleteOutstandingTasks}) {
                     const predefinedSystem = PROPERTY_SYSTEMS.find(
                       (s) => s.id === system.id
                     );
-                    const Icon = predefinedSystem?.icon || Settings;
+                    const Icon = predefinedSystem?.icon || CUSTOM_SYSTEM_DEFAULT_ICON;
                     const isIdentified = predefinedSystem
                       ? isSystemComplete(propertyData, system.id)
                       : isCustomSystemComplete(
@@ -541,7 +542,7 @@ function ScoreCard({propertyData, onCompleteOutstandingTasks}) {
                     const predefinedSystem = PROPERTY_SYSTEMS.find(
                       (s) => s.id === system.id
                     );
-                    const Icon = predefinedSystem?.icon || Settings;
+                    const Icon = predefinedSystem?.icon || CUSTOM_SYSTEM_DEFAULT_ICON;
                     // TODO: Backend should return per-system maintenance completion; for now use index
                     const isComplete = idx < currentMaintenance;
                     return (

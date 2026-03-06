@@ -20,7 +20,6 @@ import {
   CheckCircle2,
   Loader2,
   Menu,
-  Settings,
   Sparkles,
 } from "lucide-react";
 import AppApi from "../../api/api";
@@ -28,7 +27,7 @@ import DatePickerInput from "../../components/DatePickerInput";
 import useDocumentUpload from "../../hooks/useDocumentUpload";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import {DocumentsTreeView, DocumentsPreviewPanel} from "./partials/documents";
-import {PROPERTY_SYSTEMS} from "./constants/propertySystems";
+import {PROPERTY_SYSTEMS, CUSTOM_SYSTEM_DEFAULT_ICON} from "./constants/propertySystems";
 import UpgradePrompt from "../../components/UpgradePrompt";
 
 // System categories with icons – matches API system_key values
@@ -404,7 +403,7 @@ function DocumentsTab({
     const custom = customSystemNames.map((name, i) => ({
       id: `custom-${name}-${i}`,
       label: name,
-      icon: Settings,
+      icon: CUSTOM_SYSTEM_DEFAULT_ICON,
       color: "text-gray-600",
     }));
     return [inspectionReport, ...selected, ...custom].filter(Boolean);

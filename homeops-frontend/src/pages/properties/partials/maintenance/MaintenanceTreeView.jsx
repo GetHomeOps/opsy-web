@@ -11,7 +11,7 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  Settings,
+  Home,
   PanelLeftClose,
 } from "lucide-react";
 
@@ -211,7 +211,7 @@ function MaintenanceTreeView({
           const isExpanded = expandedSystems[system.id];
           const isSystemSelected =
             selectedSystemId === system.id && !selectedRecordId;
-          const Icon = system.icon || Settings;
+          const Icon = system.icon || Home;
 
           return (
             <div key={system.id} className="mb-1">

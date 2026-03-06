@@ -6,13 +6,13 @@ import {
   Zap,
   Shield,
   FileCheck,
-  Settings,
   Info,
 } from "lucide-react";
 import {
   STANDARD_CUSTOM_SYSTEM_FIELDS,
   PROPERTY_SYSTEMS,
   DEFAULT_SYSTEM_IDS,
+  CUSTOM_SYSTEM_DEFAULT_ICON,
 } from "./constants/propertySystems";
 import {
   getSystemProgress,
@@ -2258,7 +2258,7 @@ function SystemsTab({
               key={sectionId}
               sectionId={sectionId}
               title={displayName}
-              icon={Settings}
+              icon={CUSTOM_SYSTEM_DEFAULT_ICON}
               isOpen={expandedSections[sectionId] ?? false}
               onToggle={() => toggleSection(sectionId)}
               showActionButtons={true}
@@ -2289,6 +2289,7 @@ function SystemsTab({
               inspectionAnalysis={inspectionAnalysis}
               onOpenInspectionReport={onOpenInspectionReport}
               onOpenAIAssistant={handleOpenAIAssistant}
+              checklistSystemKey={systemName}
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {STANDARD_CUSTOM_SYSTEM_FIELDS.map((field) => (
