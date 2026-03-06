@@ -124,11 +124,14 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
       return res.json({ subscription: null, plan: null, limits: null, usage: null, mockMode: BILLING_MOCK_MODE });
     }
 
-    const hasAccess = await db.query(
-      `SELECT 1 FROM account_users WHERE account_id = $1 AND user_id = $2`,
-      [accountId, userId]
-    );
-    if (!hasAccess.rows[0]) throw new ForbiddenError("Access denied to this account");
+    const isAdminOrSuper = ["super_admin", "admin"].includes(res.locals.user?.role);
+    if (!isAdminOrSuper) {
+      const hasAccess = await db.query(
+        `SELECT 1 FROM account_users WHERE account_id = $1 AND user_id = $2`,
+        [accountId, userId]
+      );
+      if (!hasAccess.rows[0]) throw new ForbiddenError("Access denied to this account");
+    }
 
     const acc = await db.query(
       `SELECT a.id, a.name, a.stripe_customer_id

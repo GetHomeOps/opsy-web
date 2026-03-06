@@ -1,5 +1,8 @@
 {
   "name": "homeops",
   "private": true,
-  "description": "HomeOps monorepo - backend serves frontend"
+  "description": "HomeOps monorepo - backend serves frontend",
+  "scripts": {
+    "start": "cd homeops-backend && npm run build:start"
+  }
 }

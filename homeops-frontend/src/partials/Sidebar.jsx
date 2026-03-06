@@ -361,6 +361,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     if (item.roles === "adminOnly") return canManageUsers;
     if (item.roles === "adminOrAgent") return canManageUsers || isAgent;
     if (item.hideForSuperAdmin && isSuperAdmin) return false;
+    if (item.hideForPlatformAdmins && canManageUsers) return false;
     return true;
   };
 

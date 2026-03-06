@@ -150,7 +150,7 @@ export const SETTINGS_CONFIG = {
   icon: icon(Settings),
   defaultExpanded: false,
   children: [
-    { id: "billing", label: "Billing", path: "settings/billing", icon: icon(Wallet), roles: "all", hideForSuperAdmin: true },
+    { id: "billing", label: "Billing", path: "settings/billing", icon: icon(Wallet), roles: "all", hideForPlatformAdmins: true },
     { id: "configuration", label: "Configuration", path: "settings/configuration", icon: icon(Cog), roles: "all" },
     { id: "support", label: "Support", path: "settings/support", icon: icon(HelpCircle), roles: "all" },
     { id: "users", label: "Users", path: "users", icon: icon(UsersRound), roles: "adminOnly" },

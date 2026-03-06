@@ -132,16 +132,18 @@ function DropdownProfile({align}) {
             <ul>
               {accountUrl && (
                 <>
-                  <li>
-                    <Link
-                      className="font-medium text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                      to={`${settingsBase}/billing`}
-                      onClick={() => setDropdownOpen(false)}
-                    >
-                      <CreditCard className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
-                      {(t("billing") || "Billing").replace(/^\w/, (c) => c.toUpperCase())}
-                    </Link>
-                  </li>
+                  {!["super_admin", "admin"].includes(currentUser?.role) && (
+                    <li>
+                      <Link
+                        className="font-medium text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        to={`${settingsBase}/billing`}
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        <CreditCard className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
+                        {(t("billing") || "Billing").replace(/^\w/, (c) => c.toUpperCase())}
+                      </Link>
+                    </li>
+                  )}
                   <li>
                     <Link
                       className="font-medium text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
