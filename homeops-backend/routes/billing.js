@@ -36,7 +36,7 @@ router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function
     if (!accountIdToUse) {
       const acc = await db.query(
         `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
-        [userId, userId]
+        [userId]
       );
       if (!acc.rows[0]) throw new BadRequestError("No account found. Complete signup first.");
       accountIdToUse = acc.rows[0].account_id;

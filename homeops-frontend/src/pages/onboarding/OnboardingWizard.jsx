@@ -111,13 +111,14 @@ function Step1Role({role, onSelect}) {
   );
 }
 
-/** Build fallback plans using structure from onboardingPlans, prices from subscription products API. */
+/** Build fallback plans using structure from onboardingPlans, prices and limits from subscription products API. */
 function buildFallbackPlans(role, subscriptionProducts = []) {
   const hardcoded = role === "homeowner" ? HOMEOWNER_PLANS : AGENT_PLANS;
   return hardcoded.map((p) => {
     const code = p.code || p.id;
     const product = subscriptionProducts.find((sp) => (sp.code || sp.id) === code);
     let stripePricesFromApi = null;
+    let limitsFromProduct = null;
     if (product) {
       const monthPrice = product.prices?.find((pr) => pr.billingInterval === "month");
       const yearPrice = product.prices?.find((pr) => pr.billingInterval === "year");
@@ -130,7 +131,20 @@ function buildFallbackPlans(role, subscriptionProducts = []) {
           stripePricesFromApi.year = { unitAmount: yearPrice.unitAmount, currency: yearPrice.currency || "usd" };
         }
       }
+      if (product.limits) {
+        limitsFromProduct = {
+          maxProperties: product.limits.maxProperties,
+          maxContacts: product.limits.maxContacts,
+          aiTokenMonthlyQuota: product.limits.aiTokenMonthlyQuota,
+        };
+      }
     }
+    const planLimits = PLAN_LIMITS[role]?.[code] || {};
+    const limits = {
+      maxProperties: limitsFromProduct?.maxProperties ?? planLimits.properties,
+      maxContacts: limitsFromProduct?.maxContacts ?? planLimits.contacts,
+      aiTokenMonthlyQuota: limitsFromProduct?.aiTokenMonthlyQuota,
+    };
     return {
       ...p,
       code,
@@ -143,8 +157,36 @@ function buildFallbackPlans(role, subscriptionProducts = []) {
             included: f.value !== "None",
           }))
         : [],
-      limits: PLAN_LIMITS[role]?.[code] || {},
+      limits,
     };
+  });
+}
+
+/** Merge plan limits (from BillingPlansEditor) into feature labels for display. */
+function getDisplayFeatures(plan) {
+  const features = plan.features || [];
+  const limits = plan.limits || {};
+  const maxProps = limits.maxProperties ?? limits.properties;
+  const maxContactsVal = limits.maxContacts ?? limits.contacts;
+  const tokens = limits.aiTokenMonthlyQuota;
+
+  return features.map((f) => {
+    const label = f.label || "";
+    const lower = label.toLowerCase();
+    let displayLabel = label;
+
+    if ((lower.includes("propert") || lower === "properties") && maxProps != null && maxProps !== "") {
+      const val = typeof maxProps === "number" ? `${maxProps} ${maxProps === 1 ? "property" : "properties"}` : String(maxProps);
+      displayLabel = lower.includes(":") ? label.replace(/:.*$/, `: ${val}`) : `Properties: ${val}`;
+    } else if ((lower.includes("contact") || lower === "contacts") && maxContactsVal != null && maxContactsVal !== "") {
+      const val = typeof maxContactsVal === "number" ? `${maxContactsVal} contacts` : String(maxContactsVal);
+      displayLabel = lower.includes(":") ? label.replace(/:.*$/, `: ${val}`) : `Contacts: ${val}`;
+    } else if ((lower.includes("token") || lower.startsWith("data ingestion")) && tokens != null && tokens > 0) {
+      const val = `${(tokens).toLocaleString()} tokens/month`;
+      displayLabel = lower.includes(":") ? label.replace(/:.*$/, `: ${val}`) : `AI tokens: ${val}`;
+    }
+
+    return { ...f, label: displayLabel };
   });
 }
 
@@ -227,7 +269,7 @@ function Step2Plan({
               const isSelected = plan === planId;
               const isPopular = p.popular;
 
-              const features = p.features || [];
+              const features = getDisplayFeatures(p);
 
               const isPaidPlan = p.stripePrices?.month?.unitAmount > 0 || p.stripePrices?.year?.unitAmount > 0 || (p.price != null && p.price > 0);
               const isYearly = hasPaidPlans && billingInterval === "year" && isPaidPlan;
