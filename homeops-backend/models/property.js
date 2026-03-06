@@ -14,7 +14,7 @@
  * - getPropertyTeam / getAgentByAccountId: Retrieve team/agent data
  */
 
-const { ulid } = require("ulid");
+const { nanoid } = require("nanoid");
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
 const { generatePassportId } = require("../helpers/properties");
@@ -82,7 +82,7 @@ class Property {
 
   /* Create a new property from provided data (any subset of columns) */
   static async create(data = {}) {
-    const withUid = { ...data, property_uid: data.property_uid || ulid() };
+    const withUid = { ...data, property_uid: data.property_uid || nanoid(12) };
     if (!withUid.passport_id && withUid.state != null && withUid.zip != null) {
       withUid.passport_id = generatePassportId({ state: withUid.state, zip: withUid.zip });
     }

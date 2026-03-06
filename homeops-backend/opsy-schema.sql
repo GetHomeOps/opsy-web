@@ -204,7 +204,7 @@ CREATE INDEX idx_contact_tags_tag_id ON contact_tags(tag_id);
 
 CREATE TABLE properties (
     id SERIAL PRIMARY KEY,
-    property_uid CHAR(26) UNIQUE,
+    property_uid VARCHAR(26) UNIQUE,
     account_id INTEGER NOT NULL REFERENCES accounts(id),
 
     -- Identity & Address

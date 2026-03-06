@@ -88,7 +88,7 @@ function ensurePropertyAccess(options = {}) {
 
       let propertyId = raw;
 
-      if (/^[0-9A-Z]{26}$/i.test(raw)) {
+      if (/^[A-Za-z0-9_-]{10,26}$/.test(raw) && !/^\d+$/.test(raw)) {
         const propRes = await db.query(
           `SELECT id FROM properties WHERE property_uid = $1`,
           [raw],
@@ -132,7 +132,7 @@ function ensurePropertyOwner(paramName = "propertyId") {
       if (!raw) throw new ForbiddenError("Property identifier missing.");
 
       let propertyId = raw;
-      if (/^[0-9A-Z]{26}$/i.test(raw)) {
+      if (/^[A-Za-z0-9_-]{10,26}$/.test(raw) && !/^\d+$/.test(raw)) {
         const propRes = await db.query(
           `SELECT id FROM properties WHERE property_uid = $1`, [raw]
         );
