@@ -21,6 +21,11 @@ export default defineConfig({
         target: API_PROXY_TARGET,
         bypass: (req) => (req.url?.startsWith('/auth/callback') ? '/index.html' : undefined),
       },
+      // Stripe redirects to /billing/success after checkout; serve SPA, don't proxy to API
+      '/billing': {
+        target: API_PROXY_TARGET,
+        bypass: (req) => (req.url?.startsWith('/billing/success') ? '/index.html' : undefined),
+      },
       '/mfa': API_PROXY_TARGET,
       '/users': API_PROXY_TARGET,
       '/accounts': API_PROXY_TARGET,
@@ -47,7 +52,6 @@ export default defineConfig({
       '/inspection-analysis': API_PROXY_TARGET,
       '/inspection-checklist': API_PROXY_TARGET,
       '/ai': API_PROXY_TARGET,
-      '/billing': API_PROXY_TARGET,
       '/webhooks': API_PROXY_TARGET,
     },
   },

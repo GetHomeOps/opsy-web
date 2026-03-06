@@ -526,9 +526,9 @@ function AIAssistantSidebar({
                     <button
                       type="button"
                       onClick={() => {
-                        const base = typeof window !== "undefined" ? window.location.href.split("#")[0] : "";
+                        const origin = typeof window !== "undefined" ? window.location.origin : "";
                         const cleanPath = (professionalsPath || "").replace(/^\//, "");
-                        window.open(`${base}#/${cleanPath}`, "_blank");
+                        window.open(`${origin}/${cleanPath}`, "_blank");
                       }}
                       className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
                     >
@@ -643,9 +643,9 @@ function AIAssistantSidebar({
                       <button
                         type="button"
                         onClick={() => {
-                          const base = typeof window !== "undefined" ? window.location.href.split("#")[0] : "";
+                          const origin = typeof window !== "undefined" ? window.location.origin : "";
                           const cleanPath = (professionalsPath || "").replace(/^\//, "");
-                          window.open(`${base}#/${cleanPath}`, "_blank");
+                          window.open(`${origin}/${cleanPath}`, "_blank");
                         }}
                         className="text-[#456564] hover:underline font-medium inline-flex items-center gap-0.5"
                       >

@@ -67,7 +67,7 @@ function BillingPage() {
     try {
       const origin =
         typeof window !== "undefined" ? window.location.origin : "";
-      const returnUrl = `${origin}/#/${currentAccount?.url || ""}/settings/billing`;
+      const returnUrl = `${origin}/${currentAccount?.url || ""}/settings/billing`;
       const {url} = await AppApi.createPortalSession({accountId, returnUrl});
       if (url) window.location.href = url;
       else setError("Could not open billing portal.");

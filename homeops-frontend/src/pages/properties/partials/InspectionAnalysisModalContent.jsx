@@ -352,9 +352,9 @@ export default function InspectionAnalysisModalContent({
                       <button
                         type="button"
                         onClick={() => {
-                          const base = typeof window !== "undefined" ? window.location.href.split("#")[0] : "";
+                          const origin = typeof window !== "undefined" ? window.location.origin : "";
                           const cleanPath = (professionalsPath || "").replace(/^\//, "");
-                          window.open(`${base}#/${cleanPath}`, "_blank");
+                          window.open(`${origin}/${cleanPath}`, "_blank");
                         }}
                         className="inline-flex items-center gap-0.5 text-[11px] text-neutral-500 hover:text-[#456564] dark:text-neutral-400 dark:hover:text-[#7aa3a2] transition-colors"
                       >

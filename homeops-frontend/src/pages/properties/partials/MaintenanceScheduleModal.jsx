@@ -35,11 +35,11 @@ const STEPS = [
   {id: "message", label: "Message & AI"},
 ];
 
-/** Build hash-router URL for external links (e.g. window.open). */
-function toHashUrl(path) {
-  const base = window.location.href.split("#")[0];
+/** Build URL for external links (e.g. window.open) - BrowserRouter. */
+function toShareUrl(path) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const cleanPath = (path || "").replace(/^\//, "");
-  return `${base}#/${cleanPath}`;
+  return `${origin}/${cleanPath}`;
 }
 
 function generateMessageTemplate(propertyName, systemName, date, requestType) {
@@ -528,7 +528,7 @@ function ContractorStep({
             type="button"
             onClick={() =>
               window.open(
-                toHashUrl(professionalsPath || "/professionals"),
+                toShareUrl(professionalsPath || "/professionals"),
                 "_blank",
               )
             }

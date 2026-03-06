@@ -43,6 +43,7 @@ const initialFormData = {
   targetRole: "homeowner",
   code: "",
   sortOrder: 0,
+  hasTrial: false,
   trialDays: "",
   maxProperties: 1,
   maxContacts: 25,
@@ -115,13 +116,15 @@ function mapProductToForm(product) {
   const lim = product.limits || {};
   const priceMonth = product.prices?.find((p) => p.billingInterval === "month" || p.billing_interval === "month");
   const priceYear = product.prices?.find((p) => p.billingInterval === "year" || p.billing_interval === "year");
+  const hasTrial = product.trialDays != null && product.trialDays > 0;
   return {
     name: product.name || "",
     description: product.description || "",
     targetRole: product.targetRole || "homeowner",
     code: product.code || "",
     sortOrder: product.sortOrder ?? 0,
-    trialDays: product.trialDays != null ? String(product.trialDays) : "",
+    hasTrial,
+    trialDays: hasTrial ? String(product.trialDays) : "",
     maxProperties: lim.maxProperties ?? product.maxProperties ?? 1,
     maxContacts: lim.maxContacts ?? product.maxContacts ?? 25,
     maxViewers: lim.maxViewers ?? product.maxViewers ?? 2,
@@ -193,10 +196,19 @@ function SubscriptionProductFormContainer() {
 
   /** Handle form field changes */
   function handleChange(e) {
-    const {id: fieldId, value} = e.target;
-    dispatch({type: "SET_FORM_DATA", payload: {[fieldId]: value}});
+    const {id: fieldId, value, type, checked} = e.target;
+    const payload = type === "checkbox" ? {[fieldId]: checked} : {[fieldId]: value};
+    if (fieldId === "hasTrial" && !checked) {
+      payload.trialDays = "";
+    } else if (fieldId === "hasTrial" && checked && !state.formData.trialDays) {
+      payload.trialDays = "14";
+    }
+    dispatch({type: "SET_FORM_DATA", payload});
     if (state.errors[fieldId]) {
       dispatch({type: "SET_ERRORS", payload: {...state.errors, [fieldId]: null}});
+    }
+    if (fieldId === "hasTrial" && state.errors.trialDays) {
+      dispatch({type: "SET_ERRORS", payload: {...state.errors, trialDays: null}});
     }
     if (state.isInitialLoad) {
       dispatch({type: "SET_FORM_CHANGED", payload: true});
@@ -216,6 +228,12 @@ function SubscriptionProductFormContainer() {
     const newErrors = {};
     if (!state.formData.name || !state.formData.name.trim()) {
       newErrors.name = t("subscriptionProducts.nameRequired");
+    }
+    if (state.formData.hasTrial) {
+      const days = Number(state.formData.trialDays);
+      if (!Number.isInteger(days) || days < 1) {
+        newErrors.trialDays = "Enter a valid trial length (1 or more days)";
+      }
     }
     dispatch({type: "SET_ERRORS", payload: newErrors});
     return Object.keys(newErrors).length === 0;
@@ -244,7 +262,7 @@ function SubscriptionProductFormContainer() {
         price: 0,
         code: state.formData.code?.trim() || null,
         sortOrder: Number(state.formData.sortOrder) || 0,
-        trialDays: state.formData.trialDays ? Number(state.formData.trialDays) : null,
+        trialDays: state.formData.hasTrial ? Number(state.formData.trialDays) || null : null,
         maxProperties: Number(state.formData.maxProperties) || 1,
         maxContacts: Number(state.formData.maxContacts) || 25,
         maxViewers: Number(state.formData.maxViewers) || 2,
@@ -298,7 +316,7 @@ function SubscriptionProductFormContainer() {
         targetRole: state.formData.targetRole || "homeowner",
         code: state.formData.code?.trim() || null,
         sortOrder: Number(state.formData.sortOrder) || 0,
-        trialDays: state.formData.trialDays ? Number(state.formData.trialDays) : null,
+        trialDays: state.formData.hasTrial ? Number(state.formData.trialDays) || null : null,
         limits: {
           maxProperties: Number(state.formData.maxProperties) || 1,
           maxContacts: Number(state.formData.maxContacts) || 25,
@@ -666,19 +684,40 @@ function SubscriptionProductFormContainer() {
                         onChange={handleChange}
                       />
                     </div>
-                    <div>
-                      <label className={getLabelClasses()} htmlFor="trialDays">
-                        Trial Days
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          id="hasTrial"
+                          type="checkbox"
+                          checked={state.formData.hasTrial}
+                          onChange={handleChange}
+                          className="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                          Enable free trial
+                        </span>
                       </label>
-                      <input
-                        id="trialDays"
-                        className={getInputClasses("trialDays")}
-                        type="number"
-                        min="0"
-                        value={state.formData.trialDays}
-                        onChange={handleChange}
-                        placeholder="Leave empty for no trial"
-                      />
+                      {state.formData.hasTrial && (
+                        <div>
+                          <label className={getLabelClasses()} htmlFor="trialDays">
+                            Trial length (days)
+                          </label>
+                          <input
+                            id="trialDays"
+                            className={getInputClasses("trialDays")}
+                            type="number"
+                            min="1"
+                            value={state.formData.trialDays}
+                            onChange={handleChange}
+                            placeholder="e.g. 14"
+                          />
+                          {state.errors.trialDays && (
+                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                              {state.errors.trialDays}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Description (full width) */}

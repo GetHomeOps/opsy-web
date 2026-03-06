@@ -76,8 +76,8 @@ function UpgradePlanPage() {
     setCheckoutLoading(plan.code);
     try {
       const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const successUrl = `${origin}/#/billing/success?role=${encodeURIComponent(userRole)}&plan=${encodeURIComponent(plan.code)}`;
-      const cancelUrl = `${origin}/#/${accountUrl}/settings/upgrade`;
+      const successUrl = `${origin}/billing/success?role=${encodeURIComponent(userRole)}&plan=${encodeURIComponent(plan.code)}`;
+      const cancelUrl = `${origin}/${accountUrl}/settings/upgrade`;
       const { url } = await AppApi.createCheckoutSession({
         planCode: plan.code,
         billingInterval,

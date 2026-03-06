@@ -27,11 +27,11 @@ const STEPS = [
   {id: "message", label: "Message"},
 ];
 
-/** Build hash-router URL for opening in new tab. */
-function toHashUrl(path) {
-  const base = window.location.href.split("#")[0];
+/** Build URL for opening in new tab (BrowserRouter). */
+function toShareUrl(path) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const cleanPath = (path || "").replace(/^\//, "");
-  return `${base}#/${cleanPath}`;
+  return `${origin}/${cleanPath}`;
 }
 
 function generateMessageTemplate(propertyName, systemName, date, scheduleType) {
@@ -815,7 +815,7 @@ function ScheduleSystemModal({
   }, [currentStep, scheduledDate, scheduleType, systemLabel, propertyName]);
 
   const handleBrowseDirectory = useCallback(() => {
-    window.open(toHashUrl(professionalsPath), "_blank");
+    window.open(toShareUrl(professionalsPath), "_blank");
   }, [professionalsPath]);
 
   const handleNext = () => {
