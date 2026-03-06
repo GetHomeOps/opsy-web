@@ -10,6 +10,22 @@
 const db = require("../db");
 const { NotFoundError, BadRequestError } = require("../expressError");
 
+/** Resolve unit_amount from Stripe when DB has null. Returns { unitAmount, currency } or null. */
+async function resolvePriceFromStripe(stripePriceId) {
+  if (!stripePriceId) return null;
+  try {
+    const stripeService = require("../services/stripeService");
+    if (stripeService.stripe) {
+      const price = await stripeService.stripe.prices.retrieve(stripePriceId);
+      return {
+        unitAmount: price.unit_amount,
+        currency: price.currency || "usd",
+      };
+    }
+  } catch (_) { /* Stripe unavailable */ }
+  return null;
+}
+
 /** Get all active plans for an audience (homeowner | agent), with limits, prices, and features. */
 async function getPlansForAudience(audienceType) {
   const result = await db.query(
@@ -55,14 +71,27 @@ async function getPlansForAudience(audienceType) {
       acc[r.billingInterval] = r.stripePriceId;
       return acc;
     }, {});
-    p.stripePrices = prices.rows.reduce((acc, r) => {
-      acc[r.billingInterval] = {
+    p.stripePrices = {};
+    for (const r of prices.rows) {
+      let unitAmount = r.unitAmount;
+      let currency = r.currency || "usd";
+      if (unitAmount == null && r.stripePriceId) {
+        const resolved = await resolvePriceFromStripe(r.stripePriceId);
+        if (resolved) {
+          unitAmount = resolved.unitAmount;
+          currency = resolved.currency;
+          await db.query(
+            `UPDATE plan_prices SET unit_amount = $1, currency = $2 WHERE subscription_product_id = $3 AND billing_interval = $4`,
+            [unitAmount, currency, p.id, r.billingInterval]
+          );
+        }
+      }
+      p.stripePrices[r.billingInterval] = {
         stripePriceId: r.stripePriceId,
-        unitAmount: r.unitAmount,
-        currency: r.currency || "usd",
+        unitAmount,
+        currency,
       };
-      return acc;
-    }, {});
+    }
   }
   return plans;
 }

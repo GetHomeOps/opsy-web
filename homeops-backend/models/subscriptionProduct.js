@@ -205,7 +205,7 @@ class SubscriptionProduct {
     return result.rows[0] || null;
   }
 
-  /** Get active products for a target role (e.g. homeowner, agent) */
+  /** Get active products for a target role (e.g. homeowner, agent). Includes plan_prices for display. */
   static async getByRole(role) {
     const cols = await getProductColumns();
     const result = await db.query(
@@ -214,7 +214,47 @@ class SubscriptionProduct {
        ORDER BY price ASC`,
       [role]
     );
-    return result.rows;
+    const products = result.rows;
+    if (products.length === 0) return products;
+    try {
+      const priceRes = await db.query(
+        `SELECT subscription_product_id AS "subscriptionProductId", billing_interval AS "billingInterval",
+                stripe_price_id AS "stripePriceId", unit_amount AS "unitAmount", currency
+         FROM plan_prices WHERE subscription_product_id = ANY($1::int[])`,
+        [products.map((p) => p.id)]
+      );
+      const pricesByProduct = {};
+      for (const row of priceRes.rows) {
+        const pid = row.subscriptionProductId;
+        if (!pricesByProduct[pid]) pricesByProduct[pid] = [];
+        let unitAmount = row.unitAmount;
+        let currency = row.currency || "usd";
+        if (unitAmount == null && row.stripePriceId) {
+          try {
+            const stripeService = require("../services/stripeService");
+            if (stripeService.stripe) {
+              const price = await stripeService.stripe.prices.retrieve(row.stripePriceId);
+              unitAmount = price.unit_amount;
+              currency = price.currency || "usd";
+            }
+          } catch (_) { /* Stripe unavailable */ }
+        }
+        pricesByProduct[pid].push({
+          billingInterval: row.billingInterval,
+          stripePriceId: row.stripePriceId,
+          unitAmount,
+          currency,
+        });
+      }
+      for (const p of products) {
+        p.prices = pricesByProduct[p.id] || [];
+      }
+    } catch (e) {
+      for (const p of products) {
+        p.prices = [];
+      }
+    }
+    return products;
   }
 
   static async update(id, data) {
