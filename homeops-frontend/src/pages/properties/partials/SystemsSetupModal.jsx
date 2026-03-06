@@ -631,7 +631,7 @@ function SystemsSetupModal({
       <div className="relative">
         {/* Horizontal step tracker */}
         {!showSuccess && visibleSteps.length > 1 && (
-          <div className="px-6 md:px-8 pt-6 pb-2">
+          <div className="px-6 md:px-8 pt-6 pb-0">
             <nav className="flex items-start justify-center max-w-md mx-auto" aria-label="Progress">
               {visibleSteps.map((stepId, idx) => {
                 const config = STEP_CONFIG[stepId];
@@ -708,7 +708,7 @@ function SystemsSetupModal({
             to { opacity: 1; transform: scale(1); }
           }
         `}</style>
-        <div className="p-6 md:p-8 relative min-h-[320px] pt-8">
+        <div className="p-6 md:p-8 relative min-h-[320px] pt-4">
           {/* Success overlay with animation */}
           {showSuccess && (
           <>

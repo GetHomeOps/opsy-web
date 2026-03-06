@@ -77,8 +77,11 @@ function HomeOpsTeam({
             const photoUrl =
               member.image_url ??
               member.image ??
+              member.avatar_url ??
               userFromContext?.image_url ??
-              userFromContext?.image;
+              userFromContext?.image ??
+              userFromContext?.avatarUrl ??
+              userFromContext?.avatar;
 
             const roleLower = (member.role ?? member.property_role ?? "").toLowerCase();
             const memberTab =

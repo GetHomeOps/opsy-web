@@ -162,13 +162,31 @@ function CalendarScheduleModal({isOpen, onClose, onScheduled, initialDate = "", 
               {(properties || [])
                 .slice()
                 .sort((a, b) =>
-                  (a.passport_id || a.identity?.propertyName || a.name || "").localeCompare(
-                    b.passport_id || b.identity?.propertyName || b.name || "",
-                  ),
+                  (
+                    a.passport_id ||
+                    a.property_name ||
+                    a.propertyName ||
+                    a.identity?.propertyName ||
+                    a.name ||
+                    ""
+                  ).localeCompare(
+                    b.passport_id ||
+                    b.property_name ||
+                    b.propertyName ||
+                    b.identity?.propertyName ||
+                    b.name ||
+                    ""
+                  )
                 )
                 .map((p) => {
                   const pid = p.property_uid ?? p.id ?? p.uid;
-                  const name = p.identity?.propertyName || p.name || `Property ${pid}`;
+                  const name =
+                    p.property_name ||
+                    p.propertyName ||
+                    p.identity?.propertyName ||
+                    p.name ||
+                    p.address ||
+                    `Property ${pid}`;
                   const passportId = p.passport_id ?? p.passportId ?? "";
                   const label = passportId ? `${name} (${passportId})` : name;
                   return (

@@ -118,6 +118,12 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
     const property_users = await Property.getPropertyTeam(property.id);
     const property_users_with_urls = await addPresignedUrlsToItems(property_users, "image", "image_url");
 
+    // Use avatar_url (e.g. Google OAuth profile pic) as fallback when image/image_url is null
+    const property_users_with_avatars = property_users_with_urls.map((u) => ({
+      ...u,
+      image_url: u.image_url ?? u.avatar_url ?? null,
+    }));
+
     // Include pending invitations as team members with _pending flag
     const pendingInvitations = await Invitation.getByProperty(property.id, { status: "pending" });
     const pendingMembers = pendingInvitations.map((inv) => ({
@@ -128,7 +134,7 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
       _pending: true,
     }));
 
-    const allMembers = [...property_users_with_urls, ...pendingMembers];
+    const allMembers = [...property_users_with_avatars, ...pendingMembers];
     return res.json({ property_users: allMembers });
   } catch (err) {
     return next(err);

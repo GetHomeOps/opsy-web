@@ -16,7 +16,7 @@ const toMember = (u, roleOverride) => ({
   id: u.id,
   name: u.name ?? "User",
   role: roleOverride ?? u.role ?? "Member",
-  image: u.image_url ?? u.image ?? u.avatar,
+  image: u.image_url ?? u.image ?? u.avatarUrl ?? u.avatar_url ?? u.avatar,
 });
 
 /* HomeOps Team Modal Component */

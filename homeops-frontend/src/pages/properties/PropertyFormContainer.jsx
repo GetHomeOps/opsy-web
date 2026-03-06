@@ -164,11 +164,19 @@ function getCreatorAsTeamMember(currentUser) {
         : r === "homeowner"
           ? "Homeowner"
           : "Agent";
+  /* Prefer displayable URLs (image_url, avatarUrl) over S3 keys (image) for <img src> */
+  const photoUrl =
+    currentUser.image_url ??
+    currentUser.avatarUrl ??
+    currentUser.avatar_url ??
+    currentUser.image ??
+    currentUser.avatar;
   return {
     id: currentUser.id,
     name: currentUser.name ?? "User",
     role: displayRole,
-    image: currentUser.image ?? currentUser.avatar,
+    image: photoUrl,
+    image_url: photoUrl,
   };
 }
 
@@ -785,8 +793,8 @@ function PropertyFormContainer() {
           /* Preserve role (user type: agent, homeowner) for tab categorization; property_role for access (owner, editor, viewer) */
           role: m.role,
           property_role: m.property_role ?? "editor",
-          image_url: m.image_url ?? u?.image_url,
-          image: m.image ?? u?.image,
+          image_url: m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
+          image: m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
         };
       });
       setHomeopsTeam(enriched);
@@ -1264,8 +1272,8 @@ function PropertyFormContainer() {
             ...m,
             role: m.role,
             property_role: m.property_role ?? "editor",
-            image_url: m.image_url ?? u?.image_url,
-            image: m.image ?? u?.image,
+            image_url: m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
+            image: m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
           };
         });
         setHomeopsTeam(enriched);
@@ -2713,8 +2721,8 @@ function PropertyFormContainer() {
                         ...m,
                         role: m.role,
                         property_role: m.property_role ?? "editor",
-                        image_url: m.image_url ?? u?.image_url,
-                        image: m.image ?? u?.image,
+                        image_url: m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
+                        image: m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
                       };
                     });
                     setHomeopsTeam(enriched);
