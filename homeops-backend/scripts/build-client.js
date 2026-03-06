@@ -22,7 +22,21 @@ if (!fs.existsSync(frontendPath)) {
 
 console.log('Building frontend from', frontendPath);
 
-// Install dependencies
+// Ensure pnpm is available (Railway/Nixpacks may not have it pre-installed)
+const pnpmCheck = spawnSync('pnpm', ['--version'], { shell: true, stdio: 'pipe' });
+if (pnpmCheck.status !== 0) {
+  console.log('pnpm not found, enabling via corepack...');
+  const corepack = spawnSync('corepack', ['enable'], { stdio: 'inherit', shell: true });
+  if (corepack.status !== 0) {
+    console.log('corepack failed, installing pnpm via npm...');
+    const npmInstall = spawnSync('npm', ['install', '-g', 'pnpm'], { stdio: 'inherit', shell: true });
+    if (npmInstall.status !== 0) {
+      console.error('Could not install pnpm');
+      process.exit(1);
+    }
+  }
+}
+
 const install = spawnSync('pnpm', ['install'], {
   cwd: frontendPath,
   stdio: 'inherit',
