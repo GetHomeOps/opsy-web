@@ -15,7 +15,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/auth': API_PROXY_TARGET,
+      // Don't proxy /auth/callback - it's a frontend SPA route. The backend redirects there
+      // after OAuth; Vite must serve the React app, not the backend's built index.html.
+      '/auth': {
+        target: API_PROXY_TARGET,
+        bypass: (req) => (req.url?.startsWith('/auth/callback') ? '/index.html' : undefined),
+      },
       '/mfa': API_PROXY_TARGET,
       '/users': API_PROXY_TARGET,
       '/accounts': API_PROXY_TARGET,
