@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useContext} from "react";
 import {useParams, useNavigate} from "react-router-dom";
-import {ArrowLeft, Home} from "lucide-react";
+import {ArrowLeft, Home, Loader2} from "lucide-react";
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import PropertyContext from "../../context/PropertyContext";
@@ -18,7 +18,11 @@ function isPropertyNotFoundError(err) {
   if (!(err instanceof ApiError)) return false;
   if (err.status === 404) return true;
   if (err.status === 403) {
-    const msg = (err.message || (err.messages && err.messages[0]) || "").toLowerCase();
+    const msg = (
+      err.message ||
+      (err.messages && err.messages[0]) ||
+      ""
+    ).toLowerCase();
     return msg.includes("not found");
   }
   return false;
@@ -188,7 +192,7 @@ function MaintenanceRecordPage() {
         <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className="grow flex items-center justify-center">
-            <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+            <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
           </main>
         </div>
       </div>

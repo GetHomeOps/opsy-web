@@ -10,6 +10,7 @@ const MaintenanceEvent = require("../models/maintenanceEvent");
 const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const documentRagService = require("../services/documentRagService");
 const ApiUsage = require("../models/apiUsage");
+const { logAiUsage } = require("../services/usageService");
 const { getAiSummaryForProperty, getReanalysisAudit } = require("../services/ai/propertyReanalysisService");
 const {
   SLIDING_WINDOW_SIZE,
@@ -536,6 +537,22 @@ router.post(
           promptTokens: usage.prompt_tokens,
           completionTokens: usage.completion_tokens,
         }).catch(() => {});
+
+        const acctRes = await db.query(
+          `SELECT account_id FROM properties WHERE id = $1`,
+          [resolvedId]
+        );
+        const accountId = acctRes.rows[0]?.account_id;
+        if (accountId) {
+          logAiUsage({
+            accountId,
+            userId,
+            model: `openai/${chatModel}`,
+            promptTokens: usage.prompt_tokens,
+            completionTokens: usage.completion_tokens,
+            endpoint: "ai/chat",
+          }).catch(() => {});
+        }
       }
 
       // --- Schedule intent detection ---

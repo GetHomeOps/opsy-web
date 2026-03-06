@@ -1,6 +1,13 @@
 import React, {useState, useRef, useEffect} from "react";
 import {Link} from "react-router-dom";
-import {Bell, Calendar, AlertCircle, ChevronRight, BookOpen, UserPlus} from "lucide-react";
+import {
+  Bell,
+  Calendar,
+  AlertCircle,
+  ChevronRight,
+  BookOpen,
+  UserPlus,
+} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -12,7 +19,11 @@ function formatEventDate(dateStr, timeStr) {
   tomorrow.setDate(tomorrow.getDate() + 1);
   if (d.toDateString() === today.toDateString()) return "Today";
   if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-  return d.toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"});
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatEventTime(timeStr) {
@@ -51,12 +62,17 @@ function DropdownNotifications({align = "right"}) {
   const accountUrl = currentAccount?.url || "";
   const calendarPath = accountUrl ? `/${accountUrl}/calendar` : "/calendar";
   const homePath = accountUrl ? `/${accountUrl}` : "/";
-  const invitationsPath = accountUrl ? `/${accountUrl}/invitations` : "/invitations";
+  const invitationsPath = accountUrl
+    ? `/${accountUrl}/invitations`
+    : "/invitations";
 
   const fetchData = () => {
     setLoading(true);
     Promise.all([
-      AppApi.getNotifications({limit: 10}).catch(() => ({notifications: [], unreadCount: 0})),
+      AppApi.getNotifications({limit: 10}).catch(() => ({
+        notifications: [],
+        unreadCount: 0,
+      })),
       (() => {
         const today = new Date();
         const end = new Date(today);
@@ -93,7 +109,12 @@ function DropdownNotifications({align = "right"}) {
   useEffect(() => {
     const clickHandler = ({target}) => {
       if (!dropdown.current) return;
-      if (!dropdownOpen || dropdown.current.contains(target) || trigger.current?.contains(target)) return;
+      if (
+        !dropdownOpen ||
+        dropdown.current.contains(target) ||
+        trigger.current?.contains(target)
+      )
+        return;
       setDropdownOpen(false);
     };
     document.addEventListener("click", clickHandler);
@@ -110,10 +131,12 @@ function DropdownNotifications({align = "right"}) {
   });
 
   const todayEvents = events.filter(
-    (e) => new Date(e.scheduledDate).toDateString() === new Date().toDateString(),
+    (e) =>
+      new Date(e.scheduledDate).toDateString() === new Date().toDateString(),
   );
   const upcomingEvents = events.filter(
-    (e) => new Date(e.scheduledDate).toDateString() !== new Date().toDateString(),
+    (e) =>
+      new Date(e.scheduledDate).toDateString() !== new Date().toDateString(),
   );
   const hasAlerts = todayEvents.length > 0;
   const badgeCount = unreadCount;
@@ -130,7 +153,10 @@ function DropdownNotifications({align = "right"}) {
         aria-expanded={dropdownOpen}
       >
         <span className="sr-only">Notifications</span>
-        <Bell className="w-5 h-5 text-gray-500 dark:text-gray-400" strokeWidth={1.75} />
+        <Bell
+          className="w-5 h-5 text-gray-500 dark:text-gray-400"
+          strokeWidth={1.75}
+        />
         {badgeCount > 0 && (
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full ring-2 ring-white dark:ring-gray-900" />
         )}
@@ -148,7 +174,11 @@ function DropdownNotifications({align = "right"}) {
         leaveStart="opacity-100"
         leaveEnd="opacity-0"
       >
-        <div ref={dropdown} onFocus={() => setDropdownOpen(true)} onBlur={() => setDropdownOpen(false)}>
+        <div
+          ref={dropdown}
+          onFocus={() => setDropdownOpen(true)}
+          onBlur={() => setDropdownOpen(false)}
+        >
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700/60">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
               Notifications
@@ -162,9 +192,14 @@ function DropdownNotifications({align = "right"}) {
               </div>
             ) : notifications.length === 0 && events.length === 0 ? (
               <div className="py-8 px-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                <Bell className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600" strokeWidth={1.5} />
+                <Bell
+                  className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600"
+                  strokeWidth={1.5}
+                />
                 <p>No notifications yet</p>
-                <p className="mt-1 text-xs">New resources and events will appear here</p>
+                <p className="mt-1 text-xs">
+                  New resources and events will appear here
+                </p>
               </div>
             ) : (
               <ul className="py-2">
@@ -177,16 +212,23 @@ function DropdownNotifications({align = "right"}) {
                     </li>
                     {notifications.map((n) => {
                       const isInvitation = n.type === "property_invitation";
-                      const basePath = isInvitation && n.propertyUid && n.accountUrl
-                        ? `/${n.accountUrl}/properties/${n.propertyUid}`
-                        : isInvitation
-                          ? invitationsPath
-                          : homePath;
-                      const linkTo = isInvitation && n.invitationId && basePath.includes("/properties/")
-                        ? `${basePath}?invitation=${n.invitationId}`
-                        : basePath;
+                      const basePath =
+                        isInvitation && n.propertyUid && n.accountUrl
+                          ? `/${n.accountUrl}/properties/${n.propertyUid}`
+                          : isInvitation
+                            ? invitationsPath
+                            : homePath;
+                      const linkTo =
+                        isInvitation &&
+                        n.invitationId &&
+                        basePath.includes("/properties/")
+                          ? `${basePath}?invitation=${n.invitationId}`
+                          : basePath;
                       return (
-                        <li key={n.id} className="border-b border-gray-100 dark:border-gray-700/40 last:border-0">
+                        <li
+                          key={n.id}
+                          className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+                        >
                           <Link
                             to={linkTo}
                             onClick={async () => {
@@ -209,7 +251,9 @@ function DropdownNotifications({align = "right"}) {
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                {n.title || n.resourceSubject || "New resource shared"}
+                                {n.title ||
+                                  n.resourceSubject ||
+                                  "New resource shared"}
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
                                 {formatNotificationTime(n.createdAt)}
@@ -241,7 +285,10 @@ function DropdownNotifications({align = "right"}) {
                       </span>
                     </li>
                     {todayEvents.map((ev) => (
-                      <li key={ev.id} className="border-b border-gray-100 dark:border-gray-700/40 last:border-0">
+                      <li
+                        key={ev.id}
+                        className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+                      >
                         <Link
                           to={calendarPath}
                           onClick={() => setDropdownOpen(false)}
@@ -252,11 +299,15 @@ function DropdownNotifications({align = "right"}) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {ev.systemName} {ev.type === "inspection" ? "Inspection" : "Maintenance"}
+                              {ev.systemName}{" "}
+                              {ev.type === "inspection"
+                                ? "Inspection"
+                                : "Maintenance"}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               {ev.propertyName}
-                              {ev.scheduledTime && ` · ${formatEventTime(ev.scheduledTime)}`}
+                              {ev.scheduledTime &&
+                                ` · ${formatEventTime(ev.scheduledTime)}`}
                             </p>
                           </div>
                         </Link>
@@ -272,7 +323,10 @@ function DropdownNotifications({align = "right"}) {
                       </span>
                     </li>
                     {upcomingEvents.map((ev) => (
-                      <li key={ev.id} className="border-b border-gray-100 dark:border-gray-700/40 last:border-0">
+                      <li
+                        key={ev.id}
+                        className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+                      >
                         <Link
                           to={calendarPath}
                           onClick={() => setDropdownOpen(false)}
@@ -283,10 +337,16 @@ function DropdownNotifications({align = "right"}) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {ev.systemName} {ev.type === "inspection" ? "Inspection" : "Maintenance"}
+                              {ev.systemName}{" "}
+                              {ev.type === "inspection"
+                                ? "Inspection"
+                                : "Maintenance"}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatEventDate(ev.scheduledDate, ev.scheduledTime)}
+                              {formatEventDate(
+                                ev.scheduledDate,
+                                ev.scheduledTime,
+                              )}
                               {ev.contractorName && ` · ${ev.contractorName}`}
                             </p>
                           </div>

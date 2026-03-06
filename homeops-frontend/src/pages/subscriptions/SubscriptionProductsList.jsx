@@ -186,9 +186,7 @@ function SubscriptionProductsList() {
   // Reset page if needed
   useEffect(() => {
     if (filteredProducts.length > 0) {
-      const maxPage = Math.ceil(
-        filteredProducts.length / state.itemsPerPage,
-      );
+      const maxPage = Math.ceil(filteredProducts.length / state.itemsPerPage);
       if (state.currentPage > maxPage) {
         dispatch({type: "SET_CURRENT_PAGE", payload: 1});
       }
@@ -202,17 +200,13 @@ function SubscriptionProductsList() {
       payload: (() => {
         if (Array.isArray(idOrIds)) {
           if (forceState === false) {
-            return state.selectedItems.filter(
-              (id) => !idOrIds.includes(id),
-            );
+            return state.selectedItems.filter((id) => !idOrIds.includes(id));
           }
           const allSelected = idOrIds.every((id) =>
             state.selectedItems.includes(id),
           );
           if (allSelected) {
-            return state.selectedItems.filter(
-              (id) => !idOrIds.includes(id),
-            );
+            return state.selectedItems.filter((id) => !idOrIds.includes(id));
           }
           return [
             ...state.selectedItems,
@@ -230,9 +224,7 @@ function SubscriptionProductsList() {
   const allSelected = useMemo(() => {
     return (
       currentProducts.length > 0 &&
-      currentProducts.every((p) =>
-        state.selectedItems.includes(p.id),
-      )
+      currentProducts.every((p) => state.selectedItems.includes(p.id))
     );
   }, [currentProducts, state.selectedItems]);
 
@@ -245,12 +237,17 @@ function SubscriptionProductsList() {
       return (a.name || "").localeCompare(b.name || "");
     });
     const idx = sorted.findIndex((p) => Number(p.id) === Number(product.id));
-    const navState = idx >= 0 ? {
-      currentIndex: idx + 1,
-      totalItems: sorted.length,
-      visibleProductIds: sorted.map((p) => p.id),
-    } : null;
-    navigate(`/${accountUrl}/subscription-products/${product.id}`, {state: navState});
+    const navState =
+      idx >= 0
+        ? {
+            currentIndex: idx + 1,
+            totalItems: sorted.length,
+            visibleProductIds: sorted.map((p) => p.id),
+          }
+        : null;
+    navigate(`/${accountUrl}/subscription-products/${product.id}`, {
+      state: navState,
+    });
   }
 
   // Archive handlers (no deletion)
@@ -261,7 +258,9 @@ function SubscriptionProductsList() {
         payload: {
           open: true,
           type: "error",
-          message: t("subscriptionProducts.selectToArchive") || "Select products to archive.",
+          message:
+            t("subscriptionProducts.selectToArchive") ||
+            "Select products to archive.",
         },
       });
       return;
@@ -288,12 +287,14 @@ function SubscriptionProductsList() {
 
       if (archivedIds.length > 0) {
         const updated = state.products.map((p) =>
-          archivedIds.includes(p.id) ? {...p, isActive: false} : p
+          archivedIds.includes(p.id) ? {...p, isActive: false} : p,
         );
         dispatch({type: "SET_PRODUCTS", payload: updated});
         dispatch({
           type: "SET_SELECTED_ITEMS",
-          payload: state.selectedItems.filter((id) => !archivedIds.includes(id)),
+          payload: state.selectedItems.filter(
+            (id) => !archivedIds.includes(id),
+          ),
         });
         dispatch({
           type: "SET_BANNER",
@@ -357,8 +358,7 @@ function SubscriptionProductsList() {
       key: "createdAt",
       label: t("subscriptionProducts.createdAt"),
       sortable: true,
-      render: (value) =>
-        value ? new Date(value).toLocaleDateString() : "—",
+      render: (value) => (value ? new Date(value).toLocaleDateString() : "—"),
     },
   ];
 
@@ -446,7 +446,8 @@ function SubscriptionProductsList() {
                 </div>
                 <div className="text-sm mb-10">
                   <p>
-                    {t("subscriptionProducts.archiveConfirmation") || "Products will be hidden from active plans. Enable 'Show archived' to see them."}
+                    {t("subscriptionProducts.archiveConfirmation") ||
+                      "Products will be hidden from active plans. Enable 'Show archived' to see them."}
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-end space-x-2">
@@ -465,8 +466,8 @@ function SubscriptionProductsList() {
                     disabled={state.isSubmitting}
                   >
                     {state.isSubmitting
-                      ? (t("subscriptionProducts.archiving") || "Archiving...")
-                      : (t("subscriptionProducts.archive") || "Archive")}
+                      ? t("subscriptionProducts.archiving") || "Archiving..."
+                      : t("subscriptionProducts.archive") || "Archive"}
                   </button>
                 </div>
               </div>
@@ -492,7 +493,8 @@ function SubscriptionProductsList() {
                     onClick={handleArchiveClick}
                   >
                     <span>
-                      {t("subscriptionProducts.archive") || "Archive"} ({state.selectedItems.length})
+                      {t("subscriptionProducts.archive") || "Archive"} (
+                      {state.selectedItems.length})
                     </span>
                   </button>
                 )}
@@ -526,9 +528,7 @@ function SubscriptionProductsList() {
                   <input
                     type="text"
                     className="form-input w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-gray-300 dark:focus:border-gray-600 rounded-lg shadow-sm"
-                    placeholder={t(
-                      "subscriptionProducts.searchPlaceholder",
-                    )}
+                    placeholder={t("subscriptionProducts.searchPlaceholder")}
                     value={state.searchTerm}
                     onChange={(e) =>
                       dispatch({
@@ -554,7 +554,12 @@ function SubscriptionProductsList() {
                   <input
                     type="checkbox"
                     checked={state.showArchived}
-                    onChange={(e) => dispatch({type: "SET_SHOW_ARCHIVED", payload: e.target.checked})}
+                    onChange={(e) =>
+                      dispatch({
+                        type: "SET_SHOW_ARCHIVED",
+                        payload: e.target.checked,
+                      })
+                    }
                     className="form-checkbox text-amber-500"
                   />
                   <span className="text-sm text-gray-600 dark:text-gray-400">

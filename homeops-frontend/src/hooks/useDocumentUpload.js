@@ -1,5 +1,5 @@
 import {useState, useCallback} from "react";
-import AppApi, { API_BASE_URL } from "../api/api";
+import AppApi, { buildApiUrl } from "../api/api";
 
 /**
  * Upload a document with progress reporting.
@@ -97,7 +97,7 @@ export default function useDocumentUpload({onSuccess, onError} = {}) {
           resolve(null);
         });
 
-        xhr.open("POST", `${API_BASE_URL || ""}/documents/upload`);
+        xhr.open("POST", buildApiUrl("documents/upload").toString());
         xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         xhr.send(formData);
       });

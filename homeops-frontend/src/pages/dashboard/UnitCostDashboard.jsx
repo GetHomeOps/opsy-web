@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, {useState, useEffect, useCallback} from "react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
-import { PAGE_LAYOUT } from "../../constants/layout";
+import {PAGE_LAYOUT} from "../../constants/layout";
 import {
   DollarSign,
   RefreshCw,
@@ -10,6 +10,7 @@ import {
   Users,
   Sparkles,
   Cpu,
+  Loader2,
 } from "lucide-react";
 
 function formatUsd(value) {
@@ -51,7 +52,7 @@ function UnitCostDashboard() {
       setSummary(summaryData ?? null);
     } catch (err) {
       setError(
-        err?.messages?.[0] || err?.message || "Failed to load unit cost data"
+        err?.messages?.[0] || err?.message || "Failed to load unit cost data",
       );
       setUsers([]);
       setSummary(null);
@@ -64,10 +65,13 @@ function UnitCostDashboard() {
     fetchData();
   }, [fetchData]);
 
-  const totalApiCalls = users.reduce((acc, u) => acc + (u.apiCallCount ?? 0), 0);
+  const totalApiCalls = users.reduce(
+    (acc, u) => acc + (u.apiCallCount ?? 0),
+    0,
+  );
   const totalDocuments = users.reduce(
     (acc, u) => acc + (u.documentCount ?? 0),
-    0
+    0,
   );
   const totalTokens = users.reduce((acc, u) => acc + (u.tokenCount ?? 0), 0);
 
@@ -140,7 +144,7 @@ function UnitCostDashboard() {
                   <RefreshCw
                     className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
                   />
-                  {loading ? "Loading..." : "Refresh"}
+                  Refresh
                 </button>
               </div>
             </div>
@@ -174,7 +178,9 @@ function UnitCostDashboard() {
                 <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-4">
                   <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 mb-1">
                     <Sparkles className="w-4 h-4" />
-                    <span className="text-sm font-medium">OpenAI API Calls</span>
+                    <span className="text-sm font-medium">
+                      OpenAI API Calls
+                    </span>
                   </div>
                   <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
                     {totalApiCalls.toLocaleString()}
@@ -203,9 +209,7 @@ function UnitCostDashboard() {
 
             {loading && users.length === 0 ? (
               <div className="flex items-center justify-center py-16">
-                <p className="text-gray-500 dark:text-gray-400">
-                  Loading unit cost data...
-                </p>
+                <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
               </div>
             ) : users.length === 0 ? (
               <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-8 text-center">
@@ -254,7 +258,9 @@ function UnitCostDashboard() {
                           <td className="px-5 py-3">
                             <div>
                               <p className="font-medium text-gray-900 dark:text-gray-100">
-                                {u.userName || u.userEmail || `User #${u.userId}`}
+                                {u.userName ||
+                                  u.userEmail ||
+                                  `User #${u.userId}`}
                               </p>
                               {u.userName && u.userEmail && (
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -269,12 +275,12 @@ function UnitCostDashboard() {
                                 u.userRole === "super_admin"
                                   ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
                                   : u.userRole === "admin"
-                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                                  : u.userRole === "agent"
-                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-                                  : u.userRole === "homeowner"
-                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                                  : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                                    : u.userRole === "agent"
+                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                      : u.userRole === "homeowner"
+                                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                                        : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                               }`}
                             >
                               {u.userRole || "—"}
@@ -290,9 +296,7 @@ function UnitCostDashboard() {
                             {u.aiCost > 0 ? formatUsd(u.aiCost) : "—"}
                           </td>
                           <td className="px-5 py-3 text-right">
-                            {u.storageCost > 0
-                              ? formatUsd(u.storageCost)
-                              : "—"}
+                            {u.storageCost > 0 ? formatUsd(u.storageCost) : "—"}
                           </td>
                           <td className="px-5 py-3 text-right">
                             {u.emailCost > 0 ? formatUsd(u.emailCost) : "—"}

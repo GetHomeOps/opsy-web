@@ -1,9 +1,16 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, FileUp, Video, Link, ExternalLink } from "lucide-react";
+import React, {useState, useEffect, useCallback} from "react";
+import {useParams, useNavigate} from "react-router-dom";
+import {
+  ArrowLeft,
+  Loader2,
+  FileUp,
+  Video,
+  Link,
+  ExternalLink,
+} from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
-import { DEFAULT_HEADER_IMAGE } from "../../utils/resourceThumbnail";
+import {DEFAULT_HEADER_IMAGE} from "../../utils/resourceThumbnail";
 
 function getVideoThumbnail(url) {
   if (!url) return null;
@@ -14,7 +21,12 @@ function getVideoThumbnail(url) {
 
 /** Ensure HTML renders correctly (handles escaped entities and content shape). */
 function getBodyHtml(content) {
-  const raw = typeof content?.body === "string" ? content.body : typeof content === "string" ? content : "";
+  const raw =
+    typeof content?.body === "string"
+      ? content.body
+      : typeof content === "string"
+        ? content
+        : "";
   if (!raw) return "";
   if (raw.includes("&lt;") || raw.includes("&gt;") || raw.includes("&amp;")) {
     const el = document.createElement("div");
@@ -29,9 +41,9 @@ function getBodyHtml(content) {
  * Used when a recipient clicks a communication from the Discover feed on the Home page.
  */
 function CommunicationViewer() {
-  const { id } = useParams();
+  const {id} = useParams();
   const navigate = useNavigate();
-  const { currentAccount } = useCurrentAccount();
+  const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
   const [communication, setCommunication] = useState(null);
@@ -60,11 +72,15 @@ function CommunicationViewer() {
   }, [fetchCommunication]);
 
   useEffect(() => {
-    const imageAtts = attachments.filter((a) => a.type === "image" && a.fileKey);
+    const imageAtts = attachments.filter(
+      (a) => a.type === "image" && a.fileKey,
+    );
     imageAtts.forEach((att) => {
       if (!attachmentUrls[att.fileKey]) {
         AppApi.getPresignedPreviewUrl(att.fileKey)
-          .then((url) => setAttachmentUrls((prev) => ({ ...prev, [att.fileKey]: url })))
+          .then((url) =>
+            setAttachmentUrls((prev) => ({...prev, [att.fileKey]: url})),
+          )
           .catch(() => {});
       }
     });
@@ -84,7 +100,9 @@ function CommunicationViewer() {
   if (error || !communication) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] py-16">
-        <p className="text-red-600 dark:text-red-400 mb-4">{error || "Communication not found"}</p>
+        <p className="text-red-600 dark:text-red-400 mb-4">
+          {error || "Communication not found"}
+        </p>
         <button
           type="button"
           onClick={handleBack}
@@ -99,15 +117,21 @@ function CommunicationViewer() {
 
   const bodyHtml = getBodyHtml(communication.content);
   const previewImageKey = communication.imageKey;
-  const firstImageAtt = attachments.find((a) => a.type === "image" && a.fileKey);
+  const firstImageAtt = attachments.find(
+    (a) => a.type === "image" && a.fileKey,
+  );
   const thumbnailUrl = previewImageKey
-    ? (attachmentUrls[previewImageKey] || null)
-    : (firstImageAtt ? attachmentUrls[firstImageAtt.fileKey] : null);
+    ? attachmentUrls[previewImageKey] || null
+    : firstImageAtt
+      ? attachmentUrls[firstImageAtt.fileKey]
+      : null;
 
   useEffect(() => {
     if (!previewImageKey) return;
     AppApi.getPresignedPreviewUrl(previewImageKey)
-      .then((url) => setAttachmentUrls((prev) => ({ ...prev, [previewImageKey]: url })))
+      .then((url) =>
+        setAttachmentUrls((prev) => ({...prev, [previewImageKey]: url})),
+      )
       .catch(() => {});
   }, [previewImageKey]);
 
@@ -143,7 +167,7 @@ function CommunicationViewer() {
           {bodyHtml && (
             <div
               className="prose prose-sm dark:prose-invert max-w-none mb-6 text-gray-700 dark:text-gray-300 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg"
-              dangerouslySetInnerHTML={{ __html: bodyHtml }}
+              dangerouslySetInnerHTML={{__html: bodyHtml}}
             />
           )}
 
@@ -183,7 +207,11 @@ function CommunicationViewer() {
                       className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/50"
                     >
                       {thumb && (
-                        <img src={thumb} alt="" className="w-full h-40 object-cover" />
+                        <img
+                          src={thumb}
+                          alt=""
+                          className="w-full h-40 object-cover"
+                        />
                       )}
                       <a
                         href={att.url}

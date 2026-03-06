@@ -60,17 +60,14 @@ function MyProfessionals() {
     fetchSavedProfessionals();
   }, [fetchSavedProfessionals]);
 
-  const toggleSave = useCallback(
-    async (proId) => {
-      try {
-        await AppApi.unsaveProfessional(proId);
-        setProfessionals((prev) => prev.filter((p) => p.id !== proId));
-      } catch (err) {
-        setError(err?.message || "Failed to remove professional");
-      }
-    },
-    [],
-  );
+  const toggleSave = useCallback(async (proId) => {
+    try {
+      await AppApi.unsaveProfessional(proId);
+      setProfessionals((prev) => prev.filter((p) => p.id !== proId));
+    } catch (err) {
+      setError(err?.message || "Failed to remove professional");
+    }
+  }, []);
 
   const allSaved = useMemo(() => professionals, [professionals]);
 
@@ -80,12 +77,15 @@ function MyProfessionals() {
       const catId = pro.categoryId || pro.categoryIds?.[0] || "other";
       counts[catId] = (counts[catId] || 0) + 1;
     });
-    return Object.entries(counts).map(([id, count]) => ({
-      id,
-      name: allSaved.find((p) => (p.categoryId || p.categoryIds?.[0]) === id)
-        ?.categoryName || id,
-      count,
-    })).sort((a, b) => b.count - a.count);
+    return Object.entries(counts)
+      .map(([id, count]) => ({
+        id,
+        name:
+          allSaved.find((p) => (p.categoryId || p.categoryIds?.[0]) === id)
+            ?.categoryName || id,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
   }, [allSaved]);
 
   const savedPros = useMemo(() => {
@@ -171,7 +171,11 @@ function MyProfessionals() {
             <button
               type="button"
               onClick={() =>
-                navigate(accountUrl ? `/${accountUrl}/professionals` : "/professionals")
+                navigate(
+                  accountUrl
+                    ? `/${accountUrl}/professionals`
+                    : "/professionals",
+                )
               }
               className="inline-flex items-center gap-2 text-sm font-medium text-[#456564] dark:text-[#7aa3a2] hover:text-[#34514f] dark:hover:text-[#9ec5c4] transition-colors mb-5"
             >
@@ -204,8 +208,8 @@ function MyProfessionals() {
                       My Professionals
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {allSaved.length} saved across{" "}
-                      {savedCategories.length} categor
+                      {allSaved.length} saved across {savedCategories.length}{" "}
+                      categor
                       {savedCategories.length !== 1 ? "ies" : "y"}
                     </p>
                   </div>
@@ -453,7 +457,9 @@ function MyProfessionals() {
                     type="button"
                     onClick={() =>
                       navigate(
-                        accountUrl ? `/${accountUrl}/professionals` : "/professionals",
+                        accountUrl
+                          ? `/${accountUrl}/professionals`
+                          : "/professionals",
                       )
                     }
                     className="text-sm font-medium bg-[#456564] text-white px-5 py-2.5 rounded-lg hover:bg-[#34514f] transition-colors shadow-sm"

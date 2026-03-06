@@ -40,6 +40,7 @@ export default defineConfig({
       '/communications': API_PROXY_TARGET,
       '/notifications': API_PROXY_TARGET,
       '/inspection-analysis': API_PROXY_TARGET,
+      '/inspection-checklist': API_PROXY_TARGET,
       '/ai': API_PROXY_TARGET,
       '/billing': API_PROXY_TARGET,
       '/webhooks': API_PROXY_TARGET,

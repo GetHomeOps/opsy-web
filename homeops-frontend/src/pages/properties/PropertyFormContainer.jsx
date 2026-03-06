@@ -393,7 +393,8 @@ function PropertyFormContainer() {
   const [systemsSetupModalOpen, setSystemsSetupModalOpen] = useState(false);
   const [systemsSetupInitialStep, setSystemsSetupInitialStep] = useState(null);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
-  const [upgradePromptTitle, setUpgradePromptTitle] = useState("Upgrade your plan");
+  const [upgradePromptTitle, setUpgradePromptTitle] =
+    useState("Upgrade your plan");
   const [upgradePromptMsg, setUpgradePromptMsg] = useState("");
   const [aiSidebarOpen, setAiSidebarOpen] = useState(false);
   const [aiSidebarSystemLabel, setAiSidebarSystemLabel] = useState(null);
@@ -793,8 +794,10 @@ function PropertyFormContainer() {
           /* Preserve role (user type: agent, homeowner) for tab categorization; property_role for access (owner, editor, viewer) */
           role: m.role,
           property_role: m.property_role ?? "editor",
-          image_url: m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
-          image: m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
+          image_url:
+            m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
+          image:
+            m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
         };
       });
       setHomeopsTeam(enriched);
@@ -1272,8 +1275,10 @@ function PropertyFormContainer() {
             ...m,
             role: m.role,
             property_role: m.property_role ?? "editor",
-            image_url: m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
-            image: m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
+            image_url:
+              m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
+            image:
+              m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
           };
         });
         setHomeopsTeam(enriched);
@@ -2602,7 +2607,7 @@ function PropertyFormContainer() {
                           uid !== "new"
                             ? () =>
                                 requestAnimationFrame(() =>
-                                  setBlankModalOpen(true)
+                                  setBlankModalOpen(true),
                                 )
                             : undefined
                         }
@@ -2721,8 +2726,17 @@ function PropertyFormContainer() {
                         ...m,
                         role: m.role,
                         property_role: m.property_role ?? "editor",
-                        image_url: m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
-                        image: m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
+                        image_url:
+                          m.image_url ??
+                          m.avatar_url ??
+                          u?.image_url ??
+                          u?.avatarUrl,
+                        image:
+                          m.image ??
+                          u?.image ??
+                          u?.avatarUrl ??
+                          u?.avatar_url ??
+                          u?.avatar,
                       };
                     });
                     setHomeopsTeam(enriched);
@@ -2806,18 +2820,24 @@ function PropertyFormContainer() {
           systemLabel={
             inspectionReportSystemId
               ? (PROPERTY_SYSTEMS.find((s) => s.id === inspectionReportSystemId)
-                ?.name ??
+                  ?.name ??
                 (inspectionReportSystemId.startsWith("custom-")
-                  ? inspectionReportSystemId.replace(/^custom-(.+?)-\d+$/, "$1") || inspectionReportSystemId
+                  ? inspectionReportSystemId.replace(
+                      /^custom-(.+?)-\d+$/,
+                      "$1",
+                    ) || inspectionReportSystemId
                   : inspectionReportSystemId))
               : null
           }
           onChatWithAI={() => {
             const sysLabel = inspectionReportSystemId
               ? (PROPERTY_SYSTEMS.find((s) => s.id === inspectionReportSystemId)
-                ?.name ??
+                  ?.name ??
                 (inspectionReportSystemId.startsWith("custom-")
-                  ? inspectionReportSystemId.replace(/^custom-(.+?)-\d+$/, "$1") || inspectionReportSystemId
+                  ? inspectionReportSystemId.replace(
+                      /^custom-(.+?)-\d+$/,
+                      "$1",
+                    ) || inspectionReportSystemId
                   : inspectionReportSystemId))
               : null;
             if (inspectionReportSystemId && sysLabel) {
@@ -2883,7 +2903,7 @@ function PropertyFormContainer() {
             setUpgradePromptTitle("Upgrade your plan");
             setUpgradePromptMsg(
               message ||
-              "You've used all your AI tokens for this month. Upgrade your plan for more."
+                "You've used all your AI tokens for this month. Upgrade your plan for more.",
             );
             setUpgradePromptOpen(true);
           }}
@@ -2917,12 +2937,14 @@ function PropertyFormContainer() {
               (state.formData.systems?.selectedSystemIds?.length
                 ? state.formData.systems.selectedSystemIds
                 : DEFAULT_SYSTEM_IDS
-              ).includes(s.id)
+              ).includes(s.id),
             ),
-            ...(state.formData.systems?.customSystemNames ?? []).map((name, i) => ({
-              id: `custom-${name}-${i}`,
-              name,
-            })),
+            ...(state.formData.systems?.customSystemNames ?? []).map(
+              (name, i) => ({
+                id: `custom-${name}-${i}`,
+                name,
+              }),
+            ),
           ]}
           contacts={contacts ?? []}
           initialPrompt={aiSidebarInitialPrompt}

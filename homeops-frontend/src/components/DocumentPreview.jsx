@@ -98,7 +98,9 @@ function DocumentPreview({modalOpen, setModalOpen, fileKey, fileName}) {
         {isLoading && (
           <div className="flex flex-col items-center justify-center py-16">
             <RefreshCw className="w-10 h-10 text-gray-400 animate-spin mb-3" />
-            <p className="text-gray-500 dark:text-gray-400">Loading document…</p>
+            <p className="text-gray-500 dark:text-gray-400">
+              Loading document…
+            </p>
           </div>
         )}
 

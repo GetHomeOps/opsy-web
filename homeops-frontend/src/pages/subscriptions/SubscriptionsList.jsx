@@ -201,18 +201,14 @@ function SubscriptionsList() {
       payload: (() => {
         if (Array.isArray(idOrIds)) {
           if (forceState === false) {
-            return state.selectedItems.filter(
-              (id) => !idOrIds.includes(id),
-            );
+            return state.selectedItems.filter((id) => !idOrIds.includes(id));
           }
           // Toggle all
           const allSelected = idOrIds.every((id) =>
             state.selectedItems.includes(id),
           );
           if (allSelected) {
-            return state.selectedItems.filter(
-              (id) => !idOrIds.includes(id),
-            );
+            return state.selectedItems.filter((id) => !idOrIds.includes(id));
           }
           return [
             ...state.selectedItems,
@@ -231,9 +227,7 @@ function SubscriptionsList() {
   const allSelected = useMemo(() => {
     return (
       currentSubscriptions.length > 0 &&
-      currentSubscriptions.every((sub) =>
-        state.selectedItems.includes(sub.id),
-      )
+      currentSubscriptions.every((sub) => state.selectedItems.includes(sub.id))
     );
   }, [currentSubscriptions, state.selectedItems]);
 
@@ -292,9 +286,7 @@ function SubscriptionsList() {
         });
         dispatch({
           type: "SET_SELECTED_ITEMS",
-          payload: state.selectedItems.filter(
-            (id) => !deletedIds.includes(id),
-          ),
+          payload: state.selectedItems.filter((id) => !deletedIds.includes(id)),
         });
         dispatch({
           type: "SET_BANNER",
@@ -326,12 +318,10 @@ function SubscriptionsList() {
         "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
       inactive:
         "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
-      cancelled:
-        "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+      cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
       expired:
         "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-      trial:
-        "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+      trial: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
     };
 
     const colorClasses =
@@ -375,9 +365,7 @@ function SubscriptionsList() {
       key: "subscriptionProductName",
       label: t("subscriptions.subscription"),
       sortable: true,
-      render: (value) => (
-        <span className="capitalize">{value || "—"}</span>
-      ),
+      render: (value) => <span className="capitalize">{value || "—"}</span>,
     },
     {
       key: "subscriptionStatus",
@@ -492,7 +480,9 @@ function SubscriptionsList() {
                     onClick={handleDelete}
                     disabled={state.isSubmitting}
                   >
-                    {state.isSubmitting ? t("subscriptions.deleting") : t("accept")}
+                    {state.isSubmitting
+                      ? t("subscriptions.deleting")
+                      : t("accept")}
                   </button>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import React from "react";
-import { format } from "date-fns";
-import { Ticket } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import {format} from "date-fns";
+import {Ticket, Loader2} from "lucide-react";
+import {useTranslation} from "react-i18next";
 
 /**
  * Reusable tickets list for users to see their submitted tickets.
@@ -17,7 +17,7 @@ function TicketsList({
   title,
   description,
 }) {
-  const { t } = useTranslation();
+  const {t} = useTranslation();
 
   const defaultStatusBadgeClass = (status) => {
     switch (status) {
@@ -60,23 +60,23 @@ function TicketsList({
         <div className="flex items-center gap-2">
           <Ticket className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {title || (t("support.myTickets") || "My Tickets")}
+            {title || t("support.myTickets") || "My Tickets"}
           </h2>
         </div>
         <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
           {description ||
-            (t("support.myTicketsDescription") ||
-              "Tickets you've submitted. Click to view details and replies.")}
+            t("support.myTicketsDescription") ||
+            "Tickets you've submitted. Click to view details and replies."}
         </p>
       </div>
       <div className="p-6">
         {loading ? (
-          <p className="text-gray-500 dark:text-gray-400">
-            {t("loading") || "Loading..."}
-          </p>
+          <div className="flex justify-center py-4">
+            <Loader2 className="w-8 h-8 text-[#456564] animate-spin" />
+          </div>
         ) : tickets.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400">
-            {emptyMessage || (t("support.noTickets") || "No tickets yet.")}
+            {emptyMessage || t("support.noTickets") || "No tickets yet."}
           </p>
         ) : (
           <ul className="space-y-3">
@@ -86,9 +86,7 @@ function TicketsList({
                 role="button"
                 tabIndex={0}
                 onClick={() => onTicketClick?.(ticket)}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && onTicketClick?.(ticket)
-                }
+                onKeyDown={(e) => e.key === "Enter" && onTicketClick?.(ticket)}
                 className="rounded-xl border border-gray-200 dark:border-gray-700/60 p-4 bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100/80 dark:hover:bg-gray-700/40 hover:border-[#456564]/30 dark:hover:border-[#5a7a78]/40 cursor-pointer transition-all duration-200"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -98,7 +96,7 @@ function TicketsList({
                     </span>
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass(
-                        ticket.status
+                        ticket.status,
                       )}`}
                     >
                       {label(ticket.status)}

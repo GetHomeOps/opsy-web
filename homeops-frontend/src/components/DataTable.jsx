@@ -1,5 +1,6 @@
 import React from "react";
 import {useTranslation} from "react-i18next";
+import {Loader2} from "lucide-react";
 import {useSortIndicator} from "../hooks/useSortIndicator";
 
 function DataTable({
@@ -25,6 +26,7 @@ function DataTable({
   className = "",
   allSelected = false,
   onSelectAll = null,
+  loading = false,
 }) {
   const {t} = useTranslation();
   const renderSortIndicator = useSortIndicator();
@@ -96,7 +98,13 @@ function DataTable({
             colSpan={columns.length + 1}
             className="px-2 first:pl-5 last:pr-5 py-8 text-gray-500 dark:text-gray-400"
           >
-            <div className="text-center w-full">{t(emptyMessage || "noItemsFound")}</div>
+            <div className="flex justify-center w-full">
+              {loading ? (
+                <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
+              ) : (
+                t(emptyMessage || "noItemsFound")
+              )}
+            </div>
           </td>
         </tr>
       );
@@ -115,7 +123,7 @@ function DataTable({
                 groupId,
                 groupItems,
                 isExpanded,
-                onGroupExpand
+                onGroupExpand,
               )}
               {isExpanded &&
                 groupItems.map((item, index) => (
@@ -132,13 +140,13 @@ function DataTable({
                       handleSelect,
                       selectedItems,
                       onItemClick,
-                      isLastItemInLastGroup && index === groupItems.length - 1
+                      isLastItemInLastGroup && index === groupItems.length - 1,
                     )}
                   </tr>
                 ))}
             </React.Fragment>
           );
-        }
+        },
       );
     }
 
@@ -156,7 +164,7 @@ function DataTable({
           handleSelect,
           selectedItems,
           onItemClick,
-          index === items.length - 1
+          index === items.length - 1,
         )}
       </tr>
     ));

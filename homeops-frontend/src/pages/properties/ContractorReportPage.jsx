@@ -1,11 +1,20 @@
-import React, { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import React, {useState, useEffect} from "react";
+import {useSearchParams} from "react-router-dom";
 import {
-  Wrench, Calendar, FileText, DollarSign, Clock,
-  AlertCircle, Loader2, CheckCircle, Send,
-  User, Mail, Phone,
+  Wrench,
+  Calendar,
+  FileText,
+  DollarSign,
+  Clock,
+  AlertCircle,
+  Loader2,
+  CheckCircle,
+  Send,
+  User,
+  Mail,
+  Phone,
 } from "lucide-react";
-import { API_BASE_URL } from "../../api/api";
+import {API_BASE_URL} from "../../api/api";
 import Logo from "../../images/logo-no-bg.png";
 
 /**
@@ -45,10 +54,14 @@ function ContractorReportPage() {
 
   async function loadReportData() {
     try {
-      const resp = await fetch(`${API_BASE_URL}/contractor-report/${encodeURIComponent(token)}`);
+      const resp = await fetch(
+        `${API_BASE_URL}/contractor-report/${encodeURIComponent(token)}`,
+      );
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
-        throw new Error(body?.error?.message || "This link is invalid or has expired.");
+        throw new Error(
+          body?.error?.message || "This link is invalid or has expired.",
+        );
       }
       const data = await resp.json();
       setReportData(data);
@@ -68,8 +81,8 @@ function ContractorReportPage() {
   }
 
   function handleChange(e) {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const {name, value} = e.target;
+    setFormData((prev) => ({...prev, [name]: value}));
   }
 
   async function handleSubmit(e) {
@@ -81,11 +94,14 @@ function ContractorReportPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const resp = await fetch(`${API_BASE_URL}/contractor-report/${encodeURIComponent(token)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const resp = await fetch(
+        `${API_BASE_URL}/contractor-report/${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(formData),
+        },
+      );
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error(body?.error?.message || "Failed to submit report.");
@@ -116,7 +132,10 @@ function ContractorReportPage() {
           <img src={Logo} alt="HomeOps" className="h-10 mx-auto mb-6" />
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-gray-900 mb-2">Link Invalid</h1>
-          <p className="text-gray-600">{error || "This report link is invalid or has expired. Please contact the homeowner for a new link."}</p>
+          <p className="text-gray-600">
+            {error ||
+              "This report link is invalid or has expired. Please contact the homeowner for a new link."}
+          </p>
         </div>
       </div>
     );
@@ -128,7 +147,9 @@ function ContractorReportPage() {
         <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
           <img src={Logo} alt="HomeOps" className="h-10 mx-auto mb-6" />
           <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Report Submitted</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Report Submitted
+          </h1>
           <p className="text-gray-600 mb-4">
             Thank you! Your maintenance report has been submitted successfully.
             The homeowner will be notified of your findings.
@@ -152,7 +173,9 @@ function ContractorReportPage() {
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Property & system info */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Maintenance Report</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">
+            Maintenance Report
+          </h1>
           <p className="text-gray-500 mb-4">
             Please fill out the details of the work performed.
           </p>
@@ -164,26 +187,34 @@ function ContractorReportPage() {
                   {reportData.propertyName || reportData.propertyAddress}
                 </span>
                 {reportData.propertyName && (
-                  <p className="text-gray-400 text-xs mt-0.5">{reportData.propertyAddress}</p>
+                  <p className="text-gray-400 text-xs mt-0.5">
+                    {reportData.propertyAddress}
+                  </p>
                 )}
               </div>
             )}
             {reportData.systemName && (
               <div>
                 <span className="text-gray-500">System:</span>
-                <span className="ml-2 font-medium text-gray-900">{reportData.systemName}</span>
+                <span className="ml-2 font-medium text-gray-900">
+                  {reportData.systemName}
+                </span>
               </div>
             )}
             {reportData.contractorName && (
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-900">{reportData.contractorName}</span>
+                <span className="text-gray-900">
+                  {reportData.contractorName}
+                </span>
               </div>
             )}
             {reportData.contractorEmail && (
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-900">{reportData.contractorEmail}</span>
+                <span className="text-gray-900">
+                  {reportData.contractorEmail}
+                </span>
               </div>
             )}
           </div>
@@ -280,7 +311,9 @@ function ContractorReportPage() {
                   className="form-select w-full rounded-lg border-gray-300"
                 >
                   <option value="Completed">Completed</option>
-                  <option value="In Progress">In Progress — More Work Needed</option>
+                  <option value="In Progress">
+                    In Progress — More Work Needed
+                  </option>
                   <option value="Scheduled">Follow-up Scheduled</option>
                 </select>
               </div>
@@ -350,9 +383,13 @@ function ContractorReportPage() {
               type="submit"
               disabled={submitting}
               className="inline-flex items-center gap-2 px-8 py-3 text-white font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: "#456564" }}
-              onMouseEnter={(e) => { if (!submitting) e.target.style.backgroundColor = "#3a5548"; }}
-              onMouseLeave={(e) => { if (!submitting) e.target.style.backgroundColor = "#456564"; }}
+              style={{backgroundColor: "#456564"}}
+              onMouseEnter={(e) => {
+                if (!submitting) e.target.style.backgroundColor = "#3a5548";
+              }}
+              onMouseLeave={(e) => {
+                if (!submitting) e.target.style.backgroundColor = "#456564";
+              }}
             >
               {submitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

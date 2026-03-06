@@ -2,12 +2,13 @@ import React from "react";
 import {Routes, Route, Navigate, useParams} from "react-router-dom";
 
 function BillingPlansRedirect() {
-  const { accountUrl } = useParams();
+  const {accountUrl} = useParams();
   return <Navigate to={`/${accountUrl}/subscription-products`} replace />;
 }
 
 import "../../css/style.css";
 
+import {Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import ProtectedRoute from "./ProtectedRoute";
@@ -83,7 +84,6 @@ import CommunicationComposer from "../communications/CommunicationComposer";
 import CommunicationViewerPage from "../communications/CommunicationViewerPage";
 import Calendar from "../calendar/Calendar";
 
-
 function RoutesList() {
   const {currentUser, isLoading} = useAuth();
   const {currentAccount} = useCurrentAccount();
@@ -92,7 +92,7 @@ function RoutesList() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        Loading...
+        <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
       </div>
     );
   }
@@ -538,7 +538,10 @@ function RoutesList() {
           </ProtectedRoute>
         }
       />
-      <Route path="/:accountUrl/billing-plans" element={<BillingPlansRedirect />} />
+      <Route
+        path="/:accountUrl/billing-plans"
+        element={<BillingPlansRedirect />}
+      />
       <Route
         path="/:accountUrl/subscription-products"
         element={

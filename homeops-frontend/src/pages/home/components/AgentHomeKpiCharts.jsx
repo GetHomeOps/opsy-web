@@ -1,5 +1,5 @@
 import React from "react";
-import { Bar, Doughnut, Line } from "react-chartjs-2";
+import {Bar, Doughnut, Line} from "react-chartjs-2";
 import {
   Building2,
   Users,
@@ -14,6 +14,7 @@ import {
   MousePointerClick,
   Clock,
   UserCircle,
+  Loader2,
 } from "lucide-react";
 import "./chartConfig";
 
@@ -69,7 +70,7 @@ function AgentHomeKpiCharts({
                     ...chartOptions.plugins,
                     tooltip: {
                       ...chartOptions.plugins?.tooltip,
-                      callbacks: { label: (ctx) => `${ctx.raw}` },
+                      callbacks: {label: (ctx) => `${ctx.raw}`},
                     },
                   },
                 }}
@@ -79,7 +80,8 @@ function AgentHomeKpiCharts({
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[#456564]" />
                 <span className="text-xs text-gray-600 dark:text-gray-400">
-                  {totalProperties} {t("agentHome.totalProperties") || "Properties"}
+                  {totalProperties}{" "}
+                  {t("agentHome.totalProperties") || "Properties"}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -118,7 +120,7 @@ function AgentHomeKpiCharts({
                       maintainAspectRatio: false,
                       cutout: "68%",
                       plugins: {
-                        legend: { display: false },
+                        legend: {display: false},
                         tooltip: chartOptions.plugins?.tooltip,
                       },
                     }}
@@ -132,16 +134,21 @@ function AgentHomeKpiCharts({
                       color: "#456564",
                       icon: Building2,
                     },
-                    { key: "users", value: totalUsers, color: "#3b82f6", icon: UserCircle },
+                    {
+                      key: "users",
+                      value: totalUsers,
+                      color: "#3b82f6",
+                      icon: UserCircle,
+                    },
                     {
                       key: "contacts",
                       value: totalContacts,
                       color: "#8b5cf6",
                       icon: Users,
                     },
-                  ].map(({ key, value, color, icon: Icon }) => (
+                  ].map(({key, value, color, icon: Icon}) => (
                     <div key={key} className="flex flex-col items-center gap-1">
-                      <Icon className="w-4 h-4 opacity-70" style={{ color }} />
+                      <Icon className="w-4 h-4 opacity-70" style={{color}} />
                       <span className="text-sm font-bold text-gray-900 dark:text-white">
                         {value}
                       </span>
@@ -178,7 +185,7 @@ function AgentHomeKpiCharts({
                       maintainAspectRatio: false,
                       cutout: "65%",
                       plugins: {
-                        legend: { display: false },
+                        legend: {display: false},
                         tooltip: chartOptions.plugins?.tooltip,
                       },
                     }}
@@ -272,13 +279,15 @@ function AgentHomeKpiCharts({
             </p>
             {engagementLoading && !engagementTrend.length ? (
               <div className="h-44 flex items-center justify-center text-gray-400 text-sm">
-                Loading...
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
               </div>
             ) : engagementTrend.length > 0 ? (
               <div className="h-44">
                 <Line
                   data={{
-                    labels: engagementTrend.map((d) => d.date?.slice(5, 10) ?? d.date),
+                    labels: engagementTrend.map(
+                      (d) => d.date?.slice(5, 10) ?? d.date,
+                    ),
                     datasets: [
                       {
                         label: "Events",
@@ -345,7 +354,7 @@ function AgentHomeKpiCharts({
             </p>
             {engagementLoading && !engagementCounts.length ? (
               <div className="h-48 flex items-center justify-center text-gray-400 text-sm">
-                Loading...
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
               </div>
             ) : engagementCounts.length > 0 ? (
               <>
@@ -353,7 +362,7 @@ function AgentHomeKpiCharts({
                   <Doughnut
                     data={{
                       labels: engagementCounts.map(
-                        (c) => c.eventType ?? c.event_type ?? "—"
+                        (c) => c.eventType ?? c.event_type ?? "—",
                       ),
                       datasets: [
                         {
@@ -378,7 +387,7 @@ function AgentHomeKpiCharts({
                       plugins: {
                         legend: {
                           position: "right",
-                          labels: { boxWidth: 10, padding: 8, font: { size: 11 } },
+                          labels: {boxWidth: 10, padding: 8, font: {size: 11}},
                         },
                       },
                     }}
@@ -430,11 +439,11 @@ function AgentHomeKpiCharts({
                     ...chartOptions,
                     indexAxis: "y",
                     scales: {
-                      x: { ...chartOptions.scales?.x, max: 100 },
+                      x: {...chartOptions.scales?.x, max: 100},
                       y: {
                         ...chartOptions.scales?.y,
-                        grid: { display: false },
-                        ticks: { font: { size: 10 } },
+                        grid: {display: false},
+                        ticks: {font: {size: 10}},
                       },
                     },
                   }}
@@ -443,7 +452,8 @@ function AgentHomeKpiCharts({
             ) : (
               <div className="h-48 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-200 dark:border-gray-600 rounded-lg">
                 <Heart className="w-8 h-8 mb-2 opacity-40" />
-                {t("agentHome.noHealthData") || "Add properties to see health scores."}
+                {t("agentHome.noHealthData") ||
+                  "Add properties to see health scores."}
               </div>
             )}
           </div>
@@ -467,11 +477,11 @@ function AgentHomeKpiCharts({
                     ...chartOptions,
                     indexAxis: "y",
                     scales: {
-                      x: { ...chartOptions.scales?.x, ticks: { stepSize: 1 } },
+                      x: {...chartOptions.scales?.x, ticks: {stepSize: 1}},
                       y: {
                         ...chartOptions.scales?.y,
-                        grid: { display: false },
-                        ticks: { font: { size: 10 } },
+                        grid: {display: false},
+                        ticks: {font: {size: 10}},
                       },
                     },
                   }}
@@ -479,10 +489,14 @@ function AgentHomeKpiCharts({
               </div>
             ) : (
               <div className="h-48 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-200 dark:border-gray-600 rounded-lg">
-                <Users className="w-8 h-8 mb-2 opacity-40" />
-                {isLoadingTeams
-                  ? "Loading team data..."
-                  : t("agentHome.noTeamData") || "No team data yet."}
+                {isLoadingTeams ? (
+                  <Loader2 className="w-5 h-5 text-gray-400 animate-spin mb-2" />
+                ) : (
+                  <>
+                    <Users className="w-8 h-8 mb-2 opacity-40" />
+                    {t("agentHome.noTeamData") || "No team data yet."}
+                  </>
+                )}
               </div>
             )}
           </div>

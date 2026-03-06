@@ -1,7 +1,16 @@
 import React, {useState, useEffect} from "react";
 import {Link, useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
-import {UserPlus, Mail, Check, X, Home, Building2, ChevronRight} from "lucide-react";
+import {
+  UserPlus,
+  Mail,
+  Check,
+  X,
+  Home,
+  Building2,
+  ChevronRight,
+  Loader2,
+} from "lucide-react";
 import AppApi from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 
@@ -37,7 +46,11 @@ function InvitationsList() {
         if (!cancelled) setReceived(invs || []);
       } catch (err) {
         if (!cancelled) {
-          setError(err?.message || t("invitations.fetchError") || "Error loading invitations");
+          setError(
+            err?.message ||
+              t("invitations.fetchError") ||
+              "Error loading invitations",
+          );
           setReceived([]);
         }
       } finally {
@@ -45,7 +58,9 @@ function InvitationsList() {
       }
     }
     fetchReceived();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [t]);
 
   const handleAccept = async (inv) => {
@@ -53,8 +68,14 @@ function InvitationsList() {
     try {
       await AppApi.acceptInvitationInApp(inv.id);
       setReceived((prev) => prev.filter((i) => i.id !== inv.id));
-      if (inv.type === "property" && (inv.propertyUid || inv.propertyId) && accountUrl) {
-        navigate(`/${accountUrl}/properties/${inv.propertyUid || inv.propertyId}`);
+      if (
+        inv.type === "property" &&
+        (inv.propertyUid || inv.propertyId) &&
+        accountUrl
+      ) {
+        navigate(
+          `/${accountUrl}/properties/${inv.propertyUid || inv.propertyId}`,
+        );
       } else {
         navigate(accountUrl ? `/${accountUrl}/home` : "/");
       }
@@ -91,9 +112,9 @@ function InvitationsList() {
           </h2>
 
           {loading ? (
-            <p className="text-gray-500 dark:text-gray-400 py-4">
-              {t("invitations.loading") || "Loading…"}
-            </p>
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
+            </div>
           ) : error ? (
             <p className="text-red-500 dark:text-red-400 py-4">{error}</p>
           ) : received.length === 0 ? (
@@ -126,19 +147,24 @@ function InvitationsList() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {inv.type === "property" && (inv.propertyUid || inv.propertyId) && accountUrl ? (
+                    {inv.type === "property" &&
+                    (inv.propertyUid || inv.propertyId) &&
+                    accountUrl ? (
                       <Link
                         to={`/${accountUrl}/properties/${inv.propertyUid || inv.propertyId}?invitation=${inv.id}`}
                         className="btn bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white inline-flex items-center gap-2"
                       >
-                        View property & respond <ChevronRight className="w-4 h-4" />
+                        View property & respond{" "}
+                        <ChevronRight className="w-4 h-4" />
                       </Link>
                     ) : (
                       <>
                         <button
                           type="button"
                           onClick={() => handleAccept(inv)}
-                          disabled={acceptingId === inv.id || decliningId === inv.id}
+                          disabled={
+                            acceptingId === inv.id || decliningId === inv.id
+                          }
                           className="btn bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white inline-flex items-center gap-2"
                         >
                           {acceptingId === inv.id ? (
@@ -151,7 +177,9 @@ function InvitationsList() {
                         <button
                           type="button"
                           onClick={() => handleDecline(inv)}
-                          disabled={acceptingId === inv.id || decliningId === inv.id}
+                          disabled={
+                            acceptingId === inv.id || decliningId === inv.id
+                          }
                           className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
                         >
                           {decliningId === inv.id ? (
@@ -171,7 +199,8 @@ function InvitationsList() {
 
         <section className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
           <p className="text-gray-600 dark:text-gray-400 text-sm">
-            {t("invitations.allInvitations") || "All invitations"} — You can accept or decline property and account invitations from here.
+            {t("invitations.allInvitations") || "All invitations"} — You can
+            accept or decline property and account invitations from here.
           </p>
           {accountUrl && (
             <Link

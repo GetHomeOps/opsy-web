@@ -1,34 +1,26 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
-import { useNavigate, useParams } from "react-router-dom";
+import React, {useState, useEffect, useCallback, useRef} from "react";
+import {createPortal} from "react-dom";
+import {useNavigate, useParams} from "react-router-dom";
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import AppApi from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
-import { useAuth } from "../../context/AuthContext";
+import {useAuth} from "../../context/AuthContext";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
-import { useAutoCloseBanner } from "../../hooks/useAutoCloseBanner";
+import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
 import PostRichEditor from "../../components/PostRichEditor";
 import useImageUpload from "../../hooks/useImageUpload";
-import { PAGE_LAYOUT } from "../../constants/layout";
+import {PAGE_LAYOUT} from "../../constants/layout";
 import ComposeSection from "./partials/ComposeSection";
 import AudienceSection from "./partials/AudienceSection";
 import DeliverySection from "./partials/DeliverySection";
 import LivePreview from "./partials/LivePreview";
-import {
-  ArrowLeft,
-  Send,
-  Clock,
-  Save,
-  Loader2,
-  Eye,
-  Copy,
-} from "lucide-react";
+import {ArrowLeft, Send, Clock, Save, Loader2, Eye, Copy} from "lucide-react";
 
 const INITIAL_FORM = {
   subject: "",
-  content: { body: "" },
+  content: {body: ""},
   imageKey: null,
   templateId: null,
   recipientMode: "",
@@ -41,10 +33,10 @@ const INITIAL_FORM = {
 };
 
 function CommunicationComposer() {
-  const { id } = useParams();
+  const {id} = useParams();
   const navigate = useNavigate();
-  const { currentAccount } = useCurrentAccount();
-  const { currentUser } = useAuth();
+  const {currentAccount} = useCurrentAccount();
+  const {currentUser} = useAuth();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const accountId = currentAccount?.id;
 
@@ -89,7 +81,7 @@ function CommunicationComposer() {
   useEffect(() => {
     AppApi.getCommRecipientOptions()
       .then(setRecipientOptions)
-      .catch(() => setRecipientOptions({ homeowners: [], agents: [] }));
+      .catch(() => setRecipientOptions({homeowners: [], agents: []}));
   }, []);
 
   // Load existing comm
@@ -100,14 +92,20 @@ function CommunicationComposer() {
       const hasRules = res.rules?.length > 0;
       setForm({
         subject: c.subject || "",
-        content: c.content || { body: "" },
+        content: c.content || {body: ""},
         imageKey: c.imageKey || null,
         templateId: c.templateId,
         recipientMode: c.recipientMode || "",
         recipientIds: c.recipientIds || [],
         deliveryChannel: c.deliveryChannel || "in_app",
-        deliveryMode: hasRules ? "auto_send" : c.scheduledAt ? "schedule" : "send_now",
-        scheduledAt: c.scheduledAt ? new Date(c.scheduledAt).toISOString().slice(0, 16) : "",
+        deliveryMode: hasRules
+          ? "auto_send"
+          : c.scheduledAt
+            ? "schedule"
+            : "send_now",
+        scheduledAt: c.scheduledAt
+          ? new Date(c.scheduledAt).toISOString().slice(0, 16)
+          : "",
         attachments: res.attachments || [],
         rules: res.rules || [],
         status: c.status,
@@ -122,7 +120,7 @@ function CommunicationComposer() {
 
   useEffect(() => {
     if (isNew) {
-      setForm({ ...INITIAL_FORM });
+      setForm({...INITIAL_FORM});
       setLoading(false);
       return;
     }
@@ -143,7 +141,7 @@ function CommunicationComposer() {
       .catch(() => setEstimatedCount(0));
   }, [form.recipientMode, form.recipientIds, form.deliveryMode]);
 
-  const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
+  const updateForm = (patch) => setForm((prev) => ({...prev, ...patch}));
 
   const buildPayload = (overrides = {}) => ({
     accountId,
@@ -151,11 +149,13 @@ function CommunicationComposer() {
     content: form.content,
     imageKey: form.imageKey || null,
     templateId: form.templateId || template?.id || null,
-    recipientMode: form.deliveryMode === "auto_send" ? null : (form.recipientMode || null),
-    recipientIds: form.deliveryMode === "auto_send" ? [] : (form.recipientIds || []),
+    recipientMode:
+      form.deliveryMode === "auto_send" ? null : form.recipientMode || null,
+    recipientIds:
+      form.deliveryMode === "auto_send" ? [] : form.recipientIds || [],
     deliveryChannel: form.deliveryChannel || "in_app",
     attachments: form.attachments || [],
-    rules: form.deliveryMode === "auto_send" ? (form.rules || []) : [],
+    rules: form.deliveryMode === "auto_send" ? form.rules || [] : [],
     ...overrides,
   });
 
@@ -170,7 +170,11 @@ function CommunicationComposer() {
       if (isNew) {
         const res = await AppApi.createCommunication(payload);
         showBanner("success", "Draft saved.");
-        setTimeout(() => navigate(`/${accountUrl}/communications/${res.communication.id}`), 500);
+        setTimeout(
+          () =>
+            navigate(`/${accountUrl}/communications/${res.communication.id}`),
+          500,
+        );
       } else {
         await AppApi.updateCommunication(id, payload);
         showBanner("success", "Draft updated.");
@@ -218,7 +222,7 @@ function CommunicationComposer() {
   const handleDuplicate = async () => {
     setSubmitting(true);
     try {
-      const payload = buildPayload({ subject: `${form.subject} (copy)` });
+      const payload = buildPayload({subject: `${form.subject} (copy)`});
       const res = await AppApi.createCommunication(payload);
       showBanner("success", "Duplicated.");
       navigate(`/${accountUrl}/communications/${res.communication.id}`);
@@ -298,7 +302,11 @@ function CommunicationComposer() {
 
             {/* Banner */}
             <div className="fixed top-18 right-0 w-auto sm:w-full z-50">
-              <Banner type={bannerType} open={bannerOpen} setOpen={setBannerOpen}>
+              <Banner
+                type={bannerType}
+                open={bannerOpen}
+                setOpen={setBannerOpen}
+              >
                 {bannerMessage}
               </Banner>
             </div>
@@ -306,7 +314,9 @@ function CommunicationComposer() {
             {/* Main layout: form + preview */}
             <div className={`flex gap-6 ${showPreview ? "" : ""}`}>
               {/* Left: Sections */}
-              <div className={`flex-1 min-w-0 space-y-6 ${showPreview ? "max-w-[60%]" : ""}`}>
+              <div
+                className={`flex-1 min-w-0 space-y-6 ${showPreview ? "max-w-[60%]" : ""}`}
+              >
                 {/* 1. Compose */}
                 <ComposeSection
                   form={form}
@@ -339,7 +349,8 @@ function CommunicationComposer() {
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                       {isSent && "This communication has been sent."}
-                      {isScheduled && `Scheduled for ${new Date(form.scheduledAt).toLocaleString()}`}
+                      {isScheduled &&
+                        `Scheduled for ${new Date(form.scheduledAt).toLocaleString()}`}
                     </div>
                     <div className="flex items-center gap-3">
                       {!isSent && !isScheduled && (
@@ -358,7 +369,11 @@ function CommunicationComposer() {
                             type="button"
                             onClick={() => setSendModalOpen(true)}
                             disabled={submitting || !canSend}
-                            title={!canSend ? "Add a subject and select an audience to send" : undefined}
+                            title={
+                              !canSend
+                                ? "Add a subject and select an audience to send"
+                                : undefined
+                            }
                             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium transition-colors disabled:opacity-50"
                           >
                             {form.deliveryMode === "schedule" ? (
@@ -421,10 +436,17 @@ function CommunicationComposer() {
 
       {/* Send confirmation modal */}
       {createPortal(
-        <ModalBlank id="send-comm-modal" modalOpen={sendModalOpen} setModalOpen={setSendModalOpen} ignoreClickRef={sendButtonRef}>
+        <ModalBlank
+          id="send-comm-modal"
+          modalOpen={sendModalOpen}
+          setModalOpen={setSendModalOpen}
+          ignoreClickRef={sendButtonRef}
+        >
           <div className="p-6">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              {form.deliveryMode === "schedule" ? "Schedule Communication" : "Send Communication"}
+              {form.deliveryMode === "schedule"
+                ? "Schedule Communication"
+                : "Send Communication"}
             </h2>
             <p className="text-gray-500 dark:text-gray-400 mb-5">
               {form.deliveryMode === "schedule"
@@ -447,12 +469,16 @@ function CommunicationComposer() {
                 disabled={submitting}
                 className="px-5 py-2 bg-[#456564] hover:bg-[#34514f] text-white rounded-lg text-sm font-medium disabled:opacity-50"
               >
-                {submitting ? "Processing…" : form.deliveryMode === "schedule" ? "Schedule" : "Send"}
+                {submitting
+                  ? "Processing…"
+                  : form.deliveryMode === "schedule"
+                    ? "Schedule"
+                    : "Send"}
               </button>
             </div>
           </div>
         </ModalBlank>,
-        document.body
+        document.body,
       )}
     </div>
   );

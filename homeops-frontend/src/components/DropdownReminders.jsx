@@ -1,6 +1,6 @@
 import React, {useEffect, useRef, useState} from "react";
 import {Link} from "react-router-dom";
-import {Clock3, Calendar, AlertCircle, ChevronRight} from "lucide-react";
+import {Clock3, Calendar, AlertCircle, ChevronRight, Loader2} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -12,7 +12,11 @@ function formatEventDate(dateStr, timeStr) {
   tomorrow.setDate(tomorrow.getDate() + 1);
   if (d.toDateString() === today.toDateString()) return "Today";
   if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-  return d.toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"});
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatEventTime(timeStr) {
@@ -45,7 +49,9 @@ function DropdownReminders({align = "right"}) {
 
     AppApi.getCalendarEvents(startStr, endStr)
       .then((raw) => {
-        const sorted = (raw || []).sort((a, b) => (a.scheduledDate > b.scheduledDate ? 1 : -1)).slice(0, 8);
+        const sorted = (raw || [])
+          .sort((a, b) => (a.scheduledDate > b.scheduledDate ? 1 : -1))
+          .slice(0, 8);
         setEvents(sorted);
       })
       .catch(() => setEvents([]))
@@ -63,7 +69,12 @@ function DropdownReminders({align = "right"}) {
   useEffect(() => {
     const clickHandler = ({target}) => {
       if (!dropdown.current) return;
-      if (!dropdownOpen || dropdown.current.contains(target) || trigger.current?.contains(target)) return;
+      if (
+        !dropdownOpen ||
+        dropdown.current.contains(target) ||
+        trigger.current?.contains(target)
+      )
+        return;
       setDropdownOpen(false);
     };
     document.addEventListener("click", clickHandler);
@@ -80,8 +91,12 @@ function DropdownReminders({align = "right"}) {
   });
 
   const today = new Date().toDateString();
-  const todayEvents = events.filter((e) => new Date(e.scheduledDate).toDateString() === today);
-  const upcomingEvents = events.filter((e) => new Date(e.scheduledDate).toDateString() !== today);
+  const todayEvents = events.filter(
+    (e) => new Date(e.scheduledDate).toDateString() === today,
+  );
+  const upcomingEvents = events.filter(
+    (e) => new Date(e.scheduledDate).toDateString() !== today,
+  );
   const hasReminderDot = todayEvents.length > 0;
 
   return (
@@ -96,7 +111,10 @@ function DropdownReminders({align = "right"}) {
         aria-expanded={dropdownOpen}
       >
         <span className="sr-only">Reminders</span>
-        <Clock3 className="w-5 h-5 text-gray-500 dark:text-gray-400" strokeWidth={1.75} />
+        <Clock3
+          className="w-5 h-5 text-gray-500 dark:text-gray-400"
+          strokeWidth={1.75}
+        />
         {hasReminderDot && (
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#456564] dark:bg-teal-400 rounded-full ring-2 ring-white dark:ring-gray-900" />
         )}
@@ -114,21 +132,32 @@ function DropdownReminders({align = "right"}) {
         leaveStart="opacity-100"
         leaveEnd="opacity-0"
       >
-        <div ref={dropdown} onFocus={() => setDropdownOpen(true)} onBlur={() => setDropdownOpen(false)}>
+        <div
+          ref={dropdown}
+          onFocus={() => setDropdownOpen(true)}
+          onBlur={() => setDropdownOpen(false)}
+        >
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700/60">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Upcoming reminders</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+              Upcoming reminders
+            </h3>
           </div>
 
           <div className="max-h-[360px] overflow-y-auto">
             {loading ? (
               <div className="py-8 flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
-                Loading...
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
               </div>
             ) : events.length === 0 ? (
               <div className="py-8 px-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                <Clock3 className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600" strokeWidth={1.5} />
+                <Clock3
+                  className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600"
+                  strokeWidth={1.5}
+                />
                 <p>No upcoming reminders</p>
-                <p className="mt-1 text-xs">Scheduled inspections and maintenance appear here</p>
+                <p className="mt-1 text-xs">
+                  Scheduled inspections and maintenance appear here
+                </p>
               </div>
             ) : (
               <ul className="py-2">
@@ -140,7 +169,10 @@ function DropdownReminders({align = "right"}) {
                       </span>
                     </li>
                     {todayEvents.map((ev) => (
-                      <li key={ev.id} className="border-b border-gray-100 dark:border-gray-700/40 last:border-0">
+                      <li
+                        key={ev.id}
+                        className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+                      >
                         <Link
                           to={calendarPath}
                           onClick={() => setDropdownOpen(false)}
@@ -151,11 +183,15 @@ function DropdownReminders({align = "right"}) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {ev.systemName} {ev.type === "inspection" ? "Inspection" : "Maintenance"}
+                              {ev.systemName}{" "}
+                              {ev.type === "inspection"
+                                ? "Inspection"
+                                : "Maintenance"}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                               {ev.propertyName}
-                              {ev.scheduledTime && ` · ${formatEventTime(ev.scheduledTime)}`}
+                              {ev.scheduledTime &&
+                                ` · ${formatEventTime(ev.scheduledTime)}`}
                             </p>
                           </div>
                         </Link>
@@ -171,7 +207,10 @@ function DropdownReminders({align = "right"}) {
                       </span>
                     </li>
                     {upcomingEvents.map((ev) => (
-                      <li key={ev.id} className="border-b border-gray-100 dark:border-gray-700/40 last:border-0">
+                      <li
+                        key={ev.id}
+                        className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+                      >
                         <Link
                           to={calendarPath}
                           onClick={() => setDropdownOpen(false)}
@@ -182,10 +221,16 @@ function DropdownReminders({align = "right"}) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {ev.systemName} {ev.type === "inspection" ? "Inspection" : "Maintenance"}
+                              {ev.systemName}{" "}
+                              {ev.type === "inspection"
+                                ? "Inspection"
+                                : "Maintenance"}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatEventDate(ev.scheduledDate, ev.scheduledTime)}
+                              {formatEventDate(
+                                ev.scheduledDate,
+                                ev.scheduledTime,
+                              )}
                               {ev.contractorName && ` · ${ev.contractorName}`}
                             </p>
                           </div>

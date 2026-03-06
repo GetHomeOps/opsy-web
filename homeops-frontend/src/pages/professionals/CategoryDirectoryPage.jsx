@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useSearchParams, useNavigate} from "react-router-dom";
-import {ArrowLeft, SlidersHorizontal, X, Search} from "lucide-react";
+import {ArrowLeft, SlidersHorizontal, X, Search, Loader2} from "lucide-react";
 
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
@@ -68,7 +68,10 @@ function CategoryDirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const flatCategories = useMemo(() => flattenCategories(categories), [categories]);
+  const flatCategories = useMemo(
+    () => flattenCategories(categories),
+    [categories],
+  );
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(searchTerm), 300);
@@ -126,26 +129,29 @@ function CategoryDirectoryPage() {
     }));
   }, [categoryParam]);
 
-  const toggleSave = useCallback(async (proId) => {
-    const pro = professionals.find((p) => p.id === proId);
-    if (!pro) return;
-    const isSaved = pro.saved;
-    try {
-      if (isSaved) {
-        await AppApi.unsaveProfessional(proId);
-        setProfessionals((prev) =>
-          prev.map((p) => (p.id === proId ? {...p, saved: false} : p)),
-        );
-      } else {
-        await AppApi.saveProfessional(proId);
-        setProfessionals((prev) =>
-          prev.map((p) => (p.id === proId ? {...p, saved: true} : p)),
-        );
+  const toggleSave = useCallback(
+    async (proId) => {
+      const pro = professionals.find((p) => p.id === proId);
+      if (!pro) return;
+      const isSaved = pro.saved;
+      try {
+        if (isSaved) {
+          await AppApi.unsaveProfessional(proId);
+          setProfessionals((prev) =>
+            prev.map((p) => (p.id === proId ? {...p, saved: false} : p)),
+          );
+        } else {
+          await AppApi.saveProfessional(proId);
+          setProfessionals((prev) =>
+            prev.map((p) => (p.id === proId ? {...p, saved: true} : p)),
+          );
+        }
+      } catch {
+        // Keep UI state on API failure
       }
-    } catch {
-      // Keep UI state on API failure
-    }
-  }, [professionals]);
+    },
+    [professionals],
+  );
 
   const normalized = useMemo(
     () => professionals.map(normalizeProfessional).filter(Boolean),
@@ -165,8 +171,8 @@ function CategoryDirectoryPage() {
   };
 
   const categoryName =
-    flatCategories.find((c) => String(c.id) === String(filters.categoryId))?.name ||
-    "All Professionals";
+    flatCategories.find((c) => String(c.id) === String(filters.categoryId))
+      ?.name || "All Professionals";
 
   const activeFilterCount = [
     filters.categoryId,
@@ -191,7 +197,11 @@ function CategoryDirectoryPage() {
               <button
                 type="button"
                 onClick={() =>
-                  navigate(accountUrl ? `/${accountUrl}/professionals` : "/professionals")
+                  navigate(
+                    accountUrl
+                      ? `/${accountUrl}/professionals`
+                      : "/professionals",
+                  )
                 }
                 className="inline-flex items-center gap-2 text-sm font-medium text-[#456564] dark:text-[#7aa3a2] hover:text-[#34514f] dark:hover:text-[#9ec5c4] transition-colors mb-3"
               >
@@ -203,9 +213,14 @@ function CategoryDirectoryPage() {
                   <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                     {categoryName}
                   </h1>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {loading ? "Loading…" : `${normalized.length} professional${normalized.length !== 1 ? "s" : ""} found`}
-                    {location?.city
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1.5">
+                    {loading ? (
+                      <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin shrink-0" />
+                    ) : null}
+                    {loading
+                      ? ""
+                      : `${normalized.length} professional${normalized.length !== 1 ? "s" : ""} found`}
+                    {location?.city && !loading
                       ? ` in ${location.city}, ${location.state}`
                       : ""}
                   </p>
@@ -310,7 +325,9 @@ function CategoryDirectoryPage() {
               <div className="flex-1 min-w-0">
                 {error ? (
                   <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <p className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</p>
+                    <p className="text-sm text-red-600 dark:text-red-400 mb-2">
+                      {error}
+                    </p>
                     <button
                       type="button"
                       onClick={fetchProfessionals}
@@ -321,7 +338,7 @@ function CategoryDirectoryPage() {
                   </div>
                 ) : loading ? (
                   <div className="flex items-center justify-center py-20">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+                    <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
                   </div>
                 ) : paginated.length > 0 ? (
                   <>
@@ -344,7 +361,10 @@ function CategoryDirectoryPage() {
                           </span>{" "}
                           –{" "}
                           <span className="font-medium text-gray-700 dark:text-gray-300">
-                            {Math.min(page * RESULTS_PER_PAGE, normalized.length)}
+                            {Math.min(
+                              page * RESULTS_PER_PAGE,
+                              normalized.length,
+                            )}
                           </span>{" "}
                           of{" "}
                           <span className="font-medium text-gray-700 dark:text-gray-300">

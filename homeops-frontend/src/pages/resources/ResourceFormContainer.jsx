@@ -1,14 +1,32 @@
 import React, {useState, useEffect, useCallback, useRef} from "react";
 import {createPortal} from "react-dom";
 import {useNavigate, useParams} from "react-router-dom";
-import {ArrowLeft, BookOpen, FileText, ExternalLink, Search, Loader2, Mail, Smartphone, ImagePlus, Send, Plus, Trash2, Eye, FileUp} from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  FileText,
+  ExternalLink,
+  Search,
+  Loader2,
+  Mail,
+  Smartphone,
+  ImagePlus,
+  Send,
+  Plus,
+  Trash2,
+  Eye,
+  FileUp,
+} from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
-import {getResourceThumbnailUrl, RESOURCE_THUMBNAIL_PLACEHOLDER} from "../../utils/resourceThumbnail";
+import {
+  getResourceThumbnailUrl,
+  RESOURCE_THUMBNAIL_PLACEHOLDER,
+} from "../../utils/resourceThumbnail";
 import useImageUpload from "../../hooks/useImageUpload";
 import PostRichEditor from "../../components/PostRichEditor";
 
@@ -20,12 +38,39 @@ const RESOURCE_TYPES = [
 ];
 
 const RECIPIENT_PRESETS = [
-  {value: "all_contacts", label: "All contacts", description: "Everyone in your contact list"},
-  {value: "specific_contacts", label: "Specific contacts", description: "Choose individual contacts"},
-  {value: "all_homeowners", label: "All homeowners", description: "All homeowner users in your account"},
-  {value: "all_users", label: "All users", description: "All users (admin only)", adminOnly: true},
-  {value: "all_agents", label: "All agents", description: "All agent users (admin only)", adminOnly: true},
-  {value: "specific_users", label: "Specific users", description: "Choose individual users (admin only)", adminOnly: true},
+  {
+    value: "all_contacts",
+    label: "All contacts",
+    description: "Everyone in your contact list",
+  },
+  {
+    value: "specific_contacts",
+    label: "Specific contacts",
+    description: "Choose individual contacts",
+  },
+  {
+    value: "all_homeowners",
+    label: "All homeowners",
+    description: "All homeowner users in your account",
+  },
+  {
+    value: "all_users",
+    label: "All users",
+    description: "All users (admin only)",
+    adminOnly: true,
+  },
+  {
+    value: "all_agents",
+    label: "All agents",
+    description: "All agent users (admin only)",
+    adminOnly: true,
+  },
+  {
+    value: "specific_users",
+    label: "Specific users",
+    description: "Choose individual users (admin only)",
+    adminOnly: true,
+  },
 ];
 
 const DELIVERY_CHANNELS = [
@@ -52,9 +97,10 @@ function toTriggerValue(subject, action) {
 
 /** Parse trigger string into { subject, action }. Format: "subject_action" (action may contain underscores) */
 function fromTriggerValue(value) {
-  if (!value || typeof value !== "string") return { subject: "homeowner", action: "create_account" };
+  if (!value || typeof value !== "string")
+    return {subject: "homeowner", action: "create_account"};
   const idx = value.indexOf("_");
-  if (idx < 0) return { subject: value || "homeowner", action: "create_account" };
+  if (idx < 0) return {subject: value || "homeowner", action: "create_account"};
   const subject = value.slice(0, idx);
   const action = value.slice(idx + 1);
   return {
@@ -132,8 +178,16 @@ const TABS = [
 ];
 
 const DELIVERY_MODES = [
-  {value: "send_now", label: "Send now", description: "Choose recipients and send immediately"},
-  {value: "auto_send", label: "Auto-send", description: "Send automatically when events occur"},
+  {
+    value: "send_now",
+    label: "Send now",
+    description: "Choose recipients and send immediately",
+  },
+  {
+    value: "auto_send",
+    label: "Auto-send",
+    description: "Send automatically when events occur",
+  },
 ];
 
 function ResourceFormContainer() {
@@ -166,19 +220,27 @@ function ResourceFormContainer() {
   const isAdmin = ["admin", "super_admin"].includes(currentUser?.role);
   const isSent = form.status === "sent";
 
-  const formHasChanges = !isNew && lastSavedFormRef.current != null &&
-    JSON.stringify(formSnapshot(form)) !== JSON.stringify(lastSavedFormRef.current);
+  const formHasChanges =
+    !isNew &&
+    lastSavedFormRef.current != null &&
+    JSON.stringify(formSnapshot(form)) !==
+      JSON.stringify(lastSavedFormRef.current);
 
   useAutoCloseBanner(bannerOpen, bannerMessage, () => setBannerOpen(false));
 
-  const recipientPresets = RECIPIENT_PRESETS.filter((p) => !p.adminOnly || isAdmin);
+  const recipientPresets = RECIPIENT_PRESETS.filter(
+    (p) => !p.adminOnly || isAdmin,
+  );
 
   const fetchResource = useCallback(async () => {
     try {
       const resource = await AppApi.getResource(id);
       // Migrate legacy article_link -> web_link
-      const type = resource.type === "article_link" ? "web_link" : (resource.type || "post");
-      const rawTriggers = ensureArray(resource.autoSendTriggers).map(migrateTrigger);
+      const type =
+        resource.type === "article_link" ? "web_link" : resource.type || "post";
+      const rawTriggers = ensureArray(resource.autoSendTriggers).map(
+        migrateTrigger,
+      );
       const nextForm = {
         subject: resource.subject || "",
         type,
@@ -210,14 +272,22 @@ function ResourceFormContainer() {
       deliveryMode: mode,
       recipientMode: mode === "send_now" ? prev.recipientMode : "",
       recipientIds: mode === "send_now" ? prev.recipientIds : [],
-      autoSendTriggers: mode === "auto_send" ? (prev.autoSendTriggers?.length ? prev.autoSendTriggers : [toTriggerValue("homeowner", "create_account")]) : [],
+      autoSendTriggers:
+        mode === "auto_send"
+          ? prev.autoSendTriggers?.length
+            ? prev.autoSendTriggers
+            : [toTriggerValue("homeowner", "create_account")]
+          : [],
     }));
   };
 
   const addAutoSendRule = () => {
     setForm((prev) => ({
       ...prev,
-      autoSendTriggers: [...(prev.autoSendTriggers || []), toTriggerValue("homeowner", "create_account")],
+      autoSendTriggers: [
+        ...(prev.autoSendTriggers || []),
+        toTriggerValue("homeowner", "create_account"),
+      ],
     }));
   };
 
@@ -237,7 +307,9 @@ function ResourceFormContainer() {
   const removeAutoSendRule = (index) => {
     setForm((prev) => ({
       ...prev,
-      autoSendTriggers: (prev.autoSendTriggers || []).filter((_, i) => i !== index),
+      autoSendTriggers: (prev.autoSendTriggers || []).filter(
+        (_, i) => i !== index,
+      ),
     }));
   };
 
@@ -318,7 +390,14 @@ function ResourceFormContainer() {
   useEffect(() => {
     AppApi.getResourceRecipientOptions()
       .then(setRecipientOptions)
-      .catch(() => setRecipientOptions({contacts: [], homeowners: [], agents: [], allUsers: []}));
+      .catch(() =>
+        setRecipientOptions({
+          contacts: [],
+          homeowners: [],
+          agents: [],
+          allUsers: [],
+        }),
+      );
   }, []);
 
   useEffect(() => {
@@ -357,8 +436,8 @@ function ResourceFormContainer() {
     return {
       subject: form.subject?.trim() || "",
       type: form.type,
-      recipientMode: isSendNow ? (form.recipientMode || null) : null,
-      recipientIds: isSendNow ? (form.recipientIds || []) : [],
+      recipientMode: isSendNow ? form.recipientMode || null : null,
+      recipientIds: isSendNow ? form.recipientIds || [] : [],
       contentFormat: form.contentFormat,
       bodyText: form.bodyText?.trim() || null,
       url: form.url?.trim() || null,
@@ -378,7 +457,10 @@ function ResourceFormContainer() {
       return;
     }
     if (!isDeliveryValid) {
-      showBanner("error", "Please complete the Delivery tab before saving. Choose recipients or add auto-send rules.");
+      showBanner(
+        "error",
+        "Please complete the Delivery tab before saving. Choose recipients or add auto-send rules.",
+      );
       setActiveTab("delivery");
       return;
     }
@@ -388,7 +470,10 @@ function ResourceFormContainer() {
       if (isNew) {
         const created = await AppApi.createResource(payload);
         showBanner("success", "Draft saved.");
-        setTimeout(() => navigate(`/${accountUrl}/resources/${created.id}`), 600);
+        setTimeout(
+          () => navigate(`/${accountUrl}/resources/${created.id}`),
+          600,
+        );
       } else {
         await AppApi.updateResource(id, payload);
         lastSavedFormRef.current = formSnapshot(form);
@@ -401,9 +486,14 @@ function ResourceFormContainer() {
     }
   };
 
-  const hasRecipients = form.deliveryMode === "send_now" && form.recipientMode && (estimatedCount ?? 0) > 0;
+  const hasRecipients =
+    form.deliveryMode === "send_now" &&
+    form.recipientMode &&
+    (estimatedCount ?? 0) > 0;
   const canSendNow = form.deliveryMode === "send_now" && form.recipientMode;
-  const hasAutoSendRules = form.deliveryMode === "auto_send" && ensureArray(form.autoSendTriggers).length > 0;
+  const hasAutoSendRules =
+    form.deliveryMode === "auto_send" &&
+    ensureArray(form.autoSendTriggers).length > 0;
   const isDeliveryValid =
     form.deliveryMode === "send_now"
       ? Boolean(form.recipientMode)
@@ -421,10 +511,18 @@ function ResourceFormContainer() {
       }
       if (canSendNow) {
         await AppApi.sendResource(id);
-        showBanner("success", (estimatedCount ?? 0) > 0 ? "Communication sent successfully." : "Communication published to Discover.");
+        showBanner(
+          "success",
+          (estimatedCount ?? 0) > 0
+            ? "Communication sent successfully."
+            : "Communication published to Discover.",
+        );
       } else if (hasAutoSendRules) {
         await AppApi.activateResource(id);
-        showBanner("success", "Communication activated for auto-send. It will be sent when the configured events occur.");
+        showBanner(
+          "success",
+          "Communication activated for auto-send. It will be sent when the configured events occur.",
+        );
       }
       setSendModalOpen(false);
       await fetchResource();
@@ -440,9 +538,11 @@ function ResourceFormContainer() {
   const handleDuplicate = async () => {
     setSubmitting(true);
     try {
-      const created = await AppApi.createResource(buildPayload({
-        subject: form.subject ? `${form.subject} (copy)` : "",
-      }));
+      const created = await AppApi.createResource(
+        buildPayload({
+          subject: form.subject ? `${form.subject} (copy)` : "",
+        }),
+      );
       showBanner("success", "Communication duplicated.");
       navigate(`/${accountUrl}/resources/${created.id}`);
     } catch (err) {
@@ -458,12 +558,18 @@ function ResourceFormContainer() {
     return (list || []).filter(
       (r) =>
         (r.name || "").toLowerCase().includes(q) ||
-        (r.email || "").toLowerCase().includes(q)
+        (r.email || "").toLowerCase().includes(q),
     );
   };
 
-  const contactList = filterRecipients(recipientOptions?.contacts, recipientSearch);
-  const userList = filterRecipients(recipientOptions?.allUsers, recipientSearch);
+  const contactList = filterRecipients(
+    recipientOptions?.contacts,
+    recipientSearch,
+  );
+  const userList = filterRecipients(
+    recipientOptions?.allUsers,
+    recipientSearch,
+  );
 
   if (loading) {
     return (
@@ -508,7 +614,9 @@ function ResourceFormContainer() {
         </button>
         <button
           type="button"
-          onClick={() => !isNew && navigate(`/${accountUrl}/resources/${id}/preview`)}
+          onClick={() =>
+            !isNew && navigate(`/${accountUrl}/resources/${id}/preview`)
+          }
           disabled={isNew}
           title={isNew ? "Save draft first to preview" : "Preview in full page"}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -537,7 +645,10 @@ function ResourceFormContainer() {
               <BookOpen className="w-6 h-6 text-[#456564]" />
             </div>
             <div className="flex-1 min-w-0">
-              <label htmlFor="subject" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label
+                htmlFor="subject"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+              >
                 Subject <span className="text-red-500">*</span>
               </label>
               <input
@@ -558,12 +669,16 @@ function ResourceFormContainer() {
                 <div className="flex flex-wrap gap-2">
                   {DELIVERY_CHANNELS.map((ch) => {
                     const Icon = ch.icon;
-                    const isSelected = (form.deliveryChannel || "both") === ch.value;
+                    const isSelected =
+                      (form.deliveryChannel || "both") === ch.value;
                     return (
                       <button
                         key={ch.value}
                         type="button"
-                        onClick={() => !isSent && setForm((p) => ({...p, deliveryChannel: ch.value}))}
+                        onClick={() =>
+                          !isSent &&
+                          setForm((p) => ({...p, deliveryChannel: ch.value}))
+                        }
                         disabled={isSent}
                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border-2 transition-colors disabled:opacity-60 ${
                           isSelected
@@ -659,7 +774,9 @@ function ResourceFormContainer() {
                     <PostRichEditor
                       key={id || "new"}
                       value={form.bodyText || ""}
-                      onChange={(html) => setForm((prev) => ({...prev, bodyText: html}))}
+                      onChange={(html) =>
+                        setForm((prev) => ({...prev, bodyText: html}))
+                      }
                       placeholder="Write your post..."
                       disabled={isSent || inlineImageUploading}
                       onImageSelect={handleInlineImageSelect}
@@ -678,7 +795,8 @@ function ResourceFormContainer() {
                           e.stopPropagation();
                           if (isSent || imageUploading) return;
                           const file = e.dataTransfer?.files?.[0];
-                          if (file?.type?.startsWith("image/")) uploadImage(file);
+                          if (file?.type?.startsWith("image/"))
+                            uploadImage(file);
                         }}
                         className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
                           imageUploading
@@ -701,7 +819,11 @@ function ResourceFormContainer() {
                           <div className="flex flex-col items-center gap-2">
                             <div className="w-40 h-28 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
                               <img
-                                src={imagePreviewUrl || imageDisplayUrl || RESOURCE_THUMBNAIL_PLACEHOLDER}
+                                src={
+                                  imagePreviewUrl ||
+                                  imageDisplayUrl ||
+                                  RESOURCE_THUMBNAIL_PLACEHOLDER
+                                }
                                 alt=""
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -710,7 +832,9 @@ function ResourceFormContainer() {
                               />
                             </div>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {imageUploading ? "Uploading…" : "Drop a new image or click to replace"}
+                              {imageUploading
+                                ? "Uploading…"
+                                : "Drop a new image or click to replace"}
                             </p>
                             {!isSent && form.imageKey && (
                               <button
@@ -739,7 +863,9 @@ function ResourceFormContainer() {
                         )}
                       </div>
                       {imageUploadError && (
-                        <p className="text-sm text-red-600 dark:text-red-400">{imageUploadError}</p>
+                        <p className="text-sm text-red-600 dark:text-red-400">
+                          {imageUploadError}
+                        </p>
                       )}
                     </div>
 
@@ -759,11 +885,22 @@ function ResourceFormContainer() {
                           setPdfUploading(true);
                           try {
                             const doc = await AppApi.uploadDocument(file);
-                            const key = doc?.key ?? doc?.s3Key ?? doc?.fileKey ?? doc?.objectKey;
+                            const key =
+                              doc?.key ??
+                              doc?.s3Key ??
+                              doc?.fileKey ??
+                              doc?.objectKey;
                             if (key) setForm((p) => ({...p, pdfKey: key}));
-                            else showBanner("error", "PDF upload succeeded but no key was returned");
+                            else
+                              showBanner(
+                                "error",
+                                "PDF upload succeeded but no key was returned",
+                              );
                           } catch (err) {
-                            showBanner("error", err?.message || "PDF upload failed");
+                            showBanner(
+                              "error",
+                              err?.message || "PDF upload failed",
+                            );
                           } finally {
                             setPdfUploading(false);
                           }
@@ -773,11 +910,15 @@ function ResourceFormContainer() {
                       {form.pdfKey ? (
                         <div className="flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/50">
                           <FileUp className="w-5 h-5 text-[#456564]" />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">PDF attached</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
+                            PDF attached
+                          </span>
                           {!isSent && (
                             <button
                               type="button"
-                              onClick={() => setForm((p) => ({...p, pdfKey: ""}))}
+                              onClick={() =>
+                                setForm((p) => ({...p, pdfKey: ""}))
+                              }
                               className="text-sm text-red-600 dark:text-red-400 hover:underline ml-auto"
                             >
                               Remove
@@ -791,7 +932,11 @@ function ResourceFormContainer() {
                           disabled={isSent || pdfUploading}
                           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#5a7a78] transition-colors disabled:opacity-50"
                         >
-                          {pdfUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+                          {pdfUploading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <FileUp className="w-4 h-4" />
+                          )}
                           {pdfUploading ? "Uploading…" : "Attach PDF"}
                         </button>
                       )}
@@ -810,7 +955,11 @@ function ResourceFormContainer() {
                         onChange={handleChange}
                         disabled={isSent}
                         className="form-input w-full disabled:opacity-60"
-                        placeholder={form.type === "pdf" ? "https://... (PDF link)" : "https://..."}
+                        placeholder={
+                          form.type === "pdf"
+                            ? "https://... (PDF link)"
+                            : "https://..."
+                        }
                       />
                     </div>
                     <div>
@@ -818,16 +967,22 @@ function ResourceFormContainer() {
                         Preview image (optional)
                       </label>
                       <div
-                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
                         onDrop={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           if (isSent || imageUploading) return;
                           const file = e.dataTransfer?.files?.[0];
-                          if (file?.type?.startsWith("image/")) uploadImage(file);
+                          if (file?.type?.startsWith("image/"))
+                            uploadImage(file);
                         }}
                         className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
-                          imageUploading ? "border-[#456564]/50 bg-[#456564]/5 dark:bg-[#456564]/10" : "border-gray-300 dark:border-gray-600 hover:border-[#456564]/50 dark:hover:border-[#456564]/50 hover:bg-gray-50 dark:hover:bg-gray-900/30"
+                          imageUploading
+                            ? "border-[#456564]/50 bg-[#456564]/5 dark:bg-[#456564]/10"
+                            : "border-gray-300 dark:border-gray-600 hover:border-[#456564]/50 dark:hover:border-[#456564]/50 hover:bg-gray-50 dark:hover:bg-gray-900/30"
                         }`}
                       >
                         <input
@@ -841,40 +996,91 @@ function ResourceFormContainer() {
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                           disabled={isSent || imageUploading}
                         />
-                        {(imagePreviewUrl || form.imageKey) ? (
+                        {imagePreviewUrl || form.imageKey ? (
                           <div className="flex flex-col items-center gap-2">
                             <div className="w-40 h-28 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-                              <img src={imagePreviewUrl || imageDisplayUrl || RESOURCE_THUMBNAIL_PLACEHOLDER} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.src = RESOURCE_THUMBNAIL_PLACEHOLDER; }} />
+                              <img
+                                src={
+                                  imagePreviewUrl ||
+                                  imageDisplayUrl ||
+                                  RESOURCE_THUMBNAIL_PLACEHOLDER
+                                }
+                                alt=""
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.src = RESOURCE_THUMBNAIL_PLACEHOLDER;
+                                }}
+                              />
                             </div>
                             {!isSent && form.imageKey && (
-                              <button type="button" onClick={(e) => { e.preventDefault(); clearPreview(); setForm((p) => ({...p, imageKey: ""})); }} className="text-sm text-red-600 dark:text-red-400 hover:underline">Remove</button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  clearPreview();
+                                  setForm((p) => ({...p, imageKey: ""}));
+                                }}
+                                className="text-sm text-red-600 dark:text-red-400 hover:underline"
+                              >
+                                Remove
+                              </button>
                             )}
                           </div>
                         ) : (
                           <>
                             <ImagePlus className="w-10 h-10 mx-auto text-gray-400 mb-2" />
-                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drop image or click to add preview</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Used when the URL has no thumbnail</p>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Drop image or click to add preview
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              Used when the URL has no thumbnail
+                            </p>
                           </>
                         )}
                       </div>
                     </div>
                     {form.url?.trim() && (
                       <div className="rounded-lg border border-gray-200 dark:border-gray-600 p-4 bg-gray-50 dark:bg-gray-900/50">
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Preview</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                          Preview
+                        </p>
                         {(() => {
-                          const thumbUrl = getResourceThumbnailUrl({url: form.url, type: form.type}) || (form.imageKey ? (imagePreviewUrl || imageDisplayUrl) : null);
+                          const thumbUrl =
+                            getResourceThumbnailUrl({
+                              url: form.url,
+                              type: form.type,
+                            }) ||
+                            (form.imageKey
+                              ? imagePreviewUrl || imageDisplayUrl
+                              : null);
                           return (
                             <div className="flex gap-4">
                               <div className="flex-shrink-0 w-32 h-20 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
-                                <img src={thumbUrl || RESOURCE_THUMBNAIL_PLACEHOLDER} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.src = RESOURCE_THUMBNAIL_PLACEHOLDER; }} />
+                                <img
+                                  src={
+                                    thumbUrl || RESOURCE_THUMBNAIL_PLACEHOLDER
+                                  }
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.target.src =
+                                      RESOURCE_THUMBNAIL_PLACEHOLDER;
+                                  }}
+                                />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <a href={form.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[#456564] hover:underline break-all">
+                                <a
+                                  href={form.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 text-[#456564] hover:underline break-all"
+                                >
                                   <ExternalLink className="w-4 h-4 flex-shrink-0" />
                                   {form.url}
                                 </a>
-                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Opens in new tab</p>
+                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                  Opens in new tab
+                                </p>
                               </div>
                             </div>
                           );
@@ -882,12 +1088,24 @@ function ResourceFormContainer() {
                       </div>
                     )}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Message</label>
-                      <input ref={inlineImageInputRef} type="file" accept={imageAccept} onChange={handleInlineImageFileChange} className="hidden" tabIndex={-1} aria-hidden />
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Message
+                      </label>
+                      <input
+                        ref={inlineImageInputRef}
+                        type="file"
+                        accept={imageAccept}
+                        onChange={handleInlineImageFileChange}
+                        className="hidden"
+                        tabIndex={-1}
+                        aria-hidden
+                      />
                       <PostRichEditor
                         key={id || "new"}
                         value={form.bodyText || ""}
-                        onChange={(html) => setForm((prev) => ({...prev, bodyText: html}))}
+                        onChange={(html) =>
+                          setForm((prev) => ({...prev, bodyText: html}))
+                        }
                         placeholder="Add a message to accompany the link..."
                         disabled={isSent || inlineImageUploading}
                         onImageSelect={handleInlineImageSelect}
@@ -921,7 +1139,9 @@ function ResourceFormContainer() {
                           name="deliveryMode"
                           value={mode.value}
                           checked={form.deliveryMode === mode.value}
-                          onChange={() => !isSent && setDeliveryMode(mode.value)}
+                          onChange={() =>
+                            !isSent && setDeliveryMode(mode.value)
+                          }
                           disabled={isSent}
                           className="mt-1"
                         />
@@ -947,136 +1167,150 @@ function ResourceFormContainer() {
                       </h3>
                       <div className="grid gap-3 sm:grid-cols-2">
                         {recipientPresets.map((preset) => (
-                      <label
-                        key={preset.value}
-                        className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
-                          form.recipientMode === preset.value
-                            ? "border-[#456564] bg-[#456564]/5 dark:bg-[#456564]/10"
-                            : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="recipientMode"
-                          value={preset.value}
-                          checked={form.recipientMode === preset.value}
-                          onChange={handleChange}
-                          disabled={isSent}
-                          className="mt-1"
-                        />
-                        <div>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {preset.label}
-                          </span>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                            {preset.description}
-                          </p>
+                          <label
+                            key={preset.value}
+                            className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+                              form.recipientMode === preset.value
+                                ? "border-[#456564] bg-[#456564]/5 dark:bg-[#456564]/10"
+                                : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="recipientMode"
+                              value={preset.value}
+                              checked={form.recipientMode === preset.value}
+                              onChange={handleChange}
+                              disabled={isSent}
+                              className="mt-1"
+                            />
+                            <div>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {preset.label}
+                              </span>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                {preset.description}
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {form.recipientMode === "specific_contacts" && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Select contacts
+                        </label>
+                        <div className="relative mb-2">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={recipientSearch}
+                            onChange={(e) => setRecipientSearch(e.target.value)}
+                            placeholder="Search by name or email..."
+                            className="form-input w-full pl-9"
+                          />
                         </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                        <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
+                          {contactList.length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 py-2">
+                              {recipientSearch
+                                ? "No contacts match your search."
+                                : "No contacts available."}
+                            </p>
+                          ) : (
+                            contactList.map((c) => (
+                              <label
+                                key={c.id}
+                                className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={(form.recipientIds || []).includes(
+                                    c.id,
+                                  )}
+                                  onChange={() => toggleRecipientId(c.id)}
+                                  className="rounded"
+                                />
+                                <span className="text-sm">
+                                  {c.name || c.email}
+                                  {c.name && c.email && (
+                                    <span className="text-gray-500 dark:text-gray-400">
+                                      {" "}
+                                      ({c.email})
+                                    </span>
+                                  )}
+                                </span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
 
-                {form.recipientMode === "specific_contacts" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Select contacts
-                    </label>
-                    <div className="relative mb-2">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={recipientSearch}
-                        onChange={(e) => setRecipientSearch(e.target.value)}
-                        placeholder="Search by name or email..."
-                        className="form-input w-full pl-9"
-                      />
-                    </div>
-                    <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
-                      {contactList.length === 0 ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 py-2">
-                          {recipientSearch ? "No contacts match your search." : "No contacts available."}
-                        </p>
-                      ) : (
-                        contactList.map((c) => (
-                          <label
-                            key={c.id}
-                            className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={(form.recipientIds || []).includes(c.id)}
-                              onChange={() => toggleRecipientId(c.id)}
-                              className="rounded"
-                            />
-                            <span className="text-sm">
-                              {c.name || c.email}
-                              {c.name && c.email && (
-                                <span className="text-gray-500 dark:text-gray-400"> ({c.email})</span>
-                              )}
-                            </span>
-                          </label>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
+                    {form.recipientMode === "specific_users" && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Select users
+                        </label>
+                        <div className="relative mb-2">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={recipientSearch}
+                            onChange={(e) => setRecipientSearch(e.target.value)}
+                            placeholder="Search by name or email..."
+                            className="form-input w-full pl-9"
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
+                          {userList.length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 py-2">
+                              {recipientSearch
+                                ? "No users match your search."
+                                : "No users available."}
+                            </p>
+                          ) : (
+                            userList.map((u) => (
+                              <label
+                                key={u.id}
+                                className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={(form.recipientIds || []).includes(
+                                    u.id,
+                                  )}
+                                  onChange={() => toggleRecipientId(u.id)}
+                                  className="rounded"
+                                />
+                                <span className="text-sm">
+                                  {u.name || u.email}
+                                  {u.name && u.email && (
+                                    <span className="text-gray-500 dark:text-gray-400">
+                                      {" "}
+                                      ({u.email})
+                                    </span>
+                                  )}
+                                </span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
 
-                {form.recipientMode === "specific_users" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Select users
-                    </label>
-                    <div className="relative mb-2">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={recipientSearch}
-                        onChange={(e) => setRecipientSearch(e.target.value)}
-                        placeholder="Search by name or email..."
-                        className="form-input w-full pl-9"
-                      />
-                    </div>
-                    <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
-                      {userList.length === 0 ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 py-2">
-                          {recipientSearch ? "No users match your search." : "No users available."}
-                        </p>
-                      ) : (
-                        userList.map((u) => (
-                          <label
-                            key={u.id}
-                            className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={(form.recipientIds || []).includes(u.id)}
-                              onChange={() => toggleRecipientId(u.id)}
-                              className="rounded"
-                            />
-                            <span className="text-sm">
-                              {u.name || u.email}
-                              {u.name && u.email && (
-                                <span className="text-gray-500 dark:text-gray-400"> ({u.email})</span>
-                              )}
-                            </span>
-                          </label>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {form.recipientMode && (
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      Estimated recipients:
-                    </span>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {estimatedCount ?? "…"}
-                    </span>
-                  </div>
-                )}
+                    {form.recipientMode && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          Estimated recipients:
+                        </span>
+                        <span className="font-semibold text-gray-900 dark:text-white">
+                          {estimatedCount ?? "…"}
+                        </span>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -1086,56 +1320,74 @@ function ResourceFormContainer() {
                       When to send
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                      The resource will be sent to the person who triggers the event. Send when <strong>any</strong> rule matches.
+                      The resource will be sent to the person who triggers the
+                      event. Send when <strong>any</strong> rule matches.
                     </p>
                     <div className="space-y-3">
-                      {ensureArray(form.autoSendTriggers).map((triggerValue, index) => {
-                        const { subject, action } = fromTriggerValue(triggerValue);
-                        return (
-                          <div
-                            key={index}
-                            className="flex items-center gap-3 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30"
-                          >
-                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400 shrink-0">
-                              When
-                            </span>
-                            <select
-                              value={subject}
-                              onChange={(e) => !isSent && updateAutoSendRule(index, "subject", e.target.value)}
-                              disabled={isSent}
-                              className="form-select flex-1 min-w-0 disabled:opacity-60"
+                      {ensureArray(form.autoSendTriggers).map(
+                        (triggerValue, index) => {
+                          const {subject, action} =
+                            fromTriggerValue(triggerValue);
+                          return (
+                            <div
+                              key={index}
+                              className="flex items-center gap-3 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30"
                             >
-                              {AUTO_SEND_SUBJECTS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
-                            <select
-                              value={action}
-                              onChange={(e) => !isSent && updateAutoSendRule(index, "action", e.target.value)}
-                              disabled={isSent}
-                              className="form-select flex-1 min-w-0 disabled:opacity-60"
-                            >
-                              {AUTO_SEND_ACTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
-                            {!isSent && (
-                              <button
-                                type="button"
-                                onClick={() => removeAutoSendRule(index)}
-                                className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 shrink-0"
-                                title="Remove rule"
+                              <span className="text-sm font-medium text-gray-600 dark:text-gray-400 shrink-0">
+                                When
+                              </span>
+                              <select
+                                value={subject}
+                                onChange={(e) =>
+                                  !isSent &&
+                                  updateAutoSendRule(
+                                    index,
+                                    "subject",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={isSent}
+                                className="form-select flex-1 min-w-0 disabled:opacity-60"
                               >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
+                                {AUTO_SEND_SUBJECTS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                value={action}
+                                onChange={(e) =>
+                                  !isSent &&
+                                  updateAutoSendRule(
+                                    index,
+                                    "action",
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={isSent}
+                                className="form-select flex-1 min-w-0 disabled:opacity-60"
+                              >
+                                {AUTO_SEND_ACTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {!isSent && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeAutoSendRule(index)}
+                                  className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 shrink-0"
+                                  title="Remove rule"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        },
+                      )}
                       {!isSent && (
                         <button
                           type="button"
@@ -1165,15 +1417,32 @@ function ResourceFormContainer() {
               </button>
               {!isSent && (
                 <>
-                  {(isNew || formHasChanges) ? (
+                  {isNew || formHasChanges ? (
                     <button
                       type="submit"
-                      disabled={submitting || !form.subject?.trim() || !isDeliveryValid}
-                      title={!isDeliveryValid ? "Complete the Delivery tab first" : undefined}
+                      disabled={
+                        submitting || !form.subject?.trim() || !isDeliveryValid
+                      }
+                      title={
+                        !isDeliveryValid
+                          ? "Complete the Delivery tab first"
+                          : undefined
+                      }
                       className="btn text-white transition-colors duration-200 shadow-sm min-w-[100px] bg-[#456564] hover:bg-[#34514f] flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                      {submitting && <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />}
-                      {submitting ? (isNew ? "Saving…" : "Updating…") : (isNew ? "Save Draft" : "Update")}
+                      {submitting && (
+                        <Loader2
+                          className="w-4 h-4 animate-spin shrink-0"
+                          aria-hidden
+                        />
+                      )}
+                      {submitting
+                        ? isNew
+                          ? "Saving…"
+                          : "Updating…"
+                        : isNew
+                          ? "Save Draft"
+                          : "Update"}
                     </button>
                   ) : !isActivated ? (
                     <button
@@ -1204,7 +1473,12 @@ function ResourceFormContainer() {
                       }
                       className="btn min-w-[100px] flex items-center justify-center gap-2 transition-colors duration-200 shadow-sm bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
                     >
-                      {submitting && <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />}
+                      {submitting && (
+                        <Loader2
+                          className="w-4 h-4 animate-spin shrink-0"
+                          aria-hidden
+                        />
+                      )}
                       {canSendNow ? "Send Now" : "Activate"}
                     </button>
                   ) : (
@@ -1254,12 +1528,18 @@ function ResourceFormContainer() {
                 disabled={submitting}
                 className="px-4 py-2 bg-[#456564] hover:bg-[#34514f] text-white rounded-lg font-medium disabled:opacity-50"
               >
-                {submitting ? (canSendNow ? "Sending…" : "Activating…") : (canSendNow ? "Send" : "Activate")}
+                {submitting
+                  ? canSendNow
+                    ? "Sending…"
+                    : "Activating…"
+                  : canSendNow
+                    ? "Send"
+                    : "Activate"}
               </button>
             </div>
           </div>
         </ModalBlank>,
-        document.body
+        document.body,
       )}
     </div>
   );

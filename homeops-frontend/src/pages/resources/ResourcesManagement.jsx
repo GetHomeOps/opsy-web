@@ -77,11 +77,15 @@ function ResourcesManagement() {
       if (add) {
         setSelectedResources((prev) => [...new Set([...prev, ...idOrIds])]);
       } else {
-        setSelectedResources((prev) => prev.filter((x) => !idOrIds.includes(x)));
+        setSelectedResources((prev) =>
+          prev.filter((x) => !idOrIds.includes(x)),
+        );
       }
     } else {
       setSelectedResources((prev) =>
-        prev.includes(idOrIds) ? prev.filter((x) => x !== idOrIds) : [...prev, idOrIds]
+        prev.includes(idOrIds)
+          ? prev.filter((x) => x !== idOrIds)
+          : [...prev, idOrIds],
       );
     }
   };
@@ -151,7 +155,12 @@ function ResourcesManagement() {
     },
   ];
 
-  const renderResourceRow = (item, handleSelect, selectedItems, onItemClick) => (
+  const renderResourceRow = (
+    item,
+    handleSelect,
+    selectedItems,
+    onItemClick,
+  ) => (
     <DataTableItem
       item={item}
       columns={columns}
@@ -191,7 +200,8 @@ function ResourcesManagement() {
               totalItems={loading ? 0 : resources.length}
               title="Communications"
               renderItem={renderResourceRow}
-              emptyMessage={loading ? "Loading…" : "No communications found"}
+              emptyMessage="No communications found"
+              loading={loading}
             />
           </div>
         </main>

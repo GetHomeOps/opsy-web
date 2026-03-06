@@ -33,7 +33,12 @@ import UpgradePrompt from "../../components/UpgradePrompt";
 
 // System categories with icons – matches API system_key values
 const systemCategories = [
-  {id: "inspectionReport", label: "Inspection Report", icon: FileCheck, color: "text-green-600"},
+  {
+    id: "inspectionReport",
+    label: "Inspection Report",
+    icon: FileCheck,
+    color: "text-green-600",
+  },
   {id: "roof", label: "Roof", icon: Building, color: "text-blue-600"},
   {id: "gutters", label: "Gutters", icon: Droplet, color: "text-cyan-600"},
   {
@@ -299,7 +304,10 @@ function DocumentsTab({
   const toUIDoc = (doc) => ({
     id: doc.id,
     name: doc.document_name,
-    system: doc.system_key === "general" ? "inspectionReport" : (doc.system_key || "inspectionReport"),
+    system:
+      doc.system_key === "general"
+        ? "inspectionReport"
+        : doc.system_key || "inspectionReport",
     type: doc.document_type || "other",
     document_key: doc.document_key,
     document_url: doc.document_url,
@@ -365,7 +373,10 @@ function DocumentsTab({
   const documentsBySystem = useMemo(() => {
     const grouped = {};
     filteredDocuments.forEach((doc) => {
-      const sys = doc.system === "general" ? "inspectionReport" : (doc.system || "inspectionReport");
+      const sys =
+        doc.system === "general"
+          ? "inspectionReport"
+          : doc.system || "inspectionReport";
       if (!grouped[sys]) grouped[sys] = [];
       grouped[sys].push(doc);
     });
@@ -379,7 +390,9 @@ function DocumentsTab({
       : [];
   const customSystemNames = propertyData?.customSystemNames ?? [];
   const systemsToShow = useMemo(() => {
-    const inspectionReport = systemCategories.find((c) => c.id === "inspectionReport");
+    const inspectionReport = systemCategories.find(
+      (c) => c.id === "inspectionReport",
+    );
     const selected = PROPERTY_SYSTEMS.filter((s) =>
       visibleSystemIds.includes(s.id),
     ).map((s) => {
@@ -502,7 +515,10 @@ function DocumentsTab({
           await fetchDocuments();
         }
       } catch (err) {
-        if (err?.status === 403 && err?.message?.toLowerCase().includes("limit")) {
+        if (
+          err?.status === 403 &&
+          err?.message?.toLowerCase().includes("limit")
+        ) {
           setUpgradePromptMsg(err.message);
           setUpgradePromptOpen(true);
           break;
@@ -1049,7 +1065,10 @@ function DocumentsTab({
         open={upgradePromptOpen}
         onClose={() => setUpgradePromptOpen(false)}
         title="Document limit reached"
-        message={upgradePromptMsg || "You've reached the document limit for this system. Upgrade your plan for more."}
+        message={
+          upgradePromptMsg ||
+          "You've reached the document limit for this system. Upgrade your plan for more."
+        }
       />
     </div>
   );

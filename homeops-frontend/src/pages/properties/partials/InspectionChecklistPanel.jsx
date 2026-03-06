@@ -5,7 +5,7 @@
  * Shows progress bar for overall and per-system completion.
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {
   CheckCircle2,
   Circle,
@@ -21,14 +21,39 @@ import {
   ClipboardList,
 } from "lucide-react";
 import AppApi from "../../../api/api";
-import { PROPERTY_SYSTEMS } from "../constants/propertySystems";
+import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 
 const STATUS_CONFIG = {
-  pending: { icon: Circle, label: "Pending", color: "text-gray-400 dark:text-gray-500", bg: "bg-gray-100 dark:bg-gray-700" },
-  in_progress: { icon: Clock, label: "In Progress", color: "text-blue-500 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/30" },
-  completed: { icon: CheckCircle2, label: "Done", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/30" },
-  deferred: { icon: Clock, label: "Deferred", color: "text-amber-500 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/30" },
-  not_applicable: { icon: MinusCircle, label: "N/A", color: "text-gray-400 dark:text-gray-500", bg: "bg-gray-50 dark:bg-gray-800" },
+  pending: {
+    icon: Circle,
+    label: "Pending",
+    color: "text-gray-400 dark:text-gray-500",
+    bg: "bg-gray-100 dark:bg-gray-700",
+  },
+  in_progress: {
+    icon: Clock,
+    label: "In Progress",
+    color: "text-blue-500 dark:text-blue-400",
+    bg: "bg-blue-50 dark:bg-blue-900/30",
+  },
+  completed: {
+    icon: CheckCircle2,
+    label: "Done",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-50 dark:bg-emerald-900/30",
+  },
+  deferred: {
+    icon: Clock,
+    label: "Deferred",
+    color: "text-amber-500 dark:text-amber-400",
+    bg: "bg-amber-50 dark:bg-amber-900/30",
+  },
+  not_applicable: {
+    icon: MinusCircle,
+    label: "N/A",
+    color: "text-gray-400 dark:text-gray-500",
+    bg: "bg-gray-50 dark:bg-gray-800",
+  },
 };
 
 const SEVERITY_ICONS = {
@@ -51,14 +76,14 @@ function getSystemLabel(systemKey) {
   return sys?.name || systemKey.charAt(0).toUpperCase() + systemKey.slice(1);
 }
 
-function ProgressBar({ completed, total, className = "" }) {
+function ProgressBar({completed, total, className = ""}) {
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
         <div
           className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%` }}
+          style={{width: `${pct}%`}}
         />
       </div>
       <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap">
@@ -68,13 +93,21 @@ function ProgressBar({ completed, total, className = "" }) {
   );
 }
 
-function ChecklistItem({ item, onStatusChange, onSchedule, isAddressedByMaintenance = false }) {
+function ChecklistItem({
+  item,
+  onStatusChange,
+  onSchedule,
+  isAddressedByMaintenance = false,
+}) {
   const [updating, setUpdating] = useState(false);
   const isCrossedOut = item.status === "completed" || isAddressedByMaintenance;
-  const statusConf = isAddressedByMaintenance ? STATUS_CONFIG.completed : (STATUS_CONFIG[item.status] || STATUS_CONFIG.pending);
+  const statusConf = isAddressedByMaintenance
+    ? STATUS_CONFIG.completed
+    : STATUS_CONFIG[item.status] || STATUS_CONFIG.pending;
   const StatusIcon = statusConf.icon;
   const SevIcon = SEVERITY_ICONS[item.severity] || SEVERITY_ICONS.medium;
-  const priorityColor = PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
+  const priorityColor =
+    PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
 
   const handleToggle = async () => {
     if (updating) return;
@@ -98,11 +131,13 @@ function ChecklistItem({ item, onStatusChange, onSchedule, isAddressedByMaintena
   };
 
   return (
-    <div className={`flex items-start gap-3 py-2.5 px-3 rounded-lg border transition-colors ${
-      isCrossedOut
-        ? "border-emerald-200/50 dark:border-emerald-800/30 bg-emerald-50/30 dark:bg-emerald-900/10"
-        : "border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/30 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-    }`}>
+    <div
+      className={`flex items-start gap-3 py-2.5 px-3 rounded-lg border transition-colors ${
+        isCrossedOut
+          ? "border-emerald-200/50 dark:border-emerald-800/30 bg-emerald-50/30 dark:bg-emerald-900/10"
+          : "border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/30 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+      }`}
+    >
       <button
         type="button"
         onClick={handleToggle}
@@ -113,24 +148,34 @@ function ChecklistItem({ item, onStatusChange, onSchedule, isAddressedByMaintena
         {updating ? (
           <Loader2 className="w-5 h-5 animate-spin" />
         ) : (
-          <StatusIcon className="w-5 h-5" strokeWidth={isCrossedOut ? 2.5 : 1.5} />
+          <StatusIcon
+            className="w-5 h-5"
+            strokeWidth={isCrossedOut ? 2.5 : 1.5}
+          />
         )}
       </button>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           {item.severity && (
-            <SevIcon className={`w-3.5 h-3.5 flex-shrink-0 ${priorityColor}`} strokeWidth={2} />
+            <SevIcon
+              className={`w-3.5 h-3.5 flex-shrink-0 ${priorityColor}`}
+              strokeWidth={2}
+            />
           )}
-          <span className={`text-sm font-medium ${
-            isCrossedOut
-              ? "text-gray-400 dark:text-gray-500 line-through"
-              : "text-gray-800 dark:text-gray-200"
-          }`}>
+          <span
+            className={`text-sm font-medium ${
+              isCrossedOut
+                ? "text-gray-400 dark:text-gray-500 line-through"
+                : "text-gray-800 dark:text-gray-200"
+            }`}
+          >
             {item.title}
           </span>
           {item.priority && item.priority !== "medium" && (
-            <span className={`text-[10px] font-semibold uppercase tracking-wide ${priorityColor}`}>
+            <span
+              className={`text-[10px] font-semibold uppercase tracking-wide ${priorityColor}`}
+            >
               {item.priority}
             </span>
           )}
@@ -151,13 +196,15 @@ function ChecklistItem({ item, onStatusChange, onSchedule, isAddressedByMaintena
         {!isCrossedOut && onSchedule && (
           <button
             type="button"
-            onClick={() => onSchedule({
-              systemType: item.system_key,
-              systemLabel: getSystemLabel(item.system_key),
-              task: item.title,
-              suggestedWhen: item.suggested_when,
-              checklistItemId: item.id,
-            })}
+            onClick={() =>
+              onSchedule({
+                systemType: item.system_key,
+                systemLabel: getSystemLabel(item.system_key),
+                task: item.title,
+                suggestedWhen: item.suggested_when,
+                checklistItemId: item.id,
+              })
+            }
             className="inline-flex items-center gap-1 px-1.5 py-1 rounded text-[10px] font-medium bg-[#456564]/10 hover:bg-[#456564]/20 text-[#456564] dark:text-[#7aa3a2] transition-colors"
             title="Schedule maintenance"
           >
@@ -198,7 +245,7 @@ export default function InspectionChecklistPanel({
     setLoading(true);
     try {
       const [itemsRes, progressRes] = await Promise.all([
-        AppApi.getInspectionChecklist(propertyId, { systemKey }),
+        AppApi.getInspectionChecklist(propertyId, {systemKey}),
         AppApi.getInspectionChecklistProgress(propertyId),
       ]);
       setItems(itemsRes);
@@ -214,46 +261,69 @@ export default function InspectionChecklistPanel({
     }
   }, [propertyId, systemKey]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  const handleStatusChange = useCallback(async (itemId, newStatus) => {
-    try {
-      if (newStatus === "completed") {
-        await AppApi.completeChecklistItem(itemId);
-      } else {
-        await AppApi.updateChecklistItem(itemId, { status: newStatus });
-      }
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === itemId
-            ? { ...item, status: newStatus, completed_at: newStatus === "completed" ? new Date().toISOString() : null }
-            : item
-        )
-      );
-      setProgress((prev) => {
-        if (!prev) return prev;
-        const item = items.find((i) => i.id === itemId);
-        if (!item) return prev;
-        const sys = item.system_key;
-        const sysProgress = prev.bySystem[sys] || { total: 0, completed: 0, pending: 0, in_progress: 0, deferred: 0, not_applicable: 0 };
-        const oldStatus = item.status;
-        const newSysProgress = { ...sysProgress };
-        if (oldStatus && newSysProgress[oldStatus] > 0) newSysProgress[oldStatus]--;
-        newSysProgress[newStatus] = (newSysProgress[newStatus] || 0) + 1;
-        const newBySystem = { ...prev.bySystem, [sys]: newSysProgress };
-        let totalCompleted = 0;
-        let totalPending = 0;
-        for (const s of Object.values(newBySystem)) {
-          totalCompleted += s.completed || 0;
-          totalPending += s.pending || 0;
+  const handleStatusChange = useCallback(
+    async (itemId, newStatus) => {
+      try {
+        if (newStatus === "completed") {
+          await AppApi.completeChecklistItem(itemId);
+        } else {
+          await AppApi.updateChecklistItem(itemId, {status: newStatus});
         }
-        return { ...prev, completed: totalCompleted, pending: totalPending, bySystem: newBySystem };
-      });
-    } catch (err) {
-      console.error("[InspectionChecklistPanel] Status update failed:", err);
-      loadData();
-    }
-  }, [items, loadData]);
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  status: newStatus,
+                  completed_at:
+                    newStatus === "completed" ? new Date().toISOString() : null,
+                }
+              : item,
+          ),
+        );
+        setProgress((prev) => {
+          if (!prev) return prev;
+          const item = items.find((i) => i.id === itemId);
+          if (!item) return prev;
+          const sys = item.system_key;
+          const sysProgress = prev.bySystem[sys] || {
+            total: 0,
+            completed: 0,
+            pending: 0,
+            in_progress: 0,
+            deferred: 0,
+            not_applicable: 0,
+          };
+          const oldStatus = item.status;
+          const newSysProgress = {...sysProgress};
+          if (oldStatus && newSysProgress[oldStatus] > 0)
+            newSysProgress[oldStatus]--;
+          newSysProgress[newStatus] = (newSysProgress[newStatus] || 0) + 1;
+          const newBySystem = {...prev.bySystem, [sys]: newSysProgress};
+          let totalCompleted = 0;
+          let totalPending = 0;
+          for (const s of Object.values(newBySystem)) {
+            totalCompleted += s.completed || 0;
+            totalPending += s.pending || 0;
+          }
+          return {
+            ...prev,
+            completed: totalCompleted,
+            pending: totalPending,
+            bySystem: newBySystem,
+          };
+        });
+      } catch (err) {
+        console.error("[InspectionChecklistPanel] Status update failed:", err);
+        loadData();
+      }
+    },
+    [items, loadData],
+  );
 
   const groupedItems = useMemo(() => {
     const groups = {};
@@ -290,7 +360,9 @@ export default function InspectionChecklistPanel({
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-        <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">Loading checklist...</span>
+        <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+          Loading checklist...
+        </span>
       </div>
     );
   }
@@ -316,7 +388,11 @@ export default function InspectionChecklistPanel({
     return (
       <div className="space-y-1.5">
         {sysProgress && (
-          <ProgressBar completed={sysProgress.completed} total={sysProgress.total} className="mb-2" />
+          <ProgressBar
+            completed={sysProgress.completed}
+            total={sysProgress.total}
+            className="mb-2"
+          />
         )}
         {sysItems.map((item) => (
           <ChecklistItem
@@ -324,7 +400,9 @@ export default function InspectionChecklistPanel({
             item={item}
             onStatusChange={handleStatusChange}
             onSchedule={onScheduleMaintenance}
-            isAddressedByMaintenance={completedChecklistItemIds.has(Number(item.id))}
+            isAddressedByMaintenance={completedChecklistItemIds.has(
+              Number(item.id),
+            )}
           />
         ))}
       </div>
@@ -335,7 +413,11 @@ export default function InspectionChecklistPanel({
     <div className="space-y-3">
       {progress && (
         <div className="flex items-center gap-3 mb-1">
-          <ProgressBar completed={progress.completed} total={progress.total} className="flex-1" />
+          <ProgressBar
+            completed={progress.completed}
+            total={progress.total}
+            className="flex-1"
+          />
         </div>
       )}
 
@@ -343,7 +425,10 @@ export default function InspectionChecklistPanel({
         const isExpanded = expandedSystems.has(sysKey);
         const sysProgress = progress?.bySystem?.[sysKey];
         return (
-          <div key={sysKey} className="border border-gray-100 dark:border-gray-700/50 rounded-lg overflow-hidden">
+          <div
+            key={sysKey}
+            className="border border-gray-100 dark:border-gray-700/50 rounded-lg overflow-hidden"
+          >
             <button
               type="button"
               onClick={() => toggleSystem(sysKey)}
@@ -373,7 +458,9 @@ export default function InspectionChecklistPanel({
                     item={item}
                     onStatusChange={handleStatusChange}
                     onSchedule={onScheduleMaintenance}
-                    isAddressedByMaintenance={completedChecklistItemIds.has(Number(item.id))}
+                    isAddressedByMaintenance={completedChecklistItemIds.has(
+                      Number(item.id),
+                    )}
                   />
                 ))}
               </div>

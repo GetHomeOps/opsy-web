@@ -84,12 +84,12 @@ function ProfessionalProfile() {
     ])
       .then(([reviewsData, eligibility]) => {
         setReviews(reviewsData.reviews ?? []);
-        setReviewsAggregate(reviewsData.aggregate ?? { count: 0, avgRating: 0 });
+        setReviewsAggregate(reviewsData.aggregate ?? {count: 0, avgRating: 0});
         setReviewEligibility(eligibility ?? {});
       })
       .catch(() => {
         setReviews([]);
-        setReviewsAggregate({ count: 0, avgRating: 0 });
+        setReviewsAggregate({count: 0, avgRating: 0});
         setReviewEligibility(null);
       })
       .finally(() => setReviewsLoading(false));
@@ -104,10 +104,12 @@ function ProfessionalProfile() {
         rating: reviewForm.rating,
         comment: reviewForm.comment.trim() || null,
       });
-      setReviewForm({ rating: 0, comment: "" });
+      setReviewForm({rating: 0, comment: ""});
       fetchReviewsAndEligibility();
     } catch (err) {
-      setReviewError(err?.message || err?.messages?.[0] || "Failed to submit review");
+      setReviewError(
+        err?.message || err?.messages?.[0] || "Failed to submit review",
+      );
     } finally {
       setReviewSubmitting(false);
     }
@@ -125,10 +127,13 @@ function ProfessionalProfile() {
   const [carouselIdx, setCarouselIdx] = useState(0);
 
   const [reviews, setReviews] = useState([]);
-  const [reviewsAggregate, setReviewsAggregate] = useState({ count: 0, avgRating: 0 });
+  const [reviewsAggregate, setReviewsAggregate] = useState({
+    count: 0,
+    avgRating: 0,
+  });
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewEligibility, setReviewEligibility] = useState(null);
-  const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
+  const [reviewForm, setReviewForm] = useState({rating: 0, comment: ""});
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState(null);
 
@@ -234,7 +239,11 @@ function ProfessionalProfile() {
               <button
                 type="button"
                 onClick={() =>
-                  navigate(accountUrl ? `/${accountUrl}/professionals` : "/professionals")
+                  navigate(
+                    accountUrl
+                      ? `/${accountUrl}/professionals`
+                      : "/professionals",
+                  )
                 }
                 className="text-sm font-medium text-[#456564] hover:text-[#34514f] transition-colors"
               >
@@ -253,12 +262,14 @@ function ProfessionalProfile() {
   const nextSlide = () =>
     setCarouselIdx((i) => (i === photos.length - 1 ? 0 : i + 1));
 
-  const displayRating = reviewsAggregate.count > 0
-    ? reviewsAggregate.avgRating
-    : (professional.rating || 0);
-  const displayReviewCount = reviewsAggregate.count > 0
-    ? reviewsAggregate.count
-    : (professional.reviewCount || 0);
+  const displayRating =
+    reviewsAggregate.count > 0
+      ? reviewsAggregate.avgRating
+      : professional.rating || 0;
+  const displayReviewCount =
+    reviewsAggregate.count > 0
+      ? reviewsAggregate.count
+      : professional.reviewCount || 0;
   const stars = Array.from({length: 5}, (_, i) => ({
     filled: i < Math.floor(displayRating),
     half: i >= Math.floor(displayRating) && i < displayRating,
@@ -772,16 +783,25 @@ function ProfessionalProfile() {
                               ))}
                             </div>
                             <p className="text-[11px] text-gray-400 mt-1">
-                              {displayReviewCount} {displayReviewCount === 1 ? "review" : "reviews"}
+                              {displayReviewCount}{" "}
+                              {displayReviewCount === 1 ? "review" : "reviews"}
                             </p>
                           </div>
                           {reviews.length > 0 && (
                             <div className="flex-1 space-y-1.5">
                               {[5, 4, 3, 2, 1].map((n) => {
-                                const count = reviews.filter((r) => r.rating === n).length;
-                                const pct = reviews.length > 0 ? Math.round((count / reviews.length) * 100) : 0;
+                                const count = reviews.filter(
+                                  (r) => r.rating === n,
+                                ).length;
+                                const pct =
+                                  reviews.length > 0
+                                    ? Math.round((count / reviews.length) * 100)
+                                    : 0;
                                 return (
-                                  <div key={n} className="flex items-center gap-2">
+                                  <div
+                                    key={n}
+                                    className="flex items-center gap-2"
+                                  >
                                     <span className="text-[11px] text-gray-400 w-3 text-right">
                                       {n}
                                     </span>
@@ -817,7 +837,9 @@ function ProfessionalProfile() {
                                 <button
                                   key={n}
                                   type="button"
-                                  onClick={() => setReviewForm((f) => ({...f, rating: n}))}
+                                  onClick={() =>
+                                    setReviewForm((f) => ({...f, rating: n}))
+                                  }
                                   className={`p-1.5 rounded transition-colors ${
                                     reviewForm.rating >= n
                                       ? "text-amber-500 hover:text-amber-600"
@@ -826,7 +848,9 @@ function ProfessionalProfile() {
                                 >
                                   <Star
                                     className={`w-6 h-6 ${
-                                      reviewForm.rating >= n ? "fill-current" : ""
+                                      reviewForm.rating >= n
+                                        ? "fill-current"
+                                        : ""
                                     }`}
                                   />
                                 </button>
@@ -835,7 +859,10 @@ function ProfessionalProfile() {
                             <textarea
                               value={reviewForm.comment}
                               onChange={(e) =>
-                                setReviewForm((f) => ({...f, comment: e.target.value}))
+                                setReviewForm((f) => ({
+                                  ...f,
+                                  comment: e.target.value,
+                                }))
                               }
                               placeholder="Share your experience (optional)"
                               rows={3}
@@ -845,25 +872,32 @@ function ProfessionalProfile() {
                               type="button"
                               onClick={handleSubmitReview}
                               disabled={
-                                reviewForm.rating < 1 ||
-                                reviewSubmitting
+                                reviewForm.rating < 1 || reviewSubmitting
                               }
                               className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
                             >
-                              {reviewSubmitting ? "Submitting..." : "Submit Review"}
+                              {reviewSubmitting
+                                ? "Submitting..."
+                                : "Submit Review"}
                             </button>
                           </div>
                         )}
-                        {reviewEligibility?.alreadyReviewed && !reviewEligibility?.canReview && (
-                          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                            You have already submitted a review for this professional.
-                          </p>
-                        )}
-                        {reviewEligibility && !reviewEligibility.canReview && !reviewEligibility.alreadyReviewed && reviewEligibility.hasCompletedWork === false && (
-                          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                            Complete at least one maintenance appointment with this professional to leave a review.
-                          </p>
-                        )}
+                        {reviewEligibility?.alreadyReviewed &&
+                          !reviewEligibility?.canReview && (
+                            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                              You have already submitted a review for this
+                              professional.
+                            </p>
+                          )}
+                        {reviewEligibility &&
+                          !reviewEligibility.canReview &&
+                          !reviewEligibility.alreadyReviewed &&
+                          reviewEligibility.hasCompletedWork === false && (
+                            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                              Complete at least one maintenance appointment with
+                              this professional to leave a review.
+                            </p>
+                          )}
                       </>
                     )}
                   </div>
@@ -906,11 +940,14 @@ function ProfessionalProfile() {
                         </div>
                         <span className="text-[11px] text-gray-400">
                           {review.createdAt
-                            ? new Date(review.createdAt).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              })
+                            ? new Date(review.createdAt).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                },
+                              )
                             : ""}
                         </span>
                       </div>

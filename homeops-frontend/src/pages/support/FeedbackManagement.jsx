@@ -3,6 +3,7 @@ import {useParams, useNavigate} from "react-router-dom";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
+import {Loader2, RefreshCw} from "lucide-react";
 import {
   TicketCard,
   KanbanColumn,
@@ -228,9 +229,12 @@ function FeedbackManagement() {
                 type="button"
                 onClick={fetchTickets}
                 disabled={loading}
-                className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-50 text-sm"
+                className="flex items-center gap-2 btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-50 text-sm"
               >
-                {loading ? "Loading..." : "Refresh"}
+                <RefreshCw
+                  className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                />
+                Refresh
               </button>
             </div>
 
@@ -264,7 +268,7 @@ function FeedbackManagement() {
 
           {loading ? (
             <div className="flex-1 flex items-center justify-center px-6">
-              <p className="text-gray-500 dark:text-gray-400">Loading...</p>
+              <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
             </div>
           ) : (
             <div

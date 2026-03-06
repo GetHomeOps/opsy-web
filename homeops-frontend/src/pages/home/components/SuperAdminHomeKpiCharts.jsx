@@ -1,5 +1,5 @@
 import React from "react";
-import { Line, Bar, Doughnut } from "react-chartjs-2";
+import {Line, Bar, Doughnut} from "react-chartjs-2";
 import {
   Database,
   Building2,
@@ -18,6 +18,7 @@ import {
   Sparkles,
   PieChart,
   BarChart3,
+  Loader2,
 } from "lucide-react";
 import MiniBarChart from "./MiniBarChart";
 import DonutChart from "./DonutChart";
@@ -77,14 +78,17 @@ function SuperAdminHomeKpiCharts({
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               Cumulative totals (users, accounts, properties) over the last{" "}
-              {TIMEFRAME_OPTIONS.find((o) => o.value === timeframeDays)?.label?.toLowerCase() ||
-                `${timeframeDays} days`}{" "}
+              {TIMEFRAME_OPTIONS.find(
+                (o) => o.value === timeframeDays,
+              )?.label?.toLowerCase() || `${timeframeDays} days`}{" "}
               from platform data.
             </p>
             <div className="h-64">
               <Line
                 data={{
-                  labels: dailyMetrics.map((d) => d.date?.slice(0, 10) ?? d.date),
+                  labels: dailyMetrics.map(
+                    (d) => d.date?.slice(0, 10) ?? d.date,
+                  ),
                   datasets: [
                     {
                       label: "Users",
@@ -143,7 +147,7 @@ function SuperAdminHomeKpiCharts({
             </p>
             {analyticsLoading && !accountGrowth.length ? (
               <div className="h-32 flex items-center justify-center text-gray-400 text-sm">
-                Loading...
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
               </div>
             ) : accountGrowth.length > 0 ? (
               <div className="h-32">
@@ -180,7 +184,7 @@ function SuperAdminHomeKpiCharts({
             </p>
             {analyticsLoading && !propertyGrowth.length ? (
               <div className="h-32 flex items-center justify-center text-gray-400 text-sm">
-                Loading...
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
               </div>
             ) : propertyGrowth.length > 0 ? (
               <div className="h-32">
@@ -217,7 +221,7 @@ function SuperAdminHomeKpiCharts({
             </p>
             {analyticsLoading && !userGrowth.length ? (
               <div className="h-32 flex items-center justify-center text-gray-400 text-sm">
-                Loading...
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
               </div>
             ) : userGrowth.length > 0 ? (
               <div className="h-32">
@@ -290,8 +294,8 @@ function SuperAdminHomeKpiCharts({
                   ...chartOptions,
                   scales: {
                     ...chartOptions.scales,
-                    x: { stacked: false },
-                    y: { ...chartOptions.scales?.y, stacked: false },
+                    x: {stacked: false},
+                    y: {...chartOptions.scales?.y, stacked: false},
                   },
                 }}
               />
@@ -349,7 +353,7 @@ function SuperAdminHomeKpiCharts({
                 <div key={seg.label} className="flex items-center gap-2">
                   <span
                     className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: seg.color }}
+                    style={{backgroundColor: seg.color}}
                   />
                   <span className="text-xs text-gray-600 dark:text-gray-400">
                     {seg.label}
@@ -425,7 +429,8 @@ function SuperAdminHomeKpiCharts({
               />
               <MetricRow
                 label={
-                  t("superAdminHome.avgUsersPerAccount") || "Avg Users / Account"
+                  t("superAdminHome.avgUsersPerAccount") ||
+                  "Avg Users / Account"
                 }
                 value={platformKpis.avgUsersPerDb}
                 icon={Users}
@@ -444,9 +449,7 @@ function SuperAdminHomeKpiCharts({
                 }
               />
               <MetricRow
-                label={
-                  t("superAdminHome.activeAccounts") || "Active Accounts"
-                }
+                label={t("superAdminHome.activeAccounts") || "Active Accounts"}
                 value={`${platformKpis.activeAccounts} / ${totalAccounts}`}
                 icon={Database}
                 color="text-[#456564]"
@@ -481,8 +484,9 @@ function SuperAdminHomeKpiCharts({
               </h3>
               <span className="text-xs text-gray-400 dark:text-gray-500">
                 Daily events (
-                {TIMEFRAME_OPTIONS.find((o) => o.value === timeframeDays)?.label?.toLowerCase() ||
-                  `last ${timeframeDays} days`}
+                {TIMEFRAME_OPTIONS.find(
+                  (o) => o.value === timeframeDays,
+                )?.label?.toLowerCase() || `last ${timeframeDays} days`}
                 )
               </span>
             </div>
@@ -491,14 +495,14 @@ function SuperAdminHomeKpiCharts({
             </p>
             {analyticsLoading && !engagementTrend.length ? (
               <div className="h-40 flex items-center justify-center text-gray-400 text-sm">
-                Loading...
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
               </div>
             ) : engagementTrend.length > 0 ? (
               <div className="h-40">
                 <Line
                   data={{
                     labels: engagementTrend.map(
-                      (d) => d.date?.slice(0, 10) ?? d.date
+                      (d) => d.date?.slice(0, 10) ?? d.date,
                     ),
                     datasets: [
                       {
@@ -564,7 +568,7 @@ function SuperAdminHomeKpiCharts({
             </p>
             {analyticsLoading && !engagementCounts.length ? (
               <div className="h-48 flex items-center justify-center text-gray-400 text-sm">
-                Loading...
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
               </div>
             ) : engagementCounts.length > 0 ? (
               <>
@@ -572,7 +576,7 @@ function SuperAdminHomeKpiCharts({
                   <Doughnut
                     data={{
                       labels: engagementCounts.map(
-                        (c) => c.eventType ?? c.event_type ?? "—"
+                        (c) => c.eventType ?? c.event_type ?? "—",
                       ),
                       datasets: [
                         {
@@ -593,7 +597,7 @@ function SuperAdminHomeKpiCharts({
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      plugins: { legend: { position: "right" } },
+                      plugins: {legend: {position: "right"}},
                     }}
                   />
                 </div>
@@ -629,16 +633,14 @@ function SuperAdminHomeKpiCharts({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               {
-                label:
-                  t("superAdminHome.newUsersLast30") || "New users (30d)",
+                label: t("superAdminHome.newUsersLast30") || "New users (30d)",
                 value: summary?.newUsersLast30d ?? "—",
                 color: "bg-purple-500",
                 icon: UserPlus,
               },
               {
                 label:
-                  t("superAdminHome.newAccountsLast30") ||
-                  "New accounts (30d)",
+                  t("superAdminHome.newAccountsLast30") || "New accounts (30d)",
                 value: summary?.newAccountsLast30d ?? "—",
                 color: "bg-[#456564]",
                 icon: Database,

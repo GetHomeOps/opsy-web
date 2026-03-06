@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { X, ChevronDown, ChevronUp } from "lucide-react";
+import React, {useState, useEffect} from "react";
+import {X, ChevronDown, ChevronUp} from "lucide-react";
 import AppApi from "../../../api/api";
 
 /**
  * Modal showing AI reanalysis audit trail: before vs after for each reanalysis event.
  */
-function AIReanalysisAuditModal({ isOpen, onClose, propertyId }) {
+function AIReanalysisAuditModal({isOpen, onClose, propertyId}) {
   const [audit, setAudit] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -58,7 +58,8 @@ function AIReanalysisAuditModal({ isOpen, onClose, propertyId }) {
               maintenance records.
             </p>
           )}
-          {!loading && !error &&
+          {!loading &&
+            !error &&
             audit.map((entry) => {
               const isExpanded = expandedId === entry.id;
               const prev = entry.previous_state || {};
@@ -71,7 +72,7 @@ function AIReanalysisAuditModal({ isOpen, onClose, propertyId }) {
               const changed = Array.from(allNames).filter(
                 (n) =>
                   (prevMap.get(n)?.condition ?? "") !==
-                  (nextMap.get(n)?.condition ?? "")
+                  (nextMap.get(n)?.condition ?? ""),
               );
 
               return (
@@ -81,14 +82,13 @@ function AIReanalysisAuditModal({ isOpen, onClose, propertyId }) {
                 >
                   <button
                     type="button"
-                    onClick={() =>
-                      setExpandedId(isExpanded ? null : entry.id)
-                    }
+                    onClick={() => setExpandedId(isExpanded ? null : entry.id)}
                     className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                   >
                     <div className="flex flex-col gap-0.5">
                       <span className="text-sm font-medium text-neutral-900 dark:text-white">
-                        {triggerLabels[entry.trigger_source] ?? entry.trigger_source}
+                        {triggerLabels[entry.trigger_source] ??
+                          entry.trigger_source}
                       </span>
                       <span className="text-xs text-neutral-500">
                         {new Date(entry.created_at).toLocaleString()}
@@ -97,7 +97,8 @@ function AIReanalysisAuditModal({ isOpen, onClose, propertyId }) {
                     <div className="flex items-center gap-2">
                       {changed.length > 0 && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200">
-                          {changed.length} system{changed.length !== 1 ? "s" : ""} changed
+                          {changed.length} system
+                          {changed.length !== 1 ? "s" : ""} changed
                         </span>
                       )}
                       {isExpanded ? (

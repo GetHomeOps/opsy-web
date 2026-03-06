@@ -376,4 +376,14 @@ router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: 
   }
 });
 
+/** DELETE /:propertyId - Delete property. Requires property access. */
+router.delete("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "propertyId" }), async function (req, res, next) {
+  try {
+    await Property.remove(req.params.propertyId);
+    return res.json({ deleted: true });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 module.exports = router;

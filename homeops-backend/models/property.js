@@ -271,6 +271,18 @@ class Property {
     return property;
   }
 
+  /** Delete a property by id or property_uid. Clears invitations.property_id first (FK has no CASCADE). */
+  static async remove(uid) {
+    const property = await Property.get(uid);
+    const id = property.id;
+    await db.query(
+      `UPDATE invitations SET property_id = NULL WHERE property_id = $1`,
+      [id]
+    );
+    await db.query(`DELETE FROM properties WHERE id = $1`, [id]);
+    return { deleted: true, id };
+  }
+
   /** Sync property_users to the given array of users.
    *  1. Load current (property_id, user_id) pairs for this property.
    *  2. Diff: remove pairs that are not in the new array; add/update pairs that are in the new array.

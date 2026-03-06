@@ -68,61 +68,67 @@ function StepIndicator({currentStep, steps}) {
   return (
     <div className="mb-6 flex justify-center">
       <div className="w-full max-w-[320px] sm:max-w-[360px]">
-      {/* Circles and connector lines */}
-      <div className="flex items-center justify-center">
-        {steps.map((step, idx) => {
-          const isActive = idx === currentStep;
-          const isCompleted = idx < currentStep;
-          return (
-            <React.Fragment key={step.id}>
-              {idx > 0 && (
-                <div
-                  className={`${CONNECTOR_LINE_CLASS} transition-colors duration-200 ${
-                    idx <= currentStep
-                      ? "bg-[#456564]"
-                      : "bg-gray-200 dark:bg-gray-600"
-                  }`}
-                  aria-hidden
-                />
-              )}
-              <div className={`${STEP_SLOT_CLASS} flex justify-center`}>
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-200 ${
-                    isCompleted
-                      ? "border-[#456564] bg-[#456564] text-white"
-                      : isActive
+        {/* Circles and connector lines */}
+        <div className="flex items-center justify-center">
+          {steps.map((step, idx) => {
+            const isActive = idx === currentStep;
+            const isCompleted = idx < currentStep;
+            return (
+              <React.Fragment key={step.id}>
+                {idx > 0 && (
+                  <div
+                    className={`${CONNECTOR_LINE_CLASS} transition-colors duration-200 ${
+                      idx <= currentStep
+                        ? "bg-[#456564]"
+                        : "bg-gray-200 dark:bg-gray-600"
+                    }`}
+                    aria-hidden
+                  />
+                )}
+                <div className={`${STEP_SLOT_CLASS} flex justify-center`}>
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-200 ${
+                      isCompleted
                         ? "border-[#456564] bg-[#456564] text-white"
-                        : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                        : isActive
+                          ? "border-[#456564] bg-[#456564] text-white"
+                          : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                    }`}
+                  >
+                    {isCompleted ? (
+                      <CheckCircle2 className="w-4 h-4" />
+                    ) : (
+                      idx + 1
+                    )}
+                  </div>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+        {/* Labels row - same slot structure as circles for precise alignment */}
+        <div className="flex items-start justify-center mt-1.5">
+          {steps.map((step, idx) => {
+            const isActive = idx === currentStep;
+            const isCompleted = idx < currentStep;
+            return (
+              <React.Fragment key={step.id}>
+                {idx > 0 && (
+                  <div className={CONNECTOR_LINE_CLASS} aria-hidden />
+                )}
+                <span
+                  className={`${STEP_SLOT_CLASS} text-[10px] sm:text-xs font-medium text-center leading-tight block px-1 whitespace-normal break-words ${
+                    isActive || isCompleted
+                      ? "text-[#456564] dark:text-[#7aa3a2]"
+                      : "text-gray-400 dark:text-gray-500"
                   }`}
                 >
-                  {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        })}
-      </div>
-      {/* Labels row - same slot structure as circles for precise alignment */}
-      <div className="flex items-start justify-center mt-1.5">
-        {steps.map((step, idx) => {
-          const isActive = idx === currentStep;
-          const isCompleted = idx < currentStep;
-          return (
-            <React.Fragment key={step.id}>
-              {idx > 0 && <div className={CONNECTOR_LINE_CLASS} aria-hidden />}
-              <span
-                className={`${STEP_SLOT_CLASS} text-[10px] sm:text-xs font-medium text-center leading-tight block px-1 whitespace-normal break-words ${
-                  isActive || isCompleted
-                    ? "text-[#456564] dark:text-[#7aa3a2]"
-                    : "text-gray-400 dark:text-gray-500"
-                }`}
-              >
-                {step.label}
-              </span>
-            </React.Fragment>
-          );
-        })}
-      </div>
+                  {step.label}
+                </span>
+              </React.Fragment>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -494,13 +500,16 @@ function DetailsStep({
               {maintenanceRecommendations.map((item, idx) => (
                 <li key={idx} className="flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2] flex-shrink-0 mt-0.5" />
-                  <span>{typeof item === "string" ? item : item.task || item}</span>
+                  <span>
+                    {typeof item === "string" ? item : item.task || item}
+                  </span>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              No specific recommendations yet. Add inspection documents or run AI analysis for tailored suggestions.
+              No specific recommendations yet. Add inspection documents or run
+              AI analysis for tailored suggestions.
             </p>
           )}
         </div>
@@ -699,7 +708,9 @@ function ScheduleSystemModal({
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [messageBody, setMessageBody] = useState("");
-  const [maintenanceRecommendations, setMaintenanceRecommendations] = useState([]);
+  const [maintenanceRecommendations, setMaintenanceRecommendations] = useState(
+    [],
+  );
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
   const [alertEnabled, setAlertEnabled] = useState(true);
   const [alertTiming, setAlertTiming] = useState("3d");

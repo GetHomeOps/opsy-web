@@ -18,6 +18,7 @@ const { AWS_S3_BUCKET } = require("../config");
 const { detectSystemsFromText } = require("./aiChatService");
 const { triggerReanalysisOnInspection } = require("./ai/propertyReanalysisService");
 const { CANONICAL_SYSTEMS, isExcludedSystem, normalizeSystemType } = require("./systemTypes");
+const { logAiUsage } = require("./usageService");
 
 async function extractTextFromPdf(buffer) {
   const parser = new PDFParse({ data: buffer });
@@ -47,6 +48,10 @@ CRITICAL RULES:
 - Output ONLY valid JSON. No markdown, no extra text.
 - Be exhaustive: list every system/component the report covers, even briefly.
 - Do NOT include appliances (dishwasher, refrigerator, oven, stove, washer, dryer, microwave, garbage disposal).
+- Do NOT create redundant or overlapping systems. Each finding should map to exactly ONE system.
+- Do NOT suggest "inspections" as a system — it is a process, not a property system.
+- Consolidate related concepts into canonical types: "structure"/"framing" -> foundation, "fuel storage"/"oil tank" -> heating, "chimney"/"fireplace" -> heating, "attic"/"insulation" -> exterior, "crawl space"/"basement" -> foundation, "garage"/"garage door" -> exterior, "ventilation" -> ac, "smoke detectors"/"CO detectors" -> safety.
+- Only suggest a custom systemType if NO canonical type is a reasonable fit (e.g. "pool", "septic", "solar").
 
 For each system, map to a canonical type when it fits: ${CANONICAL_SYSTEMS_LIST}
 Otherwise use a custom type in camelCase (e.g. "pool", "deck", "septic").
@@ -104,6 +109,8 @@ SYSTEM TYPE: For each finding, choose the best-fitting system. You have two opti
 2. Use a custom systemType when none of the above fit well (e.g. "pool", "deck", "landscaping", "septic"). Use lowercase camelCase (e.g. swimmingPool) or kebab-case (e.g. swimming-pool).
 
 CRITICAL: Do NOT suggest or use "Appliances" or appliance-related systems (e.g. dishwasher, refrigerator, oven, stove, washer, dryer, microwave, garbage disposal). We track only property systems (roof, HVAC, plumbing, etc.), not appliances. If the report mentions appliances, skip them or map relevant issues to plumbing/electrical where appropriate.
+
+DEDUPLICATION: Do NOT create redundant or overlapping systems. Each area of the property should map to exactly one system. "structure" and "foundation" are the same system — always use "foundation". Do NOT include "inspections" as a system — it is a process, not a property system. Consolidate related concepts into canonical types: "fuel storage"/"oil tank" -> heating, "chimney"/"fireplace" -> heating, "attic"/"insulation" -> exterior, "crawl space"/"basement" -> foundation, "garage"/"garage door" -> exterior, "ventilation" -> ac, "smoke detectors"/"CO detectors" -> safety. Only use custom types for genuinely distinct property systems (e.g. pool, septic, solar) that do not fit any canonical type.
 
 Analyze each report finding and assign the system that best describes it. Do not force findings into unrelated categories. If siding, stucco, or exterior envelope issues fit "exterior", use it. If a spa or pool fits neither plumbing nor any canonical type, use a custom "pool" or "spa". Use your judgment.
 
@@ -195,7 +202,7 @@ function extractSystemSection(fullText, systemType, sectionHint) {
  * Run multi-pass analysis: inventory pass then per-system extraction.
  * Falls back to single-pass for short reports.
  */
-async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordDetections, progressCb) {
+async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordDetections, progressCb, usageCtx) {
   const preDetectedSystems = keywordDetections.map((d) => d.system);
   const preDetectionHint = preDetectedSystems.length > 0
     ? `\nA keyword scan found references to: ${preDetectedSystems.join(", ")}. Include them if appropriate.\n`
@@ -213,6 +220,17 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
     temperature: 0.15,
     response_format: { type: "json_object" },
   });
+  if (usageCtx && inventoryCompletion.usage) {
+    logAiUsage({
+      accountId: usageCtx.accountId,
+      userId: usageCtx.userId,
+      model: "openai/gpt-4o",
+      promptTokens: inventoryCompletion.usage.prompt_tokens,
+      completionTokens: inventoryCompletion.usage.completion_tokens,
+      endpoint: "inspection-analysis/inventory",
+    }).catch((err) => console.error("[inspectionAnalysis] logAiUsage error:", err.message));
+  }
+
   const inventoryContent = inventoryCompletion.choices[0]?.message?.content;
   if (!inventoryContent) throw new Error("Empty response from AI inventory pass");
   const inventory = JSON.parse(inventoryContent);
@@ -271,6 +289,17 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
           temperature: 0.15,
           response_format: { type: "json_object" },
         });
+        if (usageCtx && completion.usage) {
+          logAiUsage({
+            accountId: usageCtx.accountId,
+            userId: usageCtx.userId,
+            model: "openai/gpt-4o",
+            promptTokens: completion.usage.prompt_tokens,
+            completionTokens: completion.usage.completion_tokens,
+            endpoint: `inspection-analysis/system/${sys.systemType}`,
+          }).catch((err) => console.error("[inspectionAnalysis] logAiUsage error:", err.message));
+        }
+
         const content = completion.choices[0]?.message?.content;
         if (!content) return null;
         return { systemType: sys.systemType, data: JSON.parse(content) };
@@ -336,7 +365,7 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
 /**
  * Run legacy single-pass analysis for short reports.
  */
-async function runSinglePassAnalysis(openai, textToUse, propertyContext, keywordDetections) {
+async function runSinglePassAnalysis(openai, textToUse, propertyContext, keywordDetections, usageCtx) {
   const preDetectedSystems = keywordDetections.map((d) => d.system);
   const preDetectionHint = preDetectedSystems.length > 0
     ? `\n\nA keyword scan found references to: ${preDetectedSystems.join(", ")}. Consider which canonical or custom systems these relate to and include them in systemsDetected and suggestedSystemsToAdd where appropriate.\n\n`
@@ -354,6 +383,17 @@ async function runSinglePassAnalysis(openai, textToUse, propertyContext, keyword
     temperature: 0.2,
     response_format: { type: "json_object" },
   });
+
+  if (usageCtx && completion.usage) {
+    logAiUsage({
+      accountId: usageCtx.accountId,
+      userId: usageCtx.userId,
+      model: "openai/gpt-4o",
+      promptTokens: completion.usage.prompt_tokens,
+      completionTokens: completion.usage.completion_tokens,
+      endpoint: "inspection-analysis/single-pass",
+    }).catch((err) => console.error("[inspectionAnalysis] logAiUsage error:", err.message));
+  }
 
   const content = completion.choices[0]?.message?.content;
   if (!content) throw new Error("Empty response from AI");
@@ -415,6 +455,15 @@ async function runAnalysis(jobId) {
 
   const propertyContext = await getPropertyContextForAnalysis(job.property_id);
 
+  const accountRes = await db.query(
+    `SELECT account_id FROM properties WHERE id = $1`,
+    [job.property_id]
+  );
+  const usageCtx = {
+    accountId: accountRes.rows[0]?.account_id,
+    userId: job.user_id,
+  };
+
   const useMultiPass = textToUse.length > SHORT_REPORT_THRESHOLD;
 
   let parsed;
@@ -427,10 +476,11 @@ async function runAnalysis(jobId) {
         propertyContext,
         keywordDetections,
         (msg) => InspectionAnalysisJob.updateStatus(jobId, { progress: msg }),
+        usageCtx,
       );
     } else {
       console.log(`[inspectionAnalysis] Using single-pass analysis (${textToUse.length} chars)`);
-      parsed = await runSinglePassAnalysis(openai, textToUse, propertyContext, keywordDetections);
+      parsed = await runSinglePassAnalysis(openai, textToUse, propertyContext, keywordDetections, usageCtx);
     }
   } catch (err) {
     console.error("[inspectionAnalysis] OpenAI error:", err);

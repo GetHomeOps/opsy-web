@@ -1,21 +1,25 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, {useState, useEffect, useCallback} from "react";
+import {useParams, useNavigate} from "react-router-dom";
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
-import { ArrowLeft, ExternalLink, Loader2, FileText } from "lucide-react";
+import {ArrowLeft, ExternalLink, Loader2, FileText} from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
-import { getResourceThumbnailUrl, RESOURCE_THUMBNAIL_PLACEHOLDER, DEFAULT_HEADER_IMAGE } from "../../utils/resourceThumbnail";
-import { PAGE_LAYOUT } from "../../constants/layout";
+import {
+  getResourceThumbnailUrl,
+  RESOURCE_THUMBNAIL_PLACEHOLDER,
+  DEFAULT_HEADER_IMAGE,
+} from "../../utils/resourceThumbnail";
+import {PAGE_LAYOUT} from "../../constants/layout";
 
 /**
  * Read-only preview showing the final communication as recipients will see it.
  * Opsy-branded layout with header, footer, and presentable styling.
  */
 function ResourcePreviewPage() {
-  const { id } = useParams();
+  const {id} = useParams();
   const navigate = useNavigate();
-  const { currentAccount } = useCurrentAccount();
+  const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -89,7 +93,10 @@ function ResourcePreviewPage() {
   const bodyText = resource.bodyText || "";
   const url = resource.url || "";
   const resolvedImageUrl = resource.imageUrl || imageUrl;
-  const thumbnailUrl = getResourceThumbnailUrl(resource) || resolvedImageUrl || DEFAULT_HEADER_IMAGE;
+  const thumbnailUrl =
+    getResourceThumbnailUrl(resource) ||
+    resolvedImageUrl ||
+    DEFAULT_HEADER_IMAGE;
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
@@ -108,7 +115,9 @@ function ResourcePreviewPage() {
                 <ArrowLeft className="w-5 h-5" />
                 <span className="text-lg">Back to edit</span>
               </button>
-              <span className="text-sm text-gray-500 dark:text-gray-400">Preview — read-only</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Preview — read-only
+              </span>
             </div>
 
             {/* Final communication preview — Opsy branded, presentable */}
@@ -121,8 +130,12 @@ function ResourcePreviewPage() {
                       <span className="text-xl font-bold text-white">O</span>
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold tracking-tight">Opsy</h2>
-                      <p className="text-xs text-white/80">Your home, simplified</p>
+                      <h2 className="text-lg font-semibold tracking-tight">
+                        Opsy
+                      </h2>
+                      <p className="text-xs text-white/80">
+                        Your home, simplified
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -140,7 +153,9 @@ function ResourcePreviewPage() {
                 {/* Hero image / thumbnail — always show (uses Opsy-body.jpg default when none provided) */}
                 <div className="aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-700">
                   <img
-                    src={resolvedImageUrl || thumbnailUrl || DEFAULT_HEADER_IMAGE}
+                    src={
+                      resolvedImageUrl || thumbnailUrl || DEFAULT_HEADER_IMAGE
+                    }
                     alt={title}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -153,38 +168,45 @@ function ResourcePreviewPage() {
 
                 {/* Body content — read-only */}
                 <div className="px-8 py-8">
-                  {["video_link", "web_link", "article_link", "pdf"].includes(type) && url && (
-                    <div className="mb-6 p-5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/50">
-                      {type === "video_link" && thumbnailUrl && (
-                        <div className="mb-4">
-                          <img
-                            src={thumbnailUrl}
-                            alt=""
-                            className="w-full rounded-lg"
-                            onError={(e) => { e.target.src = RESOURCE_THUMBNAIL_PLACEHOLDER; }}
-                          />
-                        </div>
-                      )}
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-[#456564] dark:text-emerald-400 hover:underline break-all font-medium"
-                      >
-                        <ExternalLink className="w-4 h-4 flex-shrink-0" />
-                        {url}
-                      </a>
-                    </div>
-                  )}
+                  {["video_link", "web_link", "article_link", "pdf"].includes(
+                    type,
+                  ) &&
+                    url && (
+                      <div className="mb-6 p-5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/50">
+                        {type === "video_link" && thumbnailUrl && (
+                          <div className="mb-4">
+                            <img
+                              src={thumbnailUrl}
+                              alt=""
+                              className="w-full rounded-lg"
+                              onError={(e) => {
+                                e.target.src = RESOURCE_THUMBNAIL_PLACEHOLDER;
+                              }}
+                            />
+                          </div>
+                        )}
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-[#456564] dark:text-emerald-400 hover:underline break-all font-medium"
+                        >
+                          <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                          {url}
+                        </a>
+                      </div>
+                    )}
 
                   <div className="prose prose-lg dark:prose-invert max-w-none prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-a:text-[#456564] dark:prose-a:text-emerald-400">
                     {resource?.contentFormat === "html" ? (
                       <div
-                        dangerouslySetInnerHTML={{ __html: bodyText || "" }}
+                        dangerouslySetInnerHTML={{__html: bodyText || ""}}
                         className="text-gray-700 dark:text-gray-300 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg"
                       />
                     ) : (
-                      <p className="whitespace-pre-wrap">{bodyText || "(No message)"}</p>
+                      <p className="whitespace-pre-wrap">
+                        {bodyText || "(No message)"}
+                      </p>
                     )}
                   </div>
 
@@ -209,12 +231,21 @@ function ResourcePreviewPage() {
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg bg-[#456564]/20 flex items-center justify-center">
-                        <span className="text-sm font-bold text-[#456564]">O</span>
+                        <span className="text-sm font-bold text-[#456564]">
+                          O
+                        </span>
                       </div>
-                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Opsy</span>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Opsy
+                      </span>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Delivered via {resource.deliveryChannel === "email" ? "Email" : resource.deliveryChannel === "in_app" ? "Opsy app" : "Email + Opsy app"}
+                      Delivered via{" "}
+                      {resource.deliveryChannel === "email"
+                        ? "Email"
+                        : resource.deliveryChannel === "in_app"
+                          ? "Opsy app"
+                          : "Email + Opsy app"}
                     </p>
                   </div>
                 </div>

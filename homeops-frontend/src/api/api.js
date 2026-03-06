@@ -5,7 +5,7 @@ export const API_BASE_URL =
 const BASE_URL = API_BASE_URL;
 
 // new URL() requires absolute URL; use window.location.origin when BASE_URL is empty (same-origin deploy)
-function buildApiUrl(endpoint) {
+export function buildApiUrl(endpoint) {
   const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
   const base = BASE_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
   return new URL(path, base);
@@ -539,6 +539,11 @@ class AppApi {
   static async updateProperty(propertyId, data) {
     let res = await this.request(`properties/${propertyId}`, data, 'PATCH');
     return res.property;
+  }
+
+  static async deleteProperty(propertyId) {
+    await this.request(`properties/${propertyId}`, {}, 'DELETE');
+    return { deleted: true };
   }
 
   static async updatePropertyTeam(propertyId, team) {

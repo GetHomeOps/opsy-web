@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, {useState, useEffect, useCallback} from "react";
+import {useParams, useNavigate} from "react-router-dom";
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import ModalBlank from "../../components/ModalBlank";
@@ -7,12 +7,13 @@ import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
 import AppApi from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
-import { Plus, Trash2, Clock, Send, FileEdit } from "lucide-react";
-import { PAGE_LAYOUT } from "../../constants/layout";
+import {Plus, Trash2, Clock, Send, FileEdit} from "lucide-react";
+import {PAGE_LAYOUT} from "../../constants/layout";
 
 const STATUS_STYLES = {
   draft: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
-  scheduled: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  scheduled:
+    "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
   sent: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
 };
 
@@ -23,9 +24,9 @@ const STATUS_ICONS = {
 };
 
 function CommunicationsList() {
-  const { accountUrl } = useParams();
+  const {accountUrl} = useParams();
   const navigate = useNavigate();
-  const { currentAccount } = useCurrentAccount();
+  const {currentAccount} = useCurrentAccount();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [comms, setComms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -80,11 +81,15 @@ function CommunicationsList() {
   const handleToggleSelect = (idOrIds, add) => {
     if (Array.isArray(idOrIds)) {
       setSelectedItems((prev) =>
-        add ? [...new Set([...prev, ...idOrIds])] : prev.filter((x) => !idOrIds.includes(x))
+        add
+          ? [...new Set([...prev, ...idOrIds])]
+          : prev.filter((x) => !idOrIds.includes(x)),
       );
     } else {
       setSelectedItems((prev) =>
-        prev.includes(idOrIds) ? prev.filter((x) => x !== idOrIds) : [...prev, idOrIds]
+        prev.includes(idOrIds)
+          ? prev.filter((x) => x !== idOrIds)
+          : [...prev, idOrIds],
       );
     }
   };
@@ -130,7 +135,7 @@ function CommunicationsList() {
       sortable: false,
       render: (v, item) => formatDate(v || item.scheduledAt),
     },
-    { key: "createdByName", label: "Created By", sortable: false },
+    {key: "createdByName", label: "Created By", sortable: false},
     {
       key: "actions",
       label: "",
@@ -195,19 +200,26 @@ function CommunicationsList() {
             <DataTable
               items={loading ? [] : comms}
               columns={columns}
-              onItemClick={(item) => navigate(`/${accountUrl}/communications/${item.id}`)}
+              onItemClick={(item) =>
+                navigate(`/${accountUrl}/communications/${item.id}`)
+              }
               onSelect={handleToggleSelect}
               selectedItems={selectedItems}
               totalItems={loading ? 0 : comms.length}
               title="Communications"
               renderItem={renderRow}
-              emptyMessage={loading ? "Loading…" : "No communications yet. Create your first one!"}
+              emptyMessage="No communications yet. Create your first one!"
+              loading={loading}
             />
           </div>
         </main>
       </div>
 
-      <ModalBlank id="comm-delete-modal" modalOpen={deleteModalOpen} setModalOpen={setDeleteModalOpen}>
+      <ModalBlank
+        id="comm-delete-modal"
+        modalOpen={deleteModalOpen}
+        setModalOpen={setDeleteModalOpen}
+      >
         <div className="p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
             Delete Communication

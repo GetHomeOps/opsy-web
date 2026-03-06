@@ -1,11 +1,11 @@
-import React, { useContext, useMemo, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { useAuth } from "../../context/AuthContext";
+import React, {useContext, useMemo, useEffect, useState} from "react";
+import {useTranslation} from "react-i18next";
+import {useAuth} from "../../context/AuthContext";
 import PropertyContext from "../../context/PropertyContext";
 import UserContext from "../../context/UserContext";
 import AppApi from "../../api/api";
-import { Loader2 } from "lucide-react";
-import { SuperAdminHomeStats, SuperAdminHomeKpiCharts } from "./components";
+import {Loader2} from "lucide-react";
+import {SuperAdminHomeStats, SuperAdminHomeKpiCharts} from "./components";
 
 /*
  * ════════════════════════════════════════════════════════════════════
@@ -60,7 +60,20 @@ import { SuperAdminHomeStats, SuperAdminHomeKpiCharts } from "./components";
 // SUPER ADMIN HOME — Main Component
 // ═════════════════════════════════════════════════════════════════════
 
-const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 function formatMonth(ym) {
   if (!ym) return "";
   const [y, m] = String(ym).split("-");
@@ -68,10 +81,10 @@ function formatMonth(ym) {
 }
 
 function SuperAdminHome() {
-  const { t } = useTranslation();
-  const { currentUser } = useAuth();
-  const { properties } = useContext(PropertyContext);
-  const { users } = useContext(UserContext);
+  const {t} = useTranslation();
+  const {currentUser} = useAuth();
+  const {properties} = useContext(PropertyContext);
+  const {users} = useContext(UserContext);
 
   const [summary, setSummary] = useState(null);
   const [dailyMetrics, setDailyMetrics] = useState([]);
@@ -86,11 +99,11 @@ function SuperAdminHome() {
   const [timeframeDays, setTimeframeDays] = useState(7);
 
   const TIMEFRAME_OPTIONS = [
-    { label: "1 Week", value: 7 },
-    { label: "2 Weeks", value: 14 },
-    { label: "30 Days", value: 30 },
-    { label: "60 Days", value: 60 },
-    { label: "90 Days", value: 90 },
+    {label: "1 Week", value: 7},
+    {label: "2 Weeks", value: 14},
+    {label: "30 Days", value: 30},
+    {label: "60 Days", value: 60},
+    {label: "90 Days", value: 90},
   ];
 
   const rawFirstName =
@@ -115,27 +128,49 @@ function SuperAdminHome() {
     const endStr = endDate.toISOString().slice(0, 10);
 
     Promise.all([
-      AppApi.getAnalyticsSummary().catch((e) => (cancelled ? null : (setAnalyticsError(e?.messages?.[0] || "Summary failed"), null))),
-      AppApi.getAnalyticsDaily({ startDate: startStr, endDate: endStr }).then((m) => (cancelled ? [] : m || [])).catch(() => []),
-      AppApi.getAnalyticsGrowth("accounts", 8).then((g) => (cancelled ? [] : g || [])).catch(() => []),
-      AppApi.getAnalyticsGrowth("properties", 8).then((g) => (cancelled ? [] : g || [])).catch(() => []),
-      AppApi.getAnalyticsGrowth("users", 8).then((g) => (cancelled ? [] : g || [])).catch(() => []),
-      AppApi.getAnalyticsAccounts().then((a) => (cancelled ? [] : a || [])).catch(() => []),
-      AppApi.getEngagementCounts({ startDate: startStr, endDate: endStr }).then((c) => (cancelled ? [] : c || [])).catch(() => []),
-      AppApi.getEngagementTrend({ startDate: startStr, endDate: endStr }).then((tr) => (cancelled ? [] : tr || [])).catch(() => []),
-    ]).then(([s, daily, gAccounts, gProps, gUsers, acctAnalytics, counts, trend]) => {
-      if (cancelled) return;
-      if (s) setSummary(s);
-      setDailyMetrics(Array.isArray(daily) ? daily : []);
-      setGrowthAccounts(Array.isArray(gAccounts) ? gAccounts : []);
-      setGrowthProps(Array.isArray(gProps) ? gProps : []);
-      setGrowthUsers(Array.isArray(gUsers) ? gUsers : []);
-      setAccountAnalytics(Array.isArray(acctAnalytics) ? acctAnalytics : []);
-      setEngagementCounts(Array.isArray(counts) ? counts : []);
-      setEngagementTrend(Array.isArray(trend) ? trend : []);
-      setAnalyticsLoading(false);
-    });
-    return () => { cancelled = true; };
+      AppApi.getAnalyticsSummary().catch((e) =>
+        cancelled
+          ? null
+          : (setAnalyticsError(e?.messages?.[0] || "Summary failed"), null),
+      ),
+      AppApi.getAnalyticsDaily({startDate: startStr, endDate: endStr})
+        .then((m) => (cancelled ? [] : m || []))
+        .catch(() => []),
+      AppApi.getAnalyticsGrowth("accounts", 8)
+        .then((g) => (cancelled ? [] : g || []))
+        .catch(() => []),
+      AppApi.getAnalyticsGrowth("properties", 8)
+        .then((g) => (cancelled ? [] : g || []))
+        .catch(() => []),
+      AppApi.getAnalyticsGrowth("users", 8)
+        .then((g) => (cancelled ? [] : g || []))
+        .catch(() => []),
+      AppApi.getAnalyticsAccounts()
+        .then((a) => (cancelled ? [] : a || []))
+        .catch(() => []),
+      AppApi.getEngagementCounts({startDate: startStr, endDate: endStr})
+        .then((c) => (cancelled ? [] : c || []))
+        .catch(() => []),
+      AppApi.getEngagementTrend({startDate: startStr, endDate: endStr})
+        .then((tr) => (cancelled ? [] : tr || []))
+        .catch(() => []),
+    ]).then(
+      ([s, daily, gAccounts, gProps, gUsers, acctAnalytics, counts, trend]) => {
+        if (cancelled) return;
+        if (s) setSummary(s);
+        setDailyMetrics(Array.isArray(daily) ? daily : []);
+        setGrowthAccounts(Array.isArray(gAccounts) ? gAccounts : []);
+        setGrowthProps(Array.isArray(gProps) ? gProps : []);
+        setGrowthUsers(Array.isArray(gUsers) ? gUsers : []);
+        setAccountAnalytics(Array.isArray(acctAnalytics) ? acctAnalytics : []);
+        setEngagementCounts(Array.isArray(counts) ? counts : []);
+        setEngagementTrend(Array.isArray(trend) ? trend : []);
+        setAnalyticsLoading(false);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
   }, [timeframeDays]);
 
   // Use summary for platform totals when available; fallback to context
@@ -146,8 +181,8 @@ function SuperAdminHome() {
   // Role distribution from summary or context
   const roleDistribution = useMemo(() => {
     if (summary?.usersByRole?.length) {
-      const dist = { homeowners: 0, agents: 0, admins: 0, superAdmins: 0 };
-      summary.usersByRole.forEach(({ role, count }) => {
+      const dist = {homeowners: 0, agents: 0, admins: 0, superAdmins: 0};
+      summary.usersByRole.forEach(({role, count}) => {
         const r = (role ?? "").toLowerCase();
         if (r === "homeowner") dist.homeowners = count;
         else if (r === "agent") dist.agents = count;
@@ -156,8 +191,9 @@ function SuperAdminHome() {
       });
       return dist;
     }
-    if (!users?.length) return { homeowners: 0, agents: 0, admins: 0, superAdmins: 0 };
-    const dist = { homeowners: 0, agents: 0, admins: 0, superAdmins: 0 };
+    if (!users?.length)
+      return {homeowners: 0, agents: 0, admins: 0, superAdmins: 0};
+    const dist = {homeowners: 0, agents: 0, admins: 0, superAdmins: 0};
     users.forEach((u) => {
       const r = (u.role ?? "").toLowerCase();
       if (r === "homeowner") dist.homeowners++;
@@ -171,22 +207,34 @@ function SuperAdminHome() {
   // Subscription data from summary or fallback
   const subscriptionData = useMemo(() => {
     if (summary?.subscriptionsByStatus?.length) {
-      const segments = summary.subscriptionsByStatus.map(({ status, count }) => ({
+      const segments = summary.subscriptionsByStatus.map(({status, count}) => ({
         label: status,
         value: count,
         color: status?.toLowerCase() === "active" ? "#456564" : "#94a3b8",
       }));
-      const paid = summary.subscriptionsByStatus.reduce((s, { count }) => s + count, 0) || 0;
-      return { paid, free: Math.max(0, totalAccounts - paid), segments };
+      const paid =
+        summary.subscriptionsByStatus.reduce((s, {count}) => s + count, 0) || 0;
+      return {paid, free: Math.max(0, totalAccounts - paid), segments};
     }
-    const paid = Math.max(0, summary?.totalSubscriptions ?? Math.round(totalAccounts * 0.35));
+    const paid = Math.max(
+      0,
+      summary?.totalSubscriptions ?? Math.round(totalAccounts * 0.35),
+    );
     const free = Math.max(0, totalAccounts - paid);
     return {
       paid,
       free,
       segments: [
-        { label: t("superAdminHome.paidPlans") || "Paid", value: paid, color: "#456564" },
-        { label: t("superAdminHome.freePlans") || "Free", value: free, color: "#d1d5db" },
+        {
+          label: t("superAdminHome.paidPlans") || "Paid",
+          value: paid,
+          color: "#456564",
+        },
+        {
+          label: t("superAdminHome.freePlans") || "Free",
+          value: free,
+          color: "#d1d5db",
+        },
       ],
     };
   }, [summary, totalAccounts, t]);
@@ -194,15 +242,24 @@ function SuperAdminHome() {
   // Growth chart data from API (month, count)
   const accountGrowth = useMemo(() => {
     if (!growthAccounts?.length) return [];
-    return growthAccounts.map(({ month, count }) => ({ label: formatMonth(month), value: count }));
+    return growthAccounts.map(({month, count}) => ({
+      label: formatMonth(month),
+      value: count,
+    }));
   }, [growthAccounts]);
   const propertyGrowth = useMemo(() => {
     if (!growthProps?.length) return [];
-    return growthProps.map(({ month, count }) => ({ label: formatMonth(month), value: count }));
+    return growthProps.map(({month, count}) => ({
+      label: formatMonth(month),
+      value: count,
+    }));
   }, [growthProps]);
   const userGrowth = useMemo(() => {
     if (!growthUsers?.length) return [];
-    return growthUsers.map(({ month, count }) => ({ label: formatMonth(month), value: count }));
+    return growthUsers.map(({month, count}) => ({
+      label: formatMonth(month),
+      value: count,
+    }));
   }, [growthUsers]);
 
   // Platform KPIs from summary or computed
@@ -210,49 +267,61 @@ function SuperAdminHome() {
     return {
       avgPropertiesPerAccount: summary
         ? String(summary.avgPropertiesPerAccount ?? 0)
-        : (totalAccounts > 0 ? (totalProperties / totalAccounts).toFixed(1) : "0"),
+        : totalAccounts > 0
+          ? (totalProperties / totalAccounts).toFixed(1)
+          : "0",
       avgUsersPerAccount: summary
         ? String(summary.avgUsersPerAccount ?? 0)
-        : (totalAccounts > 0 ? (totalUsers / totalAccounts).toFixed(1) : "0"),
-      avgHealthScore: summary?.avgHpsScore ?? (properties?.length
-        ? Math.round(
-            properties.reduce((sum, p) => sum + (p.hps_score ?? p.hpsScore ?? p.health ?? 0), 0) / properties.length,
-          )
-        : 0),
+        : totalAccounts > 0
+          ? (totalUsers / totalAccounts).toFixed(1)
+          : "0",
+      avgHealthScore:
+        summary?.avgHpsScore ??
+        (properties?.length
+          ? Math.round(
+              properties.reduce(
+                (sum, p) => sum + (p.hps_score ?? p.hpsScore ?? p.health ?? 0),
+                0,
+              ) / properties.length,
+            )
+          : 0),
       activeAccounts: totalAccounts,
     };
   }, [summary, totalAccounts, totalProperties, totalUsers, properties]);
 
-  const roleBarData = useMemo(() => [
-    { label: "HO", value: roleDistribution.homeowners },
-    { label: "Agent", value: roleDistribution.agents },
-    { label: "Admin", value: roleDistribution.admins },
-    { label: "SA", value: roleDistribution.superAdmins },
-  ], [roleDistribution]);
+  const roleBarData = useMemo(
+    () => [
+      {label: "HO", value: roleDistribution.homeowners},
+      {label: "Agent", value: roleDistribution.agents},
+      {label: "Admin", value: roleDistribution.admins},
+      {label: "SA", value: roleDistribution.superAdmins},
+    ],
+    [roleDistribution],
+  );
 
   // ─── Loading State (only block on initial context load) ────────────
   const isLoading = !properties && !users;
 
-  const chartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: { mode: "index", intersect: false },
-    },
-    scales: {
-      x: { grid: { display: false }, ticks: { maxRotation: 0, maxTicksLimit: 8 } },
-      y: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.05)" } },
-    },
-  }), []);
+  const chartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {mode: "index", intersect: false},
+      },
+      scales: {
+        x: {grid: {display: false}, ticks: {maxRotation: 0, maxTicksLimit: 8}},
+        y: {beginAtZero: true, grid: {color: "rgba(0,0,0,0.05)"}},
+      },
+    }),
+    [],
+  );
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
         <Loader2 className="w-10 h-10 text-[#456564] animate-spin mb-4" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {t("superAdminHome.loading") || "Loading platform dashboard..."}
-        </p>
       </div>
     );
   }
@@ -311,7 +380,6 @@ function SuperAdminHome() {
         engagementCounts={engagementCounts}
         summary={summary}
       />
-
     </div>
   );
 }

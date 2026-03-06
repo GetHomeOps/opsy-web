@@ -1,13 +1,13 @@
 import React, {useState, useEffect} from "react";
 import {useTranslation} from "react-i18next";
 import {useNavigate} from "react-router-dom";
-import {Sparkles} from "lucide-react";
+import {Sparkles, Loader2} from "lucide-react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
-import { PAGE_LAYOUT } from "../../constants/layout";
+import {PAGE_LAYOUT} from "../../constants/layout";
 
 /**
  * Billing page — current plan, usage vs limits, Stripe Customer Portal.
@@ -28,7 +28,9 @@ function BillingPage() {
 
   const accountId = currentAccount?.id;
   const userRole = (currentUser?.role || "homeowner").toLowerCase();
-  const targetRole = ["agent", "admin"].includes(userRole) ? "agent" : "homeowner";
+  const targetRole = ["agent", "admin"].includes(userRole)
+    ? "agent"
+    : "homeowner";
 
   useEffect(() => {
     if (!accountId) {
@@ -39,8 +41,12 @@ function BillingPage() {
       try {
         setError(null);
         const [statusRes, plansRes] = await Promise.all([
-          AppApi.getBillingStatus(accountId).then((r) => r).catch(() => null),
-          AppApi.getBillingPlans(targetRole).then((r) => r.plans || []).catch(() => []),
+          AppApi.getBillingStatus(accountId)
+            .then((r) => r)
+            .catch(() => null),
+          AppApi.getBillingPlans(targetRole)
+            .then((r) => r.plans || [])
+            .catch(() => []),
         ]);
         setBilling(statusRes);
         setPlans(plansRes);
@@ -57,7 +63,8 @@ function BillingPage() {
     if (!accountId) return;
     setPortalLoading(true);
     try {
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
       const returnUrl = `${origin}/#/${currentAccount?.url || ""}/settings/billing`;
       const {url} = await AppApi.createPortalSession({accountId, returnUrl});
       if (url) window.location.href = url;
@@ -72,7 +79,11 @@ function BillingPage() {
   const formatDate = (d) => {
     if (!d) return "—";
     const date = new Date(d);
-    return date.toLocaleDateString(undefined, {month: "short", day: "numeric", year: "numeric"});
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   const sub = billing?.subscription;
@@ -87,7 +98,9 @@ function BillingPage() {
         <div className="relative flex flex-col flex-1 overflow-y-auto">
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className={`grow ${PAGE_LAYOUT.settings}`}>
-            <p className="text-gray-600 dark:text-gray-400">Select an account to view billing.</p>
+            <p className="text-gray-600 dark:text-gray-400">
+              Select an account to view billing.
+            </p>
           </main>
         </div>
       </div>
@@ -118,8 +131,8 @@ function BillingPage() {
             )}
 
             {loading ? (
-              <div className="rounded-xl bg-white dark:bg-gray-800 shadow-xs p-8 text-center text-gray-500">
-                {t("loading") || "Loading..."}
+              <div className="rounded-xl bg-white dark:bg-gray-800 shadow-xs p-8 flex items-center justify-center">
+                <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
               </div>
             ) : (
               <div className="space-y-8">
@@ -131,20 +144,27 @@ function BillingPage() {
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => navigate(`/${accountUrl}/settings/upgrade`)}
+                        onClick={() =>
+                          navigate(`/${accountUrl}/settings/upgrade`)
+                        }
                         className="btn bg-violet-600 text-white hover:bg-violet-700 inline-flex items-center gap-2"
                       >
                         <Sparkles className="w-4 h-4" />
                         Upgrade plan
                       </button>
-                      {(sub?.status === "active" || sub?.status === "trialing" || billing?.mockMode) && (
+                      {(sub?.status === "active" ||
+                        sub?.status === "trialing" ||
+                        billing?.mockMode) && (
                         <button
                           type="button"
                           onClick={handleManageBilling}
                           disabled={portalLoading}
-                          className="btn bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 disabled:opacity-50"
+                          className="flex items-center gap-2 btn bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 disabled:opacity-50"
                         >
-                          {portalLoading ? (t("loading") || "Loading...") : "Manage billing"}
+                          {portalLoading && (
+                            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                          )}
+                          Manage billing
                         </button>
                       )}
                     </div>
@@ -159,7 +179,9 @@ function BillingPage() {
                           {sub?.currentPeriodEnd && (
                             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                               {t("settings.renewsOn") || "Renews on"}{" "}
-                              <strong>{formatDate(sub.currentPeriodEnd)}</strong>
+                              <strong>
+                                {formatDate(sub.currentPeriodEnd)}
+                              </strong>
                               {sub.cancelAtPeriodEnd && (
                                 <span className="ml-2 text-amber-600 dark:text-amber-400">
                                   (cancels at period end)
@@ -174,7 +196,8 @@ function BillingPage() {
                       </div>
                     ) : (
                       <p className="text-gray-500 dark:text-gray-400">
-                        {t("settings.noActivePlan") || "No active subscription."}
+                        {t("settings.noActivePlan") ||
+                          "No active subscription."}
                       </p>
                     )}
                   </div>
@@ -194,7 +217,8 @@ function BillingPage() {
                             {t("settings.properties") || "Properties"}
                           </dt>
                           <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                            {usage.propertiesCount ?? 0} / {limits.maxProperties ?? "—"}
+                            {usage.propertiesCount ?? 0} /{" "}
+                            {limits.maxProperties ?? "—"}
                           </dd>
                         </div>
                         <div>
@@ -202,7 +226,8 @@ function BillingPage() {
                             {t("settings.contacts") || "Contacts"}
                           </dt>
                           <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                            {usage.contactsCount ?? 0} / {limits.maxContacts ?? "—"}
+                            {usage.contactsCount ?? 0} /{" "}
+                            {limits.maxContacts ?? "—"}
                           </dd>
                         </div>
                         <div>
@@ -210,7 +235,8 @@ function BillingPage() {
                             AI tokens (this month)
                           </dt>
                           <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                            {(usage.aiTokensUsed ?? 0).toLocaleString()} / {(limits.aiTokenMonthlyQuota ?? 0).toLocaleString()}
+                            {(usage.aiTokensUsed ?? 0).toLocaleString()} /{" "}
+                            {(limits.aiTokenMonthlyQuota ?? 0).toLocaleString()}
                           </dd>
                         </div>
                       </dl>
@@ -225,7 +251,8 @@ function BillingPage() {
                         {t("settings.availablePlans") || "Available Plans"}
                       </h2>
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {t("settings.upgradeDescription") || "Upgrade via Manage billing above."}
+                        {t("settings.upgradeDescription") ||
+                          "Upgrade via Manage billing above."}
                       </p>
                     </div>
                     <div className="p-6">
@@ -246,9 +273,21 @@ function BillingPage() {
                                 {p.name}
                               </p>
                               <ul className="mt-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
-                                <li>• {lim.maxProperties ?? "—"} {t("settings.properties") || "properties"}</li>
-                                <li>• {lim.maxContacts ?? "—"} {t("settings.contacts") || "contacts"}</li>
-                                <li>• {(lim.aiTokenMonthlyQuota ?? 0).toLocaleString()} AI tokens/mo</li>
+                                <li>
+                                  • {lim.maxProperties ?? "—"}{" "}
+                                  {t("settings.properties") || "properties"}
+                                </li>
+                                <li>
+                                  • {lim.maxContacts ?? "—"}{" "}
+                                  {t("settings.contacts") || "contacts"}
+                                </li>
+                                <li>
+                                  •{" "}
+                                  {(
+                                    lim.aiTokenMonthlyQuota ?? 0
+                                  ).toLocaleString()}{" "}
+                                  AI tokens/mo
+                                </li>
                               </ul>
                               {isCurrent && (
                                 <p className="mt-4 text-sm font-medium text-emerald-600 dark:text-emerald-400">

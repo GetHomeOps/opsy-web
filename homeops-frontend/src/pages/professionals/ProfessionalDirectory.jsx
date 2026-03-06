@@ -9,10 +9,15 @@ import {LocationBar, CategorySectionRow, ProfessionalCard} from "./components";
 import AppApi from "../../api/api";
 import {normalizeProfessional} from "./utils/normalizeProfessional";
 
-const PLACEHOLDER_IMG = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+const PLACEHOLDER_IMG =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 function imageSeed(id) {
-  return String(id).split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 1000;
+  return (
+    String(id)
+      .split("")
+      .reduce((acc, c) => acc + c.charCodeAt(0), 0) % 1000
+  );
 }
 
 function mapHierarchyToSections(hierarchy) {
@@ -21,7 +26,9 @@ function mapHierarchyToSections(hierarchy) {
     id: parent.id,
     title: parent.name,
     categories: (parent.children || []).map((child) => {
-      const raw = child.image_url || `https://picsum.photos/seed/${imageSeed(child.id)}/400/280`;
+      const raw =
+        child.image_url ||
+        `https://picsum.photos/seed/${imageSeed(child.id)}/400/280`;
       return {
         id: child.id,
         name: child.name,
@@ -44,7 +51,10 @@ function ProfessionalDirectory() {
   const accountUrl = currentAccount?.url || "";
 
   const categorySections = mapHierarchyToSections(hierarchy);
-  const savedProsTeaser = savedPros.slice(0, 4).map(normalizeProfessional).filter(Boolean);
+  const savedProsTeaser = savedPros
+    .slice(0, 4)
+    .map(normalizeProfessional)
+    .filter(Boolean);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -68,7 +78,9 @@ function ProfessionalDirectory() {
   }, [fetchData]);
 
   const goToMyPros = () => {
-    navigate(accountUrl ? `/${accountUrl}/my-professionals` : "/my-professionals");
+    navigate(
+      accountUrl ? `/${accountUrl}/my-professionals` : "/my-professionals",
+    );
   };
 
   const goToSearch = () => {
@@ -103,7 +115,9 @@ function ProfessionalDirectory() {
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className="grow flex items-center justify-center">
             <div className="text-center">
-              <p className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</p>
+              <p className="text-sm text-red-600 dark:text-red-400 mb-2">
+                {error}
+              </p>
               <button
                 type="button"
                 onClick={fetchData}

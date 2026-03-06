@@ -12,6 +12,7 @@ import {
   Eye,
   Users,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 
 function AgentAnalytics() {
@@ -28,7 +29,9 @@ function AgentAnalytics() {
       const list = await AppApi.getAgentAnalytics();
       setAgents(list || []);
     } catch (err) {
-      setError(err?.messages?.[0] || err?.message || "Failed to load agent analytics");
+      setError(
+        err?.messages?.[0] || err?.message || "Failed to load agent analytics",
+      );
       setAgents([]);
     } finally {
       setLoading(false);
@@ -63,7 +66,8 @@ function AgentAnalytics() {
                   Agent Analytics
                 </h1>
                 <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                  Agent users, their properties, homeowner counts, invitations, communications, and engagement.
+                  Agent users, their properties, homeowner counts, invitations,
+                  communications, and engagement.
                 </p>
               </div>
               <button
@@ -72,8 +76,10 @@ function AgentAnalytics() {
                 disabled={loading}
                 className="flex items-center gap-2 btn bg-[#456564] text-white hover:bg-[#3a5554] disabled:opacity-50 text-sm"
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                {loading ? "Loading..." : "Refresh"}
+                <RefreshCw
+                  className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                />
+                Refresh
               </button>
             </div>
 
@@ -85,17 +91,21 @@ function AgentAnalytics() {
 
             {loading && agents.length === 0 ? (
               <div className="flex items-center justify-center py-16">
-                <p className="text-gray-500 dark:text-gray-400">Loading agent analytics...</p>
+                <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
               </div>
             ) : agents.length === 0 ? (
               <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-8 text-center">
-                <p className="text-gray-500 dark:text-gray-400">No agent users found.</p>
+                <p className="text-gray-500 dark:text-gray-400">
+                  No agent users found.
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
                 {agents.map((agent) => {
                   const isExpanded = expandedAgents.has(agent.agentId);
-                  const accounts = Array.isArray(agent.accounts) ? agent.accounts : [];
+                  const accounts = Array.isArray(agent.accounts)
+                    ? agent.accounts
+                    : [];
                   const properties = agent.properties || [];
 
                   return (
@@ -115,7 +125,9 @@ function AgentAnalytics() {
                         )}
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
-                            {agent.agentName || agent.agentEmail || `Agent #${agent.agentId}`}
+                            {agent.agentName ||
+                              agent.agentEmail ||
+                              `Agent #${agent.agentId}`}
                           </h3>
                           <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                             {agent.agentEmail}
@@ -165,7 +177,9 @@ function AgentAnalytics() {
                                 <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600">
                                   <th className="pb-2 pr-4">Property</th>
                                   <th className="pb-2 pr-4">Address</th>
-                                  <th className="pb-2 text-right">Homeowners</th>
+                                  <th className="pb-2 text-right">
+                                    Homeowners
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -175,7 +189,8 @@ function AgentAnalytics() {
                                     className="border-b border-gray-100 dark:border-gray-700/60 last:border-0"
                                   >
                                     <td className="py-2 pr-4 font-medium text-gray-800 dark:text-gray-200">
-                                      {prop.propertyName || `Property #${prop.propertyId}`}
+                                      {prop.propertyName ||
+                                        `Property #${prop.propertyId}`}
                                     </td>
                                     <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">
                                       {[prop.address, prop.city, prop.state]

@@ -19,7 +19,6 @@ const CANONICAL_SYSTEMS = [
   "electrical",
   "plumbing",
   "safety",
-  "inspections",
 ];
 
 const EXCLUDED_SYSTEMS = new Set([
@@ -33,6 +32,9 @@ const EXCLUDED_SYSTEMS = new Set([
   "dryer",
   "microwave",
   "garbage disposal",
+  "inspections",
+  "inspection",
+  "general",
 ]);
 
 function isExcludedSystem(systemType) {
@@ -41,7 +43,7 @@ function isExcludedSystem(systemType) {
   return EXCLUDED_SYSTEMS.has(key) || key.includes("appliance");
 }
 
-/** Only unambiguous terminology (e.g. "HVAC" = heating+ac). AI decides best-fit for everything else. */
+/** Map common AI-generated variants back to canonical types. */
 const SYSTEM_ALIASES = {
   hvac: ["heating", "ac"],
   "windows/doors": "windows",
@@ -50,6 +52,25 @@ const SYSTEM_ALIASES = {
   "fire safety": "safety",
   "air conditioning": "ac",
   "water heating": "waterHeating",
+  structure: "foundation",
+  structural: "foundation",
+  framing: "foundation",
+  "foundation/structure": "foundation",
+  "foundation & structure": "foundation",
+  "fuel storage": "heating",
+  "fuel tank": "heating",
+  "oil tank": "heating",
+  garage: "exterior",
+  "garage door": "exterior",
+  attic: "exterior",
+  insulation: "exterior",
+  "crawl space": "foundation",
+  basement: "foundation",
+  fireplace: "heating",
+  chimney: "heating",
+  "smoke detectors": "safety",
+  "co detectors": "safety",
+  ventilation: "ac",
 };
 
 function normalizeSystemType(raw) {

@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, {useState, useEffect, useCallback} from "react";
+import {useParams, useNavigate} from "react-router-dom";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
-import { TicketFormContainer } from "./components";
-import { PAGE_LAYOUT } from "../../constants/layout";
+import {TicketFormContainer} from "./components";
+import {PAGE_LAYOUT} from "../../constants/layout";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 
 /**
@@ -12,9 +12,9 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
  * User views their own ticket, can add replies.
  */
 function SupportTicket() {
-  const { accountUrl, ticketId } = useParams();
+  const {accountUrl, ticketId} = useParams();
   const navigate = useNavigate();
-  const { currentAccount } = useCurrentAccount();
+  const {currentAccount} = useCurrentAccount();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -68,7 +68,9 @@ function SupportTicket() {
           <main className="flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <div className="w-8 h-8 border-2 border-[#456564] border-t-transparent rounded-full animate-spin" />
-              <p className="text-gray-600 dark:text-gray-400">Loading ticket...</p>
+              <p className="text-gray-600 dark:text-gray-400">
+                Loading ticket...
+              </p>
             </div>
           </main>
         </div>
@@ -82,7 +84,9 @@ function SupportTicket() {
         <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className={`flex-1 overflow-y-auto ${PAGE_LAYOUT.listPaddingX} py-8`}>
+          <main
+            className={`flex-1 overflow-y-auto ${PAGE_LAYOUT.listPaddingX} py-8`}
+          >
             <div className="max-w-2xl">
               <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
               <div className="flex gap-2">
@@ -113,7 +117,9 @@ function SupportTicket() {
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className={`flex-1 overflow-y-auto ${PAGE_LAYOUT.listPaddingX} py-8`}>
+        <main
+          className={`flex-1 overflow-y-auto ${PAGE_LAYOUT.listPaddingX} py-8`}
+        >
           {ticket && (
             <TicketFormContainer
               ticket={ticket}
