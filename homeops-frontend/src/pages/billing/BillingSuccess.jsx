@@ -44,7 +44,16 @@ export default function BillingSuccess() {
         const accounts = await AppApi.getUserAccounts(user?.id).catch(() => []);
         accountId = accounts?.[0]?.id;
       } catch (err) {
-        if (!cancelled) setError(err?.message || "Failed to complete setup.");
+        if (!cancelled) {
+          const msg = err?.message || "Failed to complete setup.";
+          const isAuthError = /refresh token|session expired|unauthorized|invalid token/i.test(msg);
+          if (isAuthError) {
+            const returnTo = `/billing/success?role=${encodeURIComponent(role || "")}&plan=${encodeURIComponent(plan || "")}`;
+            window.location.href = `/signin?returnTo=${encodeURIComponent(returnTo)}`;
+            return;
+          }
+          setError(msg);
+        }
         return;
       }
 

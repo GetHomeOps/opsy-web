@@ -1,5 +1,5 @@
 import React, {useState, useEffect, useRef} from "react";
-import {Link, useLocation, useNavigate} from "react-router-dom";
+import {Link, useLocation, useNavigate, useSearchParams} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {AlertCircle, Loader2, ShieldCheck} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
@@ -12,6 +12,7 @@ import MountRainier from "../../images/MountRainier.png";
 function Signin() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const {login, completeMfaLogin, currentUser} = useAuth();
   const [formData, setFormData] = useState({
     email: "",
@@ -39,10 +40,10 @@ function Signin() {
           .map((e) => (typeof e === "string" ? e : e?.message || String(e)))
           .join(" ");
 
-  // Navigate after successful login when currentUser is available (redirect-after-login from ProtectedRoute)
+  // Navigate after successful login when currentUser is available (redirect-after-login from ProtectedRoute or returnTo param)
   useEffect(() => {
     if (justLoggedIn.current && currentUser) {
-      const from = location.state?.from;
+      const from = location.state?.from || searchParams.get("returnTo");
       const isInternalPath =
         typeof from === "string" &&
         from.startsWith("/") &&

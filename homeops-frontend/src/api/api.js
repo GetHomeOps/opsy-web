@@ -100,7 +100,8 @@ class AppApi {
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
         AppApi.token = null;
-        window.location.href = "/signin";
+        const returnTo = typeof window !== "undefined" && window.location?.pathname ? encodeURIComponent(window.location.pathname + window.location.search) : "";
+        window.location.href = returnTo ? `/signin?returnTo=${returnTo}` : "/signin";
         throw err;
       } finally {
         AppApi._refreshPromise = null;

@@ -165,6 +165,14 @@ function toValidDate(unixTimestamp) {
   return Number.isFinite(d.getTime()) ? d : null;
 }
 
+/** Ensure a value is a valid Date for PostgreSQL. node-postgres serializes invalid Dates as "0NaN-NaN-NaN..." which PG rejects. */
+function toSafeTimestamp(value, fallback = null) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value;
+  if (value == null) return fallback ?? new Date();
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(d.getTime()) ? d : (fallback ?? new Date());
+}
+
 /** Process checkout.session.completed */
 async function handleCheckoutCompleted(session) {
   const accountId = session.metadata?.account_id;
@@ -185,8 +193,8 @@ async function handleCheckoutCompleted(session) {
     console.warn("[webhooks/stripe] checkout.session.completed: missing period dates, using fallback");
   }
 
-  const safeStart = periodStart || new Date();
-  const safeEnd = periodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const safeStart = toSafeTimestamp(periodStart, new Date());
+  const safeEnd = toSafeTimestamp(periodEnd, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
 
   await db.query(
     `INSERT INTO account_subscriptions
@@ -257,8 +265,8 @@ async function handleSubscriptionUpdated(subscription) {
     console.warn("[webhooks/stripe] subscription.updated: missing period dates, using fallback");
   }
 
-  const safeStart = periodStart || new Date();
-  const safeEnd = periodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const safeStart = toSafeTimestamp(periodStart, new Date());
+  const safeEnd = toSafeTimestamp(periodEnd, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
 
   await db.query(
     `INSERT INTO account_subscriptions
