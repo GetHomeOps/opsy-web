@@ -226,13 +226,8 @@ function Step2Plan({
   const gridCols = plans.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3";
 
   return (
-    <div className="relative">
-      <div className="absolute -top-40 -left-40 w-[28rem] h-[28rem] bg-emerald-300/15 dark:bg-emerald-700/8 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute top-1/2 -right-32 w-80 h-80 bg-teal-200/20 dark:bg-teal-800/8 rounded-full blur-[80px] pointer-events-none" />
-      <div className="absolute -bottom-40 -left-1/3 w-96 h-96 bg-emerald-200/12 dark:bg-emerald-900/6 rounded-full blur-[120px] pointer-events-none" />
-
-      <div className="relative">
-        <div className="text-center space-y-2">
+    <div>
+      <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             Choose your plan
           </h2>
@@ -528,11 +523,7 @@ export default function OnboardingWizard() {
 
   return (
     <main
-      className={`min-h-[100dvh] flex flex-col transition-colors duration-500 ${
-        step === 2
-          ? "bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(167,243,208,0.28),transparent),radial-gradient(ellipse_60%_50%_at_100%_50%,rgba(94,234,212,0.12),transparent),radial-gradient(ellipse_60%_50%_at_0%_100%,rgba(167,243,208,0.15),transparent),#f9fafb] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(6,95,70,0.18),transparent),radial-gradient(ellipse_60%_50%_at_100%_50%,rgba(20,184,166,0.1),transparent),#111827]"
-          : "bg-gray-50 dark:bg-gray-900"
-      }`}
+      className="min-h-[100dvh] flex flex-col transition-colors duration-500 bg-white dark:bg-gray-900"
     >
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">
         <StepIndicator currentStep={step} totalSteps={3} />
