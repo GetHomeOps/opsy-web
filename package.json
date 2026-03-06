@@ -1,0 +1,5 @@
+{
+  "name": "homeops",
+  "private": true,
+  "description": "HomeOps monorepo - backend serves frontend"
+}
