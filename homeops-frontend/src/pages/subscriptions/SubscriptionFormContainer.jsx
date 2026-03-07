@@ -124,7 +124,7 @@ function SubscriptionFormContainer() {
 
         // Fetch products and users in parallel
         const [products, users] = await Promise.all([
-          AppApi.getSubscriptionProducts().catch(() => []),
+          AppApi.getAllSubscriptionProducts().catch(() => []),
           AppApi.getAllUsers().catch(() => []),
         ]);
 
