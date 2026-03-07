@@ -410,6 +410,8 @@ function HomeownerHome() {
         .join(", ")
     : "";
 
+  const hasProperties = properties && totalProperties > 0;
+
   const quickActions = [
     {
       icon: CalendarClock,
@@ -444,9 +446,6 @@ function HomeownerHome() {
     color: "bg-[#456564]",
     onClick: () => navigate(accountUrl ? `/${accountUrl}/properties/new` : "/"),
   };
-
-  // When no properties, show dashboard with empty state (no early return)
-  const hasProperties = properties && totalProperties > 0;
 
   return (
     <div className="space-y-6 -mx-4 sm:-mx-6 lg:-mx-8 -mt-8">
