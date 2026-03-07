@@ -31,6 +31,7 @@ import {
   BookOpen,
   BarChart3,
   DollarSign,
+  ArrowUpCircle,
 } from "lucide-react";
 
 const ICON_SIZE = 18;
@@ -151,6 +152,7 @@ export const SETTINGS_CONFIG = {
   defaultExpanded: false,
   children: [
     { id: "billing", label: "Billing", path: "settings/billing", icon: icon(Wallet), roles: "all", hideForPlatformAdmins: true },
+    { id: "upgrade", label: "Upgrade", path: "settings/upgrade", icon: icon(ArrowUpCircle), roles: "all", hideForPlatformAdmins: true },
     { id: "configuration", label: "Configuration", path: "settings/configuration", icon: icon(Cog), roles: "all" },
     { id: "support", label: "Support", path: "settings/support", icon: icon(HelpCircle), roles: "all" },
     { id: "users", label: "Users", path: "users", icon: icon(UsersRound), roles: "adminOnly" },

@@ -55,12 +55,14 @@ class Subscription {
               s.status,
               s.current_period_start AS "currentPeriodStart",
               s.current_period_end AS "currentPeriodEnd",
+              COALESCE(pp.billing_interval, sp.billing_interval, 'month') AS "billingInterval",
               s.created_at AS "createdAt",
               s.updated_at AS "updatedAt"
        FROM account_subscriptions s
        LEFT JOIN accounts a ON a.id = s.account_id
        LEFT JOIN users u ON u.id = a.owner_user_id
        LEFT JOIN subscription_products sp ON sp.id = s.subscription_product_id
+       LEFT JOIN plan_prices pp ON pp.stripe_price_id = s.stripe_price_id
        WHERE s.id = $1`,
       [id]
     );
@@ -96,12 +98,14 @@ class Subscription {
               s.status,
               s.current_period_start AS "currentPeriodStart",
               s.current_period_end AS "currentPeriodEnd",
+              COALESCE(pp.billing_interval, sp.billing_interval, 'month') AS "billingInterval",
               s.created_at AS "createdAt",
               s.updated_at AS "updatedAt"
        FROM account_subscriptions s
        LEFT JOIN accounts a ON a.id = s.account_id
        LEFT JOIN users u ON u.id = a.owner_user_id
        LEFT JOIN subscription_products sp ON sp.id = s.subscription_product_id
+       LEFT JOIN plan_prices pp ON pp.stripe_price_id = s.stripe_price_id
        ${where}
        ORDER BY s.created_at DESC`,
       values

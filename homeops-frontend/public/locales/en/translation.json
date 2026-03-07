@@ -610,6 +610,7 @@
   "subscriptions.backfillError": "Error backfilling subscriptions",
   "subscriptions.backfillSuccess": "Created {{count}} default subscription(s) for accounts without one",
   "subscriptions.backfilling": "Backfilling...",
+  "subscriptions.billingInterval": "Billing",
   "subscriptions.adminUser": "Admin User",
   "subscriptions.allSubscriptions": "All Subscriptions",
   "subscriptions.createError": "Error creating subscription",

@@ -610,6 +610,7 @@
   "subscriptions.backfillError": "Error al rellenar suscripciones",
   "subscriptions.backfillSuccess": "Se crearon {{count}} suscripción(es) por defecto para cuentas sin una",
   "subscriptions.backfilling": "Rellenando...",
+  "subscriptions.billingInterval": "Facturación",
   "subscriptions.adminUser": "Usuario administrador",
   "subscriptions.allSubscriptions": "Todas las suscripciones",
   "subscriptions.createError": "Error al crear la suscripción",

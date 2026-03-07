@@ -83,6 +83,15 @@ function BillingPlansRedirect() {
   return <Navigate to={`/${accountUrl}/subscription-products`} replace />;
 }
 
+function UpgradeRedirect() {
+  const {currentAccount} = useCurrentAccount();
+  const accountUrl = currentAccount?.url || currentAccount?.name;
+  if (accountUrl) {
+    return <Navigate to={`/${accountUrl}/settings/upgrade`} replace />;
+  }
+  return <Navigate to="/settings/accounts" replace />;
+}
+
 function RoutesList() {
   const {currentUser, isLoading} = useAuth();
   const {currentAccount} = useCurrentAccount();
@@ -174,6 +183,14 @@ function RoutesList() {
         element={
           <ProtectedRoute>
             <Databases />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/upgrade"
+        element={
+          <ProtectedRoute>
+            <UpgradeRedirect />
           </ProtectedRoute>
         }
       />
