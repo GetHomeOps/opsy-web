@@ -11,7 +11,7 @@ const POLL_TIMEOUT_MS = 60000;
 export default function BillingSuccess() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const {refreshCurrentUser, currentUser} = useAuth();
+  const {refreshCurrentUser} = useAuth();
   const [status, setStatus] = useState("activating");
   const [error, setError] = useState(null);
 
@@ -30,6 +30,7 @@ export default function BillingSuccess() {
       }
 
       let accountId = null;
+      let primaryAccount = null;
       try {
         // Retry on 429 (rate limit) - common when returning from Stripe; exponential backoff
         const delays = [2000, 4000, 8000];
@@ -51,7 +52,8 @@ export default function BillingSuccess() {
         if (lastErr) throw lastErr;
         const user = await refreshCurrentUser();
         const accounts = await AppApi.getUserAccounts(user?.id).catch(() => []);
-        accountId = accounts?.[0]?.id;
+        primaryAccount = accounts?.[0] || null;
+        accountId = primaryAccount?.id || null;
       } catch (err) {
         if (!cancelled) {
           const msg = err?.message || "Failed to complete setup.";
@@ -84,9 +86,7 @@ export default function BillingSuccess() {
           const subStatus = res?.subscription?.status;
           if (subStatus === "active" || subStatus === "trialing" || res?.mockMode) {
             setStatus("active");
-            const user = await refreshCurrentUser();
-            const accounts = await AppApi.getUserAccounts(user?.id);
-            const accountUrl = accounts?.[0]?.url?.replace(/^\/+/, "") || accounts?.[0]?.name;
+            const accountUrl = primaryAccount?.url?.replace(/^\/+/, "") || primaryAccount?.name;
             if (accountUrl) {
               navigate(`/${accountUrl}/home`, {replace: true});
             } else {

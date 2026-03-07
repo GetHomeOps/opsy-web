@@ -1,4 +1,4 @@
-import {createContext, useContext, useState, useEffect} from "react";
+import {createContext, useContext, useState, useEffect, useCallback} from "react";
 import useLocalStorage from "../hooks/useLocalStorage";
 import AppApi from "../api/api";
 import {jwtDecode as decode} from "jwt-decode";
@@ -337,7 +337,7 @@ export function AuthProvider({children}) {
   }
 
   /** Refresh current user from API (e.g. after onboarding completion). */
-  async function refreshCurrentUser() {
+  const refreshCurrentUser = useCallback(async function refreshCurrentUser() {
     if (!token) return null;
     try {
       const {email} = decode(token);
@@ -352,7 +352,7 @@ export function AuthProvider({children}) {
       console.error("refreshCurrentUser failed:", err);
       return null;
     }
-  }
+  }, [token]);
 
   /** Handle user logout */
   function logout() {
