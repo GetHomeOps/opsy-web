@@ -390,7 +390,7 @@ function SubscriptionProductsList() {
       );
     }
 
-    // Sort
+    // Sort: default to sortOrder+name (matches form nav), or user's column sort
     if (sortConfig.key && sortConfig.direction) {
       items.sort((a, b) => {
         const aVal = (a[sortConfig.key] || "").toString().toLowerCase();
@@ -398,6 +398,14 @@ function SubscriptionProductsList() {
         if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
         if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
         return 0;
+      });
+    } else {
+      // Default order: sortOrder ascending, then name (matches ProductFormContainer nav)
+      items.sort((a, b) => {
+        const aOrder = a.sortOrder ?? 999;
+        const bOrder = b.sortOrder ?? 999;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return (a.name || "").localeCompare(b.name || "");
       });
     }
 
@@ -456,21 +464,15 @@ function SubscriptionProductsList() {
     );
   }, [currentProducts, state.selectedItems]);
 
-  // Navigate to product detail with nav state for < > arrows
+  // Navigate to product detail with nav state for < > arrows (use displayed list order)
   function handleProductClick(product) {
-    const sorted = [...filteredProducts].sort((a, b) => {
-      const aOrder = a.sortOrder ?? 999;
-      const bOrder = b.sortOrder ?? 999;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      return (a.name || "").localeCompare(b.name || "");
-    });
-    const idx = sorted.findIndex((p) => Number(p.id) === Number(product.id));
+    const idx = filteredProducts.findIndex((p) => Number(p.id) === Number(product.id));
     const navState =
       idx >= 0
         ? {
             currentIndex: idx + 1,
-            totalItems: sorted.length,
-            visibleProductIds: sorted.map((p) => p.id),
+            totalItems: filteredProducts.length,
+            visibleProductIds: filteredProducts.map((p) => p.id),
           }
         : null;
     navigate(`/${accountUrl}/subscription-products/${product.id}`, {
