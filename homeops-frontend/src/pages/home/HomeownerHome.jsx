@@ -1,4 +1,5 @@
 import React, {useEffect, useState, useContext, useRef, useCallback} from "react";
+import {createPortal} from "react-dom";
 import {useTranslation} from "react-i18next";
 import {useNavigate} from "react-router-dom";
 import {useAuth} from "../../context/AuthContext";
@@ -38,7 +39,6 @@ import {
   Search,
   Upload,
   Plus,
-  HelpCircle,
 } from "lucide-react";
 
 // ─── Skeleton components for loading states ─────
@@ -110,6 +110,7 @@ function HomeownerHome() {
   const [reminderFilter, setReminderFilter] = useState("all");
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploadNoPropertyOpen, setUploadNoPropertyOpen] = useState(false);
 
   const [homeEvents, setHomeEvents] = useState(null);
   const [resources, setResources] = useState(null);
@@ -430,7 +431,7 @@ function HomeownerHome() {
         if (hasProperties && activeProperty) {
           setUploadModalOpen(true);
         } else {
-          navigate(`/${accountUrl}/properties/new`);
+          setUploadNoPropertyOpen(true);
         }
       },
     },
@@ -438,11 +439,6 @@ function HomeownerHome() {
       icon: Search,
       label: t("homeownerHome.findProfessional") || "Find a Professional",
       onClick: () => navigate(`/${accountUrl}/professionals/search`),
-    },
-    {
-      icon: HelpCircle,
-      label: t("homeownerHome.getSupport") || "Get Support",
-      onClick: () => navigate(`/${accountUrl}/settings/support/new`),
     },
   ];
 
@@ -1507,12 +1503,15 @@ function HomeownerHome() {
         </div>
       </ModalBlank>
 
-      {/* Schedule Event Modal */}
-      <CalendarScheduleModal
-        isOpen={scheduleModalOpen}
-        onClose={() => setScheduleModalOpen(false)}
-        onScheduled={() => setScheduleModalOpen(false)}
-      />
+      {/* Schedule Event Modal - rendered via portal to escape layout overflow */}
+      {createPortal(
+        <CalendarScheduleModal
+          isOpen={scheduleModalOpen}
+          onClose={() => setScheduleModalOpen(false)}
+          onScheduled={() => setScheduleModalOpen(false)}
+        />,
+        document.body,
+      )}
 
       {/* Upload Document Modal */}
       {hasProperties && activeProperty && (
@@ -1523,6 +1522,51 @@ function HomeownerHome() {
           onSuccess={() => setUploadModalOpen(false)}
         />
       )}
+
+      {/* Upload requires property - prompt modal */}
+      <ModalBlank
+        id="upload-no-property"
+        modalOpen={uploadNoPropertyOpen}
+        setModalOpen={setUploadNoPropertyOpen}
+        contentClassName="max-w-sm"
+      >
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-800/40 flex items-center justify-center">
+              <Upload className="w-5 h-5 text-amber-700 dark:text-amber-300" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {t("homeownerHome.uploadRequiresProperty") || "Create a property first"}
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {t("homeownerHome.uploadRequiresPropertyDesc") ||
+                  "Add your property to upload documents, warranties, and receipts."}
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setUploadNoPropertyOpen(false)}
+              className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+            >
+              {t("common.cancel") || "Cancel"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUploadNoPropertyOpen(false);
+                navigate(accountUrl ? `/${accountUrl}/properties/new` : "/");
+              }}
+              className="btn bg-[#456564] hover:bg-[#34514f] text-white"
+            >
+              <Plus className="w-4 h-4 inline mr-1.5" />
+              {t("homeownerHome.createProperty")}
+            </button>
+          </div>
+        </div>
+      </ModalBlank>
     </div>
   );
 }

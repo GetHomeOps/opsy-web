@@ -303,6 +303,8 @@
   "homeownerHome.searchProfessionals": "Search Professionals",
   "homeownerHome.findProfessional": "Find a Professional",
   "homeownerHome.getSupport": "Get Support",
+  "homeownerHome.uploadRequiresProperty": "Create a property first",
+  "homeownerHome.uploadRequiresPropertyDesc": "Add your property to upload documents, warranties, and receipts.",
   "noMoreTagsAvailable": "No more tags available",
   "notes": "Notes",
   "of": "of",

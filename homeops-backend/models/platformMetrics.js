@@ -183,11 +183,11 @@ class PlatformMetrics {
     const values = [];
     if (startDate) {
       values.push(startDate);
-      clauses.push(`created_at >= $${values.length}`);
+      clauses.push(`created_at::date >= $${values.length}::date`);
     }
     if (endDate) {
       values.push(endDate);
-      clauses.push(`created_at <= $${values.length}`);
+      clauses.push(`created_at::date <= $${values.length}::date`);
     }
     const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
 
@@ -222,11 +222,11 @@ class PlatformMetrics {
     const values = [];
     if (startDate) {
       values.push(startDate);
-      clauses.push(`ue.created_at >= $${values.length}`);
+      clauses.push(`ue.created_at::date >= $${values.length}::date`);
     }
     if (endDate) {
       values.push(endDate);
-      clauses.push(`ue.created_at <= $${values.length}`);
+      clauses.push(`ue.created_at::date <= $${values.length}::date`);
     }
     const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
 
@@ -259,11 +259,11 @@ class PlatformMetrics {
     const values = [];
     if (startDate) {
       values.push(startDate);
-      clauses.push(`ue.created_at >= $${values.length}`);
+      clauses.push(`ue.created_at::date >= $${values.length}::date`);
     }
     if (endDate) {
       values.push(endDate);
-      clauses.push(`ue.created_at <= $${values.length}`);
+      clauses.push(`ue.created_at::date <= $${values.length}::date`);
     }
     const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
     const subWhere = clauses.length > 0

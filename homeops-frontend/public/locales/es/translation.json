@@ -303,6 +303,8 @@
   "homeownerHome.searchProfessionals": "Buscar profesionales",
   "homeownerHome.findProfessional": "Buscar Profesional",
   "homeownerHome.getSupport": "Obtener Ayuda",
+  "homeownerHome.uploadRequiresProperty": "Crea una propiedad primero",
+  "homeownerHome.uploadRequiresPropertyDesc": "Añade tu propiedad para subir documentos, garantías y recibos.",
   "noMoreTagsAvailable": "No hay más etiquetas disponibles",
   "notes": "Notas",
   "of": "de",
