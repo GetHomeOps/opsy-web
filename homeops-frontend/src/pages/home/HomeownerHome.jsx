@@ -11,6 +11,7 @@ import {computeHpsScoreBreakdown} from "../properties/helpers/computeHpsScore";
 import {buildPropertyPayloadFromRefresh} from "../properties/helpers/buildPropertyPayloadFromRefresh";
 import {mergeFormDataFromTabs} from "../properties/helpers/formDataByTabs";
 import {mapMaintenanceRecordsFromBackend} from "../properties/helpers/maintenanceRecordMapping";
+import {PROPERTY_SYSTEMS} from "../properties/constants/propertySystems";
 import ModalBlank from "../../components/ModalBlank";
 import CalendarScheduleModal from "../calendar/CalendarScheduleModal";
 import UploadDocumentModal from "../properties/partials/UploadDocumentModal";
@@ -422,16 +423,19 @@ function HomeownerHome() {
     {
       icon: CalendarClock,
       label: t("homeownerHome.scheduleEvent") || "Schedule Event",
-      onClick: () => setScheduleModalOpen(true),
+      onClick: () => {
+        // Defer open to avoid the opening click being treated as outside-click
+        setTimeout(() => setScheduleModalOpen(true), 0);
+      },
     },
     {
       icon: Upload,
       label: t("homeownerHome.uploadDocument") || "Upload Document",
       onClick: () => {
         if (hasProperties && activeProperty) {
-          setUploadModalOpen(true);
+          setTimeout(() => setUploadModalOpen(true), 0);
         } else {
-          setUploadNoPropertyOpen(true);
+          setTimeout(() => setUploadNoPropertyOpen(true), 0);
         }
       },
     },
@@ -1513,15 +1517,18 @@ function HomeownerHome() {
         document.body,
       )}
 
-      {/* Upload Document Modal */}
-      {hasProperties && activeProperty && (
-        <UploadDocumentModal
-          isOpen={uploadModalOpen}
-          onClose={() => setUploadModalOpen(false)}
-          propertyId={activeProperty.property_uid ?? activeProperty.id}
-          onSuccess={() => setUploadModalOpen(false)}
-        />
-      )}
+      {/* Upload Document Modal - portaled like Schedule Event for consistent behavior */}
+      {hasProperties && activeProperty &&
+        createPortal(
+          <UploadDocumentModal
+            isOpen={uploadModalOpen}
+            onClose={() => setUploadModalOpen(false)}
+            propertyId={activeProperty.property_uid ?? activeProperty.id}
+            onSuccess={() => setUploadModalOpen(false)}
+            systemsToShow={PROPERTY_SYSTEMS}
+          />,
+          document.body,
+        )}
 
       {/* Upload requires property - prompt modal */}
       <ModalBlank
