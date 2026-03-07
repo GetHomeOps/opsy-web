@@ -300,14 +300,18 @@ export default function InspectionAnalysisModalContent({
                             CONDITION_BADGES[s.condition] ??
                             CONDITION_BADGES.unknown
                           }`}
+                          title={s.conditionRationale || undefined}
                         >
                           {formatCondition(s.condition)}
                         </span>
+                        {s.conditionRationale && (
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 leading-tight line-clamp-2">
+                            {s.conditionRationale}
+                          </p>
+                        )}
                       </td>
                       <td className="py-2 px-3 text-right text-neutral-500 dark:text-neutral-400 tabular-nums">
-                        {(s.condition || "").toLowerCase() === "unknown"
-                          ? "—"
-                          : formatConfidence(s.confidence)}
+                        {formatConfidence(s.confidence)}
                       </td>
                     </tr>
                   ))}

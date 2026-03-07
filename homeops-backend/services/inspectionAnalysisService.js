@@ -71,6 +71,17 @@ Report text:
 
 const PER_SYSTEM_PROMPT = `You are an expert home inspector. You are analyzing ONLY the "{SYSTEM_TYPE}" system from an inspection report. Extract findings that represent ACTUAL DEFICIENCIES, DEFECTS, SAFETY CONCERNS, or EXPLICIT RECOMMENDATIONS made by the inspector.
 
+CONDITION ASSESSMENT — ALWAYS REQUIRED:
+- You MUST always provide a "condition" rating and "conditionConfidence" for this system. NEVER use "unknown".
+- If the report explicitly rates this system, use that rating and high confidence (0.8-0.95).
+- If the report does NOT explicitly rate the system but describes its state (e.g. age, deficiencies, positive observations), INFER the condition from the findings:
+  * "excellent": No deficiencies found, system described as new/recently replaced/in great shape.
+  * "good": Minor or no deficiencies, system is functional with normal wear.
+  * "fair": Some deficiencies noted, aging components, deferred maintenance items.
+  * "poor": Multiple deficiencies, active failures, safety concerns, or near end-of-life.
+- When inferring, set conditionConfidence to 0.5-0.75 to reflect that it is an assessment rather than an explicit report statement.
+- Provide a short "conditionRationale" explaining how you arrived at the rating.
+
 CRITICAL RULES — WHAT TO INCLUDE:
 - Output ONLY valid JSON. No markdown, no extra text.
 - ONLY include items where the report identifies an actual problem, deficiency, defect, safety hazard, code violation, deferred maintenance, or explicit recommendation to repair/replace/service something.
@@ -100,8 +111,9 @@ IMPACT SCORE (1-10): Rate each finding's real-world impact on habitability, safe
 
 Output format:
 {
-  "condition": "good|fair|poor|excellent|unknown",
+  "condition": "good|fair|poor|excellent",
   "conditionConfidence": 0.8,
+  "conditionRationale": "brief explanation of how condition was determined",
   "evidence": "short excerpt about overall system condition",
   "needsAttention": [
     { "title": "descriptive title", "severity": "high", "priority": "urgent", "impactScore": 7, "suggestedAction": "what to do", "evidence": "verbatim quote from report supporting this finding" }
@@ -158,10 +170,21 @@ DEDUPLICATION: Do NOT create redundant or overlapping systems. Each area maps to
 - suggestedWhen: use phrases like "within 30 days", "within 6 months", "annually", "as soon as possible".
 - Keep excerpts short (1-2 sentences max).
 
+PER-SYSTEM CONDITION — ALWAYS REQUIRED:
+- For every system in systemsDetected, you MUST provide a "condition" and "confidence". NEVER use "unknown".
+- If the report explicitly rates the system, use that rating with high confidence (0.8-0.95).
+- If the report does NOT explicitly rate it, INFER the condition from findings, age, and tone:
+  * "excellent": No deficiencies, described as new or in great shape.
+  * "good": Minor or no deficiencies, functional with normal wear.
+  * "fair": Some deficiencies, aging components, deferred maintenance.
+  * "poor": Multiple deficiencies, active failures, safety concerns.
+- When inferring, use conditionConfidence 0.5-0.75 to reflect the assessment nature.
+- Include a brief "conditionRationale" for each system.
+
 Output format (strict JSON):
 {
   "condition": { "rating": "good", "confidence": 0.74, "rationale": "brief explanation" },
-  "systemsDetected": [{ "systemType": "HVAC", "condition": "good", "confidence": 0.81, "evidence": "short excerpt" }],
+  "systemsDetected": [{ "systemType": "HVAC", "condition": "good", "confidence": 0.81, "conditionRationale": "brief reason", "evidence": "short excerpt" }],
   "needsAttention": [{ "title": "...", "systemType": "Roof", "severity": "high", "priority": "urgent", "impactScore": 7, "suggestedAction": "...", "evidence": "verbatim quote" }],
   "suggestedSystemsToAdd": [{ "systemType": "Roof", "reason": "...", "confidence": 0.77 }],
   "maintenanceSuggestions": [{ "systemType": "HVAC", "task": "...", "suggestedWhen": "within 30 days", "priority": "high", "impactScore": 6, "rationale": "why — grounded in report", "confidence": 0.76, "evidence": "verbatim quote from report" }],
@@ -371,8 +394,9 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
       const hasCondition = ["excellent", "good", "fair", "poor"].includes(sysCondition);
       allSystemsDetected.push({
         systemType,
-        condition: hasCondition ? sysCondition : "unknown",
-        confidence: hasCondition ? (data.conditionConfidence ?? 0.5) : null,
+        condition: hasCondition ? sysCondition : "fair",
+        confidence: data.conditionConfidence ?? (hasCondition ? 0.5 : 0.4),
+        conditionRationale: data.conditionRationale || null,
         evidence: data.evidence || null,
       });
 
@@ -582,8 +606,9 @@ async function runAnalysis(jobId) {
       const hasCondition = ["excellent", "good", "fair", "poor"].includes(sysCondition);
       return {
         systemType: normalized,
-        condition: hasCondition ? sysCondition : "unknown",
-        confidence: hasCondition ? (s.confidence ?? 0.5) : null,
+        condition: hasCondition ? sysCondition : "fair",
+        confidence: s.confidence ?? (hasCondition ? 0.5 : 0.4),
+        conditionRationale: s.conditionRationale || null,
         evidence: s.evidence || null,
       };
     })

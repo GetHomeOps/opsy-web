@@ -886,6 +886,21 @@ class AppApi {
     return res.item;
   }
 
+  static async createChecklistItem(propertyId, { systemKey, title, description, priority }) {
+    const res = await this.request(`properties/${propertyId}/inspection-checklist`, {
+      systemKey,
+      title,
+      description: description || null,
+      priority: priority || "medium",
+    }, "POST");
+    return res.item;
+  }
+
+  static async deleteChecklistItem(itemId) {
+    const res = await this.request(`inspection-checklist/${itemId}`, {}, "DELETE");
+    return res;
+  }
+
   /* --------- Property Contractors --------- */
 
   static async getPropertyContractors(propertyId, query = "") {

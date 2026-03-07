@@ -52,6 +52,32 @@ router.get(
   }
 );
 
+/** POST /properties/:propertyId/inspection-checklist - Create a user-defined checklist item. */
+router.post(
+  "/properties/:propertyId/inspection-checklist",
+  ensureLoggedIn,
+  resolvePropertyId,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      const { systemKey, title, description, priority } = req.body;
+      if (!systemKey || !title) {
+        throw new BadRequestError("systemKey and title are required");
+      }
+      const item = await InspectionChecklistItem.createUserItem({
+        propertyId: req.params.propertyId,
+        systemKey,
+        title,
+        description: description || null,
+        priority: priority || "medium",
+      });
+      return res.status(201).json({ item });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
 /** GET /properties/:propertyId/inspection-checklist/progress - Progress stats. */
 router.get(
   "/properties/:propertyId/inspection-checklist/progress",
@@ -122,6 +148,22 @@ router.post(
         notes: notes || null,
       });
       return res.json({ item });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** DELETE /inspection-checklist/:itemId - Delete a user-created checklist item. */
+router.delete(
+  "/inspection-checklist/:itemId",
+  ensureLoggedIn,
+  loadPropertyIdFromItem,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      await InspectionChecklistItem.deleteUserItem(req.params.itemId);
+      return res.json({ deleted: true });
     } catch (err) {
       return next(err);
     }

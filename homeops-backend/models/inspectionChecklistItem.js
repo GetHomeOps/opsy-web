@@ -83,6 +83,31 @@ class InspectionChecklistItem {
     return result.rows;
   }
 
+  /** Create a user-defined checklist item (not derived from analysis). */
+  static async createUserItem({ propertyId, systemKey, title, description, priority }) {
+    if (!propertyId || !systemKey || !title) {
+      throw new BadRequestError("propertyId, systemKey, and title are required");
+    }
+    const result = await db.query(
+      `INSERT INTO inspection_checklist_items
+         (property_id, system_key, source, title, description, priority, status)
+       VALUES ($1, $2, 'user_created', $3, $4, $5, 'pending')
+       RETURNING *`,
+      [propertyId, systemKey, title.slice(0, 500), description || null, priority || "medium"]
+    );
+    return result.rows[0];
+  }
+
+  /** Delete a user-created checklist item. Only user_created items can be deleted. */
+  static async deleteUserItem(id) {
+    const item = await this.get(id);
+    if (item.source !== "user_created") {
+      throw new BadRequestError("Only user-created items can be deleted");
+    }
+    await db.query(`DELETE FROM inspection_checklist_items WHERE id = $1`, [id]);
+    return item;
+  }
+
   /** Get all checklist items for a property, optionally filtered. */
   static async getByPropertyId(propertyId, { systemKey, status } = {}) {
     const conditions = ["property_id = $1"];

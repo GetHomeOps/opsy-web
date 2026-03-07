@@ -939,11 +939,11 @@ CREATE INDEX idx_inspection_analysis_results_property ON inspection_analysis_res
 
 CREATE TABLE inspection_checklist_items (
     id SERIAL PRIMARY KEY,
-    analysis_result_id INTEGER NOT NULL REFERENCES inspection_analysis_results(id) ON DELETE CASCADE,
+    analysis_result_id INTEGER REFERENCES inspection_analysis_results(id) ON DELETE CASCADE,
     property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     system_key VARCHAR(50) NOT NULL,
-    source VARCHAR(30) NOT NULL CHECK (source IN ('needs_attention', 'maintenance_suggestion')),
-    source_index INTEGER NOT NULL,
+    source VARCHAR(30) NOT NULL CHECK (source IN ('needs_attention', 'maintenance_suggestion', 'user_created')),
+    source_index INTEGER,
     title VARCHAR(500) NOT NULL,
     description TEXT,
     severity VARCHAR(20),

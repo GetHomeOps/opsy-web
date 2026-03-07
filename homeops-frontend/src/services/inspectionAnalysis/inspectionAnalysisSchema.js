@@ -47,8 +47,8 @@ function normalizeSystemsDetected(raw) {
     .map((s) => {
       const name = s.name ?? s.systemType ?? s.system_key ?? "—";
       const condition = s.condition ?? "unknown";
-      const hasCondition = condition !== "unknown";
-      const confidence = hasCondition && s.confidence != null ? clamp(s.confidence, 0, 1) : null;
+      const confidence = s.confidence != null ? clamp(s.confidence, 0, 1) : null;
+      const conditionRationale = s.conditionRationale ?? s.condition_rationale ?? null;
       const evidence_quotes = Array.isArray(s.evidence_quotes)
         ? s.evidence_quotes
         : s.evidence
@@ -59,6 +59,7 @@ function normalizeSystemsDetected(raw) {
         name,
         condition,
         confidence,
+        conditionRationale,
         evidence_quotes,
         page_refs,
         systemType: s.systemType ?? s.system_key,
