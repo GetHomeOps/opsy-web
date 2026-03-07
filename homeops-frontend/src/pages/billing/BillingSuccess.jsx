@@ -72,10 +72,17 @@ export default function BillingSuccess() {
 
       const start = Date.now();
       const poll = async () => {
-        if (cancelled || Date.now() - start > POLL_TIMEOUT_MS) return;
+        if (cancelled) return;
+        if (Date.now() - start > POLL_TIMEOUT_MS) {
+          if (!cancelled) {
+            setError("Subscription activation is taking longer than expected. Your payment was received — please refresh the page or contact support if this persists.");
+          }
+          return;
+        }
         try {
           const res = await AppApi.getBillingStatus(accountId);
-          if (res?.subscription?.status === "active" || res?.subscription?.status === "trialing" || res?.mockMode) {
+          const subStatus = res?.subscription?.status;
+          if (subStatus === "active" || subStatus === "trialing" || res?.mockMode) {
             setStatus("active");
             const user = await refreshCurrentUser();
             const accounts = await AppApi.getUserAccounts(user?.id);
@@ -88,7 +95,7 @@ export default function BillingSuccess() {
             return;
           }
         } catch {
-          /* ignore */
+          /* ignore — will retry on next poll */
         }
         timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
       };

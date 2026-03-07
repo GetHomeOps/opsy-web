@@ -219,7 +219,10 @@ async function handleCheckoutCompleted(session) {
        current_period_start, current_period_end, cancel_at_period_end)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL
-     DO UPDATE SET status = EXCLUDED.status, stripe_price_id = EXCLUDED.stripe_price_id,
+     DO UPDATE SET
+       status = CASE WHEN EXCLUDED.status = 'incomplete' AND account_subscriptions.status IN ('active', 'trialing')
+                     THEN account_subscriptions.status ELSE EXCLUDED.status END,
+       stripe_price_id = EXCLUDED.stripe_price_id,
        current_period_start = EXCLUDED.current_period_start, current_period_end = EXCLUDED.current_period_end,
        cancel_at_period_end = EXCLUDED.cancel_at_period_end, updated_at = NOW()`,
     [accountId, subscriptionProductId, subscription.id, session.customer, priceId, status, safeStart, safeEnd, cancelAtPeriodEnd]
@@ -239,12 +242,26 @@ async function handleCheckoutCompleted(session) {
 async function handleSubscriptionUpdated(subscription) {
   const subId = subscription.id;
   const accountRes = await db.query(
-    `SELECT id, account_id, subscription_product_id FROM account_subscriptions WHERE stripe_subscription_id = $1`,
+    `SELECT id, account_id, subscription_product_id, status AS "currentStatus" FROM account_subscriptions WHERE stripe_subscription_id = $1`,
     [subId]
   );
 
-  const status = subscription.status;
+  let status = subscription.status;
   let { start: periodStart, end: periodEnd } = getSubscriptionPeriodDates(subscription);
+
+  // Webhook payloads carry the status at event-generation time, which may be stale when
+  // multiple events fire concurrently (e.g. "incomplete" arrives after invoice.payment_succeeded
+  // already set "active"). Retrieve the authoritative status from Stripe to avoid downgrading.
+  if (stripe && status === "incomplete" && accountRes.rows[0]?.currentStatus === "active") {
+    try {
+      const fresh = await stripe.subscriptions.retrieve(subId, { expand: ["items.data.price"] });
+      status = fresh.status;
+      const freshDates = getSubscriptionPeriodDates(fresh);
+      periodStart = periodStart || freshDates.start;
+      periodEnd = periodEnd || freshDates.end;
+    } catch (_) { /* use event payload as fallback */ }
+  }
+
   // Webhook payload may lack expanded items; retrieve from API if period dates missing (Basil API uses items[0])
   if ((!periodStart || !periodEnd) && stripe) {
     try {
@@ -273,17 +290,20 @@ async function handleSubscriptionUpdated(subscription) {
         [status, subId]
       );
     } else if (periodStart && periodEnd) {
+      // Never downgrade active/trialing to incomplete from a stale event payload
+      const noDowngrade = status === "incomplete" ? `AND status NOT IN ('active', 'trialing')` : "";
       await db.query(
         `UPDATE account_subscriptions SET status = $1, stripe_price_id = COALESCE($2, stripe_price_id),
          current_period_start = $3, current_period_end = $4, cancel_at_period_end = $5, updated_at = NOW()
-         WHERE stripe_subscription_id = $6`,
+         WHERE stripe_subscription_id = $6 ${noDowngrade}`,
         [status, priceId, periodStart, periodEnd, cancelAtPeriodEnd, subId]
       );
     } else {
+      const noDowngrade = status === "incomplete" ? `AND status NOT IN ('active', 'trialing')` : "";
       await db.query(
         `UPDATE account_subscriptions SET status = $1, stripe_price_id = COALESCE($2, stripe_price_id),
          cancel_at_period_end = $3, updated_at = NOW()
-         WHERE stripe_subscription_id = $4`,
+         WHERE stripe_subscription_id = $4 ${noDowngrade}`,
         [status, priceId, cancelAtPeriodEnd, subId]
       );
     }
@@ -319,7 +339,10 @@ async function handleSubscriptionUpdated(subscription) {
        current_period_start, current_period_end, cancel_at_period_end)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      ON CONFLICT (stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL
-     DO UPDATE SET status = EXCLUDED.status, stripe_price_id = EXCLUDED.stripe_price_id,
+     DO UPDATE SET
+       status = CASE WHEN EXCLUDED.status = 'incomplete' AND account_subscriptions.status IN ('active', 'trialing')
+                     THEN account_subscriptions.status ELSE EXCLUDED.status END,
+       stripe_price_id = EXCLUDED.stripe_price_id,
        current_period_start = EXCLUDED.current_period_start, current_period_end = EXCLUDED.current_period_end,
        cancel_at_period_end = EXCLUDED.cancel_at_period_end, updated_at = NOW()`,
     [accountId, subscriptionProductId, subId, customerId, priceId, status, safeStart, safeEnd, cancelAtPeriodEnd]
