@@ -66,10 +66,11 @@ class AppApi {
     return payload.exp * 1000 <= Date.now() + bufferSeconds * 1000;
   }
 
-  /** Refresh token if expired/expiring. Returns fresh token or null. Skips for auth endpoints. */
+  /** Refresh token if expired/expiring. Returns fresh token or null. Skips for pure auth endpoints (login, register, etc.). */
+  static AUTH_NO_REFRESH = new Set(["auth/login", "auth/register", "auth/refresh", "auth/forgot-password", "auth/reset-password", "auth/google/signin", "auth/google/signup"]);
   static async ensureValidToken(endpoint) {
     const token = AppApi.getToken();
-    if (!token || endpoint.startsWith("auth/")) return token;
+    if (!token || AppApi.AUTH_NO_REFRESH.has(endpoint)) return token;
     if (!AppApi.isTokenExpiredOrExpiringSoon(token)) return token;
     await AppApi.refreshAccessToken();
     return AppApi.getToken();
@@ -124,7 +125,7 @@ class AppApi {
 
     let resp = await fetch(url, { method, body, headers });
 
-    if (resp.status === 401 && !endpoint.startsWith("auth/")) {
+    if (resp.status === 401 && !AppApi.AUTH_NO_REFRESH.has(endpoint)) {
       try {
         await AppApi.refreshAccessToken();
         const newToken = AppApi.getToken();
@@ -152,7 +153,7 @@ class AppApi {
 
     let resp = await fetch(url, { method, body: formData, headers });
 
-    if (resp.status === 401 && !endpoint.startsWith("auth/")) {
+    if (resp.status === 401 && !AppApi.AUTH_NO_REFRESH.has(endpoint)) {
       try {
         await AppApi.refreshAccessToken();
         const newToken = AppApi.getToken();
