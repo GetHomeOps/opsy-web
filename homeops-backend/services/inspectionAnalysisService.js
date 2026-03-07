@@ -213,18 +213,6 @@ function extractSystemSection(fullText, systemType, sectionHint) {
   return fullText;
 }
 
-/** Minimum length for evidence to be considered valid (filters out "N/A", "None", etc.) */
-const MIN_EVIDENCE_LENGTH = 15;
-
-/**
- * Check if an item has valid evidence (direct quote from report).
- * Items without evidence may be invented findings—exclude them for accuracy.
- */
-function hasValidEvidence(item) {
-  const ev = (item?.evidence || item?.rationale || "").toString().trim();
-  return ev.length >= MIN_EVIDENCE_LENGTH;
-}
-
 /**
  * Run multi-pass analysis: inventory pass then per-system extraction.
  * Falls back to single-pass for short reports.
