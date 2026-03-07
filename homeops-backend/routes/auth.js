@@ -117,11 +117,6 @@ router.post("/register", async function (req, res, next) {
       name: newUser.name,
       userId: newUser.id,
     });
-    try {
-      await Subscription.ensureDefaultForAccount(account.id, "homeowner");
-    } catch (subErr) {
-      console.error("Warning: failed to create default subscription for new account", account.id, subErr.message);
-    }
 
     const contact = await Contact.create({
       name: newUser.name,
@@ -444,11 +439,6 @@ async function handleGoogleCallback(req, res, next, intent) {
           name: newUser.name,
           userId: newUser.id,
         });
-        try {
-          await Subscription.ensureDefaultForAccount(account.id, "homeowner");
-        } catch (subErr) {
-          console.error("Warning: failed to create default subscription for Google signup account", account.id, subErr.message);
-        }
         const contact = await Contact.create({
           name: newUser.name,
           email: newUser.email,

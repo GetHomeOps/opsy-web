@@ -11,6 +11,8 @@ import {buildPropertyPayloadFromRefresh} from "../properties/helpers/buildProper
 import {mergeFormDataFromTabs} from "../properties/helpers/formDataByTabs";
 import {mapMaintenanceRecordsFromBackend} from "../properties/helpers/maintenanceRecordMapping";
 import ModalBlank from "../../components/ModalBlank";
+import CalendarScheduleModal from "../calendar/CalendarScheduleModal";
+import UploadDocumentModal from "../properties/partials/UploadDocumentModal";
 import {
   Bell,
   Calendar,
@@ -36,6 +38,7 @@ import {
   Search,
   Upload,
   Plus,
+  HelpCircle,
 } from "lucide-react";
 
 // ─── Skeleton components for loading states ─────
@@ -105,6 +108,8 @@ function HomeownerHome() {
   const [activeTab, setActiveTab] = useState("all");
   const [remindersModalOpen, setRemindersModalOpen] = useState(false);
   const [reminderFilter, setReminderFilter] = useState("all");
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   const [homeEvents, setHomeEvents] = useState(null);
   const [resources, setResources] = useState(null);
@@ -415,18 +420,15 @@ function HomeownerHome() {
   const quickActions = [
     {
       icon: CalendarClock,
-      label: t("homeownerHome.schedule") || "Schedule",
-      color: "bg-blue-500",
-      onClick: () => navigate(`/${accountUrl}/calendar`),
+      label: t("homeownerHome.scheduleEvent") || "Schedule Event",
+      onClick: () => setScheduleModalOpen(true),
     },
     {
       icon: Upload,
-      label: t("homeownerHome.uploadDocument") || "Upload document",
-      color: "bg-emerald-500",
+      label: t("homeownerHome.uploadDocument") || "Upload Document",
       onClick: () => {
         if (hasProperties && activeProperty) {
-          const uid = activeProperty.property_uid ?? activeProperty.id;
-          navigate(`/${accountUrl}/properties/${uid}?tab=documents`);
+          setUploadModalOpen(true);
         } else {
           navigate(`/${accountUrl}/properties/new`);
         }
@@ -434,18 +436,15 @@ function HomeownerHome() {
     },
     {
       icon: Search,
-      label: t("homeownerHome.searchProfessionals") || "Search Professionals",
-      color: "bg-purple-500",
+      label: t("homeownerHome.findProfessional") || "Find a Professional",
       onClick: () => navigate(`/${accountUrl}/professionals/search`),
     },
+    {
+      icon: HelpCircle,
+      label: t("homeownerHome.getSupport") || "Get Support",
+      onClick: () => navigate(`/${accountUrl}/settings/support/new`),
+    },
   ];
-
-  const createPropertyAction = !hasProperties && {
-    icon: Plus,
-    label: t("homeownerHome.createProperty"),
-    color: "bg-[#456564]",
-    onClick: () => navigate(accountUrl ? `/${accountUrl}/properties/new` : "/"),
-  };
 
   return (
     <div className="space-y-6 -mx-4 sm:-mx-6 lg:-mx-8 -mt-8">
@@ -788,37 +787,21 @@ function HomeownerHome() {
       <div className="h-20 lg:h-16" />
 
       {/* ============================================ */}
-      {/* QUICK ACTIONS - Schedule, Upload document, Search Professionals */}
+      {/* QUICK ACTIONS - 4 consistent shortcut buttons */}
       {/* ============================================ */}
       <div className="px-0 sm:px-4 lg:px-5 xxl:px-12">
-        <div className="flex items-center gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
-          {createPropertyAction && (
-            <button
-              type="button"
-              onClick={createPropertyAction.onClick}
-              className="flex items-center gap-3 px-5 py-3.5 bg-[#456564] hover:bg-[#3a5554] text-white rounded-xl shadow-sm hover:shadow transition-all flex-shrink-0"
-            >
-              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
-                <createPropertyAction.icon className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-semibold whitespace-nowrap">
-                {createPropertyAction.label}
-              </span>
-            </button>
-          )}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {quickActions.map((action, idx) => (
             <button
               key={idx}
               type="button"
               onClick={action.onClick}
-              className="flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all flex-shrink-0"
+              className="group flex flex-col items-center gap-2.5 px-4 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-[#456564]/40 dark:hover:border-[#456564]/40 hover:shadow-md transition-all"
             >
-              <div
-                className={`w-9 h-9 ${action.color} rounded-lg flex items-center justify-center`}
-              >
-                <action.icon className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-[#456564]/10 dark:bg-[#456564]/20 rounded-xl flex items-center justify-center group-hover:bg-[#456564]/20 dark:group-hover:bg-[#456564]/30 transition-colors">
+                <action.icon className="w-5 h-5 text-[#456564] dark:text-[#6b9695]" />
               </div>
-              <span className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center leading-tight">
                 {action.label}
               </span>
             </button>
@@ -1523,6 +1506,23 @@ function HomeownerHome() {
           </div>
         </div>
       </ModalBlank>
+
+      {/* Schedule Event Modal */}
+      <CalendarScheduleModal
+        isOpen={scheduleModalOpen}
+        onClose={() => setScheduleModalOpen(false)}
+        onScheduled={() => setScheduleModalOpen(false)}
+      />
+
+      {/* Upload Document Modal */}
+      {hasProperties && activeProperty && (
+        <UploadDocumentModal
+          isOpen={uploadModalOpen}
+          onClose={() => setUploadModalOpen(false)}
+          propertyId={activeProperty.property_uid ?? activeProperty.id}
+          onSuccess={() => setUploadModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
