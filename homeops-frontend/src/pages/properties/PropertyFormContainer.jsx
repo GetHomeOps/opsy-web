@@ -2438,6 +2438,7 @@ function PropertyFormContainer() {
                     ? (state.property?.identity?.id ?? state.property?.id ?? uid)
                     : null
                 }
+                maintenanceRecords={state.formData.maintenanceRecords ?? []}
               />
             </section>
 

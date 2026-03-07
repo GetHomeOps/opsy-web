@@ -29,6 +29,37 @@ const SEVERITY_COLORS = {
   low: "text-gray-600 dark:text-gray-400",
 };
 
+const SEVERITY_RANK = {critical: 0, high: 1, medium: 2, low: 3};
+const PRIORITY_RANK = {urgent: 0, high: 1, medium: 2, low: 3};
+
+const PRIORITY_GROUP_META = {
+  urgent: {label: "Urgent", color: "text-red-700 dark:text-red-300", bg: "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"},
+  high: {label: "High Priority", color: "text-red-600 dark:text-red-400", bg: "bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900"},
+  medium: {label: "Medium Priority", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900"},
+  low: {label: "Routine", color: "text-gray-500 dark:text-gray-400", bg: "bg-gray-50/50 dark:bg-gray-800/30 border-gray-100 dark:border-gray-700"},
+};
+
+function sortBySeverity(items) {
+  return [...items].sort((a, b) => {
+    const aSev = SEVERITY_RANK[a.severity] ?? 2;
+    const bSev = SEVERITY_RANK[b.severity] ?? 2;
+    if (aSev !== bSev) return aSev - bSev;
+    const aPri = PRIORITY_RANK[a.priority] ?? 2;
+    const bPri = PRIORITY_RANK[b.priority] ?? 2;
+    if (aPri !== bPri) return aPri - bPri;
+    return (b.impactScore ?? 5) - (a.impactScore ?? 5);
+  });
+}
+
+function groupByPriority(items) {
+  const groups = {urgent: [], high: [], medium: [], low: []};
+  for (const item of items) {
+    const p = item.priority || "medium";
+    (groups[p] || groups.medium).push(item);
+  }
+  return Object.entries(groups).filter(([, list]) => list.length > 0);
+}
+
 function AIFindingsPanel({
   status,
   progress,
@@ -107,8 +138,10 @@ function AIFindingsPanel({
     summary,
   } = result;
 
-  const topNeeds = needsAttention.slice(0, 3);
-  const hasMoreNeeds = needsAttention.length > 3;
+  const sortedNeeds = sortBySeverity(needsAttention);
+  const topNeeds = sortedNeeds.slice(0, 5);
+  const hasMoreNeeds = sortedNeeds.length > 5;
+  const maintenanceGroups = groupByPriority(maintenanceSuggestions);
 
   const getSystemLabel = (systemKey) => {
     const sys = PROPERTY_SYSTEMS.find((s) => s.id === systemKey);
@@ -173,26 +206,56 @@ function AIFindingsPanel({
             ) : (
               <ChevronRight className="w-4 h-4" />
             )}
-            Needs attention ({topNeeds.length})
+            Needs attention ({sortedNeeds.length})
+            {hasMoreNeeds && !needsAttentionExpanded && (
+              <span className="text-xs font-normal text-gray-400 ml-1">
+                (showing top {topNeeds.length})
+              </span>
+            )}
           </button>
           {needsAttentionExpanded && (
-            <ul className="mt-2 space-y-2">
+            <ul className="mt-2 space-y-2.5">
               {topNeeds.map((item, idx) => (
-                <li key={idx} className="flex flex-col gap-0.5 text-xs pl-6">
-                  <span
-                    className={`font-medium ${
-                      SEVERITY_COLORS[item.severity] || ""
-                    }`}
-                  >
-                    {item.title}
-                  </span>
+                <li key={idx} className="flex flex-col gap-1 text-xs pl-6 py-1.5 rounded-lg bg-white/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 px-3">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
+                        item.severity === "critical"
+                          ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                          : item.severity === "high"
+                            ? "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                            : item.severity === "medium"
+                              ? "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
+                              : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                      }`}
+                    >
+                      {item.severity}
+                    </span>
+                    <span
+                      className={`font-medium ${
+                        SEVERITY_COLORS[item.severity] || ""
+                      }`}
+                    >
+                      {item.title}
+                    </span>
+                  </div>
                   {item.suggestedAction && (
-                    <span className="text-gray-500 dark:text-gray-400">
+                    <span className="text-gray-600 dark:text-gray-300 pl-0.5">
                       {item.suggestedAction}
+                    </span>
+                  )}
+                  {item.evidence && (
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500 italic pl-0.5 border-l-2 border-gray-200 dark:border-gray-600 ml-0.5 pl-2">
+                      &ldquo;{item.evidence}&rdquo;
                     </span>
                   )}
                 </li>
               ))}
+              {hasMoreNeeds && (
+                <li className="text-[11px] text-gray-400 dark:text-gray-500 pl-6">
+                  + {sortedNeeds.length - topNeeds.length} more items — view full report for details
+                </li>
+              )}
             </ul>
           )}
         </div>
@@ -278,7 +341,7 @@ function AIFindingsPanel({
         </div>
       )}
 
-      {/* Maintenance suggestions */}
+      {/* Maintenance suggestions grouped by priority */}
       {maintenanceSuggestions.length > 0 && (
         <div>
           <button
@@ -291,66 +354,83 @@ function AIFindingsPanel({
             ) : (
               <ChevronRight className="w-4 h-4" />
             )}
-            Suggested maintenance
+            Suggested maintenance ({maintenanceSuggestions.length})
           </button>
           {maintenanceExpanded && (
-            <ul className="mt-2 space-y-2">
-              {maintenanceSuggestions.map((item, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-center justify-between gap-3 pl-6 py-1.5 rounded-lg bg-white/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">
-                      {item.task || getSystemLabel(item.systemType)}
+            <div className="mt-2 space-y-3">
+              {maintenanceGroups.map(([priority, items]) => {
+                const meta = PRIORITY_GROUP_META[priority] || PRIORITY_GROUP_META.medium;
+                return (
+                  <div key={priority} className={`rounded-lg border px-3 py-2 ${meta.bg}`}>
+                    <p className={`text-[11px] font-semibold uppercase tracking-wide mb-1.5 ${meta.color}`}>
+                      {meta.label}
                     </p>
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                      {item.suggestedWhen && <span>{item.suggestedWhen}</span>}
-                      {item.rationale && (
-                        <span className="ml-1">— {item.rationale}</span>
-                      )}
-                    </p>
+                    <ul className="space-y-2">
+                      {items.map((item, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-start justify-between gap-3"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                              {item.task || getSystemLabel(item.systemType)}
+                            </p>
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                              {item.suggestedWhen && <span>{item.suggestedWhen}</span>}
+                              {item.rationale && (
+                                <span className="ml-1">— {item.rationale}</span>
+                              )}
+                            </p>
+                            {item.evidence && (
+                              <p className="text-[11px] text-gray-400 dark:text-gray-500 italic border-l-2 border-gray-200 dark:border-gray-600 pl-2 mt-1">
+                                &ldquo;{item.evidence}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                          {onScheduleMaintenance && (
+                            <div className="flex-shrink-0 flex items-center gap-2 pt-0.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onScheduleMaintenance({
+                                    systemType: item.systemType,
+                                    systemLabel: getSystemLabel(item.systemType),
+                                    task: item.task,
+                                    suggestedWhen: item.suggestedWhen,
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-[#456564]/10 hover:bg-[#456564]/20 text-[#456564] dark:text-[#7aa3a2] transition-colors"
+                              >
+                                <Calendar className="w-3 h-3" />
+                                Schedule
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const origin =
+                                    typeof window !== "undefined"
+                                      ? window.location.origin
+                                      : "";
+                                  const cleanPath = (professionalsPath || "").replace(
+                                    /^\//,
+                                    "",
+                                  );
+                                  window.open(`${origin}/${cleanPath}`, "_blank");
+                                }}
+                                className="inline-flex items-center gap-0.5 text-[11px] text-gray-500 hover:text-[#456564] dark:text-gray-400 dark:hover:text-[#7aa3a2] transition-colors"
+                              >
+                                Professionals
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  {onScheduleMaintenance && (
-                    <div className="flex-shrink-0 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onScheduleMaintenance({
-                            systemType: item.systemType,
-                            systemLabel: getSystemLabel(item.systemType),
-                            task: item.task,
-                            suggestedWhen: item.suggestedWhen,
-                          })
-                        }
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium bg-[#456564]/10 hover:bg-[#456564]/20 text-[#456564] dark:text-[#7aa3a2] transition-colors"
-                      >
-                        <Calendar className="w-3 h-3" />
-                        Schedule
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const origin =
-                            typeof window !== "undefined"
-                              ? window.location.origin
-                              : "";
-                          const cleanPath = (professionalsPath || "").replace(
-                            /^\//,
-                            "",
-                          );
-                          window.open(`${origin}/${cleanPath}`, "_blank");
-                        }}
-                        className="inline-flex items-center gap-0.5 text-[11px] text-gray-500 hover:text-[#456564] dark:text-gray-400 dark:hover:text-[#7aa3a2] transition-colors"
-                      >
-                        Professionals
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

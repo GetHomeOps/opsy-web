@@ -383,10 +383,9 @@ function SubscriptionProductFormContainer() {
     return t("subscriptionProducts.newProduct");
   }
 
-  /** Build nav state for prev/next. Sorted by sortOrder then name. Matches list's filtered products (active only). */
+  /** Build nav state for prev/next. Sorted by sortOrder then name. */
   function buildNavState(productId) {
-    const activeProducts = products.filter((p) => p.isActive !== false);
-    const sorted = [...activeProducts].sort((a, b) => {
+    const sorted = [...products].sort((a, b) => {
       const aOrder = a.sortOrder ?? 999;
       const bOrder = b.sortOrder ?? 999;
       if (aOrder !== bOrder) return aOrder - bOrder;
@@ -529,13 +528,7 @@ function SubscriptionProductFormContainer() {
         <div className="flex justify-end mb-2">
           <div className="flex items-center">
             {state.product && (() => {
-              // Prefer location.state from list click, but validate: current product must be at stated position
-              const fromList = location.state?.visibleProductIds?.length && location.state?.currentIndex != null;
-              const stateMatchesProduct =
-                fromList &&
-                Number(location.state.visibleProductIds[location.state.currentIndex - 1]) === Number(state.product.id);
-              const navState =
-                stateMatchesProduct ? location.state : buildNavState(state.product.id);
+              const navState = location.state || buildNavState(state.product.id);
               if (!navState || !navState.visibleProductIds?.length) return null;
               const prevId = navState.currentIndex > 1 ? navState.visibleProductIds[navState.currentIndex - 2] : null;
               const nextId = navState.currentIndex < navState.totalItems ? navState.visibleProductIds[navState.currentIndex] : null;
@@ -549,12 +542,9 @@ function SubscriptionProductFormContainer() {
                     title="Previous"
                     onClick={() => {
                       if (prevId) {
-                        const nextNavState = {
-                          currentIndex: navState.currentIndex - 1,
-                          totalItems: navState.totalItems,
-                          visibleProductIds: navState.visibleProductIds,
-                        };
-                        navigate(`/${accountUrl}/subscription-products/${prevId}`, {state: nextNavState});
+                        navigate(`/${accountUrl}/subscription-products/${prevId}`, {
+                          state: {...navState, currentIndex: navState.currentIndex - 1},
+                        });
                       }
                     }}
                     disabled={!prevId}
@@ -571,12 +561,9 @@ function SubscriptionProductFormContainer() {
                     title="Next"
                     onClick={() => {
                       if (nextId) {
-                        const nextNavState = {
-                          currentIndex: navState.currentIndex + 1,
-                          totalItems: navState.totalItems,
-                          visibleProductIds: navState.visibleProductIds,
-                        };
-                        navigate(`/${accountUrl}/subscription-products/${nextId}`, {state: nextNavState});
+                        navigate(`/${accountUrl}/subscription-products/${nextId}`, {
+                          state: {...navState, currentIndex: navState.currentIndex + 1},
+                        });
                       }
                     }}
                     disabled={!nextId}

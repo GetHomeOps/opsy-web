@@ -42,11 +42,11 @@ const CANONICAL_SYSTEMS_LIST = CANONICAL_SYSTEMS.join(", ");
 
 /* ── Multi-pass prompts ── */
 
-const INVENTORY_PROMPT = `You are an expert home inspector. Analyze this inspection report and identify EVERY system, component, or area that is inspected, discussed, or has findings.
+const INVENTORY_PROMPT = `You are an expert home inspector. Analyze this inspection report and identify systems that are SUBSTANTIVELY discussed — meaning the report includes inspection findings, condition assessments, deficiencies, or recommendations for that system.
 
 CRITICAL RULES:
 - Output ONLY valid JSON. No markdown, no extra text.
-- Be exhaustive: list every system/component the report covers, even briefly.
+- Only include a system if the report has substantive content about it (condition noted, findings listed, or recommendations made). Do NOT include systems that are merely mentioned in a table of contents, header, or checklist with no findings.
 - Do NOT include appliances (dishwasher, refrigerator, oven, stove, washer, dryer, microwave, garbage disposal).
 - Do NOT create redundant or overlapping systems. Each finding should map to exactly ONE system.
 - Do NOT suggest "inspections" as a system — it is a process, not a property system.
@@ -69,17 +69,34 @@ Output format:
 Report text:
 `;
 
-const PER_SYSTEM_PROMPT = `You are an expert home inspector. You are analyzing ONLY the "{SYSTEM_TYPE}" system from an inspection report. Extract EVERY finding, recommendation, maintenance item, and concern for this system. Be thorough—do not skip any items.
+const PER_SYSTEM_PROMPT = `You are an expert home inspector. You are analyzing ONLY the "{SYSTEM_TYPE}" system from an inspection report. Extract findings that represent ACTUAL DEFICIENCIES, DEFECTS, SAFETY CONCERNS, or EXPLICIT RECOMMENDATIONS made by the inspector.
 
-CRITICAL RULES:
+CRITICAL RULES — WHAT TO INCLUDE:
 - Output ONLY valid JSON. No markdown, no extra text.
-- Include ALL items the report explicitly mentions: deficiencies, recommendations, maintenance suggestions, safety concerns, and observations.
-- EVIDENCE REQUIRED: Every needsAttention and maintenanceSuggestions item MUST have an "evidence" field with a direct quote from the report (1-2 sentences) that supports that specific finding. If you cannot quote supporting text, do NOT include the item.
-- DO NOT INVENT FINDINGS: If the report explicitly states something is NOT a concern (e.g. "Trees/Vegetation too near building: No", "No issues found", "Satisfactory", "N/A"), do NOT create a finding or suggestion for that topic. Only include items the report identifies as actual concerns or recommendations.
-- DO NOT APPLY GENERAL KNOWLEDGE: Do not suggest items based on "typical" maintenance or what "usually" needs attention. Extract ONLY what this specific report states. If the report says vegetation is fine, do not suggest trimming vegetation.
-- SEVERITY/PRIORITY: Use "urgent" or "high" ONLY when the report explicitly indicates urgency or severity. When the report does not specify, default to "medium". Do not escalate severity based on assumptions.
+- ONLY include items where the report identifies an actual problem, deficiency, defect, safety hazard, code violation, deferred maintenance, or explicit recommendation to repair/replace/service something.
+- EVIDENCE REQUIRED: Every needsAttention and maintenanceSuggestions item MUST have an "evidence" field containing a VERBATIM quote (1-2 sentences, copied exactly) from the report that demonstrates the deficiency or recommendation. If you cannot find a verbatim quote, do NOT include the item.
+
+CRITICAL RULES — WHAT TO EXCLUDE:
+- DO NOT include informational observations that are NOT deficiencies (e.g. "water heater is 5 years old", "roof is asphalt shingle", "house has copper wiring"). Age or type alone is not a finding.
+- DO NOT include items where the report says "satisfactory", "functional", "no deficiencies", "no issues", "N/A", or similar positive/neutral language.
+- DO NOT apply general maintenance knowledge. If the report does not explicitly flag something as needing action, omit it entirely.
+- DO NOT create findings from checklist items that are simply marked as present or inspected without a noted concern.
+
+SEVERITY & PRIORITY — STRICT GRADING:
+- "critical" / "urgent": Report uses words like "safety hazard", "immediate", "dangerous", "code violation", "structural damage", or explicitly says repair is urgent.
+- "high": Report says "recommend repair", "should be repaired", "needs replacement", "deteriorated", "failing", or describes active damage/leaks/failure.
+- "medium": Report says "monitor", "consider", "aging", "minor", "cosmetic", or describes wear without active failure.
+- "low": Report mentions as a minor note or future consideration with no current impact.
+- When the report does not use severity language, infer from the described condition. Default to "medium" only if the item genuinely warrants attention.
+
+IMPACT SCORE (1-10): Rate each finding's real-world impact on habitability, safety, and property value:
+- 8-10: Safety hazards, active water intrusion, structural concerns, code violations
+- 5-7: Active deficiencies needing professional repair (leaks, failing components, significant wear)
+- 3-4: Minor deficiencies, cosmetic issues, deferred maintenance
+- 1-2: Informational items (should generally be excluded per rules above)
+
 - suggestedWhen: use phrases like "within 30 days", "within 6 months", "annually", "as soon as possible".
-- Use confidence 0.5-0.9 for clearly stated items; 0.3-0.5 for inferred. Omit items you cannot support with report text.
+- Use confidence 0.7-0.95 for items with clear verbatim evidence; 0.5-0.7 for items where evidence is indirect but present. Do NOT include items below 0.5 confidence.
 
 Output format:
 {
@@ -87,10 +104,10 @@ Output format:
   "conditionConfidence": 0.8,
   "evidence": "short excerpt about overall system condition",
   "needsAttention": [
-    { "title": "descriptive title", "severity": "high", "priority": "urgent", "suggestedAction": "what to do", "evidence": "direct quote from report supporting this finding" }
+    { "title": "descriptive title", "severity": "high", "priority": "urgent", "impactScore": 7, "suggestedAction": "what to do", "evidence": "verbatim quote from report supporting this finding" }
   ],
   "maintenanceSuggestions": [
-    { "task": "what to do", "suggestedWhen": "within 30 days", "priority": "high", "rationale": "why", "confidence": 0.76, "evidence": "direct quote from report supporting this suggestion" }
+    { "task": "what to do", "suggestedWhen": "within 30 days", "priority": "high", "impactScore": 6, "rationale": "why — grounded in report", "confidence": 0.76, "evidence": "verbatim quote from report supporting this suggestion" }
   ],
   "citations": [{ "page": 3, "excerpt": "short excerpt" }]
 }
@@ -99,45 +116,55 @@ Report text for {SYSTEM_TYPE}:
 `;
 
 /* Legacy single-pass prompt (kept as fallback for short reports) */
-const ANALYSIS_PROMPT = `You are an expert home inspector analyzing a property inspection report. Extract ALL structured information from the report text. Be thorough and comprehensive.
+const ANALYSIS_PROMPT = `You are an expert home inspector analyzing a property inspection report. Extract structured findings that represent ACTUAL DEFICIENCIES, DEFECTS, SAFETY CONCERNS, or EXPLICIT RECOMMENDATIONS.
 
-CRITICAL RULES:
+CRITICAL RULES — WHAT TO INCLUDE:
 - Output ONLY valid JSON. No markdown, no extra text.
-- Extract EVERY system that is inspected, mentioned, or has findings. Extract ALL recommendations, maintenance items, and items needing attention. Do not omit items—include everything the report mentions.
-- EVIDENCE REQUIRED: Every needsAttention and maintenanceSuggestions item MUST have an "evidence" field with a direct quote from the report that supports that specific finding. If you cannot quote supporting text, do NOT include the item.
-- DO NOT INVENT FINDINGS: If the report explicitly states something is NOT a concern (e.g. "Trees/Vegetation too near building: No", "No issues found", "Satisfactory", "N/A"), do NOT create a finding or suggestion for that topic. Only include items the report identifies as actual concerns or recommendations.
-- DO NOT APPLY GENERAL KNOWLEDGE: Do not suggest items based on "typical" maintenance or what "usually" needs attention. Extract ONLY what this specific report states.
-- SEVERITY/PRIORITY: Use "urgent" or "high" ONLY when the report explicitly indicates urgency or severity. When the report does not specify, default to "medium".
+- Extract every system that is inspected or mentioned with findings.
+- For needsAttention and maintenanceSuggestions, ONLY include items where the report identifies an actual problem, deficiency, defect, safety hazard, code violation, deferred maintenance, or explicit recommendation to repair/replace/service something.
+- EVIDENCE REQUIRED: Every needsAttention and maintenanceSuggestions item MUST have an "evidence" field containing a VERBATIM quote (1-2 sentences, copied exactly) from the report. If you cannot find a verbatim quote, do NOT include the item.
 
-SYSTEM TYPE: For each finding, choose the best-fitting system. You have two options:
+CRITICAL RULES — WHAT TO EXCLUDE:
+- DO NOT include informational observations that are NOT deficiencies (e.g. "water heater is 5 years old", "roof is asphalt shingle"). Age or type alone is not a finding.
+- DO NOT include items where the report says "satisfactory", "functional", "no deficiencies", "no issues", "N/A", or similar positive/neutral language.
+- DO NOT apply general maintenance knowledge. If the report does not explicitly flag something as needing action, omit it entirely.
+- DO NOT create findings from checklist items simply marked as present or inspected without a noted concern.
+
+SEVERITY & PRIORITY — STRICT GRADING:
+- "critical" / "urgent": Report uses words like "safety hazard", "immediate", "dangerous", "code violation", "structural damage", or explicitly says repair is urgent.
+- "high": Report says "recommend repair", "should be repaired", "needs replacement", "deteriorated", "failing", or describes active damage/leaks/failure.
+- "medium": Report says "monitor", "consider", "aging", "minor", "cosmetic", or describes wear without active failure.
+- "low": Report mentions as a minor note or future consideration with no current impact.
+- When the report does not use severity language, infer from the described condition. Default to "medium" only if the item genuinely warrants attention.
+
+IMPACT SCORE (1-10): Rate each finding's real-world impact on habitability, safety, and property value:
+- 8-10: Safety hazards, active water intrusion, structural concerns, code violations
+- 5-7: Active deficiencies needing professional repair (leaks, failing components, significant wear)
+- 3-4: Minor deficiencies, cosmetic issues, deferred maintenance
+- 1-2: Informational items (should generally be excluded per rules above)
+
+SYSTEM TYPE: For each finding, choose the best-fitting system:
 1. Use a canonical type when it fits: ${CANONICAL_SYSTEMS_LIST}
-2. Use a custom systemType when none of the above fit well (e.g. "pool", "deck", "landscaping", "septic"). Use lowercase camelCase (e.g. swimmingPool) or kebab-case (e.g. swimming-pool).
+2. Use a custom systemType when none of the above fit well (e.g. "pool", "deck", "septic"). Use lowercase camelCase.
 
-CRITICAL: Do NOT suggest or use "Appliances" or appliance-related systems (e.g. dishwasher, refrigerator, oven, stove, washer, dryer, microwave, garbage disposal). We track only property systems (roof, HVAC, plumbing, etc.), not appliances. If the report mentions appliances, skip them or map relevant issues to plumbing/electrical where appropriate.
+CRITICAL: Do NOT suggest or use "Appliances" or appliance-related systems. We track only property systems, not appliances.
 
-DEDUPLICATION: Do NOT create redundant or overlapping systems. Each area of the property should map to exactly one system. "structure" and "foundation" are the same system — always use "foundation". Do NOT include "inspections" as a system — it is a process, not a property system. Consolidate related concepts into canonical types: "fuel storage"/"oil tank" -> heating, "chimney"/"fireplace" -> heating, "attic"/"insulation" -> exterior, "crawl space"/"basement" -> foundation, "garage"/"garage door" -> exterior, "ventilation" -> ac, "smoke detectors"/"CO detectors" -> safety. Only use custom types for genuinely distinct property systems (e.g. pool, septic, solar) that do not fit any canonical type.
+DEDUPLICATION: Do NOT create redundant or overlapping systems. Each area maps to one system. "structure"/"foundation" -> foundation. "fuel storage"/"oil tank" -> heating. "chimney"/"fireplace" -> heating. "attic"/"insulation" -> exterior. "crawl space"/"basement" -> foundation. "garage"/"garage door" -> exterior. "ventilation" -> ac. "smoke detectors"/"CO detectors" -> safety. Do NOT include "inspections" as a system.
 
-Analyze each report finding and assign the system that best describes it. Do not force findings into unrelated categories. If siding, stucco, or exterior envelope issues fit "exterior", use it. If a spa or pool fits neither plumbing nor any canonical type, use a custom "pool" or "spa". Use your judgment.
-
-- For suggestedSystemsToAdd: include every system the report inspected with findings. Prefer canonical types when they fit; suggest custom types when the report describes systems not in the canonical list (so the user can add them to their property). Each system with findings should appear here.
-- For needsAttention: assign systemType to each item—choose the best fit from canonical or custom. Each MUST have evidence.
-- For maintenanceSuggestions: assign systemType to each task—choose the best fit from canonical or custom. Each MUST have evidence.
-- If the report does not mention something, omit it. Use confidence 0.5-0.9 when the report clearly states something; use 0.3-0.5 when inferred.
-- For condition rating use exactly: excellent, good, fair, poor. Use "unknown" only when there is truly insufficient information.
-- Overall condition: ALWAYS try to infer a condition from the report. If not explicitly stated, predict from findings, recommendations, severity of issues, age of systems, and overall report tone. Only use "unknown" when the report has almost no usable information. When you infer (rather than extract) a condition, include confidence; when condition is "unknown", omit confidence.
-- For systemsDetected: include condition when inferable from findings/recommendations for that system. When condition is specified, include confidence. When condition cannot be determined, use "unknown" and omit confidence.
-- For severity use: low, medium, high, critical.
-- For priority use: low, medium, high, urgent.
+- For suggestedSystemsToAdd: include every system the report inspected with findings.
+- Use confidence 0.7-0.95 for items with clear verbatim evidence; 0.5-0.7 for indirect evidence. Do NOT include items below 0.5 confidence.
+- For condition rating use exactly: excellent, good, fair, poor, unknown.
+- Overall condition: infer from findings, severity, age, and tone. Only use "unknown" when the report has almost no usable information.
 - suggestedWhen: use phrases like "within 30 days", "within 6 months", "annually", "as soon as possible".
-- Keep excerpts short (1-2 sentences max). Do not include full document text.
+- Keep excerpts short (1-2 sentences max).
 
 Output format (strict JSON):
 {
   "condition": { "rating": "good", "confidence": 0.74, "rationale": "brief explanation" },
   "systemsDetected": [{ "systemType": "HVAC", "condition": "good", "confidence": 0.81, "evidence": "short excerpt" }],
-  "needsAttention": [{ "title": "...", "systemType": "Roof", "severity": "high", "priority": "urgent", "suggestedAction": "...", "evidence": "..." }],
+  "needsAttention": [{ "title": "...", "systemType": "Roof", "severity": "high", "priority": "urgent", "impactScore": 7, "suggestedAction": "...", "evidence": "verbatim quote" }],
   "suggestedSystemsToAdd": [{ "systemType": "Roof", "reason": "...", "confidence": 0.77 }],
-  "maintenanceSuggestions": [{ "systemType": "HVAC", "task": "...", "suggestedWhen": "within 30 days", "priority": "high", "rationale": "...", "confidence": 0.76, "evidence": "direct quote from report" }],
+  "maintenanceSuggestions": [{ "systemType": "HVAC", "task": "...", "suggestedWhen": "within 30 days", "priority": "high", "impactScore": 6, "rationale": "why — grounded in report", "confidence": 0.76, "evidence": "verbatim quote from report" }],
   "summary": "2-3 sentence summary of the report",
   "citations": [{ "page": 3, "excerpt": "short excerpt" }]
 }
@@ -172,6 +199,30 @@ async function getPropertyContextForAnalysis(propertyId) {
 const SHORT_REPORT_THRESHOLD = 8000;
 const MAX_CONCURRENT_SYSTEM_CALLS = 4;
 const MIN_EVIDENCE_LENGTH = 15;
+
+const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+const PRIORITY_RANK = { urgent: 0, high: 1, medium: 2, low: 3 };
+
+function severityScore(item) {
+  const sev = SEVERITY_RANK[item.severity] ?? 2;
+  const pri = PRIORITY_RANK[item.priority] ?? 2;
+  const impact = item.impactScore ?? 5;
+  return (3 - sev) * 100 + (3 - pri) * 10 + impact;
+}
+
+function priorityScore(item) {
+  const pri = PRIORITY_RANK[item.priority] ?? 2;
+  const impact = item.impactScore ?? 5;
+  return (3 - pri) * 100 + impact;
+}
+
+function sortNeedsAttention(items) {
+  return [...items].sort((a, b) => severityScore(b) - severityScore(a));
+}
+
+function sortMaintenanceSuggestions(items) {
+  return [...items].sort((a, b) => priorityScore(b) - priorityScore(a));
+}
 
 /**
  * Check if an item has valid evidence (direct quote from report).
@@ -220,7 +271,7 @@ function extractSystemSection(fullText, systemType, sectionHint) {
 async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordDetections, progressCb, usageCtx) {
   const preDetectedSystems = keywordDetections.map((d) => d.system);
   const preDetectionHint = preDetectedSystems.length > 0
-    ? `\nA keyword scan found references to: ${preDetectedSystems.join(", ")}. Include them if appropriate.\n`
+    ? `\nA keyword scan found references to: ${preDetectedSystems.join(", ")}. Only include them if the report has substantive findings or condition assessments for them.\n`
     : "";
   const ctxPrefix = propertyContext ? `PROPERTY CONTEXT:\n${propertyContext}\n` : "";
 
@@ -256,14 +307,6 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
       sectionHint: s.sectionHint || "",
     }))
     .filter((s) => s.systemType && !isExcludedSystem(s.systemType));
-
-  for (const det of keywordDetections) {
-    const normalized = normalizeSystemType(det.system) || det.system;
-    if (isExcludedSystem(normalized)) continue;
-    if (!inventorySystems.find((s) => s.systemType.toLowerCase() === normalized.toLowerCase())) {
-      inventorySystems.push({ systemType: normalized, sectionHint: det.matchedKeywords.join(", ") });
-    }
-  }
 
   const seenSys = new Set();
   const dedupedSystems = inventorySystems.filter((s) => {
@@ -334,7 +377,7 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
       });
 
       for (const n of (data.needsAttention || [])) {
-        if (!hasValidEvidence(n)) continue; // Skip invented findings without report quote
+        if (!hasValidEvidence(n)) continue;
         allNeedsAttention.push({
           title: n.title || "",
           systemType,
@@ -342,11 +385,12 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
           evidence: n.evidence || null,
           suggestedAction: n.suggestedAction || "",
           priority: n.priority || "medium",
+          impactScore: n.impactScore ?? 5,
         });
       }
 
       for (const m of (data.maintenanceSuggestions || [])) {
-        if (!hasValidEvidence(m)) continue; // Skip suggestions without report quote
+        if (!hasValidEvidence(m)) continue;
         allMaintenanceSuggestions.push({
           systemType,
           task: m.task || "",
@@ -354,6 +398,8 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
           priority: m.priority || "medium",
           rationale: m.rationale || "",
           confidence: m.confidence ?? 0.5,
+          impactScore: m.impactScore ?? 5,
+          evidence: m.evidence || null,
         });
       }
 
@@ -363,17 +409,31 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
     }
   }
 
+  const systemsWithFindings = new Set();
+  for (const s of allSystemsDetected) {
+    const cond = (s.condition || "unknown").toLowerCase();
+    if (cond !== "unknown" || s.evidence) systemsWithFindings.add(s.systemType.toLowerCase());
+  }
+  for (const n of allNeedsAttention) {
+    if (n.systemType) systemsWithFindings.add(n.systemType.toLowerCase());
+  }
+  for (const m of allMaintenanceSuggestions) {
+    if (m.systemType) systemsWithFindings.add(m.systemType.toLowerCase());
+  }
+
   const overallCondition = inventory.overallCondition || {};
   return {
     condition: overallCondition,
     systemsDetected: allSystemsDetected,
-    needsAttention: allNeedsAttention,
-    maintenanceSuggestions: allMaintenanceSuggestions,
-    suggestedSystemsToAdd: dedupedSystems.map((s) => ({
-      systemType: s.systemType,
-      reason: s.sectionHint || `Identified in inspection report`,
-      confidence: 0.7,
-    })),
+    needsAttention: sortNeedsAttention(allNeedsAttention),
+    maintenanceSuggestions: sortMaintenanceSuggestions(allMaintenanceSuggestions),
+    suggestedSystemsToAdd: dedupedSystems
+      .filter((s) => systemsWithFindings.has(s.systemType.toLowerCase()))
+      .map((s) => ({
+        systemType: s.systemType,
+        reason: s.sectionHint || `Identified in inspection report`,
+        confidence: 0.7,
+      })),
     summary: inventory.summary || null,
     citations: allCitations,
   };
@@ -385,7 +445,7 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
 async function runSinglePassAnalysis(openai, textToUse, propertyContext, keywordDetections, usageCtx) {
   const preDetectedSystems = keywordDetections.map((d) => d.system);
   const preDetectionHint = preDetectedSystems.length > 0
-    ? `\n\nA keyword scan found references to: ${preDetectedSystems.join(", ")}. Consider which canonical or custom systems these relate to and include them in systemsDetected and suggestedSystemsToAdd where appropriate.\n\n`
+    ? `\n\nA keyword scan found references to: ${preDetectedSystems.join(", ")}. Only include them in systemsDetected and suggestedSystemsToAdd if the report has substantive findings or condition assessments for them.\n\n`
     : "";
 
   const completion = await openai.chat.completions.create({
@@ -514,24 +574,6 @@ async function runAnalysis(jobId) {
     ? conditionRating
     : "unknown";
 
-  // Merge pre-detected systems the LLM may have missed
-  const llmSystemTypes = new Set(
-    (parsed.systemsDetected || []).map((s) => (normalizeSystemType(s.systemType) || s.systemType || "").toLowerCase())
-  );
-  for (const det of keywordDetections) {
-    const normalized = normalizeSystemType(det.system) || det.system;
-    if (isExcludedSystem(normalized)) continue;
-    if (!llmSystemTypes.has(normalized.toLowerCase())) {
-      if (!parsed.systemsDetected) parsed.systemsDetected = [];
-      parsed.systemsDetected.push({
-        systemType: normalized,
-        condition: "unknown",
-        confidence: det.confidence * 0.6,
-        evidence: `Detected via keyword scan: ${det.matchedKeywords.join(", ")}`,
-      });
-    }
-  }
-
   const systemsDetectedSeen = new Set();
   const systemsDetected = (parsed.systemsDetected || [])
     .map((s) => {
@@ -553,7 +595,7 @@ async function runAnalysis(jobId) {
     });
 
   const suggestedSystemsToAddSeen = new Set();
-  let suggestedSystemsToAdd = (parsed.suggestedSystemsToAdd || [])
+  const suggestedSystemsToAdd = (parsed.suggestedSystemsToAdd || [])
     .map((s) => ({
       systemType: normalizeSystemType(s.systemType) || s.systemType,
       reason: s.reason || "",
@@ -566,39 +608,34 @@ async function runAnalysis(jobId) {
       return true;
     });
 
-  for (const det of systemsDetected) {
-    const key = (det.systemType || "").toString().toLowerCase();
-    if (key && !suggestedSystemsToAddSeen.has(key) && !isExcludedSystem(det.systemType)) {
-      suggestedSystemsToAddSeen.add(key);
-      suggestedSystemsToAdd.push({
-        systemType: det.systemType,
-        reason: det.evidence || `Report inspected ${det.systemType}`,
-        confidence: det.confidence ?? 0.5,
-      });
-    }
-  }
+  const maintenanceSuggestions = sortMaintenanceSuggestions(
+    (parsed.maintenanceSuggestions || [])
+      .filter((s) => !isExcludedSystem(s.systemType) && hasValidEvidence(s))
+      .map((s) => ({
+        systemType: normalizeSystemType(s.systemType) || s.systemType,
+        task: s.task || "",
+        suggestedWhen: s.suggestedWhen || "",
+        priority: s.priority || "medium",
+        rationale: s.rationale || "",
+        confidence: s.confidence ?? 0.5,
+        impactScore: s.impactScore ?? 5,
+        evidence: s.evidence || null,
+      }))
+  );
 
-  const maintenanceSuggestions = (parsed.maintenanceSuggestions || [])
-    .filter((s) => !isExcludedSystem(s.systemType) && hasValidEvidence(s))
-    .map((s) => ({
-      systemType: normalizeSystemType(s.systemType) || s.systemType,
-      task: s.task || "",
-      suggestedWhen: s.suggestedWhen || "",
-      priority: s.priority || "medium",
-      rationale: s.rationale || "",
-      confidence: s.confidence ?? 0.5,
-    }));
-
-  const needsAttention = (parsed.needsAttention || [])
-    .filter((n) => !isExcludedSystem(n.systemType) && hasValidEvidence(n))
-    .map((n) => ({
-      title: n.title || "",
-      systemType: n.systemType ? normalizeSystemType(n.systemType) || n.systemType : null,
-      severity: n.severity || "medium",
-      evidence: n.evidence || null,
-      suggestedAction: n.suggestedAction || "",
-      priority: n.priority || "medium",
-    }));
+  const needsAttention = sortNeedsAttention(
+    (parsed.needsAttention || [])
+      .filter((n) => !isExcludedSystem(n.systemType) && hasValidEvidence(n))
+      .map((n) => ({
+        title: n.title || "",
+        systemType: n.systemType ? normalizeSystemType(n.systemType) || n.systemType : null,
+        severity: n.severity || "medium",
+        evidence: n.evidence || null,
+        suggestedAction: n.suggestedAction || "",
+        priority: n.priority || "medium",
+        impactScore: n.impactScore ?? 5,
+      }))
+  );
 
   try {
     const result = await InspectionAnalysisResult.create({

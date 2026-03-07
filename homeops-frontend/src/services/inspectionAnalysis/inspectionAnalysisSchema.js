@@ -8,6 +8,9 @@ const PROPERTY_STATES = ["excellent", "good", "fair", "poor", "unknown"];
 const PRIORITIES = ["high", "medium", "low", "urgent"];
 const SEVERITIES = ["critical", "high", "medium", "low"];
 
+const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+const PRIORITY_RANK = { urgent: 0, high: 1, medium: 2, low: 3 };
+
 function clamp(n, min, max) {
   if (typeof n !== "number" || Number.isNaN(n)) return min;
   return Math.max(min, Math.min(max, n));
@@ -91,6 +94,27 @@ function normalizeSystemsMissingSuspected(raw) {
     });
 }
 
+function sortByPriorityAndImpact(items) {
+  return [...items].sort((a, b) => {
+    const aPri = PRIORITY_RANK[a.priority] ?? 2;
+    const bPri = PRIORITY_RANK[b.priority] ?? 2;
+    if (aPri !== bPri) return aPri - bPri;
+    return (b.impactScore ?? 5) - (a.impactScore ?? 5);
+  });
+}
+
+function sortBySeverityAndImpact(items) {
+  return [...items].sort((a, b) => {
+    const aSev = SEVERITY_RANK[a.severity] ?? 2;
+    const bSev = SEVERITY_RANK[b.severity] ?? 2;
+    if (aSev !== bSev) return aSev - bSev;
+    const aPri = PRIORITY_RANK[a.priority] ?? 2;
+    const bPri = PRIORITY_RANK[b.priority] ?? 2;
+    if (aPri !== bPri) return aPri - bPri;
+    return (b.impactScore ?? 5) - (a.impactScore ?? 5);
+  });
+}
+
 /**
  * Normalize recommended_actions from maintenanceSuggestions + needsAttention.
  */
@@ -100,8 +124,10 @@ function normalizeRecommendedActions(maintenanceSuggestions, needsAttention) {
     actions.push({
       title: m.task ?? m.title ?? m.systemType ?? "Maintenance",
       priority: normalizePriority(m.priority),
+      impactScore: m.impactScore ?? 5,
       category: m.systemType ?? "general",
       rationale: m.rationale ?? m.reason ?? "",
+      evidence: m.evidence ?? null,
       suggested_schedule_window: m.suggestedWhen ?? "",
     });
   });
@@ -109,12 +135,14 @@ function normalizeRecommendedActions(maintenanceSuggestions, needsAttention) {
     actions.push({
       title: n.title ?? "Item needs attention",
       priority: normalizePriority(n.priority),
+      impactScore: n.impactScore ?? 5,
       category: n.systemType ?? "general",
       rationale: n.suggestedAction ?? n.evidence ?? "",
+      evidence: n.evidence ?? null,
       suggested_schedule_window: "",
     });
   });
-  return actions;
+  return sortByPriorityAndImpact(actions);
 }
 
 /**
@@ -122,13 +150,16 @@ function normalizeRecommendedActions(maintenanceSuggestions, needsAttention) {
  */
 function normalizeRisks(needsAttention) {
   if (!Array.isArray(needsAttention)) return [];
-  return needsAttention.map((n) => ({
+  const risks = needsAttention.map((n) => ({
     title: n.title ?? "Risk",
     severity: normalizeSeverity(n.severity),
+    priority: normalizePriority(n.priority),
+    impactScore: n.impactScore ?? 5,
     rationale: n.suggestedAction ?? n.evidence ?? "",
     evidence_quotes: n.evidence ? [n.evidence] : [],
     page_refs: n.page_refs ?? [],
   }));
+  return sortBySeverityAndImpact(risks);
 }
 
 /**
@@ -214,14 +245,14 @@ export function parseInspectionAnalysis(raw) {
     risks,
     citations,
     meta,
-    // Legacy fields for backward compatibility
+    // Legacy fields for backward compatibility — sorted by severity/priority
     conditionRating: property_state,
     conditionConfidence: confidence,
     conditionRationale: raw.conditionRationale ?? raw.condition_rationale ?? null,
     systemsDetected: systems_detected,
-    needsAttention: raw.needsAttention ?? raw.needs_attention ?? [],
+    needsAttention: sortBySeverityAndImpact(raw.needsAttention ?? raw.needs_attention ?? []),
     suggestedSystemsToAdd: raw.suggestedSystemsToAdd ?? raw.suggested_systems_to_add ?? [],
-    maintenanceSuggestions: raw.maintenanceSuggestions ?? raw.maintenance_suggestions ?? [],
+    maintenanceSuggestions: sortByPriorityAndImpact(raw.maintenanceSuggestions ?? raw.maintenance_suggestions ?? []),
     createdAt: meta.created_at,
   };
 }

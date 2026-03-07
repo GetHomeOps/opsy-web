@@ -30,7 +30,12 @@ function toSnakeCase(s) {
   return s.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
 }
 
-function ScoreCard({propertyData, onCompleteOutstandingTasks, propertyId}) {
+function ScoreCard({
+  propertyData,
+  onCompleteOutstandingTasks,
+  propertyId,
+  maintenanceRecords = [],
+}) {
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [identityOpen, setIdentityOpen] = useState(false);
   const [systemsOpen, setSystemsOpen] = useState(false);
@@ -119,6 +124,30 @@ function ScoreCard({propertyData, onCompleteOutstandingTasks, propertyId}) {
       return null; // No checklist items for this system
     },
     [checklistProgress]
+  );
+
+  /** Check if all maintenance records for a system are completed/fulfilled. */
+  const isSystemMaintenanceCompleteFromRecords = useCallback(
+    (system) => {
+      const records = Array.isArray(maintenanceRecords) ? maintenanceRecords : [];
+      const sysId = system.id;
+      const snakeId = toSnakeCase(sysId);
+      const systemRecords = records.filter((r) => {
+        const rSys = (r.systemId ?? r.system_key ?? "").toString();
+        if (!rSys) return false;
+        return (
+          rSys === sysId ||
+          rSys.toLowerCase() === sysId.toLowerCase() ||
+          rSys.toLowerCase() === snakeId
+        );
+      });
+      if (systemRecords.length === 0) return null;
+      const allCompleted = systemRecords.every(
+        (r) => String(r.status ?? "").toLowerCase() === "completed"
+      );
+      return allCompleted;
+    },
+    [maintenanceRecords]
   );
 
   const scoreRingColorClass =
@@ -589,12 +618,13 @@ function ScoreCard({propertyData, onCompleteOutstandingTasks, propertyId}) {
                       (s) => s.id === system.id
                     );
                     const Icon = predefinedSystem?.icon || CUSTOM_SYSTEM_DEFAULT_ICON;
-                    // Use checklist progress when available: cross out when all pending items completed
+                    // Cross out when: (1) all inspection checklist items done, or (2) all maintenance records completed
                     const fromChecklist = isSystemMaintenanceComplete(system);
+                    const fromRecords = isSystemMaintenanceCompleteFromRecords(system);
                     const isComplete =
-                      fromChecklist === true
+                      fromChecklist === true || fromRecords === true
                         ? true
-                        : fromChecklist === false
+                        : fromChecklist === false || fromRecords === false
                           ? false
                           : idx < currentMaintenance;
                     return (
