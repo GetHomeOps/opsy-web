@@ -31,15 +31,24 @@ export default function BillingSuccess() {
 
       let accountId = null;
       try {
-        // Retry once on 429 (rate limit) - common when returning from Stripe
-        try {
-          await AppApi.completeOnboarding({role, subscriptionTier: plan});
-        } catch (err) {
-          if (err?.status === 429) {
-            await new Promise((r) => setTimeout(r, 2000));
-            if (!cancelled) await AppApi.completeOnboarding({role, subscriptionTier: plan});
-          } else throw err;
+        // Retry on 429 (rate limit) - common when returning from Stripe; exponential backoff
+        const delays = [2000, 4000, 8000];
+        let lastErr;
+        for (let attempt = 0; attempt <= delays.length && !cancelled; attempt++) {
+          try {
+            await AppApi.completeOnboarding({role, subscriptionTier: plan});
+            lastErr = null;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (err?.status === 429 && attempt < delays.length) {
+              await new Promise((r) => setTimeout(r, delays[attempt]));
+            } else {
+              throw err;
+            }
+          }
         }
+        if (lastErr) throw lastErr;
         const user = await refreshCurrentUser();
         const accounts = await AppApi.getUserAccounts(user?.id).catch(() => []);
         accountId = accounts?.[0]?.id;

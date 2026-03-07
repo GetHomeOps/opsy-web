@@ -97,6 +97,12 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: { message: "Too many requests, please try again later.", status: 429 } },
+  // Skip rate limit for critical post-Stripe activation flow (user just paid, must not fail).
+  // Also skip refresh so expired tokens after Stripe redirect don't hit 429.
+  skip: (req) => {
+    const p = req.path;
+    return p === "/auth/complete-onboarding" || p === "/complete-onboarding" || p === "/auth/refresh" || p === "/refresh";
+  },
 });
 
 const mfaLimiter = rateLimit({
