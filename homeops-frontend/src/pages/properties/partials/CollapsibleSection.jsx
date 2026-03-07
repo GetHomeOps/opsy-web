@@ -327,12 +327,42 @@ function CollapsibleSection({
               {needsAttention && (
                 <Tooltip
                   content={
-                    attentionReasons.length > 0
-                      ? attentionReasons.join(" · ")
-                      : "Needs attention"
+                    (() => {
+                      const getIconForReason = (reason) => {
+                        const r = (reason || "").toLowerCase();
+                        if (r.includes("inspection date")) return Calendar;
+                        if (r.includes("installation")) return Wrench;
+                        if (r.includes("condition")) return Gauge;
+                        if (r.includes("issues")) return AlertCircle;
+                        return AlertTriangle;
+                      };
+                      return (
+                        <div className="flex flex-col gap-2 min-w-[180px]">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-500" strokeWidth={2} />
+                            <span className="text-xs font-medium">Needs attention</span>
+                          </div>
+                          {attentionReasons.length > 0 ? (
+                            <ul className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400 list-none pl-0">
+                              {attentionReasons.map((reason, i) => {
+                                const ReasonIcon = getIconForReason(reason);
+                                return (
+                                  <li key={i} className="flex items-start gap-2">
+                                    <ReasonIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" strokeWidth={2} />
+                                    <span>{reason}</span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <span className="text-xs text-gray-600 dark:text-gray-400">Action may be required</span>
+                          )}
+                        </div>
+                      );
+                    })()
                   }
                   position="bottom"
-                  size="lg"
+                  size="xl"
                 >
                   <span className="inline-flex items-center justify-center w-[18px] h-[18px] text-amber-600 dark:text-amber-500/90 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-default">
                     <AlertTriangle className="w-[18px] h-[18px]" strokeWidth={2} />

@@ -156,13 +156,31 @@ async function markEventProcessed(stripeEventId) {
   );
 }
 
-/** Safely convert Stripe unix timestamp to Date. Returns null if invalid. */
+/** Safely convert Stripe unix timestamp (number or string) to Date. Returns null if invalid. */
 function toValidDate(unixTimestamp) {
-  if (unixTimestamp == null || typeof unixTimestamp !== "number" || !Number.isFinite(unixTimestamp)) {
-    return null;
-  }
-  const d = new Date(unixTimestamp * 1000);
+  if (unixTimestamp == null) return null;
+  const num = typeof unixTimestamp === "string" ? parseInt(unixTimestamp, 10) : unixTimestamp;
+  if (typeof num !== "number" || !Number.isFinite(num)) return null;
+  const d = new Date(num * 1000);
   return Number.isFinite(d.getTime()) ? d : null;
+}
+
+/** Extract period dates from subscription. Supports both legacy (subscription-level) and Basil API (items[0]-level). */
+function getSubscriptionPeriodDates(subscription) {
+  const fromSub = {
+    start: toValidDate(subscription.current_period_start),
+    end: toValidDate(subscription.current_period_end),
+  };
+  if (fromSub.start && fromSub.end) return fromSub;
+  const item = subscription.items?.data?.[0];
+  const fromItem = {
+    start: toValidDate(item?.current_period_start),
+    end: toValidDate(item?.current_period_end),
+  };
+  return {
+    start: fromSub.start || fromItem.start,
+    end: fromSub.end || fromItem.end,
+  };
 }
 
 /** Ensure a value is a valid Date for PostgreSQL. node-postgres serializes invalid Dates as "0NaN-NaN-NaN..." which PG rejects. */
@@ -185,12 +203,11 @@ async function handleCheckoutCompleted(session) {
   const subscription = await stripe.subscriptions.retrieve(sub, { expand: ["items.data.price"] });
   const priceId = subscription.items?.data?.[0]?.price?.id;
   const status = subscription.status;
-  const periodStart = toValidDate(subscription.current_period_start);
-  const periodEnd = toValidDate(subscription.current_period_end);
+  const { start: periodStart, end: periodEnd } = getSubscriptionPeriodDates(subscription);
   const cancelAtPeriodEnd = subscription.cancel_at_period_end || false;
 
   if (!periodStart || !periodEnd) {
-    console.warn("[webhooks/stripe] checkout.session.completed: missing period dates, using fallback");
+    console.info("[webhooks/stripe] checkout.session.completed: using fallback period dates");
   }
 
   const safeStart = toSafeTimestamp(periodStart, new Date());
@@ -227,8 +244,25 @@ async function handleSubscriptionUpdated(subscription) {
   );
 
   const status = subscription.status;
-  const periodStart = toValidDate(subscription.current_period_start);
-  const periodEnd = toValidDate(subscription.current_period_end);
+  let { start: periodStart, end: periodEnd } = getSubscriptionPeriodDates(subscription);
+  // Webhook payload may lack expanded items; retrieve from API if period dates missing (Basil API uses items[0])
+  if ((!periodStart || !periodEnd) && stripe) {
+    try {
+      const retrieved = await stripe.subscriptions.retrieve(subId, { expand: ["items.data.price"] });
+      const fromRetrieved = getSubscriptionPeriodDates(retrieved);
+      periodStart = periodStart || fromRetrieved.start;
+      periodEnd = periodEnd || fromRetrieved.end;
+      if (fromRetrieved.start && fromRetrieved.end) {
+        subscription.items = subscription.items || {};
+        subscription.items.data = subscription.items.data || [];
+        if (!subscription.items.data[0]) subscription.items.data[0] = {};
+        subscription.items.data[0].current_period_start = retrieved.items?.data?.[0]?.current_period_start;
+        subscription.items.data[0].current_period_end = retrieved.items?.data?.[0]?.current_period_end;
+      }
+    } catch (retrieveErr) {
+      // Ignore; we'll use fallback dates below
+    }
+  }
   const cancelAtPeriodEnd = subscription.cancel_at_period_end || false;
   const priceId = subscription.items?.data?.[0]?.price?.id || null;
 
@@ -271,7 +305,8 @@ async function handleSubscriptionUpdated(subscription) {
   if (!subscriptionProductId) return;
 
   if (!periodStart || !periodEnd) {
-    console.warn("[webhooks/stripe] subscription.updated: missing period dates, using fallback");
+    // Fallback dates are valid; subscription created/updated successfully. Common with Basil API (period dates on items[0]).
+    console.info("[webhooks/stripe] subscription.updated: using fallback period dates (Stripe may send minimal webhook payload)");
   }
 
   const safeStart = toSafeTimestamp(periodStart, new Date());
@@ -314,8 +349,7 @@ async function handleInvoicePayment(invoice) {
   if (accountRes.rows.length === 0) return;
 
   const status = subscription.status;
-  const periodStart = toValidDate(subscription.current_period_start);
-  const periodEnd = toValidDate(subscription.current_period_end);
+  const { start: periodStart, end: periodEnd } = getSubscriptionPeriodDates(subscription);
   const priceId = subscription.items?.data?.[0]?.price?.id || null;
 
   if (periodStart && periodEnd) {

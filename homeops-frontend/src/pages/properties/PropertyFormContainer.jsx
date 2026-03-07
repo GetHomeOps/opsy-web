@@ -2433,6 +2433,11 @@ function PropertyFormContainer() {
               <ScoreCard
                 propertyData={mergedFormData}
                 onCompleteOutstandingTasks={handleCompleteOutstandingTasks}
+                propertyId={
+                  uid !== "new"
+                    ? (state.property?.identity?.id ?? state.property?.id ?? uid)
+                    : null
+                }
               />
             </section>
 

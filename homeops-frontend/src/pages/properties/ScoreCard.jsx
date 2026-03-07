@@ -1,5 +1,6 @@
-import React, {useState, useMemo} from "react";
+import React, {useState, useMemo, useEffect, useCallback} from "react";
 import DonutChart from "../../partials/propertyFeatures/DonutChart";
+import AppApi from "../../api/api";
 import {
   Shield,
   Settings,
@@ -23,11 +24,18 @@ import {
   CUSTOM_SYSTEM_DEFAULT_ICON,
 } from "./constants/propertySystems";
 
-function ScoreCard({propertyData, onCompleteOutstandingTasks}) {
+/** Convert camelCase to snake_case for matching checklist system_key. */
+function toSnakeCase(s) {
+  if (!s || typeof s !== "string") return "";
+  return s.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
+}
+
+function ScoreCard({propertyData, onCompleteOutstandingTasks, propertyId}) {
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [identityOpen, setIdentityOpen] = useState(false);
   const [systemsOpen, setSystemsOpen] = useState(false);
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+  const [checklistProgress, setChecklistProgress] = useState(null);
 
   // Identity: compute completion from actual form sections
   const identitySections = IDENTITY_SECTIONS;
@@ -74,6 +82,44 @@ function ScoreCard({propertyData, onCompleteOutstandingTasks}) {
     : 0;
 
   const totalScore = (identityScore + systemsScore + maintenanceScore) / 3;
+
+  // Fetch inspection checklist progress when Maintenance section is expanded (for per-system completion)
+  useEffect(() => {
+    if (!propertyId || !maintenanceOpen) return;
+    let cancelled = false;
+    AppApi.getInspectionChecklistProgress(propertyId)
+      .then((res) => {
+        if (!cancelled) setChecklistProgress(res);
+      })
+      .catch(() => {
+        if (!cancelled) setChecklistProgress(null);
+      });
+    return () => { cancelled = true; };
+  }, [propertyId, maintenanceOpen]);
+
+  /** Check if a system has all pending checklist items completed. */
+  const isSystemMaintenanceComplete = useCallback(
+    (system) => {
+      const bySystem = checklistProgress?.bySystem ?? {};
+      // Try direct match, snake_case, and lowercase
+      const sysId = system.id;
+      const snakeId = toSnakeCase(sysId);
+      const matchKey = Object.keys(bySystem).find(
+        (k) =>
+          k === sysId ||
+          k.toLowerCase() === sysId.toLowerCase() ||
+          k.toLowerCase() === snakeId
+      );
+      const prog = matchKey ? bySystem[matchKey] : null;
+      if (prog && prog.total > 0) {
+        const pending = prog.pending ?? 0;
+        const inProgress = prog.in_progress ?? 0;
+        return pending === 0 && inProgress === 0;
+      }
+      return null; // No checklist items for this system
+    },
+    [checklistProgress]
+  );
 
   const scoreRingColorClass =
     totalScore >= 60
@@ -543,8 +589,14 @@ function ScoreCard({propertyData, onCompleteOutstandingTasks}) {
                       (s) => s.id === system.id
                     );
                     const Icon = predefinedSystem?.icon || CUSTOM_SYSTEM_DEFAULT_ICON;
-                    // TODO: Backend should return per-system maintenance completion; for now use index
-                    const isComplete = idx < currentMaintenance;
+                    // Use checklist progress when available: cross out when all pending items completed
+                    const fromChecklist = isSystemMaintenanceComplete(system);
+                    const isComplete =
+                      fromChecklist === true
+                        ? true
+                        : fromChecklist === false
+                          ? false
+                          : idx < currentMaintenance;
                     return (
                       <div
                         key={system.id}

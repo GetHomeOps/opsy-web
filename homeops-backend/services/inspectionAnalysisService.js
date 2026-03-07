@@ -73,12 +73,13 @@ const PER_SYSTEM_PROMPT = `You are an expert home inspector. You are analyzing O
 
 CRITICAL RULES:
 - Output ONLY valid JSON. No markdown, no extra text.
-- Include ALL items: deficiencies, recommendations, maintenance suggestions, safety concerns, and observations.
-- For severity use: low, medium, high, critical.
-- For priority use: low, medium, high, urgent.
+- Include ALL items the report explicitly mentions: deficiencies, recommendations, maintenance suggestions, safety concerns, and observations.
+- EVIDENCE REQUIRED: Every needsAttention and maintenanceSuggestions item MUST have an "evidence" field with a direct quote from the report (1-2 sentences) that supports that specific finding. If you cannot quote supporting text, do NOT include the item.
+- DO NOT INVENT FINDINGS: If the report explicitly states something is NOT a concern (e.g. "Trees/Vegetation too near building: No", "No issues found", "Satisfactory", "N/A"), do NOT create a finding or suggestion for that topic. Only include items the report identifies as actual concerns or recommendations.
+- DO NOT APPLY GENERAL KNOWLEDGE: Do not suggest items based on "typical" maintenance or what "usually" needs attention. Extract ONLY what this specific report states. If the report says vegetation is fine, do not suggest trimming vegetation.
+- SEVERITY/PRIORITY: Use "urgent" or "high" ONLY when the report explicitly indicates urgency or severity. When the report does not specify, default to "medium". Do not escalate severity based on assumptions.
 - suggestedWhen: use phrases like "within 30 days", "within 6 months", "annually", "as soon as possible".
-- Keep evidence excerpts short (1-2 sentences).
-- Use confidence 0.5-0.9 for clearly stated items; 0.3-0.5 for inferred.
+- Use confidence 0.5-0.9 for clearly stated items; 0.3-0.5 for inferred. Omit items you cannot support with report text.
 
 Output format:
 {
@@ -86,10 +87,10 @@ Output format:
   "conditionConfidence": 0.8,
   "evidence": "short excerpt about overall system condition",
   "needsAttention": [
-    { "title": "descriptive title", "severity": "high", "priority": "urgent", "suggestedAction": "what to do", "evidence": "excerpt from report" }
+    { "title": "descriptive title", "severity": "high", "priority": "urgent", "suggestedAction": "what to do", "evidence": "direct quote from report supporting this finding" }
   ],
   "maintenanceSuggestions": [
-    { "task": "what to do", "suggestedWhen": "within 30 days", "priority": "high", "rationale": "why", "confidence": 0.76 }
+    { "task": "what to do", "suggestedWhen": "within 30 days", "priority": "high", "rationale": "why", "confidence": 0.76, "evidence": "direct quote from report supporting this suggestion" }
   ],
   "citations": [{ "page": 3, "excerpt": "short excerpt" }]
 }
@@ -103,6 +104,10 @@ const ANALYSIS_PROMPT = `You are an expert home inspector analyzing a property i
 CRITICAL RULES:
 - Output ONLY valid JSON. No markdown, no extra text.
 - Extract EVERY system that is inspected, mentioned, or has findings. Extract ALL recommendations, maintenance items, and items needing attention. Do not omit items—include everything the report mentions.
+- EVIDENCE REQUIRED: Every needsAttention and maintenanceSuggestions item MUST have an "evidence" field with a direct quote from the report that supports that specific finding. If you cannot quote supporting text, do NOT include the item.
+- DO NOT INVENT FINDINGS: If the report explicitly states something is NOT a concern (e.g. "Trees/Vegetation too near building: No", "No issues found", "Satisfactory", "N/A"), do NOT create a finding or suggestion for that topic. Only include items the report identifies as actual concerns or recommendations.
+- DO NOT APPLY GENERAL KNOWLEDGE: Do not suggest items based on "typical" maintenance or what "usually" needs attention. Extract ONLY what this specific report states.
+- SEVERITY/PRIORITY: Use "urgent" or "high" ONLY when the report explicitly indicates urgency or severity. When the report does not specify, default to "medium".
 
 SYSTEM TYPE: For each finding, choose the best-fitting system. You have two options:
 1. Use a canonical type when it fits: ${CANONICAL_SYSTEMS_LIST}
@@ -115,8 +120,8 @@ DEDUPLICATION: Do NOT create redundant or overlapping systems. Each area of the 
 Analyze each report finding and assign the system that best describes it. Do not force findings into unrelated categories. If siding, stucco, or exterior envelope issues fit "exterior", use it. If a spa or pool fits neither plumbing nor any canonical type, use a custom "pool" or "spa". Use your judgment.
 
 - For suggestedSystemsToAdd: include every system the report inspected with findings. Prefer canonical types when they fit; suggest custom types when the report describes systems not in the canonical list (so the user can add them to their property). Each system with findings should appear here.
-- For needsAttention: assign systemType to each item—choose the best fit from canonical or custom.
-- For maintenanceSuggestions: assign systemType to each task—choose the best fit from canonical or custom.
+- For needsAttention: assign systemType to each item—choose the best fit from canonical or custom. Each MUST have evidence.
+- For maintenanceSuggestions: assign systemType to each task—choose the best fit from canonical or custom. Each MUST have evidence.
 - If the report does not mention something, omit it. Use confidence 0.5-0.9 when the report clearly states something; use 0.3-0.5 when inferred.
 - For condition rating use exactly: excellent, good, fair, poor. Use "unknown" only when there is truly insufficient information.
 - Overall condition: ALWAYS try to infer a condition from the report. If not explicitly stated, predict from findings, recommendations, severity of issues, age of systems, and overall report tone. Only use "unknown" when the report has almost no usable information. When you infer (rather than extract) a condition, include confidence; when condition is "unknown", omit confidence.
@@ -132,7 +137,7 @@ Output format (strict JSON):
   "systemsDetected": [{ "systemType": "HVAC", "condition": "good", "confidence": 0.81, "evidence": "short excerpt" }],
   "needsAttention": [{ "title": "...", "systemType": "Roof", "severity": "high", "priority": "urgent", "suggestedAction": "...", "evidence": "..." }],
   "suggestedSystemsToAdd": [{ "systemType": "Roof", "reason": "...", "confidence": 0.77 }],
-  "maintenanceSuggestions": [{ "systemType": "HVAC", "task": "...", "suggestedWhen": "within 30 days", "priority": "high", "rationale": "...", "confidence": 0.76 }],
+  "maintenanceSuggestions": [{ "systemType": "HVAC", "task": "...", "suggestedWhen": "within 30 days", "priority": "high", "rationale": "...", "confidence": 0.76, "evidence": "direct quote from report" }],
   "summary": "2-3 sentence summary of the report",
   "citations": [{ "page": 3, "excerpt": "short excerpt" }]
 }
@@ -166,6 +171,16 @@ async function getPropertyContextForAnalysis(propertyId) {
 
 const SHORT_REPORT_THRESHOLD = 8000;
 const MAX_CONCURRENT_SYSTEM_CALLS = 4;
+const MIN_EVIDENCE_LENGTH = 15;
+
+/**
+ * Check if an item has valid evidence (direct quote from report).
+ * Items without evidence may be invented; we filter them out for accuracy.
+ */
+function hasValidEvidence(item) {
+  const ev = (item?.evidence || item?.rationale || "").toString().trim();
+  return ev.length >= MIN_EVIDENCE_LENGTH && !/^(n\/a|none|na|—|–|-)$/i.test(ev);
+}
 
 /**
  * Extract relevant text for a specific system from the full report.
@@ -196,6 +211,18 @@ function extractSystemSection(fullText, systemType, sectionHint) {
     }
   }
   return fullText;
+}
+
+/** Minimum length for evidence to be considered valid (filters out "N/A", "None", etc.) */
+const MIN_EVIDENCE_LENGTH = 15;
+
+/**
+ * Check if an item has valid evidence (direct quote from report).
+ * Items without evidence may be invented findings—exclude them for accuracy.
+ */
+function hasValidEvidence(item) {
+  const ev = (item?.evidence || item?.rationale || "").toString().trim();
+  return ev.length >= MIN_EVIDENCE_LENGTH;
 }
 
 /**
@@ -319,6 +346,7 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
       });
 
       for (const n of (data.needsAttention || [])) {
+        if (!hasValidEvidence(n)) continue; // Skip invented findings without report quote
         allNeedsAttention.push({
           title: n.title || "",
           systemType,
@@ -330,6 +358,7 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
       }
 
       for (const m of (data.maintenanceSuggestions || [])) {
+        if (!hasValidEvidence(m)) continue; // Skip suggestions without report quote
         allMaintenanceSuggestions.push({
           systemType,
           task: m.task || "",
@@ -562,7 +591,7 @@ async function runAnalysis(jobId) {
   }
 
   const maintenanceSuggestions = (parsed.maintenanceSuggestions || [])
-    .filter((s) => !isExcludedSystem(s.systemType))
+    .filter((s) => !isExcludedSystem(s.systemType) && hasValidEvidence(s))
     .map((s) => ({
       systemType: normalizeSystemType(s.systemType) || s.systemType,
       task: s.task || "",
@@ -573,7 +602,7 @@ async function runAnalysis(jobId) {
     }));
 
   const needsAttention = (parsed.needsAttention || [])
-    .filter((n) => !isExcludedSystem(n.systemType))
+    .filter((n) => !isExcludedSystem(n.systemType) && hasValidEvidence(n))
     .map((n) => ({
       title: n.title || "",
       systemType: n.systemType ? normalizeSystemType(n.systemType) || n.systemType : null,
