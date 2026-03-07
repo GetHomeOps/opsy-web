@@ -117,7 +117,7 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
     if (!accountId) {
       const accRes = await db.query(
         `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
-        [userId, userId]
+        [userId]
       );
       accountId = accRes.rows[0]?.account_id;
     }
@@ -173,10 +173,10 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
     if (subscription) {
       plan = { code: subscription.code, name: subscription.name, trialDays: subscription.trialDays };
       const limRes = await db.query(
-        `SELECT max_properties AS "maxProperties", max_contacts AS "maxContacts",
-                max_viewers AS "maxViewers", max_team_members AS "maxTeamMembers",
-                ai_token_monthly_quota AS "aiTokenMonthlyQuota",
-                max_documents_per_system AS "maxDocumentsPerSystem"
+        `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
+                pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
+                pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+                pl.max_documents_per_system AS "maxDocumentsPerSystem"
          FROM plan_limits pl
          JOIN subscription_products sp ON sp.id = pl.subscription_product_id
          WHERE sp.code = $1`,
@@ -190,10 +190,10 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
       if (freePlan.rows[0]) {
         plan = { code: freePlan.rows[0].code, name: freePlan.rows[0].name };
         const limRes = await db.query(
-          `SELECT max_properties AS "maxProperties", max_contacts AS "maxContacts",
-                  max_viewers AS "maxViewers", max_team_members AS "maxTeamMembers",
-                  ai_token_monthly_quota AS "aiTokenMonthlyQuota",
-                  max_documents_per_system AS "maxDocumentsPerSystem"
+          `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
+                  pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
+                  pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+                  pl.max_documents_per_system AS "maxDocumentsPerSystem"
            FROM plan_limits pl
            JOIN subscription_products sp ON sp.id = pl.subscription_product_id
            WHERE sp.code = 'homeowner_free'`
@@ -202,20 +202,40 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
       }
     }
 
-    const usageRes = await db.query(
-      `SELECT
-         (SELECT COUNT(*)::int FROM properties WHERE account_id = $1) AS "propertiesCount",
-         (SELECT COUNT(*)::int FROM account_contacts WHERE account_id = $1) AS "contactsCount"`,
-      [accountId]
-    );
-    const usage = usageRes.rows[0] || { propertiesCount: 0, contactsCount: 0 };
+    // Keep billing/status resilient in production if optional analytics tables are missing
+    // (e.g., partial migrations). A 500 here causes the activation page to spin indefinitely.
+    const usage = { propertiesCount: 0, contactsCount: 0, aiTokensUsed: 0 };
 
-    const tokensRes = await db.query(
-      `SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0)::bigint AS "aiTokensUsed"
-       FROM user_api_usage WHERE user_id = $1 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`,
-      [userId]
-    );
-    usage.aiTokensUsed = Number(tokensRes.rows[0]?.aiTokensUsed || 0);
+    try {
+      const propsRes = await db.query(
+        `SELECT COUNT(*)::int AS "propertiesCount" FROM properties WHERE account_id = $1`,
+        [accountId]
+      );
+      usage.propertiesCount = propsRes.rows[0]?.propertiesCount || 0;
+    } catch (usageErr) {
+      console.warn("[billing/status] properties usage query failed:", usageErr.message);
+    }
+
+    try {
+      const contactsRes = await db.query(
+        `SELECT COUNT(*)::int AS "contactsCount" FROM account_contacts WHERE account_id = $1`,
+        [accountId]
+      );
+      usage.contactsCount = contactsRes.rows[0]?.contactsCount || 0;
+    } catch (usageErr) {
+      console.warn("[billing/status] contacts usage query failed:", usageErr.message);
+    }
+
+    try {
+      const tokensRes = await db.query(
+        `SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0)::bigint AS "aiTokensUsed"
+         FROM user_api_usage WHERE user_id = $1 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`,
+        [userId]
+      );
+      usage.aiTokensUsed = Number(tokensRes.rows[0]?.aiTokensUsed || 0);
+    } catch (usageErr) {
+      console.warn("[billing/status] token usage query failed:", usageErr.message);
+    }
 
     return res.json({
       subscription: subscription ? {
@@ -247,7 +267,7 @@ router.get("/payment-method", ensureLoggedIn, wrapStripeErrors(async function (r
     if (!accountId) {
       const accRes = await db.query(
         `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
-        [userId, userId]
+        [userId]
       );
       accountId = accRes.rows[0]?.account_id;
     }
@@ -286,7 +306,7 @@ router.get("/invoices", ensureLoggedIn, wrapStripeErrors(async function (req, re
     if (!accountId) {
       const accRes = await db.query(
         `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
-        [userId, userId]
+        [userId]
       );
       accountId = accRes.rows[0]?.account_id;
     }
