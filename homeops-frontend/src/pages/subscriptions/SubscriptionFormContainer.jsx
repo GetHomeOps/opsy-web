@@ -7,12 +7,14 @@ import {
   Calendar,
   Database,
   Package,
+  DollarSign,
 } from "lucide-react";
 import Banner from "../../partials/containers/Banner";
 import ModalBlank from "../../components/ModalBlank";
 import DatePickerInput from "../../components/DatePickerInput";
 import {useTranslation} from "react-i18next";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
+import {useAuth} from "../../context/AuthContext";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
 import AppApi from "../../api/api";
 
@@ -92,16 +94,14 @@ function reducer(state, action) {
 
 /** Maps backend subscription object to form fields */
 function mapSubscriptionToForm(subscription) {
+  const startRaw = subscription.subscriptionStartDate ?? subscription.currentPeriodStart;
+  const endRaw = subscription.subscriptionEndDate ?? subscription.currentPeriodEnd;
   return {
     userId: subscription.userId || "",
     subscriptionProductId: subscription.subscriptionProductId || "",
-    subscriptionStatus: subscription.subscriptionStatus || "active",
-    subscriptionStartDate: subscription.subscriptionStartDate
-      ? subscription.subscriptionStartDate.split("T")[0]
-      : "",
-    subscriptionEndDate: subscription.subscriptionEndDate
-      ? subscription.subscriptionEndDate.split("T")[0]
-      : "",
+    subscriptionStatus: subscription.subscriptionStatus ?? subscription.status ?? "active",
+    subscriptionStartDate: startRaw ? String(startRaw).split("T")[0] : "",
+    subscriptionEndDate: endRaw ? String(endRaw).split("T")[0] : "",
   };
 }
 
@@ -112,7 +112,9 @@ function SubscriptionFormContainer() {
   const {t} = useTranslation();
   const navigate = useNavigate();
   const {currentAccount} = useCurrentAccount();
+  const {currentUser} = useAuth();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
+  const isSuperAdmin = currentUser?.role === "super_admin";
 
   const isNew = !id || id === "new";
 
@@ -283,39 +285,26 @@ function SubscriptionFormContainer() {
     }
   }
 
-  /** Update existing subscription */
-  async function handleUpdate(evt) {
+  /** Update subscription status only (super_admin when viewing) */
+  async function handleStatusUpdate(evt) {
     evt.preventDefault();
-    if (!validateForm()) return;
-
     dispatch({type: "SET_SUBMITTING", payload: true});
-
     try {
-      const data = {
-        subscriptionProductId: state.formData.subscriptionProductId
-          ? Number(state.formData.subscriptionProductId)
-          : null,
-        subscriptionStatus: state.formData.subscriptionStatus,
-        subscriptionStartDate: state.formData.subscriptionStartDate,
-        subscriptionEndDate: state.formData.subscriptionEndDate,
-      };
-
-      const res = await AppApi.updateSubscription(Number(id), data);
-      if (res) {
-        // Re-fetch the full subscription with joins
-        const fullSubscription = await AppApi.getSubscription(Number(id));
-        dispatch({type: "SET_SUBSCRIPTION", payload: fullSubscription});
-        dispatch({
-          type: "SET_BANNER",
-          payload: {
-            open: true,
-            type: "success",
-            message: t("subscriptions.updatedSuccessfully"),
-          },
-        });
-      }
+      await AppApi.updateSubscription(Number(id), {
+        status: state.formData.subscriptionStatus,
+      });
+      const fullSubscription = await AppApi.getSubscription(Number(id));
+      dispatch({type: "SET_SUBSCRIPTION", payload: fullSubscription});
+      dispatch({type: "SET_FORM_CHANGED", payload: false});
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message: t("subscriptions.updatedSuccessfully"),
+        },
+      });
     } catch (err) {
-      console.error("Error updating subscription:", err);
       dispatch({
         type: "SET_BANNER",
         payload: {
@@ -659,7 +648,9 @@ function SubscriptionFormContainer() {
               </div>
               <div className="flex-1 min-w-0">
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                  {getPageTitle()}
+                  {state.subscription
+                    ? t("subscriptions.subscriptionDetailsTitle")
+                    : getPageTitle()}
                 </h1>
                 {state.subscription && (
                   <div className="mt-2 space-y-1">
@@ -694,41 +685,31 @@ function SubscriptionFormContainer() {
 
         {/* Form Card */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-          <form onSubmit={isNew ? handleSubmit : handleUpdate}>
+          <form
+            onSubmit={
+              isNew
+                ? handleSubmit
+                : isSuperAdmin
+                  ? handleStatusUpdate
+                  : (e) => e.preventDefault()
+            }
+          >
             <div className="p-6">
               <div className="space-y-8">
-                {/* Subscription Details Section */}
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                    <CreditCard className="h-5 w-5 text-[#6E8276]" />
-                    {t("subscriptions.subscriptionDetails")}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Account: read-only */}
-                    <div>
-                      <label className={getLabelClasses()}>
-                        {t("subscriptions.account")}
-                      </label>
-                      <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
-                        {state.subscription?.databaseName || currentAccount?.name || "—"}
-                      </div>
-                    </div>
-
-                    {/* Admin User: read-only when editing, select when new */}
-                    <div>
-                      <label
-                        className={getLabelClasses()}
-                        htmlFor="userId"
-                      >
-                        {t("subscriptions.adminUser")}{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      {state.subscription ? (
-                        <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
-                          {state.subscription.userName || "—"}
-                        </div>
-                      ) : (
-                        <>
+                {isNew ? (
+                  <>
+                    {/* Create mode: full form */}
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                        <CreditCard className="h-5 w-5 text-[#6E8276]" />
+                        {t("subscriptions.subscriptionDetails")}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className={getLabelClasses()} htmlFor="userId">
+                            {t("subscriptions.adminUser")}{" "}
+                            <span className="text-red-500">*</span>
+                          </label>
                           <select
                             id="userId"
                             className={`form-select w-full ${state.errors.userId ? "border-red-300" : ""}`}
@@ -750,140 +731,232 @@ function SubscriptionFormContainer() {
                               <span>{state.errors.userId}</span>
                             </div>
                           )}
-                        </>
-                      )}
-                    </div>
-
-                    {/* Subscription Product */}
-                    <div>
-                      <label
-                        className={getLabelClasses()}
-                        htmlFor="subscriptionProductId"
-                      >
-                        {t("subscriptions.product")}{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        id="subscriptionProductId"
-                        className={`form-select w-full ${state.errors.subscriptionProductId ? "border-red-300" : ""}`}
-                        value={state.formData.subscriptionProductId}
-                        onChange={handleChange}
-                      >
-                        <option value="">
-                          {t("subscriptions.selectProduct")}
-                        </option>
-                        {state.products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name}
-                            {product.price ? ` — $${product.price}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                      {state.errors.subscriptionProductId && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          <span>{state.errors.subscriptionProductId}</span>
                         </div>
-                      )}
-                    </div>
-
-                    {/* Subscription Status */}
-                    <div>
-                      <label
-                        className={getLabelClasses()}
-                        htmlFor="subscriptionStatus"
-                      >
-                        {t("subscriptions.status")}{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        id="subscriptionStatus"
-                        className={`form-select w-full ${state.errors.subscriptionStatus ? "border-red-300" : ""}`}
-                        value={state.formData.subscriptionStatus}
-                        onChange={handleChange}
-                      >
-                        <option value="">
-                          {t("subscriptions.selectStatus")}
-                        </option>
-                        {statusOptions.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                      {state.errors.subscriptionStatus && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          <span>{state.errors.subscriptionStatus}</span>
+                        <div>
+                          <label
+                            className={getLabelClasses()}
+                            htmlFor="subscriptionProductId"
+                          >
+                            {t("subscriptions.product")}{" "}
+                            <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            id="subscriptionProductId"
+                            className={`form-select w-full ${state.errors.subscriptionProductId ? "border-red-300" : ""}`}
+                            value={state.formData.subscriptionProductId}
+                            onChange={handleChange}
+                          >
+                            <option value="">
+                              {t("subscriptions.selectProduct")}
+                            </option>
+                            {state.products.map((product) => (
+                              <option key={product.id} value={product.id}>
+                                {product.name}
+                                {product.price ? ` — $${product.price}` : ""}
+                              </option>
+                            ))}
+                          </select>
+                          {state.errors.subscriptionProductId && (
+                            <div className="mt-1 flex items-center text-sm text-red-500">
+                              <AlertCircle className="h-4 w-4 mr-1" />
+                              <span>{state.errors.subscriptionProductId}</span>
+                            </div>
+                          )}
                         </div>
-                      )}
+                        <div>
+                          <label
+                            className={getLabelClasses()}
+                            htmlFor="subscriptionStatus"
+                          >
+                            {t("subscriptions.status")}{" "}
+                            <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            id="subscriptionStatus"
+                            className={`form-select w-full ${state.errors.subscriptionStatus ? "border-red-300" : ""}`}
+                            value={state.formData.subscriptionStatus}
+                            onChange={handleChange}
+                          >
+                            <option value="">
+                              {t("subscriptions.selectStatus")}
+                            </option>
+                            {statusOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          {state.errors.subscriptionStatus && (
+                            <div className="mt-1 flex items-center text-sm text-red-500">
+                              <AlertCircle className="h-4 w-4 mr-1" />
+                              <span>{state.errors.subscriptionStatus}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-[#6E8276]" />
+                        {t("subscriptions.dates")}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label
+                            className={getLabelClasses()}
+                            htmlFor="subscriptionStartDate"
+                          >
+                            {t("subscriptions.startDate")}{" "}
+                            <span className="text-red-500">*</span>
+                          </label>
+                          <DatePickerInput
+                            name="subscriptionStartDate"
+                            value={state.formData.subscriptionStartDate}
+                            onChange={handleChange}
+                            className={getInputClasses("subscriptionStartDate")}
+                            required
+                          />
+                          {state.errors.subscriptionStartDate && (
+                            <div className="mt-1 flex items-center text-sm text-red-500">
+                              <AlertCircle className="h-4 w-4 mr-1" />
+                              <span>{state.errors.subscriptionStartDate}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label
+                            className={getLabelClasses()}
+                            htmlFor="subscriptionEndDate"
+                          >
+                            {t("subscriptions.endDate")}{" "}
+                            <span className="text-red-500">*</span>
+                          </label>
+                          <DatePickerInput
+                            name="subscriptionEndDate"
+                            value={state.formData.subscriptionEndDate}
+                            onChange={handleChange}
+                            className={getInputClasses("subscriptionEndDate")}
+                            required
+                          />
+                          {state.errors.subscriptionEndDate && (
+                            <div className="mt-1 flex items-center text-sm text-red-500">
+                              <AlertCircle className="h-4 w-4 mr-1" />
+                              <span>{state.errors.subscriptionEndDate}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* View mode: read-only details, status editable by super_admin only */
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                      <CreditCard className="h-5 w-5 text-[#6E8276]" />
+                      {t("subscriptions.subscriptionDetailsTitle")}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className={getLabelClasses()}>
+                          {t("subscriptions.pricePaid")}
+                        </label>
+                        <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
+                          {state.subscription?.subscriptionProductPrice != null
+                            ? `$${state.subscription.subscriptionProductPrice}`
+                            : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <label className={getLabelClasses()}>
+                          {t("subscriptions.subscriptionPlan")}
+                        </label>
+                        <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
+                          {state.subscription?.subscriptionProductName || "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <label className={getLabelClasses()}>
+                          {t("subscriptions.account")}
+                        </label>
+                        <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
+                          {state.subscription?.databaseName ??
+                            state.subscription?.accountName ??
+                            "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <label className={getLabelClasses()}>
+                          {t("subscriptions.userType")}
+                        </label>
+                        <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed capitalize">
+                          {state.subscription?.userType === "agent" ||
+                          state.subscription?.userType === "homeowner"
+                            ? state.subscription.userType
+                            : state.subscription?.userType || "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <label
+                          className={getLabelClasses()}
+                          htmlFor="subscriptionStatus"
+                        >
+                          {t("subscriptions.status")}
+                        </label>
+                        {isSuperAdmin ? (
+                          <select
+                            id="subscriptionStatus"
+                            className="form-select w-full"
+                            value={state.formData.subscriptionStatus}
+                            onChange={handleChange}
+                          >
+                            {statusOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed capitalize">
+                            {statusOptions.find(
+                              (o) =>
+                                o.value.toLowerCase() ===
+                                (state.formData.subscriptionStatus || "").toLowerCase()
+                            )?.label || state.formData.subscriptionStatus || "—"}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className={getLabelClasses()}>
+                          {t("subscriptions.startDate")}
+                        </label>
+                        <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
+                          {state.formData.subscriptionStartDate || "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <label className={getLabelClasses()}>
+                          {t("subscriptions.endDate")}
+                        </label>
+                        <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
+                          {state.formData.subscriptionEndDate || "—"}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                {/* Dates Section */}
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-[#6E8276]" />
-                    {t("subscriptions.dates")}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Start Date */}
-                    <div>
-                      <label
-                        className={getLabelClasses()}
-                        htmlFor="subscriptionStartDate"
-                      >
-                        {t("subscriptions.startDate")}{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <DatePickerInput
-                        name="subscriptionStartDate"
-                        value={state.formData.subscriptionStartDate}
-                        onChange={handleChange}
-                        className={getInputClasses("subscriptionStartDate")}
-                        required
-                      />
-                      {state.errors.subscriptionStartDate && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          <span>{state.errors.subscriptionStartDate}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* End Date */}
-                    <div>
-                      <label
-                        className={getLabelClasses()}
-                        htmlFor="subscriptionEndDate"
-                      >
-                        {t("subscriptions.endDate")}{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <DatePickerInput
-                        name="subscriptionEndDate"
-                        value={state.formData.subscriptionEndDate}
-                        onChange={handleChange}
-                        className={getInputClasses("subscriptionEndDate")}
-                        required
-                      />
-                      {state.errors.subscriptionEndDate && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          <span>{state.errors.subscriptionEndDate}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
-            {/* Sticky Action Bar */}
+            {/* Sticky Action Bar - create mode always, view mode only when super_admin and status changed */}
             <div
               className={`${
-                state.formDataChanged || isNew ? "sticky" : "hidden"
+                isNew
+                  ? state.formDataChanged
+                    ? "sticky"
+                    : "hidden"
+                  : isSuperAdmin && state.formDataChanged
+                    ? "sticky"
+                    : "hidden"
               } bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-lg transition-all duration-200`}
             >
               <div className="flex justify-end gap-3">

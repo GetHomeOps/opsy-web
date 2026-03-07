@@ -92,6 +92,7 @@ function UsersList() {
     handleSort,
     deleteUser,
     bulkDuplicateUsers,
+    refetchUsers,
   } = useContext(userContext);
   const {t, i18n} = useTranslation();
   const navigate = useNavigate();
@@ -102,6 +103,11 @@ function UsersList() {
     ...initialState,
     currentPage: Number(localStorage.getItem(PAGE_STORAGE_KEY)) || 1,
   });
+
+  // Refetch users when navigating to this page to ensure all users are loaded
+  useEffect(() => {
+    refetchUsers?.();
+  }, [refetchUsers]);
 
   // Memoize filtered users based on search term
   const filteredUsers = useMemo(() => {
@@ -175,8 +181,6 @@ function UsersList() {
   function handleItemsPerPageChange(value) {
     dispatch({type: "SET_ITEMS_PER_PAGE", payload: Number(value)});
   }
-
-  console.log("Users: ", users);
 
   function handleNewUserClick() {
     navigate(`/${accountUrl}/users/new`);

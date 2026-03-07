@@ -746,13 +746,27 @@ class AppApi {
       userName: s.ownerName ?? s.userName,
       userEmail: s.ownerEmail ?? s.userEmail,
       subscriptionProductName: s.productName ?? s.subscriptionProductName,
+      subscriptionProductPrice: s.productPrice ?? s.subscriptionProductPrice,
       subscriptionStatus: s.status ?? s.subscriptionStatus,
+      userType: s.ownerRole ?? s.targetRole ?? null,
     }));
   }
 
   static async getSubscription(id) {
     let res = await this.request(`subscriptions/${id}`);
-    return res.subscription;
+    const s = res.subscription;
+    if (!s) return null;
+    return {
+      ...s,
+      databaseName: s.accountName ?? s.databaseName,
+      userName: s.ownerName ?? s.userName,
+      userEmail: s.ownerEmail ?? s.userEmail,
+      subscriptionProductName: s.productName ?? s.subscriptionProductName,
+      subscriptionProductPrice: s.productPrice ?? s.subscriptionProductPrice,
+      subscriptionStatus: s.status ?? s.subscriptionStatus,
+      userType: s.ownerRole ?? s.targetRole ?? null,
+      accountName: s.accountName ?? s.databaseName,
+    };
   }
 
   static async getSubscriptionsByAccountId(accountId) {

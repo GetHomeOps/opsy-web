@@ -1,4 +1,4 @@
-import React, {createContext, useState, useContext, useEffect} from "react";
+import React, {createContext, useState, useContext, useEffect, useCallback} from "react";
 import {useTableSort} from "../hooks/useTableSort";
 import AppApi from "../api/api";
 import {useAuth} from "./AuthContext";
@@ -33,7 +33,7 @@ export function UserProvider({children}) {
     customComparators: customListComparators,
   });
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     if (isLoading || !currentUser) return;
 
     try {
@@ -51,11 +51,15 @@ export function UserProvider({children}) {
     } catch (err) {
       console.error("There was an error retrieving users:", err);
     }
-  };
+  }, [isLoading, currentUser, currentAccount?.id]);
 
   useEffect(() => {
     fetchUsers();
-  }, [isLoading, currentUser, currentAccount]);
+  }, [fetchUsers]);
+
+  const refetchUsers = useCallback(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   /* Handle selection state */
   const handleToggleSelection = (ids, isSelected) => {
@@ -266,6 +270,7 @@ export function UserProvider({children}) {
         bulkDuplicateUsers,
         createUserInvitation,
         confirmInvitation,
+        refetchUsers,
         sortedUsers: listSortedItems,
         sortConfig: listSortConfig,
         handleSort: handleListSort,

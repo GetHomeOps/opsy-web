@@ -151,6 +151,7 @@ function SubscriptionsList() {
         const userName = (sub.userName || "").toLowerCase();
         const userEmail = (sub.userEmail || "").toLowerCase();
         const subType = (sub.subscriptionType || "").toLowerCase();
+        const userType = (sub.userType || "").toLowerCase();
         const subStatus = (sub.subscriptionStatus || "").toLowerCase();
         const productName = (sub.subscriptionProductName || "").toLowerCase();
 
@@ -159,6 +160,7 @@ function SubscriptionsList() {
           userName.includes(searchLower) ||
           userEmail.includes(searchLower) ||
           subType.includes(searchLower) ||
+          userType.includes(searchLower) ||
           subStatus.includes(searchLower) ||
           productName.includes(searchLower)
         );
@@ -395,6 +397,14 @@ function SubscriptionsList() {
       label: t("email"),
       sortable: true,
       render: (value) => value || "—",
+    },
+    {
+      key: "userType",
+      label: t("subscriptions.userType"),
+      sortable: true,
+      render: (value) => (
+        <span className="capitalize">{value === "agent" || value === "homeowner" ? value : value || "—"}</span>
+      ),
     },
     {
       key: "subscriptionProductName",
