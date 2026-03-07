@@ -259,7 +259,7 @@ export function AuthProvider({children}) {
 
     if (!userAccounts || userAccounts.length === 0) {
       try {
-        userAccounts = await createDefaultAccount(userId, currentUser, email);
+        userAccounts = await createAccount({currentUser, userId});
         console.log("User accounts after creation:", userAccounts);
       } catch (createError) {
         console.error(

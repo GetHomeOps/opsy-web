@@ -1,11 +1,5 @@
 import React from "react";
 import {Routes, Route, Navigate, useParams} from "react-router-dom";
-
-function BillingPlansRedirect() {
-  const {accountUrl} = useParams();
-  return <Navigate to={`/${accountUrl}/subscription-products`} replace />;
-}
-
 import "../../css/style.css";
 
 import {Loader2} from "lucide-react";
@@ -83,6 +77,11 @@ import CommunicationsList from "../communications/CommunicationsList";
 import CommunicationComposer from "../communications/CommunicationComposer";
 import CommunicationViewerPage from "../communications/CommunicationViewerPage";
 import Calendar from "../calendar/Calendar";
+
+function BillingPlansRedirect() {
+  const {accountUrl} = useParams();
+  return <Navigate to={`/${accountUrl}/subscription-products`} replace />;
+}
 
 function RoutesList() {
   const {currentUser, isLoading} = useAuth();
