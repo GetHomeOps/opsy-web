@@ -135,21 +135,22 @@ class User {
   static async getById(id) {
     const result = await db.query(
       `SELECT id,
-              email,
-              name,
-              phone,
-              role,
-              contact_id AS "contact",
-              is_active AS "isActive",
-              image,
-              auth_provider AS "authProvider",
-              google_sub AS "googleSub",
-              avatar_url AS "avatarUrl",
-              email_verified AS "emailVerified",
-              mfa_enabled AS "mfaEnabled",
-              mfa_enrolled_at AS "mfaEnrolledAt",
-              subscription_tier AS "subscriptionTier",
-              onboarding_completed AS "onboardingCompleted"
+             email,
+             name,
+             phone,
+             role,
+             contact_id AS "contact",
+             is_active AS "isActive",
+             image,
+             auth_provider AS "authProvider",
+             google_sub AS "googleSub",
+             avatar_url AS "avatarUrl",
+             email_verified AS "emailVerified",
+             mfa_enabled AS "mfaEnabled",
+             mfa_enrolled_at AS "mfaEnrolledAt",
+             subscription_tier AS "subscriptionTier",
+             onboarding_completed AS "onboardingCompleted",
+             welcome_modal_dismissed AS "welcomeModalDismissed"
        FROM users
        WHERE id = $1`,
       [id]
@@ -166,7 +167,8 @@ class User {
               google_sub AS "googleSub", avatar_url AS "avatarUrl",
               email_verified AS "emailVerified",
               subscription_tier AS "subscriptionTier",
-              onboarding_completed AS "onboardingCompleted"
+              onboarding_completed AS "onboardingCompleted",
+              welcome_modal_dismissed AS "welcomeModalDismissed"
        FROM users WHERE google_sub = $1`,
       [googleSub]
     );
@@ -182,7 +184,8 @@ class User {
               google_sub AS "googleSub", avatar_url AS "avatarUrl",
               email_verified AS "emailVerified",
               subscription_tier AS "subscriptionTier",
-              onboarding_completed AS "onboardingCompleted"
+              onboarding_completed AS "onboardingCompleted",
+              welcome_modal_dismissed AS "welcomeModalDismissed"
        FROM users WHERE email = $1`,
       [email]
     );
@@ -253,7 +256,8 @@ class User {
                mfa_enabled AS "mfaEnabled",
                mfa_enrolled_at AS "mfaEnrolledAt",
                subscription_tier AS "subscriptionTier",
-               onboarding_completed AS "onboardingCompleted"
+               onboarding_completed AS "onboardingCompleted",
+               welcome_modal_dismissed AS "welcomeModalDismissed"
         FROM users
         WHERE email=$1`,
         [email]
@@ -377,7 +381,7 @@ class User {
      * Callers of this function must be certain they have validated inputs to this
      * or serious security risks are opened.
      */
-  static async update({ id, name, phone, contact, image, avatar_url }) {
+  static async update({ id, name, phone, contact, image, avatar_url, welcome_modal_dismissed }) {
     try {
       const fields = {};
       if (name !== undefined) fields.name = name;
@@ -385,6 +389,7 @@ class User {
       if (contact !== undefined) fields.contact_id = contact;
       if (image !== undefined) fields.image = image;
       if (avatar_url !== undefined) fields.avatar_url = avatar_url;
+      if (welcome_modal_dismissed !== undefined) fields.welcome_modal_dismissed = welcome_modal_dismissed;
 
       if (Object.keys(fields).length === 0) {
         throw new BadRequestError("No data to update");
@@ -407,7 +412,8 @@ class User {
                 role,
                 contact_id AS "contact",
                 is_active AS "isActive",
-                image
+                image,
+                welcome_modal_dismissed AS "welcomeModalDismissed"
                 `;
       const result = await db.query(querySql, [...values, id]);
       const user = result.rows[0];

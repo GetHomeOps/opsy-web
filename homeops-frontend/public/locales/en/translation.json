@@ -545,6 +545,7 @@
   "createAccount": "Create Account",
   "signIn": "Sign In",
   "signInWithGoogle": "Sign in with Google",
+  "redirecting": "Redirecting…",
   "signOut": "Sign Out",
   "privacyPolicy.link": "Privacy Policy",
   "signUp": "Sign Up",

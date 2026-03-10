@@ -463,11 +463,8 @@ async function handleGoogleCallback(req, res, next, intent) {
         await User.update({ id: newUser.id, contact: contact.id });
         await db.query("COMMIT");
         user = await User.getById(newUser.id);
-        try {
-          await onUserCreated({ userId: user.id, role: user.role || null });
-        } catch (autoErr) {
-          console.error("[resourceAutoSend] Google signup:", autoErr.message);
-        }
+        onUserCreated({ userId: user.id, role: user.role || null })
+          .catch((autoErr) => console.error("[resourceAutoSend] Google signup:", autoErr.message));
       } catch (err) {
         await db.query("ROLLBACK");
         throw err;
@@ -491,9 +488,8 @@ async function handleGoogleCallback(req, res, next, intent) {
     }
 
     const { accessToken, refreshToken } = await issueTokenPair(user);
-    try {
-      await PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: { provider: "google" } });
-    } catch (logErr) { /* don't block */ }
+    PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: { provider: "google" } })
+      .catch(() => {});
 
     return res.redirect(redirectWithToken(accessToken, refreshToken));
   } catch (err) {

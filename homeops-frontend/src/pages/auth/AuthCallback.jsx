@@ -21,6 +21,12 @@ function AuthCallback() {
   const [errorMessage, setErrorMessage] = useState("");
   const processed = useRef(false);
 
+  // Hide the static placeholder once React has rendered (shows our loading UI)
+  useEffect(() => {
+    const el = document.getElementById("oauth-callback-placeholder");
+    if (el) el.style.display = "none";
+  }, []);
+
   useEffect(() => {
     if (processed.current) return;
     processed.current = true;
@@ -73,9 +79,12 @@ function AuthCallback() {
 
   if (status === "loading") {
     return (
-      <main className="min-h-[100dvh] bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4">
-        <Loader2 className="w-10 h-10 animate-spin text-violet-600 dark:text-violet-400" aria-hidden />
-        <p className="mt-4 text-gray-600 dark:text-gray-400">Completing sign in...</p>
+      <main className="min-h-[100dvh] bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4 fixed inset-0 z-[9998]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-12 h-12 animate-spin text-violet-600 dark:text-violet-400" aria-hidden />
+          <p className="text-gray-600 dark:text-gray-400 font-medium">Completing sign in…</p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">This may take a few seconds</p>
+        </div>
       </main>
     );
   }

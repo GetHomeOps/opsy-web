@@ -243,7 +243,7 @@ function Signup() {
       ) : (
         <GoogleSvg />
       )}
-      {t("signup.signUpWithGoogle")}
+      {oauthLoading ? (t("redirecting") || "Redirecting…") : t("signup.signUpWithGoogle")}
     </a>
   );
 

@@ -44,6 +44,7 @@ CREATE TABLE users (
     mfa_enrolled_at TIMESTAMPTZ,
     subscription_tier VARCHAR(50),
     onboarding_completed BOOLEAN DEFAULT true,
+    welcome_modal_dismissed BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

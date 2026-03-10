@@ -1,39 +1,55 @@
 import React, {useState, useEffect, useCallback} from "react";
-import {useNavigate} from "react-router-dom";
+import {useNavigate, useSearchParams} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {Home, Calendar, Search, ArrowRight, Sparkles} from "lucide-react";
 import ModalBlank from "./ModalBlank";
 import {useAuth} from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
+import AppApi from "../api/api";
 import OpsyMascot from "../images/opsy2.png";
 
-const STORAGE_KEY_PREFIX = "opsy-welcome-dismissed";
-
-function getStorageKey(userId) {
-  return `${STORAGE_KEY_PREFIX}-${userId}`;
-}
+/** Roles that should see the welcome modal (agents and homeowners only). */
+const WELCOME_MODAL_ROLES = new Set(["agent", "homeowner"]);
 
 function WelcomeModal() {
-  const {currentUser} = useAuth();
+  const {currentUser, refreshCurrentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const {t} = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [modalOpen, setModalOpen] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
+
+  const userId = currentUser?.id ?? currentUser?.userId;
+  const role = (currentUser?.role ?? "").toLowerCase();
+  const showForRole = WELCOME_MODAL_ROLES.has(role);
 
   useEffect(() => {
-    if (!currentUser?.id) return;
-    const dismissed = localStorage.getItem(getStorageKey(currentUser.id));
+    if (!userId || !showForRole) return;
+    const forceShow = searchParams.get("show_welcome") === "1";
+    const backendDismissed = currentUser?.welcomeModalDismissed === true;
+    const dismissed = !forceShow && backendDismissed;
     if (!dismissed) {
       setModalOpen(true);
     }
-  }, [currentUser?.id]);
+  }, [userId, showForRole, currentUser?.welcomeModalDismissed, searchParams]);
 
-  const handleDismiss = useCallback(() => {
-    if (currentUser?.id) {
-      localStorage.setItem(getStorageKey(currentUser.id), "true");
+  const handleDismiss = useCallback(async () => {
+    if (!userId) {
+      setModalOpen(false);
+      return;
+    }
+    setDismissing(true);
+    try {
+      await AppApi.dismissWelcomeModal(userId);
+      refreshCurrentUser?.();
+    } catch {
+      // Still close locally so UX isn't blocked
+    } finally {
+      setDismissing(false);
     }
     setModalOpen(false);
-  }, [currentUser?.id]);
+  }, [userId, refreshCurrentUser]);
 
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 

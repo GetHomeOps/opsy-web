@@ -225,6 +225,12 @@ class AppApi {
     return res.user;
   }
 
+  /** Mark welcome modal as dismissed for the current user. Persists on backend. */
+  static async dismissWelcomeModal(userId) {
+    const res = await this.request(`users/${userId}`, { welcome_modal_dismissed: true }, "PATCH");
+    return res.user;
+  }
+
   static async getAllUsers() {
     let res = await this.request(`users`);
     return res.users;
