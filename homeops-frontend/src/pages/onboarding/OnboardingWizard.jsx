@@ -11,6 +11,7 @@ import {
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import opsyImg from "../../images/opsy1.png";
+import OpsyHeader from "../../images/OpsyHeader.png";
 import {HOMEOWNER_PLANS, AGENT_PLANS, PLAN_LIMITS} from "./onboardingPlans";
 
 const PLAN_CODE_TO_TIER = {
@@ -532,8 +533,14 @@ export default function OnboardingWizard() {
 
   return (
     <main
-      className="min-h-[100dvh] flex flex-col transition-colors duration-500 bg-white dark:bg-gray-900"
+      className="relative min-h-[100dvh] flex flex-col transition-colors duration-500 bg-white dark:bg-gray-900"
     >
+      {/* Opsy logo – top right, scrolls with content */}
+      <img
+        src={OpsyHeader}
+        alt="Opsy"
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 md:top-6 md:right-8 h-8 sm:h-10 md:h-12 w-auto object-contain object-right"
+      />
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">
         <img
           src={opsyImg}

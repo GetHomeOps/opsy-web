@@ -59,6 +59,10 @@ function AuthCallback() {
           setErrorMessage(err?.message || "Failed to complete sign in.");
         });
     } else if (params.error) {
+      if (params.error === "account_exists") {
+        navigate("/signin", { replace: true, state: { fromSignup: true, oauthAccountExists: true } });
+        return;
+      }
       setStatus("error");
       setErrorMessage(ERROR_MESSAGES[params.error] || params.error);
     } else {

@@ -563,6 +563,8 @@
   "signup.step2Subtitle": "Paso 2 de 2 — Crea tu contraseña",
   "signup.passwordPlaceholder": "Al menos 7 caracteres",
   "signup.emailExistsSignIn": "Ya existe una cuenta con este correo. Inicia sesión abajo.",
+  "signup.checkEmailError": "No se pudo verificar el correo. Inténtalo de nuevo.",
+  "checking": "Verificando...",
   "signingIn": "Iniciando sesión...",
   "signingUp": "Registrando...",
   "state": "Provincia/Estado",

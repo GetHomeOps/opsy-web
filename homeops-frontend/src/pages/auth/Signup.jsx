@@ -3,7 +3,7 @@ import {Link, useNavigate} from "react-router-dom";
 import {AlertCircle, ChevronLeft, ExternalLink, Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import {useTranslation} from "react-i18next";
-import {API_BASE_URL} from "../../api/api";
+import AppApi, { API_BASE_URL } from "../../api/api";
 import "../../i18n";
 
 import OpsyHeader from "../../images/OpsyHeader.png";
@@ -33,6 +33,7 @@ function Signup() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
   const justSignedUp = useRef(false);
   const passwordRef = useRef(null);
 
@@ -100,13 +101,29 @@ function Signup() {
     return err;
   }
 
-  function handleContinueEmail(evt) {
+  async function handleContinueEmail(evt) {
     evt?.preventDefault?.();
     setFormErrors([]);
     const err = validateEmail();
     setFieldErrors(err);
     if (Object.keys(err).length > 0) return;
-    setStep(2);
+
+    setCheckingEmail(true);
+    try {
+      const { exists } = await AppApi.checkEmailExists(formData.email.trim());
+      if (exists) {
+        navigate("/signin", {
+          replace: true,
+          state: { fromSignup: true, email: formData.email.trim() },
+        });
+        return;
+      }
+      setStep(2);
+    } catch (apiErr) {
+      setFormErrors([t("signup.checkEmailError", "Could not verify email. Please try again.")]);
+    } finally {
+      setCheckingEmail(false);
+    }
   }
 
   function handleContinuePassword(evt) {
@@ -362,10 +379,13 @@ function Signup() {
                 <div className="mt-4">
                   <button
                     type="submit"
-                    disabled={step === 1 ? !emailValid : !passwordValid}
-                    className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={step === 1 ? !emailValid || checkingEmail : !passwordValid}
+                    className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    {t("continue")}
+                    {checkingEmail && (
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
+                    )}
+                    {checkingEmail ? t("checking") : t("continue")}
                   </button>
                 </div>
               </form>

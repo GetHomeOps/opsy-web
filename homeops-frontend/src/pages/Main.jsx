@@ -9,6 +9,7 @@ import AppApi from "../api/api";
 import HomeownerHome from "./home/HomeownerHome";
 import AgentHome from "./home/AgentHome";
 import SuperAdminHome from "./home/SuperAdminHome";
+import WelcomeModal from "../components/WelcomeModal";
 
 /**
  * Main — layout shell for the authenticated home page.
@@ -86,6 +87,8 @@ function Main() {
             <HomeComponent />
           </div>
         </main>
+
+        <WelcomeModal />
       </div>
     </div>
   );

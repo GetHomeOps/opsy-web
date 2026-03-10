@@ -67,7 +67,7 @@ class AppApi {
   }
 
   /** Refresh token if expired/expiring. Returns fresh token or null. Skips for pure auth endpoints (login, register, etc.). */
-  static AUTH_NO_REFRESH = new Set(["auth/login", "auth/register", "auth/refresh", "auth/forgot-password", "auth/reset-password", "auth/google/signin", "auth/google/signup"]);
+  static AUTH_NO_REFRESH = new Set(["auth/login", "auth/register", "auth/refresh", "auth/forgot-password", "auth/reset-password", "auth/google/signin", "auth/google/signup", "auth/check-email"]);
   static async ensureValidToken(endpoint) {
     const token = AppApi.getToken();
     if (!token || AppApi.AUTH_NO_REFRESH.has(endpoint)) return token;
@@ -211,6 +211,12 @@ class AppApi {
 
   static async signup(data) {
     let res = await this.request(`auth/register`, data, "POST");
+    return res;
+  }
+
+  /** Check if a user already exists with this email (for signup flow). Returns { exists: boolean }. */
+  static async checkEmailExists(email) {
+    const res = await this.request(`auth/check-email`, { email }, "GET");
     return res;
   }
 

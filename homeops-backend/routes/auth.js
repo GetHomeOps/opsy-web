@@ -89,6 +89,21 @@ router.post("/token", async function (req, res, next) {
   }
 });
 
+/** GET /auth/check-email?email=... - Check if a user exists for signup flow.
+ * Returns { exists: boolean }. Used to redirect existing users to sign in. */
+router.get("/check-email", async function (req, res, next) {
+  const email = (req.query.email || "").trim();
+  if (!email) {
+    return res.json({ exists: false });
+  }
+  try {
+    const user = await User.findByEmailOrNull(email);
+    return res.json({ exists: !!user });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.post("/register", async function (req, res, next) {
   const userData = req.body.userData || req.body;
   if (!userData || typeof userData !== "object") {
