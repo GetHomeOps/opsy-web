@@ -9,7 +9,7 @@ import "../../i18n";
 import OpsyHeader from "../../images/OpsyHeader.png";
 import MountRainier from "../../images/MountRainier.png";
 
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 7;
 const EMAIL_REGEX = /\S+@\S+\.\S+/;
 
 function isValidEmail(email) {
