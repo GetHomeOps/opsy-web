@@ -3,7 +3,6 @@ import {useNavigate} from "react-router-dom";
 import {
   Home,
   Briefcase,
-  ChevronLeft,
   ChevronRight,
   Check,
   X as XIcon,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
+import opsyImg from "../../images/opsy1.png";
 import {HOMEOWNER_PLANS, AGENT_PLANS, PLAN_LIMITS} from "./onboardingPlans";
 
 const PLAN_CODE_TO_TIER = {
@@ -525,6 +525,11 @@ export default function OnboardingWizard() {
       className="min-h-[100dvh] flex flex-col transition-colors duration-500 bg-white dark:bg-gray-900"
     >
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+        <img
+          src={opsyImg}
+          alt="Opsy"
+          className="w-36 h-auto mb-6 object-contain"
+        />
         <StepIndicator currentStep={step} totalSteps={3} />
 
         <div className={`w-full ${step === 2 ? "max-w-6xl" : "max-w-2xl"}`}>
@@ -553,17 +558,8 @@ export default function OnboardingWizard() {
         )}
 
         <div
-          className={`flex items-center justify-between w-full mt-10 gap-4 ${step === 2 ? "max-w-6xl" : "max-w-2xl"}`}
+          className={`flex items-center justify-end w-full mt-10 gap-4 ${step === 2 ? "max-w-6xl" : "max-w-2xl"}`}
         >
-          <button
-            type="button"
-            onClick={() => setStep((s) => Math.max(1, s - 1))}
-            disabled={step === 1}
-            className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back
-          </button>
           {step < 3 ? (
             <button
               type="button"
