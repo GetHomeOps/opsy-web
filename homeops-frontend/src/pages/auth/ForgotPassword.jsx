@@ -52,12 +52,12 @@ function ForgotPassword() {
         <div className="absolute inset-0 bg-white/30 dark:bg-gray-900/30" />
 
         <div className="relative flex-1 flex flex-col items-center justify-center px-4 py-8">
-          <div className="w-full max-w-sm">
-            <div className="flex justify-center mb-8">
-              <Link className="block" to="/">
-                <img src={Logo} alt="Logo" className="w-15 h-15" />
-              </Link>
-            </div>
+        <div className="w-full max-w-[30rem]">
+          <div className="flex justify-center mb-8">
+            <Link className="block" to="/">
+              <img src={Logo} alt="Logo" className="w-15 h-15" />
+            </Link>
+          </div>
 
             <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm px-6 py-8 text-center">
               <div className="w-12 h-12 rounded-full bg-[#456564]/10 dark:bg-[#7aa3a2]/20 flex items-center justify-center mx-auto mb-4">
@@ -94,7 +94,7 @@ function ForgotPassword() {
       <div className="absolute inset-0 bg-white/30 dark:bg-gray-900/30" />
 
       <div className="relative flex-1 flex flex-col items-center justify-center px-4 py-8">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-[30rem]">
           <div className="flex justify-center mb-8">
             <Link className="block" to="/">
               <img src={Logo} alt="Logo" className="w-15 h-15" />

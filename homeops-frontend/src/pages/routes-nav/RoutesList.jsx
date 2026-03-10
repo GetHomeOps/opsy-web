@@ -18,6 +18,7 @@ import AuthCallback from "../auth/AuthCallback";
 import ForgotPassword from "../auth/ForgotPassword";
 import ResetPassword from "../auth/ResetPassword";
 import ContractorReportPage from "../properties/ContractorReportPage";
+import PrivacyPolicy from "../legal/PrivacyPolicy";
 
 // Private pages (sidebar/navbar only when authenticated, guarded by ProtectedRoute)
 import Account from "../accountSettings/Account";
@@ -138,6 +139,14 @@ function RoutesList() {
         element={
           <PublicRoute>
             <ResetPassword />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/privacy-policy"
+        element={
+          <PublicRoute>
+            <PrivacyPolicy />
           </PublicRoute>
         }
       />

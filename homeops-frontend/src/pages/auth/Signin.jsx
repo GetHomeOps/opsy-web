@@ -6,7 +6,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {useTranslation} from "react-i18next";
-import {AlertCircle, Loader2, ShieldCheck} from "lucide-react";
+import {AlertCircle, ExternalLink, Loader2, ShieldCheck} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import {API_BASE_URL} from "../../api/api";
 import "../../i18n";
@@ -261,7 +261,7 @@ function Signin() {
                       className="text-sm text-[#6E8276] hover:text-[#456564] dark:text-[#7aa3a2] dark:hover:text-[#9cb8b7] hover:underline"
                       to="/forgot-password"
                     >
-                      {t("forgotPassword")}
+                      {t("cantLogIn")}
                     </Link>
                     <button
                       type="submit"
@@ -315,16 +315,27 @@ function Signin() {
                   {t("signInWithGoogle")}
                 </a>
 
-                <div className="pt-5 mt-6 border-t border-gray-200 dark:border-gray-600 text-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {t("noAccount")}{" "}
-                  </span>
-                  <Link
-                    className="text-sm font-medium text-[#6E8276] hover:text-[#456564] dark:text-[#7aa3a2] dark:hover:text-[#9cb8b7]"
-                    to="/signup"
+                <div className="pt-5 mt-6 border-t border-gray-200 dark:border-gray-600 text-center space-y-2">
+                  <div>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {t("noAccount")}{" "}
+                    </span>
+                    <Link
+                      className="text-sm font-medium text-[#6E8276] hover:text-[#456564] dark:text-[#7aa3a2] dark:hover:text-[#9cb8b7]"
+                      to="/signup"
+                    >
+                      {t("signUp")}
+                    </Link>
+                  </div>
+                  <a
+                    href="/privacy-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[#6E8276] hover:text-[#456564] dark:text-[#7aa3a2] dark:hover:text-[#9cb8b7] hover:underline flex items-center justify-center gap-1.5"
                   >
-                    {t("signUp")}
-                  </Link>
+                    {t("privacyPolicy.link") || "Privacy Policy"}
+                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                  </a>
                 </div>
               </>
             )}
