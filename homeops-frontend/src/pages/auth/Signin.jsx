@@ -19,8 +19,10 @@ function Signin() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const {login, completeMfaLogin, currentUser} = useAuth();
+  const fromSignup = location.state?.fromSignup;
+  const signupEmail = location.state?.email;
   const [formData, setFormData] = useState({
-    email: "",
+    email: signupEmail ?? "",
     password: "",
   });
   const [formErrors, setFormErrors] = useState([]);
@@ -140,6 +142,14 @@ function Signin() {
             <h1 className="text-2xl text-gray-800 dark:text-gray-100 font-semibold text-center mb-6">
               {t("welcome")}
             </h1>
+
+            {fromSignup && (
+              <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 mb-4">
+                <p className="text-sm text-emerald-800 dark:text-emerald-200">
+                  {t("signup.emailExistsSignIn", "An account with this email already exists. Sign in below.")}
+                </p>
+              </div>
+            )}
 
             {errorMessage && (
               <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 flex items-center gap-2 mb-4">
