@@ -242,30 +242,36 @@ function Step2Plan({
               <button
                 type="button"
                 onClick={() => onBillingIntervalChange?.("month")}
-                className={`relative z-10 w-24 py-2 rounded-full text-sm font-medium transition-colors ${
+                className={`relative z-10 w-32 py-2.5 rounded-full text-sm font-medium transition-colors duration-300 flex flex-col items-center leading-tight ${
                   billingInterval === "month"
                     ? "text-white"
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                 }`}
               >
-                Monthly
+                <span>Pay Monthly</span>
+                <span className={`text-xs transition-colors duration-300 ${billingInterval === "month" ? "text-white/90" : "text-gray-500 dark:text-gray-500"}`}>
+                  Commit monthly
+                </span>
               </button>
               <button
                 type="button"
                 onClick={() => onBillingIntervalChange?.("year")}
-                className={`relative z-10 w-28 py-2 rounded-full text-sm font-medium transition-colors ${
+                className={`relative z-10 w-32 py-2.5 rounded-full text-sm font-medium transition-colors duration-300 flex flex-col items-center leading-tight ${
                   billingInterval === "year"
                     ? "text-white"
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                 }`}
               >
-                Yearly <span className="text-emerald-400">Save</span>
+                <span>Pay Annually</span>
+                <span className={`text-xs transition-colors duration-300 ${billingInterval === "year" ? "text-white/90" : "text-gray-500 dark:text-gray-500"}`}>
+                  Best Value
+                </span>
               </button>
               <div
-                className={`absolute top-1 z-0 h-[calc(100%-8px)] rounded-full bg-emerald-600 dark:bg-emerald-500 transition-all duration-200 ${
+                className={`absolute top-1 left-1 z-0 h-[calc(100%-8px)] w-32 rounded-full bg-emerald-600 dark:bg-emerald-500 transition-transform duration-300 ease-out ${
                   billingInterval === "month"
-                    ? "left-1 w-24"
-                    : "left-[100px] w-28"
+                    ? "translate-x-0"
+                    : "translate-x-32"
                 }`}
               />
             </div>
@@ -285,12 +291,16 @@ function Step2Plan({
 
               const features = getDisplayFeatures(p);
 
+              const isEnterprise = /enterprise/i.test(planId) || /enterprise/i.test(p.name || "");
               const isPaidPlan = p.stripePrices?.month?.unitAmount > 0 || p.stripePrices?.year?.unitAmount > 0 || (p.price != null && p.price > 0);
               const isYearly = hasPaidPlans && billingInterval === "year" && isPaidPlan;
 
               let displayPrice;
               let yearlyTotal = null;
-              if (p.price === 0 && !isPaidPlan) {
+              if (isEnterprise) {
+                displayPrice = "Contact Sales";
+                yearlyTotal = null;
+              } else if (p.price === 0 && !isPaidPlan) {
                 displayPrice = "Free";
               } else if (isYearly && p.stripePrices?.year?.unitAmount) {
                 const monthlyEquiv = p.stripePrices.year.unitAmount / 100 / 12;
@@ -329,10 +339,10 @@ function Step2Plan({
                     </h3>
                     <div className="mt-3">
                       <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+                        <span className={`font-extrabold tracking-tight text-gray-900 dark:text-gray-100 ${isEnterprise ? "text-2xl" : "text-4xl"}`}>
                           {displayPrice}
                         </span>
-                        {p.price != null && p.price > 0 && (
+                        {!isEnterprise && p.price != null && p.price > 0 && (
                           <span className="text-sm font-medium text-gray-400 dark:text-gray-500">
                             /mo
                           </span>
