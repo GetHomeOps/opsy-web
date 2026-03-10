@@ -256,17 +256,11 @@ function Signin() {
                       />
                     </div>
                   </div>
-                  <div className="flex items-center justify-between mt-6 gap-3">
-                    <Link
-                      className="text-sm text-[#6E8276] hover:text-[#456564] dark:text-[#7aa3a2] dark:hover:text-[#9cb8b7] hover:underline"
-                      to="/forgot-password"
-                    >
-                      {t("cantLogIn")}
-                    </Link>
+                  <div className="flex flex-col items-center mt-6 gap-3">
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white shrink-0 flex items-center justify-center gap-2"
+                      className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white flex items-center justify-center gap-2"
                     >
                       {isSubmitting && (
                         <Loader2
@@ -274,8 +268,14 @@ function Signin() {
                           aria-hidden
                         />
                       )}
-                      {isSubmitting ? t("signingIn") : t("signIn")}
+                      {isSubmitting ? t("continuing") : t("continue")}
                     </button>
+                    <Link
+                      className="text-sm text-[#6E8276] hover:text-[#456564] dark:text-[#7aa3a2] dark:hover:text-[#9cb8b7] hover:underline"
+                      to="/forgot-password"
+                    >
+                      {t("cantLogIn")}
+                    </Link>
                   </div>
                 </form>
 
@@ -324,7 +324,7 @@ function Signin() {
                       className="text-sm font-medium text-[#6E8276] hover:text-[#456564] dark:text-[#7aa3a2] dark:hover:text-[#9cb8b7]"
                       to="/signup"
                     >
-                      {t("signUp")}
+                      {t("createAccount")}
                     </Link>
                   </div>
                   <a
