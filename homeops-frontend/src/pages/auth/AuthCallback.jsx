@@ -1,7 +1,7 @@
 import {useEffect, useState, useRef} from "react";
 import {useNavigate, useSearchParams} from "react-router-dom";
 import {useAuth} from "../../context/AuthContext";
-import {AlertCircle} from "lucide-react";
+import OpsyMascot from "../../images/opsy3.png";
 
 const ERROR_MESSAGES = {
   account_exists:
@@ -103,29 +103,48 @@ function AuthCallback() {
   if (status === "error") {
     return (
       <main className="min-h-[100dvh] bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4">
-        <div className="max-w-sm w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm px-6 py-8">
-          <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-4">
-            <AlertCircle className="w-6 h-6 shrink-0" />
-            <h1 className="text-lg font-semibold">Sign in failed</h1>
-          </div>
-          <p className="text-gray-700 dark:text-gray-300 mb-6">
-            {errorMessage}
-          </p>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => navigate("/signin", {replace: true})}
-              className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800"
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/signup", {replace: true})}
-              className="btn border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              Sign up
-            </button>
+        <div className="max-w-sm w-full rounded-lg shadow-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+          <div className="relative overflow-hidden">
+            {/* Decorative gradient background - matches WelcomeModal */}
+            <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-br from-[#456564] via-[#5a8180] to-[#3a5554] opacity-[0.07] dark:opacity-[0.15]" />
+            <div className="absolute -top-6 -right-6 w-28 h-28 bg-[#456564]/5 dark:bg-[#456564]/10 rounded-full blur-3xl" />
+
+            <div className="relative px-6 pt-8 pb-6">
+              {/* Mascot at top */}
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center mb-4">
+                  <img
+                    src={OpsyMascot}
+                    alt="Opsy"
+                    className="w-28 h-28 object-contain drop-shadow-md"
+                  />
+                </div>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  Sign in failed
+                </h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
+                  {errorMessage}
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate("/signin", {replace: true})}
+                  className="flex-1 py-3 px-6 bg-[#456564] hover:bg-[#3a5554] text-white rounded-xl font-semibold text-sm transition-colors shadow-sm hover:shadow-md"
+                >
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/signup", {replace: true})}
+                  className="flex-1 py-3 px-6 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl font-semibold text-sm transition-colors"
+                >
+                  Sign up
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </main>
