@@ -11,7 +11,7 @@ import {useAuth} from "../../context/AuthContext";
 import {API_BASE_URL} from "../../api/api";
 import "../../i18n";
 
-import Logo from "../../images/logo-no-bg.png";
+import OpsyHeader from "../../images/OpsyHeader.png";
 import MountRainier from "../../images/MountRainier.png";
 
 function Signin() {
@@ -133,13 +133,10 @@ function Signin() {
 
       <div className="relative flex-1 flex flex-col items-center justify-center px-4 py-8">
         <div className="w-full max-w-sm">
-          <div className="flex justify-center mb-8">
-            <Link className="block" to="/">
-              <img src={Logo} alt="Logo" className="w-15 h-15" />
-            </Link>
-          </div>
-
           <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm px-6 py-8">
+            <div className="flex justify-center mb-4 bg-white rounded-lg p-4">
+              <img src={OpsyHeader} alt="Opsy" className="max-w-full h-auto" />
+            </div>
             <h1 className="text-2xl text-gray-800 dark:text-gray-100 font-semibold text-center mb-6">
               {t("welcome")}
             </h1>
