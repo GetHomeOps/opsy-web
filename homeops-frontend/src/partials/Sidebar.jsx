@@ -239,9 +239,11 @@ function SidebarTooltip({show, label, children, layoutShiftKey}) {
 const linkBase =
   "flex items-center pl-4 pr-3 py-2 rounded-lg transition-all duration-200 lg:justify-center lg:px-3 lg:py-1.5 lg:sidebar-expanded:pl-4 lg:sidebar-expanded:pr-3 lg:sidebar-expanded:py-2 lg:sidebar-expanded:justify-start 2xl:justify-start 2xl:pl-4 2xl:pr-3 2xl:py-2";
 const linkActive = "bg-white/15 text-white [&_svg]:text-white";
-const linkInactive = "text-white/90 hover:bg-white/[0.08] hover:text-white [&_svg]:text-white/70";
+const linkInactive =
+  "text-white/90 hover:bg-white/[0.08] hover:text-white [&_svg]:text-white/70";
 const linkChildActive = "text-white [&_svg]:text-white";
-const linkChildInactive = "text-white/70 hover:text-white [&_svg]:text-white/50";
+const linkChildInactive =
+  "text-white/70 hover:text-white [&_svg]:text-white/50";
 const spanCollapse =
   "text-sm font-medium ml-4 min-w-0 whitespace-nowrap lg:ml-0 lg:w-0 lg:min-w-0 lg:max-w-0 lg:overflow-hidden lg:opacity-0 lg:sidebar-expanded:ml-4 lg:sidebar-expanded:w-auto lg:sidebar-expanded:min-w-0 lg:sidebar-expanded:max-w-none lg:sidebar-expanded:overflow-visible lg:sidebar-expanded:opacity-100 2xl:ml-4 2xl:max-w-none 2xl:overflow-visible 2xl:opacity-100 duration-200";
 
@@ -266,16 +268,30 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const [isExpandableViewport, setIsExpandableViewport] = useState(false);
 
   const groupForPath = (path) => {
-    if (/\/professionals(\/|$)/.test(path) || /\/my-professionals(\/|$)/.test(path)) return "directory";
-    if (/\/support-management(\/|$)/.test(path) || /\/feedback-management(\/|$)/.test(path)) return "operations";
-    if (/\/subscriptions(\/|$)/.test(path) || /\/subscription-products(\/|$)/.test(path)) return "subscriptions";
+    if (
+      /\/professionals(\/|$)/.test(path) ||
+      /\/my-professionals(\/|$)/.test(path)
+    )
+      return "directory";
+    if (
+      /\/support-management(\/|$)/.test(path) ||
+      /\/feedback-management(\/|$)/.test(path)
+    )
+      return "operations";
+    if (
+      /\/subscriptions(\/|$)/.test(path) ||
+      /\/subscription-products(\/|$)/.test(path)
+    )
+      return "subscriptions";
     if (/\/dashboard(\/|$)/.test(path)) return "dashboard";
     if (path.includes("settings/") || path.includes("users")) return "settings";
     return null;
   };
 
   // Single open collapsible — only one can be expanded at a time
-  const [openCollapsible, setOpenCollapsible] = useState(() => groupForPath(pathname));
+  const [openCollapsible, setOpenCollapsible] = useState(() =>
+    groupForPath(pathname),
+  );
 
   // Sync open collapsible with pathname during render (no intermediate state, no flicker).
   // React's recommended pattern for derived state — runs synchronously before commit.
@@ -289,7 +305,9 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
   }
 
   useEffect(() => {
-    const mqExpandable = window.matchMedia("(min-width: 1024px) and (max-width: 1535px)");
+    const mqExpandable = window.matchMedia(
+      "(min-width: 1024px) and (max-width: 1535px)",
+    );
     const mq2xl = window.matchMedia("(min-width: 1536px)");
     const handler = () => {
       setIsExpandableViewport(mqExpandable.matches);
@@ -314,10 +332,16 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
   const isPathActive = useCallback(
     (path, activePaths, excludeFromActive) => {
-      if (excludeFromActive?.some((excl) => new RegExp(`\\/${excl}(\\/|$)`).test(pathname)))
+      if (
+        excludeFromActive?.some((excl) =>
+          new RegExp(`\\/${excl}(\\/|$)`).test(pathname),
+        )
+      )
         return false;
       const segments = activePaths || [path];
-      return segments.some((seg) => new RegExp(`\\/${seg}(\\/|$)`).test(pathname));
+      return segments.some((seg) =>
+        new RegExp(`\\/${seg}(\\/|$)`).test(pathname),
+      );
     },
     [pathname],
   );
@@ -367,7 +391,11 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
   const renderNavLink = (item, isChild = false) => {
     const path = toPath(item.path);
-    const active = isPathActive(item.path, item.activePaths, item.excludeFromActive);
+    const active = isPathActive(
+      item.path,
+      item.activePaths,
+      item.excludeFromActive,
+    );
     const Icon = item.icon;
     const classes = isChild
       ? active
@@ -378,7 +406,12 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
         : `${linkBase} ${linkInactive}`;
 
     return (
-        <SidebarTooltip key={item.id} show={showTooltip} label={item.label} layoutShiftKey={0}>
+      <SidebarTooltip
+        key={item.id}
+        show={showTooltip}
+        label={item.label}
+        layoutShiftKey={0}
+      >
         <NavLink
           end
           to={path}
@@ -419,7 +452,9 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
         }}
         aria-label={group.label}
         className={`flex items-center w-full pl-4 pr-3 py-2 rounded-lg transition-all duration-200 lg:justify-center lg:px-3 lg:py-1.5 lg:sidebar-expanded:pl-4 lg:sidebar-expanded:pr-3 lg:sidebar-expanded:py-2 lg:sidebar-expanded:justify-start 2xl:justify-start 2xl:pl-4 2xl:pr-3 2xl:py-2 ${
-          isGroupActive ? "text-white [&_svg]:text-white" : "text-white/90 hover:text-white [&_svg]:text-white/70"
+          isGroupActive
+            ? "text-white [&_svg]:text-white"
+            : "text-white/90 hover:text-white [&_svg]:text-white/70"
         }`}
       >
         {Icon && <Icon className="shrink-0" />}
@@ -446,7 +481,14 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     );
 
     const wrapped = flyoutContent ? (
-      <SubmenuFlyout show={showTooltip} title={group.label} flyoutContent={flyoutContent} alignBottom={group.id === "settings"} alignTop={group.id !== "settings"} layoutShiftKey={0}>
+      <SubmenuFlyout
+        show={showTooltip}
+        title={group.label}
+        flyoutContent={flyoutContent}
+        alignBottom={group.id === "settings"}
+        alignTop={group.id !== "settings"}
+        layoutShiftKey={0}
+      >
         {button}
       </SubmenuFlyout>
     ) : (
@@ -454,11 +496,16 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     );
 
     return (
-      <div key={group.id} className={`rounded-lg ${isGroupActive ? "bg-white/15" : ""}`}>
+      <div
+        key={group.id}
+        className={`rounded-lg ${isGroupActive ? "bg-white/15" : ""}`}
+      >
         {wrapped}
         <div
           className={`grid transition-[grid-template-rows] duration-300 ease-out ${
-            open && (!isCollapsed || sidebarOpen) ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            open && (!isCollapsed || sidebarOpen)
+              ? "grid-rows-[1fr]"
+              : "grid-rows-[0fr]"
           }`}
         >
           <div className="overflow-hidden">{content}</div>
@@ -481,7 +528,10 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     if (visibleItems.length === 0) return null;
 
     return (
-      <div key={section.id} className={`${isCollapsed ? "mt-5" : "mt-4 first:mt-2"}`}>
+      <div
+        key={section.id}
+        className={`${isCollapsed ? "mt-5" : "mt-4 first:mt-2"}`}
+      >
         {!isCollapsed && (
           <div className="px-4 py-1 mb-0.5">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-white/50">
@@ -493,36 +543,45 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
           {visibleItems.map((item) => {
             if (item.type === "collapsible") {
               const open = openCollapsible === item.id;
-              const setOpen = (isOpen) => setOpenCollapsible(isOpen ? item.id : null);
+              const setOpen = (isOpen) =>
+                setOpenCollapsible(isOpen ? item.id : null);
               const flyoutContent = (
                 <ul className="py-1">
-                  {item.children
-                    .filter(visible)
-                    .map((child) => (
-                      <li key={child.id}>
-                        <NavLink
-                          end
-                          to={toPath(child.path)}
-                          className={({isActive}) =>
-                            `flex items-center px-2 py-1.5 rounded mx-1 text-xs transition-colors ${
-                              isActive ? "text-white bg-white/10" : "text-gray-100 hover:bg-gray-700"
-                            }`
-                          }
-                        >
-                          {child.label}
-                        </NavLink>
-                      </li>
-                    ))}
+                  {item.children.filter(visible).map((child) => (
+                    <li key={child.id}>
+                      <NavLink
+                        end
+                        to={toPath(child.path)}
+                        className={({isActive}) =>
+                          `flex items-center px-2 py-1.5 rounded mx-1 text-xs transition-colors ${
+                            isActive
+                              ? "text-white bg-white/10"
+                              : "text-gray-100 hover:bg-gray-700"
+                          }`
+                        }
+                      >
+                        {child.label}
+                      </NavLink>
+                    </li>
+                  ))}
                 </ul>
               );
               return (
-                <li key={item.id} className={isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"}>
+                <li
+                  key={item.id}
+                  className={
+                    isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"
+                  }
+                >
                   {renderCollapsible(item, open, setOpen, flyoutContent)}
                 </li>
               );
             }
             return (
-              <li key={item.id} className={isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"}>
+              <li
+                key={item.id}
+                className={isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"}
+              >
                 {renderNavLink(item)}
               </li>
             );
@@ -551,65 +610,94 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
           } ${variant === "v2" ? "border-r border-white/10" : "shadow-xs"}`}
         >
           <div className="flex flex-col flex-1 min-h-0">
-          <div className="flex justify-between lg:justify-center lg:sidebar-expanded:justify-between mb-10 pr-3 sm:px-2 lg:px-0">
-            <button
-              ref={trigger}
-              className="lg:hidden text-white hover:text-white/80"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              aria-controls="sidebar"
-              aria-expanded={sidebarOpen}
-            >
-              <span className="sr-only">Close sidebar</span>
-              <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z" />
-              </svg>
-            </button>
-            <NavLink end to={toPath("home")} className="block">
-              <img src={Logo} alt="Logo" className="w-12 h-12 rounded-full object-contain flex-shrink-0" />
-            </NavLink>
-          </div>
-
-          <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1">
-              <ul className={`mt-3 flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}>
-                {/* Home (standalone) */}
-                {SIDEBAR_CONFIG.filter((s) => s.type === "link").map((item) => (
-                  <li key={item.id} className={isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"}>
-                    {renderNavLink(item)}
-                  </li>
-                ))}
-              </ul>
-
-              {/* Sections: PROPERTY, NETWORK, ADMIN */}
-              {SIDEBAR_CONFIG.filter((s) => s.type === "section").map(renderSection)}
-
-              {/* Professionals (Sample) — spacing when collapsed, divider when expanded */}
-              <div className={`${isCollapsed ? "mt-5" : "mt-4 pt-3 border-t border-white/10"}`}>
-                <ul className={`flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}>
-                  <li className={isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"}>
-                    {renderNavLink(PROFESSIONALS_SAMPLE)}
-                  </li>
-                </ul>
-              </div>
+            <div className="flex justify-between lg:justify-center lg:sidebar-expanded:justify-between mb-10 pr-3 sm:px-2 lg:px-0">
+              <button
+                ref={trigger}
+                className="lg:hidden text-white hover:text-white/80"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                aria-controls="sidebar"
+                aria-expanded={sidebarOpen}
+              >
+                <span className="sr-only">Close sidebar</span>
+                <svg
+                  className="w-6 h-6 fill-current"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z" />
+                </svg>
+              </button>
+              <NavLink end to={toPath("home")} className="block">
+                <img
+                  src={Logo}
+                  alt="Logo"
+                  className="w-12 h-12 rounded-full object-contain flex-shrink-0"
+                />
+              </NavLink>
             </div>
 
-            {/* Settings (bottom) — spacing when collapsed, divider when expanded */}
-            <div className={`pt-4 mt-auto ${isCollapsed ? "" : "border-t border-white/10"}`}>
-              {renderCollapsible(
-                SETTINGS_CONFIG,
-                openCollapsible === "settings",
-                (isOpen) => setOpenCollapsible(isOpen ? "settings" : null),
-                <ul className="py-1">
-                  {SETTINGS_CONFIG.children
-                    .filter(visible)
-                    .map((child) => (
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1">
+                <ul
+                  className={`mt-3 flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}
+                >
+                  {/* Home (standalone) */}
+                  {SIDEBAR_CONFIG.filter((s) => s.type === "link").map(
+                    (item) => (
+                      <li
+                        key={item.id}
+                        className={
+                          isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"
+                        }
+                      >
+                        {renderNavLink(item)}
+                      </li>
+                    ),
+                  )}
+                </ul>
+
+                {/* Sections: PROPERTY, NETWORK, ADMIN */}
+                {SIDEBAR_CONFIG.filter((s) => s.type === "section").map(
+                  renderSection,
+                )}
+
+                {/* Professionals (Sample) — spacing when collapsed, divider when expanded */}
+                <div
+                  className={`${isCollapsed ? "mt-5" : "mt-4 pt-3 border-t border-white/10"}`}
+                >
+                  <ul
+                    className={`flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}
+                  >
+                    <li
+                      className={
+                        isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"
+                      }
+                    >
+                      {renderNavLink(PROFESSIONALS_SAMPLE)}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Settings (bottom) — spacing when collapsed, divider when expanded */}
+              <div
+                className={`pt-4 mt-auto ${isCollapsed ? "" : "border-t border-white/10"}`}
+              >
+                {renderCollapsible(
+                  SETTINGS_CONFIG,
+                  openCollapsible === "settings",
+                  (isOpen) => setOpenCollapsible(isOpen ? "settings" : null),
+                  <ul className="py-1">
+                    {SETTINGS_CONFIG.children.filter(visible).map((child) => (
                       <li key={child.id}>
                         <NavLink
                           end
                           to={toPath(child.path)}
                           className={({isActive}) =>
                             `flex items-center px-2 py-1.5 rounded mx-1 text-xs transition-colors ${
-                              isActive ? "text-white bg-white/10" : "text-gray-100 hover:bg-gray-700"
+                              isActive
+                                ? "text-white bg-white/10"
+                                : "text-gray-100 hover:bg-gray-700"
                             }`
                           }
                         >
@@ -617,10 +705,10 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                         </NavLink>
                       </li>
                     ))}
-                </ul>,
-              )}
+                  </ul>,
+                )}
+              </div>
             </div>
-          </div>
           </div>
         </div>
 
@@ -633,9 +721,15 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
           <span className="block h-8 w-[3.5px] rounded-full bg-gray-400/60 transition-all duration-150 group-hover/handle:opacity-0 group-focus-visible/handle:opacity-0" />
           <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover/handle:opacity-100 group-focus-visible/handle:opacity-100">
             {sidebarExpanded ? (
-              <ChevronLeft className="h-6 w-6 text-gray-500 transition-colors duration-150 group-hover/handle:text-gray-600 group-active/handle:text-gray-600" strokeWidth={2} />
+              <ChevronLeft
+                className="h-6 w-6 text-gray-500 transition-colors duration-150 group-hover/handle:text-gray-600 group-active/handle:text-gray-600"
+                strokeWidth={2}
+              />
             ) : (
-              <ChevronRight className="h-6 w-6 text-gray-500 transition-colors duration-150 group-hover/handle:text-gray-600 group-active/handle:text-gray-600" strokeWidth={2} />
+              <ChevronRight
+                className="h-6 w-6 text-gray-500 transition-colors duration-150 group-hover/handle:text-gray-600 group-active/handle:text-gray-600"
+                strokeWidth={2}
+              />
             )}
           </span>
         </button>

@@ -35,11 +35,9 @@ import {
 } from "lucide-react";
 
 const ICON_SIZE = 18;
-const ICON_PROPS = { size: ICON_SIZE, strokeWidth: 1.75 };
+const ICON_PROPS = {size: ICON_SIZE, strokeWidth: 1.75};
 
-const icon = (Component) => (props) => (
-  <Component {...props} {...ICON_PROPS} />
-);
+const icon = (Component) => (props) => <Component {...props} {...ICON_PROPS} />;
 
 export const SIDEBAR_CONFIG = [
   // --- Home (standalone) ---
@@ -58,8 +56,20 @@ export const SIDEBAR_CONFIG = [
     type: "section",
     label: "PROPERTY",
     items: [
-      { id: "properties", label: "Properties", path: "properties", icon: icon(Building2), roles: "all" },
-      { id: "calendar", label: "Calendar", path: "calendar", icon: icon(Calendar), roles: "all" },
+      {
+        id: "properties",
+        label: "Properties",
+        path: "properties",
+        icon: icon(Building2),
+        roles: "all",
+      },
+      {
+        id: "calendar",
+        label: "Calendar",
+        path: "calendar",
+        icon: icon(Calendar),
+        roles: "all",
+      },
       {
         id: "dashboard",
         type: "collapsible",
@@ -68,8 +78,20 @@ export const SIDEBAR_CONFIG = [
         defaultExpanded: false,
         roles: "adminOnly",
         children: [
-          { id: "agent-analytics", label: "Agent Analytics", path: "dashboard/agent-analytics", icon: icon(Users), roles: "adminOnly" },
-          { id: "unit-cost", label: "Unit Cost", path: "dashboard/unit-cost", icon: icon(DollarSign), roles: "adminOnly" },
+          {
+            id: "agent-analytics",
+            label: "Agent Analytics",
+            path: "dashboard/agent-analytics",
+            icon: icon(Users),
+            roles: "adminOnly",
+          },
+          {
+            id: "unit-cost",
+            label: "Unit Cost",
+            path: "dashboard/unit-cost",
+            icon: icon(DollarSign),
+            roles: "adminOnly",
+          },
         ],
       },
     ],
@@ -88,13 +110,49 @@ export const SIDEBAR_CONFIG = [
         icon: icon(FolderOpen),
         defaultExpanded: true,
         children: [
-          { id: "professionals", label: "Professionals", path: "professionals", activePaths: ["professionals", "my-professionals"], excludeFromActive: ["professionals/manage", "professionals/categories", "professionals/import"], icon: icon(Users), roles: "all" },
-          { id: "categories", label: "Categories", path: "professionals/categories", icon: icon(LayoutGrid), roles: "adminOnly" },
-          { id: "manage", label: "Manage", path: "professionals/manage", icon: icon(Settings2), roles: "adminOnly" },
+          {
+            id: "professionals",
+            label: "Professionals",
+            path: "professionals",
+            activePaths: ["professionals", "my-professionals"],
+            excludeFromActive: [
+              "professionals/manage",
+              "professionals/categories",
+              "professionals/import",
+            ],
+            icon: icon(Users),
+            roles: "all",
+          },
+          {
+            id: "categories",
+            label: "Categories",
+            path: "professionals/categories",
+            icon: icon(LayoutGrid),
+            roles: "adminOnly",
+          },
+          {
+            id: "manage",
+            label: "Manage",
+            path: "professionals/manage",
+            icon: icon(Settings2),
+            roles: "adminOnly",
+          },
         ],
       },
-      { id: "contacts", label: "My Contacts", path: "contacts", icon: icon(UserCircle), roles: "all" },
-      { id: "communications", label: "Communications", path: "communications", icon: icon(BookOpen), roles: "adminOrAgent" },
+      {
+        id: "contacts",
+        label: "My Contacts",
+        path: "contacts",
+        icon: icon(UserCircle),
+        roles: "all",
+      },
+      {
+        id: "communications",
+        label: "Communications",
+        path: "communications",
+        icon: icon(BookOpen),
+        roles: "adminOrAgent",
+      },
     ],
   },
 
@@ -112,8 +170,20 @@ export const SIDEBAR_CONFIG = [
         icon: icon(ClipboardList),
         defaultExpanded: true,
         children: [
-          { id: "support-management", label: "Support Management", path: "support-management", icon: icon(MessageSquare), roles: "adminOnly" },
-          { id: "feedback-management", label: "Feedback Management", path: "feedback-management", icon: icon(MessageCircle), roles: "adminOnly" },
+          {
+            id: "support-management",
+            label: "Support Management",
+            path: "support-management",
+            icon: icon(MessageSquare),
+            roles: "adminOnly",
+          },
+          {
+            id: "feedback-management",
+            label: "Feedback Management",
+            path: "feedback-management",
+            icon: icon(MessageCircle),
+            roles: "adminOnly",
+          },
         ],
       },
       {
@@ -124,8 +194,20 @@ export const SIDEBAR_CONFIG = [
         defaultExpanded: false,
         roles: "adminOnly",
         children: [
-          { id: "subscriptions-list", label: "Subscriptions", path: "subscriptions", icon: icon(CreditCard), roles: "adminOnly" },
-          { id: "subscription-products", label: "Products & Plans", path: "subscription-products", icon: icon(Package), roles: "adminOnly" },
+          {
+            id: "subscriptions-list",
+            label: "Subscriptions",
+            path: "subscriptions",
+            icon: icon(CreditCard),
+            roles: "adminOnly",
+          },
+          {
+            id: "subscription-products",
+            label: "Products & Plans",
+            path: "subscription-products",
+            icon: icon(Package),
+            roles: "adminOnly",
+          },
         ],
       },
     ],
@@ -151,10 +233,42 @@ export const SETTINGS_CONFIG = {
   icon: icon(Settings),
   defaultExpanded: false,
   children: [
-    { id: "billing", label: "Billing", path: "settings/billing", icon: icon(Wallet), roles: "all", hideForPlatformAdmins: true },
-    { id: "upgrade", label: "Upgrade", path: "settings/upgrade", icon: icon(ArrowUpCircle), roles: "all", hideForPlatformAdmins: true },
-    { id: "configuration", label: "Configuration", path: "settings/configuration", icon: icon(Cog), roles: "all" },
-    { id: "support", label: "Support", path: "settings/support", icon: icon(HelpCircle), roles: "all" },
-    { id: "users", label: "Users", path: "users", icon: icon(UsersRound), roles: "adminOnly" },
+    {
+      id: "billing",
+      label: "Billing",
+      path: "settings/billing",
+      icon: icon(Wallet),
+      roles: "all",
+      hideForPlatformAdmins: true,
+    },
+    {
+      id: "upgrade",
+      label: "Upgrade",
+      path: "settings/upgrade",
+      icon: icon(ArrowUpCircle),
+      roles: "all",
+      hideForPlatformAdmins: true,
+    },
+    {
+      id: "configuration",
+      label: "Configuration",
+      path: "settings/configuration",
+      icon: icon(Cog),
+      roles: "all",
+    },
+    {
+      id: "support",
+      label: "Support",
+      path: "settings/support",
+      icon: icon(HelpCircle),
+      roles: "all",
+    },
+    {
+      id: "users",
+      label: "Users",
+      path: "users",
+      icon: icon(UsersRound),
+      roles: "adminOnly",
+    },
   ],
 };
