@@ -1,5 +1,5 @@
 import React from "react";
-import {Routes, Route, Navigate, useParams} from "react-router-dom";
+import {Routes, Route, Navigate, useParams, useLocation} from "react-router-dom";
 import "../../css/style.css";
 
 import {Loader2} from "lucide-react";
@@ -96,9 +96,11 @@ function UpgradeRedirect() {
 function RoutesList() {
   const {currentUser, isLoading} = useAuth();
   const {currentAccount} = useCurrentAccount();
+  const location = useLocation();
 
-  // Show nothing while checking authentication
-  if (isLoading) {
+  // Let the OAuth callback render immediately — it has its own loading UI.
+  // All other routes wait for AuthContext to finish initialising.
+  if (isLoading && location.pathname !== "/auth/callback") {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />

@@ -12,31 +12,21 @@
 const db = require("../db");
 
 async function generateAccountUrl(name) {
-  const allWords = name.trim().toLowerCase().split(/\s+/);
-  const baseUrl = allWords.join("").replace(/[^a-z0-9]/g, "");
-  let finalUrl = baseUrl;
+  const baseUrl = name.trim().toLowerCase().split(/\s+/).join("").replace(/[^a-z0-9]/g, "");
+
+  const result = await db.query(
+    `SELECT url FROM accounts WHERE url = $1 OR url ~ ('^' || $2 || '[0-9]+$')`,
+    [baseUrl, baseUrl]
+  );
+
+  if (result.rows.length === 0) return baseUrl;
+
+  const taken = new Set(result.rows.map((r) => r.url));
+  if (!taken.has(baseUrl)) return baseUrl;
+
   let counter = 1;
-  let isAvailable = false;
-  const maxRetries = 1000;
-
-  while (!isAvailable && counter <= maxRetries) {
-    const existingCheck = await db.query(
-      `SELECT id FROM accounts WHERE url = $1`,
-      [finalUrl]
-    );
-    if (existingCheck.rows.length === 0) {
-      isAvailable = true;
-    } else {
-      finalUrl = `${baseUrl}${counter}`;
-      counter++;
-    }
-  }
-
-  if (!isAvailable) {
-    throw new Error(`Could not generate unique account URL after ${maxRetries} attempts`);
-  }
-
-  return finalUrl;
+  while (taken.has(`${baseUrl}${counter}`)) counter++;
+  return `${baseUrl}${counter}`;
 }
 
 module.exports = { generateAccountUrl };

@@ -1,4 +1,4 @@
-import {createContext, useContext, useState, useEffect, useCallback} from "react";
+import {createContext, useContext, useState, useEffect, useCallback, useRef} from "react";
 import useLocalStorage from "../hooks/useLocalStorage";
 import AppApi from "../api/api";
 import {jwtDecode as decode} from "jwt-decode";
@@ -26,11 +26,12 @@ export function AuthProvider({children}) {
   });
   const [token, setToken] = useLocalStorage(TOKEN_STORAGE_ID);
   const [isSigningUp, setIsSigningUp] = useState(false);
+  const isOAuthCallbackRef = useRef(false);
 
   /* Get the current user */
   useEffect(() => {
     async function getCurrentUser() {
-      if (isSigningUp) {
+      if (isSigningUp || isOAuthCallbackRef.current) {
         return;
       }
 
@@ -254,7 +255,7 @@ export function AuthProvider({children}) {
     return decode(accessToken);
   }
 
-  async function ensureUserHasAccount(userId, currentUser, email) {
+  async function ensureUserHasAccount(userId, currentUser) {
     let userAccounts = await getUserAccounts(userId);
 
     if (!userAccounts || userAccounts.length === 0) {
@@ -327,13 +328,31 @@ export function AuthProvider({children}) {
   /** Handle OAuth callback (Google, etc.): store tokens and load user. */
   async function handleOAuthCallback(accessToken, refreshToken = null) {
     if (!accessToken) throw new Error("No token received");
-    const decodedToken = initializeAuthentication(accessToken, refreshToken);
-    const {email} = decodedToken;
-    const currentUser = await fetchUser(null, accessToken);
-    const userId = extractUserId(currentUser, decodedToken);
-    const userAccounts = await ensureUserHasAccount(userId, currentUser, email);
-    const userWithAccounts = finalizeUserSignup(currentUser, userId, userAccounts);
-    return userWithAccounts;
+    isOAuthCallbackRef.current = true;
+    try {
+      const decodedToken = initializeAuthentication(accessToken, refreshToken);
+      const tokenUserId = decodedToken.user_id || decodedToken.userId || decodedToken.id;
+
+      const [currentUser, prefetchedAccounts] = await Promise.all([
+        fetchUser(null, accessToken),
+        tokenUserId ? getUserAccounts(tokenUserId) : Promise.resolve(null),
+      ]);
+
+      const userId = currentUser.id || tokenUserId;
+      let userAccounts = prefetchedAccounts;
+
+      if (!userAccounts && userId && userId !== tokenUserId) {
+        userAccounts = await getUserAccounts(userId);
+      }
+
+      if (!userAccounts || userAccounts.length === 0) {
+        userAccounts = await ensureUserHasAccount(userId, currentUser);
+      }
+
+      return finalizeUserSignup(currentUser, userId, userAccounts);
+    } finally {
+      isOAuthCallbackRef.current = false;
+    }
   }
 
   /** Refresh current user from API (e.g. after onboarding completion). */

@@ -213,7 +213,8 @@ class User {
                  google_sub AS "googleSub", avatar_url AS "avatarUrl",
                  email_verified AS "emailVerified",
                  subscription_tier AS "subscriptionTier",
-                 onboarding_completed AS "onboardingCompleted"`,
+                 onboarding_completed AS "onboardingCompleted",
+                 welcome_modal_dismissed AS "welcomeModalDismissed"`,
       [email, name, googleSub, avatarUrl || null, emailVerified ?? true]
     );
     return result.rows[0];
@@ -226,7 +227,10 @@ class User {
        RETURNING id, email, name, phone, role, contact_id AS "contact",
                  is_active AS "isActive", image, auth_provider AS "authProvider",
                  google_sub AS "googleSub", avatar_url AS "avatarUrl",
-                 email_verified AS "emailVerified"`,
+                 email_verified AS "emailVerified",
+                 subscription_tier AS "subscriptionTier",
+                 onboarding_completed AS "onboardingCompleted",
+                 welcome_modal_dismissed AS "welcomeModalDismissed"`,
       [googleSub, userId]
     );
     return result.rows[0] || null;

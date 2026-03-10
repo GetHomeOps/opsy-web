@@ -434,8 +434,11 @@ async function handleGoogleCallback(req, res, next, intent) {
       return res.redirect(redirectWithError("no_email"));
     }
 
-    let user = await User.findByGoogleSub(sub);
-    const userByEmail = user ? null : await User.findByEmailOrNull(email);
+    const [userBySub, userByEmail] = await Promise.all([
+      User.findByGoogleSub(sub),
+      User.findByEmailOrNull(email),
+    ]);
+    let user = userBySub;
 
     if (intent === "signup") {
       if (user || userByEmail) {
@@ -462,7 +465,7 @@ async function handleGoogleCallback(req, res, next, intent) {
         await Contact.addToAccount({ contactId: contact.id, accountId: account.id });
         await User.update({ id: newUser.id, contact: contact.id });
         await db.query("COMMIT");
-        user = await User.getById(newUser.id);
+        user = { ...newUser, contact: contact.id };
         onUserCreated({ userId: user.id, role: user.role || null })
           .catch((autoErr) => console.error("[resourceAutoSend] Google signup:", autoErr.message));
       } catch (err) {
@@ -471,17 +474,12 @@ async function handleGoogleCallback(req, res, next, intent) {
       }
     } else {
       if (user) {
-        // Sign in OK
+        // Sign in OK — user already set from findByGoogleSub
       } else if (userByEmail && !userByEmail.googleSub) {
-        await User.linkGoogle(userByEmail.id, sub);
-        user = await User.getById(userByEmail.id);
+        user = await User.linkGoogle(userByEmail.id, sub);
       } else {
         return res.redirect(redirectWithError("no_account"));
       }
-    }
-
-    if (!user) {
-      user = await User.findByGoogleSub(sub) || await User.findByEmailOrNull(email);
     }
     if (!user || !user.isActive) {
       return res.redirect(redirectWithError("inactive"));

@@ -16,8 +16,16 @@ const {
 } = require("../config");
 
 const GOOGLE_AUTH_BASE = "https://accounts.google.com/o/oauth2/v2/auth";
-const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const SCOPES = ["openid", "email", "profile"];
+
+// Singleton verify client — caches Google's JWKS public keys across requests
+let _verifyClient = null;
+function getVerifyClient() {
+  if (!_verifyClient) {
+    _verifyClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+  }
+  return _verifyClient;
+}
 
 /**
  * Build Google OAuth authorization URL.
@@ -74,7 +82,7 @@ async function verifyIdToken(idToken) {
   if (!GOOGLE_CLIENT_ID) {
     throw new Error("Google OAuth is not configured");
   }
-  const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+  const client = getVerifyClient();
   const ticket = await client.verifyIdToken({
     idToken,
     audience: GOOGLE_CLIENT_ID,

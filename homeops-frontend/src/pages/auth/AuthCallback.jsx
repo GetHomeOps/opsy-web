@@ -1,11 +1,13 @@
 import {useEffect, useState, useRef} from "react";
 import {useNavigate, useSearchParams} from "react-router-dom";
 import {useAuth} from "../../context/AuthContext";
-import {AlertCircle, Loader2} from "lucide-react";
+import {AlertCircle} from "lucide-react";
 
 const ERROR_MESSAGES = {
-  account_exists: "An account with this email already exists. Please sign in instead.",
-  no_account: "No account found with this Google account. Please sign up first.",
+  account_exists:
+    "An account with this email already exists. Please sign in instead.",
+  no_account:
+    "No account found with this Google account. Please sign up first.",
   invalid_state: "Invalid or expired request. Please try again.",
   missing_params: "Invalid callback. Please try again.",
   no_email: "Google did not provide an email. Please try another account.",
@@ -21,12 +23,6 @@ function AuthCallback() {
   const [errorMessage, setErrorMessage] = useState("");
   const processed = useRef(false);
 
-  // Hide the static placeholder once React has rendered (shows our loading UI)
-  useEffect(() => {
-    const el = document.getElementById("oauth-callback-placeholder");
-    if (el) el.style.display = "none";
-  }, []);
-
   useEffect(() => {
     if (processed.current) return;
     processed.current = true;
@@ -41,14 +37,14 @@ function AuthCallback() {
     if (params.token) {
       handleOAuthCallback(params.token, params.refreshToken || null)
         .then((userWithAccounts) => {
-          setStatus("success");
           if (userWithAccounts?.onboardingCompleted === false) {
             navigate("/onboarding", {replace: true});
             return;
           }
           const from = sessionStorage.getItem("oauth_return_to");
           sessionStorage.removeItem("oauth_return_to");
-          const isInternalPath = from && from.startsWith("/") && !from.startsWith("//");
+          const isInternalPath =
+            from && from.startsWith("/") && !from.startsWith("//");
           if (isInternalPath && from !== "/signin" && from !== "/signup") {
             navigate(from, {replace: true});
           } else if (userWithAccounts?.accounts?.length > 0) {
@@ -66,7 +62,10 @@ function AuthCallback() {
         });
     } else if (params.error) {
       if (params.error === "account_exists") {
-        navigate("/signin", { replace: true, state: { fromSignup: true, oauthAccountExists: true } });
+        navigate("/signin", {
+          replace: true,
+          state: {fromSignup: true, oauthAccountExists: true},
+        });
         return;
       }
       setStatus("error");
@@ -81,9 +80,21 @@ function AuthCallback() {
     return (
       <main className="min-h-[100dvh] bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4 fixed inset-0 z-[9998]">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-violet-600 dark:text-violet-400" aria-hidden />
-          <p className="text-gray-600 dark:text-gray-400 font-medium">Completing sign in…</p>
-          <p className="text-sm text-gray-500 dark:text-gray-500">This may take a few seconds</p>
+          <div
+            className="w-10 h-10 border-t-transparent rounded-full animate-spin"
+            style={{
+              borderColor: "#6E8276",
+              borderTopColor: "transparent",
+              borderWidth: "3px",
+            }}
+            aria-hidden
+          />
+          <p
+            className="text-gray-500 dark:text-gray-400"
+            style={{fontSize: "0.95rem"}}
+          >
+            Completing sign in…
+          </p>
         </div>
       </main>
     );
@@ -97,7 +108,9 @@ function AuthCallback() {
             <AlertCircle className="w-6 h-6 shrink-0" />
             <h1 className="text-lg font-semibold">Sign in failed</h1>
           </div>
-          <p className="text-gray-700 dark:text-gray-300 mb-6">{errorMessage}</p>
+          <p className="text-gray-700 dark:text-gray-300 mb-6">
+            {errorMessage}
+          </p>
           <div className="flex gap-3">
             <button
               type="button"

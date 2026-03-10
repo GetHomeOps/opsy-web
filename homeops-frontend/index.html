@@ -13,27 +13,60 @@
     if (localStorage.theme === 'dark' || !('theme' in localStorage)) {
       document.querySelector('html').classList.add('dark');
       document.querySelector('html').style.colorScheme = 'dark';
+      document.querySelector('html').style.backgroundColor = '#111827';
     } else {
       document.querySelector('html').classList.remove('dark');
       document.querySelector('html').style.colorScheme = 'light';
+      document.querySelector('html').style.backgroundColor = '#f9fafb';
     }
   </script>
+  <style>
+    #oauth-callback-placeholder {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0.875rem;
+      background: #f9fafb;
+      z-index: 9999;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+    }
+
+    .dark #oauth-callback-placeholder {
+      background: #111827;
+    }
+
+    #oauth-callback-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #6E8276;
+      border-top-color: transparent;
+      border-radius: 9999px;
+      animation: oauth-spin 0.8s linear infinite;
+    }
+
+    #oauth-callback-placeholder p {
+      margin: 0;
+      color: #6b7280;
+      font-size: 0.95rem;
+    }
+
+    .dark #oauth-callback-placeholder p {
+      color: #9ca3af;
+    }
+
+    @keyframes oauth-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
 </head>
 
 <body class="font-inter antialiased bg-[var(--color-gray-50)] dark:bg-gray-900 text-gray-600 dark:text-gray-400">
   <noscript>You need to enable JavaScript to run this app.</noscript>
-  <!-- Shown immediately during OAuth callback before React hydrates -->
-  <div id="oauth-callback-placeholder" style="display:none;min-height:100dvh;align-items:center;justify-content:center;flex-direction:column;gap:1rem;font-family:system-ui,sans-serif" class="flex">
-    <div style="width:40px;height:40px;border:3px solid #7c3aed;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></div>
-    <p style="color:#6b7280;font-size:0.95rem">Completing sign in…</p>
-  </div>
-  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-  <script>
-    if (window.location.pathname === '/auth/callback') {
-      var p = document.getElementById('oauth-callback-placeholder');
-      if (p) { p.style.display = 'flex'; p.style.position = 'fixed'; p.style.inset = '0'; p.style.zIndex = '9999'; p.style.background = 'var(--color-gray-50, #f9fafb)'; }
-    }
-  </script>
   <script>
     if (localStorage.getItem('sidebar-expanded') == 'true') {
       document.querySelector('body').classList.add('sidebar-expanded');
@@ -41,7 +74,47 @@
       document.querySelector('body').classList.remove('sidebar-expanded');
     }
   </script>
+  <div id="oauth-callback-placeholder" aria-live="polite">
+    <div id="oauth-callback-spinner" aria-hidden="true"></div>
+    <p>Completing sign in...</p>
+  </div>
   <div id="root"></div>
+  <script>
+    (function () {
+      var isAuthCallback = window.location.pathname === '/auth/callback';
+      if (!isAuthCallback) return;
+
+      var placeholder = document.getElementById('oauth-callback-placeholder');
+      var root = document.getElementById('root');
+      if (!placeholder || !root) return;
+
+      placeholder.style.display = 'flex';
+
+      var hidePlaceholder = function () {
+        placeholder.style.display = 'none';
+      };
+
+      if (root.childElementCount > 0) {
+        hidePlaceholder();
+        return;
+      }
+
+      var observer = new MutationObserver(function () {
+        if (root.childElementCount > 0) {
+          hidePlaceholder();
+          observer.disconnect();
+        }
+      });
+      observer.observe(root, { childList: true });
+
+      window.addEventListener('load', function () {
+        if (root.childElementCount > 0) {
+          hidePlaceholder();
+          observer.disconnect();
+        }
+      });
+    })();
+  </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

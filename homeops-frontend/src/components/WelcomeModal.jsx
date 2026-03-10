@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useCallback} from "react";
 import {useNavigate, useSearchParams} from "react-router-dom";
 import {useTranslation} from "react-i18next";
+import confetti from "canvas-confetti";
 import {Home, Calendar, Search, ArrowRight, Sparkles} from "lucide-react";
 import ModalBlank from "./ModalBlank";
 import {useAuth} from "../context/AuthContext";
@@ -18,7 +19,6 @@ function WelcomeModal() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [modalOpen, setModalOpen] = useState(false);
-  const [dismissing, setDismissing] = useState(false);
 
   const userId = currentUser?.id ?? currentUser?.userId;
   const role = (currentUser?.role ?? "").toLowerCase();
@@ -34,19 +34,42 @@ function WelcomeModal() {
     }
   }, [userId, showForRole, currentUser?.welcomeModalDismissed, searchParams]);
 
+  // Confetti celebration when welcome modal opens
+  useEffect(() => {
+    if (!modalOpen) return;
+    const timeout = setTimeout(() => {
+      const count = 700;
+      const defaults = {
+        origin: {y: 0.6},
+        colors: ["#456564", "#5a8180", "#7aa3a2", "#fbbf24", "#34d399"],
+      };
+      const fire = (particleRatio, opts) =>
+        confetti({
+          ...defaults,
+          ...opts,
+          particleCount: Math.floor(count * particleRatio),
+        });
+      fire(0.25, {spread: 70, startVelocity: 65});
+      fire(0.2, {spread: 120});
+      fire(0.35, {spread: 180, scalar: 0.9, decay: 0.9});
+      fire(0.1, {spread: 220, startVelocity: 45, decay: 0.92, scalar: 1.2});
+      // Side bursts for wider reach
+      fire(0.1, {origin: {x: 0.2, y: 0.5}, spread: 100, angle: 60, startVelocity: 50});
+      fire(0.1, {origin: {x: 0.8, y: 0.5}, spread: 100, angle: 120, startVelocity: 50});
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [modalOpen]);
+
   const handleDismiss = useCallback(async () => {
     if (!userId) {
       setModalOpen(false);
       return;
     }
-    setDismissing(true);
     try {
       await AppApi.dismissWelcomeModal(userId);
       refreshCurrentUser?.();
     } catch {
       // Still close locally so UX isn't blocked
-    } finally {
-      setDismissing(false);
     }
     setModalOpen(false);
   }, [userId, refreshCurrentUser]);
@@ -68,7 +91,6 @@ function WelcomeModal() {
       description: t("welcome.feature1Description"),
       cta: t("welcome.feature1Cta"),
       onClick: () => handleNavigate(`/${accountUrl}/properties/new`),
-      gradient: "from-emerald-500 to-teal-600",
       bgLight: "bg-emerald-50 dark:bg-emerald-900/20",
       iconColor: "text-emerald-600 dark:text-emerald-400",
     },
@@ -78,7 +100,6 @@ function WelcomeModal() {
       description: t("welcome.feature2Description"),
       cta: t("welcome.feature2Cta"),
       onClick: () => handleNavigate(`/${accountUrl}/calendar`),
-      gradient: "from-blue-500 to-indigo-600",
       bgLight: "bg-blue-50 dark:bg-blue-900/20",
       iconColor: "text-blue-600 dark:text-blue-400",
     },
@@ -88,7 +109,6 @@ function WelcomeModal() {
       description: t("welcome.feature3Description"),
       cta: t("welcome.feature3Cta"),
       onClick: () => handleNavigate(`/${accountUrl}/professionals`),
-      gradient: "from-violet-500 to-purple-600",
       bgLight: "bg-violet-50 dark:bg-violet-900/20",
       iconColor: "text-violet-600 dark:text-violet-400",
     },

@@ -3,7 +3,7 @@ import {Link, useNavigate} from "react-router-dom";
 import {AlertCircle, ChevronLeft, ExternalLink, Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import {useTranslation} from "react-i18next";
-import AppApi, { API_BASE_URL } from "../../api/api";
+import AppApi, {API_BASE_URL} from "../../api/api";
 import "../../i18n";
 
 import OpsyHeader from "../../images/OpsyHeader.png";
@@ -64,8 +64,13 @@ function Signup() {
   function isEmailExistsError(err) {
     const raw =
       err?.messages ??
-      (Array.isArray(err) ? err : [err?.message || err?.toString?.() || String(err)]);
-    const text = raw.map((e) => (typeof e === "string" ? e : e?.message || String(e))).join(" ").toLowerCase();
+      (Array.isArray(err)
+        ? err
+        : [err?.message || err?.toString?.() || String(err)]);
+    const text = raw
+      .map((e) => (typeof e === "string" ? e : e?.message || String(e)))
+      .join(" ")
+      .toLowerCase();
     return (
       text.includes("duplicate") ||
       text.includes("already exists") ||
@@ -84,17 +89,17 @@ function Signup() {
   }
 
   function validatePassword() {
-    const err = { ...validateEmail() };
+    const err = {...validateEmail()};
     if (!formData.password) {
       err.password = t("signup.passwordRequired");
     } else if (formData.password.length < MIN_PASSWORD_LENGTH) {
-      err.password = t("signup.passwordMinLength", { min: MIN_PASSWORD_LENGTH });
+      err.password = t("signup.passwordMinLength", {min: MIN_PASSWORD_LENGTH});
     }
     return err;
   }
 
   function validateName() {
-    const err = { ...validateEmail(), ...validatePassword() };
+    const err = {...validateEmail(), ...validatePassword()};
     if (!formData.name.trim()) {
       err.name = t("signup.nameRequired");
     }
@@ -110,17 +115,22 @@ function Signup() {
 
     setCheckingEmail(true);
     try {
-      const { exists } = await AppApi.checkEmailExists(formData.email.trim());
+      const {exists} = await AppApi.checkEmailExists(formData.email.trim());
       if (exists) {
         navigate("/signin", {
           replace: true,
-          state: { fromSignup: true, email: formData.email.trim() },
+          state: {fromSignup: true, email: formData.email.trim()},
         });
         return;
       }
       setStep(2);
-    } catch (apiErr) {
-      setFormErrors([t("signup.checkEmailError", "Could not verify email. Please try again.")]);
+    } catch {
+      setFormErrors([
+        t(
+          "signup.checkEmailError",
+          "Could not verify email. Please try again.",
+        ),
+      ]);
     } finally {
       setCheckingEmail(false);
     }
@@ -151,7 +161,7 @@ function Signup() {
       if (isEmailExistsError(err)) {
         navigate("/signin", {
           replace: true,
-          state: { fromSignup: true, email: formData.email },
+          state: {fromSignup: true, email: formData.email},
         });
         return;
       }
@@ -243,7 +253,9 @@ function Signup() {
       ) : (
         <GoogleSvg />
       )}
-      {oauthLoading ? (t("redirecting") || "Redirecting…") : t("signup.signUpWithGoogle")}
+      {oauthLoading
+        ? t("redirecting") || "Redirecting…"
+        : t("signup.signUpWithGoogle")}
     </a>
   );
 
@@ -289,7 +301,9 @@ function Signup() {
 
             {step <= 2 && (
               <form
-                onSubmit={step === 1 ? handleContinueEmail : handleContinuePassword}
+                onSubmit={
+                  step === 1 ? handleContinueEmail : handleContinuePassword
+                }
                 noValidate
               >
                 <div className="space-y-4">
@@ -322,7 +336,12 @@ function Signup() {
                       onChange={step === 1 ? handleChange : undefined}
                       readOnly={step === 2}
                       tabIndex={step === 2 ? -1 : undefined}
-                      onKeyDown={step === 1 ? (e) => handleKeyDown(e, () => handleContinueEmail(e)) : undefined}
+                      onKeyDown={
+                        step === 1
+                          ? (e) =>
+                              handleKeyDown(e, () => handleContinueEmail(e))
+                          : undefined
+                      }
                       placeholder="you@example.com"
                       autoFocus={step === 1}
                     />
@@ -369,7 +388,10 @@ function Signup() {
                         </p>
                       ) : (
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          {t("signup.passwordPlaceholder", "At least 6 characters")}
+                          {t(
+                            "signup.passwordPlaceholder",
+                            "At least 6 characters",
+                          )}
                         </p>
                       )}
                     </div>
@@ -379,11 +401,16 @@ function Signup() {
                 <div className="mt-4">
                   <button
                     type="submit"
-                    disabled={step === 1 ? !emailValid || checkingEmail : !passwordValid}
+                    disabled={
+                      step === 1 ? !emailValid || checkingEmail : !passwordValid
+                    }
                     className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {checkingEmail && (
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
+                      <Loader2
+                        className="w-4 h-4 animate-spin shrink-0"
+                        aria-hidden
+                      />
                     )}
                     {checkingEmail ? t("checking") : t("continue")}
                   </button>
@@ -417,7 +444,9 @@ function Signup() {
                       name="name"
                       value={formData.name}
                       onChange={handleChange}
-                      onKeyDown={(e) => e.key === "Enter" && e.target.form?.requestSubmit()}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && e.target.form?.requestSubmit()
+                      }
                       placeholder={t("enterYourName")}
                       autoFocus
                     />
