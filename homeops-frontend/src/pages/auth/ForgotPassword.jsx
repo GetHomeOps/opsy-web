@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, Loader2, Mail } from "lucide-react";
 import AppApi from "../../api/api";
-import Logo from "../../images/logo-no-bg.png";
+import OpsyHeader from "../../images/OpsyHeader.png";
 import MountRainier from "../../images/MountRainier.png";
 import "../../i18n";
 
@@ -52,14 +52,12 @@ function ForgotPassword() {
         <div className="absolute inset-0 bg-white/30 dark:bg-gray-900/30" />
 
         <div className="relative flex-1 flex flex-col items-center justify-center px-4 py-8">
-        <div className="w-full max-w-[30rem]">
-          <div className="flex justify-center mb-8">
-            <Link className="block" to="/">
-              <img src={Logo} alt="Logo" className="w-15 h-15" />
-            </Link>
-          </div>
-
-            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm px-6 py-8 text-center">
+          <div className="w-full max-w-[30rem]">
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+              <div className="flex justify-center bg-white p-4">
+                <img src={OpsyHeader} alt="Opsy" className="max-w-full h-auto" />
+              </div>
+              <div className="px-6 py-8 text-center">
               <div className="w-12 h-12 rounded-full bg-[#456564]/10 dark:bg-[#7aa3a2]/20 flex items-center justify-center mx-auto mb-4">
                 <Mail className="w-6 h-6 text-[#456564] dark:text-[#7aa3a2]" />
               </div>
@@ -78,6 +76,7 @@ function ForgotPassword() {
               >
                 {t("backToSignIn", "Back to Sign In")}
               </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -95,13 +94,11 @@ function ForgotPassword() {
 
       <div className="relative flex-1 flex flex-col items-center justify-center px-4 py-8">
         <div className="w-full max-w-[30rem]">
-          <div className="flex justify-center mb-8">
-            <Link className="block" to="/">
-              <img src={Logo} alt="Logo" className="w-15 h-15" />
-            </Link>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm px-6 py-8">
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+            <div className="flex justify-center bg-white p-4">
+              <img src={OpsyHeader} alt="Opsy" className="max-w-full h-auto" />
+            </div>
+            <div className="px-6 py-8">
             <h1 className="text-2xl text-gray-800 dark:text-gray-100 font-semibold text-center mb-2">
               {t("forgotPassword.title", "Forgot your password?")}
             </h1>
@@ -159,6 +156,7 @@ function ForgotPassword() {
                 </Link>
               </div>
             </form>
+            </div>
           </div>
         </div>
       </div>
