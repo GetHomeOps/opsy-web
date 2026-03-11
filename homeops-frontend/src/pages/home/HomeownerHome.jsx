@@ -25,6 +25,7 @@ import {
   ChevronRight,
   ArrowRight,
   Shield,
+  Lock,
   FileText,
   Star,
   AlertTriangle,
@@ -41,6 +42,7 @@ import {
   Upload,
   Plus,
 } from "lucide-react";
+import OpsyMascot from "../../images/opsy2.png";
 
 // ─── Skeleton components for loading states ─────
 function CardSkeleton({ lines = 3 }) {
@@ -415,11 +417,7 @@ function HomeownerHome() {
   const currentScore = getHpsScore(activeProperty);
   const currentScoreLabel = getScoreLabel(currentScore);
   const [gradientStart, gradientEnd] = getScoreGradient(currentScore);
-  const currentAddress = activeProperty
-    ? [activeProperty.address, activeProperty.city, activeProperty.state]
-        .filter(Boolean)
-        .join(", ")
-    : "";
+  const currentAddress = activeProperty?.address ?? "";
 
   const hasProperties = properties && totalProperties > 0;
 
@@ -466,24 +464,31 @@ function HomeownerHome() {
               className="w-full h-full object-cover transition-opacity duration-500"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 flex flex-col items-center justify-center gap-4">
-              <Home className="w-24 h-24 text-white/10" />
+            <div className="w-full h-full bg-gradient-to-br from-teal-800 via-teal-900 to-slate-900 flex flex-col items-center justify-center gap-4">
               {!hasProperties && (
-                <div className="text-center px-4 max-w-md">
-                  <h2 className="text-xl font-semibold text-white mb-2">
-                    {t("welcome")}, {homeownerName}
+                <div className="text-center px-4 max-w-md flex flex-col items-center gap-4">
+                  <img
+                    src={OpsyMascot}
+                    alt="Opsy"
+                    className="w-28 h-28 object-contain"
+                  />
+                  <h2 className="text-2xl font-bold text-white">
+                    {t("welcome")} {homeownerName}
                   </h2>
-                  <p className="text-white/70 text-sm mb-4">
-                    {t("homeownerHome.emptyState")}
+                  <p className="text-white/70 text-sm">
+                    {t("homeownerHome.emptyStateSubtext")}
                   </p>
                   <button
                     type="button"
                     onClick={() => navigate(accountUrl ? `/${accountUrl}/properties/new` : "/")}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#456564] hover:bg-[#3a5554] text-white text-sm font-semibold transition-colors shadow-lg hover:shadow-xl"
+                    className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#d49b5b] hover:bg-[#c18a4a] border border-[#c18a4a] text-white text-base font-semibold transition-colors shadow-lg hover:shadow-xl"
                   >
-                    <Plus className="w-4 h-4" />
-                    {t("homeownerHome.createProperty")}
+                    {t("homeownerHome.getOpsymized")}
                   </button>
+                  <div className="relative inline-flex items-center justify-center w-10 h-10 mt-1 text-[#d49b5b]">
+                    <Shield className="w-8 h-8 absolute" />
+                    <Lock className="w-4 h-4 relative z-10" />
+                  </div>
                 </div>
               )}
             </div>
@@ -609,16 +614,16 @@ function HomeownerHome() {
           <div className="flex-1" />
 
           {/* Bottom Section - Welcome, Name & Address */}
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 pb-32 lg:pb-36">
+          <div className="pl-8 pr-0 sm:px-4 lg:px-5 xxl:px-12 pt-8 sm:pt-0 pb-48 sm:pb-40 lg:pb-36 text-left flex flex-col items-start">
             <p className="text-white/70 text-sm leading-tight">
               Welcome,
             </p>
-            <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2 leading-tight">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 leading-tight">
               {homeownerName}
             </h1>
-            <div className="flex items-center gap-2 text-white/90">
-              <MapPin className="w-4 h-4" />
-              <span className="text-base">{currentAddress || "—"}</span>
+            <div className="flex items-center gap-2 text-white/90 max-w-full">
+              <MapPin className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm sm:text-base truncate">{currentAddress || "—"}</span>
             </div>
             {/* Property dot indicators */}
             {totalProperties > 1 && (
@@ -792,13 +797,13 @@ function HomeownerHome() {
       </div>
 
       {/* Spacer for floating card */}
-      <div className="h-20 lg:h-16" />
+      <div className="h-28 sm:h-36 lg:h-16" />
 
       {/* ============================================ */}
       {/* QUICK ACTIONS - 4 consistent shortcut buttons */}
       {/* ============================================ */}
       <div className="px-0 sm:px-4 lg:px-5 xxl:px-12">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {quickActions.map((action, idx) => (
             <button
               key={idx}

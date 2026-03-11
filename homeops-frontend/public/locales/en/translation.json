@@ -297,6 +297,8 @@
   "noItemsFound": "No items found",
   "propertiesGrid.emptyState": "No properties yet. Create your first property to get started.",
   "homeownerHome.emptyState": "No properties yet. Create your first property to get started.",
+  "homeownerHome.emptyStateSubtext": "Create your first property to get started.",
+  "homeownerHome.getOpsymized": "Let's Get Opsymized!",
   "homeownerHome.createProperty": "Create property",
   "homeownerHome.schedule": "Schedule",
   "homeownerHome.scheduleEvent": "Schedule Event",
