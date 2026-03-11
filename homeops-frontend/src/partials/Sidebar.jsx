@@ -633,8 +633,8 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                   alt="Opsy"
                   className={`object-contain flex-shrink-0 ${
                     isCollapsed
-                      ? "w-12 h-12"
-                      : "w-[94px] h-[94px] 2xl:w-[104px] 2xl:h-[104px] mx-auto"
+                      ? "w-[41px] h-[41px]"
+                      : "w-[80px] h-[80px] 2xl:w-[88px] 2xl:h-[88px] mx-auto"
                   }`}
                 />
               </NavLink>
