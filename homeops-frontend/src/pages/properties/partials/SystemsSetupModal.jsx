@@ -255,6 +255,10 @@ function SystemsSetupModal({
 
   const handleIdentityContinue = () => {
     onIdentityFieldsChange?.(identityFields);
+    setSavePropertyError(null);
+    setAiFields({});
+    setHasPredicted(false);
+    setPredictError(null);
     setStep("details");
   };
 
@@ -289,6 +293,7 @@ function SystemsSetupModal({
   const handleLookupProperty = async () => {
     setPredicting(true);
     setPredictError(null);
+    setSavePropertyError(null);
     try {
       const propertyInfo = {
         address: identityFields.address,

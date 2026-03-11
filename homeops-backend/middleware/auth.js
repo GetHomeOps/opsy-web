@@ -58,6 +58,21 @@ async function ensureCorrectUser(req, res, next) {
   throw new UnauthorizedError();
 }
 
+const _uidToIdCache = new Map();
+const _accessGrantCache = new Map();
+const _ACCESS_TTL_MS = 30_000;
+
+function _cacheKey(userId, propertyId) { return `${userId}:${propertyId}`; }
+
+function _pruneCache(cache) {
+  const now = Date.now();
+  for (const [k, v] of cache) {
+    if (v.expiresAt <= now) cache.delete(k);
+  }
+}
+
+setInterval(() => { _pruneCache(_uidToIdCache); _pruneCache(_accessGrantCache); }, 60_000).unref();
+
 /** Require property_users membership or admin. Options: scope, param, fromBody. */
 function ensurePropertyAccess(options = {}) {
   const scope = options.scope === "user" ? "user" : "property";
@@ -89,29 +104,44 @@ function ensurePropertyAccess(options = {}) {
       let propertyId = raw;
 
       if (/^[A-Za-z0-9_-]{6,12}$/.test(raw) && !/^\d+$/.test(raw)) {
-        const propRes = await db.query(
-          `SELECT id FROM properties WHERE property_uid = $1`,
-          [raw],
-        );
-        if (propRes.rows.length === 0) throw new ForbiddenError("Property not found.");
-        propertyId = propRes.rows[0].id;
+        const cached = _uidToIdCache.get(raw);
+        if (cached && cached.expiresAt > Date.now()) {
+          propertyId = cached.value;
+        } else {
+          const propRes = await db.query(
+            `SELECT id FROM properties WHERE property_uid = $1`,
+            [raw],
+          );
+          if (propRes.rows.length === 0) throw new ForbiddenError("Property not found.");
+          propertyId = propRes.rows[0].id;
+          _uidToIdCache.set(raw, { value: propertyId, expiresAt: Date.now() + _ACCESS_TTL_MS });
+        }
       }
+
+      const ck = _cacheKey(user.id, propertyId);
+      const cachedGrant = _accessGrantCache.get(ck);
+      if (cachedGrant && cachedGrant.expiresAt > Date.now()) return next();
 
       const result = await db.query(
         `SELECT 1 FROM property_users WHERE property_id = $1 AND user_id = $2`,
         [propertyId, user.id],
       );
 
-      if (result.rows.length > 0) return next();
+      if (result.rows.length > 0) {
+        _accessGrantCache.set(ck, { expiresAt: Date.now() + _ACCESS_TTL_MS });
+        return next();
+      }
 
-      // Allow access if user has a pending invitation to this property (invitee email matches)
       const invResult = await db.query(
         `SELECT 1 FROM invitations i
          JOIN users u ON LOWER(u.email) = LOWER(i.invitee_email) AND u.id = $2
          WHERE i.property_id = $1 AND i.status = 'pending' AND i.expires_at > NOW()`,
         [propertyId, user.id],
       );
-      if (invResult.rows.length > 0) return next();
+      if (invResult.rows.length > 0) {
+        _accessGrantCache.set(ck, { expiresAt: Date.now() + _ACCESS_TTL_MS });
+        return next();
+      }
 
       throw new ForbiddenError("You do not have access to this property.");
     } catch (err) {
@@ -231,6 +261,17 @@ function ensureAdminOrSuperAdmin(req, res, next) {
   throw new UnauthorizedError("Not authorized.");
 }
 
+function clearPropertyAccessCache(propertyId, userId) {
+  if (propertyId && userId) {
+    _accessGrantCache.delete(_cacheKey(userId, propertyId));
+  } else if (propertyId) {
+    const prefix = `:${propertyId}`;
+    for (const k of _accessGrantCache.keys()) {
+      if (k.endsWith(prefix)) _accessGrantCache.delete(k);
+    }
+  }
+}
+
 module.exports = {
   authenticateJWT,
   ensureLoggedIn,
@@ -244,4 +285,5 @@ module.exports = {
   ensureUserCanAccessAccountFromBody,
   ensureAgentOrSelf,
   ensureCanViewUser,
+  clearPropertyAccessCache,
 };

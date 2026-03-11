@@ -623,7 +623,10 @@ function PropertyFormContainer() {
       }
       try {
         const property = await getPropertyById(uid);
-        const systemsRes = await getSystemsByPropertyId(property.id);
+        const [systemsRes, rawRecords] = await Promise.all([
+          getSystemsByPropertyId(property.id),
+          getMaintenanceRecordsByPropertyId(property.id),
+        ]);
         const systemsArr = systemsRes?.systems ?? systemsRes ?? [];
         if (systemsRes?.aiSummaryUpdatedAt) {
           dispatch({
@@ -631,7 +634,6 @@ function PropertyFormContainer() {
             payload: systemsRes.aiSummaryUpdatedAt,
           });
         }
-        const rawRecords = await getMaintenanceRecordsByPropertyId(property.id);
         const maintenanceRecords = mapMaintenanceRecordsFromBackend(
           rawRecords ?? [],
         );

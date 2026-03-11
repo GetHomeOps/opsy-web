@@ -19,6 +19,7 @@ import DataTableItem from "../../components/DataTableItem";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import ListDropdown from "../../partials/buttons/ListDropdown";
+import FilterDropdown from "../../components/FilterDropdown";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import propertyContext from "../../context/PropertyContext";
 import AppApi from "../../api/api";
@@ -125,192 +126,6 @@ const HealthBar = ({value}) => (
     </span>
   </div>
 );
-
-/* ─── Odoo-style Filter Dropdown ─────────────────────────────── */
-
-function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
-  const [open, setOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState(null);
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setOpen(false);
-        setActiveCategory(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const isFilterActive = (type, value) =>
-    activeFilters.some((f) => f.type === type && f.value === value);
-
-  const toggleFilter = (type, value, label) => {
-    if (isFilterActive(type, value)) {
-      onRemove({type, value});
-    } else {
-      onAdd({type, value, label});
-    }
-  };
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => {
-          setOpen((v) => !v);
-          setActiveCategory(null);
-        }}
-        className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
-      >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-          />
-        </svg>
-        {t("filter")}
-        {activeFilters.length > 0 && (
-          <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
-            {activeFilters.length}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-30 min-w-[200px] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden">
-          {!activeCategory ? (
-            <ul className="py-1.5">
-              {FILTER_CATEGORIES.map((cat) => {
-                const count = activeFilters.filter(
-                  (f) => f.type === cat.type,
-                ).length;
-                return (
-                  <li key={cat.type}>
-                    <button
-                      type="button"
-                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                      onClick={() => setActiveCategory(cat.type)}
-                    >
-                      <span>{t(cat.labelKey)}</span>
-                      <span className="flex items-center gap-1 text-gray-400">
-                        {count > 0 && (
-                          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
-                            {count}
-                          </span>
-                        )}
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <div>
-              <button
-                type="button"
-                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:bg-gray-50 dark:hover:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700/60 transition-colors"
-                onClick={() => setActiveCategory(null)}
-              >
-                <svg
-                  className="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-                {t(
-                  FILTER_CATEGORIES.find((c) => c.type === activeCategory)
-                    ?.labelKey,
-                )}
-              </button>
-              <ul className="py-1.5 max-h-64 overflow-y-auto">
-                {(filterOptions[activeCategory] ?? []).map((opt) => {
-                  const active = isFilterActive(activeCategory, opt.value);
-                  return (
-                    <li key={opt.value}>
-                      <button
-                        type="button"
-                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                        onClick={() =>
-                          toggleFilter(activeCategory, opt.value, opt.label)
-                        }
-                      >
-                        <span
-                          className={`flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                            active
-                              ? "bg-violet-500 border-violet-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
-                        >
-                          {active && (
-                            <svg
-                              className="w-3 h-3 text-white"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={3}
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
-                          )}
-                        </span>
-                        {opt.dot && (
-                          <span
-                            className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{backgroundColor: opt.dot}}
-                          />
-                        )}
-                        <span className="truncate">{opt.label}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-                {(filterOptions[activeCategory] ?? []).length === 0 && (
-                  <li className="px-3 py-3 text-sm text-gray-400 dark:text-gray-500 text-center">
-                    {t("noItemsFound")}
-                  </li>
-                )}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ─── Property Grid Card ─────────────────────────────────────── */
 
@@ -486,6 +301,8 @@ function PropertiesList() {
   useEffect(() => {
     if (!properties?.length) return;
     properties.forEach((prop) => {
+      const backendUrl = prop.main_photo_url || prop.mainPhotoUrl;
+      if (backendUrl) return;
       const key = prop.main_photo || prop.mainPhoto;
       if (
         !key ||
@@ -508,15 +325,12 @@ function PropertiesList() {
   const getMainPhotoUrl = useCallback(
     (property) => {
       if (!property) return null;
+      const backendUrl = property.main_photo_url || property.mainPhotoUrl;
+      if (backendUrl) return backendUrl;
       const key = property.main_photo || property.mainPhoto;
       if (!key) return null;
       if (key.startsWith("http") || key.startsWith("blob:")) return key;
-      return (
-        presignedUrls[key] ??
-        property.main_photo_url ??
-        property.mainPhotoUrl ??
-        null
-      );
+      return presignedUrls[key] ?? null;
     },
     [presignedUrls],
   );
@@ -1015,6 +829,7 @@ function PropertiesList() {
                 {/* Filter button + View toggle (right of search) */}
                 <div className="flex items-center gap-2 shrink-0">
                   <FilterDropdown
+                    filterCategories={FILTER_CATEGORIES}
                     filterOptions={filterOptions}
                     activeFilters={state.activeFilters}
                     onAdd={(f) => dispatch({type: "ADD_FILTER", payload: f})}

@@ -249,10 +249,12 @@ function HomeownerHome() {
     });
   }, [properties, getPropertyTeam]);
 
-  // ─── Fetch presigned URLs for property main photos ───────────────────────────
+  // ─── Fetch presigned URLs for property main photos (only when backend didn't provide one) ──
   useEffect(() => {
     if (!properties?.length) return;
     properties.forEach((prop) => {
+      const backendUrl = prop.main_photo_url || prop.mainPhotoUrl;
+      if (backendUrl) return;
       const key = prop.main_photo || prop.mainPhoto;
       if (
         !key ||
@@ -327,6 +329,8 @@ function HomeownerHome() {
   const getMainPhotoUrl = useCallback(
     (property) => {
       if (!property) return null;
+      const backendUrl = property.main_photo_url || property.mainPhotoUrl;
+      if (backendUrl) return backendUrl;
       const key = property.main_photo || property.mainPhoto;
       if (!key) return null;
       if (key.startsWith("http") || key.startsWith("blob:")) return key;

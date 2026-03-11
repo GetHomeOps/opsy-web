@@ -15,9 +15,27 @@ import PaginationClassic from "../../components/PaginationClassic";
 import userContext from "../../context/UserContext";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
-import ViewModeDropdown from "../../components/ViewModeDropdown";
+import FilterDropdown from "../../components/FilterDropdown";
 import UsersTable from "./UsersTable";
 import ListDropdown from "../../partials/buttons/ListDropdown";
+
+const USER_FILTER_CATEGORIES = [
+  {type: "role", labelKey: "role"},
+  {type: "status", labelKey: "status"},
+];
+
+const STATUS_OPTIONS = [
+  {value: "active", labelKey: "active", color: "#2a9f52"},
+  {value: "pending", labelKey: "pending", color: "#e63939"},
+];
+
+const ROLE_COLORS = {
+  admin: "#6366f1",
+  agent: "#3b82f6",
+  homeowner: "#22c55e",
+  super_admin: "#9333ea",
+  superadmin: "#9333ea",
+};
 
 const PAGE_STORAGE_KEY = "users_list_page";
 
@@ -25,6 +43,7 @@ const initialState = {
   currentPage: 1,
   itemsPerPage: 10,
   searchTerm: "",
+  activeFilters: [],
   isSubmitting: false,
   dangerModalOpen: false,
   bannerOpen: false,
@@ -42,6 +61,32 @@ function reducer(state, action) {
       return {...state, itemsPerPage: action.payload};
     case "SET_SEARCH_TERM":
       return {...state, searchTerm: action.payload};
+    case "ADD_FILTER": {
+      const exists = state.activeFilters.some(
+        (f) =>
+          f.type === action.payload.type && f.value === action.payload.value,
+      );
+      if (exists) return state;
+      return {
+        ...state,
+        activeFilters: [...state.activeFilters, action.payload],
+        currentPage: 1,
+      };
+    }
+    case "REMOVE_FILTER":
+      return {
+        ...state,
+        activeFilters: state.activeFilters.filter(
+          (f) =>
+            !(
+              f.type === action.payload.type &&
+              f.value === action.payload.value
+            ),
+        ),
+        currentPage: 1,
+      };
+    case "CLEAR_FILTERS":
+      return {...state, activeFilters: [], currentPage: 1};
     case "SET_SUBMITTING":
       return {...state, isSubmitting: action.payload};
     case "SET_DANGER_MODAL":
@@ -109,34 +154,96 @@ function UsersList() {
     refetchUsers?.();
   }, [refetchUsers]);
 
-  // Memoize filtered users based on search term
+  // Derive filter options from users (unique roles)
+  const uniqueRoles = useMemo(() => {
+    if (!sortedUsers || sortedUsers.length === 0) return [];
+    const roles = [
+      ...new Set(
+        sortedUsers
+          .map((u) => (u.role || "").trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    const roleLabels = {
+      admin: "Admin",
+      agent: "Agent",
+      homeowner: "Homeowner",
+      super_admin: "Super Admin",
+      superadmin: "Super Admin",
+    };
+    return roles
+      .sort((a, b) => (roleLabels[a] || a).localeCompare(roleLabels[b] || b))
+      .map((r) => ({
+        value: r,
+        label: roleLabels[r] || r.charAt(0).toUpperCase() + r.slice(1),
+        dot: ROLE_COLORS[r] || "#6b7280",
+      }));
+  }, [sortedUsers]);
+
+  const filterOptions = useMemo(
+    () => ({
+      role: uniqueRoles,
+      status: STATUS_OPTIONS.map((s) => ({
+        value: s.value,
+        label: t(s.labelKey),
+        dot: s.color,
+      })),
+    }),
+    [uniqueRoles, t],
+  );
+
+  // Memoize filtered users based on search term and active filters
   const filteredUsers = useMemo(() => {
     if (!users || users.length === 0) return [];
 
     // Get the sorted users from context
     if (!sortedUsers || sortedUsers.length === 0) return [];
 
-    // If no search term, return all sorted users
-    if (!state.searchTerm) return sortedUsers;
-
-    // Filter the sorted users based on search term
-    const searchLower = state.searchTerm.toLowerCase();
-    const filtered = sortedUsers.filter((user) => {
-      const userName = (user.name || "").toLowerCase();
-      const email = (user.email || "").toLowerCase();
-      const phone = (user.phone || "").toLowerCase();
-      const role = (user.role || "").toLowerCase();
-
-      return (
-        userName.includes(searchLower) ||
-        email.includes(searchLower) ||
-        phone.includes(searchLower) ||
-        role.includes(searchLower)
-      );
+    const filtersByType = {};
+    state.activeFilters.forEach((f) => {
+      if (!filtersByType[f.type]) filtersByType[f.type] = [];
+      filtersByType[f.type].push(f.value);
     });
 
+    let filtered = sortedUsers;
+
+    // Apply search filter
+    if (state.searchTerm) {
+      const searchLower = state.searchTerm.toLowerCase();
+      filtered = filtered.filter((user) => {
+        const userName = (user.name || "").toLowerCase();
+        const email = (user.email || "").toLowerCase();
+        const phone = (user.phone || "").toLowerCase();
+        const role = (user.role || "").toLowerCase();
+
+        return (
+          userName.includes(searchLower) ||
+          email.includes(searchLower) ||
+          phone.includes(searchLower) ||
+          role.includes(searchLower)
+        );
+      });
+    }
+
+    // Apply role filter
+    if (filtersByType.role?.length) {
+      filtered = filtered.filter((user) => {
+        const userRole = (user.role || "").trim().toLowerCase();
+        return filtersByType.role.includes(userRole);
+      });
+    }
+
+    // Apply status filter
+    if (filtersByType.status?.length) {
+      filtered = filtered.filter((user) => {
+        const isActive = user.isActive ?? user.is_active ?? false;
+        const userStatus = isActive ? "active" : "pending";
+        return filtersByType.status.includes(userStatus);
+      });
+    }
+
     return filtered;
-  }, [state.searchTerm, users, sortedUsers]);
+  }, [state.searchTerm, state.activeFilters, users, sortedUsers]);
 
   // Validate current page - reset to page 1 if current page is invalid
   useEffect(() => {
@@ -459,13 +566,13 @@ function UsersList() {
                 </button>
               </div>
             </div>
-            {/* Search bar with integrated view mode selector */}
-            <div className="mb-6">
-              <div className="flex items-center space-x-4">
-                <div className="relative flex-1">
+            {/* Search bar with filter */}
+            <div className="mb-6 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <div className="relative flex-1 min-w-0">
                   <input
                     type="text"
-                    className="form-input w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-gray-300 dark:focus:border-gray-600 rounded-lg shadow-sm "
+                    className="form-input w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-gray-300 dark:focus:border-gray-600 rounded-lg shadow-sm text-sm"
                     placeholder={
                       t("searchUsersPlaceholder") ||
                       t("searchContactsPlaceholder")
@@ -479,9 +586,9 @@ function UsersList() {
                       dispatch({type: "SET_CURRENT_PAGE", payload: 1});
                     }}
                   />
-                  <div className="absolute inset-0 flex items-center pointer-events-none pl-3">
+                  <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none pl-3">
                     <svg
-                      className="shrink-0 fill-current text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400 ml-1 mr-2"
+                      className="shrink-0 fill-current text-gray-400 dark:text-gray-500 ml-1"
                       width="16"
                       height="16"
                       viewBox="0 0 16 16"
@@ -492,11 +599,69 @@ function UsersList() {
                     </svg>
                   </div>
                 </div>
-                <ViewModeDropdown
-                /* viewMode={viewMode}
-                  setViewMode={setViewMode} */
-                />
+                <div className="flex items-center gap-2 shrink-0">
+                  <FilterDropdown
+                    filterCategories={USER_FILTER_CATEGORIES}
+                    filterOptions={filterOptions}
+                    activeFilters={state.activeFilters}
+                    onAdd={(f) => dispatch({type: "ADD_FILTER", payload: f})}
+                    onRemove={(f) =>
+                      dispatch({type: "REMOVE_FILTER", payload: f})
+                    }
+                    t={t}
+                  />
+                </div>
               </div>
+
+              {/* Active filter chips */}
+              {state.activeFilters.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {state.activeFilters.map((f) => (
+                    <span
+                      key={`${f.type}-${f.value}`}
+                      className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20"
+                    >
+                      <span className="text-violet-400 dark:text-violet-500 font-normal">
+                        {t(
+                          USER_FILTER_CATEGORIES.find(
+                            (c) => c.type === f.type,
+                          )?.labelKey ?? f.type,
+                        )}
+                        :
+                      </span>
+                      {f.label}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          dispatch({type: "REMOVE_FILTER", payload: f})
+                        }
+                        className="ml-0.5 p-0.5 rounded-full hover:bg-violet-200 dark:hover:bg-violet-500/20 transition-colors"
+                      >
+                        <svg
+                          className="w-3 h-3"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2.5}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => dispatch({type: "CLEAR_FILTERS"})}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                  >
+                    {t("clearAll", {defaultValue: "Clear all"})}
+                  </button>
+                </div>
+              )}
             </div>
             {/* Table or Grouped View */}
             <>

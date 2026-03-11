@@ -2,7 +2,7 @@
 
 const express = require("express");
 const jsonschema = require("jsonschema");
-const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensurePropertyAccess, ensureUserCanAccessAccountFromBody } = require("../middleware/auth");
+const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensurePropertyAccess, ensureUserCanAccessAccountFromBody, clearPropertyAccessCache } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const Property = require("../models/property");
 const propertyNewSchema = require("../schemas/propertyNew.json");
@@ -370,6 +370,7 @@ router.patch("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "prop
 router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: "propertyId" }), async function (req, res, next) {
   try {
     const property_users = await Property.updatePropertyUsers(req.params.propertyId, req.body);
+    clearPropertyAccessCache(req.params.propertyId);
     return res.status(201).json({ property_users });
   } catch (err) {
     return next(err);
