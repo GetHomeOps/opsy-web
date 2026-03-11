@@ -76,7 +76,7 @@ stripe listen --forward-to localhost:3000/webhooks/stripe
 
 4. For production, create a webhook endpoint in Stripe Dashboard:
    - URL: `https://your-api.com/webhooks/stripe`
-   - Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
+   - Events: `checkout.session.completed`, `checkout.session.expired`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
 
 ## Testing
 
@@ -101,7 +101,7 @@ Before going live, complete these steps:
 2. **Create production webhook**
    - Stripe Dashboard → Developers → Webhooks → Add endpoint
    - URL: `https://your-api.com/webhooks/stripe`
-   - Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
+   - Events: `checkout.session.completed`, `checkout.session.expired`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
    - Copy the signing secret to `STRIPE_WEBHOOK_SECRET`
 
 3. **Create live products and prices**

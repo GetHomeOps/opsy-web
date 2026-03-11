@@ -4,6 +4,7 @@ import {NavLink, useLocation} from "react-router-dom";
 import {ChevronDown, ChevronLeft, ChevronRight} from "lucide-react";
 
 import Logo from "../images/logo-no-bg.png";
+import OpsyHeader from "../images/OpsyHeader.png";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import {useAuth} from "../context/AuthContext";
 import Transition from "../utils/Transition";
@@ -628,11 +629,19 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                 </svg>
               </button>
               <NavLink end to={toPath("home")} className="block">
-                <img
-                  src={Logo}
-                  alt="Logo"
-                  className="w-12 h-12 rounded-full object-contain flex-shrink-0"
-                />
+                {isCollapsed ? (
+                  <img
+                    src={Logo}
+                    alt="Opsy"
+                    className="w-12 h-12 rounded-full object-contain flex-shrink-0"
+                  />
+                ) : (
+                  <img
+                    src={OpsyHeader}
+                    alt="Opsy"
+                    className="h-10 w-auto max-w-[180px] object-contain object-left flex-shrink-0"
+                  />
+                )}
               </NavLink>
             </div>
 

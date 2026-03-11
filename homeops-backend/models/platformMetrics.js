@@ -51,8 +51,12 @@ class PlatformMetrics {
   }
 
   static async getPlatformSummary() {
-    const [usersRes, accountsRes, propsRes, sysRes, maintRes, subsRes] = await Promise.all([
+    const [usersRes, activeUsersRes, pendingSignupsRes, accountsRes, propsRes, sysRes, maintRes, subsRes] = await Promise.all([
       db.query(`SELECT COUNT(*)::int AS count FROM users`),
+      // Active users = completed onboarding (excludes abandoned signups)
+      db.query(`SELECT COUNT(*)::int AS count FROM users WHERE onboarding_completed = true AND is_active = true`),
+      // Pending signups = registered but never finished onboarding/payment
+      db.query(`SELECT COUNT(*)::int AS count FROM users WHERE onboarding_completed = false`),
       db.query(`SELECT COUNT(*)::int AS count FROM accounts`),
       db.query(`SELECT COUNT(*)::int AS count FROM properties`),
       db.query(`SELECT COUNT(*)::int AS count FROM property_systems`),
@@ -61,6 +65,8 @@ class PlatformMetrics {
     ]);
 
     const totalUsers = usersRes.rows[0].count;
+    const activeUsers = activeUsersRes.rows[0].count;
+    const pendingSignups = pendingSignupsRes.rows[0].count;
     const totalAccounts = accountsRes.rows[0].count;
     const totalProperties = propsRes.rows[0].count;
     const totalSystems = sysRes.rows[0].count;
@@ -68,8 +74,10 @@ class PlatformMetrics {
     const totalSubscriptions = subsRes.rows[0].count;
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const [newUsersRes, newAccountsRes, newPropsRes] = await Promise.all([
+    const [newUsersRes, newActiveUsersRes, newAccountsRes, newPropsRes] = await Promise.all([
       db.query(`SELECT COUNT(*)::int AS count FROM users WHERE created_at >= $1`, [thirtyDaysAgo]),
+      // New active users = completed onboarding in last 30 days
+      db.query(`SELECT COUNT(*)::int AS count FROM users WHERE onboarding_completed = true AND created_at >= $1`, [thirtyDaysAgo]),
       db.query(`SELECT COUNT(*)::int AS count FROM accounts WHERE created_at >= $1`, [thirtyDaysAgo]),
       db.query(`SELECT COUNT(*)::int AS count FROM properties WHERE created_at >= $1`, [thirtyDaysAgo]),
     ]);
@@ -78,7 +86,7 @@ class PlatformMetrics {
       ? +(totalProperties / totalAccounts).toFixed(1)
       : 0;
     const avgUsersPerAccount = totalAccounts > 0
-      ? +(totalUsers / totalAccounts).toFixed(1)
+      ? +(activeUsers / totalAccounts).toFixed(1)
       : 0;
 
     const avgHpsRes = await db.query(
@@ -95,12 +103,15 @@ class PlatformMetrics {
 
     return {
       totalUsers,
+      activeUsers,
+      pendingSignups,
       totalAccounts,
       totalProperties,
       totalSystems,
       totalMaintenanceRecords,
       totalSubscriptions,
       newUsersLast30d: newUsersRes.rows[0].count,
+      newActiveUsersLast30d: newActiveUsersRes.rows[0].count,
       newAccountsLast30d: newAccountsRes.rows[0].count,
       newPropertiesLast30d: newPropsRes.rows[0].count,
       avgPropertiesPerAccount,

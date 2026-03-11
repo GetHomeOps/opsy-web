@@ -46,6 +46,23 @@ function Signup() {
 
   const {t} = useTranslation();
 
+  /** Reset OAuth loading when page is restored from back-forward cache or when
+   *  tab regains focus (e.g. user started OAuth, cancelled at Google, then hit Back). */
+  useEffect(() => {
+    function onPageShow(ev) {
+      if (ev.persisted) setOauthLoading(false);
+    }
+    function onVisibilityChange() {
+      if (document.visibilityState === "visible") setOauthLoading(false);
+    }
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
   useEffect(() => {
     if (justSignedUp.current && currentUser) {
       if (currentUser.accounts && currentUser.accounts.length > 0) {

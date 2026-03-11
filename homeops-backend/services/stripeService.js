@@ -15,6 +15,7 @@ const {
   STRIPE_SUCCESS_URL,
   STRIPE_CANCEL_URL,
   BILLING_MOCK_MODE,
+  APP_BASE_URL,
 } = require("../config");
 
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
@@ -78,6 +79,8 @@ async function createCheckoutSession({ accountId, userId, planCode, billingInter
   const acc = accountRes.rows[0];
   const customer = await getOrCreateStripeCustomer(accountId, customerEmail || acc.email, customerName || acc.user_name);
 
+  const logoUrl = APP_BASE_URL ? `${APP_BASE_URL.replace(/\/$/, "")}/OpsyHeader.png` : null;
+
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customer.id,
@@ -99,6 +102,11 @@ async function createCheckoutSession({ accountId, userId, planCode, billingInter
       billing_interval: billingInterval,
     },
     allow_promotion_codes: true,
+    ...(logoUrl && {
+      branding_settings: {
+        logo: { type: "url", url: logoUrl },
+      },
+    }),
   });
 
   return { url: session.url, sessionId: session.id };
@@ -189,6 +197,37 @@ function toSafeTimestamp(value, fallback = null) {
   if (value == null) return fallback ?? new Date();
   const d = value instanceof Date ? value : new Date(value);
   return Number.isFinite(d.getTime()) ? d : (fallback ?? new Date());
+}
+
+/** Process checkout.session.expired - User abandoned Stripe Checkout without paying. */
+async function handleCheckoutExpired(session) {
+  const accountId = session.metadata?.account_id;
+  const userId = session.metadata?.user_id;
+  const planCode = session.metadata?.plan_code;
+
+  // Log for analytics (platform_engagement_events allows null user_id)
+  try {
+    await db.query(
+      `INSERT INTO platform_engagement_events (user_id, event_type, event_data)
+       VALUES ($1, $2, $3)`,
+      [
+        userId ? parseInt(userId, 10) : null,
+        "checkout_session_expired",
+        JSON.stringify({
+          stripe_session_id: session.id,
+          account_id: accountId,
+          plan_code: planCode,
+          expired_at: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
+        }),
+      ]
+    );
+  } catch (logErr) {
+    console.warn("[webhooks/stripe] checkout.session.expired: failed to log event", logErr.message);
+  }
+
+  console.info(
+    `[webhooks/stripe] checkout.session.expired: abandoned checkout for account=${accountId} user=${userId} plan=${planCode}`
+  );
 }
 
 /** Process checkout.session.completed */
@@ -399,6 +438,9 @@ async function processWebhookEvent(event) {
   switch (event.type) {
     case "checkout.session.completed":
       await handleCheckoutCompleted(event.data.object);
+      break;
+    case "checkout.session.expired":
+      await handleCheckoutExpired(event.data.object);
       break;
     case "customer.subscription.created":
     case "customer.subscription.updated":
