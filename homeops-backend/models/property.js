@@ -14,7 +14,10 @@
  * - getPropertyTeam / getAgentByAccountId: Retrieve team/agent data
  */
 
-const { nanoid } = require("nanoid");
+const { customAlphabet } = require("nanoid");
+
+/** Generate readable property UIDs: uppercase + digits only, no ambiguous chars (0/O, 1/l/I) */
+const genPropertyUid = customAlphabet("23456789ABCDEFGHJKLMNPQRSTUVWXYZ", 8);
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
 const { generatePassportId } = require("../helpers/properties");
@@ -82,7 +85,7 @@ class Property {
 
   /* Create a new property from provided data (any subset of columns) */
   static async create(data = {}) {
-    const withUid = { ...data, property_uid: data.property_uid || nanoid(8) };
+    const withUid = { ...data, property_uid: data.property_uid || genPropertyUid() };
     if (!withUid.passport_id && withUid.state != null && withUid.zip != null) {
       withUid.passport_id = generatePassportId({ state: withUid.state, zip: withUid.zip });
     }
@@ -114,12 +117,15 @@ class Property {
     return result.rows[0];
   }
 
-  /* Get property by property uid */
+  /* Get property by property uid or numeric id */
   static async get(uid) {
     try {
+      const isNumeric = /^\d+$/.test(String(uid));
       const result = await db.query(
-        `SELECT * FROM properties WHERE property_uid = $1`,
-        [uid]
+        isNumeric
+          ? `SELECT * FROM properties WHERE id = $1`
+          : `SELECT * FROM properties WHERE property_uid = $1`,
+        [isNumeric ? parseInt(uid, 10) : uid]
       );
       const property = result.rows[0];
       if (!property) throw new NotFoundError(`No property with uid: ${uid}`);

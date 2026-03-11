@@ -124,6 +124,40 @@ async function buildFocusedContext(propertyId, intent, existingSummary) {
     return { context: parts.join("\n"), analysisDate: analysis?.created_at || null };
   }
 
+  if (intent.type === "schedule" || intent.type === "events") {
+    // Property-wide scheduled events for calendar/scheduling questions
+    const eventsRes = await db.query(
+      `SELECT system_key, system_name, scheduled_date, scheduled_time, status
+       FROM maintenance_events
+       WHERE property_id = $1
+       ORDER BY scheduled_date ASC, scheduled_time ASC NULLS LAST
+       LIMIT 20`,
+      [propertyId]
+    );
+    if (eventsRes.rows.length > 0) {
+      const today = new Date().toISOString().slice(0, 10);
+      const upcoming = eventsRes.rows.filter((e) => (e.scheduled_date || "") >= today);
+      const past = eventsRes.rows.filter((e) => (e.scheduled_date || "") < today);
+      if (upcoming.length > 0) {
+        parts.push(`Upcoming scheduled events: ${upcoming.map((e) => `${e.system_name} on ${e.scheduled_date}${e.scheduled_time ? ` at ${e.scheduled_time}` : ""} (${e.status})`).join("; ")}`);
+      }
+      if (past.length > 0) {
+        parts.push(`Recent past events: ${past.slice(0, 5).map((e) => `${e.system_name} on ${e.scheduled_date} (${e.status})`).join("; ")}`);
+      }
+    } else {
+      parts.push("No scheduled maintenance events found for this property.");
+    }
+    const analysisRes = await db.query(
+      `SELECT r.created_at FROM inspection_analysis_results r
+       JOIN inspection_analysis_jobs j ON j.id = r.job_id
+       WHERE r.property_id = $1 AND j.status = 'completed'
+       ORDER BY r.created_at DESC LIMIT 1`,
+      [propertyId]
+    );
+    const analysisDate = analysisRes.rows[0]?.created_at || null;
+    return { context: parts.join("\n"), analysisDate };
+  }
+
   if (intent.type === "system_specific" && intent.systems.length > 0) {
     const analysisRes = await db.query(
       `SELECT systems_detected, needs_attention, maintenance_suggestions, r.created_at

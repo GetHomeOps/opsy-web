@@ -2,6 +2,7 @@ import React, {useState, useEffect, useCallback} from "react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
+import DatePickerInput from "../../components/DatePickerInput";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import {
   DollarSign,
@@ -37,29 +38,44 @@ function UnitCostDashboard() {
   const [users, setUsers] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState(getDefaultDateRange);
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const [usersData, summaryData] = await Promise.all([
-        AppApi.getCostPerUser(dateRange),
-        AppApi.getCostSummary(dateRange),
-      ]);
-      setUsers(usersData ?? []);
-      setSummary(summaryData ?? null);
-    } catch (err) {
-      setError(
-        err?.messages?.[0] || err?.message || "Failed to load unit cost data",
-      );
-      setUsers([]);
-      setSummary(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [dateRange.startDate, dateRange.endDate]);
+  const fetchData = useCallback(
+    async (options = {}) => {
+      const isManualRefresh = !!options.bustCache;
+      try {
+        setLoading(true);
+        if (isManualRefresh) setRefreshing(true);
+        setError(null);
+        const params = { ...dateRange };
+        if (isManualRefresh) params._t = Date.now();
+        const minDelay = isManualRefresh
+          ? new Promise((r) => setTimeout(r, 800))
+          : Promise.resolve();
+        const [[usersData, summaryData]] = await Promise.all([
+          Promise.all([
+            AppApi.getCostPerUser(params),
+            AppApi.getCostSummary(params),
+          ]),
+          minDelay,
+        ]);
+        setUsers(usersData ?? []);
+        setSummary(summaryData ?? null);
+      } catch (err) {
+        setError(
+          err?.messages?.[0] || err?.message || "Failed to load unit cost data",
+        );
+        setUsers([]);
+        setSummary(null);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [dateRange.startDate, dateRange.endDate],
+  );
 
   useEffect(() => {
     fetchData();
@@ -102,9 +118,8 @@ function UnitCostDashboard() {
                   >
                     From
                   </label>
-                  <input
-                    id="startDate"
-                    type="date"
+                  <DatePickerInput
+                    name="startDate"
                     value={dateRange.startDate}
                     onChange={(e) =>
                       setDateRange((prev) => ({
@@ -112,7 +127,7 @@ function UnitCostDashboard() {
                         startDate: e.target.value,
                       }))
                     }
-                    className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200"
+                    className="form-input w-36"
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -122,9 +137,8 @@ function UnitCostDashboard() {
                   >
                     To
                   </label>
-                  <input
-                    id="endDate"
-                    type="date"
+                  <DatePickerInput
+                    name="endDate"
                     value={dateRange.endDate}
                     onChange={(e) =>
                       setDateRange((prev) => ({
@@ -132,19 +146,19 @@ function UnitCostDashboard() {
                         endDate: e.target.value,
                       }))
                     }
-                    className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-800 dark:text-gray-200"
+                    className="form-input w-36"
                   />
                 </div>
                 <button
                   type="button"
-                  onClick={fetchData}
+                  onClick={() => fetchData({ bustCache: true })}
                   disabled={loading}
                   className="flex items-center gap-2 btn bg-[#456564] text-white hover:bg-[#3a5554] disabled:opacity-50 text-sm"
                 >
                   <RefreshCw
-                    className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                    className={`w-4 h-4 flex-shrink-0 ${refreshing ? "animate-spin" : ""}`}
                   />
-                  Refresh
+                  {refreshing ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
             </div>

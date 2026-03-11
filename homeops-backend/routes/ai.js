@@ -217,7 +217,7 @@ async function getSystemContextFromDb(propertyId, systemId) {
 // System prompt builder
 // -----------------------------------------------------------------
 
-function buildSystemPrompt(systemId, systemName, systemCtx, contextSwitched) {
+function buildSystemPrompt(systemId, systemName, systemCtx, contextSwitched, contextType) {
   const systemCondition = systemCtx?.systemCondition ?? systemCtx?.system_condition;
   const lastMaintenance = systemCtx?.lastMaintenanceDate ?? systemCtx?.last_maintenance_date;
   const upcomingEvents = systemCtx?.upcomingEvents ?? systemCtx?.upcoming_events ?? [];
@@ -230,6 +230,17 @@ Respond in clean, professional plain text. Do not use markdown formatting such a
 Use ONLY the property context and document excerpts provided. Cite specific details when relevant. Do not invent facts. If information is not in the context, say so.
 
 Be natural and helpful. Be thorough but concise.`;
+
+  if (contextType === "property" && !systemId) {
+    prompt += `
+
+Focus on the property as a whole: overall condition, inspection summary, and high-level recommendations. Do not drill into individual systems unless the user asks.`;
+  }
+  if (contextType === "events" && !systemId) {
+    prompt += `
+
+Focus on scheduled events, the calendar, and upcoming maintenance. Help the user understand what's scheduled, when things are due, and how to plan.`;
+  }
 
   if (systemId && systemName) {
     prompt += `
@@ -399,7 +410,7 @@ router.post(
   ensureLoggedIn,
   async function (req, res, next) {
     try {
-      const { conversationId, propertyId, message, systemContext: clientSystemContext } = req.body || {};
+      const { conversationId, propertyId, message, systemContext: clientSystemContext, contextType } = req.body || {};
       const userId = res.locals.user.id;
 
       if (!propertyId || !message || typeof message !== "string") {
@@ -481,10 +492,19 @@ router.post(
       await saveMessage(convId, "user", message);
 
       // --- Intent detection: only inject relevant context ---
-      const intent = detectIntent(message);
+      let intent;
+      if (systemId) {
+        intent = { type: "system_specific", systems: [systemId] };
+      } else if (contextType === "property") {
+        intent = { type: "general", systems: [] };
+      } else if (contextType === "events") {
+        intent = { type: "events", systems: [] };
+      } else {
+        intent = detectIntent(message);
+      }
       const { context: focusedContext, analysisDate } = await buildFocusedContext(
         resolvedId,
-        systemId ? { type: "system_specific", systems: [systemId] } : intent,
+        intent,
         contextSummary
       );
 
@@ -499,7 +519,7 @@ router.post(
       if (docContext) contextBlock += `\n\nRelevant document excerpts:\n${docContext}`;
 
       // --- Build system prompt ---
-      const systemPrompt = buildSystemPrompt(systemId, systemName, systemCtx, contextSwitched);
+      const systemPrompt = buildSystemPrompt(systemId, systemName, systemCtx, contextSwitched, contextType);
 
       // --- Assemble LLM messages ---
       const llmMessages = [

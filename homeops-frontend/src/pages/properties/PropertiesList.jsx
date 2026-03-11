@@ -218,8 +218,18 @@ const PropertyCard = ({
       </div>
       <div className="p-3.5">
         <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
-          {property.passport_id || property.property_name || t("property")}
+          {property.property_name ||
+            property.propertyName ||
+            property.nickname ||
+            property.address ||
+            property.passport_id ||
+            t("property")}
         </div>
+        {property.passport_id && (
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+            {property.passport_id}
+          </div>
+        )}
         {(property.address || property.city) && (
           <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
             <svg
@@ -413,6 +423,9 @@ function PropertiesList() {
       if (term) {
         const matchesSearch =
           (property.passport_id || "").toLowerCase().includes(term) ||
+          (property.property_name || property.propertyName || property.nickname || "")
+            .toLowerCase()
+            .includes(term) ||
           (property.address || "").toLowerCase().includes(term) ||
           (property.city || "").toLowerCase().includes(term) ||
           (property.state || "").toLowerCase().includes(term);
@@ -560,6 +573,13 @@ function PropertiesList() {
 
   const columns = [
     {key: "passport_id", label: "Passport ID", sortable: true},
+    {
+      key: "property_name",
+      label: "Property Name",
+      sortable: true,
+      render: (value, item) =>
+        value ?? item?.propertyName ?? item?.nickname ?? "—",
+    },
     {key: "address", label: "address", sortable: true},
     {key: "city", label: "city", sortable: true},
     {key: "state", label: "state", sortable: true},

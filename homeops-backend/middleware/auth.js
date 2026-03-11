@@ -94,7 +94,6 @@ function ensurePropertyAccess(options = {}) {
     try {
       const user = res.locals.user;
       if (!user?.id) throw new UnauthorizedError();
-      if (user.role === "super_admin" || user.role === "admin") return next();
 
       const raw = (fromBody && req.body && req.body[fromBody] != null)
         ? req.body[fromBody]
@@ -102,8 +101,12 @@ function ensurePropertyAccess(options = {}) {
       if (!raw) throw new ForbiddenError("Property identifier missing.");
 
       let propertyId = raw;
+      const paramExpectsNumericId = param === "propertyId" || param === "PropertyId";
 
-      if (/^[A-Za-z0-9_-]{6,12}$/.test(raw) && !/^\d+$/.test(raw)) {
+      if (/^\d+$/.test(String(raw))) {
+        propertyId = parseInt(raw, 10);
+        if (paramExpectsNumericId && req.params[param] !== undefined) req.params[param] = propertyId;
+      } else if (/^[A-Za-z0-9_-]{6,12}$/.test(raw)) {
         const cached = _uidToIdCache.get(raw);
         if (cached && cached.expiresAt > Date.now()) {
           propertyId = cached.value;
@@ -116,7 +119,10 @@ function ensurePropertyAccess(options = {}) {
           propertyId = propRes.rows[0].id;
           _uidToIdCache.set(raw, { value: propertyId, expiresAt: Date.now() + _ACCESS_TTL_MS });
         }
+        if (paramExpectsNumericId && req.params[param] !== undefined) req.params[param] = propertyId;
       }
+
+      if (user.role === "super_admin" || user.role === "admin") return next();
 
       const ck = _cacheKey(user.id, propertyId);
       const cachedGrant = _accessGrantCache.get(ck);

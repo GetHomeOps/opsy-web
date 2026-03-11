@@ -927,12 +927,13 @@ class AppApi {
     return res;
   }
 
-  static async aiChat({ conversationId, propertyId, message, systemContext }) {
+  static async aiChat({ conversationId, propertyId, message, systemContext, contextType }) {
     const res = await this.request("ai/chat", {
       conversationId,
       propertyId,
       message,
       systemContext,
+      contextType,
     }, "POST");
     return res;
   }

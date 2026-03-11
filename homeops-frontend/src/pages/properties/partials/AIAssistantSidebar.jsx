@@ -13,10 +13,13 @@ import {
   Search,
   ExternalLink,
   ChevronDown,
+  ChevronLeft,
   Wrench,
   UserPlus,
   RotateCcw,
   Database,
+  Home,
+  CalendarDays,
 } from "lucide-react";
 import Transition from "../../../utils/Transition";
 import AppApi from "../../../api/api";
@@ -37,6 +40,8 @@ function AIAssistantSidebar({
   initialPrompt,
   onScheduleSuccess,
   onOpenScheduleModal,
+  embedded = false,
+  onBack,
 }) {
   const navigate = useNavigate();
   const {accountUrl} = useParams();
@@ -53,6 +58,10 @@ function AIAssistantSidebar({
   );
   const [activeSystemName, setActiveSystemName] = useState(
     systemContext?.systemName ?? systemLabel ?? null,
+  );
+  // "property" | "events" | "system" — when property/events, systemContext is null
+  const [activeContextType, setActiveContextType] = useState(
+    systemContext?.systemId ? "system" : "property",
   );
   const [changeSystemOpen, setChangeSystemOpen] = useState(false);
   const hasSentInitialPromptRef = useRef(false);
@@ -98,9 +107,11 @@ function AIAssistantSidebar({
     if (systemContext?.systemId) {
       setActiveSystemId(systemContext.systemId);
       setActiveSystemName(systemContext.systemName ?? systemLabel ?? null);
+      setActiveContextType("system");
     } else {
       setActiveSystemId(null);
       setActiveSystemName(systemLabel ?? null);
+      setActiveContextType("property");
     }
   }, [systemContext?.systemId, systemContext?.systemName, systemLabel]);
 
@@ -152,14 +163,26 @@ function AIAssistantSidebar({
       .finally(() => setLoadingHistory(false));
   }, [isOpen, propertyId]);
 
-  const handleChangeSystem = async (sys) => {
+  const handleChangeContext = async (option) => {
     setChangeSystemOpen(false);
-    if (sys.id === activeSystemId) return;
+    if (option.type === "property" || option.type === "events") {
+      if (option.type === activeContextType) return;
+      setConversationId(null);
+      setMessages([]);
+      hasSentInitialPromptRef.current = false;
+      setOverrideSystemContext(null);
+      setActiveSystemId(null);
+      setActiveSystemName(null);
+      setActiveContextType(option.type);
+      return;
+    }
+    // System-specific
+    if (option.id === activeSystemId) return;
     setConversationId(null);
     setMessages([]);
     hasSentInitialPromptRef.current = false;
     try {
-      const ctx = await AppApi.getAiSystemContext(propertyId, sys.id);
+      const ctx = await AppApi.getAiSystemContext(propertyId, option.id);
       const mergedCtx = {
         systemId: ctx.systemId,
         systemName: ctx.systemName,
@@ -172,17 +195,30 @@ function AIAssistantSidebar({
       setOverrideSystemContext(mergedCtx);
       setActiveSystemId(mergedCtx.systemId);
       setActiveSystemName(mergedCtx.systemName);
+      setActiveContextType("system");
     } catch {
       // Ignore
     }
   };
 
-  const effectiveSystemContext = overrideSystemContext || systemContext;
+  const effectiveSystemContext =
+    activeContextType === "system" ? (overrideSystemContext || systemContext) : null;
 
-  // Systems in the Change dropdown: only those added to this property
-  const changeSystemOptions = propertySystems?.length
-    ? propertySystems
-    : PROPERTY_SYSTEMS.filter((s) => DEFAULT_SYSTEM_IDS.includes(s.id));
+  // Systems in the Change dropdown: normalize to { id: systemKey, name } for display & API
+  const changeSystemOptions = (() => {
+    const raw =
+      propertySystems?.length > 0
+        ? propertySystems
+        : PROPERTY_SYSTEMS.filter((s) => DEFAULT_SYSTEM_IDS.includes(s.id));
+    return raw.map((s) => {
+      const systemKey = s.system_key ?? s.id;
+      const displayName =
+        s.name ??
+        PROPERTY_SYSTEMS.find((p) => p.id === systemKey)?.name ??
+        systemKey;
+      return { id: systemKey, name: displayName };
+    });
+  })();
 
   // Auto-send initialPrompt (once per open)
   useEffect(() => {
@@ -207,6 +243,7 @@ function AIAssistantSidebar({
       message: initialPrompt,
       conversationId: conversationId || undefined,
       systemContext: ctx,
+      contextType: activeContextType === "property" ? "property" : activeContextType === "events" ? "events" : undefined,
     })
       .then((res) => {
         setConversationId(res.conversationId ?? null);
@@ -253,6 +290,7 @@ function AIAssistantSidebar({
     propertyId,
     effectiveSystemContext,
     loadingHistory,
+    activeContextType,
   ]);
 
   useEffect(() => {
@@ -276,6 +314,7 @@ function AIAssistantSidebar({
         message: text,
         conversationId: conversationId || undefined,
         systemContext: effectiveSystemContext,
+        contextType: activeContextType === "property" ? "property" : activeContextType === "events" ? "events" : undefined,
       });
 
       setConversationId(res.conversationId ?? null);
@@ -410,21 +449,23 @@ function AIAssistantSidebar({
     }
   };
 
-  return (
-    <Transition
-      show={isOpen}
-      tag="div"
-      className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl flex flex-col"
-      enter="transition ease-out duration-200 transform"
-      enterStart="translate-x-full"
-      enterEnd="translate-x-0"
-      leave="transition ease-in duration-150 transform"
-      leaveStart="translate-x-0"
-      leaveEnd="translate-x-full"
-    >
-      <div className="flex flex-col h-full">
+  const sidebarContent = (
+    <>
+      <div
+        className={`flex flex-col overflow-hidden ${embedded ? "flex-1 min-h-0" : "h-full"}`}
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300"
+                aria-label="Back"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
             <Sparkles className="w-5 h-5 text-[#456564]" />
             <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
               AI Assistant
@@ -470,14 +511,16 @@ function AIAssistantSidebar({
           </div>
         )}
 
-        {(activeSystemId || systemContext?.systemId) &&
-          (activeSystemName || systemLabel || systemContext?.systemName) && (
+        {propertyId && (
             <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Discussing:{" "}
                 <span className="font-medium text-gray-700 dark:text-gray-300">
-                  {activeSystemName || systemLabel || systemContext?.systemName}{" "}
-                  System
+                  {activeContextType === "property"
+                    ? "Property overview"
+                    : activeContextType === "events"
+                      ? "Scheduled events"
+                      : `${activeSystemName || systemLabel || systemContext?.systemName || ""} System`}
                 </span>
               </p>
               <div className="relative">
@@ -486,7 +529,7 @@ function AIAssistantSidebar({
                   onClick={() => setChangeSystemOpen((o) => !o)}
                   className="flex items-center gap-0.5 text-xs text-[#456564] hover:text-[#34514f] dark:text-[#7aa3a2] font-medium"
                 >
-                  Change system{" "}
+                  Change topic{" "}
                   <ChevronDown
                     className={`w-3.5 h-3.5 transition-transform ${changeSystemOpen ? "rotate-180" : ""}`}
                   />
@@ -498,17 +541,42 @@ function AIAssistantSidebar({
                       onClick={() => setChangeSystemOpen(false)}
                       aria-hidden="true"
                     />
-                    <div className="absolute right-0 top-full mt-1 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto min-w-[160px]">
+                    <div className="absolute right-0 top-full mt-1 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto min-w-[180px] text-gray-900 dark:text-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => handleChangeContext({ type: "property" })}
+                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${
+                          activeContextType === "property"
+                            ? "bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/20 dark:text-[#7aa3a2] font-medium"
+                            : "text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        <Home className="w-3.5 h-3.5" />
+                        Property overview
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleChangeContext({ type: "events" })}
+                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${
+                          activeContextType === "events"
+                            ? "bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/20 dark:text-[#7aa3a2] font-medium"
+                            : "text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        Scheduled events
+                      </button>
+                      <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
                       {changeSystemOptions.map((sys) => (
                         <button
                           key={sys.id}
                           type="button"
-                          onClick={() => handleChangeSystem(sys)}
+                          onClick={() => handleChangeContext(sys)}
                           className={`w-full text-left px-3 py-1.5 text-xs ${
-                            sys.id ===
-                            (activeSystemId || systemContext?.systemId)
-                              ? "bg-[#456564]/10 text-[#456564] dark:text-[#7aa3a2] font-medium"
-                              : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            activeContextType === "system" &&
+                            sys.id === (activeSystemId || systemContext?.systemId)
+                              ? "bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/20 dark:text-[#7aa3a2] font-medium"
+                              : "text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
                           }`}
                         >
                           {sys.name}
@@ -535,7 +603,7 @@ function AIAssistantSidebar({
                 Ask anything about your property.
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                I can help with maintenance, inspections, and scheduling.
+                Property overview, scheduled events, or system by system.
               </p>
             </div>
           )}
@@ -560,6 +628,7 @@ function AIAssistantSidebar({
                   </p>
                 )}
                 {msg.role === "assistant" &&
+                  activeContextType === "system" &&
                   (activeSystemId || systemContext?.systemId) &&
                   idx === messages.length - 1 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
@@ -631,9 +700,25 @@ function AIAssistantSidebar({
 
           {scheduleDraft && !scheduleSuccess && (
             <div className="rounded-xl border border-[#456564]/30 dark:border-[#456564]/50 bg-[#456564]/5 p-4 space-y-4">
-              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                Schedule (fill in the details below)
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                  Schedule (fill in the details below)
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScheduleDraft(null);
+                    setSelectedContractor(null);
+                    setEventType(null);
+                    setScheduledFor("");
+                    setScheduledTime("");
+                    setScheduleNotes("");
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                >
+                  Not now
+                </button>
+              </div>
               <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                 {scheduleDraft.tasks.map((t, i) => (
                   <li key={i}>
@@ -833,6 +918,36 @@ function AIAssistantSidebar({
         )}
       </div>
 
+      <UpgradePrompt
+        open={upgradePromptOpen}
+        onClose={() => setUpgradePromptOpen(false)}
+        title="AI usage limit reached"
+        message="You've used all your AI tokens for this month. Upgrade your plan for more AI assistant usage."
+      />
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0 bg-white dark:bg-gray-800">
+        {sidebarContent}
+      </div>
+    );
+  }
+
+  return (
+    <Transition
+      show={isOpen}
+      tag="div"
+      className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl flex flex-col"
+      enter="transition ease-out duration-200 transform"
+      enterStart="translate-x-full"
+      enterEnd="translate-x-0"
+      leave="transition ease-in duration-150 transform"
+      leaveStart="translate-x-0"
+      leaveEnd="translate-x-full"
+    >
+      {sidebarContent}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/20 dark:bg-black/40 z-[-1] md:hidden"
@@ -840,12 +955,6 @@ function AIAssistantSidebar({
           aria-hidden="true"
         />
       )}
-      <UpgradePrompt
-        open={upgradePromptOpen}
-        onClose={() => setUpgradePromptOpen(false)}
-        title="AI usage limit reached"
-        message="You've used all your AI tokens for this month. Upgrade your plan for more AI assistant usage."
-      />
     </Transition>
   );
 }

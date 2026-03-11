@@ -3026,19 +3026,6 @@ function PropertyFormContainer() {
         }
         upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
       />
-
-      {/* Floating AI Assistant button - bottom right */}
-      {uid && uid !== "new" && (
-        <button
-          type="button"
-          onClick={() => setAiSidebarOpen(true)}
-          className="fixed bottom-6 right-6 z-40 p-3 rounded-full bg-[#456564] hover:bg-[#34514f] text-white shadow-lg hover:shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#456564] focus:ring-offset-2"
-          title="AI Assistant"
-          aria-label="Open AI Assistant"
-        >
-          <Sparkles className="w-6 h-6" />
-        </button>
-      )}
     </div>
   );
 }
