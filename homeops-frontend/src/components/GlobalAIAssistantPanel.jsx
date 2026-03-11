@@ -1,13 +1,23 @@
 import React, {useState, useEffect, useContext} from "react";
-import {X, Sparkles} from "lucide-react";
+import {useNavigate} from "react-router-dom";
+import {X, Sparkles, ArrowUpCircle, Loader2} from "lucide-react";
 import Transition from "../utils/Transition";
 import PropertyContext from "../context/PropertyContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
-import AppApi from "../api/api";
+import useBillingStatus from "../hooks/useBillingStatus";
 import AIAssistantSidebar from "../pages/properties/partials/AIAssistantSidebar";
+
+const FREE_PLAN_CODES = ["homeowner_free", "agent_free"];
+
 function GlobalAIAssistantPanel({isOpen, onClose}) {
+  const navigate = useNavigate();
   const {properties, refreshProperties, getSystemsByPropertyId} = useContext(PropertyContext);
   const {currentAccount} = useCurrentAccount();
+  const {plan, loading: billingLoading, isAdmin} = useBillingStatus();
+
+  const accountUrl = currentAccount?.url || "";
+  const isPaidUser =
+    isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
   const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [systemContext, setSystemContext] = useState(null);
   const [propertySystems, setPropertySystems] = useState([]);
@@ -69,26 +79,65 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
               </button>
             </div>
             <div className="flex-1 overflow-auto p-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Select a property to chat with the AI assistant about maintenance
-                and systems.
-              </p>
-              <div className="space-y-1">
-                {(properties || []).map((p) => (
-                  <button
-                    key={p.property_uid ?? p.id ?? p.uid}
-                    onClick={() => setSelectedPropertyId(p.property_uid ?? p.uid ?? p.id)}
-                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 border border-gray-200 dark:border-gray-600"
-                  >
-                    {p.nickname || p.address || p.street_address || `Property ${p.id}`}
-                  </button>
-                ))}
-                {(!properties || properties.length === 0) && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    No properties found. Add a property first.
+              {billingLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-[#456564] animate-spin" />
+                </div>
+              ) : !isPaidUser ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+                    <ArrowUpCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    AI Assistant not included
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-xs">
+                    Your plan does not include AI assistance. Upgrade to get AI-powered maintenance and property insights.
                   </p>
-                )}
-              </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Not now
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        navigate(accountUrl ? `/${accountUrl}/settings/upgrade` : "/settings/upgrade");
+                      }}
+                      className="rounded-full px-4 py-2 text-sm font-medium bg-[#456564] text-white hover:bg-[#3a5554] dark:bg-teal-600 dark:hover:bg-teal-500"
+                    >
+                      Upgrade plan
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    Select a property to chat with the AI assistant about maintenance
+                    and systems.
+                  </p>
+                  <div className="space-y-1">
+                    {(properties || []).map((p) => (
+                      <button
+                        key={p.property_uid ?? p.id ?? p.uid}
+                        onClick={() => setSelectedPropertyId(p.property_uid ?? p.uid ?? p.id)}
+                        className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 border border-gray-200 dark:border-gray-600"
+                      >
+                        {p.nickname || p.address || p.street_address || `Property ${p.id}`}
+                      </button>
+                    ))}
+                    {(!properties || properties.length === 0) && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No properties found. Add a property first.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </>
         ) : (

@@ -353,6 +353,32 @@ router.post("/confirm", async function (req, res, next) {
   }
 });
 
+/** GET /auth/bootstrap - Return authenticated user and their accounts in one response.
+ * Used by OAuth callback to reduce round trips before redirecting into app routes. */
+router.get("/bootstrap", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const userId = res.locals.user?.id;
+    if (!userId) {
+      throw new BadRequestError("User authentication required");
+    }
+
+    const user = await User.getById(userId);
+    let accounts = [];
+    try {
+      accounts = await Account.getUserAccounts(userId);
+    } catch (err) {
+      const message = err?.message || "";
+      if (!message.includes("No accounts found")) {
+        throw err;
+      }
+    }
+
+    return res.json({ user: { ...user, accounts } });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /* ----- Google OAuth ----- */
 
 function redirectWithError(code) {

@@ -23,7 +23,10 @@ export class ApiError extends Error {
     this.messages = Array.isArray(messages) ? messages : [messages];
     this.status = status;
 
-    if (isTierRestrictionError(status, this.message)) {
+    if (
+      isTierRestrictionError(status, this.message) &&
+      !AppApi._suppressTierEmit
+    ) {
       emitTierLimit({ message: this.message, status });
     }
   }
@@ -32,6 +35,8 @@ export class ApiError extends Error {
 class AppApi {
   static token;
   static _refreshPromise = null;
+  /** When true, ApiError will not emit to TierLimitBanner (used when caller shows its own upgrade UI) */
+  static _suppressTierEmit = false;
 
   /** Get token from memory or localStorage (ensures token is available before AuthContext sync) */
   static getToken() {
@@ -212,6 +217,12 @@ class AppApi {
   static async signup(data) {
     let res = await this.request(`auth/register`, data, "POST");
     return res;
+  }
+
+  /** Fetch current authenticated user + accounts in one request. */
+  static async getAuthBootstrap() {
+    const res = await this.request("auth/bootstrap");
+    return res.user;
   }
 
   /** Check if a user already exists with this email (for signup flow). Returns { exists: boolean }. */

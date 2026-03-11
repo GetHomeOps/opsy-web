@@ -119,6 +119,7 @@ import useImageUpload from "../../hooks/useImageUpload";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import useGooglePlacesAutocomplete from "../../hooks/useGooglePlacesAutocomplete";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
+import useBillingStatus from "../../hooks/useBillingStatus";
 import ImageUploadField from "../../components/ImageUploadField";
 import {useTranslation} from "react-i18next";
 import Transition from "../../utils/Transition";
@@ -152,6 +153,8 @@ const initialState = {
   /** When AI reanalysis last ran (for Systems tab badge) */
   aiSummaryUpdatedAt: null,
 };
+
+const FREE_PLAN_CODES = ["homeowner_free", "agent_free"];
 
 /** Build default team member for the current user (creator) so new property always has at least one. */
 function getCreatorAsTeamMember(currentUser) {
@@ -389,8 +392,11 @@ function PropertyFormContainer() {
   const {users} = useContext(UserContext);
   const {contacts} = useContext(ContactContext);
   const {currentUser} = useAuth();
+  const {plan, isAdmin} = useBillingStatus();
   const accountUrl =
     accountUrlParam || currentAccount?.url || currentAccount?.name || "";
+  const isPaidUser =
+    isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
   const [homeopsTeam, setHomeopsTeam] = useState([]);
   const [systemsSetupModalOpen, setSystemsSetupModalOpen] = useState(false);
   const [systemsSetupInitialStep, setSystemsSetupInitialStep] = useState(null);
@@ -439,6 +445,18 @@ function PropertyFormContainer() {
   const blankModalButtonRef = useRef(null);
   const originalMaintenanceRecordIdsRef = useRef(new Set());
   const [expandSectionId, setExpandSectionId] = useState(null);
+
+  const openAiAssistantWithPlanCheck = useCallback(() => {
+    if (!isPaidUser) {
+      setUpgradePromptTitle("AI Assistant not included");
+      setUpgradePromptMsg(
+        "Your plan does not include AI assistance. Upgrade to get AI-powered maintenance and property insights.",
+      );
+      setUpgradePromptOpen(true);
+      return;
+    }
+    setAiSidebarOpen(true);
+  }, [isPaidUser]);
 
   // Merged formData – declared early so callbacks can reference it
   const mergedFormData = mergeFormDataFromTabs(state.formData);
@@ -602,11 +620,11 @@ function PropertyFormContainer() {
   /* Open AI sidebar when navigating from property card with openAiSidebar */
   useEffect(() => {
     if (uid !== "new" && location.state?.openAiSidebar) {
-      setAiSidebarOpen(true);
+      openAiAssistantWithPlanCheck();
       const {openAiSidebar: _, ...restState} = location.state ?? {};
       navigate(location.pathname, {replace: true, state: restState});
     }
-  }, [uid]);
+  }, [uid, location.state, location.pathname, navigate, openAiAssistantWithPlanCheck]);
 
   /* Open invitation modal when viewing property from invitation notification */
   useEffect(() => {
@@ -2020,7 +2038,7 @@ function PropertyFormContainer() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAiSidebarOpen(true)}
+                  onClick={openAiAssistantWithPlanCheck}
                   className="flex items-center gap-2 px-3 py-2 bg-transparent border border-neutral-200/80 dark:border-neutral-600/50 rounded-xl text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:border-neutral-300 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 transition-all duration-200"
                   title="AI Assistant"
                 >
@@ -2569,7 +2587,13 @@ function PropertyFormContainer() {
                       setInspectionReportModalOpen(true);
                     }}
                     aiSidebarOpen={aiSidebarOpen}
-                    onAiSidebarOpenChange={setAiSidebarOpen}
+                    onAiSidebarOpenChange={(open) => {
+                      if (open) {
+                        openAiAssistantWithPlanCheck();
+                        return;
+                      }
+                      setAiSidebarOpen(false);
+                    }}
                     onOpenAIAssistant={(ctx) => {
                       const obj =
                         typeof ctx === "object" && ctx !== null
@@ -2579,7 +2603,7 @@ function PropertyFormContainer() {
                       setAiSidebarSystemContext(
                         typeof ctx === "object" && ctx !== null ? ctx : null,
                       );
-                      setAiSidebarOpen(true);
+                      openAiAssistantWithPlanCheck();
                     }}
                     aiSidebarSystemLabel={aiSidebarSystemLabel}
                     aiSidebarSystemContext={aiSidebarSystemContext}
@@ -2653,7 +2677,7 @@ function PropertyFormContainer() {
                         propertyData={mergedFormData}
                         onOpenAIAssistant={
                           uid !== "new"
-                            ? () => setAiSidebarOpen(true)
+                            ? openAiAssistantWithPlanCheck
                             : undefined
                         }
                         onOpenAIReport={
@@ -2910,7 +2934,7 @@ function PropertyFormContainer() {
               );
             }
             setInspectionReportModalOpen(false);
-            setAiSidebarOpen(true);
+            openAiAssistantWithPlanCheck();
           }}
           onUploadReport={() => {
             setInspectionReportModalOpen(false);

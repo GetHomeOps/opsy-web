@@ -1,4 +1,5 @@
 import React from "react";
+import {createPortal} from "react-dom";
 import {useNavigate} from "react-router-dom";
 import {ArrowUpCircle, X} from "lucide-react";
 import ModalBlank from "./ModalBlank";
@@ -13,6 +14,8 @@ import ModalBlank from "./ModalBlank";
  *   currentUsage: number (optional)
  *   limit: number (optional)
  *   upgradeUrl: string (optional, defaults to settings/upgrade)
+ *   ignoreClickRef: ref to trigger element, prevents opening click from closing modal
+ *   renderInPortal: if true, render modal into document.body
  */
 export default function UpgradePrompt({
   open,
@@ -22,6 +25,8 @@ export default function UpgradePrompt({
   currentUsage,
   limit,
   upgradeUrl,
+  ignoreClickRef,
+  renderInPortal = false,
 }) {
   const navigate = useNavigate();
 
@@ -34,8 +39,13 @@ export default function UpgradePrompt({
     }
   };
 
-  return (
-    <ModalBlank id="upgrade-prompt" modalOpen={open} setModalOpen={onClose}>
+  const modalContent = (
+    <ModalBlank
+      id="upgrade-prompt"
+      modalOpen={open}
+      setModalOpen={onClose}
+      ignoreClickRef={ignoreClickRef}
+    >
       <div className="p-6 sm:p-8">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -92,4 +102,8 @@ export default function UpgradePrompt({
       </div>
     </ModalBlank>
   );
+
+  return renderInPortal && typeof createPortal === "function"
+    ? createPortal(modalContent, document.body)
+    : modalContent;
 }

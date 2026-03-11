@@ -331,7 +331,24 @@ export function AuthProvider({children}) {
     isOAuthCallbackRef.current = true;
     try {
       const decodedToken = initializeAuthentication(accessToken, refreshToken);
-      const tokenUserId = decodedToken.user_id || decodedToken.userId || decodedToken.id;
+      const tokenUserId =
+        decodedToken.user_id || decodedToken.userId || decodedToken.id;
+
+      try {
+        const bootstrapUser = await AppApi.getAuthBootstrap();
+        if (bootstrapUser?.id) {
+          return finalizeUserSignup(
+            bootstrapUser,
+            bootstrapUser.id || tokenUserId,
+            bootstrapUser.accounts || [],
+          );
+        }
+      } catch (bootstrapError) {
+        console.warn(
+          "OAuth bootstrap failed, falling back to legacy callback flow:",
+          bootstrapError,
+        );
+      }
 
       const [currentUser, prefetchedAccounts] = await Promise.all([
         fetchUser(null, accessToken),

@@ -48,6 +48,7 @@ function NavbarSearch({disabled = false}) {
   const [results, setResults] = useState({properties: [], contacts: [], pages: []});
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
+  const mobileInputRef = useRef(null);
   const containerRef = useRef(null);
 
   const accountUrl = currentAccount?.url || "";
@@ -113,10 +114,16 @@ function NavbarSearch({disabled = false}) {
     setLoading(false);
   }, [query, properties, contacts, visiblePages]);
 
+  const focusSearchInput = () => {
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    setTimeout(() => {
+      const el = isMobile ? mobileInputRef.current : inputRef.current;
+      el?.focus();
+    }, 0);
+  };
+
   useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-    }
+    if (open) focusSearchInput();
   }, [open]);
 
   useEffect(() => {
@@ -163,32 +170,84 @@ function NavbarSearch({disabled = false}) {
     results.pages.length > 0;
   const showDropdown = open && query.length >= 0 && !disabled;
 
+  const searchBarClasses = disabled
+    ? "bg-gray-200/80 dark:bg-gray-800/60 text-gray-500 dark:text-gray-500 cursor-not-allowed"
+    : "bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 focus-within:bg-gray-200 dark:focus-within:bg-gray-700";
+  const searchInput = (
+    <input
+      ref={inputRef}
+      type="text"
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+      onFocus={() => !disabled && setOpen(true)}
+      placeholder="Search properties, contacts & pages…"
+      disabled={disabled}
+      className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
+      aria-label="Search"
+    />
+  );
+
   return (
     <div ref={containerRef} className="relative w-full max-w-xl">
+      {/* Desktop: full search bar always visible */}
       <div
-        className={`flex items-center gap-2 px-2.5 py-1 rounded-xl w-full focus-within:ring-0 ${
-          disabled
-            ? "bg-gray-200/80 dark:bg-gray-800/60 text-gray-500 dark:text-gray-500 cursor-not-allowed"
-            : "bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 focus-within:bg-gray-200 dark:focus-within:bg-gray-700"
-        }`}
+        className={`hidden md:flex items-center gap-2 px-2.5 py-1 rounded-xl w-full focus-within:ring-0 ${searchBarClasses}`}
         onClick={() => {
           if (disabled) return;
           setOpen(true);
-          setTimeout(() => inputRef.current?.focus(), 0);
+          focusSearchInput();
         }}
       >
         <Search className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`} />
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => !disabled && setOpen(true)}
-          placeholder="Search properties, contacts & pages…"
-          disabled={disabled}
-          className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
-          aria-label="Search"
+        {searchInput}
+      </div>
+
+      {/* Mobile: icon only, expands on click */}
+      <button
+        type="button"
+        onClick={() => {
+          if (disabled) return;
+          setOpen(true);
+          focusSearchInput();
+        }}
+        className={`md:hidden flex items-center justify-center w-9 h-9 rounded-xl ${searchBarClasses}`}
+        aria-label="Search"
+      >
+        <Search className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`} />
+      </button>
+
+      {/* Mobile overlay: full search bar when expanded */}
+      {open && (
+        <div
+          className="md:hidden fixed inset-0 z-50 bg-black/30 dark:bg-black/50"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
         />
+      )}
+      <div
+        className={`md:hidden fixed inset-x-4 top-4 z-[60] transition-all duration-200 ${
+          open ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
+        }`}
+      >
+        <div
+          className={`relative flex flex-col px-2.5 py-1.5 rounded-xl w-full shadow-lg ${searchBarClasses}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2 w-full">
+            <Search className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`} />
+            <input
+              ref={mobileInputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => !disabled && setOpen(true)}
+              placeholder="Search properties, contacts & pages…"
+              disabled={disabled}
+              className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
+              aria-label="Search"
+            />
+          </div>
+        </div>
       </div>
 
       {showDropdown && (

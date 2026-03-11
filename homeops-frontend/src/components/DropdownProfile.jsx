@@ -4,6 +4,7 @@ import {CreditCard, Sparkles} from "lucide-react";
 import Transition from "../utils/Transition";
 import AuthContext from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
+import useBillingStatus from "../hooks/useBillingStatus";
 
 import {useTranslation} from "react-i18next";
 import "../i18n/index";
@@ -28,6 +29,7 @@ function DropdownProfile({align}) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const {currentUser, logout} = useContext(AuthContext);
   const {currentAccount} = useCurrentAccount();
+  const {plan} = useBillingStatus();
   const {t} = useTranslation();
 
   const trigger = useRef(null);
@@ -169,6 +171,11 @@ function DropdownProfile({align}) {
               <div className="text-sm font-medium text-gray-700 dark:text-gray-100">
                 {currentAccount.name}
               </div>
+              {plan?.name && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {plan.name}
+                </div>
+              )}
               <div className="text-xs text-gray-500 dark:text-gray-400 capitalize italic">
                 {formatRole(currentUser?.role)}
               </div>

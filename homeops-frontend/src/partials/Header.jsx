@@ -1,5 +1,5 @@
-import React, {useState} from "react";
-import {Link} from "react-router-dom";
+import React, {useState, useRef} from "react";
+import {Link, useSearchParams} from "react-router-dom";
 import {HelpCircle, Sparkles} from "lucide-react";
 
 import NavbarSearch from "../components/NavbarSearch";
@@ -7,23 +7,34 @@ import Notifications from "../components/DropdownNotifications";
 import Reminders from "../components/DropdownReminders";
 import UserMenu from "../components/DropdownProfile";
 import GlobalAIAssistantPanel from "../components/GlobalAIAssistantPanel";
+import UpgradePrompt from "../components/UpgradePrompt";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
-import {useAuth} from "../context/AuthContext";
 
-const FREE_PLAN_CODES = ["homeowner_free", "agent_free"];
+const FREE_PLAN_CODES = ["homeowner_free", "agent_free", "free"];
 
 function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiUpgradeModalOpen, setAiUpgradeModalOpen] = useState(false);
+  const aiAssistantButtonRef = useRef(null);
   const {currentAccount} = useCurrentAccount();
-  const {currentUser} = useAuth();
-  const {plan, isAdmin} = useBillingStatus();
+  const {plan, loading: billingLoading, isAdmin} = useBillingStatus();
 
   const accountUrl = currentAccount?.url || "";
   const supportPath = accountUrl ? `/${accountUrl}/settings/support` : "/settings/support";
+  // Only treat as paid when we have a plan code that's explicitly not free. Admins bypass. When loading or plan unknown, treat as free.
   const isPaidUser =
     isAdmin ||
     (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
+
+  const handleAiAssistantClick = () => {
+    // Free users: show upgrade modal instead of opening the AI panel
+    if (!isPaidUser) {
+      requestAnimationFrame(() => setAiUpgradeModalOpen(true));
+      return;
+    }
+    setAiPanelOpen(true);
+  };
 
   return (
     <header
@@ -76,17 +87,16 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
           {/* Header: Right side — AI Assistant, Help, Reminders, Notifications, User */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {isPaidUser && (
-              <button
-                onClick={() => setAiPanelOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg text-gray-500 dark:text-gray-400 hover:text-[#456564] dark:hover:text-teal-400 text-sm font-medium"
-                aria-label="AI Assistant"
-                title="AI Assistant"
-              >
-                <Sparkles className="w-4 h-4 shrink-0" />
-                <span className="hidden sm:inline">AI Assistant</span>
-              </button>
-            )}
+            <button
+              ref={aiAssistantButtonRef}
+              onClick={handleAiAssistantClick}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg text-gray-500 dark:text-gray-400 hover:text-[#456564] dark:hover:text-teal-400 text-sm font-medium"
+              aria-label="AI Assistant"
+              title="AI Assistant"
+            >
+              <Sparkles className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">AI Assistant</span>
+            </button>
             <Link
               to={supportPath}
               className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
@@ -107,6 +117,14 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
       <GlobalAIAssistantPanel
         isOpen={aiPanelOpen}
         onClose={() => setAiPanelOpen(false)}
+      />
+      <UpgradePrompt
+        open={aiUpgradeModalOpen}
+        onClose={() => setAiUpgradeModalOpen(false)}
+        title="AI Assistant not included"
+        message="Your plan does not include AI assistance. Upgrade to get AI-powered maintenance and property insights."
+        upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
+        ignoreClickRef={aiAssistantButtonRef}
       />
     </header>
   );

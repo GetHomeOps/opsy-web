@@ -78,7 +78,7 @@ function AuthCallback() {
 
   if (status === "loading") {
     return (
-      <main className="min-h-[100dvh] bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4 fixed inset-0 z-[9998]">
+      <main className="min-h-[100dvh] bg-gray-50 flex flex-col items-center justify-center px-4 fixed inset-0 z-[9998]">
         <div className="flex flex-col items-center gap-4">
           <div
             className="w-10 h-10 border-t-transparent rounded-full animate-spin"
@@ -89,11 +89,8 @@ function AuthCallback() {
             }}
             aria-hidden
           />
-          <p
-            className="text-gray-500 dark:text-gray-400"
-            style={{fontSize: "0.95rem"}}
-          >
-            Completing sign in…
+          <p className="text-gray-500" style={{fontSize: "0.95rem"}}>
+            Completing sign in...
           </p>
         </div>
       </main>

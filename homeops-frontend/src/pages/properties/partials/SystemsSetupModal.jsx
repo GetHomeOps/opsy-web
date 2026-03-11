@@ -1,5 +1,5 @@
 import React, {useState, useEffect, useCallback, useRef} from "react";
-import {useParams} from "react-router-dom";
+import {useParams, useNavigate} from "react-router-dom";
 import {
   Plus,
   X,
@@ -131,6 +131,7 @@ function SystemsSetupModal({
   upgradeUrl: upgradeUrlProp,
 }) {
   const {accountUrl: accountUrlParam} = useParams();
+  const navigate = useNavigate();
   const accountUrl = accountUrlParam || "";
   const upgradeUrl = upgradeUrlProp ?? (accountUrl ? `/${accountUrl}/settings/upgrade` : null);
 
@@ -173,6 +174,7 @@ function SystemsSetupModal({
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
   const [upgradePromptTitle, setUpgradePromptTitle] = useState("Upgrade your plan");
   const [upgradePromptMsg, setUpgradePromptMsg] = useState("");
+  const [planRestrictionForAnalysis, setPlanRestrictionForAnalysis] = useState(false);
   const [selectedSuggestedSystems, setSelectedSuggestedSystems] = useState(new Set());
   const [savingProperty, setSavingProperty] = useState(false);
   const [savePropertyError, setSavePropertyError] = useState(null);
@@ -245,6 +247,7 @@ function SystemsSetupModal({
     setAnalysisProgress(null);
     setAnalysisError(null);
     setAnalysisResult(null);
+    setPlanRestrictionForAnalysis(false);
     setSelectedSuggestedSystems(new Set());
     setSavingProperty(false);
     setSavePropertyError(null);
@@ -522,9 +525,7 @@ function SystemsSetupModal({
             msg.toLowerCase().includes("limit") ||
             msg.toLowerCase().includes("upgrade"));
         if (isTierRestriction) {
-          setUpgradePromptTitle("Upgrade your plan");
-          setUpgradePromptMsg(msg);
-          setUpgradePromptOpen(true);
+          setPlanRestrictionForAnalysis(true);
         }
       }
     },
@@ -532,6 +533,15 @@ function SystemsSetupModal({
   );
 
   const {uploadDocument, isUploading, progress: uploadProgress, error: uploadError} = useDocumentUpload();
+
+  const isTierError = (err) => {
+    const status = err?.status ?? err?.response?.status;
+    const msg = (err?.message || err?.error?.message || "").toLowerCase();
+    return (
+      status === 403 &&
+      (msg.includes("quota") || msg.includes("limit") || msg.includes("upgrade") || msg.includes("document limit"))
+    );
+  };
 
   const handleInspectionFileDrop = useCallback(
     async (e) => {
@@ -543,19 +553,32 @@ function SystemsSetupModal({
       for (const file of files) {
         const result = await uploadDocument(file);
         if (result?.key) {
-          const docDate = new Date().toISOString().slice(0, 10);
-          await AppApi.createPropertyDocument({
-            property_id: propertyId,
-            document_name: "Inspection Report",
-            document_date: docDate,
-            document_key: result.key,
-            document_type: "inspection",
-            system_key: "inspectionReport",
-          });
-          setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
-          if (file.type === "application/pdf") {
-            startAnalysisForDoc(result.key, file.name, file.type);
+          try {
+            AppApi._suppressTierEmit = true;
+            const docDate = new Date().toISOString().slice(0, 10);
+            await AppApi.createPropertyDocument({
+              property_id: propertyId,
+              document_name: "Inspection Report",
+              document_date: docDate,
+              document_key: result.key,
+              document_type: "inspection",
+              system_key: "inspectionReport",
+            });
+            setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
+            if (file.type === "application/pdf") {
+              await startAnalysisForDoc(result.key, file.name, file.type);
+              break;
+            }
+          } catch (docErr) {
+            if (isTierError(docErr)) {
+              setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
+              setPlanRestrictionForAnalysis(true);
+            } else {
+              throw docErr;
+            }
             break;
+          } finally {
+            AppApi._suppressTierEmit = false;
           }
         }
       }
@@ -571,19 +594,32 @@ function SystemsSetupModal({
       for (const file of files) {
         const result = await uploadDocument(file);
         if (result?.key) {
-          const docDate = new Date().toISOString().slice(0, 10);
-          await AppApi.createPropertyDocument({
-            property_id: propertyId,
-            document_name: "Inspection Report",
-            document_date: docDate,
-            document_key: result.key,
-            document_type: "inspection",
-            system_key: "inspectionReport",
-          });
-          setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
-          if (file.type === "application/pdf") {
-            startAnalysisForDoc(result.key, file.name, file.type);
+          try {
+            AppApi._suppressTierEmit = true;
+            const docDate = new Date().toISOString().slice(0, 10);
+            await AppApi.createPropertyDocument({
+              property_id: propertyId,
+              document_name: "Inspection Report",
+              document_date: docDate,
+              document_key: result.key,
+              document_type: "inspection",
+              system_key: "inspectionReport",
+            });
+            setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
+            if (file.type === "application/pdf") {
+              await startAnalysisForDoc(result.key, file.name, file.type);
+              break;
+            }
+          } catch (docErr) {
+            if (isTierError(docErr)) {
+              setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
+              setPlanRestrictionForAnalysis(true);
+            } else {
+              throw docErr;
+            }
             break;
+          } finally {
+            AppApi._suppressTierEmit = false;
           }
         }
       }
@@ -599,6 +635,7 @@ function SystemsSetupModal({
         setAnalysisStatus(null);
         setAnalysisResult(null);
         setAnalysisError(null);
+        setPlanRestrictionForAnalysis(false);
       }
       return next;
     });
@@ -1382,8 +1419,25 @@ function SystemsSetupModal({
                   </div>
                 </div>
 
-                {/* AI Findings panel */}
-                {(analysisJobId || analysisStatus) && (
+                {/* Single inline upgrade message when plan doesn't support AI analysis */}
+                {planRestrictionForAnalysis && (
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/80 dark:bg-amber-900/20 p-5">
+                    <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                      Your current plan does not include AI report analysis. Upgrade to unlock personalized insights, prioritized recommendations, and action items tailored to your inspection report.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate(upgradeUrl ?? (accountUrl ? `/${accountUrl}/settings/upgrade` : "/settings/upgrade"))}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-sm font-medium transition-colors"
+                    >
+                      <ArrowUpCircle className="w-4 h-4" />
+                      Upgrade plan
+                    </button>
+                  </div>
+                )}
+
+                {/* AI Findings panel — hidden when plan restriction (we show inline message above instead) */}
+                {!planRestrictionForAnalysis && (analysisJobId || analysisStatus) && (
                   <AIFindingsPanel
                     status={analysisStatus}
                     progress={analysisProgress}
