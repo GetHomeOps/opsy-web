@@ -1,6 +1,6 @@
 import React, {useState, useRef, useEffect, useContext} from "react";
 import {Link} from "react-router-dom";
-import {CreditCard, Settings, HelpCircle, RefreshCw, LogOut} from "lucide-react";
+import {CreditCard, Sparkles} from "lucide-react";
 import Transition from "../utils/Transition";
 import AuthContext from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -17,6 +17,13 @@ function getInitials(name) {
   return name.slice(0, 2).toUpperCase();
 }
 
+function formatRole(role) {
+  if (!role) return "";
+  return String(role)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function DropdownProfile({align}) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const {currentUser, logout} = useContext(AuthContext);
@@ -30,7 +37,6 @@ function DropdownProfile({align}) {
   const initials = getInitials(currentUser?.name);
 
   const accountUrl = currentAccount?.url || "";
-  const settingsBase = accountUrl ? `/${accountUrl}/settings` : "/settings";
 
   // close on click outside
   useEffect(() => {
@@ -58,7 +64,7 @@ function DropdownProfile({align}) {
     return () => document.removeEventListener("keydown", keyHandler);
   });
 
-  const hasMultipleAccounts = (currentUser?.accounts?.length || 0) > 1;
+  const hideBilling = ["super_admin", "admin"].includes(currentUser?.role);
 
   return (
     <div className="relative inline-flex">
@@ -99,7 +105,7 @@ function DropdownProfile({align}) {
       </button>
 
       <Transition
-        className={`origin-top-right z-10 absolute top-full min-w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 py-1.5 rounded-lg shadow-lg overflow-hidden mt-1 ${
+        className={`origin-top-right z-10 absolute top-full min-w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 py-1.5 rounded-lg shadow-lg overflow-hidden mt-1 ${
           align === "right" ? "right-0" : "left-0"
         }`}
         show={dropdownOpen}
@@ -115,84 +121,97 @@ function DropdownProfile({align}) {
           onFocus={() => setDropdownOpen(true)}
           onBlur={() => setDropdownOpen(false)}
         >
-          <div className="pt-0.5 pb-2 px-3 mb-1 border-b border-gray-200 dark:border-gray-700/60">
-            <div className="font-medium text-gray-700 dark:text-gray-100">
-              {currentUser?.name}
-            </div>
-            {currentUser?.email && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                {currentUser.email}
+          {/* 1. User section: image, name, email, link to configuration */}
+          <div className="px-2.5 pb-2 mb-1.5 border-b border-gray-200 dark:border-gray-700/60">
+            <div className="flex items-start gap-2.5">
+              {photoUrl ? (
+                <img
+                  className="w-9 h-9 rounded-full object-cover shrink-0"
+                  src={photoUrl}
+                  width="36"
+                  height="36"
+                  alt={currentUser?.name || "User"}
+                />
+              ) : (
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 shrink-0"
+                  aria-hidden
+                >
+                  {initials}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-100 truncate">
+                  {currentUser?.name}
+                </div>
+                {currentUser?.email && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {currentUser.email}
+                  </div>
+                )}
+                <Link
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-0.5 inline-block"
+                  to={accountUrl ? `/${accountUrl}/settings/configuration` : "/settings/account"}
+                  onClick={() => setDropdownOpen(false)}
+                >
+                  {(t("profileAndPreferences") || "Profile & Preferences")}
+                </Link>
               </div>
-            )}
-            <div className="text-xs text-gray-500 dark:text-gray-400 italic capitalize">
-              {currentUser?.role}
             </div>
           </div>
-          <div>
-            <ul>
-              {accountUrl && (
-                <>
-                  {!["super_admin", "admin"].includes(currentUser?.role) && (
-                    <li>
-                      <Link
-                        className="font-medium text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        to={`${settingsBase}/billing`}
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        <CreditCard className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
-                        {(t("billing") || "Billing").replace(/^\w/, (c) => c.toUpperCase())}
-                      </Link>
-                    </li>
-                  )}
-                  <li>
-                    <Link
-                      className="font-medium text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                      to={`${settingsBase}/configuration`}
-                      onClick={() => setDropdownOpen(false)}
-                    >
-                      <Settings className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
-                      {(t("configuration") || "Configuration").replace(/^\w/, (c) => c.toUpperCase())}
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      className="font-medium text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                      to={`${settingsBase}/support`}
-                      onClick={() => setDropdownOpen(false)}
-                    >
-                      <HelpCircle className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
-                      {(t("support") || "Support").replace(/^\w/, (c) => c.toUpperCase())}
-                    </Link>
-                  </li>
-                </>
-              )}
-              {hasMultipleAccounts && (
+
+          {/* 2. Account section: name and role */}
+          {currentAccount && (
+            <div className="px-2.5 pb-2 mb-1.5 border-b border-gray-200 dark:border-gray-700/60">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                {(t("account") || "Account")}
+              </div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-100">
+                {currentAccount.name}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 capitalize italic">
+                {formatRole(currentUser?.role)}
+              </div>
+            </div>
+          )}
+
+          {/* 3. Pricing & Account & Billing */}
+          {accountUrl && (
+            <ul className="pb-1.5 border-b border-gray-200 dark:border-gray-700/60">
+              <li>
+                <Link
+                  className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                  to={`/${accountUrl}/settings/upgrade`}
+                  onClick={() => setDropdownOpen(false)}
+                >
+                  <Sparkles className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
+                  {(t("pricing") || "Pricing").replace(/^\w/, (c) => c.toUpperCase())}
+                </Link>
+              </li>
+              {!hideBilling && (
                 <li>
                   <Link
-                    className="font-medium text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    to="/settings/accounts"
+                    className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    to={`/${accountUrl}/settings/billing`}
                     onClick={() => setDropdownOpen(false)}
                   >
-                    <RefreshCw className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
-                    {(t("switchAccount") || "Switch Account").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    <CreditCard className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
+                    {(t("accountAndBilling") || "Account & Billing")}
                   </Link>
                 </li>
               )}
             </ul>
-            <div className="border-t border-gray-200 dark:border-gray-700/60 mt-1 pt-1">
-              <ul>
-                <li>
-                  <Link
-                    className="font-medium text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-3 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    to="/signin"
-                    onClick={logout}
-                  >
-                    <LogOut className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
-                    {(t("signOut") || "Sign Out").replace(/\b\w/g, (c) => c.toUpperCase())}
-                  </Link>
-                </li>
-              </ul>
-            </div>
+          )}
+
+          {/* 4. Sign Out */}
+          <div className="pt-0.5">
+            <Link
+              className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white block py-1 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              to="/signin"
+              onClick={logout}
+            >
+              {(t("signOut") || "Sign Out").replace(/\b\w/g, (c) => c.toUpperCase())}
+            </Link>
           </div>
         </div>
       </Transition>
