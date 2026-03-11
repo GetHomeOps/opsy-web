@@ -260,12 +260,14 @@ function PropertiesList() {
   const {t} = useTranslation();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
-  const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] = useState(false);
-  const {handleAddProperty, isChecking: addPropertyChecking} = useAddPropertyWithLimitCheck({
-    accountId: currentAccount?.id,
-    accountUrl,
-    onLimitReached: () => setPropertyLimitUpgradeOpen(true),
-  });
+  const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] =
+    useState(false);
+  const {handleAddProperty, isChecking: addPropertyChecking} =
+    useAddPropertyWithLimitCheck({
+      accountId: currentAccount?.id,
+      accountUrl,
+      onLimitReached: () => setPropertyLimitUpgradeOpen(true),
+    });
   const [selectedProperties, setSelectedProperties] = useState([]);
   const [sortConfig, setSortConfig] = useState({
     key: "passport_id",
