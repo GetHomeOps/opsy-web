@@ -111,7 +111,7 @@ function DropdownReminders({align = "right"}) {
         aria-expanded={dropdownOpen}
       >
         <span className="sr-only">Events</span>
-        <Clock3
+        <Calendar
           className="w-5 h-5 text-gray-500 dark:text-gray-400"
           strokeWidth={1.75}
         />
