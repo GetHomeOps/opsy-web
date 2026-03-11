@@ -621,6 +621,35 @@ function SubscriptionsList() {
     );
   }
 
+  // Subscription type badge renderer (colored pill similar to status)
+  function renderSubscriptionTypeBadge(value) {
+    const typeColors = {
+      free:
+        "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
+      maintain:
+        "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+      growth:
+        "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
+      win:
+        "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+      enterprise:
+        "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+    };
+
+    const normalized = (value || "").toLowerCase().trim();
+    const colorClasses =
+      typeColors[normalized] ||
+      "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300";
+
+    return (
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${colorClasses}`}
+      >
+        {value || "—"}
+      </span>
+    );
+  }
+
   // Table columns
   const columns = [
     {
@@ -657,7 +686,7 @@ function SubscriptionsList() {
       key: "subscriptionProductName",
       label: t("subscriptions.subscription"),
       sortable: true,
-      render: (value) => <span className="capitalize">{value || "—"}</span>,
+      render: (value) => renderSubscriptionTypeBadge(value),
     },
     {
       key: "billingInterval",

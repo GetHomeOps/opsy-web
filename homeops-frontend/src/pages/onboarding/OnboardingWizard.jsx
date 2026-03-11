@@ -3,6 +3,7 @@ import {useNavigate} from "react-router-dom";
 import {
   Home,
   Briefcase,
+  ArrowLeft,
   ChevronRight,
   Check,
   X as XIcon,
@@ -461,7 +462,7 @@ const FREE_PLANS = ["homeowner_free"];
 
 export default function OnboardingWizard() {
   const navigate = useNavigate();
-  const {currentUser, refreshCurrentUser} = useAuth();
+  const {currentUser, refreshCurrentUser, logout} = useAuth();
   const [step, setStep] = useState(1);
   const [role, setRole] = useState(null);
   const [plan, setPlan] = useState(null);
@@ -535,11 +536,10 @@ export default function OnboardingWizard() {
     <main
       className="relative min-h-[100dvh] flex flex-col transition-colors duration-500 bg-white dark:bg-gray-900"
     >
-      {/* Opsy logo – top right, scrolls with content */}
       <img
         src={OpsyHeader}
         alt="Opsy"
-        className="absolute top-4 right-4 sm:top-6 sm:right-6 md:top-6 md:right-8 h-8 sm:h-10 md:h-12 w-auto object-contain object-right"
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 md:top-6 md:right-8 h-8 sm:h-10 md:h-12 w-auto object-contain object-right z-10"
       />
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">
         <img
@@ -575,37 +575,58 @@ export default function OnboardingWizard() {
         )}
 
         <div
-          className={`flex items-center justify-end w-full mt-10 gap-4 ${step === 2 ? "max-w-6xl" : "max-w-2xl"}`}
+          className={`flex items-center justify-between w-full mt-10 ${step === 2 ? "max-w-6xl" : "max-w-2xl"}`}
         >
-          {step < 3 ? (
+          <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => setStep((s) => s + 1)}
-              disabled={!canContinue}
-              className="btn bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              onClick={() => {
+                if (step > 1) {
+                  setStep((s) => s - 1);
+                } else {
+                  logout();
+                  navigate("/signin", {replace: true});
+                }
+              }}
+              className={step > 1
+                ? "btn bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                : "flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"}
             >
-              Continue
-              <ChevronRight className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleComplete}
-              disabled={isSubmitting}
-              className="btn bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:hover:bg-emerald-600 disabled:opacity-50 flex items-center gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {isFreePlan ? "Completing..." : "Redirecting to payment..."}
-                </>
-              ) : isFreePlan ? (
-                "Confirm & Continue"
-              ) : (
-                "Continue to payment"
-              )}
-            </button>
-          )}
+          </div>
+          <div>
+            {step < 3 ? (
+              <button
+                type="button"
+                onClick={() => setStep((s) => s + 1)}
+                disabled={!canContinue}
+                className="btn bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                Continue
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleComplete}
+                disabled={isSubmitting}
+                className="btn bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:hover:bg-emerald-600 disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {isFreePlan ? "Completing..." : "Redirecting to payment..."}
+                  </>
+                ) : isFreePlan ? (
+                  "Confirm & Continue"
+                ) : (
+                  "Continue to payment"
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </main>

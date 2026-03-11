@@ -120,14 +120,13 @@ router.post("/register", async function (req, res, next) {
     password: userData.password,
     phone: userData.phone || null,
     role: "homeowner",
-    is_active: true,
+    is_active: false,
     onboarding_completed: false,
   };
 
   await db.query("BEGIN");
   try {
     const newUser = await User.register(normalized);
-    await User.activateUser(newUser.id);
     const account = await Account.linkNewUserToAccount({
       name: newUser.name,
       userId: newUser.id,
@@ -182,7 +181,9 @@ router.post("/refresh", async function (req, res, next) {
     await RefreshToken.deleteByHash(tokenHash);
 
     const user = await User.getById(payload.id);
-    if (!user || !user.isActive) {
+    // Allow active users or pending signups (incomplete onboarding) so they can complete it
+    const canProceed = user && (user.isActive || user.onboardingCompleted === false);
+    if (!canProceed) {
       throw new UnauthorizedError("User account is inactive or not found");
     }
 
@@ -256,7 +257,9 @@ router.post("/mfa/verify", mfaVerifyLimiter, async function (req, res, next) {
     }
 
     const user = await User.getById(userId);
-    if (!user || !user.isActive) {
+    // Allow active users or pending signups (incomplete onboarding) so they can complete it
+    const canProceed = user && (user.isActive || user.onboardingCompleted === false);
+    if (!canProceed) {
       throw new UnauthorizedError("User not found or inactive");
     }
 
@@ -441,36 +444,50 @@ async function handleGoogleCallback(req, res, next, intent) {
     let user = userBySub;
 
     if (intent === "signup") {
-      if (user || userByEmail) {
-        return res.redirect(redirectWithError("account_exists"));
+      const existing = user || userByEmail;
+      if (existing) {
+        // Resumable: if onboarding incomplete, let them continue instead of blocking
+        if (existing.onboardingCompleted === false) {
+          if (user) {
+            // Same Google account — use as resume
+          } else if (userByEmail && !userByEmail.googleSub) {
+            user = await User.linkGoogle(userByEmail.id, sub);
+          } else {
+            return res.redirect(redirectWithError("account_exists"));
+          }
+        } else {
+          return res.redirect(redirectWithError("account_exists"));
+        }
       }
-      await db.query("BEGIN");
-      try {
-        const newUser = await User.registerGoogle({
-          email,
-          name,
-          avatarUrl: picture,
-          emailVerified: email_verified,
-          googleSub: sub,
-        });
-        const account = await Account.linkNewUserToAccount({
-          name: newUser.name,
-          userId: newUser.id,
-        });
-        const contact = await Contact.create({
-          name: newUser.name,
-          email: newUser.email,
-          phone: null,
-        });
-        await Contact.addToAccount({ contactId: contact.id, accountId: account.id });
-        await User.update({ id: newUser.id, contact: contact.id });
-        await db.query("COMMIT");
-        user = { ...newUser, contact: contact.id };
-        onUserCreated({ userId: user.id, role: user.role || null })
-          .catch((autoErr) => console.error("[resourceAutoSend] Google signup:", autoErr.message));
-      } catch (err) {
-        await db.query("ROLLBACK");
-        throw err;
+      if (!user) {
+        await db.query("BEGIN");
+        try {
+          const newUser = await User.registerGoogle({
+            email,
+            name,
+            avatarUrl: picture,
+            emailVerified: email_verified,
+            googleSub: sub,
+          });
+          const account = await Account.linkNewUserToAccount({
+            name: newUser.name,
+            userId: newUser.id,
+          });
+          const contact = await Contact.create({
+            name: newUser.name,
+            email: newUser.email,
+            phone: null,
+          });
+          await Contact.addToAccount({ contactId: contact.id, accountId: account.id });
+          await User.update({ id: newUser.id, contact: contact.id });
+          await db.query("COMMIT");
+          user = { ...newUser, contact: contact.id };
+          onUserCreated({ userId: user.id, role: user.role || null })
+            .catch((autoErr) => console.error("[resourceAutoSend] Google signup:", autoErr.message));
+        } catch (err) {
+          await db.query("ROLLBACK");
+          throw err;
+        }
       }
     } else {
       if (user) {
@@ -481,7 +498,9 @@ async function handleGoogleCallback(req, res, next, intent) {
         return res.redirect(redirectWithError("no_account"));
       }
     }
-    if (!user || !user.isActive) {
+    // Allow active users or pending signups (incomplete onboarding) so they can complete it
+    const canProceed = user && (user.isActive || user.onboardingCompleted === false);
+    if (!canProceed) {
       return res.redirect(redirectWithError("inactive"));
     }
 
@@ -533,12 +552,15 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     }
 
     // Create/ensure default subscription for FREE tier (idempotent); paid tiers get subscription from Stripe webhook
+    // Skip for super_admin and admin (internal accounts)
+    const SKIP_SUBSCRIPTION_ROLES = ["super_admin", "admin"];
     const FREE_TIERS = ["free"];
     const accountResult = await db.query(
       `SELECT account_id FROM account_users WHERE user_id = $1 LIMIT 1`,
       [userId]
     );
-    if (accountResult.rows[0] && FREE_TIERS.includes(subscriptionTier)) {
+    const userRole = existingUser?.role || role;
+    if (accountResult.rows[0] && FREE_TIERS.includes(subscriptionTier) && !SKIP_SUBSCRIPTION_ROLES.includes(userRole)) {
       try {
         await Subscription.ensureDefaultForAccount(accountResult.rows[0].account_id, role);
       } catch (subErr) {

@@ -190,14 +190,19 @@ class Subscription {
     return result.rows[0]?.id;
   }
 
-  /** Backfill: create default subscription for every account that has none. Returns count created. */
+  /** Backfill: create default subscription for every account that has none. Returns count created.
+   * Skips accounts whose owner has not completed onboarding (industry practice: subscriptions only after onboarding).
+   * Skips super_admin and admin accounts (internal platform accounts). */
   static async backfillMissingSubscriptions() {
     const accountsWithoutSub = await db.query(
       `SELECT a.id, a.owner_user_id
        FROM accounts a
-       WHERE NOT EXISTS (
-         SELECT 1 FROM account_subscriptions s WHERE s.account_id = a.id
-       )`
+       JOIN users u ON u.id = a.owner_user_id
+       WHERE u.onboarding_completed = true
+         AND u.role NOT IN ('super_admin', 'admin')
+         AND NOT EXISTS (
+           SELECT 1 FROM account_subscriptions s WHERE s.account_id = a.id
+         )`
     );
     let created = 0;
     for (const row of accountsWithoutSub.rows) {

@@ -197,10 +197,13 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
           const userName = name || user.name || invitation.inviteeEmail;
           const newAccount = await Account.linkNewUserToAccount({ name: userName, userId: user.id });
 
-          try {
-            await Subscription.ensureDefaultForAccount(newAccount.id, user.role || "homeowner");
-          } catch (subErr) {
-            console.error("Warning: failed to auto-create subscription for existing user account", newAccount.id, subErr.message);
+          const role = user.role || "homeowner";
+          if (role !== "super_admin" && role !== "admin") {
+            try {
+              await Subscription.ensureDefaultForAccount(newAccount.id, role);
+            } catch (subErr) {
+              console.error("Warning: failed to auto-create subscription for existing user account", newAccount.id, subErr.message);
+            }
           }
 
           const existingContact = await Contact.getByEmailAndAccount(
@@ -230,10 +233,13 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
       user = newUser;
       const newAccount = await Account.linkNewUserToAccount({ name, userId: user.id });
 
-      try {
-        await Subscription.ensureDefaultForAccount(newAccount.id, user.role || "homeowner");
-      } catch (subErr) {
-        console.error("Warning: failed to auto-create subscription for invited user account", newAccount.id, subErr.message);
+      // New invited users get homeowner role; only create subscription for non-internal roles
+      if (user.role !== "super_admin" && user.role !== "admin") {
+        try {
+          await Subscription.ensureDefaultForAccount(newAccount.id, user.role || "homeowner");
+        } catch (subErr) {
+          console.error("Warning: failed to auto-create subscription for invited user account", newAccount.id, subErr.message);
+        }
       }
 
         const contact = await Contact.create({

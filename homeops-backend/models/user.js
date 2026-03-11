@@ -207,7 +207,7 @@ class User {
     }
     const result = await db.query(
       `INSERT INTO users (email, name, auth_provider, google_sub, avatar_url, email_verified, is_active, onboarding_completed)
-       VALUES ($1, $2, 'google', $3, $4, $5, true, false)
+       VALUES ($1, $2, 'google', $3, $4, $5, false, false)
        RETURNING id, email, name, phone, role, contact_id AS "contact",
                  is_active AS "isActive", image, auth_provider AS "authProvider",
                  google_sub AS "googleSub", avatar_url AS "avatarUrl",
@@ -430,11 +430,11 @@ class User {
     }
   }
 
-  /** Complete onboarding for Google OAuth signup. Updates role, subscriptionTier, onboardingCompleted. */
+  /** Complete onboarding for Google OAuth signup. Updates role, subscriptionTier, onboardingCompleted, is_active. */
   static async completeOnboarding(userId, { role, subscriptionTier }) {
     const result = await db.query(
       `UPDATE users
-       SET role = $1, subscription_tier = $2, onboarding_completed = true
+       SET role = $1, subscription_tier = $2, onboarding_completed = true, is_active = true
        WHERE id = $3
        RETURNING id, email, name, phone, role, contact_id AS "contact",
                  is_active AS "isActive", image, auth_provider AS "authProvider",
