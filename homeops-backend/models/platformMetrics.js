@@ -101,6 +101,15 @@ class PlatformMetrics {
       `SELECT status, COUNT(*)::int AS count FROM account_subscriptions GROUP BY status ORDER BY count DESC`
     );
 
+    // Paid subscriptions = active/trialing accounts with subscription_product.price > 0 (excludes free plans)
+    const paidSubsRes = await db.query(
+      `SELECT COUNT(*)::int AS count
+       FROM account_subscriptions s
+       JOIN subscription_products sp ON sp.id = s.subscription_product_id
+       WHERE s.status IN ('active', 'trialing') AND sp.price > 0`
+    );
+    const paidSubscriptionsCount = paidSubsRes.rows[0]?.count ?? 0;
+
     return {
       totalUsers,
       activeUsers,
@@ -119,6 +128,7 @@ class PlatformMetrics {
       avgHpsScore: avgHpsRes.rows[0]?.avg || 0,
       usersByRole: roleRes.rows,
       subscriptionsByStatus: subStatusRes.rows,
+      paidSubscriptionsCount,
     };
   }
 

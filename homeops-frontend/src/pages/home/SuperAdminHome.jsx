@@ -204,22 +204,15 @@ function SuperAdminHome() {
     return dist;
   }, [summary, users]);
 
-  // Subscription data from summary or fallback
+  // Subscription data: paid = accounts with paid plans (price > 0), free = remainder
   const subscriptionData = useMemo(() => {
-    if (summary?.subscriptionsByStatus?.length) {
-      const segments = summary.subscriptionsByStatus.map(({status, count}) => ({
-        label: status,
-        value: count,
-        color: status?.toLowerCase() === "active" ? "#456564" : "#94a3b8",
-      }));
-      const paid =
-        summary.subscriptionsByStatus.reduce((s, {count}) => s + count, 0) || 0;
-      return {paid, free: Math.max(0, totalAccounts - paid), segments};
-    }
-    const paid = Math.max(
-      0,
-      summary?.totalSubscriptions ?? Math.round(totalAccounts * 0.35),
-    );
+    const paid =
+      summary?.paidSubscriptionsCount != null
+        ? summary.paidSubscriptionsCount
+        : Math.max(
+            0,
+            summary?.totalSubscriptions ?? Math.round(totalAccounts * 0.35),
+          );
     const free = Math.max(0, totalAccounts - paid);
     return {
       paid,
