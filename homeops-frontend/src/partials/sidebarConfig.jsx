@@ -3,6 +3,7 @@
  * Only ONE submenu level; collapsible groups have no nested depth.
  *
  * Role rules:
+ * - superAdminOnly: visible to super_admin only
  * - adminOnly: visible to admin + super_admin
  * - adminOrAgent: visible to admin + super_admin + agent
  * - all: visible to all authenticated users
@@ -206,7 +207,7 @@ export const SIDEBAR_CONFIG = [
             label: "Products & Plans",
             path: "subscription-products",
             icon: icon(Package),
-            roles: "adminOnly",
+            roles: "superAdminOnly",
           },
         ],
       },

@@ -7,6 +7,7 @@ import {useAuth} from "../../context/AuthContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
+import SuperAdminRoute from "./SuperAdminRoute";
 import PublicRoute from "./PublicRoute";
 import OnboardingRoute from "./OnboardingRoute";
 import OnboardingWizard from "../onboarding/OnboardingWizard";
@@ -544,25 +545,25 @@ function RoutesList() {
       <Route
         path="/:accountUrl/subscriptions"
         element={
-          <ProtectedRoute>
+          <AdminRoute>
             <SubscriptionsList />
-          </ProtectedRoute>
+          </AdminRoute>
         }
       />
       <Route
         path="/:accountUrl/subscriptions/new"
         element={
-          <ProtectedRoute>
+          <AdminRoute>
             <Subscription />
-          </ProtectedRoute>
+          </AdminRoute>
         }
       />
       <Route
         path="/:accountUrl/subscriptions/:id"
         element={
-          <ProtectedRoute>
+          <AdminRoute>
             <Subscription />
-          </ProtectedRoute>
+          </AdminRoute>
         }
       />
       <Route
@@ -572,25 +573,25 @@ function RoutesList() {
       <Route
         path="/:accountUrl/subscription-products"
         element={
-          <ProtectedRoute>
+          <SuperAdminRoute>
             <SubscriptionProductsList />
-          </ProtectedRoute>
+          </SuperAdminRoute>
         }
       />
       <Route
         path="/:accountUrl/subscription-products/new"
         element={
-          <ProtectedRoute>
+          <SuperAdminRoute>
             <SubscriptionProduct />
-          </ProtectedRoute>
+          </SuperAdminRoute>
         }
       />
       <Route
         path="/:accountUrl/subscription-products/:id"
         element={
-          <ProtectedRoute>
+          <SuperAdminRoute>
             <SubscriptionProduct />
-          </ProtectedRoute>
+          </SuperAdminRoute>
         }
       />
       <Route
