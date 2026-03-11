@@ -3,8 +3,7 @@ import {createPortal} from "react-dom";
 import {NavLink, useLocation} from "react-router-dom";
 import {ChevronDown, ChevronLeft, ChevronRight} from "lucide-react";
 
-import Logo from "../images/logo-no-bg.png";
-import OpsyHeader from "../images/OpsyHeader.png";
+import OpsyIcon from "../images/opsy4.png";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import {useAuth} from "../context/AuthContext";
 import Transition from "../utils/Transition";
@@ -611,7 +610,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
           } ${variant === "v2" ? "border-r border-white/10" : "shadow-xs"}`}
         >
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex justify-between lg:justify-center lg:sidebar-expanded:justify-between mb-10 pr-3 sm:px-2 lg:px-0">
+            <div className="flex justify-between lg:justify-center lg:sidebar-expanded:justify-center mb-4 pr-3 sm:px-2 lg:px-0">
               <button
                 ref={trigger}
                 className="lg:hidden text-white hover:text-white/80"
@@ -629,26 +628,22 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                 </svg>
               </button>
               <NavLink end to={toPath("home")} className="block">
-                {isCollapsed ? (
-                  <img
-                    src={Logo}
-                    alt="Opsy"
-                    className="w-12 h-12 rounded-full object-contain flex-shrink-0"
-                  />
-                ) : (
-                  <img
-                    src={OpsyHeader}
-                    alt="Opsy"
-                    className="h-10 w-auto max-w-[180px] object-contain object-left flex-shrink-0"
-                  />
-                )}
+                <img
+                  src={OpsyIcon}
+                  alt="Opsy"
+                  className={`object-contain flex-shrink-0 ${
+                    isCollapsed
+                      ? "w-12 h-12"
+                      : "w-[94px] h-[94px] 2xl:w-[104px] 2xl:h-[104px] mx-auto"
+                  }`}
+                />
               </NavLink>
             </div>
 
             <div className="flex flex-col flex-1 min-h-0">
               <div className="flex-1">
                 <ul
-                  className={`mt-3 flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}
+                  className={`mt-1 flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}
                 >
                   {/* Home (standalone) */}
                   {SIDEBAR_CONFIG.filter((s) => s.type === "link").map(

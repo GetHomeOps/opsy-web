@@ -129,14 +129,20 @@ const HealthBar = ({value}) => (
 
 /* ─── Property Grid Card ─────────────────────────────────────── */
 
-const PropertyCard = ({property, onClick, isSelected, onSelect, getMainPhotoUrl, t, onOpenAIAssistant}) => {
-  const health = property.health ?? property.hps_score ?? property.hpsScore ?? 0;
+const PropertyCard = ({
+  property,
+  onClick,
+  isSelected,
+  onSelect,
+  getMainPhotoUrl,
+  t,
+  onOpenAIAssistant,
+}) => {
+  const health =
+    property.health ?? property.hps_score ?? property.hpsScore ?? 0;
   const resolved = getMainPhotoUrl?.(property);
   const photoUrl =
-    resolved ||
-    property.main_photo_url ||
-    property.mainPhotoUrl ||
-    null;
+    resolved || property.main_photo_url || property.mainPhotoUrl || null;
 
   return (
     <div
@@ -155,8 +161,18 @@ const PropertyCard = ({property, onClick, isSelected, onSelect, getMainPhotoUrl,
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600">
-            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
+            <svg
+              className="w-12 h-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"
+              />
             </svg>
           </div>
         )}
@@ -204,9 +220,24 @@ const PropertyCard = ({property, onClick, isSelected, onSelect, getMainPhotoUrl,
         </div>
         {(property.address || property.city) && (
           <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
-            <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            <svg
+              className="w-3 h-3 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+              />
             </svg>
             <span className="truncate">
               {[property.address, property.city, property.state]
@@ -252,18 +283,14 @@ function PropertiesList() {
 
   const uniqueCities = useMemo(() => {
     const cities = [
-      ...new Set(
-        properties.map((p) => (p.city || "").trim()).filter(Boolean),
-      ),
+      ...new Set(properties.map((p) => (p.city || "").trim()).filter(Boolean)),
     ];
     return cities.sort((a, b) => a.localeCompare(b));
   }, [properties]);
 
   const uniqueStates = useMemo(() => {
     const states = [
-      ...new Set(
-        properties.map((p) => (p.state || "").trim()).filter(Boolean),
-      ),
+      ...new Set(properties.map((p) => (p.state || "").trim()).filter(Boolean)),
     ];
     return states.sort((a, b) => a.localeCompare(b));
   }, [properties]);
@@ -393,8 +420,11 @@ function PropertiesList() {
       }
 
       if (filtersByType.owner) {
-        const owner =
-          (property.owner_user_name ?? property.ownerUserName ?? "").trim();
+        const owner = (
+          property.owner_user_name ??
+          property.ownerUserName ??
+          ""
+        ).trim();
         if (!filtersByType.owner.includes(owner)) return false;
       }
 
@@ -471,9 +501,7 @@ function PropertiesList() {
         openAiSidebar: true,
         currentIndex: propertyIndex + 1,
         totalItems: sortedProperties.length,
-        visiblePropertyIds: sortedProperties.map(
-          (p) => p.property_uid ?? p.id,
-        ),
+        visiblePropertyIds: sortedProperties.map((p) => p.property_uid ?? p.id),
       },
     });
   };
@@ -485,9 +513,7 @@ function PropertiesList() {
       state: {
         currentIndex: propertyIndex + 1,
         totalItems: sortedProperties.length,
-        visiblePropertyIds: sortedProperties.map(
-          (p) => p.property_uid ?? p.id,
-        ),
+        visiblePropertyIds: sortedProperties.map((p) => p.property_uid ?? p.id),
       },
     });
   };
@@ -511,9 +537,7 @@ function PropertiesList() {
         ids.forEach((id) => merged.add(id));
         setSelectedProperties(Array.from(merged));
       } else {
-        setSelectedProperties((prev) =>
-          prev.filter((id) => !ids.includes(id)),
-        );
+        setSelectedProperties((prev) => prev.filter((id) => !ids.includes(id)));
       }
       return;
     }
@@ -543,7 +567,12 @@ function PropertiesList() {
     },
   ];
 
-  const renderPropertyRow = (item, handleSelect, selectedItems, onItemClick) => (
+  const renderPropertyRow = (
+    item,
+    handleSelect,
+    selectedItems,
+    onItemClick,
+  ) => (
     <DataTableItem
       item={item}
       columns={columns}
@@ -850,8 +879,18 @@ function PropertiesList() {
                       title={t("gridView")}
                       aria-label={t("gridView")}
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+                        />
                       </svg>
                     </button>
                     <button
@@ -865,8 +904,18 @@ function PropertiesList() {
                       title={t("listView")}
                       aria-label={t("listView")}
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -944,8 +993,18 @@ function PropertiesList() {
                   <div className="bg-white dark:bg-gray-800 shadow-xs rounded-xl border border-gray-200 dark:border-gray-700/60">
                     <div className="text-center py-16 px-6">
                       <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700/60 mb-4">
-                        <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
+                        <svg
+                          className="w-8 h-8 text-gray-400 dark:text-gray-500"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"
+                          />
                         </svg>
                       </div>
                       <p className="text-gray-600 dark:text-gray-300 font-medium mb-2">
@@ -956,7 +1015,12 @@ function PropertiesList() {
                         onClick={handleNewProperty}
                         className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
                       >
-                        <svg className="fill-current shrink-0" width="16" height="16" viewBox="0 0 16 16">
+                        <svg
+                          className="fill-current shrink-0"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                        >
                           <path d="M15 7H9V1c0-.6-.4-1-1-1S7 .4 7 1v6H1c-.6 0-1 .4-1 1s.4 1 1 1h6v6c0 .6.4 1 1 1s1-.4 1-1V9h6c.6 0 1-.4 1-1s-.4-1-1-1z" />
                         </svg>
                         <span className="ml-2">{t("addProperty")}</span>

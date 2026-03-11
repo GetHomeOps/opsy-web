@@ -67,8 +67,7 @@ function reducer(state, action) {
         activeFilters: state.activeFilters.filter(
           (f) =>
             !(
-              f.type === action.payload.type &&
-              f.value === action.payload.value
+              f.type === action.payload.type && f.value === action.payload.value
             ),
         ),
         currentPage: 1,
@@ -107,10 +106,7 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setOpen(false);
         setActiveCategory(null);
       }
@@ -364,9 +360,9 @@ function ContactsList() {
     const byId = new Map();
     (contacts || []).forEach((c) => {
       (c.tags || []).forEach((tag) => {
-        const t = typeof tag === "object" ? tag : { id: tag, name: String(tag) };
+        const t = typeof tag === "object" ? tag : {id: tag, name: String(tag)};
         if (t?.id != null && !byId.has(t.id)) {
-          byId.set(t.id, { id: t.id, name: t.name || String(t.id) });
+          byId.set(t.id, {id: t.id, name: t.name || String(t.id)});
         }
       });
     });
@@ -406,8 +402,7 @@ function ContactsList() {
         const email = (contact.email || "").toLowerCase();
         const phone = (contact.phone || "").toLowerCase();
         const jobPosition = (contact.job_position || "").toLowerCase();
-        const type =
-          contact.type_id === 1 ? t("individual") : t("company");
+        const type = contact.type_id === 1 ? t("individual") : t("company");
         const matchesSearch =
           contactName.includes(term) ||
           email.includes(term) ||
@@ -444,13 +439,7 @@ function ContactsList() {
 
       return true;
     });
-  }, [
-    state.searchTerm,
-    state.activeFilters,
-    contacts,
-    listSortedItems,
-    t,
-  ]);
+  }, [state.searchTerm, state.activeFilters, contacts, listSortedItems, t]);
 
   // Update filtered contacts in state whenever they change
   useEffect(() => {
@@ -630,7 +619,6 @@ function ContactsList() {
   const handlePageChange = (page) => {
     dispatch({type: "SET_CURRENT_PAGE", payload: page});
   };
-
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
@@ -837,7 +825,11 @@ function ContactsList() {
                         className="hover:opacity-75"
                         aria-label="Remove filter"
                       >
-                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
                           <path
                             fillRule="evenodd"
                             d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
@@ -861,17 +853,17 @@ function ContactsList() {
             {/* Table */}
             <>
               <ContactsTable
-                  contacts={state.filteredContacts}
-                  onToggleSelect={handleToggleSelection}
-                  selectedItems={selectedItems}
-                  totalContacts={state.filteredContacts.length}
-                  currentPage={state.currentPage}
-                  itemsPerPage={state.itemsPerPage}
-                  onContactClick={handleContactClick}
-                  sortConfig={sortConfig}
-                  onSort={handleSort}
-                />
-                {/* Pagination */}
+                contacts={state.filteredContacts}
+                onToggleSelect={handleToggleSelection}
+                selectedItems={selectedItems}
+                totalContacts={state.filteredContacts.length}
+                currentPage={state.currentPage}
+                itemsPerPage={state.itemsPerPage}
+                onContactClick={handleContactClick}
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              {/* Pagination */}
               {state.filteredContacts.length > 0 && (
                 <div className="mt-8">
                   <PaginationClassic
