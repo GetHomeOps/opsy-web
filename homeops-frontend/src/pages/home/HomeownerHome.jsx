@@ -15,6 +15,8 @@ import {PROPERTY_SYSTEMS} from "../properties/constants/propertySystems";
 import ModalBlank from "../../components/ModalBlank";
 import CalendarScheduleModal from "../calendar/CalendarScheduleModal";
 import UploadDocumentModal from "../properties/partials/UploadDocumentModal";
+import UpgradePrompt from "../../components/UpgradePrompt";
+import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import {
   Bell,
   Calendar,
@@ -114,6 +116,7 @@ function HomeownerHome() {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadNoPropertyOpen, setUploadNoPropertyOpen] = useState(false);
+  const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] = useState(false);
 
   const [homeEvents, setHomeEvents] = useState(null);
   const [resources, setResources] = useState(null);
@@ -421,7 +424,18 @@ function HomeownerHome() {
 
   const hasProperties = properties && totalProperties > 0;
 
+  const {handleAddProperty, isChecking: addPropertyChecking} = useAddPropertyWithLimitCheck({
+    accountId: currentAccount?.id,
+    accountUrl,
+    onLimitReached: () => setPropertyLimitUpgradeOpen(true),
+  });
+
   const quickActions = [
+    {
+      icon: Plus,
+      label: t("homeownerHome.addNewProperty") || "Add New Property",
+      onClick: () => (accountUrl ? handleAddProperty() : navigate("/")),
+    },
     {
       icon: CalendarClock,
       label: t("homeownerHome.scheduleEvent") || "Schedule Event",
@@ -429,6 +443,11 @@ function HomeownerHome() {
         // Defer open to avoid the opening click being treated as outside-click
         setTimeout(() => setScheduleModalOpen(true), 0);
       },
+    },
+    {
+      icon: Search,
+      label: t("homeownerHome.findProfessional") || "Find a Professional",
+      onClick: () => navigate(`/${accountUrl}/professionals/search`),
     },
     {
       icon: Upload,
@@ -440,11 +459,6 @@ function HomeownerHome() {
           setTimeout(() => setUploadNoPropertyOpen(true), 0);
         }
       },
-    },
-    {
-      icon: Search,
-      label: t("homeownerHome.findProfessional") || "Find a Professional",
-      onClick: () => navigate(`/${accountUrl}/professionals/search`),
     },
   ];
 
@@ -480,10 +494,11 @@ function HomeownerHome() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => navigate(accountUrl ? `/${accountUrl}/properties/new` : "/")}
-                    className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#d49b5b] hover:bg-[#c18a4a] border border-[#c18a4a] text-white text-base font-semibold transition-colors shadow-lg hover:shadow-xl"
+                    onClick={() => (accountUrl ? handleAddProperty() : navigate("/"))}
+                    disabled={addPropertyChecking}
+                    className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#d49b5b] hover:bg-[#c18a4a] border border-[#c18a4a] text-white text-base font-semibold transition-colors shadow-lg hover:shadow-xl disabled:opacity-70"
                   >
-                    {t("homeownerHome.getOpsymized")}
+                    {addPropertyChecking ? "…" : t("homeownerHome.getOpsymized")}
                   </button>
                   <div className="relative inline-flex items-center justify-center w-10 h-10 mt-1 text-[#d49b5b]">
                     <Shield className="w-8 h-8 absolute" />
@@ -862,18 +877,6 @@ function HomeownerHome() {
       {/* YOUR PROPERTY - Tasks & Maintenance */}
       {/* ============================================ */}
       <section className="px-0 sm:px-4 lg:px-5 xxl:px-12">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Your Property
-          </h2>
-          <a
-            href="#"
-            className="text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1 hover:text-blue-700"
-          >
-            View all <ChevronRight className="w-4 h-4" />
-          </a>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Reminders */}
           <div className="relative bg-white dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm hover:shadow-md transition-shadow">
@@ -1577,16 +1580,26 @@ function HomeownerHome() {
               type="button"
               onClick={() => {
                 setUploadNoPropertyOpen(false);
-                navigate(accountUrl ? `/${accountUrl}/properties/new` : "/");
+                if (accountUrl) handleAddProperty();
+                else navigate("/");
               }}
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white"
+              disabled={addPropertyChecking}
+              className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-70"
             >
               <Plus className="w-4 h-4 inline mr-1.5" />
-              {t("homeownerHome.createProperty")}
+              {addPropertyChecking ? "…" : t("homeownerHome.createProperty")}
             </button>
           </div>
         </div>
       </ModalBlank>
+
+      <UpgradePrompt
+        open={propertyLimitUpgradeOpen}
+        onClose={() => setPropertyLimitUpgradeOpen(false)}
+        title="Property limit reached"
+        message="You've used all properties on your current plan. Upgrade to add more."
+        upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
+      />
     </div>
   );
 }

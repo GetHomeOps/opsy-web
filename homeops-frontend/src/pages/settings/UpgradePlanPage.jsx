@@ -155,14 +155,14 @@ function UpgradePlanPage() {
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow">
           <div className={PAGE_LAYOUT.settings}>
-            {/* Back link */}
+            {/* Back button */}
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-6 transition-colors"
+              className="btn text-neutral-500 hover:text-neutral-800 dark:text-neutral-300 dark:hover:text-neutral-100 mb-6 pl-0 focus:outline-none shadow-none"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Back
+              <ArrowLeft className="w-5 h-5 shrink-0 mr-1" />
+              <span className="text-lg">Back</span>
             </button>
 
             {/* Hero */}

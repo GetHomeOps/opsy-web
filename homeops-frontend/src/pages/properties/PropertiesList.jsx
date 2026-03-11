@@ -21,8 +21,10 @@ import Banner from "../../partials/containers/Banner";
 import ListDropdown from "../../partials/buttons/ListDropdown";
 import FilterDropdown from "../../components/FilterDropdown";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
+import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import propertyContext from "../../context/PropertyContext";
 import AppApi from "../../api/api";
+import UpgradePrompt from "../../components/UpgradePrompt";
 
 const PAGE_STORAGE_KEY = "properties_list_page";
 
@@ -258,6 +260,12 @@ function PropertiesList() {
   const {t} = useTranslation();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
+  const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] = useState(false);
+  const {handleAddProperty, isChecking: addPropertyChecking} = useAddPropertyWithLimitCheck({
+    accountId: currentAccount?.id,
+    accountUrl,
+    onLimitReached: () => setPropertyLimitUpgradeOpen(true),
+  });
   const [selectedProperties, setSelectedProperties] = useState([]);
   const [sortConfig, setSortConfig] = useState({
     key: "passport_id",
@@ -490,7 +498,7 @@ function PropertiesList() {
     dispatch({type: "SET_CURRENT_PAGE", payload: page});
   };
 
-  const handleNewProperty = () => navigate(`/${accountUrl}/properties/new`);
+  const handleNewProperty = () => handleAddProperty();
   const handleOpenAIAssistant = (property) => {
     const uid = property.property_uid ?? property.id;
     const propertyIndex = sortedProperties.findIndex(
@@ -814,8 +822,9 @@ function PropertiesList() {
                   onDuplicate={handleDuplicate}
                 />
                 <button
-                  className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+                  className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-70"
                   onClick={handleNewProperty}
+                  disabled={addPropertyChecking}
                 >
                   <svg
                     className="fill-current shrink-0 xs:hidden"
@@ -1013,7 +1022,8 @@ function PropertiesList() {
                       <button
                         type="button"
                         onClick={handleNewProperty}
-                        className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+                        disabled={addPropertyChecking}
+                        className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-70"
                       >
                         <svg
                           className="fill-current shrink-0"
@@ -1060,6 +1070,14 @@ function PropertiesList() {
           </div>
         </main>
       </div>
+
+      <UpgradePrompt
+        open={propertyLimitUpgradeOpen}
+        onClose={() => setPropertyLimitUpgradeOpen(false)}
+        title="Property limit reached"
+        message="You've used all properties on your current plan. Upgrade to add more."
+        upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
+      />
     </div>
   );
 }

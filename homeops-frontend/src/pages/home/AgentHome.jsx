@@ -36,6 +36,8 @@ import {
   DEFAULT_HEADER_IMAGE,
 } from "../../utils/resourceThumbnail";
 import {HealthBadge, AgentHomeStats, AgentHomeKpiCharts} from "./components";
+import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
+import UpgradePrompt from "../../components/UpgradePrompt";
 
 /*
  * ════════════════════════════════════════════════════════════════════
@@ -89,6 +91,12 @@ function AgentHome() {
   const fetchedTeamUidsRef = useRef(new Set());
 
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
+  const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] = useState(false);
+  const {handleAddProperty, isChecking: addPropertyChecking} = useAddPropertyWithLimitCheck({
+    accountId: currentAccount?.id,
+    accountUrl,
+    onLimitReached: () => setPropertyLimitUpgradeOpen(true),
+  });
   const rawFirstName =
     currentUser?.fullName?.split(" ")[0] ||
     currentUser?.name?.split(" ")[0] ||
@@ -553,10 +561,11 @@ function AgentHome() {
                   "No properties assigned yet. Create your first property to get started."}
               </p>
               <button
-                onClick={() => navigate(`/${accountUrl}/properties/new`)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#456564] text-white rounded-xl font-medium text-sm hover:bg-[#3a5554] transition-colors"
+                onClick={() => handleAddProperty()}
+                disabled={addPropertyChecking}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#456564] text-white rounded-xl font-medium text-sm hover:bg-[#3a5554] transition-colors disabled:opacity-70"
               >
-                {t("agentHome.createProperty") || "Create property"}
+                {addPropertyChecking ? "…" : (t("agentHome.createProperty") || "Create property")}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -935,6 +944,14 @@ function AgentHome() {
           </button>
         </div>
       </section>
+
+      <UpgradePrompt
+        open={propertyLimitUpgradeOpen}
+        onClose={() => setPropertyLimitUpgradeOpen(false)}
+        title="Property limit reached"
+        message="You've used all properties on your current plan. Upgrade to add more."
+        upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
+      />
     </div>
   );
 }

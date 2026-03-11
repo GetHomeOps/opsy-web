@@ -118,6 +118,7 @@ import InspectionAnalysisModalContent from "./partials/InspectionAnalysisModalCo
 import useImageUpload from "../../hooks/useImageUpload";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import useGooglePlacesAutocomplete from "../../hooks/useGooglePlacesAutocomplete";
+import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import ImageUploadField from "../../components/ImageUploadField";
 import {useTranslation} from "react-i18next";
 import Transition from "../../utils/Transition";
@@ -422,6 +423,15 @@ function PropertyFormContainer() {
   const [invitationDecliningId, setInvitationDecliningId] = useState(null);
   const [invitationError, setInvitationError] = useState(null);
   const [mainPhotoMenuOpen, setMainPhotoMenuOpen] = useState(false);
+  const {handleAddProperty, isChecking: addPropertyChecking} = useAddPropertyWithLimitCheck({
+    accountId: currentAccount?.id,
+    accountUrl,
+    onLimitReached: () => {
+      setUpgradePromptTitle("Property limit reached");
+      setUpgradePromptMsg("You've used all properties on your current plan. Upgrade to add more.");
+      setUpgradePromptOpen(true);
+    },
+  });
   const mainPhotoInputRef = useRef(null);
   const actionsTriggerRef = useRef(null);
   const actionsDropdownRef = useRef(null);
@@ -534,12 +544,34 @@ function PropertyFormContainer() {
     return () => document.removeEventListener("keydown", keyHandler);
   }, [actionsDropdownOpen]);
 
-  /* Open systems setup modal on load when creating a new property */
+  /* Open systems setup modal on load when creating a new property. Check limit first. */
   useEffect(() => {
-    if (uid === "new") {
+    if (uid !== "new") return;
+    let cancelled = false;
+    const ADMIN_ROLES = ["super_admin", "admin"];
+    if (ADMIN_ROLES.includes(currentUser?.role)) {
       setSystemsSetupModalOpen(true);
+      return;
     }
-  }, [uid]);
+    (async () => {
+      try {
+        const res = await AppApi.getBillingStatus(currentAccount?.id);
+        const max = res?.limits?.maxProperties;
+        const count = res?.usage?.propertiesCount ?? 0;
+        if (max != null && count >= max && !cancelled) {
+          setUpgradePromptTitle("Property limit reached");
+          setUpgradePromptMsg("You've used all properties on your current plan. Upgrade to add more.");
+          setUpgradePromptOpen(true);
+          navigate(`/${accountUrl}/properties`, {replace: true});
+          return;
+        }
+        if (!cancelled) setSystemsSetupModalOpen(true);
+      } catch {
+        if (!cancelled) setSystemsSetupModalOpen(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [uid, currentUser?.role, currentAccount?.id, accountUrl, navigate]);
 
   /* When modal closes with a created-but-not-yet-navigated property (e.g. user dismissed without completing), navigate to it */
   const prevModalOpenRef = useRef(systemsSetupModalOpen);
@@ -1085,7 +1117,7 @@ function PropertyFormContainer() {
   }
 
   const handleBackToProperties = () => navigate(`/${accountUrl}/properties`);
-  const handleNewProperty = () => navigate(`/${accountUrl}/properties/new`);
+  const handleNewProperty = () => handleAddProperty();
 
   const handleTeamChange = (team) => {
     setHomeopsTeam(team);
@@ -1958,10 +1990,11 @@ function PropertyFormContainer() {
               </Transition>
             </div>
             <button
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
+              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm disabled:opacity-70"
               onClick={handleNewProperty}
+              disabled={addPropertyChecking}
             >
-              {t("new")}
+              {addPropertyChecking ? "…" : t("new")}
             </button>
           </div>
         )}

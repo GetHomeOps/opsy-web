@@ -1,4 +1,5 @@
 import React, {useState, useEffect, useCallback, useRef} from "react";
+import {useParams} from "react-router-dom";
 import {
   Plus,
   X,
@@ -12,6 +13,7 @@ import {
   FileCheck,
   Upload,
   ChevronRight,
+  ArrowUpCircle,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import {
@@ -126,7 +128,12 @@ function SystemsSetupModal({
   onSave,
   onSaveProperty,
   onScheduleMaintenance,
+  upgradeUrl: upgradeUrlProp,
 }) {
+  const {accountUrl: accountUrlParam} = useParams();
+  const accountUrl = accountUrlParam || "";
+  const upgradeUrl = upgradeUrlProp ?? (accountUrl ? `/${accountUrl}/settings/upgrade` : null);
+
   const initialIds = selectedSystemIds ?? [];
   const [selected, setSelected] = useState(new Set(initialIds));
   const [custom, setCustom] = useState(
@@ -164,6 +171,7 @@ function SystemsSetupModal({
   const [analysisError, setAnalysisError] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
+  const [upgradePromptTitle, setUpgradePromptTitle] = useState("Upgrade your plan");
   const [upgradePromptMsg, setUpgradePromptMsg] = useState("");
   const [selectedSuggestedSystems, setSelectedSuggestedSystems] = useState(new Set());
   const [savingProperty, setSavingProperty] = useState(false);
@@ -514,6 +522,7 @@ function SystemsSetupModal({
             msg.toLowerCase().includes("limit") ||
             msg.toLowerCase().includes("upgrade"));
         if (isTierRestriction) {
+          setUpgradePromptTitle("Upgrade your plan");
           setUpgradePromptMsg(msg);
           setUpgradePromptOpen(true);
         }
@@ -937,10 +946,44 @@ function SystemsSetupModal({
             )}
 
             {savePropertyError && (
-              <div className="flex items-center gap-1.5 text-sm text-red-500 dark:text-red-400">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{savePropertyError}</span>
-              </div>
+              (() => {
+                const isPropertyLimit = /property limit/i.test(savePropertyError);
+                if (isPropertyLimit) {
+                  return (
+                    <div className="flex flex-col gap-3 rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/80 dark:bg-amber-900/20 p-4">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                            Property limit reached
+                          </p>
+                          <p className="text-sm text-amber-700 dark:text-amber-300/90 mt-0.5">
+                            You've used all properties on your current plan. Upgrade to add more.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUpgradePromptTitle("Property limit reached");
+                          setUpgradePromptMsg("You've used all properties on your current plan. Upgrade to add more.");
+                          setUpgradePromptOpen(true);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-sm font-medium transition-colors"
+                      >
+                        <ArrowUpCircle className="w-4 h-4" />
+                        Upgrade plan
+                      </button>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="flex items-center gap-1.5 text-sm text-red-500 dark:text-red-400">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{savePropertyError}</span>
+                  </div>
+                );
+              })()
             )}
             <div className="flex justify-between gap-3 pt-2">
               <button
@@ -1397,13 +1440,15 @@ function SystemsSetupModal({
         open={upgradePromptOpen}
         onClose={() => {
           setUpgradePromptOpen(false);
+          setUpgradePromptTitle("Upgrade your plan");
           setUpgradePromptMsg("");
         }}
-        title="Upgrade your plan"
+        title={upgradePromptTitle}
         message={
           upgradePromptMsg ||
           "You've reached the limit for your current plan. Upgrade to unlock inspection report analysis and more AI features."
         }
+        upgradeUrl={upgradeUrl}
       />
     </ModalBlank>
   );

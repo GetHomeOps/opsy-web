@@ -6,7 +6,9 @@ import {Home, Calendar, Search, ArrowRight, Sparkles} from "lucide-react";
 import ModalBlank from "./ModalBlank";
 import {useAuth} from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
+import useAddPropertyWithLimitCheck from "../hooks/useAddPropertyWithLimitCheck";
 import AppApi from "../api/api";
+import UpgradePrompt from "./UpgradePrompt";
 import OpsyMascot from "../images/opsy2.png";
 
 /** Roles that should see the welcome modal (agents and homeowners only). */
@@ -75,6 +77,15 @@ function WelcomeModal() {
   }, [userId, refreshCurrentUser]);
 
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
+  const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] = useState(false);
+  const {handleAddProperty, isChecking: addPropertyChecking} = useAddPropertyWithLimitCheck({
+    accountId: currentAccount?.id,
+    accountUrl,
+    onLimitReached: () => {
+      handleDismiss();
+      setPropertyLimitUpgradeOpen(true);
+    },
+  });
 
   const handleNavigate = useCallback(
     (path) => {
@@ -90,7 +101,7 @@ function WelcomeModal() {
       title: t("welcome.feature1Title"),
       description: t("welcome.feature1Description"),
       cta: t("welcome.feature1Cta"),
-      onClick: () => handleNavigate(`/${accountUrl}/properties/new`),
+      onClick: () => (accountUrl ? handleAddProperty() : handleNavigate(`/`)),
       bgLight: "bg-emerald-50 dark:bg-emerald-900/20",
       iconColor: "text-emerald-600 dark:text-emerald-400",
     },
@@ -114,14 +125,14 @@ function WelcomeModal() {
     },
   ];
 
-  if (!modalOpen) return null;
-
   const firstName =
     currentUser?.fullName?.split(" ")[0] ||
     currentUser?.name?.split(" ")[0] ||
     "";
 
   return (
+    <>
+    {modalOpen && (
     <ModalBlank
       id="welcome-modal"
       modalOpen={modalOpen}
@@ -201,6 +212,15 @@ function WelcomeModal() {
         </div>
       </div>
     </ModalBlank>
+    )}
+    <UpgradePrompt
+      open={propertyLimitUpgradeOpen}
+      onClose={() => setPropertyLimitUpgradeOpen(false)}
+      title="Property limit reached"
+      message="You've used all properties on your current plan. Upgrade to add more."
+      upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
+    />
+    </>
   );
 }
 
