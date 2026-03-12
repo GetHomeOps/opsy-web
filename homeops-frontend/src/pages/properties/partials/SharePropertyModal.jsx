@@ -769,6 +769,22 @@ function SharePropertyModal({
     }
   }, [activeTab, membersByTab]);
 
+  /* Homeowner inviting agent: default restrictions to view (instead of none) */
+  useEffect(() => {
+    if (
+      activeTab === "agent" &&
+      isHomeowner &&
+      !hasAgent &&
+      Object.keys(permissions).length === 0
+    ) {
+      const merged = {};
+      ACCESS_SECTIONS.forEach((s) => {
+        merged[s.id] = "view";
+      });
+      setPermissions(merged);
+    }
+  }, [activeTab, isHomeowner, hasAgent, permissions]);
+
   const handleBlur = useCallback(() => {
     if (effectiveEmail && !EMAIL_REGEX.test(effectiveEmail)) {
       setEmailError("Please enter a valid email address.");
