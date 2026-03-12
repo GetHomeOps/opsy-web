@@ -15,6 +15,7 @@ import {
   FileText,
   ArrowRightLeft,
   RefreshCw,
+  X,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import SelectDropdown from "../../contacts/SelectDropdown";
@@ -52,8 +53,10 @@ function memberRoleToTab(m) {
   const role = (m.role ?? m.property_role ?? "").toLowerCase();
   if (["agent", "admin", "super_admin"].includes(role)) return "agent";
   if (["homeowner", "owner"].includes(role)) return "homeowner";
-  if (["insurer", "insurance", "insurance agent"].includes(role)) return "insurance";
-  if (["mortgage partner", "mortgage", "mortgage agent"].includes(role)) return "mortgage";
+  if (["insurer", "insurance", "insurance agent"].includes(role))
+    return "insurance";
+  if (["mortgage partner", "mortgage", "mortgage agent"].includes(role))
+    return "mortgage";
   return "homeowner";
 }
 
@@ -67,12 +70,16 @@ const PERMISSION_OPTIONS = [
 const HOMEOWNER_SLOT_LIMITS = {
   free: 1,
   maintain: 2,
-  win: null, /* unlimited */
+  win: null /* unlimited */,
 };
 
 const HOMEOWNER_INVITE_TYPES = [
   {id: "co_owner", label: "Co-owner", description: "Full edit access"},
-  {id: "view_only", label: "View-only household member", description: "View access only"},
+  {
+    id: "view_only",
+    label: "View-only household member",
+    description: "View access only",
+  },
 ];
 
 /** Access sections for permission toggles (Systems, Maintenance, Docs) */
@@ -84,12 +91,14 @@ const ACCESS_SECTIONS = [
 
 function SearchableEmailField({
   contacts,
+  agents = [],
   value,
   onChange,
   onBlur,
   placeholder = "Type to search contacts or enter email…",
   disabled = false,
   error,
+  showAgentInviteNote = false,
   "aria-label": ariaLabel,
   "aria-invalid": ariaInvalid,
 }) {
@@ -104,34 +113,69 @@ function SearchableEmailField({
     [contacts],
   );
 
+  const agentsWithEmail = useMemo(
+    () => (agents || []).filter((a) => a.email?.trim()),
+    [agents],
+  );
+
+  const filteredAgents = useMemo(() => {
+    if (!agentsWithEmail.length) return [];
+    const term = inputValue.trim().toLowerCase();
+    if (!term) return agentsWithEmail.slice(0, 6);
+    return agentsWithEmail.filter((a) => {
+      const name = (a.name || "").toLowerCase();
+      const email = (a.email || "").toLowerCase();
+      return name.includes(term) || email.includes(term);
+    });
+  }, [agentsWithEmail, inputValue]);
+
   const filteredContacts = useMemo(() => {
     const term = inputValue.trim().toLowerCase();
-    if (!term) return contactsWithEmail.slice(0, 8);
-    return contactsWithEmail.filter((c) => {
+    const agentEmails = new Set(
+      agentsWithEmail.map((a) => (a.email || "").trim().toLowerCase()),
+    );
+    const deduped = contactsWithEmail.filter(
+      (c) => !agentEmails.has((c.email || "").trim().toLowerCase()),
+    );
+    if (!term) return deduped.slice(0, 8);
+    return deduped.filter((c) => {
       const name = (c.name || "").toLowerCase();
       const email = (c.email || "").toLowerCase();
       return name.includes(term) || email.includes(term);
     });
-  }, [contactsWithEmail, inputValue]);
+  }, [contactsWithEmail, agentsWithEmail, inputValue]);
+
+  const allEmails = useMemo(() => {
+    const set = new Set();
+    agentsWithEmail.forEach((a) =>
+      set.add((a.email || "").trim().toLowerCase()),
+    );
+    contactsWithEmail.forEach((c) =>
+      set.add((c.email || "").trim().toLowerCase()),
+    );
+    return set;
+  }, [agentsWithEmail, contactsWithEmail]);
 
   const showCustomOption =
     inputValue.trim() &&
     EMAIL_REGEX.test(inputValue.trim()) &&
-    !contactsWithEmail.some(
-      (c) => c.email?.trim().toLowerCase() === inputValue.trim().toLowerCase(),
-    );
+    !allEmails.has(inputValue.trim().toLowerCase());
 
-  const options = showCustomOption
-    ? [
-        ...filteredContacts,
-        {
-          id: "__custom__",
-          email: inputValue.trim(),
-          name: `Use "${inputValue.trim()}"`,
-          isCustom: true,
-        },
-      ]
-    : filteredContacts;
+  const flatOptions = useMemo(() => {
+    const items = [];
+    filteredAgents.forEach((a) => items.push({...a, _group: "agent"}));
+    filteredContacts.forEach((c) => items.push({...c, _group: "contact"}));
+    if (showCustomOption) {
+      items.push({
+        id: "__custom__",
+        email: inputValue.trim(),
+        name: `Use "${inputValue.trim()}"`,
+        isCustom: true,
+        _group: "custom",
+      });
+    }
+    return items;
+  }, [filteredAgents, filteredContacts, showCustomOption, inputValue]);
 
   useEffect(() => {
     setInputValue(value || "");
@@ -185,7 +229,9 @@ function SearchableEmailField({
       return;
     }
     if (e.key === "ArrowDown") {
-      setHighlightIndex((i) => (i < options.length - 1 ? i + 1 : i));
+      setHighlightIndex((i) =>
+        i < flatOptions.length - 1 ? i + 1 : i,
+      );
       e.preventDefault();
       return;
     }
@@ -194,18 +240,107 @@ function SearchableEmailField({
       e.preventDefault();
       return;
     }
-    if (e.key === "Enter" && highlightIndex >= 0 && options[highlightIndex]) {
-      handleSelect(options[highlightIndex]);
+    if (
+      e.key === "Enter" &&
+      highlightIndex >= 0 &&
+      flatOptions[highlightIndex]
+    ) {
+      handleSelect(flatOptions[highlightIndex]);
       e.preventDefault();
     }
   };
 
   useEffect(() => {
     if (highlightIndex >= 0 && listRef.current) {
-      const el = listRef.current.children[highlightIndex];
-      el?.scrollIntoView({block: "nearest"});
+      const items = listRef.current.querySelectorAll("[role='option']");
+      items[highlightIndex]?.scrollIntoView({block: "nearest"});
     }
   }, [highlightIndex]);
+
+  const renderOptionItem = (item, flatIdx) => {
+    const isHighlighted = highlightIndex === flatIdx;
+    if (item.isCustom) {
+      return (
+        <li
+          key="__custom__"
+          role="option"
+          aria-selected={isHighlighted}
+          className={`px-4 py-2.5 text-sm cursor-pointer ${
+            isHighlighted
+              ? "bg-[#456564]/10 dark:bg-[#5a7a78]/20 text-[#456564] dark:text-[#5a7a78]"
+              : "text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+          }`}
+          onMouseEnter={() => setHighlightIndex(flatIdx)}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            handleSelect(item);
+          }}
+        >
+          {item.name}
+        </li>
+      );
+    }
+
+    const isAgent = item._group === "agent";
+    const imgUrl = item.image_url || item.avatarUrl || item.avatar_url;
+
+    return (
+      <li
+        key={`${item._group}-${item.id || item.email}`}
+        role="option"
+        aria-selected={isHighlighted}
+        className={`px-4 py-2 cursor-pointer flex items-center gap-3 ${
+          isHighlighted
+            ? "bg-[#456564]/10 dark:bg-[#5a7a78]/20"
+            : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
+        }`}
+        onMouseEnter={() => setHighlightIndex(flatIdx)}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          handleSelect(item);
+        }}
+      >
+        {isAgent ? (
+          imgUrl ? (
+            <img
+              src={imgUrl}
+              alt=""
+              className="w-8 h-8 rounded-full object-cover shrink-0"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-[#456564] dark:bg-[#5a7a78] flex items-center justify-center text-white text-xs font-semibold shrink-0">
+              {(item.name || item.email)?.charAt(0)?.toUpperCase() || "?"}
+            </div>
+          )
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 text-xs font-semibold shrink-0">
+            {(item.name || item.email)?.charAt(0)?.toUpperCase() || "?"}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p
+            className={`text-sm font-medium truncate ${
+              isHighlighted
+                ? "text-[#456564] dark:text-[#5a7a78]"
+                : "text-gray-900 dark:text-gray-100"
+            }`}
+          >
+            {item.name || "Unknown"}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+            {item.email?.trim()}
+          </p>
+        </div>
+        {isAgent && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#456564]/10 dark:bg-[#5a7a78]/20 text-[#456564] dark:text-[#5a7a78] shrink-0">
+            Agent
+          </span>
+        )}
+      </li>
+    );
+  };
+
+  let flatIdx = 0;
 
   return (
     <div className="relative" ref={containerRef}>
@@ -244,40 +379,63 @@ function SearchableEmailField({
           {error}
         </p>
       )}
+      {showAgentInviteNote && showCustomOption && (
+        <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
+          Your agent is still not on our system! We will invite them to help
+          service you!
+        </p>
+      )}
       {isOpen && !disabled && (
         <ul
           ref={listRef}
-          className="absolute z-50 w-full mt-1 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-auto"
+          className="absolute z-50 w-full mt-1 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-auto"
           role="listbox"
         >
-          {options.length === 0 ? (
+          {flatOptions.length === 0 ? (
             <li className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
               {inputValue.trim()
-                ? "No matching contacts. Type a full email address."
+                ? "No matching results. Type a full email address."
                 : "No contacts with email. Type an email address."}
             </li>
           ) : (
-            options.map((contact, idx) => (
-              <li
-                key={contact.id || contact.email}
-                role="option"
-                aria-selected={highlightIndex === idx}
-                className={`px-4 py-2.5 text-sm cursor-pointer ${
-                  highlightIndex === idx
-                    ? "bg-[#456564]/10 dark:bg-[#5a7a78]/20 text-[#456564] dark:text-[#5a7a78]"
-                    : "text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                }`}
-                onMouseEnter={() => setHighlightIndex(idx)}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSelect(contact);
-                }}
-              >
-                {contact.isCustom
-                  ? contact.name
-                  : `${contact.name || "Unknown"} (${contact.email?.trim()})`}
-              </li>
-            ))
+            <>
+              {filteredAgents.length > 0 && (
+                <>
+                  <li className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 select-none">
+                    Agents
+                  </li>
+                  {filteredAgents.map((a) => {
+                    const idx = flatIdx++;
+                    return renderOptionItem({...a, _group: "agent"}, idx);
+                  })}
+                </>
+              )}
+              {filteredContacts.length > 0 && (
+                <>
+                  {filteredAgents.length > 0 && (
+                    <li className="my-1 border-t border-gray-100 dark:border-gray-700" />
+                  )}
+                  <li className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 select-none">
+                    My Contacts
+                  </li>
+                  {filteredContacts.map((c) => {
+                    const idx = flatIdx++;
+                    return renderOptionItem({...c, _group: "contact"}, idx);
+                  })}
+                </>
+              )}
+              {showCustomOption &&
+                renderOptionItem(
+                  {
+                    id: "__custom__",
+                    email: inputValue.trim(),
+                    name: `Use "${inputValue.trim()}"`,
+                    isCustom: true,
+                    _group: "custom",
+                  },
+                  flatIdx++,
+                )}
+            </>
           )}
         </ul>
       )}
@@ -301,7 +459,9 @@ function PermissionToggle({
       aria-label={ariaLabel}
     >
       <span className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 truncate shrink-0">
-        {Icon && <Icon className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />}
+        {Icon && (
+          <Icon className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+        )}
         {systemName}
       </span>
       <div
@@ -345,16 +505,29 @@ function PermissionToggle({
   );
 }
 
-function TeamMemberCard({member: m, showRole = false, currentUserId, onResendInvitation, resendingId}) {
+function TeamMemberCard({
+  member: m,
+  showRole = false,
+  currentUserId,
+  onResendInvitation,
+  resendingId,
+  onRemove,
+  canRemove = false,
+}) {
   const isPending = m._pending === true;
-  const isCurrentUser = currentUserId != null && String(m.id) === String(currentUserId);
-  const hasResend = isPending && m.invitationId && onResendInvitation;
+  const isCurrentUser =
+    currentUserId != null && String(m.id) === String(currentUserId);
+  /* Only show resend for pending invitations – not for users who already accepted */
+  const hasResend =
+    isPending && m.invitationId && onResendInvitation;
   const displayRole = (() => {
     const r = (m.role ?? "").toLowerCase();
     if (["agent", "admin", "super_admin"].includes(r)) return "Agent";
     if (["homeowner", "owner"].includes(r)) return "Homeowner";
-    if (["insurer", "insurance", "insurance agent"].includes(r)) return "Insurance";
-    if (["mortgage partner", "mortgage", "mortgage agent"].includes(r)) return "Mortgage";
+    if (["insurer", "insurance", "insurance agent"].includes(r))
+      return "Insurance";
+    if (["mortgage partner", "mortgage", "mortgage agent"].includes(r))
+      return "Mortgage";
     return m.role ?? "Member";
   })();
 
@@ -362,18 +535,24 @@ function TeamMemberCard({member: m, showRole = false, currentUserId, onResendInv
     <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600">
       <div
         className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0 ${
-          isPending ? "bg-gray-400 dark:bg-gray-500" : "bg-[#456564] dark:bg-[#5a7a78]"
+          isPending
+            ? "bg-gray-400 dark:bg-gray-500"
+            : "bg-[#456564] dark:bg-[#5a7a78]"
         }`}
       >
         {isPending
-          ? (m.email?.charAt(0)?.toUpperCase() || "?")
-          : (m.name?.charAt(0)?.toUpperCase() || m.email?.charAt(0)?.toUpperCase() || "?")}
+          ? m.email?.charAt(0)?.toUpperCase() || "?"
+          : m.name?.charAt(0)?.toUpperCase() ||
+            m.email?.charAt(0)?.toUpperCase() ||
+            "?"}
       </div>
       <div className="min-w-0 flex-1">
         <p className="font-medium text-gray-900 dark:text-white truncate">
           {m.name || m.email}
           {isCurrentUser && (
-            <span className="text-gray-500 dark:text-gray-400 font-normal ml-1">(Me)</span>
+            <span className="text-gray-500 dark:text-gray-400 font-normal ml-1">
+              (Me)
+            </span>
           )}
         </p>
         {showRole && (
@@ -387,21 +566,33 @@ function TeamMemberCard({member: m, showRole = false, currentUserId, onResendInv
           </p>
         )}
       </div>
-      {hasResend && (
-        <button
-          type="button"
-          onClick={() => onResendInvitation(m)}
-          disabled={resendingId === m.invitationId}
-          className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-[#456564] dark:text-[#5a7a78] hover:underline disabled:opacity-50"
-        >
-          {resendingId === m.invitationId ? (
-            <span className="animate-spin rounded-full h-3 w-3 border-2 border-current border-t-transparent" />
-          ) : (
-            <RefreshCw className="w-3 h-3" />
-          )}
-          Resend Invitation Email
-        </button>
-      )}
+      <div className="flex items-center gap-2 shrink-0">
+        {hasResend && (
+          <button
+            type="button"
+            onClick={() => onResendInvitation(m)}
+            disabled={resendingId === m.invitationId}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#456564] dark:text-[#5a7a78] hover:underline disabled:opacity-50"
+          >
+            {resendingId === m.invitationId ? (
+              <span className="animate-spin rounded-full h-3 w-3 border-2 border-current border-t-transparent" />
+            ) : (
+              <RefreshCw className="w-3 h-3" />
+            )}
+            Resend Invitation Email
+          </button>
+        )}
+        {canRemove && onRemove && (
+          <button
+            type="button"
+            onClick={() => onRemove(m)}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/20 transition-colors"
+            aria-label="Remove member"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -420,6 +611,7 @@ function SharePropertyModal({
   onInvite,
   onUpdateAgentPermissions,
   onTransferOwnership,
+  onRemoveMember,
   initialTab = "owner",
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -433,11 +625,28 @@ function SharePropertyModal({
   const [transferOwnershipOpen, setTransferOwnershipOpen] = useState(false);
   const [selectedNewOwnerId, setSelectedNewOwnerId] = useState("");
   const [resendingId, setResendingId] = useState(null);
+  const [platformAgents, setPlatformAgents] = useState([]);
+  const [removeConfirmMember, setRemoveConfirmMember] = useState(null);
+  const [removingMember, setRemovingMember] = useState(false);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    let cancelled = false;
+    AppApi.getAgents()
+      .then((agents) => {
+        if (!cancelled) setPlatformAgents(agents ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [modalOpen]);
 
   const allSystemIds = useMemo(() => {
     const selectedIds = systems?.selectedSystemIds ?? [];
     const customNames = systems?.customSystemNames ?? [];
-    const predefined = selectedIds.length > 0 ? selectedIds : PROPERTY_SYSTEMS.map((s) => s.id);
+    const predefined =
+      selectedIds.length > 0 ? selectedIds : PROPERTY_SYSTEMS.map((s) => s.id);
     const custom = customNames.map((name) => `custom-${name}`);
     return [...predefined, ...custom];
   }, [systems?.selectedSystemIds, systems?.customSystemNames]);
@@ -494,7 +703,9 @@ function SharePropertyModal({
   const effectiveContacts = useMemo(() => {
     if (!isAdminOrSuperAdmin || !users?.length) return contacts;
     const contactEmails = new Set(
-      (contacts ?? []).map((c) => (c.email ?? "").trim().toLowerCase()).filter(Boolean),
+      (contacts ?? [])
+        .map((c) => (c.email ?? "").trim().toLowerCase())
+        .filter(Boolean),
     );
     const usersAsContacts = (users ?? [])
       .filter((u) => u.email?.trim())
@@ -508,15 +719,22 @@ function SharePropertyModal({
   }, [contacts, users, isAdminOrSuperAdmin]);
   const isHomeowner = currentRole === "homeowner";
   /* Homeowner tab (agent adding homeowner): restrictions are read-only, default edit */
-  const homeownerRestrictionsReadOnly = activeTab === "homeowner" && !isHomeowner;
-  const subscriptionTier = (currentUser?.subscriptionTier ?? currentUser?.subscription_tier ?? "free").toLowerCase();
-  const maxHomeownerSlots = HOMEOWNER_SLOT_LIMITS[subscriptionTier] ?? HOMEOWNER_SLOT_LIMITS.free;
+  const homeownerRestrictionsReadOnly =
+    activeTab === "homeowner" && !isHomeowner;
+  const subscriptionTier = (
+    currentUser?.subscriptionTier ??
+    currentUser?.subscription_tier ??
+    "free"
+  ).toLowerCase();
+  const maxHomeownerSlots =
+    HOMEOWNER_SLOT_LIMITS[subscriptionTier] ?? HOMEOWNER_SLOT_LIMITS.free;
   const homeownerCount = useMemo(() => {
     return (teamMembers ?? []).filter(
       (m) => (m.role ?? "").toLowerCase() === "homeowner" || m._pending,
     ).length;
   }, [teamMembers]);
-  const atHomeownerLimit = maxHomeownerSlots != null && homeownerCount >= maxHomeownerSlots;
+  const atHomeownerLimit =
+    maxHomeownerSlots != null && homeownerCount >= maxHomeownerSlots;
 
   /* Group team members by tab for display */
   const membersByTab = useMemo(() => {
@@ -582,14 +800,17 @@ function SharePropertyModal({
       return mEmail && mEmail === emailLower;
     });
     if (alreadyInTeam) {
-      setEmailError("This person is already on the team or has a pending invitation.");
+      setEmailError(
+        "This person is already on the team or has a pending invitation.",
+      );
       return;
     }
 
     setIsSubmitting(true);
     try {
       const perSystemPerms = {};
-      const isViewOnly = activeTab === "homeowner" && homeownerInviteType === "view_only";
+      const isViewOnly =
+        activeTab === "homeowner" && homeownerInviteType === "view_only";
       const isHomeownerEditDefault = activeTab === "homeowner" && !isHomeowner;
       if (isViewOnly) {
         ACCESS_SECTIONS.forEach((s) => {
@@ -616,7 +837,8 @@ function SharePropertyModal({
       await onInvite?.({
         email: effectiveEmail,
         role,
-        homeownerInviteType: activeTab === "homeowner" ? homeownerInviteType : undefined,
+        homeownerInviteType:
+          activeTab === "homeowner" ? homeownerInviteType : undefined,
         permissions: perSystemPerms,
       });
       setSuccessType("invite");
@@ -642,8 +864,7 @@ function SharePropertyModal({
   const propertyOwner = useMemo(
     () =>
       (teamMembers ?? []).find(
-        (m) =>
-          m && (m.property_role ?? m.role ?? "").toLowerCase() === "owner",
+        (m) => m && (m.property_role ?? m.role ?? "").toLowerCase() === "owner",
       ) ?? null,
     [teamMembers],
   );
@@ -658,9 +879,7 @@ function SharePropertyModal({
 
   /* Current user is the property owner (can transfer ownership) */
   const isCurrentUserPropertyOwner = useMemo(
-    () =>
-      propertyOwner &&
-      String(propertyOwner.id) === String(currentUser?.id),
+    () => propertyOwner && String(propertyOwner.id) === String(currentUser?.id),
     [propertyOwner, currentUser?.id],
   );
 
@@ -695,6 +914,30 @@ function SharePropertyModal({
       setResendingId(null);
     }
   }, []);
+
+  const canRemoveMember = useCallback(
+    (m) => {
+      if (!m) return false;
+      if (!propertyOwner) return true;
+      if (m._pending) return true;
+      return String(m.id) !== String(propertyOwner.id);
+    },
+    [propertyOwner],
+  );
+
+  const handleConfirmRemove = useCallback(async () => {
+    const member = removeConfirmMember;
+    if (!member || !onRemoveMember) return;
+    setRemovingMember(true);
+    try {
+      await onRemoveMember(member);
+      setRemoveConfirmMember(null);
+    } catch (err) {
+      setEmailError(err?.message || "Failed to remove member");
+    } finally {
+      setRemovingMember(false);
+    }
+  }, [removeConfirmMember, onRemoveMember]);
 
   /* Regular agents see only Home Owner tab; admin/super_admin see both Agent and Home Owner; homeowners see both. */
   const isRegularAgent = currentRole === "agent";
@@ -746,7 +989,9 @@ function SharePropertyModal({
                 <Check className="w-8 h-8 text-[#456564] dark:text-[#5a7a78]" />
               </div>
               <p className="text-base font-semibold text-gray-900 dark:text-white text-center break-words w-full">
-                {successType === "resend" ? "Invitation email resent!" : "Invite sent successfully!"}
+                {successType === "resend"
+                  ? "Invitation email resent!"
+                  : "Invite sent successfully!"}
               </p>
             </div>
           </div>
@@ -805,70 +1050,83 @@ function SharePropertyModal({
                     {propertyOwner ? (
                       <div className="flex items-center gap-4 p-4 rounded-xl bg-[#456564]/5 dark:bg-[#5a7a78]/10 border border-[#456564]/20 dark:border-[#5a7a78]/30">
                         <div className="w-12 h-12 rounded-full bg-[#456564] dark:bg-[#5a7a78] flex items-center justify-center text-white font-semibold shrink-0">
-                          {(propertyOwner.name || propertyOwner.email)?.charAt(0)?.toUpperCase() || "?"}
+                          {(propertyOwner.name || propertyOwner.email)
+                            ?.charAt(0)
+                            ?.toUpperCase() || "?"}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="font-semibold text-gray-900 dark:text-white">
-                            {propertyOwner.name || propertyOwner.email || "Unknown"}
-                            {String(propertyOwner.id) === String(currentUser?.id) && (
-                              <span className="text-gray-500 dark:text-gray-400 font-normal ml-1">(Me)</span>
+                            {propertyOwner.name ||
+                              propertyOwner.email ||
+                              "Unknown"}
+                            {String(propertyOwner.id) ===
+                              String(currentUser?.id) && (
+                              <span className="text-gray-500 dark:text-gray-400 font-normal ml-1">
+                                (Me)
+                              </span>
                             )}
                           </p>
-                          {(propertyOwner.email || propertyOwner.inviteeEmail) && (
+                          {(propertyOwner.email ||
+                            propertyOwner.inviteeEmail) && (
                             <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                              {propertyOwner.email || propertyOwner.inviteeEmail}
+                              {propertyOwner.email ||
+                                propertyOwner.inviteeEmail}
                             </p>
                           )}
                           <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-[#456564]/20 dark:bg-[#5a7a78]/30 text-[#456564] dark:text-[#5a7a78] text-xs font-semibold">
                             Owner
                           </span>
                         </div>
-                        {onTransferOwnership && isCurrentUserPropertyOwner && transferOwnerOptions.length > 0 && (
-                      <div className="shrink-0">
-                        {!transferOwnershipOpen ? (
-                          <button
-                            type="button"
-                            onClick={() => setTransferOwnershipOpen(true)}
-                            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#456564] dark:text-[#5a7a78] hover:underline"
-                          >
-                            <ArrowRightLeft className="w-4 h-4" />
-                            Transfer ownership
-                          </button>
-                        ) : (
-                          <div className="flex flex-col gap-2 min-w-[200px]">
-                            <SelectDropdown
-                              options={transferOwnerOptions}
-                              value={selectedNewOwnerId}
-                              onChange={(v) => setSelectedNewOwnerId(v ?? "")}
-                              placeholder="Select new owner"
-                              name="transfer-owner"
-                              id="transfer-owner"
-                              clearable
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={handleTransferOwnership}
-                                disabled={!selectedNewOwnerId}
-                                className="btn-sm bg-[#456654] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                Transfer
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setTransferOwnershipOpen(false);
-                                  setSelectedNewOwnerId("");
-                                }}
-                                className="btn-sm border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                              >
-                                Cancel
-                              </button>
+                        {onTransferOwnership &&
+                          isCurrentUserPropertyOwner &&
+                          transferOwnerOptions.length > 0 && (
+                            <div className="shrink-0">
+                              {!transferOwnershipOpen ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setTransferOwnershipOpen(true)}
+                                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[#456564] dark:text-[#5a7a78] hover:underline"
+                                >
+                                  <ArrowRightLeft className="w-4 h-4" />
+                                  Transfer ownership
+                                </button>
+                              ) : (
+                                <div className="flex flex-col gap-2 min-w-[200px]">
+                                  <SelectDropdown
+                                    options={transferOwnerOptions}
+                                    value={selectedNewOwnerId}
+                                    onChange={(v) =>
+                                      setSelectedNewOwnerId(v ?? "")
+                                    }
+                                    placeholder="Select new owner"
+                                    name="transfer-owner"
+                                    id="transfer-owner"
+                                    clearable
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={handleTransferOwnership}
+                                      disabled={!selectedNewOwnerId}
+                                      className="btn-sm bg-[#456654] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      Transfer
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTransferOwnershipOpen(false);
+                                        setSelectedNewOwnerId("");
+                                      }}
+                                      className="btn-sm border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          )}
                       </div>
                     ) : (
                       <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400">
@@ -885,7 +1143,16 @@ function SharePropertyModal({
                       </p>
                       <div className="space-y-2">
                         {teamMembersExcludingOwner.map((m) => (
-                          <TeamMemberCard key={m.id ?? `pending-${m.email}`} member={m} showRole currentUserId={currentUser?.id} onResendInvitation={handleResendInvitation} resendingId={resendingId} />
+                          <TeamMemberCard
+                            key={m.id ?? `pending-${m.email}`}
+                            member={m}
+                            showRole
+                            currentUserId={currentUser?.id}
+                            onResendInvitation={handleResendInvitation}
+                            resendingId={resendingId}
+                            onRemove={onRemoveMember ? () => setRemoveConfirmMember(m) : undefined}
+                            canRemove={canRemoveMember(m)}
+                          />
                         ))}
                       </div>
                     </div>
@@ -900,25 +1167,41 @@ function SharePropertyModal({
                   {(membersByTab[activeTab] ?? []).length > 0 && (
                     <div>
                       <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">
-                        Current {TABS.find((t) => t.id === activeTab)?.label?.toLowerCase() ?? "members"}
+                        Current{" "}
+                        {TABS.find(
+                          (t) => t.id === activeTab,
+                        )?.label?.toLowerCase() ?? "members"}
                       </p>
                       <div className="space-y-2">
                         {(membersByTab[activeTab] ?? []).map((m) => (
-                          <TeamMemberCard key={m.id ?? `pending-${m.email}`} member={m} currentUserId={currentUser?.id} onResendInvitation={handleResendInvitation} resendingId={resendingId} />
+                          <TeamMemberCard
+                            key={m.id ?? `pending-${m.email}`}
+                            member={m}
+                            currentUserId={currentUser?.id}
+                            onResendInvitation={handleResendInvitation}
+                            resendingId={resendingId}
+                            onRemove={onRemoveMember ? () => setRemoveConfirmMember(m) : undefined}
+                            canRemove={canRemoveMember(m)}
+                          />
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {activeTab === "homeowner" && atHomeownerLimit && maxHomeownerSlots != null && (
-                    <div className="p-4 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">
-                      You&apos;ve reached your plan limit for household members ({homeownerCount} of {maxHomeownerSlots}). Upgrade your plan to add more.
-                    </div>
-                  )}
+                  {activeTab === "homeowner" &&
+                    atHomeownerLimit &&
+                    maxHomeownerSlots != null && (
+                      <div className="p-4 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">
+                        You&apos;ve reached your plan limit for household
+                        members ({homeownerCount} of {maxHomeownerSlots}).
+                        Upgrade your plan to add more.
+                      </div>
+                    )}
 
                   {activeTab === "agent" && hasAgent && (
                     <div className="p-4 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">
-                      An agent has already been added to this property. Only one agent is allowed per property.
+                      An agent has already been added to this property. Only one
+                      agent is allowed per property.
                     </div>
                   )}
 
@@ -969,137 +1252,148 @@ function SharePropertyModal({
                         Coming Soon
                       </p>
                     </div>
-                  ) : activeTab === "agent" && hasAgent ? (
-                    /* Agent already added: message and restrictions shown above; no invite form */
-                    null
-                  ) : (
+                  ) : activeTab === "agent" &&
+                    hasAgent ? /* Agent already added: message and restrictions shown above; no invite form */
+                  null : (
                     <>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {activeTab === "agent"
-                      ? "Invite an agent to collaborate on this property."
-                      : isHomeowner
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {activeTab === "agent"
+                          ? "Invite an agent to collaborate on this property."
+                          : isHomeowner
                             ? "Add a co-owner or view-only household member."
                             : "Invite a home owner to collaborate on this property."}
-                  </p>
+                      </p>
 
-                  {activeTab === "homeowner" && isHomeowner && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Type
-                      </label>
-                      <div className="flex gap-3 flex-wrap">
-                        {HOMEOWNER_INVITE_TYPES.map((opt) => (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() => setHomeownerInviteType(opt.id)}
-                            disabled={atHomeownerLimit}
-                            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                              homeownerInviteType === opt.id
-                                ? "bg-[#456564] dark:bg-[#5a7a78] text-white"
-                                : "bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                            } ${atHomeownerLimit ? "opacity-50 cursor-not-allowed" : ""}`}
-                          >
-                            <span className="block">{opt.label}</span>
-                            <span className={`block text-xs mt-0.5 ${homeownerInviteType === opt.id ? "text-white/90" : "text-gray-500 dark:text-gray-400"}`}>
-                              {opt.description}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label
-                      htmlFor="invite-email"
-                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
-                    >
-                      Email address
-                    </label>
-                    <SearchableEmailField
-                      contacts={effectiveContacts}
-                      value={email}
-                      onChange={setEmail}
-                      onBlur={handleBlur}
-                      placeholder="Search My Contacts or enter email…"
-                      error={emailError}
-                      aria-label="Invitee email"
-                      aria-invalid={!!emailError}
-                      disabled={activeTab === "homeowner" && atHomeownerLimit}
-                    />
-                  </div>
-
-                  {activeTab === "agent" && !hasAgent && (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Access restrictions
-                        </label>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            Apply to all:
-                          </span>
-                          {PERMISSION_OPTIONS.map((opt) => (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              onClick={() => applyToAll(opt.id)}
-                              className="px-2 py-1 text-xs font-medium rounded border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
+                      {activeTab === "homeowner" && isHomeowner && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Type
+                          </label>
+                          <div className="flex gap-3 flex-wrap">
+                            {HOMEOWNER_INVITE_TYPES.map((opt) => (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => setHomeownerInviteType(opt.id)}
+                                disabled={atHomeownerLimit}
+                                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                  homeownerInviteType === opt.id
+                                    ? "bg-[#456564] dark:bg-[#5a7a78] text-white"
+                                    : "bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                                } ${atHomeownerLimit ? "opacity-50 cursor-not-allowed" : ""}`}
+                              >
+                                <span className="block">{opt.label}</span>
+                                <span
+                                  className={`block text-xs mt-0.5 ${homeownerInviteType === opt.id ? "text-white/90" : "text-gray-500 dark:text-gray-400"}`}
+                                >
+                                  {opt.description}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                      <div className="space-y-4">
-                        {ACCESS_SECTIONS.map((s) => {
-                          const Icon = s.icon;
-                          return (
-                            <PermissionToggle
-                              key={s.id}
-                              systemId={s.id}
-                              systemName={s.label}
-                              value={getPermission(s.id)}
-                              onChange={handlePermissionChange}
-                              aria-label={`${s.label} permission`}
-                              icon={Icon}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                      )}
 
-                  {activeTab === "homeowner" && !isHomeowner && (
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Access restrictions
+                      <div>
+                        <label
+                          htmlFor="invite-email"
+                          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                        >
+                          Email address
                         </label>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Homeowners have full edit access by default.
-                        </p>
+                        <SearchableEmailField
+                          contacts={effectiveContacts}
+                          agents={
+                            activeTab === "agent" ? platformAgents : []
+                          }
+                          value={email}
+                          onChange={setEmail}
+                          onBlur={handleBlur}
+                          placeholder={
+                            activeTab === "agent"
+                              ? "Search agents, contacts, or enter email…"
+                              : "Search My Contacts or enter email…"
+                          }
+                          error={emailError}
+                          showAgentInviteNote={activeTab === "agent"}
+                          aria-label="Invitee email"
+                          aria-invalid={!!emailError}
+                          disabled={
+                            activeTab === "homeowner" && atHomeownerLimit
+                          }
+                        />
                       </div>
-                      <div className="space-y-4">
-                        {ACCESS_SECTIONS.map((s) => {
-                          const Icon = s.icon;
-                          return (
-                            <PermissionToggle
-                              key={s.id}
-                              systemId={s.id}
-                              systemName={s.label}
-                              value="edit"
-                              onChange={handlePermissionChange}
-                              aria-label={`${s.label} permission`}
-                              icon={Icon}
-                              disabled
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+
+                      {activeTab === "agent" && !hasAgent && (
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Access restrictions
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                Apply to all:
+                              </span>
+                              {PERMISSION_OPTIONS.map((opt) => (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => applyToAll(opt.id)}
+                                  className="px-2 py-1 text-xs font-medium rounded border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-4">
+                            {ACCESS_SECTIONS.map((s) => {
+                              const Icon = s.icon;
+                              return (
+                                <PermissionToggle
+                                  key={s.id}
+                                  systemId={s.id}
+                                  systemName={s.label}
+                                  value={getPermission(s.id)}
+                                  onChange={handlePermissionChange}
+                                  aria-label={`${s.label} permission`}
+                                  icon={Icon}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {activeTab === "homeowner" && !isHomeowner && (
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Access restrictions
+                            </label>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Homeowners have full edit access by default.
+                            </p>
+                          </div>
+                          <div className="space-y-4">
+                            {ACCESS_SECTIONS.map((s) => {
+                              const Icon = s.icon;
+                              return (
+                                <PermissionToggle
+                                  key={s.id}
+                                  systemId={s.id}
+                                  systemName={s.label}
+                                  value="edit"
+                                  onChange={handlePermissionChange}
+                                  aria-label={`${s.label} permission`}
+                                  icon={Icon}
+                                  disabled
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -1115,7 +1409,9 @@ function SharePropertyModal({
                 >
                   Cancel
                 </button>
-                {activeTab === "agent" && hasAgent && onUpdateAgentPermissions ? (
+                {activeTab === "agent" &&
+                hasAgent &&
+                onUpdateAgentPermissions ? (
                   <button
                     type="button"
                     onClick={handleUpdateAgentPermissions}
@@ -1124,31 +1420,81 @@ function SharePropertyModal({
                     Accept
                   </button>
                 ) : null}
-                {!(activeTab === "agent" && hasAgent) && !isInsuranceOrMortgageComingSoon && (
-                  <button
-                    type="button"
-                    onClick={handleInvite}
-                    disabled={!canSubmit || isSubmitting || (activeTab === "homeowner" && atHomeownerLimit)}
-                    className="btn bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? (
-                      <span className="flex items-center gap-2">
-                        <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                        Sending…
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        Send invite
-                        <Send className="w-4 h-4" />
-                      </span>
-                    )}
-                  </button>
-                )}
+                {!(activeTab === "agent" && hasAgent) &&
+                  !isInsuranceOrMortgageComingSoon && (
+                    <button
+                      type="button"
+                      onClick={handleInvite}
+                      disabled={
+                        !canSubmit ||
+                        isSubmitting ||
+                        (activeTab === "homeowner" && atHomeownerLimit)
+                      }
+                      className="btn bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubmitting ? (
+                        <span className="flex items-center gap-2">
+                          <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                          Sending…
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          Send invite
+                          <Send className="w-4 h-4" />
+                        </span>
+                      )}
+                    </button>
+                  )}
               </div>
             )}
           </>
         )}
       </div>
+
+      {/* Remove member confirmation modal */}
+      <ModalBlank
+        modalOpen={!!removeConfirmMember}
+        setModalOpen={(open) => !open && setRemoveConfirmMember(null)}
+        contentClassName="max-w-md"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            Remove team member
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Are you sure you want to remove{" "}
+            <span className="font-medium text-gray-900 dark:text-white">
+              {removeConfirmMember?.name || removeConfirmMember?.email}
+            </span>{" "}
+            from this property? They will no longer have access.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button
+              type="button"
+              onClick={() => setRemoveConfirmMember(null)}
+              disabled={removingMember}
+              className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmRemove}
+              disabled={removingMember}
+              className="btn bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+            >
+              {removingMember ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                  Removing…
+                </span>
+              ) : (
+                "Remove"
+              )}
+            </button>
+          </div>
+        </div>
+      </ModalBlank>
     </ModalBlank>
   );
 }

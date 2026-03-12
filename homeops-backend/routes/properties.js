@@ -124,7 +124,7 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
       image_url: u.image_url ?? u.avatar_url ?? null,
     }));
 
-    // Include pending invitations as team members with _pending flag
+    // Include pending invitations as team members with _pending flag (excludes accepted)
     const pendingInvitations = await Invitation.getByProperty(property.id, { status: "pending" });
     const pendingMembers = pendingInvitations.map((inv) => ({
       email: inv.inviteeEmail,
@@ -132,6 +132,7 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
       role: inv.intendedRole,
       property_role: inv.intendedRole,
       _pending: true,
+      invitationId: inv.id,
     }));
 
     const allMembers = [...property_users_with_avatars, ...pendingMembers];

@@ -88,6 +88,16 @@ router.get("/agent/:agentId", ensureLoggedIn, ensurePlatformAdmin, async functio
   }
 });
 
+router.get("/agents", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const agents = await User.getAgents();
+    const agentsWithUrls = await addPresignedUrlsToItems(agents, "image", "image_url");
+    return res.json({ agents: agentsWithUrls });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.get("/user-accounts", ensureLoggedIn, async function (req, res, next) {
   try {
     const userId = res.locals.user?.id;

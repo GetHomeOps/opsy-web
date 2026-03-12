@@ -5,6 +5,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
 } from "react";
 import {
   useNavigate,
@@ -110,9 +111,11 @@ import {
   X,
   Check,
   UserPlus,
+  Briefcase,
 } from "lucide-react";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
 import InspectionReportModal from "./partials/InspectionReportModal";
+import InviteAgentBenefitsModal from "./partials/InviteAgentBenefitsModal";
 import ModalBlank from "../../components/ModalBlank";
 import InspectionAnalysisModalContent from "./partials/InspectionAnalysisModalContent";
 import useImageUpload from "../../hooks/useImageUpload";
@@ -155,6 +158,28 @@ const initialState = {
 };
 
 const FREE_PLAN_CODES = ["homeowner_free", "agent_free"];
+
+const INVITE_AGENT_DISMISS_KEY = "opsy-invite-agent-dismissed";
+
+function getInviteAgentDismissedStorageKey(propertyUid) {
+  return `${INVITE_AGENT_DISMISS_KEY}-${propertyUid}`;
+}
+
+function isInviteAgentCtaDismissed(propertyUid) {
+  if (!propertyUid) return false;
+  try {
+    return localStorage.getItem(getInviteAgentDismissedStorageKey(propertyUid)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function dismissInviteAgentCtaPermanently(propertyUid) {
+  if (!propertyUid) return;
+  try {
+    localStorage.setItem(getInviteAgentDismissedStorageKey(propertyUid), "true");
+  } catch (_) {}
+}
 
 /** Build default team member for the current user (creator) so new property always has at least one. */
 function getCreatorAsTeamMember(currentUser) {
@@ -428,16 +453,21 @@ function PropertyFormContainer() {
   const [invitationAcceptingId, setInvitationAcceptingId] = useState(null);
   const [invitationDecliningId, setInvitationDecliningId] = useState(null);
   const [invitationError, setInvitationError] = useState(null);
+  const [showInviteAgentCta, setShowInviteAgentCta] = useState(false);
+  const [inviteAgentBenefitsOpen, setInviteAgentBenefitsOpen] = useState(false);
   const [mainPhotoMenuOpen, setMainPhotoMenuOpen] = useState(false);
-  const {handleAddProperty, isChecking: addPropertyChecking} = useAddPropertyWithLimitCheck({
-    accountId: currentAccount?.id,
-    accountUrl,
-    onLimitReached: () => {
-      setUpgradePromptTitle("Property limit reached");
-      setUpgradePromptMsg("You've used all properties on your current plan. Upgrade to add more.");
-      setUpgradePromptOpen(true);
-    },
-  });
+  const {handleAddProperty, isChecking: addPropertyChecking} =
+    useAddPropertyWithLimitCheck({
+      accountId: currentAccount?.id,
+      accountUrl,
+      onLimitReached: () => {
+        setUpgradePromptTitle("Property limit reached");
+        setUpgradePromptMsg(
+          "You've used all properties on your current plan. Upgrade to add more.",
+        );
+        setUpgradePromptOpen(true);
+      },
+    });
   const mainPhotoInputRef = useRef(null);
   const actionsTriggerRef = useRef(null);
   const actionsDropdownRef = useRef(null);
@@ -489,7 +519,14 @@ function PropertyFormContainer() {
   /* Sync active tab from URL ?tab=documents (e.g. from homeowner quick action) */
   useEffect(() => {
     if (uid === "new" || !tabFromUrl) return;
-    const validTabs = ["identity", "systems", "maintenance", "documents", "media", "photos"];
+    const validTabs = [
+      "identity",
+      "systems",
+      "maintenance",
+      "documents",
+      "media",
+      "photos",
+    ];
     if (validTabs.includes(tabFromUrl)) {
       dispatch({type: "SET_ACTIVE_TAB", payload: tabFromUrl});
     }
@@ -578,7 +615,9 @@ function PropertyFormContainer() {
         const count = res?.usage?.propertiesCount ?? 0;
         if (max != null && count >= max && !cancelled) {
           setUpgradePromptTitle("Property limit reached");
-          setUpgradePromptMsg("You've used all properties on your current plan. Upgrade to add more.");
+          setUpgradePromptMsg(
+            "You've used all properties on your current plan. Upgrade to add more.",
+          );
           setUpgradePromptOpen(true);
           navigate(`/${accountUrl}/properties`, {replace: true});
           return;
@@ -588,7 +627,9 @@ function PropertyFormContainer() {
         if (!cancelled) setSystemsSetupModalOpen(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [uid, currentUser?.role, currentAccount?.id, accountUrl, navigate]);
 
   /* When modal closes with a created-but-not-yet-navigated property (e.g. user dismissed without completing), navigate to it */
@@ -624,7 +665,38 @@ function PropertyFormContainer() {
       const {openAiSidebar: _, ...restState} = location.state ?? {};
       navigate(location.pathname, {replace: true, state: restState});
     }
-  }, [uid, location.state, location.pathname, navigate, openAiAssistantWithPlanCheck]);
+  }, [
+    uid,
+    location.state,
+    location.pathname,
+    navigate,
+    openAiAssistantWithPlanCheck,
+  ]);
+
+  /* Show invite-agent CTA on every property visit when no agent, user isn't agent, and not permanently dismissed */
+  const hasAgent = useMemo(() => {
+    return (homeopsTeam ?? []).some((m) => {
+      const r = (m.role ?? "").toLowerCase();
+      return ["agent", "admin", "super_admin"].includes(r);
+    });
+  }, [homeopsTeam]);
+
+  const isCurrentUserAgent = ["agent", "admin", "super_admin"].includes(
+    (currentUser?.role ?? "").toLowerCase(),
+  );
+
+  useEffect(() => {
+    if (
+      uid === "new" ||
+      hasAgent ||
+      isCurrentUserAgent ||
+      isInviteAgentCtaDismissed(uid)
+    ) {
+      setShowInviteAgentCta(false);
+      return;
+    }
+    setShowInviteAgentCta(true);
+  }, [uid, hasAgent, isCurrentUserAgent]);
 
   /* Open invitation modal when viewing property from invitation notification */
   useEffect(() => {
@@ -1701,6 +1773,29 @@ function PropertyFormContainer() {
             handleTeamChange([...homeopsTeam, pendingMember]);
           }
         }}
+        onRemoveMember={async (member) => {
+          const propertyId =
+            uid !== "new"
+              ? (state.property?.identity?.id ?? state.property?.id ?? uid)
+              : null;
+          if (member._pending && member.invitationId) {
+            await AppApi.revokeInvitation(member.invitationId);
+            setHomeopsTeam((prev) =>
+              prev.filter(
+                (m) =>
+                  m._pending
+                    ? m.invitationId !== member.invitationId
+                    : String(m.id) !== String(member.id),
+              ),
+            );
+          } else if (propertyId && member.id) {
+            const newTeam = homeopsTeam.filter(
+              (m) => String(m.id) !== String(member.id),
+            );
+            await updateTeam(propertyId, prepareTeamForProperty(newTeam));
+            setHomeopsTeam(newTeam);
+          }
+        }}
       />
       <SystemsSetupModal
         modalOpen={systemsSetupModalOpen}
@@ -2488,7 +2583,9 @@ function PropertyFormContainer() {
                 onCompleteOutstandingTasks={handleCompleteOutstandingTasks}
                 propertyId={
                   uid !== "new"
-                    ? (state.property?.identity?.id ?? state.property?.id ?? uid)
+                    ? (state.property?.identity?.id ??
+                      state.property?.id ??
+                      uid)
                     : null
                 }
                 maintenanceRecords={state.formData.maintenanceRecords ?? []}
@@ -3049,6 +3146,70 @@ function PropertyFormContainer() {
           "You've reached the limit for your current plan. Upgrade to unlock more."
         }
         upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
+      />
+
+      {/* Floating "Invite your Agent" CTA */}
+      {showInviteAgentCta && (
+        <div
+          className="fixed bottom-6 right-6 z-40 animate-[inviteCtaSlideIn_0.4s_ease-out_forwards]"
+          style={{opacity: 0, transform: "translateY(16px)"}}
+        >
+          <style>{`
+            @keyframes inviteCtaSlideIn {
+              from { opacity: 0; transform: translateY(16px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+          `}</style>
+          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 pr-10 max-w-xs">
+            <button
+              type="button"
+              onClick={() => setShowInviteAgentCta(false)}
+              className="absolute top-2 right-2 p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowInviteAgentCta(false);
+                setInviteAgentBenefitsOpen(true);
+              }}
+              className="flex items-start gap-3 text-left group w-full"
+            >
+              <div className="w-10 h-10 rounded-lg bg-[#456564]/15 dark:bg-[#5a7a78]/25 flex items-center justify-center shrink-0">
+                <Briefcase className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-[#456564] dark:group-hover:text-[#5a7a78] transition-colors">
+                  Invite your Agent
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">
+                  Add a professional to help manage your property
+                </p>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                dismissInviteAgentCtaPermanently(uid);
+                setShowInviteAgentCta(false);
+              }}
+              className="mt-3 block w-full text-right text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            >
+              Do not show this again
+            </button>
+          </div>
+        </div>
+      )}
+
+      <InviteAgentBenefitsModal
+        modalOpen={inviteAgentBenefitsOpen}
+        setModalOpen={setInviteAgentBenefitsOpen}
+        onInviteAgent={() => {
+          setShareModalInitialTab("agent");
+          setShareModalOpen(true);
+        }}
       />
     </div>
   );

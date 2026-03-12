@@ -337,6 +337,16 @@ class User {
     }
   }
 
+  /** Return all active users with the agent role only (excludes admin, super_admin). */
+  static async getAgents() {
+    const result = await db.query(`
+      SELECT id, email, name, image, avatar_url AS "avatarUrl"
+      FROM users
+      WHERE role = 'agent' AND is_active = true
+      ORDER BY name`);
+    return result.rows;
+  }
+
   /** Return data of ALL users.
    *
    * Returns { email, fullName, phone, role, contact, isActive }
