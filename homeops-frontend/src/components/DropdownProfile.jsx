@@ -158,10 +158,14 @@ function DropdownProfile({align}) {
                 )}
                 <Link
                   className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-0.5 inline-block"
-                  to={accountUrl ? `/${accountUrl}/settings/configuration` : "/settings/account"}
+                  to={
+                    accountUrl
+                      ? `/${accountUrl}/settings/configuration`
+                      : "/settings/account"
+                  }
                   onClick={() => setDropdownOpen(false)}
                 >
-                  {(t("profileAndPreferences") || "Profile & Preferences")}
+                  {t("profileAndPreferences") || "Profile & Preferences"}
                 </Link>
               </div>
             </div>
@@ -171,7 +175,7 @@ function DropdownProfile({align}) {
           {currentAccount && (
             <div className="px-2.5 pb-2 mb-1.5 border-b border-gray-200 dark:border-gray-700/60">
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
-                {(t("account") || "Account")}
+                {t("account") || "Account"}
               </div>
               <div className="text-sm font-medium text-gray-700 dark:text-gray-100">
                 {currentAccount.name}
@@ -196,7 +200,9 @@ function DropdownProfile({align}) {
                   to={`/${accountUrl}/settings/upgrade`}
                   onClick={() => setDropdownOpen(false)}
                 >
-                  {(t("pricing") || "Pricing").replace(/^\w/, (c) => c.toUpperCase())}
+                  {(t("pricing") || "Pricing").replace(/^\w/, (c) =>
+                    c.toUpperCase(),
+                  )}
                 </Link>
               </li>
               {!hideBilling && (
@@ -206,7 +212,7 @@ function DropdownProfile({align}) {
                     to={`/${accountUrl}/settings/billing`}
                     onClick={() => setDropdownOpen(false)}
                   >
-                    {(t("accountAndBilling") || "Account & Billing")}
+                    {t("accountAndBilling") || "Account & Billing"}
                   </Link>
                 </li>
               )}
@@ -220,7 +226,9 @@ function DropdownProfile({align}) {
               to="/signin"
               onClick={logout}
             >
-              {(t("signOut") || "Sign Out").replace(/\b\w/g, (c) => c.toUpperCase())}
+              {(t("signOut") || "Sign Out").replace(/\b\w/g, (c) =>
+                c.toUpperCase(),
+              )}
             </Link>
           </div>
         </div>

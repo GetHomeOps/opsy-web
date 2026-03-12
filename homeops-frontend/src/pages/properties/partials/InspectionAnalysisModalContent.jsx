@@ -15,6 +15,9 @@ import {
   ArrowUpCircle,
   Upload,
   ClipboardList,
+  FileCheck,
+  Sparkles,
+  Building,
 } from "lucide-react";
 import {useInspectionAnalysis} from "../../../hooks/useInspectionAnalysis";
 import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
@@ -67,7 +70,7 @@ export default function InspectionAnalysisModalContent({
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
     : "/professionals";
-  const {status, data, error, generate, refresh, load} =
+  const {status, data, error, refresh, load} =
     useInspectionAnalysis(propertyId);
   const tierRestrictionNotifiedRef = useRef(false);
 
@@ -163,35 +166,75 @@ export default function InspectionAnalysisModalContent({
   }
 
   if (status === "empty") {
+    const features = [
+      {
+        icon: Sparkles,
+        title: "AI-powered analysis",
+        desc: "Get an intelligent summary of your inspection report with property condition rating and key findings.",
+      },
+      {
+        icon: Building,
+        title: "Systems detected",
+        desc: "HVAC, plumbing, electrical, and other systems are automatically identified with condition and confidence scores.",
+      },
+      {
+        icon: ClipboardList,
+        title: "Inspection checklist",
+        desc: "Track items from the report and mark them done as you complete maintenance tasks.",
+      },
+      {
+        icon: Calendar,
+        title: "Maintenance recommendations",
+        desc: "Prioritized maintenance suggestions with suggested schedules you can add to your calendar.",
+      },
+    ];
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-        <AlertCircle className="w-12 h-12 text-neutral-300 dark:text-neutral-600 mb-3" />
-        <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-          No analysis available yet.
-        </p>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm mb-4">
-          Upload an inspection report in the Documents tab, then generate
-          analysis.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3">
-          {onUploadReport && (
+      <div className="flex flex-col min-h-[60vh] p-8 sm:p-10">
+        <div className="flex flex-col items-center text-center mb-10">
+          <div className="w-16 h-16 rounded-2xl bg-[#456564]/10 dark:bg-[#456564]/20 flex items-center justify-center mb-5">
+            <FileCheck className="w-8 h-8 text-[#456564] dark:text-[#5a7a78]" />
+          </div>
+          <h3 className="text-xl font-semibold text-neutral-800 dark:text-neutral-100 mb-2">
+            No analysis available yet
+          </h3>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-xl">
+            Upload your inspection report (PDF) and our AI will analyze it to extract condition ratings, system findings, maintenance recommendations, and more.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10 flex-1">
+          {features.map(({icon: Icon, title, desc}) => (
+            <div
+              key={title}
+              className="flex gap-4 p-5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/30"
+            >
+              <div className="shrink-0 w-10 h-10 rounded-lg bg-[#456564]/10 dark:bg-[#456564]/20 flex items-center justify-center">
+                <Icon className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
+              </div>
+              <div className="text-left min-w-0">
+                <p className="font-medium text-neutral-800 dark:text-neutral-200 text-sm mb-1">
+                  {title}
+                </p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  {desc}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {onUploadReport && (
+          <div className="flex justify-center pt-4">
             <button
               type="button"
               onClick={onUploadReport}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#456564] hover:bg-[#34514f] text-white text-sm font-semibold transition-colors shadow-sm"
             >
-              <Upload className="w-4 h-4" />
-              Upload report
+              <Upload className="w-5 h-5" />
+              Upload inspection report
             </button>
-          )}
-          <button
-            type="button"
-            onClick={generate}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-sm font-medium"
-          >
-            Generate Analysis
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     );
   }

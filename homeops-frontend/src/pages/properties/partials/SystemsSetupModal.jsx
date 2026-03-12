@@ -165,6 +165,7 @@ function SystemsSetupModal({
   modalOpen,
   setModalOpen,
   initialStep = null,
+  onlyStep = null,
   propertyId = null,
   selectedSystemIds = [],
   customSystems = [],
@@ -272,7 +273,7 @@ function SystemsSetupModal({
   useEffect(() => {
     if (!modalOpen) return;
     const systemsOnly = skipIdentityStep || !isNewProperty;
-    const defaultStep = systemsOnly ? "inspection" : "identity";
+    const defaultStep = onlyStep ?? (systemsOnly ? "inspection" : "identity");
     setStep(initialStep ?? defaultStep);
     setIdentityFields({
       propertyName: formData?.propertyName ?? "",
@@ -325,7 +326,7 @@ function SystemsSetupModal({
       pollIntervalRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modalOpen, skipIdentityStep, isNewProperty, initialStep]);
+  }, [modalOpen, skipIdentityStep, isNewProperty, initialStep, onlyStep]);
 
   const handleIdentityFieldChange = (key, value) => {
     setIdentityFields((prev) => ({...prev, [key]: value}));
@@ -483,9 +484,12 @@ function SystemsSetupModal({
     });
   };
 
-  const visibleSteps = isNewProperty
-    ? STEP_IDS
-    : STEP_IDS.filter((s) => s === "inspection" || s === "systems");
+  const visibleSteps = onlyStep
+    ? [onlyStep]
+    : isNewProperty
+      ? STEP_IDS
+      : STEP_IDS.filter((s) => s === "inspection" || s === "systems");
+  const inspectionUploadOnly = onlyStep === "inspection";
   const currentStepIndex = visibleSteps.indexOf(step);
   const canGoToStep = (targetStep) => {
     const idx = visibleSteps.indexOf(targetStep);
@@ -508,7 +512,11 @@ function SystemsSetupModal({
   };
 
   const handleInspectionContinue = () => {
-    setStep("systems");
+    if (inspectionUploadOnly) {
+      setModalOpen(false);
+    } else {
+      setStep("systems");
+    }
   };
 
   // Pre-select systems when first reaching Systems step: AI suggestions if report analyzed, else all systems
@@ -1714,6 +1722,8 @@ function SystemsSetupModal({
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Analyzing…
                     </>
+                  ) : inspectionUploadOnly ? (
+                    "Done"
                   ) : (
                     <>
                       Continue

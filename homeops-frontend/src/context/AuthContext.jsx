@@ -1,7 +1,15 @@
-import {createContext, useContext, useState, useEffect, useCallback, useRef} from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import useLocalStorage from "../hooks/useLocalStorage";
 import AppApi from "../api/api";
 import {jwtDecode as decode} from "jwt-decode";
+import {markPostLogoutRedirectReset} from "../utils/authNavigation";
 
 export const TOKEN_STORAGE_ID = "app-token";
 export const REFRESH_TOKEN_STORAGE_ID = "app-refresh-token";
@@ -106,7 +114,10 @@ export function AuthProvider({children}) {
 
   /** Complete login after MFA verification. */
   async function completeMfaLogin(mfaTicket, codeOrBackupCode) {
-    const {accessToken, refreshToken} = await AppApi.verifyMfa(mfaTicket, codeOrBackupCode);
+    const {accessToken, refreshToken} = await AppApi.verifyMfa(
+      mfaTicket,
+      codeOrBackupCode,
+    );
     setToken(accessToken);
     localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);
 
@@ -299,8 +310,11 @@ export function AuthProvider({children}) {
     setIsSigningUp(true);
     try {
       const signupResponse = await AppApi.signup(signupData);
-      const {accessToken, refreshToken, user: signupUser} =
-        extractTokenFromSignupResponse(signupResponse);
+      const {
+        accessToken,
+        refreshToken,
+        user: signupUser,
+      } = extractTokenFromSignupResponse(signupResponse);
 
       const decodedToken = initializeAuthentication(accessToken, refreshToken);
       const {email} = decodedToken;
@@ -373,25 +387,30 @@ export function AuthProvider({children}) {
   }
 
   /** Refresh current user from API (e.g. after onboarding completion). */
-  const refreshCurrentUser = useCallback(async function refreshCurrentUser() {
-    if (!token) return null;
-    try {
-      const {email} = decode(token);
-      AppApi.token = token;
-      const currentUser = await AppApi.getCurrentUser(email);
-      if (!currentUser?.id) return null;
-      const userAccounts = await getUserAccounts(currentUser.id);
-      const userWithAccounts = {...currentUser, accounts: userAccounts || []};
-      setCurrentUser({isLoading: false, data: userWithAccounts});
-      return userWithAccounts;
-    } catch (err) {
-      console.error("refreshCurrentUser failed:", err);
-      return null;
-    }
-  }, [token]);
+  const refreshCurrentUser = useCallback(
+    async function refreshCurrentUser() {
+      if (!token) return null;
+      try {
+        const {email} = decode(token);
+        AppApi.token = token;
+        const currentUser = await AppApi.getCurrentUser(email);
+        if (!currentUser?.id) return null;
+        const userAccounts = await getUserAccounts(currentUser.id);
+        const userWithAccounts = {...currentUser, accounts: userAccounts || []};
+        setCurrentUser({isLoading: false, data: userWithAccounts});
+        return userWithAccounts;
+      } catch (err) {
+        console.error("refreshCurrentUser failed:", err);
+        return null;
+      }
+    },
+    [token],
+  );
 
   /** Handle user logout */
   function logout() {
+    markPostLogoutRedirectReset();
+
     const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_ID);
     if (refreshToken) {
       AppApi.revokeRefreshToken(refreshToken);
@@ -401,10 +420,7 @@ export function AuthProvider({children}) {
     localStorage.removeItem(REFRESH_TOKEN_STORAGE_ID);
     AppApi.token = null;
 
-    const keysToRemove = [
-      "current-account",
-      "contacts_list_page",
-    ];
+    const keysToRemove = ["current-account", "contacts_list_page"];
 
     keysToRemove.forEach((key) => localStorage.removeItem(key));
 

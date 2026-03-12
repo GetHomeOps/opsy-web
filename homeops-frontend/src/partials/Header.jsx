@@ -21,11 +21,12 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const {plan, loading: billingLoading, isAdmin} = useBillingStatus();
 
   const accountUrl = currentAccount?.url || "";
-  const supportPath = accountUrl ? `/${accountUrl}/settings/support` : "/settings/support";
+  const supportPath = accountUrl
+    ? `/${accountUrl}/settings/support`
+    : "/settings/support";
   // Only treat as paid when we have a plan code that's explicitly not free. Admins bypass. When loading or plan unknown, treat as free.
   const isPaidUser =
-    isAdmin ||
-    (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
+    isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
 
   const handleAiAssistantClick = () => {
     // Free users: show upgrade modal instead of opening the AI panel
@@ -87,16 +88,20 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
           {/* Header: Right side — AI Assistant, Help, Reminders, Notifications, User */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <button
-              ref={aiAssistantButtonRef}
-              onClick={handleAiAssistantClick}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg text-gray-500 dark:text-gray-400 hover:text-[#456564] dark:hover:text-teal-400 text-sm font-medium"
-              aria-label="AI Assistant"
-              title="AI Assistant"
-            >
-              <Sparkles className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">AI Assistant</span>
-            </button>
+            <div className="ai-assistant-container">
+              <div className="ai-assistant-border">
+                <button
+                  ref={aiAssistantButtonRef}
+                  onClick={handleAiAssistantClick}
+                  className="ai-assistant-nav-btn"
+                  aria-label="AI Assistant"
+                  title="AI Assistant"
+                >
+                  <Sparkles className="ai-assistant-nav-btn__icon" />
+                  <span>AI Assistant</span>
+                </button>
+              </div>
+            </div>
             <Link
               to={supportPath}
               className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"

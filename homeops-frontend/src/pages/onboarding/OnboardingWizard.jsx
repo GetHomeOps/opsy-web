@@ -118,19 +118,31 @@ function buildFallbackPlans(role, subscriptionProducts = []) {
   const hardcoded = role === "homeowner" ? HOMEOWNER_PLANS : AGENT_PLANS;
   return hardcoded.map((p) => {
     const code = p.code || p.id;
-    const product = subscriptionProducts.find((sp) => (sp.code || sp.id) === code);
+    const product = subscriptionProducts.find(
+      (sp) => (sp.code || sp.id) === code,
+    );
     let stripePricesFromApi = null;
     let limitsFromProduct = null;
     if (product) {
-      const monthPrice = product.prices?.find((pr) => pr.billingInterval === "month");
-      const yearPrice = product.prices?.find((pr) => pr.billingInterval === "year");
+      const monthPrice = product.prices?.find(
+        (pr) => pr.billingInterval === "month",
+      );
+      const yearPrice = product.prices?.find(
+        (pr) => pr.billingInterval === "year",
+      );
       if (monthPrice?.unitAmount != null || yearPrice?.unitAmount != null) {
         stripePricesFromApi = {};
         if (monthPrice?.unitAmount != null) {
-          stripePricesFromApi.month = { unitAmount: monthPrice.unitAmount, currency: monthPrice.currency || "usd" };
+          stripePricesFromApi.month = {
+            unitAmount: monthPrice.unitAmount,
+            currency: monthPrice.currency || "usd",
+          };
         }
         if (yearPrice?.unitAmount != null) {
-          stripePricesFromApi.year = { unitAmount: yearPrice.unitAmount, currency: yearPrice.currency || "usd" };
+          stripePricesFromApi.year = {
+            unitAmount: yearPrice.unitAmount,
+            currency: yearPrice.currency || "usd",
+          };
         }
       }
       if (product.limits) {
@@ -153,11 +165,13 @@ function buildFallbackPlans(role, subscriptionProducts = []) {
       price: p.price === 0 ? 0 : null,
       stripePrices: stripePricesFromApi,
       features: p.features
-        ? [...(p.features.core || []), ...(p.features.advanced || [])].map((f, i) => ({
-            id: `${code}_f${i}`,
-            label: `${f.label}: ${f.value}`,
-            included: f.value !== "None",
-          }))
+        ? [...(p.features.core || []), ...(p.features.advanced || [])].map(
+            (f, i) => ({
+              id: `${code}_f${i}`,
+              label: `${f.label}: ${f.value}`,
+              included: f.value !== "None",
+            }),
+          )
         : [],
       limits,
     };
@@ -184,19 +198,38 @@ function getDisplayFeatures(plan) {
 
   const limitFeatures = [];
   if (maxProps != null) {
-    const label = typeof maxProps === "number"
-      ? (maxProps === 1 ? "1 property" : `Up to ${maxProps} properties`)
-      : String(maxProps);
-    limitFeatures.push({ id: "_lim_props", label, included: true, _limitKey: "properties" });
+    const label =
+      typeof maxProps === "number"
+        ? maxProps === 1
+          ? "1 property"
+          : `Up to ${maxProps} properties`
+        : String(maxProps);
+    limitFeatures.push({
+      id: "_lim_props",
+      label,
+      included: true,
+      _limitKey: "properties",
+    });
   }
   if (maxContacts != null) {
-    const label = typeof maxContacts === "number"
-      ? `Up to ${maxContacts.toLocaleString()} contacts`
-      : String(maxContacts);
-    limitFeatures.push({ id: "_lim_contacts", label, included: true, _limitKey: "contacts" });
+    const label =
+      typeof maxContacts === "number"
+        ? `Up to ${maxContacts.toLocaleString()} contacts`
+        : String(maxContacts);
+    limitFeatures.push({
+      id: "_lim_contacts",
+      label,
+      included: true,
+      _limitKey: "contacts",
+    });
   }
   if (tokens != null && tokens > 0) {
-    limitFeatures.push({ id: "_lim_tokens", label: `${tokens.toLocaleString()} tokens/month`, included: true, _limitKey: "tokens" });
+    limitFeatures.push({
+      id: "_lim_tokens",
+      label: `${tokens.toLocaleString()} tokens/month`,
+      included: true,
+      _limitKey: "tokens",
+    });
   }
 
   const coveredKeys = new Set(limitFeatures.map((l) => l._limitKey));
@@ -221,190 +254,205 @@ function Step2Plan({
   subscriptionProducts = [],
   apiLoading,
 }) {
-  const plans = apiPlans && apiPlans.length > 0 ? apiPlans : buildFallbackPlans(role, subscriptionProducts);
-  const hasPaidPlans = plans.some((p) =>
-    p.stripePrices?.month?.unitAmount > 0 || p.stripePrices?.year?.unitAmount > 0 || (p.price != null && p.price > 0)
+  const plans =
+    apiPlans && apiPlans.length > 0
+      ? apiPlans
+      : buildFallbackPlans(role, subscriptionProducts);
+  const hasPaidPlans = plans.some(
+    (p) =>
+      p.stripePrices?.month?.unitAmount > 0 ||
+      p.stripePrices?.year?.unitAmount > 0 ||
+      (p.price != null && p.price > 0),
   );
   const gridCols = plans.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3";
 
   return (
     <div>
       <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Choose your plan
-          </h2>
-          <p className="text-gray-500 dark:text-gray-400">
-            Select the plan that best fits your needs
-          </p>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          Choose your plan
+        </h2>
+        <p className="text-gray-500 dark:text-gray-400">
+          Select the plan that best fits your needs
+        </p>
+      </div>
+
+      {hasPaidPlans && (
+        <div className="flex justify-center mt-6">
+          <div className="relative inline-flex rounded-full p-1 bg-white/80 dark:bg-gray-800 shadow-sm border border-gray-200/60 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => onBillingIntervalChange?.("month")}
+              className={`relative z-10 w-32 py-2.5 rounded-full text-sm font-medium transition-colors duration-300 flex flex-col items-center leading-tight ${
+                billingInterval === "month"
+                  ? "text-white"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              }`}
+            >
+              <span>Pay Monthly</span>
+              <span
+                className={`text-xs transition-colors duration-300 ${billingInterval === "month" ? "text-white/90" : "text-gray-500 dark:text-gray-500"}`}
+              >
+                Commit monthly
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onBillingIntervalChange?.("year")}
+              className={`relative z-10 w-32 py-2.5 rounded-full text-sm font-medium transition-colors duration-300 flex flex-col items-center leading-tight ${
+                billingInterval === "year"
+                  ? "text-white"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              }`}
+            >
+              <span>Pay Annually</span>
+              <span
+                className={`text-xs transition-colors duration-300 ${billingInterval === "year" ? "text-white/90" : "text-gray-500 dark:text-gray-500"}`}
+              >
+                Best Value
+              </span>
+            </button>
+            <div
+              className={`absolute top-1 left-1 z-0 h-[calc(100%-8px)] w-32 rounded-full bg-emerald-600 dark:bg-emerald-500 transition-transform duration-300 ease-out ${
+                billingInterval === "month" ? "translate-x-0" : "translate-x-32"
+              }`}
+            />
+          </div>
         </div>
+      )}
 
-        {hasPaidPlans && (
-          <div className="flex justify-center mt-6">
-            <div className="relative inline-flex rounded-full p-1 bg-white/80 dark:bg-gray-800 shadow-sm border border-gray-200/60 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={() => onBillingIntervalChange?.("month")}
-                className={`relative z-10 w-32 py-2.5 rounded-full text-sm font-medium transition-colors duration-300 flex flex-col items-center leading-tight ${
-                  billingInterval === "month"
-                    ? "text-white"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                }`}
-              >
-                <span>Pay Monthly</span>
-                <span className={`text-xs transition-colors duration-300 ${billingInterval === "month" ? "text-white/90" : "text-gray-500 dark:text-gray-500"}`}>
-                  Commit monthly
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onBillingIntervalChange?.("year")}
-                className={`relative z-10 w-32 py-2.5 rounded-full text-sm font-medium transition-colors duration-300 flex flex-col items-center leading-tight ${
-                  billingInterval === "year"
-                    ? "text-white"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                }`}
-              >
-                <span>Pay Annually</span>
-                <span className={`text-xs transition-colors duration-300 ${billingInterval === "year" ? "text-white/90" : "text-gray-500 dark:text-gray-500"}`}>
-                  Best Value
-                </span>
-              </button>
+      {apiLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        </div>
+      ) : (
+        <div className={`grid grid-cols-1 ${gridCols} gap-5 mt-10`}>
+          {plans.map((p) => {
+            const planId = p.code || p.id;
+            const isSelected = plan === planId;
+            const isPopular = p.popular;
+
+            const features = getDisplayFeatures(p);
+
+            const isEnterprise =
+              /enterprise/i.test(planId) || /enterprise/i.test(p.name || "");
+            const isPaidPlan =
+              p.stripePrices?.month?.unitAmount > 0 ||
+              p.stripePrices?.year?.unitAmount > 0 ||
+              (p.price != null && p.price > 0);
+            const isYearly =
+              hasPaidPlans && billingInterval === "year" && isPaidPlan;
+
+            let displayPrice;
+            let yearlyTotal = null;
+            if (isEnterprise) {
+              displayPrice = "Contact Sales";
+              yearlyTotal = null;
+            } else if (p.price === 0 && !isPaidPlan) {
+              displayPrice = "Free";
+            } else if (isYearly && p.stripePrices?.year?.unitAmount) {
+              const monthlyEquiv = p.stripePrices.year.unitAmount / 100 / 12;
+              displayPrice = `$${monthlyEquiv.toFixed(2)}`;
+              yearlyTotal = (p.stripePrices.year.unitAmount / 100).toFixed(2);
+            } else if (p.stripePrices?.month?.unitAmount) {
+              displayPrice = `$${(p.stripePrices.month.unitAmount / 100).toFixed(2)}`;
+            } else if (!isPaidPlan) {
+              displayPrice = "Free";
+            } else {
+              displayPrice = "—";
+            }
+
+            return (
               <div
-                className={`absolute top-1 left-1 z-0 h-[calc(100%-8px)] w-32 rounded-full bg-emerald-600 dark:bg-emerald-500 transition-transform duration-300 ease-out ${
-                  billingInterval === "month"
-                    ? "translate-x-0"
-                    : "translate-x-32"
-                }`}
-              />
-            </div>
-          </div>
-        )}
+                key={planId}
+                className={`relative rounded-2xl flex flex-col transition-all duration-200 backdrop-blur-sm border bg-white/80 dark:bg-gray-800/80 ${
+                  isPopular
+                    ? "border-emerald-400/60 dark:border-emerald-600/40 shadow-md z-10"
+                    : isSelected
+                      ? "border-emerald-500 shadow-lg shadow-emerald-500/10"
+                      : "border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
+                } ${isSelected ? "ring-2 ring-emerald-500 dark:ring-emerald-400 ring-inset" : ""}`}
+              >
+                {isPopular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="inline-block bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold px-3 py-0.5 rounded-full tracking-wide">
+                      Most Popular
+                    </span>
+                  </div>
+                )}
 
-        {apiLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-          </div>
-        ) : (
-          <div className={`grid grid-cols-1 ${gridCols} gap-5 mt-10`}>
-            {plans.map((p) => {
-              const planId = p.code || p.id;
-              const isSelected = plan === planId;
-              const isPopular = p.popular;
-
-              const features = getDisplayFeatures(p);
-
-              const isEnterprise = /enterprise/i.test(planId) || /enterprise/i.test(p.name || "");
-              const isPaidPlan = p.stripePrices?.month?.unitAmount > 0 || p.stripePrices?.year?.unitAmount > 0 || (p.price != null && p.price > 0);
-              const isYearly = hasPaidPlans && billingInterval === "year" && isPaidPlan;
-
-              let displayPrice;
-              let yearlyTotal = null;
-              if (isEnterprise) {
-                displayPrice = "Contact Sales";
-                yearlyTotal = null;
-              } else if (p.price === 0 && !isPaidPlan) {
-                displayPrice = "Free";
-              } else if (isYearly && p.stripePrices?.year?.unitAmount) {
-                const monthlyEquiv = p.stripePrices.year.unitAmount / 100 / 12;
-                displayPrice = `$${monthlyEquiv.toFixed(2)}`;
-                yearlyTotal = (p.stripePrices.year.unitAmount / 100).toFixed(2);
-              } else if (p.stripePrices?.month?.unitAmount) {
-                displayPrice = `$${(p.stripePrices.month.unitAmount / 100).toFixed(2)}`;
-              } else if (!isPaidPlan) {
-                displayPrice = "Free";
-              } else {
-                displayPrice = "—";
-              }
-
-              return (
-                <div
-                  key={planId}
-                  className={`relative rounded-2xl flex flex-col transition-all duration-200 backdrop-blur-sm border bg-white/80 dark:bg-gray-800/80 ${
-                    isPopular
-                      ? "border-emerald-400/60 dark:border-emerald-600/40 shadow-md z-10"
-                      : isSelected
-                        ? "border-emerald-500 shadow-lg shadow-emerald-500/10"
-                        : "border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md"
-                  } ${isSelected ? "ring-2 ring-emerald-500 dark:ring-emerald-400 ring-inset" : ""}`}
-                >
-                  {isPopular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <span className="inline-block bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold px-3 py-0.5 rounded-full tracking-wide">
-                        Most Popular
+                <div className="p-6 pb-0 flex flex-col flex-1">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                    {p.name}
+                  </h3>
+                  <div className="mt-3">
+                    <div className="flex items-baseline gap-1">
+                      <span
+                        className={`font-extrabold tracking-tight text-gray-900 dark:text-gray-100 ${isEnterprise ? "text-2xl" : "text-4xl"}`}
+                      >
+                        {displayPrice}
                       </span>
-                    </div>
-                  )}
-
-                  <div className="p-6 pb-0 flex flex-col flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                      {p.name}
-                    </h3>
-                    <div className="mt-3">
-                      <div className="flex items-baseline gap-1">
-                        <span className={`font-extrabold tracking-tight text-gray-900 dark:text-gray-100 ${isEnterprise ? "text-2xl" : "text-4xl"}`}>
-                          {displayPrice}
+                      {!isEnterprise && p.price != null && p.price > 0 && (
+                        <span className="text-sm font-medium text-gray-400 dark:text-gray-500">
+                          /mo
                         </span>
-                        {!isEnterprise && p.price != null && p.price > 0 && (
-                          <span className="text-sm font-medium text-gray-400 dark:text-gray-500">
-                            /mo
-                          </span>
-                        )}
-                      </div>
-                      {yearlyTotal != null && (
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                          ${yearlyTotal}/year billed annually
-                        </p>
                       )}
                     </div>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-                      {p.description}
-                    </p>
-                    <div className="mt-auto pt-5">
-                      <button
-                        type="button"
-                        onClick={() => onSelect(planId)}
-                        className={`w-full py-3 rounded-xl text-sm font-semibold transition-all ${
-                          isSelected
-                            ? `bg-emerald-600 text-white shadow-sm ${
-                                isPopular ? "border border-transparent" : ""
-                              }`
-                            : isPopular
-                              ? "bg-white dark:bg-gray-800 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 dark:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                              : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
-                        }`}
-                      >
-                        {isSelected ? "Selected" : "Select Plan"}
-                      </button>
-                    </div>
+                    {yearlyTotal != null && (
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        ${yearlyTotal}/year billed annually
+                      </p>
+                    )}
                   </div>
-
-                  <div className="mx-6 my-5 border-t border-gray-100 dark:border-gray-700/60" />
-
-                  <div className="px-6 pb-6 space-y-2">
-                    {features.map((f) => (
-                      <div key={f.id} className="flex items-center gap-2">
-                        {f.included ? (
-                          <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                        ) : (
-                          <XIcon className="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0" />
-                        )}
-                        <span
-                          className={`text-sm ${
-                            f.included
-                              ? "text-gray-700 dark:text-gray-300"
-                              : "text-gray-400 dark:text-gray-500 line-through"
-                          }`}
-                        >
-                          {f.label}
-                        </span>
-                      </div>
-                    ))}
+                  <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                    {p.description}
+                  </p>
+                  <div className="mt-auto pt-5">
+                    <button
+                      type="button"
+                      onClick={() => onSelect(planId)}
+                      className={`w-full py-3 rounded-xl text-sm font-semibold transition-all ${
+                        isSelected
+                          ? `bg-emerald-600 text-white shadow-sm ${
+                              isPopular ? "border border-transparent" : ""
+                            }`
+                          : isPopular
+                            ? "bg-white dark:bg-gray-800 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 dark:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                            : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                      }`}
+                    >
+                      {isSelected ? "Selected" : "Select Plan"}
+                    </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+
+                <div className="mx-6 my-5 border-t border-gray-100 dark:border-gray-700/60" />
+
+                <div className="px-6 pb-6 space-y-2">
+                  {features.map((f) => (
+                    <div key={f.id} className="flex items-center gap-2">
+                      {f.included ? (
+                        <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                      ) : (
+                        <XIcon className="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0" />
+                      )}
+                      <span
+                        className={`text-sm ${
+                          f.included
+                            ? "text-gray-700 dark:text-gray-300"
+                            : "text-gray-400 dark:text-gray-500 line-through"
+                        }`}
+                      >
+                        {f.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -412,9 +460,12 @@ function Step2Plan({
 function Step3Confirmation({role, plan, apiPlans}) {
   const roleLabel = role === "homeowner" ? "Homeowner" : "Agent";
 
-  const allPlans = apiPlans && apiPlans.length > 0
-    ? apiPlans
-    : (role === "homeowner" ? HOMEOWNER_PLANS : AGENT_PLANS);
+  const allPlans =
+    apiPlans && apiPlans.length > 0
+      ? apiPlans
+      : role === "homeowner"
+        ? HOMEOWNER_PLANS
+        : AGENT_PLANS;
   const planData = allPlans.find((p) => (p.code || p.id) === plan);
   const planLabel = planData?.name ?? plan;
   const lim = planData?.limits || PLAN_LIMITS[role]?.[plan] || {};
@@ -449,7 +500,9 @@ function Step3Confirmation({role, plan, apiPlans}) {
               <li>• Documents per system: {lim.maxDocumentsPerSystem}</li>
             )}
             {lim.aiTokenMonthlyQuota != null && lim.aiTokenMonthlyQuota > 0 && (
-              <li>• AI tokens/month: {lim.aiTokenMonthlyQuota.toLocaleString()}</li>
+              <li>
+                • AI tokens/month: {lim.aiTokenMonthlyQuota.toLocaleString()}
+              </li>
             )}
           </ul>
         </div>
@@ -477,17 +530,25 @@ export default function OnboardingWizard() {
     if (role) {
       setApiLoading(true);
       Promise.all([
-        AppApi.getBillingPlans(role).then((r) => r.plans || []).catch(() => []),
+        AppApi.getBillingPlans(role)
+          .then((r) => r.plans || [])
+          .catch(() => []),
         AppApi.getSubscriptionProductsByRole(role).catch(() => []),
-      ]).then(([plans, products]) => {
-        setApiPlans(plans);
-        setSubscriptionProducts(Array.isArray(products) ? products : []);
-      }).finally(() => setApiLoading(false));
+      ])
+        .then(([plans, products]) => {
+          setApiPlans(plans);
+          setSubscriptionProducts(Array.isArray(products) ? products : []);
+        })
+        .finally(() => setApiLoading(false));
     }
   }, [role]);
 
   const selectedPlan = apiPlans.find((p) => p.code === plan);
-  const isFreePlan = plan && (selectedPlan?.price === 0 || selectedPlan?.price === "0" || FREE_PLANS.includes(plan));
+  const isFreePlan =
+    plan &&
+    (selectedPlan?.price === 0 ||
+      selectedPlan?.price === "0" ||
+      FREE_PLANS.includes(plan));
 
   const canContinue =
     (step === 1 && role) || (step === 2 && plan) || step === 3;
@@ -533,9 +594,7 @@ export default function OnboardingWizard() {
   }
 
   return (
-    <main
-      className="relative min-h-[100dvh] flex flex-col transition-colors duration-500 bg-white dark:bg-gray-900"
-    >
+    <main className="relative min-h-[100dvh] flex flex-col transition-colors duration-500 bg-white dark:bg-gray-900">
       <img
         src={OpsyHeader}
         alt="Opsy"
@@ -588,9 +647,11 @@ export default function OnboardingWizard() {
                   navigate("/signin", {replace: true});
                 }
               }}
-              className={step > 1
-                ? "btn bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-                : "flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"}
+              className={
+                step > 1
+                  ? "btn bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                  : "flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              }
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>

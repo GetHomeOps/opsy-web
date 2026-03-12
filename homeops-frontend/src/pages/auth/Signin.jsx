@@ -9,6 +9,11 @@ import {useTranslation} from "react-i18next";
 import {AlertCircle, ExternalLink, Loader2, ShieldCheck} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import {API_BASE_URL} from "../../api/api";
+import {
+  canRedirectToPathForUser,
+  consumePostLogoutRedirectReset,
+  isPostLogoutRedirectResetPending,
+} from "../../utils/authNavigation";
 import "../../i18n";
 
 import OpsyHeader from "../../images/OpsyHeader.png";
@@ -68,12 +73,11 @@ function Signin() {
   // Navigate after successful login when currentUser is available (redirect-after-login from ProtectedRoute or returnTo param)
   useEffect(() => {
     if (justLoggedIn.current && currentUser) {
-      const from = location.state?.from || searchParams.get("returnTo");
-      const isInternalPath =
-        typeof from === "string" &&
-        from.startsWith("/") &&
-        !from.startsWith("//");
-      if (isInternalPath && from !== "/signin" && from !== "/signup") {
+      const ignoreReturnTo = consumePostLogoutRedirectReset();
+      const from = ignoreReturnTo
+        ? null
+        : location.state?.from || searchParams.get("returnTo");
+      if (canRedirectToPathForUser(currentUser, from)) {
         navigate(from, {replace: true});
       } else if (currentUser.accounts && currentUser.accounts.length > 0) {
         const accountUrl =
@@ -85,7 +89,7 @@ function Signin() {
       }
       justLoggedIn.current = false;
     }
-  }, [currentUser, navigate, location.state?.from]);
+  }, [currentUser, navigate, location.state?.from, searchParams]);
 
   /** Handle form submit */
   async function handleSubmit(evt) {
@@ -342,6 +346,10 @@ function Signin() {
                   href={`${API_BASE_URL}/auth/google/signin`}
                   onClick={() => {
                     setOauthLoading(true);
+                    if (isPostLogoutRedirectResetPending()) {
+                      sessionStorage.removeItem("oauth_return_to");
+                      return;
+                    }
                     const from =
                       location.state?.from || searchParams.get("returnTo");
                     if (

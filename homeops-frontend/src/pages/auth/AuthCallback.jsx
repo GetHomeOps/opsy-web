@@ -1,6 +1,10 @@
 import {useEffect, useState, useRef} from "react";
 import {useNavigate, useSearchParams} from "react-router-dom";
 import {useAuth} from "../../context/AuthContext";
+import {
+  canRedirectToPathForUser,
+  consumePostLogoutRedirectReset,
+} from "../../utils/authNavigation";
 import OpsyMascot from "../../images/opsy3.png";
 
 const ERROR_MESSAGES = {
@@ -41,11 +45,12 @@ function AuthCallback() {
             navigate("/onboarding", {replace: true});
             return;
           }
-          const from = sessionStorage.getItem("oauth_return_to");
+          const ignoreReturnTo = consumePostLogoutRedirectReset();
+          const from = ignoreReturnTo
+            ? null
+            : sessionStorage.getItem("oauth_return_to");
           sessionStorage.removeItem("oauth_return_to");
-          const isInternalPath =
-            from && from.startsWith("/") && !from.startsWith("//");
-          if (isInternalPath && from !== "/signin" && from !== "/signup") {
+          if (canRedirectToPathForUser(userWithAccounts, from)) {
             navigate(from, {replace: true});
           } else if (userWithAccounts?.accounts?.length > 0) {
             const accountUrl =

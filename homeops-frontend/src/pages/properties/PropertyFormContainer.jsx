@@ -157,7 +157,7 @@ const initialState = {
   aiSummaryUpdatedAt: null,
 };
 
-const FREE_PLAN_CODES = ["homeowner_free", "agent_free"];
+const FREE_PLAN_CODES = ["homeowner_free", "agent_free", "free"];
 
 const INVITE_AGENT_DISMISS_KEY = "opsy-invite-agent-dismissed";
 
@@ -431,6 +431,7 @@ function PropertyFormContainer() {
   const [homeopsTeam, setHomeopsTeam] = useState([]);
   const [systemsSetupModalOpen, setSystemsSetupModalOpen] = useState(false);
   const [systemsSetupInitialStep, setSystemsSetupInitialStep] = useState(null);
+  const [systemsSetupOnlyStep, setSystemsSetupOnlyStep] = useState(null);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
   const [upgradePromptTitle, setUpgradePromptTitle] =
     useState("Upgrade your plan");
@@ -496,6 +497,10 @@ function PropertyFormContainer() {
     }
     setAiSidebarOpen(true);
   }, [isPaidUser]);
+
+  const openInspectionAnalysisWithPlanCheck = useCallback(() => {
+    setBlankModalOpen(true);
+  }, []);
 
   // Merged formData – declared early so callbacks can reference it
   const mergedFormData = mergeFormDataFromTabs(state.formData);
@@ -756,7 +761,9 @@ function PropertyFormContainer() {
       /* Instant display: when navigating from Properties list, show list property immediately while full fetch runs */
       const listProperty = location.state?.property;
       const listPropertyUid =
-        listProperty?.property_uid ?? listProperty?.propertyUid ?? listProperty?.id;
+        listProperty?.property_uid ??
+        listProperty?.propertyUid ??
+        listProperty?.id;
       if (listProperty && listPropertyUid === uid) {
         const flat = mapPropertyFromBackend(listProperty) ?? listProperty;
         const tabbed = splitFormDataByTabs(flat);
@@ -765,7 +772,11 @@ function PropertyFormContainer() {
           payload: {
             ...tabbed,
             maintenanceRecords: tabbed.maintenanceRecords ?? [],
-            systems: tabbed.systems ?? { selectedSystemIds: [], customSystemNames: [], customSystemsData: {} },
+            systems: tabbed.systems ?? {
+              selectedSystemIds: [],
+              customSystemNames: [],
+              customSystemsData: {},
+            },
           },
         });
       }
@@ -1825,10 +1836,14 @@ function PropertyFormContainer() {
       <SystemsSetupModal
         modalOpen={systemsSetupModalOpen}
         setModalOpen={(open) => {
-          if (!open) setSystemsSetupInitialStep(null);
+          if (!open) {
+            setSystemsSetupInitialStep(null);
+            setSystemsSetupOnlyStep(null);
+          }
           setSystemsSetupModalOpen(open);
         }}
         initialStep={systemsSetupInitialStep}
+        onlyStep={systemsSetupOnlyStep}
         propertyId={
           createdPropertyFromModal?.id ??
           (uid !== "new"
@@ -2097,6 +2112,7 @@ function PropertyFormContainer() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setActionsDropdownOpen(false);
+                          setSystemsSetupOnlyStep("systems");
                           setSystemsSetupInitialStep("systems");
                           setSystemsSetupModalOpen(true);
                         }}
@@ -2114,7 +2130,17 @@ function PropertyFormContainer() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setActionsDropdownOpen(false);
-                          setBlankModalOpen(true);
+                          if (!isPaidUser) {
+                            setUpgradePromptTitle("Inspection Analysis not included");
+                            setUpgradePromptMsg(
+                              "Your plan doesn't support AI inspection report analysis. Upgrade to analyze inspection reports with AI.",
+                            );
+                            setUpgradePromptOpen(true);
+                          } else {
+                            setSystemsSetupOnlyStep("inspection");
+                            setSystemsSetupInitialStep("inspection");
+                            setSystemsSetupModalOpen(true);
+                          }
                         }}
                       >
                         <FileBarChart className="w-5 h-5 shrink-0 text-neutral-500 dark:text-neutral-400" />
@@ -2139,38 +2165,101 @@ function PropertyFormContainer() {
       </div>
 
       {!isInvitationView && (
-        <div className="flex justify-between items-center mb-2">
-          {/* Analysis and AI Assistant buttons - Left aligned */}
-          <div className="flex items-center gap-3 sm:ml-4">
+        <div className="flex items-center mb-2">
+          <div className="flex-1" />
+          {/* Passport Opsymization button - Centered, premium gold pill */}
+          <div className="flex items-center justify-center flex-1">
             {uid !== "new" && (
               <>
-                <button
-                  ref={blankModalButtonRef}
-                  type="button"
-                  onClick={() => setBlankModalOpen(true)}
-                  className="flex items-center gap-2 px-3 py-2 bg-transparent border border-neutral-200/80 dark:border-neutral-600/50 rounded-xl text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:border-neutral-300 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 transition-all duration-200"
-                  title="Inspection report analysis"
-                >
-                  <FileCheck className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-sm font-semibold">
-                    Inspection Analysis
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={openAiAssistantWithPlanCheck}
-                  className="flex items-center gap-2 px-3 py-2 bg-transparent border border-neutral-200/80 dark:border-neutral-600/50 rounded-xl text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 hover:border-neutral-300 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 transition-all duration-200"
-                  title="AI Assistant"
-                >
-                  <Sparkles className="w-4 h-4 flex-shrink-0 text-[#456564]" />
-                  <span className="text-sm font-semibold">AI Assistant</span>
-                </button>
+                <style>{`
+                  @property --passport-angle {
+                    syntax: "<angle>";
+                    initial-value: 0deg;
+                    inherits: false;
+                  }
+                  .passport-opsymization-container {
+                    position: relative;
+                    display: inline-flex;
+                  }
+                  .passport-opsymization-container::before {
+                    content: "";
+                    position: absolute;
+                    inset: -4px;
+                    border-radius: 9999px;
+                    background: transparent;
+                    opacity: 0;
+                    filter: blur(12px);
+                    transition: opacity 0.3s ease;
+                    pointer-events: none;
+                  }
+                  .passport-opsymization-container:hover::before {
+                    opacity: 1;
+                    background: conic-gradient(from var(--passport-angle), transparent, rgba(245, 158, 11, 0.4), rgba(212, 175, 55, 0.5), rgba(255, 250, 235, 0.6), rgba(212, 175, 55, 0.5), rgba(245, 158, 11, 0.4), transparent);
+                    animation: passport-glow-spin 2.5s linear infinite;
+                  }
+                  @keyframes passport-glow-spin {
+                    to { --passport-angle: 360deg; }
+                  }
+                  .passport-opsymization-border {
+                    position: relative;
+                    padding: 2px;
+                    border-radius: 9999px;
+                    background: rgba(184, 134, 11, 0.4);
+                    transition: box-shadow 0.3s ease;
+                  }
+                  .passport-opsymization-border:hover {
+                    background: conic-gradient(from var(--passport-angle), transparent 0deg, rgba(245, 158, 11, 0.9) 60deg, rgba(212, 175, 55, 0.95) 120deg, rgba(255, 250, 235, 1) 180deg, rgba(212, 175, 55, 0.95) 240deg, rgba(245, 158, 11, 0.9) 300deg, transparent 360deg);
+                    animation: passport-border-spin 2.5s linear infinite;
+                    box-shadow: 0 0 20px rgba(184, 134, 11, 0.3);
+                  }
+                  @keyframes passport-border-spin {
+                    to { --passport-angle: 360deg; }
+                  }
+                  .passport-opsymization-button {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 0.5rem 1.25rem;
+                    border: none;
+                    border-radius: 9999px;
+                    background: linear-gradient(to bottom, rgba(218, 165, 32, 0.4) 0%, transparent 35%), #B8860B;
+                    color: rgba(255, 250, 235, 0.98);
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    position: relative;
+                  }
+                  .passport-opsymization-button:hover {
+                    background: linear-gradient(to bottom, rgba(218, 165, 32, 0.5) 0%, transparent 35%), #C9A227;
+                    color: #FFFEF5;
+                  }
+                  .passport-opsymization-icon {
+                    color: rgba(255, 250, 235, 0.95);
+                    flex-shrink: 0;
+                  }
+                `}</style>
+                <div className="passport-opsymization-container">
+                  <div className="passport-opsymization-border">
+                    <button
+                      ref={blankModalButtonRef}
+                      type="button"
+                      onClick={openInspectionAnalysisWithPlanCheck}
+                      className="passport-opsymization-button"
+                      title="Passport Opsymization"
+                    >
+                      <Sparkles className="w-4 h-4 passport-opsymization-icon" />
+                      <span className="text-sm font-semibold">
+                        Passport Opsymization
+                      </span>
+                    </button>
+                  </div>
+                </div>
               </>
             )}
           </div>
 
           {/* Property Navigation */}
-          <div className="flex items-center">
+          <div className="flex items-center justify-end flex-1">
             {uid &&
               uid !== "new" &&
               (() => {
@@ -2311,8 +2400,11 @@ function PropertyFormContainer() {
                 </div>
                 <div>
                   <h2 className="text-base font-semibold text-neutral-900 dark:text-white tracking-tight mb-0.5 antialiased">
-                    Home Passport
+                    Opsy Digital Passport
                   </h2>
+                  <p className="text-[10px] text-neutral-500 dark:text-neutral-500 font-medium tracking-wide">
+                    Powered by HomeOps
+                  </p>
                   <p className="text-xs text-neutral-600 dark:text-neutral-400 font-medium tracking-wide">
                     Digital Property Record
                   </p>
@@ -2805,10 +2897,7 @@ function PropertyFormContainer() {
                         }
                         onOpenAIReport={
                           uid !== "new"
-                            ? () =>
-                                requestAnimationFrame(() =>
-                                  setBlankModalOpen(true),
-                                )
+                            ? openInspectionAnalysisWithPlanCheck
                             : undefined
                         }
                         openUploadModalForInspectionReport={
@@ -3233,7 +3322,7 @@ function PropertyFormContainer() {
       <ModalBlank
         modalOpen={blankModalOpen}
         setModalOpen={setBlankModalOpen}
-        contentClassName="max-w-5xl min-h-[60vh]"
+        contentClassName="max-w-6xl min-h-[80vh]"
         ignoreClickRef={blankModalButtonRef}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
@@ -3272,9 +3361,19 @@ function PropertyFormContainer() {
           onUploadReport={
             uid !== "new"
               ? () => {
+                  if (!isPaidUser) {
+                    setUpgradePromptTitle("Inspection Analysis not included");
+                    setUpgradePromptMsg(
+                      "Your plan doesn't support AI inspection report analysis. Upgrade to analyze inspection reports with AI.",
+                    );
+                    setUpgradePromptOpen(true);
+                    setBlankModalOpen(false);
+                    return;
+                  }
                   setBlankModalOpen(false);
-                  dispatch({type: "SET_ACTIVE_TAB", payload: "documents"});
-                  setDocumentsUploadModalRequested(true);
+                  setSystemsSetupOnlyStep("inspection");
+                  setSystemsSetupInitialStep("inspection");
+                  setSystemsSetupModalOpen(true);
                 }
               : undefined
           }
@@ -3334,6 +3433,7 @@ function PropertyFormContainer() {
           "You've reached the limit for your current plan. Upgrade to unlock more."
         }
         upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
+        ignoreClickRef={blankModalButtonRef}
       />
 
       {/* Floating "Invite your Agent" CTA */}
