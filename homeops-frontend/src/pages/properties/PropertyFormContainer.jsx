@@ -50,6 +50,7 @@ import {
   preparePropertyValues,
   prepareIdentityForUpdate,
   prepareTeamForProperty,
+  teamsAreEqual,
   mapPropertyFromBackend,
 } from "./helpers/preparePropertyValues";
 import {mapSystemsFromBackend} from "./helpers/mapSystemsFromBackend";
@@ -484,6 +485,7 @@ function PropertyFormContainer() {
   const saveBarRef = useRef(null);
   const blankModalButtonRef = useRef(null);
   const originalMaintenanceRecordIdsRef = useRef(new Set());
+  const originalTeamRef = useRef(null);
   const [expandSectionId, setExpandSectionId] = useState(null);
 
   const openAiAssistantWithPlanCheck = useCallback(() => {
@@ -972,6 +974,7 @@ function PropertyFormContainer() {
         };
       });
       setHomeopsTeam(enriched);
+      originalTeamRef.current = prepareTeamForProperty(enriched);
     }
     setDefaultHomeopsTeam();
   }, [uid, currentUser?.id, state.property]);
@@ -1405,6 +1408,7 @@ function PropertyFormContainer() {
     }
     dispatch({type: "SET_ERRORS", payload: {}});
     dispatch({type: "SET_SUBMITTING", payload: true});
+    const t0 = performance.now();
     try {
       const propertyId = state.property?.identity?.id ?? state.property?.id;
       const merged = mergeFormDataFromTabs(state.formData);
@@ -1412,54 +1416,77 @@ function PropertyFormContainer() {
         state.formData.identity ?? {},
       );
       identityPayload.hps_score = computeHpsScore(merged);
+      const t1 = performance.now();
       const res = await updateProperty(propertyId, identityPayload);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[perf] updateProperty", (performance.now() - t1).toFixed(0), "ms");
+      }
       if (res) {
-        await updateTeam(res.id, prepareTeamForProperty(homeopsTeam));
+        const preparedTeam = prepareTeamForProperty(homeopsTeam);
+        const teamUnchanged =
+          originalTeamRef.current &&
+          teamsAreEqual(preparedTeam, originalTeamRef.current);
 
-        const teamAfterUpdate = await getPropertyTeam(uid);
-        const propertyUsers = teamAfterUpdate?.property_users ?? [];
-
-        /* Only redirect if current user removed themselves (no longer on team). Skip for super_admin – they have platform-wide access and should stay on the property to see the success message. */
-        const isSuperAdmin =
-          (currentUser?.role ?? "").toLowerCase() === "super_admin";
-        if (!isSuperAdmin) {
-          const currentUserId = currentUser?.id;
-          const stillOnTeam =
-            currentUserId == null
-              ? true
-              : propertyUsers.some(
-                  (m) =>
-                    m && String(m.id ?? m.user_id) === String(currentUserId),
-                );
-          if (!stillOnTeam) {
-            dispatch({type: "SET_SUBMITTING", payload: false});
-            navigate(`/${accountUrl}/properties`);
-            return;
+        if (!teamUnchanged) {
+          const t2 = performance.now();
+          await updateTeam(res.id, preparedTeam);
+          if (process.env.NODE_ENV === "development") {
+            console.debug("[perf] updateTeam", (performance.now() - t2).toFixed(0), "ms");
           }
+          const t3 = performance.now();
+          const teamAfterUpdate = await getPropertyTeam(uid);
+          if (process.env.NODE_ENV === "development") {
+            console.debug("[perf] getPropertyTeam", (performance.now() - t3).toFixed(0), "ms");
+          }
+          const propertyUsers = teamAfterUpdate?.property_users ?? [];
+
+          /* Only redirect if current user removed themselves (no longer on team). Skip for super_admin – they have platform-wide access and should stay on the property to see the success message. */
+          const isSuperAdmin =
+            (currentUser?.role ?? "").toLowerCase() === "super_admin";
+          if (!isSuperAdmin) {
+            const currentUserId = currentUser?.id;
+            const stillOnTeam =
+              currentUserId == null
+                ? true
+                : propertyUsers.some(
+                    (m) =>
+                      m && String(m.id ?? m.user_id) === String(currentUserId),
+                  );
+            if (!stillOnTeam) {
+              dispatch({type: "SET_SUBMITTING", payload: false});
+              navigate(`/${accountUrl}/properties`);
+              return;
+            }
+          }
+          /* Sync local team with server so UI matches after save */
+          const enriched = propertyUsers.map((m) => {
+            const u = users?.find(
+              (us) => us && m?.id != null && Number(us.id) === Number(m.id),
+            );
+            return {
+              ...m,
+              role: m.role,
+              property_role: m.property_role ?? "editor",
+              image_url:
+                m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
+              image:
+                m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
+            };
+          });
+          setHomeopsTeam(enriched);
+          originalTeamRef.current = prepareTeamForProperty(enriched);
         }
-        /* Sync local team with server so UI matches after save */
-        const enriched = propertyUsers.map((m) => {
-          const u = users?.find(
-            (us) => us && m?.id != null && Number(us.id) === Number(m.id),
-          );
-          return {
-            ...m,
-            role: m.role,
-            property_role: m.property_role ?? "editor",
-            image_url:
-              m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
-            image:
-              m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
-          };
-        });
-        setHomeopsTeam(enriched);
 
         const systemsArray = formSystemsToArray(
           mergeFormDataFromTabs(state.formData) ?? {},
           res.id,
           state.systems ?? [],
         );
+        const t4 = performance.now();
         await updateSystemsForProperty(res.id, systemsArray);
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[perf] updateSystemsForProperty", (performance.now() - t4).toFixed(0), "ms");
+        }
 
         /* Maintenance records sync */
         const currentRecords = state.formData.maintenanceRecords ?? [];
@@ -1484,6 +1511,7 @@ function PropertyFormContainer() {
           res.id,
         );
 
+        const t5 = performance.now();
         if (syncPlan.toDelete.length > 0) {
           await Promise.all(
             syncPlan.toDelete.map((id) => deleteMaintenanceRecord(id)),
@@ -1499,9 +1527,21 @@ function PropertyFormContainer() {
             ),
           );
         }
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[perf] maintenance sync", (performance.now() - t5).toFixed(0), "ms");
+        }
 
-        const refreshed = await getPropertyById(uid);
-        const rawRecords = await getMaintenanceRecordsByPropertyId(res.id);
+        const t6 = performance.now();
+        const [refreshed, rawRecords, systemsResAfter] = await Promise.all([
+          getPropertyById(uid),
+          getMaintenanceRecordsByPropertyId(res.id),
+          getSystemsByPropertyId(res.id),
+        ]);
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[perf] post-save refetches", (performance.now() - t6).toFixed(0), "ms");
+          console.debug("[perf] handleUpdate total", (performance.now() - t0).toFixed(0), "ms");
+        }
+
         const maintenanceRecords = mapMaintenanceRecordsFromBackend(
           rawRecords ?? [],
         );
@@ -1511,7 +1551,6 @@ function PropertyFormContainer() {
             .filter((r) => !isNewMaintenanceRecord(r))
             .map((r) => r.id),
         );
-        const systemsResAfter = await getSystemsByPropertyId(res.id);
         const systemsFromBackend =
           systemsResAfter?.systems ?? systemsResAfter ?? [];
         if (systemsResAfter?.aiSummaryUpdatedAt) {

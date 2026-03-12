@@ -411,3 +411,33 @@ export function prepareTeamForProperty(team) {
       return {...member, role};
     });
 }
+
+/**
+ * Compares two prepared team arrays (from prepareTeamForProperty).
+ * Returns true if same members with same roles.
+ */
+export function teamsAreEqual(preparedA, preparedB) {
+  if (!Array.isArray(preparedA) || !Array.isArray(preparedB)) return false;
+  if (preparedA.length !== preparedB.length) return false;
+  const toKey = (m) => `${m?.id}:${(m?.role ?? "").toLowerCase()}`;
+  const keysA = new Set(preparedA.map(toKey));
+  const keysB = new Set(preparedB.map(toKey));
+  for (const k of keysA) if (!keysB.has(k)) return false;
+  return true;
+}
+
+/**
+ * Compare two prepared team arrays (from prepareTeamForProperty) for equality.
+ * Used to skip updateTeam + getPropertyTeam when team is unchanged.
+ */
+export function teamsAreEqual(preparedA, preparedB) {
+  if (!preparedA || !preparedB) return preparedA === preparedB;
+  if (preparedA.length !== preparedB.length) return false;
+  const toKey = (m) =>
+    `${m?.id ?? m?.user_id}:${(m?.role ?? m?.property_role ?? "").toLowerCase()}`;
+  const keysA = new Set(preparedA.map(toKey));
+  for (const m of preparedB) {
+    if (!keysA.has(toKey(m))) return false;
+  }
+  return true;
+}
