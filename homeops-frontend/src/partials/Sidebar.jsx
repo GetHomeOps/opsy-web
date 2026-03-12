@@ -7,11 +7,7 @@ import OpsyIcon from "../images/opsy4.png";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import {useAuth} from "../context/AuthContext";
 import Transition from "../utils/Transition";
-import {
-  SIDEBAR_CONFIG,
-  PROFESSIONALS_SAMPLE,
-  SETTINGS_CONFIG,
-} from "./sidebarConfig";
+import {SIDEBAR_CONFIG, PROFESSIONALS_SAMPLE, COMING_SOON} from "./sidebarConfig";
 
 /**
  * Stripe-style submenu flyout — when sidebar is collapsed, hovering over an expandable
@@ -259,7 +255,6 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
   const trigger = useRef(null);
   const sidebar = useRef(null);
-
   const storedSidebarExpanded = localStorage.getItem("sidebar-expanded");
   const [sidebarExpanded, setSidebarExpanded] = useState(
     storedSidebarExpanded === null ? false : storedSidebarExpanded === "true",
@@ -284,7 +279,6 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     )
       return "subscriptions";
     if (/\/dashboard(\/|$)/.test(path)) return "dashboard";
-    if (path.includes("settings/") || path.includes("users")) return "settings";
     return null;
   };
 
@@ -665,7 +659,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                   renderSection,
                 )}
 
-                {/* Professionals (Sample) — spacing when collapsed, divider when expanded */}
+                {/* Coming Soon & Professionals (Sample) — spacing when collapsed, divider when expanded */}
                 <div
                   className={`${isCollapsed ? "mt-5" : "mt-4 pt-3 border-t border-white/10"}`}
                 >
@@ -677,40 +671,17 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                         isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"
                       }
                     >
+                      {renderNavLink(COMING_SOON)}
+                    </li>
+                    <li
+                      className={
+                        isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"
+                      }
+                    >
                       {renderNavLink(PROFESSIONALS_SAMPLE)}
                     </li>
                   </ul>
                 </div>
-              </div>
-
-              {/* Settings (bottom) — spacing when collapsed, divider when expanded */}
-              <div
-                className={`pt-4 mt-auto ${isCollapsed ? "" : "border-t border-white/10"}`}
-              >
-                {renderCollapsible(
-                  SETTINGS_CONFIG,
-                  openCollapsible === "settings",
-                  (isOpen) => setOpenCollapsible(isOpen ? "settings" : null),
-                  <ul className="py-1">
-                    {SETTINGS_CONFIG.children.filter(visible).map((child) => (
-                      <li key={child.id}>
-                        <NavLink
-                          end
-                          to={toPath(child.path)}
-                          className={({isActive}) =>
-                            `flex items-center px-2 py-1.5 rounded mx-1 text-xs transition-colors ${
-                              isActive
-                                ? "text-white bg-white/10"
-                                : "text-gray-100 hover:bg-gray-700"
-                            }`
-                          }
-                        >
-                          {child.label}
-                        </NavLink>
-                      </li>
-                    ))}
-                  </ul>,
-                )}
               </div>
             </div>
           </div>

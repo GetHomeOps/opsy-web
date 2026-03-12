@@ -79,6 +79,7 @@ import CommunicationsList from "../communications/CommunicationsList";
 import CommunicationComposer from "../communications/CommunicationComposer";
 import CommunicationViewerPage from "../communications/CommunicationViewerPage";
 import Calendar from "../calendar/Calendar";
+import ComingSoon from "../ComingSoon";
 
 function BillingPlansRedirect() {
   const {accountUrl} = useParams();
@@ -419,6 +420,22 @@ function RoutesList() {
         element={
           <ProtectedRoute>
             <ProfessionalDirectory />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coming-soon"
+        element={
+          <ProtectedRoute>
+            <ComingSoon />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/coming-soon"
+        element={
+          <ProtectedRoute>
+            <ComingSoon />
           </ProtectedRoute>
         }
       />

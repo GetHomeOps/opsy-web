@@ -24,15 +24,11 @@ import {
   MessageCircle,
   CreditCard,
   Package,
-  Settings,
-  Wallet,
-  Cog,
-  HelpCircle,
   UsersRound,
   BookOpen,
   BarChart3,
   DollarSign,
-  ArrowUpCircle,
+  Sparkles,
 } from "lucide-react";
 
 const ICON_SIZE = 18;
@@ -211,9 +207,25 @@ export const SIDEBAR_CONFIG = [
           },
         ],
       },
+      {
+        id: "users",
+        label: "Users",
+        path: "users",
+        icon: icon(UsersRound),
+        roles: "adminOnly",
+      },
     ],
   },
 ];
+
+// Coming Soon — placeholder page for upcoming features
+export const COMING_SOON = {
+  id: "coming-soon",
+  label: "Coming Soon",
+  path: "coming-soon",
+  icon: icon(Sparkles),
+  roles: "all",
+};
 
 // Professionals (Sample) — kept separate, shown after main nav with divider
 export const PROFESSIONALS_SAMPLE = {
@@ -223,53 +235,4 @@ export const PROFESSIONALS_SAMPLE = {
   activePaths: ["professionals-sample", "my-professionals-sample"],
   icon: icon(Users),
   roles: "all",
-};
-
-// Settings section — bottom of sidebar (Billing, Configuration, Support, Users)
-// Support Management and Feedback Management moved to ADMIN > Operations
-export const SETTINGS_CONFIG = {
-  id: "settings",
-  type: "collapsible",
-  label: "Settings",
-  icon: icon(Settings),
-  defaultExpanded: false,
-  children: [
-    {
-      id: "billing",
-      label: "Billing",
-      path: "settings/billing",
-      icon: icon(Wallet),
-      roles: "all",
-      hideForPlatformAdmins: true,
-    },
-    {
-      id: "upgrade",
-      label: "Upgrade",
-      path: "settings/upgrade",
-      icon: icon(ArrowUpCircle),
-      roles: "all",
-      hideForPlatformAdmins: true,
-    },
-    {
-      id: "configuration",
-      label: "Configuration",
-      path: "settings/configuration",
-      icon: icon(Cog),
-      roles: "all",
-    },
-    {
-      id: "support",
-      label: "Support",
-      path: "settings/support",
-      icon: icon(HelpCircle),
-      roles: "all",
-    },
-    {
-      id: "users",
-      label: "Users",
-      path: "users",
-      icon: icon(UsersRound),
-      roles: "adminOnly",
-    },
-  ],
 };

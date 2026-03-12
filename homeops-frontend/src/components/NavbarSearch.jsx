@@ -5,7 +5,7 @@ import useCurrentAccount from "../hooks/useCurrentAccount";
 import {useAuth} from "../context/AuthContext";
 import PropertyContext from "../context/PropertyContext";
 import ContactContext from "../context/ContactContext";
-import {SIDEBAR_CONFIG, SETTINGS_CONFIG} from "../partials/sidebarConfig";
+import {SIDEBAR_CONFIG} from "../partials/sidebarConfig";
 
 /** Flatten nav config to { label, path, roles } items, respecting section-level roles */
 function flattenNavItems(config, parentRoles) {
@@ -32,10 +32,7 @@ function flattenNavItems(config, parentRoles) {
   return items;
 }
 
-const ALL_PAGES = [
-  ...flattenNavItems(SIDEBAR_CONFIG),
-  ...flattenNavItems(SETTINGS_CONFIG?.children || []),
-];
+const ALL_PAGES = flattenNavItems(SIDEBAR_CONFIG);
 
 function NavbarSearch({disabled = false}) {
   const navigate = useNavigate();

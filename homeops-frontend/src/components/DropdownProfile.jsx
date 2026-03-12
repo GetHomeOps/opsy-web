@@ -1,6 +1,5 @@
 import React, {useState, useRef, useEffect, useContext} from "react";
 import {Link} from "react-router-dom";
-import {CreditCard, Sparkles} from "lucide-react";
 import Transition from "../utils/Transition";
 import AuthContext from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -107,7 +106,7 @@ function DropdownProfile({align}) {
       </button>
 
       <Transition
-        className={`origin-top-right z-10 absolute top-full min-w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 py-1.5 rounded-lg shadow-lg overflow-hidden mt-1 ${
+        className={`origin-top-right z-10 absolute top-full w-52 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 py-1.5 rounded-lg shadow-lg overflow-hidden mt-1 ${
           align === "right" ? "right-0" : "left-0"
         }`}
         show={dropdownOpen}
@@ -142,12 +141,18 @@ function DropdownProfile({align}) {
                   {initials}
                 </div>
               )}
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-100 truncate">
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <div
+                  className="text-sm font-medium text-gray-700 dark:text-gray-100 truncate"
+                  title={currentUser?.name}
+                >
                   {currentUser?.name}
                 </div>
                 {currentUser?.email && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  <div
+                    className="text-xs text-gray-500 dark:text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap"
+                    title={currentUser.email}
+                  >
                     {currentUser.email}
                   </div>
                 )}
@@ -187,22 +192,20 @@ function DropdownProfile({align}) {
             <ul className="pb-1.5 border-b border-gray-200 dark:border-gray-700/60">
               <li>
                 <Link
-                  className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                  className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center py-1 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                   to={`/${accountUrl}/settings/upgrade`}
                   onClick={() => setDropdownOpen(false)}
                 >
-                  <Sparkles className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
                   {(t("pricing") || "Pricing").replace(/^\w/, (c) => c.toUpperCase())}
                 </Link>
               </li>
               {!hideBilling && (
                 <li>
                   <Link
-                    className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center gap-2 py-1 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center py-1 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                     to={`/${accountUrl}/settings/billing`}
                     onClick={() => setDropdownOpen(false)}
                   >
-                    <CreditCard className="w-4 h-4 shrink-0 text-gray-400 dark:text-gray-500" />
                     {(t("accountAndBilling") || "Account & Billing")}
                   </Link>
                 </li>
