@@ -88,20 +88,15 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
           {/* Header: Right side — AI Assistant, Help, Reminders, Notifications, User */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <div className="ai-assistant-container">
-              <div className="ai-assistant-border">
-                <button
-                  ref={aiAssistantButtonRef}
-                  onClick={handleAiAssistantClick}
-                  className="ai-assistant-nav-btn"
-                  aria-label="AI Assistant"
-                  title="AI Assistant"
-                >
-                  <Sparkles className="ai-assistant-nav-btn__icon" />
-                  <span>AI Assistant</span>
-                </button>
-              </div>
-            </div>
+            <button
+              ref={aiAssistantButtonRef}
+              onClick={handleAiAssistantClick}
+              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              aria-label="AI Assistant"
+              title="AI Assistant"
+            >
+              <Sparkles className="w-5 h-5" />
+            </button>
             <Link
               to={supportPath}
               className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"

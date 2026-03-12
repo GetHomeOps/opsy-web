@@ -2131,7 +2131,9 @@ function PropertyFormContainer() {
                           e.stopPropagation();
                           setActionsDropdownOpen(false);
                           if (!isPaidUser) {
-                            setUpgradePromptTitle("Inspection Analysis not included");
+                            setUpgradePromptTitle(
+                              "Inspection Analysis not included",
+                            );
                             setUpgradePromptMsg(
                               "Your plan doesn't support AI inspection report analysis. Upgrade to analyze inspection reports with AI.",
                             );
@@ -2166,17 +2168,11 @@ function PropertyFormContainer() {
 
       {!isInvitationView && (
         <div className="flex items-center mb-2">
-          <div className="flex-1" />
-          {/* Passport Opsymization button - Centered, premium gold pill */}
-          <div className="flex items-center justify-center flex-1">
+          {/* Passport Opsymization button - Left aligned, premium gold pill */}
+          <div className="flex items-center ml-4">
             {uid !== "new" && (
               <>
                 <style>{`
-                  @property --passport-angle {
-                    syntax: "<angle>";
-                    initial-value: 0deg;
-                    inherits: false;
-                  }
                   .passport-opsymization-container {
                     position: relative;
                     display: inline-flex;
@@ -2184,53 +2180,68 @@ function PropertyFormContainer() {
                   .passport-opsymization-container::before {
                     content: "";
                     position: absolute;
-                    inset: -4px;
+                    inset: 0;
                     border-radius: 9999px;
-                    background: transparent;
+                    background: rgba(213, 155, 91, 0.35);
                     opacity: 0;
-                    filter: blur(12px);
+                    filter: blur(3px);
                     transition: opacity 0.3s ease;
                     pointer-events: none;
                   }
                   .passport-opsymization-container:hover::before {
                     opacity: 1;
-                    background: conic-gradient(from var(--passport-angle), transparent, rgba(245, 158, 11, 0.4), rgba(212, 175, 55, 0.5), rgba(255, 250, 235, 0.6), rgba(212, 175, 55, 0.5), rgba(245, 158, 11, 0.4), transparent);
-                    animation: passport-glow-spin 2.5s linear infinite;
-                  }
-                  @keyframes passport-glow-spin {
-                    to { --passport-angle: 360deg; }
                   }
                   .passport-opsymization-border {
                     position: relative;
                     padding: 2px;
                     border-radius: 9999px;
-                    background: rgba(184, 134, 11, 0.4);
-                    transition: box-shadow 0.3s ease;
+                    background: rgba(213, 155, 91, 0.5);
+                    transition: box-shadow 0.3s ease, background 0.3s ease;
                   }
                   .passport-opsymization-border:hover {
-                    background: conic-gradient(from var(--passport-angle), transparent 0deg, rgba(245, 158, 11, 0.9) 60deg, rgba(212, 175, 55, 0.95) 120deg, rgba(255, 250, 235, 1) 180deg, rgba(212, 175, 55, 0.95) 240deg, rgba(245, 158, 11, 0.9) 300deg, transparent 360deg);
-                    animation: passport-border-spin 2.5s linear infinite;
-                    box-shadow: 0 0 20px rgba(184, 134, 11, 0.3);
-                  }
-                  @keyframes passport-border-spin {
-                    to { --passport-angle: 360deg; }
+                    background: rgba(213, 155, 91, 0.65);
+                    box-shadow: 0 0 3px rgba(213, 155, 91, 0.3), 0 0 6px rgba(213, 155, 91, 0.1);
                   }
                   .passport-opsymization-button {
                     display: inline-flex;
                     align-items: center;
                     gap: 0.5rem;
-                    padding: 0.5rem 1.25rem;
+                    padding: 0.3125rem 1rem;
                     border: none;
                     border-radius: 9999px;
-                    background: linear-gradient(to bottom, rgba(218, 165, 32, 0.4) 0%, transparent 35%), #B8860B;
+                    background: linear-gradient(to bottom, #eac285 0%, transparent 35%), rgba(213, 155, 91, 0.9);
                     color: rgba(255, 250, 235, 0.98);
                     font-weight: 600;
                     cursor: pointer;
                     transition: all 0.2s ease;
                     position: relative;
+                    overflow: hidden;
+                  }
+                  .passport-opsymization-button::after {
+                    content: "";
+                    position: absolute;
+                    top: -50%;
+                    bottom: -50%;
+                    left: -60px;
+                    width: 40px;
+                    background: linear-gradient(to right, transparent, rgba(255, 248, 230, 0.35), transparent);
+                    transform: rotate(30deg);
+                    transform-origin: center center;
+                    pointer-events: none;
+                    opacity: 0;
+                    transition: opacity 0.2s ease;
+                  }
+                  .passport-opsymization-button:hover::after {
+                    opacity: 1;
+                    animation: passport-sheen 5s ease-in-out infinite;
+                  }
+                  @keyframes passport-sheen {
+                    0% { left: -60px; }
+                    70% { left: 110%; }
+                    100% { left: 110%; }
                   }
                   .passport-opsymization-button:hover {
-                    background: linear-gradient(to bottom, rgba(218, 165, 32, 0.5) 0%, transparent 35%), #C9A227;
+                    background: linear-gradient(to bottom, #eac285 0%, transparent 35%), rgba(213, 155, 91, 0.95);
                     color: #FFFEF5;
                   }
                   .passport-opsymization-icon {
@@ -2247,7 +2258,10 @@ function PropertyFormContainer() {
                       className="passport-opsymization-button"
                       title="Passport Opsymization"
                     >
-                      <Sparkles className="w-4 h-4 passport-opsymization-icon" />
+                      <Sparkles
+                        className="w-3.5 h-3.5 passport-opsymization-icon"
+                        strokeWidth={2}
+                      />
                       <span className="text-sm font-semibold">
                         Passport Opsymization
                       </span>
