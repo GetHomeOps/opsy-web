@@ -168,7 +168,10 @@ function getInviteAgentDismissedStorageKey(propertyUid) {
 function isInviteAgentCtaDismissed(propertyUid) {
   if (!propertyUid) return false;
   try {
-    return localStorage.getItem(getInviteAgentDismissedStorageKey(propertyUid)) === "true";
+    return (
+      localStorage.getItem(getInviteAgentDismissedStorageKey(propertyUid)) ===
+      "true"
+    );
   } catch {
     return false;
   }
@@ -177,7 +180,10 @@ function isInviteAgentCtaDismissed(propertyUid) {
 function dismissInviteAgentCtaPermanently(propertyUid) {
   if (!propertyUid) return;
   try {
-    localStorage.setItem(getInviteAgentDismissedStorageKey(propertyUid), "true");
+    localStorage.setItem(
+      getInviteAgentDismissedStorageKey(propertyUid),
+      "true",
+    );
   } catch (_) {}
 }
 
@@ -450,9 +456,12 @@ function PropertyFormContainer() {
   const [documentsUploadModalRequested, setDocumentsUploadModalRequested] =
     useState(false);
   const [invitationModalOpen, setInvitationModalOpen] = useState(false);
+  const [invitationReviewMode, setInvitationReviewMode] = useState(false);
   const [invitationAcceptingId, setInvitationAcceptingId] = useState(null);
   const [invitationDecliningId, setInvitationDecliningId] = useState(null);
   const [invitationError, setInvitationError] = useState(null);
+  const invitationMainCardRef = useRef(null);
+  const invitationActionInProgressRef = useRef(false);
   const [showInviteAgentCta, setShowInviteAgentCta] = useState(false);
   const [inviteAgentBenefitsOpen, setInviteAgentBenefitsOpen] = useState(false);
   const [mainPhotoMenuOpen, setMainPhotoMenuOpen] = useState(false);
@@ -702,6 +711,7 @@ function PropertyFormContainer() {
   useEffect(() => {
     if (isInvitationView && state.property && invitationIdFromUrl) {
       setInvitationModalOpen(true);
+      setInvitationReviewMode(false);
     }
   }, [isInvitationView, state.property, invitationIdFromUrl]);
 
@@ -1781,11 +1791,10 @@ function PropertyFormContainer() {
           if (member._pending && member.invitationId) {
             await AppApi.revokeInvitation(member.invitationId);
             setHomeopsTeam((prev) =>
-              prev.filter(
-                (m) =>
-                  m._pending
-                    ? m.invitationId !== member.invitationId
-                    : String(m.id) !== String(member.id),
+              prev.filter((m) =>
+                m._pending
+                  ? m.invitationId !== member.invitationId
+                  : String(m.id) !== String(member.id),
               ),
             );
           } else if (propertyId && member.id) {
@@ -2256,6 +2265,7 @@ function PropertyFormContainer() {
       <div className="space-y-8">
         {/* Property Passport Card - clean premium surface */}
         <section
+          ref={invitationMainCardRef}
           className="rounded-2xl overflow-hidden border border-neutral-200/80 bg-white dark:border-neutral-700/50 dark:bg-neutral-900"
           style={{
             boxShadow:
@@ -2852,13 +2862,14 @@ function PropertyFormContainer() {
           setModalOpen={setInvitationModalOpen}
           closeOnClickOutside={false}
           closeOnBackdropClick={false}
+          contentClassName="w-full max-w-2xl"
         >
-          <div className="p-6 max-w-md">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-[#456564]/15 dark:bg-[#5a7a78]/25 flex items-center justify-center">
+          <div className="p-6 sm:p-8 w-full min-w-0">
+            <div className="flex items-center gap-4 mb-4 w-full">
+              <div className="w-12 h-12 shrink-0 rounded-xl bg-[#456564]/15 dark:bg-[#5a7a78]/25 flex items-center justify-center">
                 <UserPlus className="w-6 h-6 text-[#456564] dark:text-[#5a7a78]" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
                   Property invitation
                 </h3>
@@ -2880,15 +2891,32 @@ function PropertyFormContainer() {
                 {invitationError}
               </p>
             )}
-            <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setInvitationModalOpen(false);
+                setInvitationReviewMode(true);
+                invitationMainCardRef.current?.scrollIntoView?.({
+                  behavior: "smooth",
+                  block: "start",
+                });
+              }}
+              className="btn w-full mb-4 border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 inline-flex items-center justify-center gap-2"
+            >
+              Review property
+            </button>
+            <div className="flex gap-3 w-full">
               <button
                 type="button"
                 onClick={async () => {
+                  if (invitationActionInProgressRef.current) return;
+                  invitationActionInProgressRef.current = true;
                   setInvitationError(null);
                   setInvitationAcceptingId(invitationIdFromUrl);
                   try {
                     await AppApi.acceptInvitationInApp(invitationIdFromUrl);
                     setInvitationModalOpen(false);
+                    setInvitationReviewMode(false);
                     const team = await getPropertyTeam(uid);
                     const raw = team?.property_users ?? [];
                     const enriched = raw.map((m) => {
@@ -2919,16 +2947,26 @@ function PropertyFormContainer() {
                     });
                   } catch (err) {
                     console.error("Failed to accept invitation:", err);
-                    const msg =
-                      err?.messages?.[0] ??
-                      err?.message ??
-                      "Failed to accept invitation.";
-                    setInvitationError(
-                      typeof msg === "string"
-                        ? msg
-                        : "Failed to accept invitation.",
-                    );
+                    const errMsg =
+                      err?.messages?.[0] ?? err?.message ?? "";
+                    if (
+                      typeof errMsg === "string" &&
+                      errMsg.toLowerCase().includes("no longer pending")
+                    ) {
+                      setInvitationModalOpen(false);
+                      setInvitationReviewMode(false);
+                      navigate(`/${accountUrl}/properties/${uid}`, {
+                        replace: true,
+                      });
+                    } else {
+                      setInvitationError(
+                        typeof errMsg === "string"
+                          ? errMsg
+                          : "Failed to accept invitation.",
+                      );
+                    }
                   } finally {
+                    invitationActionInProgressRef.current = false;
                     setInvitationAcceptingId(null);
                   }
                 }}
@@ -2945,24 +2983,35 @@ function PropertyFormContainer() {
               <button
                 type="button"
                 onClick={async () => {
+                  if (invitationActionInProgressRef.current) return;
+                  invitationActionInProgressRef.current = true;
                   setInvitationError(null);
                   setInvitationDecliningId(invitationIdFromUrl);
                   try {
                     await AppApi.declineInvitation(invitationIdFromUrl);
                     setInvitationModalOpen(false);
+                    setInvitationReviewMode(false);
                     navigate(`/${accountUrl}/properties`);
                   } catch (err) {
                     console.error("Failed to decline invitation:", err);
-                    const msg =
-                      err?.messages?.[0] ??
-                      err?.message ??
-                      "Failed to decline invitation.";
-                    setInvitationError(
-                      typeof msg === "string"
-                        ? msg
-                        : "Failed to decline invitation.",
-                    );
+                    const errMsg =
+                      err?.messages?.[0] ?? err?.message ?? "";
+                    if (
+                      typeof errMsg === "string" &&
+                      errMsg.toLowerCase().includes("no longer pending")
+                    ) {
+                      setInvitationModalOpen(false);
+                      setInvitationReviewMode(false);
+                      navigate(`/${accountUrl}/properties`);
+                    } else {
+                      setInvitationError(
+                        typeof errMsg === "string"
+                          ? errMsg
+                          : "Failed to decline invitation.",
+                      );
+                    }
                   } finally {
+                    invitationActionInProgressRef.current = false;
                     setInvitationDecliningId(null);
                   }
                 }}
@@ -2980,6 +3029,135 @@ function PropertyFormContainer() {
           </div>
         </ModalBlank>
       )}
+
+      {/* Invitation corner bar - Accept/Decline when in review mode */}
+      {isInvitationView &&
+        invitationIdFromUrl &&
+        invitationReviewMode && (
+          <div className="fixed bottom-6 right-6 z-[200] flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 shadow-lg p-2">
+            <button
+              type="button"
+              onClick={async () => {
+                if (invitationActionInProgressRef.current) return;
+                invitationActionInProgressRef.current = true;
+                setInvitationError(null);
+                setInvitationAcceptingId(invitationIdFromUrl);
+                try {
+                  await AppApi.acceptInvitationInApp(invitationIdFromUrl);
+                  setInvitationReviewMode(false);
+                  const team = await getPropertyTeam(uid);
+                  const raw = team?.property_users ?? [];
+                  const enriched = raw.map((m) => {
+                    const u = users?.find(
+                      (us) =>
+                        us && m?.id != null && Number(us.id) === Number(m.id),
+                    );
+                    return {
+                      ...m,
+                      role: m.role,
+                      property_role: m.property_role ?? "editor",
+                      image_url:
+                        m.image_url ??
+                        m.avatar_url ??
+                        u?.image_url ??
+                        u?.avatarUrl,
+                      image:
+                        m.image ??
+                        u?.image ??
+                        u?.avatarUrl ??
+                        u?.avatar_url ??
+                        u?.avatar,
+                    };
+                  });
+                  setHomeopsTeam(enriched);
+                  navigate(`/${accountUrl}/properties/${uid}`, {
+                    replace: true,
+                  });
+                } catch (err) {
+                  console.error("Failed to accept invitation:", err);
+                  const errMsg =
+                    err?.messages?.[0] ?? err?.message ?? "";
+                  if (
+                    typeof errMsg === "string" &&
+                    errMsg.toLowerCase().includes("no longer pending")
+                  ) {
+                    setInvitationReviewMode(false);
+                    navigate(`/${accountUrl}/properties/${uid}`, {
+                      replace: true,
+                    });
+                  } else {
+                    setInvitationError(
+                      typeof errMsg === "string"
+                        ? errMsg
+                        : "Failed to accept invitation.",
+                    );
+                    setInvitationReviewMode(false);
+                    setInvitationModalOpen(true);
+                  }
+                } finally {
+                  invitationActionInProgressRef.current = false;
+                  setInvitationAcceptingId(null);
+                }
+              }}
+              disabled={!!invitationAcceptingId || !!invitationDecliningId}
+              className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 px-4"
+            >
+              {invitationAcceptingId ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              Accept
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (invitationActionInProgressRef.current) return;
+                invitationActionInProgressRef.current = true;
+                setInvitationError(null);
+                setInvitationDecliningId(invitationIdFromUrl);
+                try {
+                  await AppApi.declineInvitation(invitationIdFromUrl);
+                  setInvitationReviewMode(false);
+                  navigate(`/${accountUrl}/properties`);
+                } catch (err) {
+                  console.error("Failed to decline invitation:", err);
+                  const errMsg =
+                    err?.messages?.[0] ?? err?.message ?? "";
+                  if (
+                    typeof errMsg === "string" &&
+                    errMsg.toLowerCase().includes("no longer pending")
+                  ) {
+                    setInvitationReviewMode(false);
+                    navigate(`/${accountUrl}/properties`, {
+                      replace: true,
+                    });
+                  } else {
+                    setInvitationError(
+                      typeof errMsg === "string"
+                        ? errMsg
+                        : "Failed to decline invitation.",
+                    );
+                    setInvitationReviewMode(false);
+                    setInvitationModalOpen(true);
+                  }
+                } finally {
+                  invitationActionInProgressRef.current = false;
+                  setInvitationDecliningId(null);
+                }
+              }}
+              disabled={!!invitationAcceptingId || !!invitationDecliningId}
+              className="btn border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 inline-flex items-center gap-2 px-4"
+            >
+              {invitationDecliningId ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <X className="w-4 h-4" />
+              )}
+              Decline
+            </button>
+          </div>
+        )}
 
       {/* Inspection Report modal (legacy - for Systems/Documents tabs) */}
       {uid !== "new" && (

@@ -17,6 +17,7 @@ export default function BillingSuccess() {
 
   const role = searchParams.get("role");
   const plan = searchParams.get("plan");
+  const stripeSessionId = searchParams.get("session_id");
 
   useEffect(() => {
     let cancelled = false;
@@ -29,15 +30,27 @@ export default function BillingSuccess() {
         return;
       }
 
+      const FREE_TIERS = ["free"];
+      const isPaidTier = !FREE_TIERS.includes(plan);
+
+      if (isPaidTier && !stripeSessionId) {
+        setError("Payment session not found. Please complete checkout again.");
+        setTimeout(() => navigate("/onboarding", {replace: true}), 3000);
+        return;
+      }
+
       let accountId = null;
       let primaryAccount = null;
       try {
+        const onboardingData = {role, subscriptionTier: plan};
+        if (stripeSessionId) onboardingData.stripeSessionId = stripeSessionId;
+
         // Retry on 429 (rate limit) - common when returning from Stripe; exponential backoff
         const delays = [2000, 4000, 8000];
         let lastErr;
         for (let attempt = 0; attempt <= delays.length && !cancelled; attempt++) {
           try {
-            await AppApi.completeOnboarding({role, subscriptionTier: plan});
+            await AppApi.completeOnboarding(onboardingData);
             lastErr = null;
             break;
           } catch (err) {
@@ -59,7 +72,7 @@ export default function BillingSuccess() {
           const msg = err?.message || "Failed to complete setup.";
           const isAuthError = /refresh token|session expired|unauthorized|invalid token/i.test(msg);
           if (isAuthError) {
-            const returnTo = `/billing/success?role=${encodeURIComponent(role || "")}&plan=${encodeURIComponent(plan || "")}`;
+            const returnTo = `/billing/success?role=${encodeURIComponent(role || "")}&plan=${encodeURIComponent(plan || "")}${stripeSessionId ? `&session_id=${encodeURIComponent(stripeSessionId)}` : ""}`;
             window.location.href = `/signin?returnTo=${encodeURIComponent(returnTo)}`;
             return;
           }
@@ -107,7 +120,7 @@ export default function BillingSuccess() {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [role, plan, navigate, refreshCurrentUser]);
+  }, [role, plan, stripeSessionId, navigate, refreshCurrentUser]);
 
   if (error) {
     return (

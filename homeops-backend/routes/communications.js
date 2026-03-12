@@ -281,6 +281,7 @@ router.post("/:id/send", ensureLoggedIn, ensureAdminOrSuperAdmin, async (req, re
     if (userIds.length > 0) {
       await Notification.createForUsers(userIds, {
         type: "communication_sent",
+        communicationId: comm.id,
         title: `New: ${comm.subject || "Message"}`,
       });
     }

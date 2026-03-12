@@ -512,7 +512,7 @@ export default function OnboardingWizard() {
         const origin =
           typeof window !== "undefined" ? window.location.origin : "";
         const tier = PLAN_CODE_TO_TIER[plan] || plan;
-        const successUrl = `${origin}/billing/success?role=${encodeURIComponent(role)}&plan=${encodeURIComponent(tier)}`;
+        const successUrl = `${origin}/billing/success?role=${encodeURIComponent(role)}&plan=${encodeURIComponent(tier)}&session_id={CHECKOUT_SESSION_ID}`;
         const cancelUrl = `${origin}/onboarding`;
         const {url} = await AppApi.createCheckoutSession({
           planCode: plan,

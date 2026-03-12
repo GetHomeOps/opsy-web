@@ -36,10 +36,11 @@ const {
 } = require("../config");
 const userAuthSchema = require("../schemas/userAuth.json");
 const userRegisterSchema = require("../schemas/userRegister.json");
-const { BadRequestError, UnauthorizedError } = require("../expressError");
+const { BadRequestError, UnauthorizedError, ForbiddenError } = require("../expressError");
 const { acceptInvitation } = require("../services/invitationService");
 const { requestPasswordReset, resetPasswordWithToken } = require("../services/passwordResetService");
 const { onUserCreated } = require("../services/resourceAutoSend");
+const stripeService = require("../services/stripeService");
 const Account = require("../models/account");
 const Contact = require("../models/contact");
 const Subscription = require("../models/subscription");
@@ -71,6 +72,12 @@ router.post("/token", async function (req, res, next) {
   try {
     const { email, password } = body;
     const user = await User.authenticate(email, password);
+
+    // Allow active users or pending signups (incomplete onboarding) so they can complete it
+    const canProceed = user && (user.isActive || user.onboardingCompleted === false);
+    if (!canProceed) {
+      throw new UnauthorizedError("User account is inactive or not found");
+    }
 
     if (user.mfaEnabled) {
       const mfaTicket = createMfaTicket(user.id, user.email);
@@ -549,20 +556,38 @@ router.get("/google/callback/signup", function (req, res, next) {
   return handleGoogleCallback(req, res, next, "signup");
 });
 
-/** POST /auth/complete-onboarding - Complete onboarding for Google OAuth signup.
- * Requires auth. Updates user with role and subscriptionTier, sets onboardingCompleted = true. */
+/** POST /auth/complete-onboarding - Complete onboarding.
+ * Requires auth. Updates user with role and subscriptionTier, sets onboardingCompleted = true.
+ * For paid tiers, requires stripeSessionId and verifies payment with Stripe before activating. */
 router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, next) {
   try {
     const userId = res.locals.user?.id;
     if (!userId) throw new BadRequestError("User authentication required");
 
-    const { role, subscriptionTier } = req.body;
+    const { role, subscriptionTier, stripeSessionId } = req.body;
     if (!role || !["homeowner", "agent"].includes(role)) {
       throw new BadRequestError("Valid role (homeowner or agent) is required");
     }
-    const validTiers = ["free", "maintain", "win", "basic", "pro", "premium"];
-    if (!subscriptionTier || !validTiers.includes(subscriptionTier)) {
-      throw new BadRequestError("Valid subscriptionTier is required");
+    const HOMEOWNER_TIERS = ["free", "maintain", "win"];
+    const AGENT_TIERS = ["basic", "pro", "premium"];
+    const validTiersForRole = role === "agent" ? AGENT_TIERS : HOMEOWNER_TIERS;
+    if (!subscriptionTier || !validTiersForRole.includes(subscriptionTier)) {
+      throw new BadRequestError(`Invalid subscriptionTier "${subscriptionTier}" for role "${role}"`);
+    }
+
+    const FREE_TIERS = ["free"];
+    const isPaidTier = !FREE_TIERS.includes(subscriptionTier);
+
+    // For paid tiers, verify the Stripe checkout session actually completed with payment
+    if (isPaidTier) {
+      if (!stripeSessionId) {
+        throw new ForbiddenError("Payment verification required for paid plans");
+      }
+      const verification = await stripeService.verifyCheckoutSession(stripeSessionId, { userId });
+      if (!verification.valid) {
+        console.warn(`[complete-onboarding] Stripe session verification failed for user ${userId}: ${verification.reason}`);
+        throw new ForbiddenError("Payment could not be verified. Please complete checkout or contact support.");
+      }
     }
 
     const existingUser = await User.getById(userId);
@@ -578,15 +603,13 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     }
 
     // Create/ensure default subscription for FREE tier (idempotent); paid tiers get subscription from Stripe webhook
-    // Skip for super_admin and admin (internal accounts)
     const SKIP_SUBSCRIPTION_ROLES = ["super_admin", "admin"];
-    const FREE_TIERS = ["free"];
     const accountResult = await db.query(
       `SELECT account_id FROM account_users WHERE user_id = $1 LIMIT 1`,
       [userId]
     );
     const userRole = existingUser?.role || role;
-    if (accountResult.rows[0] && FREE_TIERS.includes(subscriptionTier) && !SKIP_SUBSCRIPTION_ROLES.includes(userRole)) {
+    if (accountResult.rows[0] && !isPaidTier && !SKIP_SUBSCRIPTION_ROLES.includes(userRole)) {
       try {
         await Subscription.ensureDefaultForAccount(accountResult.rows[0].account_id, role);
       } catch (subErr) {

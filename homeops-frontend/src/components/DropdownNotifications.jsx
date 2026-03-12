@@ -29,7 +29,7 @@ function DropdownNotifications({align = "right"}) {
   const dropdown = useRef(null);
 
   const accountUrl = currentAccount?.url || "";
-  const homePath = accountUrl ? `/${accountUrl}` : "/";
+  const homePath = accountUrl ? `/${accountUrl}/home` : "/";
   const invitationsPath = accountUrl
     ? `/${accountUrl}/invitations`
     : "/invitations";
@@ -148,12 +148,18 @@ function DropdownNotifications({align = "right"}) {
               <ul className="py-2">
                 {notifications.map((n) => {
                   const isInvitation = n.type === "property_invitation";
+                  const isCommunication = n.type === "communication_sent" && (n.communicationId ?? n.resourceId);
+                  const isResource = n.type === "resource_sent" && n.resourceId;
                   const basePath =
                     isInvitation && n.propertyUid && n.accountUrl
                       ? `/${n.accountUrl}/properties/${n.propertyUid}`
-                      : isInvitation
-                        ? invitationsPath
-                        : homePath;
+                      : isCommunication
+                        ? `/${accountUrl}/communications/${n.communicationId ?? n.resourceId}/view`
+                        : isResource
+                          ? `/${accountUrl}/resources/${n.resourceId}/view`
+                          : isInvitation
+                            ? invitationsPath
+                            : homePath;
                   const linkTo =
                     isInvitation &&
                     n.invitationId &&

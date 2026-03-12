@@ -47,7 +47,8 @@ class User {
              role,
              contact_id AS "contact",
              is_active AS "isActive",
-             mfa_enabled AS "mfaEnabled"
+             mfa_enabled AS "mfaEnabled",
+             onboarding_completed AS "onboardingCompleted"
       FROM users
       WHERE email = $1`,
       [email]
@@ -56,7 +57,10 @@ class User {
     const user = result.rows[0];
 
     if (user) {
-      // compare hashed password to a new hash from password
+      // User may have no password (e.g. Google OAuth signup)
+      if (!user.password) {
+        throw new UnauthorizedError("This account uses Google sign-in. Please use the Google button to sign in.");
+      }
       const isValid = await bcrypt.compare(password, user.password);
       if (isValid === true) {
         delete user.password;

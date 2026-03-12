@@ -183,23 +183,6 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
         [subscription.code]
       );
       limits = limRes.rows[0] || null;
-    } else {
-      const freePlan = await db.query(
-        `SELECT sp.code, sp.name FROM subscription_products sp WHERE sp.code = 'homeowner_free' LIMIT 1`
-      );
-      if (freePlan.rows[0]) {
-        plan = { code: freePlan.rows[0].code, name: freePlan.rows[0].name };
-        const limRes = await db.query(
-          `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
-                  pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
-                  pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
-                  pl.max_documents_per_system AS "maxDocumentsPerSystem"
-           FROM plan_limits pl
-           JOIN subscription_products sp ON sp.id = pl.subscription_product_id
-           WHERE sp.code = 'homeowner_free'`
-        );
-        limits = limRes.rows[0] || null;
-      }
     }
 
     // Keep billing/status resilient in production if optional analytics tables are missing

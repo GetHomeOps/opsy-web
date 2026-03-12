@@ -34,7 +34,7 @@ async function sendToUser(communicationId, userId, title) {
   await Notification.create({
     userId,
     type: "communication_sent",
-    resourceId: null,
+    communicationId,
     title: title || "New message",
   });
 

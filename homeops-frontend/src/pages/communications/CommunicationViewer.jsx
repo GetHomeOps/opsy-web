@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
-import {DEFAULT_HEADER_IMAGE} from "../../utils/resourceThumbnail";
 
 function getVideoThumbnail(url) {
   if (!url) return null;
@@ -49,6 +48,7 @@ function CommunicationViewer() {
   const [communication, setCommunication] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [attachmentUrls, setAttachmentUrls] = useState({});
+  const [communicationsList, setCommunicationsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -72,10 +72,26 @@ function CommunicationViewer() {
   }, [fetchCommunication]);
 
   useEffect(() => {
+    AppApi.getCommunicationsForRecipient()
+      .then((list) => setCommunicationsList(list || []))
+      .catch(() => setCommunicationsList([]));
+  }, []);
+
+  useEffect(() => {
     const imageAtts = attachments.filter(
       (a) => a.type === "image" && a.fileKey,
     );
     imageAtts.forEach((att) => {
+      if (!attachmentUrls[att.fileKey]) {
+        AppApi.getInlineImageUrl(att.fileKey)
+          .then((url) =>
+            setAttachmentUrls((prev) => ({...prev, [att.fileKey]: url})),
+          )
+          .catch(() => {});
+      }
+    });
+    const pdfAtts = attachments.filter((a) => a.type === "pdf" && a.fileKey);
+    pdfAtts.forEach((att) => {
       if (!attachmentUrls[att.fileKey]) {
         AppApi.getPresignedPreviewUrl(att.fileKey)
           .then((url) =>
@@ -86,37 +102,46 @@ function CommunicationViewer() {
     });
   }, [attachments]);
 
+  const previewImageKey = communication?.imageKey;
+  useEffect(() => {
+    if (!previewImageKey) return;
+    AppApi.getInlineImageUrl(previewImageKey)
+      .then((url) =>
+        setAttachmentUrls((prev) => ({...prev, [previewImageKey]: url})),
+      )
+      .catch(() => {});
+  }, [previewImageKey]);
+
   const handleBack = () => navigate(`/${accountUrl}/home`);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[40vh] py-16">
-        <Loader2 className="w-10 h-10 text-[#456564] animate-spin mb-4" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
-      </div>
-    );
-  }
+  // Prev/next navigation
+  const currentId = id ? parseInt(id, 10) : null;
+  const sortedComms = [...communicationsList].sort((a, b) => {
+    const aAt = a.sentAt || a.sent_at || a.createdAt || 0;
+    const bAt = b.sentAt || b.sent_at || b.createdAt || 0;
+    return new Date(bAt) - new Date(aAt);
+  });
+  const currentIndex = sortedComms.findIndex(
+    (c) => (c.id ?? c.communication_id) === currentId,
+  );
+  const totalItems = sortedComms.length;
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex >= 0 && currentIndex < totalItems - 1;
 
-  if (error || !communication) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[40vh] py-16">
-        <p className="text-red-600 dark:text-red-400 mb-4">
-          {error || "Communication not found"}
-        </p>
-        <button
-          type="button"
-          onClick={handleBack}
-          className="inline-flex items-center gap-2 text-[#456564] hover:underline"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Home
-        </button>
-      </div>
-    );
-  }
+  const goPrev = () => {
+    if (!hasPrev) return;
+    const prev = sortedComms[currentIndex - 1];
+    const prevId = prev.id ?? prev.communication_id;
+    navigate(`/${accountUrl}/communications/${prevId}/view`);
+  };
+  const goNext = () => {
+    if (!hasNext) return;
+    const next = sortedComms[currentIndex + 1];
+    const nextId = next.id ?? next.communication_id;
+    navigate(`/${accountUrl}/communications/${nextId}/view`);
+  };
 
-  const bodyHtml = getBodyHtml(communication.content);
-  const previewImageKey = communication.imageKey;
+  const bodyHtml = communication ? getBodyHtml(communication.content) : "";
   const firstImageAtt = attachments.find(
     (a) => a.type === "image" && a.fileKey,
   );
@@ -126,127 +151,214 @@ function CommunicationViewer() {
       ? attachmentUrls[firstImageAtt.fileKey]
       : null;
 
-  useEffect(() => {
-    if (!previewImageKey) return;
-    AppApi.getPresignedPreviewUrl(previewImageKey)
-      .then((url) =>
-        setAttachmentUrls((prev) => ({...prev, [previewImageKey]: url})),
-      )
-      .catch(() => {});
-  }, [previewImageKey]);
-
   return (
-    <div className="max-w-2xl mx-auto">
-      <button
-        type="button"
-        onClick={handleBack}
-        className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        <span className="text-lg">Back to Home</span>
-      </button>
+    <div className="max-w-5xl mx-auto">
+      {/* Top bar: back + prev/next */}
+      <div className="flex items-center justify-between mb-6">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span className="text-lg">Back to Home</span>
+        </button>
 
-      <article className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-        {/* Header / thumbnail - only show if we have an image */}
-        {thumbnailUrl && (
-          <div className="aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-700">
-            <img
-              src={thumbnailUrl}
-              alt={communication.subject || ""}
-              className="w-full h-full object-cover"
-            />
+        {totalItems > 1 && currentIndex >= 0 && (
+          <div className="flex items-center">
+            <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
+              {currentIndex + 1} / {totalItems}
+            </span>
+            <button
+              className="btn shadow-none p-1"
+              title="Previous"
+              onClick={goPrev}
+              disabled={!hasPrev}
+            >
+              <svg
+                className={`fill-current shrink-0 ${
+                  hasPrev
+                    ? "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
+                    : "text-gray-200 dark:text-gray-700"
+                }`}
+                width="24"
+                height="24"
+                viewBox="0 0 18 18"
+              >
+                <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z" />
+              </svg>
+            </button>
+            <button
+              className="btn shadow-none p-1"
+              title="Next"
+              onClick={goNext}
+              disabled={!hasNext}
+            >
+              <svg
+                className={`fill-current shrink-0 ${
+                  hasNext
+                    ? "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
+                    : "text-gray-200 dark:text-gray-700"
+                }`}
+                width="24"
+                height="24"
+                viewBox="0 0 18 18"
+              >
+                <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z" />
+              </svg>
+            </button>
           </div>
         )}
+      </div>
 
-        {/* Content */}
-        <div className="p-6">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            {communication.subject || "Untitled"}
-          </h1>
+      {loading && (
+        <div className="flex flex-col items-center justify-center min-h-[40vh] py-16">
+          <Loader2 className="w-10 h-10 text-[#456564] animate-spin mb-4" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+        </div>
+      )}
 
-          {bodyHtml && (
-            <div
-              className="prose prose-sm dark:prose-invert max-w-none mb-6 text-gray-700 dark:text-gray-300 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg"
-              dangerouslySetInnerHTML={{__html: bodyHtml}}
-            />
+      {error && !loading && (
+        <div className="flex flex-col items-center justify-center min-h-[40vh] py-16">
+          <p className="text-red-600 dark:text-red-400 mb-4">
+            {error || "Communication not found"}
+          </p>
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-2 text-[#456564] hover:underline"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </button>
+        </div>
+      )}
+
+      {communication && !loading && (
+        <article className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+          {thumbnailUrl && (
+            <div className="aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-700">
+              <img
+                src={thumbnailUrl}
+                alt={communication.subject || ""}
+                className="w-full h-full object-cover"
+              />
+            </div>
           )}
 
-          {/* Attachments */}
-          {attachments.length > 0 && (
-            <div className="space-y-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
-              {attachments.map((att, idx) => {
-                if (att.type === "image") {
-                  const url = att.fileKey ? attachmentUrls[att.fileKey] : null;
-                  return url ? (
-                    <img
-                      key={idx}
-                      src={url}
-                      alt=""
-                      className="w-full rounded-lg object-cover max-h-60"
-                    />
-                  ) : null;
-                }
-                if (att.type === "pdf") {
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-600"
-                    >
-                      <FileUp className="w-5 h-5 text-red-500" />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {att.filename || "Document.pdf"}
-                      </span>
-                    </div>
-                  );
-                }
-                if (att.type === "video_link" && att.url) {
-                  const thumb = getVideoThumbnail(att.url);
-                  return (
-                    <div
-                      key={idx}
-                      className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/50"
-                    >
-                      {thumb && (
-                        <img
-                          src={thumb}
-                          alt=""
-                          className="w-full h-40 object-cover"
-                        />
-                      )}
+          <div className="p-6">
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              {communication.subject || "Untitled"}
+            </h1>
+
+            {bodyHtml && (
+              <div
+                className="prose prose-sm dark:prose-invert max-w-none mb-6 text-gray-700 dark:text-gray-300 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg"
+                dangerouslySetInnerHTML={{__html: bodyHtml}}
+              />
+            )}
+
+            {attachments.length > 0 && (
+              <div className="space-y-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
+                {attachments.map((att, idx) => {
+                  if (att.type === "image") {
+                    const url = att.fileKey
+                      ? attachmentUrls[att.fileKey]
+                      : null;
+                    return url ? (
                       <a
+                        key={idx}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block rounded-lg overflow-hidden"
+                      >
+                        <img
+                          src={url}
+                          alt=""
+                          className="w-full rounded-lg object-cover max-h-60 hover:opacity-90 transition-opacity cursor-pointer"
+                        />
+                      </a>
+                    ) : null;
+                  }
+                  if (att.type === "pdf") {
+                    const url = att.fileKey
+                      ? attachmentUrls[att.fileKey]
+                      : null;
+                    return (
+                      <a
+                        key={idx}
+                        href={url || "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-600 transition-colors ${
+                          url
+                            ? "bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800/50 cursor-pointer"
+                            : "bg-gray-50 dark:bg-gray-900/50 opacity-75 cursor-not-allowed pointer-events-none"
+                        }`}
+                        onClick={(e) => !url && e.preventDefault()}
+                      >
+                        <FileUp className="w-5 h-5 text-red-500" />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {att.filename || "Document.pdf"}
+                        </span>
+                        {url && (
+                          <ExternalLink className="w-4 h-4 shrink-0 text-gray-400" />
+                        )}
+                      </a>
+                    );
+                  }
+                  if (att.type === "video_link" && att.url) {
+                    const thumb = getVideoThumbnail(att.url);
+                    return (
+                      <div
+                        key={idx}
+                        className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/50"
+                      >
+                        {thumb && (
+                          <img
+                            src={thumb}
+                            alt=""
+                            className="w-full h-40 object-cover"
+                          />
+                        )}
+                        <a
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 p-3 text-[#456564] dark:text-emerald-400 hover:underline"
+                        >
+                          <Video className="w-5 h-5 shrink-0" />
+                          <span className="text-sm truncate">{att.url}</span>
+                          <ExternalLink className="w-4 h-4 shrink-0" />
+                        </a>
+                      </div>
+                    );
+                  }
+                  if (att.type === "web_link" && att.url) {
+                    return (
+                      <a
+                        key={idx}
                         href={att.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-3 text-[#456564] dark:text-emerald-400 hover:underline"
+                        className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
                       >
-                        <Video className="w-5 h-5 shrink-0" />
-                        <span className="text-sm truncate">{att.url}</span>
-                        <ExternalLink className="w-4 h-4 shrink-0" />
+                        <Link className="w-5 h-5 shrink-0 text-[#456564] dark:text-emerald-400" />
+                        <span className="text-sm truncate flex-1">
+                          {att.url}
+                        </span>
+                        <ExternalLink className="w-4 h-4 shrink-0 text-gray-400" />
                       </a>
-                    </div>
-                  );
-                }
-                if (att.type === "web_link" && att.url) {
-                  return (
-                    <a
-                      key={idx}
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
-                    >
-                      <Link className="w-5 h-5 shrink-0 text-[#456564] dark:text-emerald-400" />
-                      <span className="text-sm truncate flex-1">{att.url}</span>
-                      <ExternalLink className="w-4 h-4 shrink-0 text-gray-400" />
-                    </a>
-                  );
-                }
-                return null;
-              })}
-            </div>
-          )}
-        </div>
-      </article>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
+            )}
+          </div>
+        </article>
+      )}
     </div>
   );
 }

@@ -532,6 +532,54 @@ async function listCustomerInvoices(stripeCustomerId, limit = 12) {
   }));
 }
 
+/**
+ * Verify a Stripe Checkout session completed with successful payment or trial activation.
+ * Optionally checks that session metadata matches the expected userId.
+ * Returns { valid: true, session } only when:
+ * - payment_status is "paid", OR
+ * - checkout created a subscription whose current status is active/trialing.
+ */
+async function verifyCheckoutSession(sessionId, { userId } = {}) {
+  if (!sessionId) return { valid: false, reason: "missing_session_id" };
+  if (BILLING_MOCK_MODE || !stripe) return { valid: true, session: { id: sessionId, mock: true } };
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (userId && session.metadata?.user_id && String(session.metadata.user_id) !== String(userId)) {
+      return { valid: false, reason: "session_user_mismatch" };
+    }
+
+    if (session.payment_status === "paid") {
+      return { valid: true, session };
+    }
+
+    // For trial checkouts Stripe may return payment_status=no_payment_required.
+    // Require an actually active/trialing subscription (not incomplete/past_due).
+    if (session.subscription) {
+      try {
+        const subscription = await stripe.subscriptions.retrieve(session.subscription);
+        if (subscription.status === "active" || subscription.status === "trialing") {
+          return { valid: true, session };
+        }
+        return {
+          valid: false,
+          reason: "subscription_not_active",
+          subscriptionStatus: subscription.status,
+          paymentStatus: session.payment_status,
+          sessionStatus: session.status,
+        };
+      } catch (subErr) {
+        return { valid: false, reason: "subscription_retrieval_failed", message: subErr.message };
+      }
+    }
+
+    return { valid: false, reason: "payment_not_completed", paymentStatus: session.payment_status, sessionStatus: session.status };
+  } catch (err) {
+    return { valid: false, reason: "session_retrieval_failed", message: err.message };
+  }
+}
+
 module.exports = {
   stripe,
   getOrCreateStripeCustomer,
@@ -544,4 +592,5 @@ module.exports = {
   listActivePrices,
   getCustomerPaymentMethod,
   listCustomerInvoices,
+  verifyCheckoutSession,
 };

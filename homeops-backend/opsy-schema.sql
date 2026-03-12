@@ -784,26 +784,6 @@ CREATE INDEX idx_resources_status ON resources(status);
 CREATE INDEX idx_resources_sent_at ON resources(sent_at DESC);
 
 -- ============================================================
--- Notifications (when resources are sent, recipients get notified)
--- Homeowners and agents see these in the bell dropdown and home page
--- ============================================================
-
-CREATE TABLE notifications (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL DEFAULT 'resource_sent',
-    resource_id INTEGER REFERENCES resources(id) ON DELETE CASCADE,
-    invitation_id UUID REFERENCES invitations(id) ON DELETE SET NULL,
-    title VARCHAR(500),
-    read_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
-CREATE INDEX idx_notifications_read_at ON notifications(read_at) WHERE read_at IS NULL;
-
--- ============================================================
 -- Communications (Intercom-style: compose → audience → send)
 -- Templates, structured content, scheduling, delivery records, auto-send rules
 -- ============================================================
@@ -846,6 +826,27 @@ CREATE INDEX idx_communications_account ON communications(account_id);
 CREATE INDEX idx_communications_status ON communications(status);
 CREATE INDEX idx_communications_scheduled ON communications(scheduled_at) WHERE status = 'scheduled';
 CREATE INDEX idx_communications_created_by ON communications(created_by);
+
+-- ============================================================
+-- Notifications (when resources are sent, recipients get notified)
+-- Homeowners and agents see these in the bell dropdown and home page
+-- ============================================================
+
+CREATE TABLE notifications (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL DEFAULT 'resource_sent',
+    resource_id INTEGER REFERENCES resources(id) ON DELETE CASCADE,
+    communication_id INTEGER REFERENCES communications(id) ON DELETE CASCADE,
+    invitation_id UUID REFERENCES invitations(id) ON DELETE SET NULL,
+    title VARCHAR(500),
+    read_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX idx_notifications_read_at ON notifications(read_at) WHERE read_at IS NULL;
 
 CREATE TABLE comm_attachments (
     id SERIAL PRIMARY KEY,
