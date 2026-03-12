@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useCallback} from "react";
 import {useNavigate} from "react-router-dom";
-import {ArrowRight, Bookmark, Search} from "lucide-react";
+import {ArrowRight, Bookmark, Loader2, Search} from "lucide-react";
 
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
@@ -100,7 +100,7 @@ function ProfessionalDirectory() {
         <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className="grow flex items-center justify-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+            <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
           </main>
         </div>
       </div>

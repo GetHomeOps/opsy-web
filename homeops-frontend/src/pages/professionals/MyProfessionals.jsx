@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ChevronDown,
   Bookmark,
+  Loader2,
   Search,
   LayoutGrid,
   List,
@@ -152,7 +153,7 @@ function MyProfessionals() {
         <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/50 dark:bg-gray-900">
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className="grow flex items-center justify-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+            <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
           </main>
         </div>
       </div>

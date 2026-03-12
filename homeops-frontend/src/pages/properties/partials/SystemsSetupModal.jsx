@@ -5,7 +5,6 @@ import {
   X,
   Settings2,
   CheckCircle2,
-  Sparkles,
   Loader2,
   Search,
   SearchX,
@@ -27,15 +26,16 @@ import AppApi from "../../../api/api";
 import AIFindingsPanel from "./AIFindingsPanel";
 import UpgradePrompt from "../../../components/UpgradePrompt";
 import OpsyMascot from "../../../images/opsy1.png";
+import HouseIcon from "../../../images/house_icon.png";
 
 /** Step definitions for the stepper. Order matters. */
 const STEP_IDS = ["identity", "details", "inspection", "systems"];
 
 const STEP_CONFIG = {
-  identity: { label: "Identity" },
-  details: { label: "Details" },
-  systems: { label: "Systems" },
-  inspection: { label: "Inspection" },
+  identity: {label: "Identity"},
+  details: {label: "Details"},
+  systems: {label: "Systems"},
+  inspection: {label: "Inspection"},
 };
 
 /** Property detail fields populated from RentCast public records, keyed by display group. */
@@ -113,7 +113,10 @@ const AI_FIELD_GROUPS = [
   },
 ];
 
-const TOTAL_AI_FIELDS = AI_FIELD_GROUPS.reduce((acc, g) => acc + g.fields.length, 0);
+const TOTAL_AI_FIELDS = AI_FIELD_GROUPS.reduce(
+  (acc, g) => acc + g.fields.length,
+  0,
+);
 
 /** Returns { status, message, iconColor, bgGradient, cardClass, textClass } based on lookup result. */
 function getDataLookupStatus(predictError, retrievedCount, totalFields) {
@@ -123,8 +126,10 @@ function getDataLookupStatus(predictError, retrievedCount, totalFields) {
       message:
         "Whoops! Opsy was unable to pull data on your property. Please be on the lookout for how we can improve your experience.",
       iconColor: "text-red-500 dark:text-red-400",
-      bgGradient: "from-red-500/12 to-red-500/5 dark:from-red-500/20 dark:to-red-500/8",
-      cardClass: "border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30",
+      bgGradient:
+        "from-red-500/12 to-red-500/5 dark:from-red-500/20 dark:to-red-500/8",
+      cardClass:
+        "border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30",
       textClass: "text-red-800 dark:text-red-200",
     };
   }
@@ -135,8 +140,10 @@ function getDataLookupStatus(predictError, retrievedCount, totalFields) {
       message:
         "Congrats, we were able to pull most information from public records. Review and edit any fields below before saving.",
       iconColor: "text-emerald-600 dark:text-emerald-400",
-      bgGradient: "from-emerald-500/12 to-emerald-500/5 dark:from-emerald-500/20 dark:to-emerald-500/8",
-      cardClass: "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30",
+      bgGradient:
+        "from-emerald-500/12 to-emerald-500/5 dark:from-emerald-500/20 dark:to-emerald-500/8",
+      cardClass:
+        "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30",
       textClass: "text-emerald-800 dark:text-emerald-200",
     };
   }
@@ -145,8 +152,10 @@ function getDataLookupStatus(predictError, retrievedCount, totalFields) {
     message:
       "We were able to pull a portion of the property data. Please be on the lookout for a follow up from Opsy on how to improve your data.",
     iconColor: "text-amber-600 dark:text-amber-400",
-    bgGradient: "from-amber-500/12 to-amber-500/5 dark:from-amber-500/20 dark:to-amber-500/8",
-    cardClass: "border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30",
+    bgGradient:
+      "from-amber-500/12 to-amber-500/5 dark:from-amber-500/20 dark:to-amber-500/8",
+    cardClass:
+      "border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30",
     textClass: "text-amber-800 dark:text-amber-200",
   };
 }
@@ -170,7 +179,8 @@ function SystemsSetupModal({
   const {accountUrl: accountUrlParam} = useParams();
   const navigate = useNavigate();
   const accountUrl = accountUrlParam || "";
-  const upgradeUrl = upgradeUrlProp ?? (accountUrl ? `/${accountUrl}/settings/upgrade` : null);
+  const upgradeUrl =
+    upgradeUrlProp ?? (accountUrl ? `/${accountUrl}/settings/upgrade` : null);
 
   const initialIds = selectedSystemIds ?? [];
   const [selected, setSelected] = useState(new Set(initialIds));
@@ -202,7 +212,8 @@ function SystemsSetupModal({
   const [predicting, setPredicting] = useState(false);
   const [predictError, setPredictError] = useState(null);
   const [hasPredicted, setHasPredicted] = useState(false);
-  const [inspectionReportAvailable, setInspectionReportAvailable] = useState(null);
+  const [inspectionReportAvailable, setInspectionReportAvailable] =
+    useState(null);
   const [uploadedDocs, setUploadedDocs] = useState([]);
   const [analysisJobId, setAnalysisJobId] = useState(null);
   const [analysisStatus, setAnalysisStatus] = useState(null);
@@ -210,16 +221,19 @@ function SystemsSetupModal({
   const [analysisError, setAnalysisError] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
-  const [upgradePromptTitle, setUpgradePromptTitle] = useState("Upgrade your plan");
+  const [upgradePromptTitle, setUpgradePromptTitle] =
+    useState("Upgrade your plan");
   const [upgradePromptMsg, setUpgradePromptMsg] = useState("");
-  const [planRestrictionForAnalysis, setPlanRestrictionForAnalysis] = useState(false);
-  const [selectedSuggestedSystems, setSelectedSuggestedSystems] = useState(new Set());
+  const [planRestrictionForAnalysis, setPlanRestrictionForAnalysis] =
+    useState(false);
+  const [selectedSuggestedSystems, setSelectedSuggestedSystems] = useState(
+    new Set(),
+  );
   const [savingProperty, setSavingProperty] = useState(false);
   const [savePropertyError, setSavePropertyError] = useState(null);
   const pollIntervalRef = useRef(null);
   const hasAppliedSuggestedRef = useRef(false);
   const hasAutoSelectedSuggestedRef = useRef(false);
-
 
   const handlePlaceSelected = useCallback((parsed) => {
     setPredictError(null);
@@ -335,7 +349,9 @@ function SystemsSetupModal({
         await onSaveProperty(payload);
         setStep("inspection");
       } catch (err) {
-        setSavePropertyError(err?.message || "Failed to save property. Please try again.");
+        setSavePropertyError(
+          err?.message || "Failed to save property. Please try again.",
+        );
       } finally {
         setSavingProperty(false);
       }
@@ -376,7 +392,9 @@ function SystemsSetupModal({
         setHasPredicted(true);
       } else {
         setRetrievedFieldCount(0);
-        setPredictError("No property data found. Please enter values manually.");
+        setPredictError(
+          "No property data found. Please enter values manually.",
+        );
       }
     } catch (err) {
       const msg =
@@ -476,15 +494,27 @@ function SystemsSetupModal({
           standardIds.push(match.id);
         } else {
           const displayName =
-            raw.charAt(0).toUpperCase() + raw.slice(1).replace(/([A-Z])/g, " $1").trim();
+            raw.charAt(0).toUpperCase() +
+            raw
+              .slice(1)
+              .replace(/([A-Z])/g, " $1")
+              .trim();
           customNames.push(displayName);
         }
       });
-      const existingCustomNames = new Set(custom.map((c) => c.name.toLowerCase()));
+      const existingCustomNames = new Set(
+        custom.map((c) => c.name.toLowerCase()),
+      );
       const newCustomEntries = customNames
         .filter((name) => !existingCustomNames.has(name.toLowerCase()))
-        .map((name) => ({id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name}));
-      const idsToAddToSelected = [...standardIds, ...newCustomEntries.map((c) => c.id)];
+        .map((name) => ({
+          id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name,
+        }));
+      const idsToAddToSelected = [
+        ...standardIds,
+        ...newCustomEntries.map((c) => c.id),
+      ];
       if (idsToAddToSelected.length > 0) {
         setSelected((prev) => {
           const next = new Set(prev);
@@ -583,17 +613,25 @@ function SystemsSetupModal({
         }
       }
     },
-    [propertyId]
+    [propertyId],
   );
 
-  const {uploadDocument, isUploading, progress: uploadProgress, error: uploadError} = useDocumentUpload();
+  const {
+    uploadDocument,
+    isUploading,
+    progress: uploadProgress,
+    error: uploadError,
+  } = useDocumentUpload();
 
   const isTierError = (err) => {
     const status = err?.status ?? err?.response?.status;
     const msg = (err?.message || err?.error?.message || "").toLowerCase();
     return (
       status === 403 &&
-      (msg.includes("quota") || msg.includes("limit") || msg.includes("upgrade") || msg.includes("document limit"))
+      (msg.includes("quota") ||
+        msg.includes("limit") ||
+        msg.includes("upgrade") ||
+        msg.includes("document limit"))
     );
   };
 
@@ -601,7 +639,7 @@ function SystemsSetupModal({
     async (e) => {
       e.preventDefault();
       const files = Array.from(e.dataTransfer?.files ?? []).filter(
-        (f) => f.type === "application/pdf" || f.type.startsWith("image/")
+        (f) => f.type === "application/pdf" || f.type.startsWith("image/"),
       );
       if (!propertyId || files.length === 0) return;
       for (const file of files) {
@@ -618,14 +656,20 @@ function SystemsSetupModal({
               document_type: "inspection",
               system_key: "inspectionReport",
             });
-            setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
+            setUploadedDocs((prev) => [
+              ...prev,
+              {key: result.key, name: file.name, type: file.type},
+            ]);
             if (file.type === "application/pdf") {
               await startAnalysisForDoc(result.key, file.name, file.type);
               break;
             }
           } catch (docErr) {
             if (isTierError(docErr)) {
-              setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
+              setUploadedDocs((prev) => [
+                ...prev,
+                {key: result.key, name: file.name, type: file.type},
+              ]);
               setPlanRestrictionForAnalysis(true);
             } else {
               throw docErr;
@@ -637,7 +681,7 @@ function SystemsSetupModal({
         }
       }
     },
-    [propertyId, uploadDocument, startAnalysisForDoc]
+    [propertyId, uploadDocument, startAnalysisForDoc],
   );
 
   const handleInspectionFileSelect = useCallback(
@@ -659,14 +703,20 @@ function SystemsSetupModal({
               document_type: "inspection",
               system_key: "inspectionReport",
             });
-            setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
+            setUploadedDocs((prev) => [
+              ...prev,
+              {key: result.key, name: file.name, type: file.type},
+            ]);
             if (file.type === "application/pdf") {
               await startAnalysisForDoc(result.key, file.name, file.type);
               break;
             }
           } catch (docErr) {
             if (isTierError(docErr)) {
-              setUploadedDocs((prev) => [...prev, {key: result.key, name: file.name, type: file.type}]);
+              setUploadedDocs((prev) => [
+                ...prev,
+                {key: result.key, name: file.name, type: file.type},
+              ]);
               setPlanRestrictionForAnalysis(true);
             } else {
               throw docErr;
@@ -678,7 +728,7 @@ function SystemsSetupModal({
         }
       }
     },
-    [propertyId, uploadDocument, startAnalysisForDoc]
+    [propertyId, uploadDocument, startAnalysisForDoc],
   );
 
   const removeInspectionFile = (index) => {
@@ -717,7 +767,9 @@ function SystemsSetupModal({
     const sysKeys = suggested
       .map((s) => String(s.systemType ?? s.system_key ?? "").trim())
       .filter(Boolean);
-    const allSelected = sysKeys.length > 0 && sysKeys.every((k) => selectedSuggestedSystems.has(k));
+    const allSelected =
+      sysKeys.length > 0 &&
+      sysKeys.every((k) => selectedSuggestedSystems.has(k));
     setSelectedSuggestedSystems(allSelected ? new Set() : new Set(sysKeys));
   };
 
@@ -737,10 +789,17 @@ function SystemsSetupModal({
         {/* Opsy mascot and horizontal step tracker */}
         {!showSuccess && visibleSteps.length > 1 && (
           <div className="px-6 md:px-8 pt-6 pb-0">
-            <div className="flex justify-center mb-5">
-              <img src={OpsyMascot} alt="" className="h-24 w-auto object-contain" />
+            <div className="flex justify-center mb-4">
+              <img
+                src={OpsyMascot}
+                alt=""
+                className="h-24 w-auto object-contain"
+              />
             </div>
-            <nav className="flex items-start justify-center max-w-md mx-auto" aria-label="Progress">
+            <nav
+              className="flex items-start justify-center max-w-md mx-auto"
+              aria-label="Progress"
+            >
               {visibleSteps.map((stepId, idx) => {
                 const config = STEP_CONFIG[stepId];
                 const isActive = step === stepId;
@@ -816,84 +875,99 @@ function SystemsSetupModal({
             to { opacity: 1; transform: scale(1); }
           }
         `}</style>
-        <div className="p-6 md:p-8 relative min-h-[320px] pt-4">
+        <div className="p-6 md:p-8 relative min-h-[320px] pt-0">
           {/* Success overlay with animation */}
           {showSuccess && (
-          <>
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center bg-white/95 dark:bg-gray-800/95 rounded-lg z-10"
-              style={{animation: "systemsModalFadeIn 0.3s ease-out forwards"}}
-            >
+            <>
               <div
-                className="flex flex-col items-center gap-3"
-                style={{
-                  animation:
-                    "systemsModalScaleIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s forwards",
-                }}
+                className="absolute inset-0 flex flex-col items-center justify-center bg-white/95 dark:bg-gray-800/95 rounded-lg z-10"
+                style={{animation: "systemsModalFadeIn 0.3s ease-out forwards"}}
               >
-                <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
+                <div
+                  className="flex flex-col items-center gap-3"
+                  style={{
+                    animation:
+                      "systemsModalScaleIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s forwards",
+                  }}
+                >
+                  <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Setup complete!
+                  </p>
                 </div>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Setup complete!
+              </div>
+            </>
+          )}
+
+          {/* Step 1: Identity & Address — property name + address only (details from RentCast) */}
+          {step === "identity" && isNewProperty && (
+            <div
+              className="space-y-8 -mt-20"
+              style={{animation: "systemsStepFadeIn 0.35s ease-out forwards"}}
+            >
+              {/* Centered header */}
+              <div className="text-center">
+                <div className="flex flex-col items-center">
+                  <img
+                    src={HouseIcon}
+                    alt=""
+                    className="w-64 h-64 object-contain block -mb-10"
+                  />
+                  <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white mb-1">
+                    Let's set up your property
+                  </h2>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed mt-0">
+                  Enter the name and address. We'll look up property details
+                  from public records.
                 </p>
               </div>
-            </div>
-          </>
-        )}
 
-        {/* Step 1: Identity & Address — property name + address only (details from RentCast) */}
-        {step === "identity" && isNewProperty && (
-          <div
-            className="space-y-10"
-            style={{animation: "systemsStepFadeIn 0.35s ease-out forwards"}}
-          >
-            {/* Centered header */}
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#456564]/15 to-[#456564]/5 dark:from-[#456564]/25 dark:to-[#456564]/10 mb-5 shadow-sm">
-                <Sparkles
-                  className="w-8 h-8 text-[#456564]"
-                  strokeWidth={1.5}
-                />
-              </div>
-              <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white mb-2">
-                Let's set up your property
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
-                Enter the name and address. We'll look up property details from
-                public records.
-              </p>
-            </div>
+              {/* Centered form — property name + address only */}
+              <div className="flex justify-center">
+                <div className="w-full max-w-md space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
+                      Property name
+                    </label>
+                    <input
+                      type="text"
+                      value={identityFields.propertyName}
+                      onChange={(e) =>
+                        handleIdentityFieldChange(
+                          "propertyName",
+                          e.target.value,
+                        )
+                      }
+                      placeholder="e.g. Lakewood Estate, My Home"
+                      className="form-input w-full rounded-xl border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] transition-colors py-3"
+                    />
+                  </div>
 
-            {/* Centered form — property name + address only */}
-            <div className="flex justify-center">
-              <div className="w-full max-w-md space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
-                    Property name
-                  </label>
-                  <input
-                    type="text"
-                    value={identityFields.propertyName}
-                    onChange={(e) =>
-                      handleIdentityFieldChange("propertyName", e.target.value)
-                    }
-                    placeholder="e.g. Lakewood Estate, My Home"
-                    className="form-input w-full rounded-xl border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] transition-colors py-3"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
-                    Address
-                    {placesLoaded && (
-                      <span className="ml-2 text-emerald-600 dark:text-emerald-400 text-xs font-normal">
-                        Autocomplete active
-                      </span>
-                    )}
-                  </label>
-                  {AddressAutocompleteWrapper ? (
-                    <AddressAutocompleteWrapper>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
+                      Address
+                      {placesLoaded && (
+                        <span className="ml-2 text-emerald-600 dark:text-emerald-400 text-xs font-normal">
+                          Autocomplete active
+                        </span>
+                      )}
+                    </label>
+                    {AddressAutocompleteWrapper ? (
+                      <AddressAutocompleteWrapper>
+                        <input
+                          key={String(modalOpen)}
+                          ref={addressInputRef}
+                          type="text"
+                          defaultValue={identityFields.address}
+                          placeholder="Start typing an address to search..."
+                          className="form-input w-full rounded-xl border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] transition-colors py-3"
+                          autoComplete="off"
+                        />
+                      </AddressAutocompleteWrapper>
+                    ) : (
                       <input
                         key={String(modalOpen)}
                         ref={addressInputRef}
@@ -903,662 +977,687 @@ function SystemsSetupModal({
                         className="form-input w-full rounded-xl border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] transition-colors py-3"
                         autoComplete="off"
                       />
-                    </AddressAutocompleteWrapper>
-                  ) : (
-                    <input
-                      key={String(modalOpen)}
-                      ref={addressInputRef}
-                      type="text"
-                      defaultValue={identityFields.address}
-                      placeholder="Start typing an address to search..."
-                      className="form-input w-full rounded-xl border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] transition-colors py-3"
-                      autoComplete="off"
-                    />
-                  )}
-                  {placesError && (
-                    <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
-                      {placesError} — you can still type the address manually.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-center gap-3 pt-6">
-              {!isNewProperty && (
-                <button
-                  type="button"
-                  onClick={() => setStep("details")}
-                  className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
-                >
-                  Skip
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleIdentityContinue}
-                className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 transition-colors"
-              >
-                Continue
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Property Data Lookup — fetch details from RentCast public records (new properties only) */}
-        {step === "details" && isNewProperty && (
-          <div
-            className="space-y-6"
-            style={{animation: "systemsStepFadeIn 0.35s ease-out forwards"}}
-          >
-            <div className="text-center pb-2">
-              {(() => {
-                const showStatusMessage = hasPredicted || predictError;
-                const status = getDataLookupStatus(
-                  predictError,
-                  retrievedFieldCount,
-                  TOTAL_AI_FIELDS,
-                );
-                const iconBoxClass = showStatusMessage
-                  ? `bg-gradient-to-br ${status.bgGradient}`
-                  : "bg-gradient-to-br from-[#456564]/12 to-[#456564]/5 dark:from-[#456564]/20 dark:to-[#456564]/8";
-                const iconClass = showStatusMessage
-                  ? status.iconColor
-                  : "text-[#456564]";
-                const StatusIcon = showStatusMessage ? SearchX : Database;
-                return (
-                  <>
-                    <div
-                      className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl ${iconBoxClass} mb-4 shadow-sm`}
-                    >
-                      <StatusIcon
-                        className={`w-8 h-8 ${iconClass}`}
-                        strokeWidth={1.5}
-                      />
-                    </div>
-                    <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white mb-2">
-                      Property Data Lookup
-                    </h2>
-                    {showStatusMessage ? (
-                      <div
-                        className={`rounded-xl border px-4 py-3 max-w-md mx-auto ${status.cardClass}`}
-                      >
-                        <p
-                          className={`text-sm leading-relaxed ${status.textClass}`}
-                        >
-                          {status.message}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
-                        Pull property details from public records based on the address
-                        you provided. You can review and edit every field before saving.
+                    )}
+                    {placesError && (
+                      <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
+                        {placesError} — you can still type the address manually.
                       </p>
                     )}
-                  </>
-                );
-              })()}
-            </div>
+                  </div>
+                </div>
+              </div>
 
-            {/* Property lookup button — one lookup per property */}
-            {(() => {
-              const hasAddress = !!(
-                identityFields.address?.trim() ||
-                identityFields.addressLine1?.trim()
-              );
-              const lookupUsed = hasPredicted || predictError;
-              const canLookup = hasAddress && !lookupUsed && !predicting;
-              return (
-                <div className="flex flex-col items-center gap-3">
+              <div className="flex justify-center gap-3 pt-4">
+                {!isNewProperty && (
                   <button
                     type="button"
-                    disabled={!canLookup}
-                    onClick={handleLookupProperty}
-                    className="btn bg-gradient-to-r from-[#456564] to-[#3a5548] hover:from-[#34514f] hover:to-[#2d4640] text-white shadow-sm inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    onClick={() => setStep("details")}
+                    className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
                   >
-                    {predicting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Search className="w-4 h-4" />
-                    )}
-                    {predicting
-                      ? "Looking up property..."
-                      : "Look up property data"}
+                    Skip
                   </button>
-                  {!hasAddress && (
+                )}
+                <button
+                  type="button"
+                  onClick={handleIdentityContinue}
+                  className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 transition-colors"
+                >
+                  Continue
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Property Data Lookup — fetch details from RentCast public records (new properties only) */}
+          {step === "details" && isNewProperty && (
+            <div
+              className="space-y-6"
+              style={{animation: "systemsStepFadeIn 0.35s ease-out forwards"}}
+            >
+              <div className="text-center pb-2">
+                {(() => {
+                  const showStatusMessage = hasPredicted || predictError;
+                  const status = getDataLookupStatus(
+                    predictError,
+                    retrievedFieldCount,
+                    TOTAL_AI_FIELDS,
+                  );
+                  const iconBoxClass = showStatusMessage
+                    ? `bg-gradient-to-br ${status.bgGradient}`
+                    : "bg-gradient-to-br from-[#456564]/12 to-[#456564]/5 dark:from-[#456564]/20 dark:to-[#456564]/8";
+                  const iconClass = showStatusMessage
+                    ? status.iconColor
+                    : "text-[#456564]";
+                  const StatusIcon = showStatusMessage ? SearchX : Database;
+                  return (
+                    <>
+                      <div
+                        className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl ${iconBoxClass} mb-4 shadow-sm`}
+                      >
+                        <StatusIcon
+                          className={`w-8 h-8 ${iconClass}`}
+                          strokeWidth={1.5}
+                        />
+                      </div>
+                      <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white mb-2">
+                        Property Data Lookup
+                      </h2>
+                      {showStatusMessage ? (
+                        <div
+                          className={`rounded-xl border px-4 py-3 max-w-md mx-auto ${status.cardClass}`}
+                        >
+                          <p
+                            className={`text-sm leading-relaxed ${status.textClass}`}
+                          >
+                            {status.message}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
+                          Pull property details from public records based on the
+                          address you provided. You can review and edit every
+                          field before saving.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Property lookup button — one lookup per property */}
+              {(() => {
+                const hasAddress = !!(
+                  identityFields.address?.trim() ||
+                  identityFields.addressLine1?.trim()
+                );
+                const lookupUsed = hasPredicted || predictError;
+                const canLookup = hasAddress && !lookupUsed && !predicting;
+                return (
+                  <div className="flex flex-col items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={!canLookup}
+                      onClick={handleLookupProperty}
+                      className="btn bg-gradient-to-r from-[#456564] to-[#3a5548] hover:from-[#34514f] hover:to-[#2d4640] text-white shadow-sm inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {predicting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Search className="w-4 h-4" />
+                      )}
+                      {predicting
+                        ? "Looking up property..."
+                        : "Look up property data"}
+                    </button>
+                    {!hasAddress && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Enter an address on the previous step to look up
+                        property data.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Property data fields (editable) */}
+              {hasPredicted && (
+                <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-5 md:p-6 space-y-5 max-h-[45vh] overflow-y-auto">
+                  {AI_FIELD_GROUPS.map((group) => (
+                    <div key={group.label}>
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                        {group.label}
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {group.fields.map((f) => (
+                          <div key={f.key}>
+                            <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                              {f.label}
+                            </label>
+                            <input
+                              type={f.type === "number" ? "number" : "text"}
+                              value={aiFields[f.key] ?? ""}
+                              onChange={(e) =>
+                                setAiFields((prev) => ({
+                                  ...prev,
+                                  [f.key]: e.target.value,
+                                }))
+                              }
+                              className="form-input w-full text-sm rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#456564]/20 focus:border-[#456564] transition-colors py-1.5"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {savePropertyError &&
+                (() => {
+                  const isPropertyLimit = /property limit/i.test(
+                    savePropertyError,
+                  );
+                  if (isPropertyLimit) {
+                    return (
+                      <div className="flex flex-col gap-3 rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/80 dark:bg-amber-900/20 p-4">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                              Property limit reached
+                            </p>
+                            <p className="text-sm text-amber-700 dark:text-amber-300/90 mt-0.5">
+                              You've used all properties on your current plan.
+                              Upgrade to add more.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUpgradePromptTitle("Property limit reached");
+                            setUpgradePromptMsg(
+                              "You've used all properties on your current plan. Upgrade to add more.",
+                            );
+                            setUpgradePromptOpen(true);
+                          }}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-sm font-medium transition-colors"
+                        >
+                          <ArrowUpCircle className="w-4 h-4" />
+                          Upgrade plan
+                        </button>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="flex items-center gap-1.5 text-sm text-red-500 dark:text-red-400">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      <span>{savePropertyError}</span>
+                    </div>
+                  );
+                })()}
+              <div className="flex justify-between gap-3 pt-0">
+                <button
+                  type="button"
+                  onClick={() => setStep("identity")}
+                  disabled={savingProperty}
+                  className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-60"
+                >
+                  Back
+                </button>
+                <div className="flex gap-3">
+                  {!isNewProperty && (
+                    <button
+                      type="button"
+                      onClick={() => setStep("inspection")}
+                      className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                    >
+                      Skip
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDetailsContinue}
+                    disabled={savingProperty}
+                    className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 disabled:opacity-60"
+                  >
+                    {savingProperty ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving property…
+                      </>
+                    ) : (
+                      "Continue"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Property Systems (final step — after inspection) */}
+          {step === "systems" && (
+            <div
+              style={{animation: "systemsStepFadeIn 0.35s ease-out forwards"}}
+            >
+              <div className="flex items-center gap-4 mb-8">
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm">
+                  <Settings2 className="w-6 h-6 text-[#456564]" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
+                    Property Systems
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+                    Please deselect the systems you do not wish to track and
+                    maintain.
+                  </p>
+                </div>
+              </div>
+
+              {/* Predefined systems grid */}
+              <div className="mb-8">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
+                  Common systems
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {SETUP_SYSTEMS.map((sys) => {
+                    const Icon = sys.icon;
+                    const isSelected = selected.has(sys.id);
+                    return (
+                      <button
+                        key={sys.id}
+                        type="button"
+                        onClick={() => toggleSystem(sys.id)}
+                        className={`group relative flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all duration-200 ${
+                          isSelected
+                            ? "border-[#456564] bg-[#456564]/[0.04] dark:bg-[#456564]/10 ring-1 ring-[#456564]/20"
+                            : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-800/60"
+                        }`}
+                      >
+                        <div
+                          className={`flex items-center justify-center w-9 h-9 rounded-lg shrink-0 transition-colors duration-200 ${
+                            isSelected
+                              ? "bg-[#456564] text-white"
+                              : "bg-gray-100 dark:bg-gray-700/70 text-gray-400 dark:text-gray-500 group-hover:bg-gray-200/70 dark:group-hover:bg-gray-700"
+                          }`}
+                        >
+                          <Icon className="w-[18px] h-[18px]" />
+                        </div>
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          <span
+                            className={`text-sm font-medium block leading-tight ${
+                              isSelected
+                                ? "text-gray-900 dark:text-white"
+                                : "text-gray-700 dark:text-gray-300"
+                            }`}
+                          >
+                            {sys.name}
+                          </span>
+                          {sys.description && (
+                            <span className="text-[11px] leading-snug text-gray-400 dark:text-gray-500 mt-0.5 block">
+                              {sys.description}
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className={`w-[18px] h-[18px] rounded flex items-center justify-center shrink-0 mt-0.5 transition-all duration-200 ${
+                            isSelected
+                              ? "bg-[#456564] text-white"
+                              : "border border-gray-300 dark:border-gray-600 group-hover:border-gray-400 dark:group-hover:border-gray-500"
+                          }`}
+                        >
+                          {isSelected && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 12 12"
+                            >
+                              <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7a1 1 0 10-1.414-1.414z" />
+                            </svg>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Add custom system */}
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Add Additional System(s)
+                </h3>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newCustomName}
+                    onChange={(e) => setNewCustomName(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      (e.preventDefault(), addCustomSystem())
+                    }
+                    placeholder="e.g. Solar, Pool, Elevator"
+                    className="form-input flex-1 rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomSystem}
+                    className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Custom systems list */}
+              {custom.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Custom systems
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {custom.map((sys) => {
+                      const isSelected = selected.has(sys.id);
+                      return (
+                        <div
+                          key={sys.id}
+                          className={`inline-flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg border ${
+                            isSelected
+                              ? "border-[#456564] bg-[#456564]/5 dark:bg-[#456564]/10"
+                              : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/50"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleSystem(sys.id)}
+                            className="text-sm font-medium text-gray-800 dark:text-gray-200"
+                          >
+                            {sys.name}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeCustomSystem(sys.id)}
+                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500"
+                            aria-label={`Remove ${sys.name}`}
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between gap-3 pt-8 border-t border-gray-200/80 dark:border-gray-700/80 mt-8">
+                <button
+                  type="button"
+                  onClick={() => goToStep("inspection")}
+                  className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                >
+                  Back
+                </button>
+                <div className="flex gap-3">
+                  {!isNewProperty && (
+                    <button
+                      type="button"
+                      onClick={handleSkipSystems}
+                      className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                    >
+                      Skip
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2"
+                  >
+                    Complete setup
+                    <CheckCircle2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Inspection Report (before systems) */}
+          {step === "inspection" && (
+            <div
+              className="space-y-8"
+              style={{animation: "systemsStepFadeIn 0.35s ease-out forwards"}}
+            >
+              <div className="text-center max-w-md mx-auto">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#456564]/15 to-[#456564]/5 dark:from-[#456564]/25 dark:to-[#456564]/10 mb-5">
+                  <FileCheck
+                    className="w-8 h-8 text-[#456564]"
+                    strokeWidth={1.5}
+                  />
+                </div>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Inspection Report
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Do you have an inspection report available for this property?
+                </p>
+              </div>
+
+              {/* Yes/No toggle */}
+              <div className="flex justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setInspectionReportAvailable(true)}
+                  className={`flex items-center gap-3 px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
+                    inspectionReportAvailable === true
+                      ? "border-[#456564] bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm"
+                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800/50"
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      inspectionReportAvailable === true
+                        ? "border-[#456564] bg-[#456564]"
+                        : "border-gray-300 dark:border-gray-500"
+                    }`}
+                  >
+                    {inspectionReportAvailable === true && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <span
+                    className={`font-medium ${
+                      inspectionReportAvailable === true
+                        ? "text-gray-900 dark:text-white"
+                        : "text-gray-600 dark:text-gray-400"
+                    }`}
+                  >
+                    Yes
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInspectionReportAvailable(false)}
+                  className={`flex items-center gap-3 px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
+                    inspectionReportAvailable === false
+                      ? "border-[#456564] bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm"
+                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800/50"
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      inspectionReportAvailable === false
+                        ? "border-[#456564] bg-[#456564]"
+                        : "border-gray-300 dark:border-gray-500"
+                    }`}
+                  >
+                    {inspectionReportAvailable === false && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <span
+                    className={`font-medium ${
+                      inspectionReportAvailable === false
+                        ? "text-gray-900 dark:text-white"
+                        : "text-gray-600 dark:text-gray-400"
+                    }`}
+                  >
+                    No
+                  </span>
+                </button>
+              </div>
+
+              {/* File upload (shown when Yes) */}
+              {inspectionReportAvailable === true && (
+                <div className="space-y-4">
+                  {!propertyId && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">
-                      Enter an address on the previous step to look up property
-                      data.
+                      Save the property first to upload and analyze inspection
+                      reports.
                     </p>
                   )}
-                </div>
-              );
-            })()}
-
-            {/* Property data fields (editable) */}
-            {hasPredicted && (
-              <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-5 md:p-6 space-y-5 max-h-[45vh] overflow-y-auto">
-                {AI_FIELD_GROUPS.map((group) => (
-                  <div key={group.label}>
-                    <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                      {group.label}
-                    </h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {group.fields.map((f) => (
-                        <div key={f.key}>
-                          <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            {f.label}
-                          </label>
-                          <input
-                            type={f.type === "number" ? "number" : "text"}
-                            value={aiFields[f.key] ?? ""}
-                            onChange={(e) =>
-                              setAiFields((prev) => ({
-                                ...prev,
-                                [f.key]: e.target.value,
-                              }))
-                            }
-                            className="form-input w-full text-sm rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#456564]/20 focus:border-[#456564] transition-colors py-1.5"
-                          />
+                  <div
+                    className="rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30 p-8 transition-all duration-300"
+                    style={{
+                      animation: "systemsStepFadeIn 0.3s ease-out forwards",
+                    }}
+                  >
+                    <div
+                      className="relative flex flex-col items-center justify-center min-h-[160px] py-6"
+                      onDragOver={(e) => e.preventDefault()}
+                      onDragLeave={(e) => e.preventDefault()}
+                      onDrop={
+                        propertyId
+                          ? handleInspectionFileDrop
+                          : (e) => e.preventDefault()
+                      }
+                    >
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,image/*"
+                        onChange={handleInspectionFileSelect}
+                        disabled={!propertyId || isUploading}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
+                        id="inspection-file-input"
+                      />
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-12 h-12 text-[#456564] animate-spin mb-4" />
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Uploading… {uploadProgress}%
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-12 h-12 text-gray-400 dark:text-gray-500 mb-4" />
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Drag & drop your inspection report here
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                            or click to browse (PDF, images). AI analysis runs
+                            for PDFs.
+                          </p>
+                        </>
+                      )}
+                      {uploadError && (
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-2">
+                          {uploadError}
+                        </p>
+                      )}
+                      {uploadedDocs.length > 0 && (
+                        <div className="w-full max-w-sm space-y-2 mt-4">
+                          {uploadedDocs.map((doc, idx) => (
+                            <div
+                              key={`${doc.key}-${idx}`}
+                              className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600"
+                            >
+                              <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">
+                                {doc.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeInspectionFile(idx)}
+                                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500"
+                                aria-label={`Remove ${doc.name}`}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
 
-            {savePropertyError && (
-              (() => {
-                const isPropertyLimit = /property limit/i.test(savePropertyError);
-                if (isPropertyLimit) {
-                  return (
-                    <div className="flex flex-col gap-3 rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/80 dark:bg-amber-900/20 p-4">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                            Property limit reached
-                          </p>
-                          <p className="text-sm text-amber-700 dark:text-amber-300/90 mt-0.5">
-                            You've used all properties on your current plan. Upgrade to add more.
-                          </p>
-                        </div>
-                      </div>
+                  {/* Single inline upgrade message when plan doesn't support AI analysis */}
+                  {planRestrictionForAnalysis && (
+                    <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/80 dark:bg-amber-900/20 p-5">
+                      <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                        Your current plan does not include AI report analysis.
+                        Upgrade to unlock personalized insights, prioritized
+                        recommendations, and action items tailored to your
+                        inspection report.
+                      </p>
                       <button
                         type="button"
-                        onClick={() => {
-                          setUpgradePromptTitle("Property limit reached");
-                          setUpgradePromptMsg("You've used all properties on your current plan. Upgrade to add more.");
-                          setUpgradePromptOpen(true);
-                        }}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-sm font-medium transition-colors"
+                        onClick={() =>
+                          navigate(
+                            upgradeUrl ??
+                              (accountUrl
+                                ? `/${accountUrl}/settings/upgrade`
+                                : "/settings/upgrade"),
+                          )
+                        }
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-sm font-medium transition-colors"
                       >
                         <ArrowUpCircle className="w-4 h-4" />
                         Upgrade plan
                       </button>
                     </div>
-                  );
-                }
-                return (
-                  <div className="flex items-center gap-1.5 text-sm text-red-500 dark:text-red-400">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                    <span>{savePropertyError}</span>
-                  </div>
-                );
-              })()
-            )}
-            <div className="flex justify-between gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setStep("identity")}
-                disabled={savingProperty}
-                className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-60"
-              >
-                Back
-              </button>
-              <div className="flex gap-3">
-                {!isNewProperty && (
-                  <button
-                    type="button"
-                    onClick={() => setStep("inspection")}
-                    className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-                  >
-                    Skip
-                  </button>
-                )}
+                  )}
+
+                  {/* AI Findings panel — hidden when plan restriction (we show inline message above instead) */}
+                  {!planRestrictionForAnalysis &&
+                    (analysisJobId || analysisStatus) && (
+                      <AIFindingsPanel
+                        status={analysisStatus}
+                        progress={analysisProgress}
+                        errorMessage={analysisError}
+                        result={analysisResult}
+                        suggestedSystemsToAdd={
+                          analysisResult?.suggestedSystemsToAdd ?? []
+                        }
+                        selectedSuggestedSystems={[...selectedSuggestedSystems]}
+                        onToggleSuggestedSystem={toggleSuggestedSystem}
+                        onToggleSelectAllSuggested={
+                          handleToggleSelectAllSuggested
+                        }
+                        onScheduleMaintenance={undefined}
+                        onRetry={handleRetryAnalysis}
+                      />
+                    )}
+                </div>
+              )}
+
+              <div className="flex justify-between items-center gap-3 pt-4">
+                <div>
+                  {canGoToStep("details") && (
+                    <button
+                      type="button"
+                      onClick={() => goToStep("details")}
+                      className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                    >
+                      Back
+                    </button>
+                  )}
+                </div>
                 <button
                   type="button"
-                  onClick={handleDetailsContinue}
-                  disabled={savingProperty}
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 disabled:opacity-60"
+                  onClick={handleInspectionContinue}
+                  disabled={
+                    analysisStatus === "queued" ||
+                    analysisStatus === "processing"
+                  }
+                  className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 ml-auto disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {savingProperty ? (
+                  {analysisStatus === "queued" ||
+                  analysisStatus === "processing" ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Saving property…
+                      Analyzing…
                     </>
                   ) : (
-                    "Continue"
+                    <>
+                      Continue
+                      <ChevronRight className="w-4 h-4" />
+                    </>
                   )}
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Step 4: Property Systems (final step — after inspection) */}
-        {step === "systems" && (
-          <div
-            style={{animation: "systemsStepFadeIn 0.35s ease-out forwards"}}
-          >
-            <div className="flex items-center gap-4 mb-8">
-              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm">
-                <Settings2 className="w-6 h-6 text-[#456564]" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                  Property Systems
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-                  Please deselect the systems you do not wish to track and maintain.
-                </p>
-              </div>
-            </div>
-
-            {/* Predefined systems grid */}
-            <div className="mb-8">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
-                Common systems
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {SETUP_SYSTEMS.map((sys) => {
-                  const Icon = sys.icon;
-                  const isSelected = selected.has(sys.id);
-                  return (
-                    <button
-                      key={sys.id}
-                      type="button"
-                      onClick={() => toggleSystem(sys.id)}
-                      className={`group relative flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all duration-200 ${
-                        isSelected
-                          ? "border-[#456564] bg-[#456564]/[0.04] dark:bg-[#456564]/10 ring-1 ring-[#456564]/20"
-                          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-800/60"
-                      }`}
-                    >
-                      <div
-                        className={`flex items-center justify-center w-9 h-9 rounded-lg shrink-0 transition-colors duration-200 ${
-                          isSelected
-                            ? "bg-[#456564] text-white"
-                            : "bg-gray-100 dark:bg-gray-700/70 text-gray-400 dark:text-gray-500 group-hover:bg-gray-200/70 dark:group-hover:bg-gray-700"
-                        }`}
-                      >
-                        <Icon className="w-[18px] h-[18px]" />
-                      </div>
-                      <div className="flex-1 min-w-0 pt-0.5">
-                        <span
-                          className={`text-sm font-medium block leading-tight ${
-                            isSelected
-                              ? "text-gray-900 dark:text-white"
-                              : "text-gray-700 dark:text-gray-300"
-                          }`}
-                        >
-                          {sys.name}
-                        </span>
-                        {sys.description && (
-                          <span className="text-[11px] leading-snug text-gray-400 dark:text-gray-500 mt-0.5 block">
-                            {sys.description}
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className={`w-[18px] h-[18px] rounded flex items-center justify-center shrink-0 mt-0.5 transition-all duration-200 ${
-                          isSelected
-                            ? "bg-[#456564] text-white"
-                            : "border border-gray-300 dark:border-gray-600 group-hover:border-gray-400 dark:group-hover:border-gray-500"
-                        }`}
-                      >
-                        {isSelected && (
-                          <svg
-                            className="w-2.5 h-2.5 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 12 12"
-                          >
-                            <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7a1 1 0 10-1.414-1.414z" />
-                          </svg>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Add custom system */}
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Add Additional System(s)
-              </h3>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newCustomName}
-                  onChange={(e) => setNewCustomName(e.target.value)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && (e.preventDefault(), addCustomSystem())
-                  }
-                  placeholder="e.g. Solar, Pool, Elevator"
-                  className="form-input flex-1 rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                />
-                <button
-                  type="button"
-                  onClick={addCustomSystem}
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add
-                </button>
-              </div>
-            </div>
-
-            {/* Custom systems list */}
-            {custom.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  Custom systems
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {custom.map((sys) => {
-                    const isSelected = selected.has(sys.id);
-                    return (
-                      <div
-                        key={sys.id}
-                        className={`inline-flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg border ${
-                          isSelected
-                            ? "border-[#456564] bg-[#456564]/5 dark:bg-[#456564]/10"
-                            : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/50"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => toggleSystem(sys.id)}
-                          className="text-sm font-medium text-gray-800 dark:text-gray-200"
-                        >
-                          {sys.name}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeCustomSystem(sys.id)}
-                          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500"
-                          aria-label={`Remove ${sys.name}`}
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between gap-3 pt-8 border-t border-gray-200/80 dark:border-gray-700/80 mt-8">
-              <button
-                type="button"
-                onClick={() => goToStep("inspection")}
-                className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-              >
-                Back
-              </button>
-              <div className="flex gap-3">
-                {!isNewProperty && (
-                  <button
-                    type="button"
-                    onClick={handleSkipSystems}
-                    className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-                  >
-                    Skip
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2"
-                >
-                  Complete setup
-                  <CheckCircle2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Inspection Report (before systems) */}
-        {step === "inspection" && (
-          <div
-            className="space-y-8"
-            style={{animation: "systemsStepFadeIn 0.35s ease-out forwards"}}
-          >
-            <div className="text-center max-w-md mx-auto">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#456564]/15 to-[#456564]/5 dark:from-[#456564]/25 dark:to-[#456564]/10 mb-5">
-                <FileCheck
-                  className="w-8 h-8 text-[#456564]"
-                  strokeWidth={1.5}
-                />
-              </div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                Inspection Report
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-                Do you have an inspection report available for this property?
-              </p>
-            </div>
-
-            {/* Yes/No toggle */}
-            <div className="flex justify-center gap-4">
-              <button
-                type="button"
-                onClick={() => setInspectionReportAvailable(true)}
-                className={`flex items-center gap-3 px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
-                  inspectionReportAvailable === true
-                    ? "border-[#456564] bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm"
-                    : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800/50"
-                }`}
-              >
-                <div
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    inspectionReportAvailable === true
-                      ? "border-[#456564] bg-[#456564]"
-                      : "border-gray-300 dark:border-gray-500"
-                  }`}
-                >
-                  {inspectionReportAvailable === true && (
-                    <div className="w-2 h-2 rounded-full bg-white" />
-                  )}
-                </div>
-                <span
-                  className={`font-medium ${
-                    inspectionReportAvailable === true
-                      ? "text-gray-900 dark:text-white"
-                      : "text-gray-600 dark:text-gray-400"
-                  }`}
-                >
-                  Yes
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setInspectionReportAvailable(false)}
-                className={`flex items-center gap-3 px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
-                  inspectionReportAvailable === false
-                    ? "border-[#456564] bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm"
-                    : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800/50"
-                }`}
-              >
-                <div
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    inspectionReportAvailable === false
-                      ? "border-[#456564] bg-[#456564]"
-                      : "border-gray-300 dark:border-gray-500"
-                  }`}
-                >
-                  {inspectionReportAvailable === false && (
-                    <div className="w-2 h-2 rounded-full bg-white" />
-                  )}
-                </div>
-                <span
-                  className={`font-medium ${
-                    inspectionReportAvailable === false
-                      ? "text-gray-900 dark:text-white"
-                      : "text-gray-600 dark:text-gray-400"
-                  }`}
-                >
-                  No
-                </span>
-              </button>
-            </div>
-
-            {/* File upload (shown when Yes) */}
-            {inspectionReportAvailable === true && (
-              <div className="space-y-4">
-                {!propertyId && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    Save the property first to upload and analyze inspection reports.
-                  </p>
-                )}
-                <div
-                  className="rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30 p-8 transition-all duration-300"
-                  style={{animation: "systemsStepFadeIn 0.3s ease-out forwards"}}
-                >
-                  <div
-                    className="relative flex flex-col items-center justify-center min-h-[160px] py-6"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDragLeave={(e) => e.preventDefault()}
-                    onDrop={propertyId ? handleInspectionFileDrop : (e) => e.preventDefault()}
-                  >
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf,image/*"
-                      onChange={handleInspectionFileSelect}
-                      disabled={!propertyId || isUploading}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
-                      id="inspection-file-input"
-                    />
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="w-12 h-12 text-[#456564] animate-spin mb-4" />
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Uploading… {uploadProgress}%
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-12 h-12 text-gray-400 dark:text-gray-500 mb-4" />
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Drag & drop your inspection report here
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                          or click to browse (PDF, images). AI analysis runs for PDFs.
-                        </p>
-                      </>
-                    )}
-                    {uploadError && (
-                      <p className="text-xs text-red-500 dark:text-red-400 mt-2">{uploadError}</p>
-                    )}
-                    {uploadedDocs.length > 0 && (
-                      <div className="w-full max-w-sm space-y-2 mt-4">
-                        {uploadedDocs.map((doc, idx) => (
-                          <div
-                            key={`${doc.key}-${idx}`}
-                            className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600"
-                          >
-                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate flex-1">
-                              {doc.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removeInspectionFile(idx)}
-                              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500"
-                              aria-label={`Remove ${doc.name}`}
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Single inline upgrade message when plan doesn't support AI analysis */}
-                {planRestrictionForAnalysis && (
-                  <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/80 dark:bg-amber-900/20 p-5">
-                    <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
-                      Your current plan does not include AI report analysis. Upgrade to unlock personalized insights, prioritized recommendations, and action items tailored to your inspection report.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => navigate(upgradeUrl ?? (accountUrl ? `/${accountUrl}/settings/upgrade` : "/settings/upgrade"))}
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white text-sm font-medium transition-colors"
-                    >
-                      <ArrowUpCircle className="w-4 h-4" />
-                      Upgrade plan
-                    </button>
-                  </div>
-                )}
-
-                {/* AI Findings panel — hidden when plan restriction (we show inline message above instead) */}
-                {!planRestrictionForAnalysis && (analysisJobId || analysisStatus) && (
-                  <AIFindingsPanel
-                    status={analysisStatus}
-                    progress={analysisProgress}
-                    errorMessage={analysisError}
-                    result={analysisResult}
-                    suggestedSystemsToAdd={analysisResult?.suggestedSystemsToAdd ?? []}
-                    selectedSuggestedSystems={[...selectedSuggestedSystems]}
-                    onToggleSuggestedSystem={toggleSuggestedSystem}
-                    onToggleSelectAllSuggested={handleToggleSelectAllSuggested}
-                    onScheduleMaintenance={undefined}
-                    onRetry={handleRetryAnalysis}
-                  />
-                )}
-              </div>
-            )}
-
-            <div className="flex justify-between items-center gap-3 pt-4">
-              <div>
-                {canGoToStep("details") && (
-                  <button
-                    type="button"
-                    onClick={() => goToStep("details")}
-                    className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-                  >
-                    Back
-                  </button>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={handleInspectionContinue}
-                disabled={analysisStatus === "queued" || analysisStatus === "processing"}
-                className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 ml-auto disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {analysisStatus === "queued" || analysisStatus === "processing" ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Analyzing…
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <ChevronRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
+          )}
         </div>
       </div>
 

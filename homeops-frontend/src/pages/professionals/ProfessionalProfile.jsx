@@ -7,6 +7,7 @@ import {
   MapPin,
   Briefcase,
   Globe,
+  Loader2,
   Phone,
   Mail,
   Bookmark,
@@ -211,9 +212,7 @@ function ProfessionalProfile() {
         <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className="grow flex items-center justify-center">
-            <div className="text-center text-gray-500 dark:text-gray-400">
-              Loading professional...
-            </div>
+            <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
           </main>
         </div>
       </div>
@@ -760,9 +759,9 @@ function ProfessionalProfile() {
                       Reviews
                     </h2>
                     {reviewsLoading ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Loading reviews...
-                      </p>
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-8 h-8 text-[#456564] animate-spin" />
+                      </div>
                     ) : (
                       <>
                         <div className="flex items-start gap-6">
