@@ -72,7 +72,7 @@ class AppApi {
   }
 
   /** Refresh token if expired/expiring. Returns fresh token or null. Skips for pure auth endpoints (login, register, etc.). */
-  static AUTH_NO_REFRESH = new Set(["auth/login", "auth/register", "auth/refresh", "auth/forgot-password", "auth/reset-password", "auth/google/signin", "auth/google/signup", "auth/check-email"]);
+  static AUTH_NO_REFRESH = new Set(["auth/login", "auth/token", "auth/register", "auth/refresh", "auth/forgot-password", "auth/reset-password", "auth/google/signin", "auth/google/signup", "auth/check-email"]);
   static async ensureValidToken(endpoint) {
     const token = AppApi.getToken();
     if (!token || AppApi.AUTH_NO_REFRESH.has(endpoint)) return token;
@@ -128,7 +128,13 @@ class AppApi {
     url.search = (method === "GET") ? new URLSearchParams(data) : "";
     const body = (method !== "GET") ? JSON.stringify(data) : undefined;
 
+    if (import.meta.env.DEV) {
+      console.debug("[API request]", { endpoint, method, status: "(pending)" });
+    }
     let resp = await fetch(url, { method, body, headers });
+    if (import.meta.env.DEV) {
+      console.debug("[API response]", { endpoint, status: resp.status });
+    }
 
     if (resp.status === 401 && !AppApi.AUTH_NO_REFRESH.has(endpoint)) {
       try {
@@ -142,10 +148,13 @@ class AppApi {
     }
 
     if (!resp.ok) {
-      console.error("API Error:", resp.statusText, resp.status);
       const errBody = await resp.json().catch(() => ({}));
       const message = errBody?.error?.message ?? resp.statusText;
       const messages = Array.isArray(message) ? message : [message];
+      if (import.meta.env.DEV) {
+        console.debug("[API error]", { endpoint, status: resp.status, message });
+      }
+      console.error("API Error:", resp.statusText, resp.status);
       throw new ApiError(messages, resp.status);
     }
     return await resp.json();

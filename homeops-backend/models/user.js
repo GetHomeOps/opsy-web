@@ -67,7 +67,7 @@ class User {
         return user;
       }
     }
-    throw new UnauthorizedError("Invalid username/password");
+    throw new UnauthorizedError("Invalid email or password");
   }
 
   /** Register user with data.

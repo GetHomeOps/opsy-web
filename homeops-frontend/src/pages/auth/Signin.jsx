@@ -100,14 +100,31 @@ function Signin() {
         setMfaTicket(err.mfaTicket);
         setFormErrors([]);
       } else {
-        const raw =
+        let raw =
           err?.messages ??
           (Array.isArray(err)
             ? err
             : [err?.message || err?.toString?.() || String(err)]);
-        const messages = raw.map((e) =>
-          typeof e === "string" ? e : e?.message || String(e),
-        );
+        let messages = Array.isArray(raw)
+          ? raw.map((e) => (typeof e === "string" ? e : e?.message || String(e)))
+          : [typeof raw === "string" ? raw : String(raw)];
+
+        if (err?.status === 500 || (err?.status >= 502 && err?.status < 600)) {
+          messages = ["Something went wrong. Please try again"];
+        } else if (
+          err?.status === 0 ||
+          err?.message?.includes?.("fetch") ||
+          err?.name === "TypeError"
+        ) {
+          messages = ["Unable to sign in right now. Please try again"];
+        } else if (
+          err?.status === 401 &&
+          messages.some((m) =>
+            /invalid|username|password|email|credential/i.test(String(m)),
+          )
+        ) {
+          messages = ["Invalid email or password"];
+        }
         setFormErrors(messages);
       }
       justLoggedIn.current = false;
