@@ -8,6 +8,7 @@ import {
   Sparkles,
   Loader2,
   Search,
+  SearchX,
   AlertCircle,
   Database,
   FileCheck,
@@ -16,10 +17,7 @@ import {
   ArrowUpCircle,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
-import {
-  PROPERTY_SYSTEMS,
-  STANDARD_CUSTOM_SYSTEM_FIELDS,
-} from "../constants/propertySystems";
+import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 
 /** Systems available in setup modal (excludes Inspections - add via Maintenance tab) */
 const SETUP_SYSTEMS = PROPERTY_SYSTEMS.filter((s) => s.id !== "inspections");
@@ -28,6 +26,7 @@ import useDocumentUpload from "../../../hooks/useDocumentUpload";
 import AppApi from "../../../api/api";
 import AIFindingsPanel from "./AIFindingsPanel";
 import UpgradePrompt from "../../../components/UpgradePrompt";
+import OpsyMascot from "../../../images/opsy1.png";
 
 /** Step definitions for the stepper. Order matters. */
 const STEP_IDS = ["identity", "details", "inspection", "systems"];
@@ -114,6 +113,44 @@ const AI_FIELD_GROUPS = [
   },
 ];
 
+const TOTAL_AI_FIELDS = AI_FIELD_GROUPS.reduce((acc, g) => acc + g.fields.length, 0);
+
+/** Returns { status, message, iconColor, bgGradient, cardClass, textClass } based on lookup result. */
+function getDataLookupStatus(predictError, retrievedCount, totalFields) {
+  if (predictError || retrievedCount === 0) {
+    return {
+      status: "red",
+      message:
+        "Whoops! Opsy was unable to pull data on your property. Please be on the lookout for how we can improve your experience.",
+      iconColor: "text-red-500 dark:text-red-400",
+      bgGradient: "from-red-500/12 to-red-500/5 dark:from-red-500/20 dark:to-red-500/8",
+      cardClass: "border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30",
+      textClass: "text-red-800 dark:text-red-200",
+    };
+  }
+  const ratio = retrievedCount / totalFields;
+  if (ratio >= 0.6) {
+    return {
+      status: "green",
+      message:
+        "Congrats, we were able to pull most information from public records. Review and edit any fields below before saving.",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+      bgGradient: "from-emerald-500/12 to-emerald-500/5 dark:from-emerald-500/20 dark:to-emerald-500/8",
+      cardClass: "border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30",
+      textClass: "text-emerald-800 dark:text-emerald-200",
+    };
+  }
+  return {
+    status: "orange",
+    message:
+      "We were able to pull a portion of the property data. Please be on the lookout for a follow up from Opsy on how to improve your data.",
+    iconColor: "text-amber-600 dark:text-amber-400",
+    bgGradient: "from-amber-500/12 to-amber-500/5 dark:from-amber-500/20 dark:to-amber-500/8",
+    cardClass: "border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30",
+    textClass: "text-amber-800 dark:text-amber-200",
+  };
+}
+
 function SystemsSetupModal({
   modalOpen,
   setModalOpen,
@@ -161,6 +198,7 @@ function SystemsSetupModal({
   });
 
   const [aiFields, setAiFields] = useState({});
+  const [retrievedFieldCount, setRetrievedFieldCount] = useState(0);
   const [predicting, setPredicting] = useState(false);
   const [predictError, setPredictError] = useState(null);
   const [hasPredicted, setHasPredicted] = useState(false);
@@ -229,6 +267,7 @@ function SystemsSetupModal({
       ownerCity: formData?.ownerCity ?? "",
     });
     setAiFields({});
+    setRetrievedFieldCount(0);
     setSelected(new Set(selectedSystemIds ?? []));
     setCustom(
       customSystems.length
@@ -267,9 +306,13 @@ function SystemsSetupModal({
   const handleIdentityContinue = () => {
     onIdentityFieldsChange?.(identityFields);
     setSavePropertyError(null);
-    setAiFields({});
-    setHasPredicted(false);
-    setPredictError(null);
+    // Don't reset lookup state if user already attempted a lookup (1 per property limit)
+    if (!hasPredicted && !predictError) {
+      setAiFields({});
+      setHasPredicted(false);
+      setPredictError(null);
+      setRetrievedFieldCount(0);
+    }
     setStep("details");
   };
 
@@ -329,12 +372,17 @@ function SystemsSetupModal({
           }
         }
         setAiFields(newFields);
+        setRetrievedFieldCount(Object.keys(newFields).length);
         setHasPredicted(true);
+      } else {
+        setRetrievedFieldCount(0);
+        setPredictError("No property data found. Please enter values manually.");
       }
     } catch (err) {
       const msg =
         err?.message || "No property data found. Please enter values manually.";
       setPredictError(msg);
+      setRetrievedFieldCount(0);
     } finally {
       setPredicting(false);
     }
@@ -409,41 +457,47 @@ function SystemsSetupModal({
     setStep("systems");
   };
 
-  // Pre-select recommended systems when first reaching Systems step (including custom AI-suggested)
+  // Pre-select systems when first reaching Systems step: AI suggestions if report analyzed, else all systems
   useEffect(() => {
-    if (step !== "systems" || !analysisResult?.suggestedSystemsToAdd?.length || hasAppliedSuggestedRef.current) return;
+    if (step !== "systems" || hasAppliedSuggestedRef.current) return;
     hasAppliedSuggestedRef.current = true;
-    const suggested = analysisResult.suggestedSystemsToAdd;
-    const standardIds = [];
-    const customNames = [];
-    suggested.forEach((s) => {
-      const raw = String(s.systemType ?? s.system_key ?? "").trim();
-      if (!raw) return;
-      const match = SETUP_SYSTEMS.find(
-        (sys) => sys.id === raw || sys.id.toLowerCase() === raw.toLowerCase(),
-      );
-      if (match) {
-        standardIds.push(match.id);
-      } else {
-        const displayName =
-          raw.charAt(0).toUpperCase() + raw.slice(1).replace(/([A-Z])/g, " $1").trim();
-        customNames.push(displayName);
-      }
-    });
-    const existingCustomNames = new Set(custom.map((c) => c.name.toLowerCase()));
-    const newCustomEntries = customNames
-      .filter((name) => !existingCustomNames.has(name.toLowerCase()))
-      .map((name) => ({id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name}));
-    const idsToAddToSelected = [...standardIds, ...newCustomEntries.map((c) => c.id)];
-    if (idsToAddToSelected.length > 0) {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        idsToAddToSelected.forEach((id) => next.add(id));
-        return next;
+
+    const suggested = analysisResult?.suggestedSystemsToAdd ?? [];
+    if (suggested.length > 0) {
+      const standardIds = [];
+      const customNames = [];
+      suggested.forEach((s) => {
+        const raw = String(s.systemType ?? s.system_key ?? "").trim();
+        if (!raw) return;
+        const match = SETUP_SYSTEMS.find(
+          (sys) => sys.id === raw || sys.id.toLowerCase() === raw.toLowerCase(),
+        );
+        if (match) {
+          standardIds.push(match.id);
+        } else {
+          const displayName =
+            raw.charAt(0).toUpperCase() + raw.slice(1).replace(/([A-Z])/g, " $1").trim();
+          customNames.push(displayName);
+        }
       });
-    }
-    if (newCustomEntries.length > 0) {
-      setCustom((prev) => [...prev, ...newCustomEntries]);
+      const existingCustomNames = new Set(custom.map((c) => c.name.toLowerCase()));
+      const newCustomEntries = customNames
+        .filter((name) => !existingCustomNames.has(name.toLowerCase()))
+        .map((name) => ({id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name}));
+      const idsToAddToSelected = [...standardIds, ...newCustomEntries.map((c) => c.id)];
+      if (idsToAddToSelected.length > 0) {
+        setSelected((prev) => {
+          const next = new Set(prev);
+          idsToAddToSelected.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+      if (newCustomEntries.length > 0) {
+        setCustom((prev) => [...prev, ...newCustomEntries]);
+      }
+    } else {
+      // No report analyzed: pre-select all systems by default
+      setSelected(new Set(SETUP_SYSTEMS.map((s) => s.id)));
     }
   }, [step, analysisResult?.suggestedSystemsToAdd, custom]);
 
@@ -680,9 +734,12 @@ function SystemsSetupModal({
       contentClassName="max-w-4xl"
     >
       <div className="relative">
-        {/* Horizontal step tracker */}
+        {/* Opsy mascot and horizontal step tracker */}
         {!showSuccess && visibleSteps.length > 1 && (
           <div className="px-6 md:px-8 pt-6 pb-0">
+            <div className="flex justify-center mb-5">
+              <img src={OpsyMascot} alt="" className="h-24 w-auto object-contain" />
+            </div>
             <nav className="flex items-start justify-center max-w-md mx-auto" aria-label="Progress">
               {visibleSteps.map((stepId, idx) => {
                 const config = STEP_CONFIG[stepId];
@@ -896,31 +953,69 @@ function SystemsSetupModal({
             style={{animation: "systemsStepFadeIn 0.35s ease-out forwards"}}
           >
             <div className="text-center pb-2">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#456564]/12 to-[#456564]/5 dark:from-[#456564]/20 dark:to-[#456564]/8 mb-4 shadow-sm">
-                <Database className="w-8 h-8 text-[#456564]" strokeWidth={1.5} />
-              </div>
-              <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white mb-2">
-                Property Data Lookup
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
-                Pull property details from public records based on the address
-                you provided. You can review and edit every field before saving.
-              </p>
+              {(() => {
+                const showStatusMessage = hasPredicted || predictError;
+                const status = getDataLookupStatus(
+                  predictError,
+                  retrievedFieldCount,
+                  TOTAL_AI_FIELDS,
+                );
+                const iconBoxClass = showStatusMessage
+                  ? `bg-gradient-to-br ${status.bgGradient}`
+                  : "bg-gradient-to-br from-[#456564]/12 to-[#456564]/5 dark:from-[#456564]/20 dark:to-[#456564]/8";
+                const iconClass = showStatusMessage
+                  ? status.iconColor
+                  : "text-[#456564]";
+                const StatusIcon = showStatusMessage ? SearchX : Database;
+                return (
+                  <>
+                    <div
+                      className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl ${iconBoxClass} mb-4 shadow-sm`}
+                    >
+                      <StatusIcon
+                        className={`w-8 h-8 ${iconClass}`}
+                        strokeWidth={1.5}
+                      />
+                    </div>
+                    <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white mb-2">
+                      Property Data Lookup
+                    </h2>
+                    {showStatusMessage ? (
+                      <div
+                        className={`rounded-xl border px-4 py-3 max-w-md mx-auto ${status.cardClass}`}
+                      >
+                        <p
+                          className={`text-sm leading-relaxed ${status.textClass}`}
+                        >
+                          {status.message}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
+                        Pull property details from public records based on the address
+                        you provided. You can review and edit every field before saving.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
-            {/* Property lookup button */}
+            {/* Property lookup button — one lookup per property */}
             {(() => {
               const hasAddress = !!(
                 identityFields.address?.trim() ||
                 identityFields.addressLine1?.trim()
               );
+              const lookupUsed = hasPredicted || predictError;
+              const canLookup = hasAddress && !lookupUsed && !predicting;
               return (
                 <div className="flex flex-col items-center gap-3">
                   <button
                     type="button"
-                    disabled={predicting || !hasAddress}
+                    disabled={!canLookup}
                     onClick={handleLookupProperty}
-                    className="btn bg-gradient-to-r from-[#456564] to-[#3a5548] hover:from-[#34514f] hover:to-[#2d4640] text-white shadow-sm inline-flex items-center gap-2 disabled:opacity-60"
+                    className="btn bg-gradient-to-r from-[#456564] to-[#3a5548] hover:from-[#34514f] hover:to-[#2d4640] text-white shadow-sm inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {predicting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -929,16 +1024,8 @@ function SystemsSetupModal({
                     )}
                     {predicting
                       ? "Looking up property..."
-                      : hasPredicted
-                        ? "Look up again"
-                        : "Look up property data"}
+                      : "Look up property data"}
                   </button>
-                  {predictError && (
-                    <div className="flex items-center gap-1.5 text-sm text-red-500 dark:text-red-400">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      <span>{predictError}</span>
-                    </div>
-                  )}
                   {!hasAddress && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">
                       Enter an address on the previous step to look up property
@@ -1075,8 +1162,7 @@ function SystemsSetupModal({
                   Property Systems
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-                  Select the systems included in this property. You can add
-                  custom systems below.
+                  Please deselect the systems you do not wish to track and maintain.
                 </p>
               </div>
             </div>
@@ -1152,22 +1238,8 @@ function SystemsSetupModal({
             {/* Add custom system */}
             <div className="mb-6">
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Add custom system
+                Add Additional System(s)
               </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Custom systems will appear in the Systems tab with these
-                standard fields:
-              </p>
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {STANDARD_CUSTOM_SYSTEM_FIELDS.map((f) => (
-                  <span
-                    key={f.key}
-                    className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700/60 text-xs text-gray-600 dark:text-gray-400"
-                  >
-                    {f.label}
-                  </span>
-                ))}
-              </div>
               <div className="flex gap-2">
                 <input
                   type="text"
