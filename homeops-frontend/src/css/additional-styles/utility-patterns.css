@@ -152,6 +152,17 @@ input[type="search"]::-webkit-search-results-decoration {
   @apply bg-gray-400 dark:bg-gray-600;
 }
 
+/* Property type checkboxes — remove outer border from @tailwindcss/forms */
+input.property-type-checkbox,
+input.property-type-checkbox:focus,
+input.property-type-checkbox:checked,
+input.property-type-checkbox:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 0 0 transparent !important;
+  --tw-ring-offset-shadow: 0 0 0 0 transparent !important;
+}
+
 /* Chrome, Safari and Opera */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

@@ -1,5 +1,6 @@
 import React, {useState, useEffect, useCallback, useRef} from "react";
 import {useParams, useNavigate} from "react-router-dom";
+import {useAuth} from "../../../context/AuthContext";
 import {
   Plus,
   X,
@@ -9,7 +10,6 @@ import {
   Search,
   SearchX,
   AlertCircle,
-  Database,
   FileCheck,
   Upload,
   ChevronRight,
@@ -27,6 +27,7 @@ import AIFindingsPanel from "./AIFindingsPanel";
 import UpgradePrompt from "../../../components/UpgradePrompt";
 import OpsyMascot from "../../../images/opsy1.png";
 import HouseIcon from "../../../images/house_icon.png";
+import GlassIcon from "../../../images/glass.png";
 
 /** Step definitions for the stepper. Order matters. */
 const STEP_IDS = ["identity", "details", "inspection", "systems"];
@@ -230,6 +231,18 @@ function SystemsSetupModal({
     new Set(),
   );
   const [savingProperty, setSavingProperty] = useState(false);
+  const [propertyTypePreset, setPropertyTypePreset] = useState(null);
+
+  const {currentUser} = useAuth();
+  const firstName =
+    (currentUser?.name || "").trim().split(/\s+/)[0] ||
+    currentUser?.firstName ||
+    "";
+  const possessiveName = !firstName
+    ? "My"
+    : firstName.endsWith("s")
+      ? `${firstName}'`
+      : `${firstName}'s`;
   const [savePropertyError, setSavePropertyError] = useState(null);
   const pollIntervalRef = useRef(null);
   const hasAppliedSuggestedRef = useRef(false);
@@ -304,6 +317,7 @@ function SystemsSetupModal({
     setSelectedSuggestedSystems(new Set());
     setSavingProperty(false);
     setSavePropertyError(null);
+    setPropertyTypePreset(null);
     hasAppliedSuggestedRef.current = false;
     hasAutoSelectedSuggestedRef.current = false;
     if (pollIntervalRef.current) {
@@ -315,6 +329,28 @@ function SystemsSetupModal({
 
   const handleIdentityFieldChange = (key, value) => {
     setIdentityFields((prev) => ({...prev, [key]: value}));
+  };
+
+  const PROPERTY_TYPE_PRESETS = [
+    {id: "primary", label: "Primary Property", suffix: "Primary Home"},
+    {id: "second", label: "Second Home", suffix: "Second Home"},
+    {id: "investment", label: "Investment Property", suffix: "Investment Property"},
+  ];
+
+  const handlePropertyTypePresetChange = (presetId) => {
+    const next =
+      propertyTypePreset === presetId ? null : presetId;
+    setPropertyTypePreset(next);
+    if (next) {
+      const preset = PROPERTY_TYPE_PRESETS.find((p) => p.id === next);
+      if (preset) {
+        const base = possessiveName || "My";
+        setIdentityFields((prev) => ({
+          ...prev,
+          propertyName: `${base} ${preset.suffix}`,
+        }));
+      }
+    }
   };
 
   const handleIdentityContinue = () => {
@@ -928,6 +964,28 @@ function SystemsSetupModal({
               {/* Centered form — property name + address only */}
               <div className="flex justify-center">
                 <div className="w-full max-w-md space-y-6">
+                  {/* Property type checkboxes — mutually exclusive, auto-fill name */}
+                  <div className="flex flex-wrap gap-4">
+                    {PROPERTY_TYPE_PRESETS.map((preset) => (
+                      <label
+                        key={preset.id}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={propertyTypePreset === preset.id}
+                          onChange={() =>
+                            handlePropertyTypePresetChange(preset.id)
+                          }
+                          className="property-type-checkbox rounded border-gray-300 dark:border-gray-600 text-[#456564]"
+                        />
+                        <span className="text-sm text-gray-600 dark:text-gray-300">
+                          {preset.label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
                       Property name
@@ -1024,21 +1082,29 @@ function SystemsSetupModal({
                     TOTAL_AI_FIELDS,
                   );
                   const iconBoxClass = showStatusMessage
-                    ? `bg-gradient-to-br ${status.bgGradient}`
-                    : "bg-gradient-to-br from-[#456564]/12 to-[#456564]/5 dark:from-[#456564]/20 dark:to-[#456564]/8";
+                    ? `rounded-2xl shadow-sm bg-gradient-to-br ${status.bgGradient}`
+                    : "";
                   const iconClass = showStatusMessage
                     ? status.iconColor
                     : "text-[#456564]";
-                  const StatusIcon = showStatusMessage ? SearchX : Database;
+                  const StatusIcon = showStatusMessage ? SearchX : null;
                   return (
                     <>
                       <div
-                        className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl ${iconBoxClass} mb-4 shadow-sm`}
+                        className={`relative inline-flex items-center justify-center w-16 h-16 p-0 ${iconBoxClass} mb-4`}
                       >
-                        <StatusIcon
-                          className={`w-8 h-8 ${iconClass}`}
-                          strokeWidth={1.5}
-                        />
+                        {showStatusMessage ? (
+                          <StatusIcon
+                            className={`w-8 h-8 ${iconClass}`}
+                            strokeWidth={1.5}
+                          />
+                        ) : (
+                          <img
+                            src={GlassIcon}
+                            alt="Property data lookup"
+                            className="w-16 h-16 object-contain scale-[2.25]"
+                          />
+                        )}
                       </div>
                       <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white mb-2">
                         Property Data Lookup
