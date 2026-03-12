@@ -525,6 +525,7 @@ function PropertiesList() {
         currentIndex: propertyIndex + 1,
         totalItems: sortedProperties.length,
         visiblePropertyIds: sortedProperties.map((p) => p.property_uid ?? p.id),
+        property,
       },
     });
   };
@@ -537,6 +538,7 @@ function PropertiesList() {
         currentIndex: propertyIndex + 1,
         totalItems: sortedProperties.length,
         visiblePropertyIds: sortedProperties.map((p) => p.property_uid ?? p.id),
+        property,
       },
     });
   };
