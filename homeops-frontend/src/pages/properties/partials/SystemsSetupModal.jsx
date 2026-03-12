@@ -335,12 +335,15 @@ function SystemsSetupModal({
   const PROPERTY_TYPE_PRESETS = [
     {id: "primary", label: "Primary Property", suffix: "Primary Home"},
     {id: "second", label: "Second Home", suffix: "Second Home"},
-    {id: "investment", label: "Investment Property", suffix: "Investment Property"},
+    {
+      id: "investment",
+      label: "Investment Property",
+      suffix: "Investment Property",
+    },
   ];
 
   const handlePropertyTypePresetChange = (presetId) => {
-    const next =
-      propertyTypePreset === presetId ? null : presetId;
+    const next = propertyTypePreset === presetId ? null : presetId;
     setPropertyTypePreset(next);
     if (next) {
       const preset = PROPERTY_TYPE_PRESETS.find((p) => p.id === next);
