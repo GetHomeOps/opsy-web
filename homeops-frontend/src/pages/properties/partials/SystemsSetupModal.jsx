@@ -1455,14 +1455,16 @@ function SystemsSetupModal({
               )}
 
               <div className="flex justify-between gap-3 pt-8 border-t border-gray-200/80 dark:border-gray-700/80 mt-8">
-                <button
-                  type="button"
-                  onClick={() => goToStep("inspection")}
-                  className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-                >
-                  Back
-                </button>
-                <div className="flex gap-3">
+                {onlyStep !== "systems" && (
+                  <button
+                    type="button"
+                    onClick={() => goToStep("inspection")}
+                    className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                  >
+                    Back
+                  </button>
+                )}
+                <div className="flex gap-3 ml-auto">
                   {!isNewProperty && (
                     <button
                       type="button"
