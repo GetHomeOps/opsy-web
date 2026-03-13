@@ -241,6 +241,13 @@ function DocumentsTab({
   const [uploadError, setUploadError] = useState(null);
   const [indexingDocs, setIndexingDocs] = useState(false);
   const fileInputRef = useRef(null);
+  const uploadSuccessBannerRef = useRef(null);
+
+  useEffect(() => {
+    if (uploadSuccessCount > 0) {
+      uploadSuccessBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [uploadSuccessCount]);
 
   const {
     uploadDocument,
@@ -498,20 +505,26 @@ function DocumentsTab({
       const s3Key = result?.key;
       if (!s3Key) continue;
       try {
-        const created = await AppApi.createPropertyDocument({
-          property_id: propertyId,
-          document_name: name,
-          document_date: uploadDocumentDate,
-          document_key: s3Key,
-          document_type: uploadDocumentType,
-          system_key: uploadSystemKey,
-        });
-        successCount++;
-        setUploadSuccessCount(successCount);
-        if (created) {
-          setDocuments((prev) => [...prev, created]);
-        } else {
-          await fetchDocuments();
+        const prev = AppApi._suppressTierEmit;
+        AppApi._suppressTierEmit = true;
+        try {
+          const created = await AppApi.createPropertyDocument({
+            property_id: propertyId,
+            document_name: name,
+            document_date: uploadDocumentDate,
+            document_key: s3Key,
+            document_type: uploadDocumentType,
+            system_key: uploadSystemKey,
+          });
+          successCount++;
+          setUploadSuccessCount(successCount);
+          if (created) {
+            setDocuments((prev) => [...prev, created]);
+          } else {
+            await fetchDocuments();
+          }
+        } finally {
+          AppApi._suppressTierEmit = prev;
         }
       } catch (err) {
         if (
@@ -532,7 +545,10 @@ function DocumentsTab({
     if (successCount === uploadFiles.length && successCount > 0) {
       setUploadFiles([]);
       setUploadDocumentName("");
-      setShowUploadModal(false);
+      await fetchDocuments();
+      setTimeout(() => {
+        setShowUploadModal(false);
+      }, 2000);
     }
   };
 
@@ -889,7 +905,10 @@ function DocumentsTab({
               )}
 
               {uploadSuccessCount > 0 && (
-                <div className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-2 flex items-center gap-2">
+                <div
+                  ref={uploadSuccessBannerRef}
+                  className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-2 flex items-center gap-2"
+                >
                   <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                   <span className="text-indigo-800 dark:text-indigo-200 text-xs">
                     {uploadSuccessCount} file
@@ -920,6 +939,7 @@ function DocumentsTab({
                   name="documentDate"
                   value={uploadDocumentDate}
                   onChange={(e) => setUploadDocumentDate(e.target.value)}
+                  popoverClassName="z-[250]"
                   required
                 />
               </div>

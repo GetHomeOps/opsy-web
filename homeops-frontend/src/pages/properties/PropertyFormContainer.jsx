@@ -355,6 +355,30 @@ function reducer(state, action) {
         errors: {},
       };
     }
+    case "SAVE_COMPLETED": {
+      const {propertyPayload, systems, banner, aiSummaryUpdatedAt} = action.payload;
+      const nextFormData = propertyPayload
+        ? propertyPayload.identity && propertyPayload.systems
+          ? {...propertyPayload}
+          : splitFormDataByTabs(propertyPayload)
+        : {...initialFormData};
+      const savedRecords = propertyPayload ? (propertyPayload.maintenanceRecords ?? []) : [];
+      return {
+        ...state,
+        property: propertyPayload,
+        formData: nextFormData,
+        savedMaintenanceRecords: Array.isArray(savedRecords) ? savedRecords : [],
+        systems: systems ?? state.systems,
+        formDataChanged: false,
+        systemsDirty: false,
+        isInitialLoad: false,
+        errors: {},
+        bannerOpen: banner?.open ?? false,
+        bannerType: banner?.type ?? "success",
+        bannerMessage: banner?.message ?? "",
+        ...(aiSummaryUpdatedAt !== undefined ? {aiSummaryUpdatedAt} : {}),
+      };
+    }
     case "SET_PROPERTY_ACCESS_DENIED":
       return {...state, propertyAccessDenied: action.payload};
     case "SET_PROPERTY_NOT_FOUND":
@@ -1497,24 +1521,27 @@ function PropertyFormContainer() {
           : Promise.resolve(null);
 
         const maintenancePromise = (async () => {
+          let created = [];
+          let updated = [];
           if (syncPlan.toDelete.length > 0) {
             await Promise.all(
-              syncPlan.toDelete.map((id) => deleteMaintenanceRecord(id)),
+              syncPlan.toDelete.map((id) => deleteMaintenanceRecord(id, res.id)),
             );
           }
           if (syncPlan.toCreate.length > 0) {
-            await createMaintenanceRecords(res.id, syncPlan.toCreate);
+            created = (await createMaintenanceRecords(res.id, syncPlan.toCreate)) ?? [];
           }
           if (syncPlan.toUpdate.length > 0) {
-            await Promise.all(
+            updated = await Promise.all(
               syncPlan.toUpdate.map(({id, payload}) =>
                 updateMaintenanceRecord(id, payload),
               ),
             );
           }
+          return {created, updated};
         })();
 
-        const [teamResult, systemsResult] = await Promise.all([
+        const [teamResult, systemsResult, maintenanceSyncResult] = await Promise.all([
           teamPromise,
           systemsPromise,
           maintenancePromise,
@@ -1565,20 +1592,21 @@ function PropertyFormContainer() {
           originalTeamRef.current = prepareTeamForProperty(enriched);
         }
 
-        /* --- Post-save refresh: only maintenance (property from PATCH, systems from batch) --- */
-        const t6 = performance.now();
-        const rawRecords = await getMaintenanceRecordsByPropertyId(res.id);
+        /* --- Derive maintenance records from sync results (no refetch needed) --- */
+        const allBackendRecords = [
+          ...(maintenanceSyncResult?.created ?? []),
+          ...(maintenanceSyncResult?.updated ?? []),
+        ];
         if (process.env.NODE_ENV === "development") {
-          console.debug("[perf] post-save maintenance refetch", (performance.now() - t6).toFixed(0), "ms");
           console.debug(
             "[perf] handleUpdate total", (performance.now() - t0).toFixed(0), "ms |",
             "API calls: ~" + (1 + (teamUnchanged ? 0 : 2) + (state.systemsDirty ? 1 : 0) +
-              syncPlan.toDelete.length + (syncPlan.toCreate.length ? 1 : 0) + syncPlan.toUpdate.length + 1),
+              syncPlan.toDelete.length + (syncPlan.toCreate.length ? 1 : 0) + syncPlan.toUpdate.length),
           );
         }
 
         const maintenanceRecords = mapMaintenanceRecordsFromBackend(
-          rawRecords ?? [],
+          allBackendRecords,
         );
         setMaintenanceRecords(maintenanceRecords);
         originalMaintenanceRecordIdsRef.current = new Set(
@@ -1589,35 +1617,28 @@ function PropertyFormContainer() {
         const systemsFromBackend = systemsResult
           ? (systemsResult.systems ?? systemsResult ?? [])
           : (state.systems ?? []);
-        if (systemsResult?.aiSummaryUpdatedAt) {
-          dispatch({
-            type: "SET_AI_SUMMARY_UPDATED_AT",
-            payload: systemsResult.aiSummaryUpdatedAt,
-          });
-        }
 
         const scrollEl = document.querySelector(".flex-1.overflow-y-auto");
         const scrollPos = scrollEl?.scrollTop ?? window.scrollY ?? 0;
 
         dispatch({
-          type: "REFRESH_PROPERTY_AFTER_SAVE",
+          type: "SAVE_COMPLETED",
           payload: {
-            ...buildPropertyPayloadFromRefresh(
-              res,
-              systemsFromBackend ?? [],
-              res,
-            ),
-            maintenanceRecords: maintenanceRecords ?? [],
-          },
-        });
-        dispatch({type: "SET_SYSTEMS", payload: systemsFromBackend ?? []});
-        dispatch({type: "SET_FORM_CHANGED", payload: false});
-        dispatch({
-          type: "SET_BANNER",
-          payload: {
-            open: true,
-            type: "success",
-            message: t("propertyUpdatedSuccessfullyMessage"),
+            propertyPayload: {
+              ...buildPropertyPayloadFromRefresh(
+                res,
+                systemsFromBackend ?? [],
+                res,
+              ),
+              maintenanceRecords: maintenanceRecords ?? [],
+            },
+            systems: systemsFromBackend ?? [],
+            banner: {
+              open: true,
+              type: "success",
+              message: t("propertyUpdatedSuccessfullyMessage"),
+            },
+            aiSummaryUpdatedAt: systemsResult?.aiSummaryUpdatedAt ?? undefined,
           },
         });
 

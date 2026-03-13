@@ -18,6 +18,9 @@ export default function TierLimitBanner() {
 
   useEffect(() => {
     return onTierLimit(({ message: msg }) => {
+      // Document limit errors are shown via UpgradePrompt modal — skip banner to avoid duplicates
+      const text = typeof msg === "string" ? msg : msg?.message ?? "";
+      if (text.toLowerCase().includes("document limit")) return;
       setMessage(msg || "You've reached a limit on your current plan.");
       setVisible(true);
       if (timerRef.current) clearTimeout(timerRef.current);

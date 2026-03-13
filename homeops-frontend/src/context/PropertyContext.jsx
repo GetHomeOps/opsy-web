@@ -271,9 +271,9 @@ export function PropertyProvider({children}) {
   }
 
   /* Delete a maintenance record */
-  async function deleteMaintenanceRecord(id) {
+  async function deleteMaintenanceRecord(id, propertyId) {
     try {
-      await AppApi.deleteMaintenanceRecord(id);
+      await AppApi.deleteMaintenanceRecord(id, propertyId);
     } catch (err) {
       console.error("There was an error deleting maintenance record:", err);
       throw err;

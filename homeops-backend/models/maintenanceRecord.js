@@ -49,12 +49,36 @@ class MaintenanceRecord {
     }
   }
 
-  /* Create multiple maintenance records */
+  /* Create multiple maintenance records in a single multi-row INSERT. */
   static async createMany(maintenanceRecords) {
-    const created = await Promise.all(
-      maintenanceRecords.map((record) => this.create(record))
-    );
-    return created;
+    if (!maintenanceRecords || maintenanceRecords.length === 0) return [];
+
+    const values = [];
+    const placeholders = [];
+    let idx = 1;
+
+    for (const r of maintenanceRecords) {
+      placeholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6})`);
+      values.push(
+        r.property_id,
+        r.system_key,
+        r.completed_at || null,
+        r.next_service_date || null,
+        JSON.stringify(r.data ?? {}),
+        r.status || "pending",
+        r.record_status ?? null,
+      );
+      idx += 7;
+    }
+
+    const sql = `
+      INSERT INTO property_maintenance
+        (property_id, system_key, completed_at, next_service_date, data, status, record_status)
+      VALUES ${placeholders.join(", ")}
+      RETURNING id, property_id, system_key, completed_at, next_service_date, data, status, record_status`;
+
+    const result = await db.query(sql, values);
+    return result.rows;
   }
 
   /* Get maintenance records by property id */

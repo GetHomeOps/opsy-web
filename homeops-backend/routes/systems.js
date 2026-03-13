@@ -72,12 +72,11 @@ router.put("/:propertyId/batch", ensureLoggedIn, ensurePropertyAccess({ param: "
     const upserted = await System.batchUpsert(propertyId, incoming);
     const tUpsert = Date.now();
 
-    const [allSystems, analysis, aiSummary] = await Promise.all([
-      System.get(propertyId),
+    const [analysis, aiSummary] = await Promise.all([
       InspectionAnalysisResult.getByPropertyId(propertyId),
       getAiSummaryForProperty(propertyId),
     ]);
-    const enriched = enrichSystemsWithAiCondition(allSystems, analysis, aiSummary);
+    const enriched = enrichSystemsWithAiCondition(upserted, analysis, aiSummary);
     const response = { systems: enriched };
     if (aiSummary?.lastReanalysisAt) {
       response.aiSummaryUpdatedAt = aiSummary.lastReanalysisAt;

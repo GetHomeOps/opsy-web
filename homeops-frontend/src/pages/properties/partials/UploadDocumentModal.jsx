@@ -46,6 +46,13 @@ function UploadDocumentModal({
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccessCount, setUploadSuccessCount] = useState(0);
   const fileInputRef = useRef(null);
+  const successBannerRef = useRef(null);
+
+  React.useEffect(() => {
+    if (uploadSuccessCount > 0) {
+      successBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [uploadSuccessCount]);
 
   const {
     uploadDocument,
@@ -103,17 +110,23 @@ function UploadDocumentModal({
       const s3Key = result?.key;
       if (!s3Key) continue;
       try {
-        await AppApi.createPropertyDocument({
-          property_id: propertyId,
-          document_name: name,
-          document_date: documentDate,
-          document_key: s3Key,
-          document_type: documentType,
-          system_key: uploadSystemKey,
-        });
-        successCount++;
-        setUploadSuccessCount(successCount);
-        createdDocs.push({key: s3Key, name: file.name, type: file.type});
+        const prev = AppApi._suppressTierEmit;
+        AppApi._suppressTierEmit = true;
+        try {
+          await AppApi.createPropertyDocument({
+            property_id: propertyId,
+            document_name: name,
+            document_date: documentDate,
+            document_key: s3Key,
+            document_type: documentType,
+            system_key: uploadSystemKey,
+          });
+          successCount++;
+          setUploadSuccessCount(successCount);
+          createdDocs.push({key: s3Key, name: file.name, type: file.type});
+        } finally {
+          AppApi._suppressTierEmit = prev;
+        }
       } catch (err) {
         if (err?.status === 403 && err?.message?.toLowerCase().includes("limit")) {
           setUpgradePromptMsg(err.message);
@@ -131,7 +144,7 @@ function UploadDocumentModal({
       setUploadFiles([]);
       setDocumentName("");
       onSuccess?.(createdDocs);
-      setTimeout(() => handleClose(), inspectionReportOnly ? 0 : 2000);
+      setTimeout(() => handleClose(), 2000);
     }
   };
 
@@ -206,7 +219,10 @@ function UploadDocumentModal({
         )}
 
         {uploadSuccessCount > 0 && (
-          <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 flex items-start gap-2">
+          <div
+            ref={successBannerRef}
+            className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 flex items-start gap-2"
+          >
             <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <div className="text-emerald-800 dark:text-emerald-200 text-sm">
               <p className="font-medium">
@@ -243,6 +259,7 @@ function UploadDocumentModal({
             name="documentDate"
             value={documentDate}
             onChange={(e) => setDocumentDate(e.target.value)}
+            popoverClassName="z-[250]"
             required
           />
         </div>

@@ -17,9 +17,15 @@ const maintenanceRecordsBatchSchema = require("../schemas/maintenanceRecordsBatc
 const maintenanceRecordUpdateSchema = require("../schemas/maintenanceRecord.json");
 const router = express.Router();
 
-/** Set req.params.propertyId from maintenance record id so ensurePropertyAccess can run. */
+/** Set req.params.propertyId from maintenance record id so ensurePropertyAccess can run.
+ *  Skips the DB lookup when the client provides property_id in the body or query. */
 async function loadPropertyIdFromRecord(req, res, next) {
   try {
+    const clientId = req.body?.property_id ?? req.query?.propertyId;
+    if (clientId) {
+      req.params.propertyId = Number(clientId);
+      return next();
+    }
     const record = await MaintenanceRecord.getByRecordId(req.params.recordId);
     req.params.propertyId = record.property_id;
     return next();

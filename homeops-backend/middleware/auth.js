@@ -105,7 +105,6 @@ function ensurePropertyAccess(options = {}) {
 
       if (/^\d+$/.test(String(raw))) {
         propertyId = parseInt(raw, 10);
-        if (paramExpectsNumericId && req.params[param] !== undefined) req.params[param] = propertyId;
       } else if (/^[A-Za-z0-9_-]{6,12}$/.test(raw)) {
         const cached = _uidToIdCache.get(raw);
         if (cached && cached.expiresAt > Date.now()) {
@@ -119,7 +118,10 @@ function ensurePropertyAccess(options = {}) {
           propertyId = propRes.rows[0].id;
           _uidToIdCache.set(raw, { value: propertyId, expiresAt: Date.now() + _ACCESS_TTL_MS });
         }
-        if (paramExpectsNumericId && req.params[param] !== undefined) req.params[param] = propertyId;
+      }
+      if (paramExpectsNumericId) {
+        req.params[param] = propertyId;
+        res.locals.resolvedPropertyId = propertyId;
       }
 
       if (user.role === "super_admin" || user.role === "admin") return next();

@@ -58,6 +58,37 @@ function getSystemLabel(systemKey) {
   return sys?.name || systemKey;
 }
 
+/** Parse backend quota error "AI token quota exceeded (used/quota this month)..." */
+function parseQuotaFromError(errorMsg) {
+  if (!errorMsg || typeof errorMsg !== "string") return null;
+  const m = errorMsg.match(/\((\d+)\/(\d+)\s+this month\)/);
+  if (!m) return null;
+  return { used: parseInt(m[1], 10), quota: parseInt(m[2], 10) };
+}
+
+const AI_ANALYSIS_FEATURES = [
+  {
+    icon: Sparkles,
+    title: "AI-powered analysis",
+    desc: "Get an intelligent summary of your inspection report with property condition rating and key findings.",
+  },
+  {
+    icon: Building,
+    title: "Systems detected",
+    desc: "HVAC, plumbing, electrical, and other systems are automatically identified with condition and confidence scores.",
+  },
+  {
+    icon: ClipboardList,
+    title: "Inspection checklist",
+    desc: "Track items from the report and mark them done as you complete maintenance tasks.",
+  },
+  {
+    icon: Calendar,
+    title: "Maintenance recommendations",
+    desc: "Prioritized maintenance suggestions with suggested schedules you can add to your calendar.",
+  },
+];
+
 export default function InspectionAnalysisModalContent({
   propertyId,
   isOpen,
@@ -70,9 +101,8 @@ export default function InspectionAnalysisModalContent({
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
     : "/professionals";
-  const {status, data, error, refresh, load} =
+  const {status, data, error, refresh, load, startAnalysis} =
     useInspectionAnalysis(propertyId);
-  const tierRestrictionNotifiedRef = useRef(false);
 
   useEffect(() => {
     if (isOpen && propertyId) {
@@ -80,19 +110,9 @@ export default function InspectionAnalysisModalContent({
     }
   }, [isOpen, propertyId, load]);
 
-  useEffect(() => {
-    if (
-      status === "quota_exceeded" &&
-      onTierRestriction &&
-      !tierRestrictionNotifiedRef.current
-    ) {
-      tierRestrictionNotifiedRef.current = true;
-      onTierRestriction(error);
-    }
-    if (status !== "quota_exceeded") {
-      tierRestrictionNotifiedRef.current = false;
-    }
-  }, [status, error, onTierRestriction]);
+  // Don't call onTierRestriction — we show the quota message inline. That avoids
+  // stacking UpgradePrompt + TierLimitBanner + inline message (3 different UIs).
+  // Quota is only hit when user explicitly clicks "Run AI Analysis".
 
   if (!propertyId) {
     return (
@@ -123,23 +143,73 @@ export default function InspectionAnalysisModalContent({
   }
 
   if (status === "quota_exceeded") {
+    const parsed = parseQuotaFromError(error);
+    const used = parsed?.used ?? 0;
+    const quota = parsed?.quota ?? 0;
+    const isFreePlan = quota === 0;
+
+    const quotaFeatures = [
+      {
+        icon: Sparkles,
+        title: "AI-powered analysis",
+        desc: "Get an intelligent summary of your inspection report with property condition rating and key findings.",
+      },
+      {
+        icon: Building,
+        title: "Systems detected",
+        desc: "HVAC, plumbing, electrical, and other systems are automatically identified with condition and confidence scores.",
+      },
+      {
+        icon: ClipboardList,
+        title: "Inspection checklist",
+        desc: "Track items from the report and mark them done as you complete maintenance tasks.",
+      },
+      {
+        icon: Calendar,
+        title: "Maintenance recommendations",
+        desc: "Prioritized maintenance suggestions with suggested schedules you can add to your calendar.",
+      },
+    ];
+
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-        <ArrowUpCircle className="w-12 h-12 text-amber-500 dark:text-amber-400 mb-3" />
-        <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-          AI usage limit reached
-        </p>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm">
-          {error ||
-            "You've used all your AI tokens for this month. Upgrade your plan for more."}
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate(`/${accountUrl}/settings/upgrade`)}
-          className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium"
-        >
-          Upgrade plan
-        </button>
+      <div className="flex flex-col min-h-[60vh] p-8 sm:p-10">
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center mb-4">
+            <ArrowUpCircle className="w-8 h-8 text-amber-500 dark:text-amber-400" />
+          </div>
+          <h3 className="text-xl font-semibold text-neutral-800 dark:text-neutral-100 mb-2">
+            {isFreePlan ? "AI analysis not included" : "AI usage limit reached"}
+          </h3>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-md">
+            {isFreePlan
+              ? "Your free plan does not include AI analysis. Please upgrade."
+              : `You've used all your AI tokens for this month (${used.toLocaleString()}/${quota.toLocaleString()}). Upgrade your plan for more.`}
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(`/${accountUrl}/settings/upgrade`)}
+            className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition-colors shadow-sm"
+          >
+            <ArrowUpCircle className="w-4 h-4" />
+            Upgrade plan
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 flex-1">
+          {quotaFeatures.map(({icon: Icon, title, desc}) => (
+            <div
+              key={title}
+              className="flex gap-4 p-5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/30"
+            >
+              <div className="shrink-0 w-10 h-10 rounded-lg bg-[#456564]/10 dark:bg-[#456564]/20 flex items-center justify-center">
+                <Icon className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
+              </div>
+              <div className="text-left min-w-0">
+                <p className="font-medium text-neutral-800 dark:text-neutral-200 text-sm mb-1">{title}</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -165,7 +235,7 @@ export default function InspectionAnalysisModalContent({
     );
   }
 
-  if (status === "empty") {
+  if (status === "ready_to_analyze") {
     const features = [
       {
         icon: Sparkles,
@@ -195,10 +265,79 @@ export default function InspectionAnalysisModalContent({
             <FileCheck className="w-8 h-8 text-[#456564] dark:text-[#5a7a78]" />
           </div>
           <h3 className="text-xl font-semibold text-neutral-800 dark:text-neutral-100 mb-2">
-            No analysis available yet
+            Ready to analyze
           </h3>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-xl">
-            Upload your inspection report (PDF) and our AI will analyze it to extract condition ratings, system findings, maintenance recommendations, and more.
+            You have an inspection report. Run AI analysis to extract condition ratings, system findings, and maintenance recommendations.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10 flex-1">
+          {features.map(({icon: Icon, title, desc}) => (
+            <div
+              key={title}
+              className="flex gap-4 p-5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800/30"
+            >
+              <div className="shrink-0 w-10 h-10 rounded-lg bg-[#456564]/10 dark:bg-[#456564]/20 flex items-center justify-center">
+                <Icon className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
+              </div>
+              <div className="text-left min-w-0">
+                <p className="font-medium text-neutral-800 dark:text-neutral-200 text-sm mb-1">{title}</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-center pt-4">
+          <button
+            type="button"
+            onClick={startAnalysis}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#456564] hover:bg-[#34514f] text-white text-sm font-semibold transition-colors shadow-sm"
+          >
+            <Sparkles className="w-5 h-5" />
+            Run AI Analysis
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "empty" || status === "ready_to_analyze") {
+    const features = [
+      {
+        icon: Sparkles,
+        title: "AI-powered analysis",
+        desc: "Get an intelligent summary of your inspection report with property condition rating and key findings.",
+      },
+      {
+        icon: Building,
+        title: "Systems detected",
+        desc: "HVAC, plumbing, electrical, and other systems are automatically identified with condition and confidence scores.",
+      },
+      {
+        icon: ClipboardList,
+        title: "Inspection checklist",
+        desc: "Track items from the report and mark them done as you complete maintenance tasks.",
+      },
+      {
+        icon: Calendar,
+        title: "Maintenance recommendations",
+        desc: "Prioritized maintenance suggestions with suggested schedules you can add to your calendar.",
+      },
+    ];
+    const hasReport = status === "ready_to_analyze";
+    return (
+      <div className="flex flex-col min-h-[60vh] p-8 sm:p-10">
+        <div className="flex flex-col items-center text-center mb-10">
+          <div className="w-16 h-16 rounded-2xl bg-[#456564]/10 dark:bg-[#456564]/20 flex items-center justify-center mb-5">
+            <FileCheck className="w-8 h-8 text-[#456564] dark:text-[#5a7a78]" />
+          </div>
+          <h3 className="text-xl font-semibold text-neutral-800 dark:text-neutral-100 mb-2">
+            {hasReport ? "Ready to analyze" : "No analysis available yet"}
+          </h3>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-xl">
+            {hasReport
+              ? "Your inspection report is uploaded. Click below to run AI analysis and get condition ratings, system findings, and maintenance recommendations."
+              : "Upload your inspection report (PDF) and our AI will analyze it to extract condition ratings, system findings, maintenance recommendations, and more."}
           </p>
         </div>
 
@@ -223,8 +362,17 @@ export default function InspectionAnalysisModalContent({
           ))}
         </div>
 
-        {onUploadReport && (
-          <div className="flex justify-center pt-4">
+        <div className="flex justify-center pt-4 gap-3">
+          {hasReport ? (
+            <button
+              type="button"
+              onClick={startAnalysis}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#456564] hover:bg-[#34514f] text-white text-sm font-semibold transition-colors shadow-sm"
+            >
+              <Sparkles className="w-5 h-5" />
+              Run AI Analysis
+            </button>
+          ) : onUploadReport ? (
             <button
               type="button"
               onClick={onUploadReport}
@@ -233,8 +381,8 @@ export default function InspectionAnalysisModalContent({
               <Upload className="w-5 h-5" />
               Upload inspection report
             </button>
-          </div>
-        )}
+          ) : null}
+        </div>
       </div>
     );
   }

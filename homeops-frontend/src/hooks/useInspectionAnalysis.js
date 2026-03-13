@@ -39,12 +39,13 @@ function getMostRecentInspectionReport(documents) {
 /**
  * @param {string|number|null} propertyId - Property ID or UID
  * @returns {{
- *   status: 'idle'|'empty'|'loading'|'ready'|'error',
+ *   status: 'idle'|'empty'|'loading'|'ready'|'ready_to_analyze'|'error'|'quota_exceeded',
  *   data: object|null,
  *   error: string|null,
  *   reportMeta: { s3Key, fileName?, document_date? }|null,
  *   refresh: () => Promise<void>,
  *   load: () => Promise<void>,
+ *   startAnalysis: () => Promise<void>,
  * }}
  */
 export function useInspectionAnalysis(propertyId) {
@@ -119,39 +120,10 @@ export function useInspectionAnalysis(propertyId) {
         return;
       }
 
-      setStatus("loading");
-      const jobId = await createOrRefreshAnalysis(propertyId, meta);
-
-      const startTime = Date.now();
-      const poll = async () => {
-        if (abortRef.current) return;
-        const elapsed = Date.now() - startTime;
-        if (elapsed > MAX_POLL_DURATION_MS) {
-          setStatus("error");
-          setError("Analysis is taking longer than expected. Click Retry to try again.");
-          return;
-        }
-
-        const job = await getJobStatus(jobId);
-        if (abortRef.current) return;
-
-        if (job.status === "completed" && job.result) {
-          setData(job.result);
-          setStatus("ready");
-          cacheRef.current.set(cacheKey, { data: job.result, reportMeta: meta });
-          return;
-        }
-
-        if (job.status === "failed") {
-          setStatus("error");
-          setError(job.errorMessage ?? "Analysis failed");
-          return;
-        }
-
-        setTimeout(poll, POLL_INTERVAL_MS);
-      };
-
-      await poll();
+      // Report exists but no analysis yet: show advantages first, don't auto-start.
+      // User must click "Run AI Analysis" to trigger quota check.
+      setStatus("ready_to_analyze");
+      setReportMeta(meta);
     } catch (err) {
       if (abortRef.current) return;
       const isQuotaError = err?.status === 403 && err?.message?.toLowerCase().includes("quota");
@@ -171,6 +143,56 @@ export function useInspectionAnalysis(propertyId) {
     await load();
   }, [propertyId, load]);
 
+  /** Start analysis when user clicks "Run AI Analysis". Suppresses TierLimitBanner so only one message shows. */
+  const startAnalysis = useCallback(async () => {
+    if (!propertyId || !reportMeta?.s3Key) return;
+    const cacheKey = String(propertyId);
+    const meta = reportMeta;
+
+    setStatus("loading");
+    setError(null);
+    abortRef.current = null;
+
+    const prevSuppress = AppApi._suppressTierEmit;
+    AppApi._suppressTierEmit = true;
+    try {
+      const jobId = await createOrRefreshAnalysis(propertyId, meta);
+      const startTime = Date.now();
+      const poll = async () => {
+        if (abortRef.current) return;
+        const elapsed = Date.now() - startTime;
+        if (elapsed > MAX_POLL_DURATION_MS) {
+          setStatus("ready_to_analyze");
+          setError("Analysis is taking longer than expected. Click Run AI Analysis to try again.");
+          return;
+        }
+        const job = await getJobStatus(jobId);
+        if (abortRef.current) return;
+        if (job.status === "completed" && job.result) {
+          setData(job.result);
+          setStatus("ready");
+          cacheRef.current.set(cacheKey, { data: job.result, reportMeta: meta });
+          return;
+        }
+        if (job.status === "failed") {
+          setStatus("ready_to_analyze");
+          setError(job.errorMessage ?? "Analysis failed");
+          return;
+        }
+        setTimeout(poll, POLL_INTERVAL_MS);
+      };
+      await poll();
+    } catch (err) {
+      if (abortRef.current) return;
+      const isQuotaError = err?.status === 403 && err?.message?.toLowerCase().includes("quota");
+      setStatus(isQuotaError ? "quota_exceeded" : "ready_to_analyze");
+      setError(err?.message ?? "Failed to load analysis");
+      setData(null);
+    } finally {
+      AppApi._suppressTierEmit = prevSuppress;
+    }
+  }, [propertyId, reportMeta]);
+
   return {
     status,
     data,
@@ -178,6 +200,7 @@ export function useInspectionAnalysis(propertyId) {
     reportMeta,
     refresh,
     load,
+    startAnalysis,
     generate: refresh,
   };
 }

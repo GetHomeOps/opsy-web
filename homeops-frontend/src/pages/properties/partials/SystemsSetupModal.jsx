@@ -9,6 +9,7 @@ import {
   Loader2,
   Search,
   SearchX,
+  SearchCheck,
   AlertCircle,
   FileCheck,
   Upload,
@@ -1098,7 +1099,11 @@ function SystemsSetupModal({
                   const iconClass = showStatusMessage
                     ? status.iconColor
                     : "text-[#456564]";
-                  const StatusIcon = showStatusMessage ? SearchX : null;
+                  const StatusIcon = showStatusMessage
+                    ? status.status === "red"
+                      ? SearchX
+                      : SearchCheck
+                    : null;
                   return (
                     <>
                       <div

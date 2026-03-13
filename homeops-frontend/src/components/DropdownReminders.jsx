@@ -1,22 +1,26 @@
 import React, {useEffect, useRef, useState} from "react";
 import {Link} from "react-router-dom";
+import {parseISO, format, isValid, isToday, isTomorrow} from "date-fns";
 import {Clock3, Calendar, AlertCircle, ChevronRight, Loader2} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 
 function formatEventDate(dateStr, timeStr) {
-  const d = new Date(dateStr + (timeStr ? `T${timeStr}` : "T12:00:00"));
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  if (d.toDateString() === today.toDateString()) return "Today";
-  if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  if (dateStr == null) return "";
+  // API may return full ISO string ("2026-03-17T00:00:00.000Z") or "YYYY-MM-DD"
+  const datePart =
+    dateStr instanceof Date
+      ? format(dateStr, "yyyy-MM-dd")
+      : String(dateStr).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return "";
+  const timePart = timeStr ? String(timeStr).trim().slice(0, 8) : "12:00:00";
+  const isoStr = timePart ? `${datePart}T${timePart}` : `${datePart}T12:00:00`;
+  const d = parseISO(isoStr);
+  if (!isValid(d)) return "";
+  if (isToday(d)) return "Today";
+  if (isTomorrow(d)) return "Tomorrow";
+  return format(d, "MMM d, yyyy");
 }
 
 function formatEventTime(timeStr) {

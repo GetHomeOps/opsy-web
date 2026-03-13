@@ -25,9 +25,10 @@ class PropertyDocument {
    */
   static async create(data) {
     const { property_id, document_name, document_date, document_key, document_type, system_key } = data;
+    const systemKey = system_key == null || system_key === "" ? "general" : system_key;
 
-    if (!property_id || !document_name || !document_date || !document_key || !document_type || !system_key) {
-      throw new BadRequestError("property_id, document_name, document_date, document_key, document_type, and system_key are required");
+    if (!property_id || !document_name || !document_date || !document_key || !document_type) {
+      throw new BadRequestError("property_id, document_name, document_date, document_key, and document_type are required");
     }
 
     try {

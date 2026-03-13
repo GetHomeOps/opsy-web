@@ -652,8 +652,9 @@ class AppApi {
     return res.maintenance;
   }
 
-  static async deleteMaintenanceRecord(id) {
-    await this.request(`maintenance/${id}`, {}, "DELETE");
+  static async deleteMaintenanceRecord(id, propertyId) {
+    const qs = propertyId ? `?propertyId=${propertyId}` : "";
+    await this.request(`maintenance/${id}${qs}`, {}, "DELETE");
   }
 
   static async getMaintenanceRecordsByPropertyId(propertyId) {
@@ -759,8 +760,14 @@ class AppApi {
   /* --------- Property Documents --------- */
 
   static async createPropertyDocument(data) {
-    const res = await this.request("propertyDocuments", data, "POST");
-    return res.document;
+    const prev = AppApi._suppressTierEmit;
+    AppApi._suppressTierEmit = true;
+    try {
+      const res = await this.request("propertyDocuments", data, "POST");
+      return res.document;
+    } finally {
+      AppApi._suppressTierEmit = prev;
+    }
   }
 
   static async getPropertyDocuments(propertyId) {
