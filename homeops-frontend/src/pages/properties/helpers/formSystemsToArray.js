@@ -1,5 +1,8 @@
 import {SYSTEM_SECTIONS} from "../constants/systemSections";
-import {STANDARD_CUSTOM_SYSTEM_FIELDS} from "../constants/propertySystems";
+import {
+  STANDARD_CUSTOM_SYSTEM_FIELDS,
+  DEFAULT_SYSTEM_IDS,
+} from "../constants/propertySystems";
 import {
   slugifyCustomSystemName,
   ensureUniqueSystemKey,
@@ -142,7 +145,10 @@ function getCustomNextServiceDate(customSystemsData, systemName) {
 export function formSystemsToArray(formData, propertyId, existingSystems = []) {
   if (!formData || typeof formData !== "object") return [];
 
-  const selectedIds = formData.selectedSystemIds ?? [];
+  const selectedIds =
+    (formData.selectedSystemIds?.length ?? 0) > 0
+      ? formData.selectedSystemIds
+      : DEFAULT_SYSTEM_IDS;
   const customNames = formData.customSystemNames ?? [];
   const customData = formData.customSystemsData ?? {};
   const usedKeys = new Set();

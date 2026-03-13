@@ -280,7 +280,7 @@ function reducer(state, action) {
           systems: {...state.formData.systems, ...action.payload},
         },
         formDataChanged: !state.isInitialLoad,
-        systemsDirty: !state.isInitialLoad ? true : state.systemsDirty,
+        systemsDirty: true,
       };
     case "SET_SYSTEMS_FORM_DATA_SILENT":
       return {
