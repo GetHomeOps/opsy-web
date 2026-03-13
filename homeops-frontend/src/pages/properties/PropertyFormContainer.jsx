@@ -146,6 +146,8 @@ const initialState = {
   activeTab: "identity",
   isNew: true,
   formDataChanged: false,
+  /** True when systems tab data has been modified since last save/load */
+  systemsDirty: false,
   isInitialLoad: true,
   bannerOpen: false,
   bannerType: "success",
@@ -222,6 +224,9 @@ function reducer(state, action) {
       const p = action.payload ?? {};
       const hasTabbed =
         "identity" in p || "systems" in p || "maintenanceRecords" in p;
+      const sysDirty = !state.isInitialLoad && ("systems" in p)
+        ? true
+        : state.systemsDirty;
       if (hasTabbed) {
         return {
           ...state,
@@ -232,6 +237,7 @@ function reducer(state, action) {
               p.maintenanceRecords ?? state.formData.maintenanceRecords ?? [],
           },
           formDataChanged: !state.isInitialLoad,
+          systemsDirty: sysDirty,
         };
       }
       const split = splitFormDataByTabs(p);
@@ -246,6 +252,7 @@ function reducer(state, action) {
               : (state.formData.maintenanceRecords ?? []),
         },
         formDataChanged: !state.isInitialLoad,
+        systemsDirty: sysDirty,
       };
     }
     case "SET_IDENTITY_FORM_DATA":
@@ -273,6 +280,7 @@ function reducer(state, action) {
           systems: {...state.formData.systems, ...action.payload},
         },
         formDataChanged: !state.isInitialLoad,
+        systemsDirty: !state.isInitialLoad ? true : state.systemsDirty,
       };
     case "SET_SYSTEMS_FORM_DATA_SILENT":
       return {
@@ -319,6 +327,7 @@ function reducer(state, action) {
           ? savedRecords
           : [],
         formDataChanged: false,
+        systemsDirty: false,
         isInitialLoad: true,
         errors: {},
         propertyAccessDenied: false,
@@ -341,6 +350,7 @@ function reducer(state, action) {
           ? savedRecords
           : [],
         formDataChanged: false,
+        systemsDirty: false,
         isInitialLoad: false,
         errors: {},
       };
@@ -1419,28 +1429,107 @@ function PropertyFormContainer() {
       const t1 = performance.now();
       const res = await updateProperty(propertyId, identityPayload);
       if (process.env.NODE_ENV === "development") {
-        console.debug("[perf] updateProperty", (performance.now() - t1).toFixed(0), "ms");
+        console.debug(
+          "[perf] updateProperty",
+          (performance.now() - t1).toFixed(0), "ms |",
+          "payload:", (JSON.stringify(identityPayload).length / 1024).toFixed(1), "KB",
+        );
       }
       if (res) {
+        /* --- Validate maintenance dates before starting parallel work --- */
+        const currentRecords = state.formData.maintenanceRecords ?? [];
+        const recordsWithoutDate = currentRecords.filter(
+          (r) => !(r.date != null && String(r.date).trim()),
+        );
+        if (recordsWithoutDate.length > 0) {
+          dispatch({
+            type: "SET_BANNER",
+            payload: {
+              open: true,
+              type: "error",
+              message: `Please add a date to all maintenance records before saving. ${recordsWithoutDate.length} record(s) are missing a date.`,
+            },
+          });
+          dispatch({type: "SET_SUBMITTING", payload: false});
+          return;
+        }
+
+        /* --- Prepare all payloads synchronously --- */
         const preparedTeam = prepareTeamForProperty(homeopsTeam);
         const teamUnchanged =
           originalTeamRef.current &&
           teamsAreEqual(preparedTeam, originalTeamRef.current);
 
-        if (!teamUnchanged) {
-          const t2 = performance.now();
-          await updateTeam(res.id, preparedTeam);
-          if (process.env.NODE_ENV === "development") {
-            console.debug("[perf] updateTeam", (performance.now() - t2).toFixed(0), "ms");
-          }
-          const t3 = performance.now();
-          const teamAfterUpdate = await getPropertyTeam(uid);
-          if (process.env.NODE_ENV === "development") {
-            console.debug("[perf] getPropertyTeam", (performance.now() - t3).toFixed(0), "ms");
-          }
-          const propertyUsers = teamAfterUpdate?.property_users ?? [];
+        const systemsArray = formSystemsToArray(
+          mergeFormDataFromTabs(state.formData) ?? {},
+          res.id,
+          state.systems ?? [],
+        );
 
-          /* Only redirect if current user removed themselves (no longer on team). Skip for super_admin – they have platform-wide access and should stay on the property to see the success message. */
+        const syncPlan = computeMaintenanceSyncPlan(
+          currentRecords,
+          originalMaintenanceRecordIdsRef.current,
+          res.id,
+        );
+
+        /* --- Fan out independent save operations in parallel --- */
+        if (process.env.NODE_ENV === "development") {
+          console.debug(
+            "[perf] save plan:",
+            "team:", teamUnchanged ? "skip" : "update",
+            "| systems:", state.systemsDirty ? systemsArray.length : "skip (clean)",
+            "| maintenance: del", syncPlan.toDelete.length,
+            "create", syncPlan.toCreate.length,
+            "update", syncPlan.toUpdate.length,
+          );
+        }
+        const tParallel = performance.now();
+
+        const teamPromise = teamUnchanged
+          ? Promise.resolve(null)
+          : (async () => {
+              await updateTeam(res.id, preparedTeam);
+              return getPropertyTeam(uid);
+            })();
+
+        const systemsPromise = state.systemsDirty
+          ? updateSystemsForProperty(res.id, systemsArray)
+          : Promise.resolve(null);
+
+        const maintenancePromise = (async () => {
+          if (syncPlan.toDelete.length > 0) {
+            await Promise.all(
+              syncPlan.toDelete.map((id) => deleteMaintenanceRecord(id)),
+            );
+          }
+          if (syncPlan.toCreate.length > 0) {
+            await createMaintenanceRecords(res.id, syncPlan.toCreate);
+          }
+          if (syncPlan.toUpdate.length > 0) {
+            await Promise.all(
+              syncPlan.toUpdate.map(({id, payload}) =>
+                updateMaintenanceRecord(id, payload),
+              ),
+            );
+          }
+        })();
+
+        const [teamResult, systemsResult] = await Promise.all([
+          teamPromise,
+          systemsPromise,
+          maintenancePromise,
+        ]);
+
+        if (process.env.NODE_ENV === "development") {
+          console.debug(
+            "[perf] parallel phase (team+systems+maintenance)",
+            (performance.now() - tParallel).toFixed(0), "ms",
+          );
+        }
+
+        /* --- Handle team side effects (redirect if user removed themselves) --- */
+        if (teamResult) {
+          const propertyUsers = teamResult?.property_users ?? [];
           const isSuperAdmin =
             (currentUser?.role ?? "").toLowerCase() === "super_admin";
           if (!isSuperAdmin) {
@@ -1458,7 +1547,6 @@ function PropertyFormContainer() {
               return;
             }
           }
-          /* Sync local team with server so UI matches after save */
           const enriched = propertyUsers.map((m) => {
             const u = users?.find(
               (us) => us && m?.id != null && Number(us.id) === Number(m.id),
@@ -1477,69 +1565,16 @@ function PropertyFormContainer() {
           originalTeamRef.current = prepareTeamForProperty(enriched);
         }
 
-        const systemsArray = formSystemsToArray(
-          mergeFormDataFromTabs(state.formData) ?? {},
-          res.id,
-          state.systems ?? [],
-        );
-        const t4 = performance.now();
-        await updateSystemsForProperty(res.id, systemsArray);
-        if (process.env.NODE_ENV === "development") {
-          console.debug("[perf] updateSystemsForProperty", (performance.now() - t4).toFixed(0), "ms");
-        }
-
-        /* Maintenance records sync */
-        const currentRecords = state.formData.maintenanceRecords ?? [];
-        const recordsWithoutDate = currentRecords.filter(
-          (r) => !(r.date != null && String(r.date).trim()),
-        );
-        if (recordsWithoutDate.length > 0) {
-          dispatch({
-            type: "SET_BANNER",
-            payload: {
-              open: true,
-              type: "error",
-              message: `Please add a date to all maintenance records before saving. ${recordsWithoutDate.length} record(s) are missing a date.`,
-            },
-          });
-          dispatch({type: "SET_SUBMITTING", payload: false});
-          return;
-        }
-        const syncPlan = computeMaintenanceSyncPlan(
-          currentRecords,
-          originalMaintenanceRecordIdsRef.current,
-          res.id,
-        );
-
-        const t5 = performance.now();
-        if (syncPlan.toDelete.length > 0) {
-          await Promise.all(
-            syncPlan.toDelete.map((id) => deleteMaintenanceRecord(id)),
-          );
-        }
-        if (syncPlan.toCreate.length > 0) {
-          await createMaintenanceRecords(res.id, syncPlan.toCreate);
-        }
-        if (syncPlan.toUpdate.length > 0) {
-          await Promise.all(
-            syncPlan.toUpdate.map(({id, payload}) =>
-              updateMaintenanceRecord(id, payload),
-            ),
-          );
-        }
-        if (process.env.NODE_ENV === "development") {
-          console.debug("[perf] maintenance sync", (performance.now() - t5).toFixed(0), "ms");
-        }
-
+        /* --- Post-save refresh: only maintenance (property from PATCH, systems from batch) --- */
         const t6 = performance.now();
-        const [refreshed, rawRecords, systemsResAfter] = await Promise.all([
-          getPropertyById(uid),
-          getMaintenanceRecordsByPropertyId(res.id),
-          getSystemsByPropertyId(res.id),
-        ]);
+        const rawRecords = await getMaintenanceRecordsByPropertyId(res.id);
         if (process.env.NODE_ENV === "development") {
-          console.debug("[perf] post-save refetches", (performance.now() - t6).toFixed(0), "ms");
-          console.debug("[perf] handleUpdate total", (performance.now() - t0).toFixed(0), "ms");
+          console.debug("[perf] post-save maintenance refetch", (performance.now() - t6).toFixed(0), "ms");
+          console.debug(
+            "[perf] handleUpdate total", (performance.now() - t0).toFixed(0), "ms |",
+            "API calls: ~" + (1 + (teamUnchanged ? 0 : 2) + (state.systemsDirty ? 1 : 0) +
+              syncPlan.toDelete.length + (syncPlan.toCreate.length ? 1 : 0) + syncPlan.toUpdate.length + 1),
+          );
         }
 
         const maintenanceRecords = mapMaintenanceRecordsFromBackend(
@@ -1551,12 +1586,13 @@ function PropertyFormContainer() {
             .filter((r) => !isNewMaintenanceRecord(r))
             .map((r) => r.id),
         );
-        const systemsFromBackend =
-          systemsResAfter?.systems ?? systemsResAfter ?? [];
-        if (systemsResAfter?.aiSummaryUpdatedAt) {
+        const systemsFromBackend = systemsResult
+          ? (systemsResult.systems ?? systemsResult ?? [])
+          : (state.systems ?? []);
+        if (systemsResult?.aiSummaryUpdatedAt) {
           dispatch({
             type: "SET_AI_SUMMARY_UPDATED_AT",
-            payload: systemsResAfter.aiSummaryUpdatedAt,
+            payload: systemsResult.aiSummaryUpdatedAt,
           });
         }
 
@@ -1567,7 +1603,7 @@ function PropertyFormContainer() {
           type: "REFRESH_PROPERTY_AFTER_SAVE",
           payload: {
             ...buildPropertyPayloadFromRefresh(
-              refreshed,
+              res,
               systemsFromBackend ?? [],
               res,
             ),
@@ -2033,15 +2069,14 @@ function PropertyFormContainer() {
                 numericId,
                 state.systems ?? [],
               );
-              await updateSystemsForProperty(numericId, systemsArray);
-              const systemsResAfter = await getSystemsByPropertyId(numericId);
+              const systemsRes = await updateSystemsForProperty(numericId, systemsArray);
               const systemsFromBackend =
-                systemsResAfter?.systems ?? systemsResAfter ?? [];
+                systemsRes?.systems ?? systemsRes ?? [];
               dispatch({type: "SET_SYSTEMS", payload: systemsFromBackend});
-              if (systemsResAfter?.aiSummaryUpdatedAt) {
+              if (systemsRes?.aiSummaryUpdatedAt) {
                 dispatch({
                   type: "SET_AI_SUMMARY_UPDATED_AT",
-                  payload: systemsResAfter.aiSummaryUpdatedAt,
+                  payload: systemsRes.aiSummaryUpdatedAt,
                 });
               }
               dispatch({

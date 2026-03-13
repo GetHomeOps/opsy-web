@@ -262,13 +262,7 @@ class Property {
     const querySql = `UPDATE properties
                       SET ${setCols}
                       WHERE id = ${idVarIdx}
-                      RETURNING id,
-                                property_uid,
-                                passport_id,
-                                address,
-                                city,
-                                state,
-                                zip`;
+                      RETURNING *`;
     const result = await db.query(querySql, [...values, id]);
     const property = result.rows[0];
 

@@ -48,6 +48,49 @@ router.get("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "proper
   }
 });
 
+/** PUT /:propertyId/batch - Batch upsert systems for a property in a single request.
+ *  Body: { systems: [{ system_key, data, next_service_date, included }, ...] }
+ *  Returns { systems: [...] } with AI condition enrichment. */
+router.put("/:propertyId/batch", ensureLoggedIn, ensurePropertyAccess({ param: "propertyId" }), async function (req, res, next) {
+  try {
+    const { propertyId } = req.params;
+    if (!propertyId || propertyId === "undefined" || propertyId === "null") {
+      throw new BadRequestError("Valid property ID is required");
+    }
+    const { systems: incoming } = req.body;
+    if (!Array.isArray(incoming)) {
+      throw new BadRequestError("systems array is required");
+    }
+    for (const sys of incoming) {
+      if (!sys.system_key) throw new BadRequestError("Each system must have a system_key");
+      if (sys.next_service_date == null || sys.next_service_date === "") {
+        sys.next_service_date = null;
+      }
+    }
+
+    const t0 = Date.now();
+    const upserted = await System.batchUpsert(propertyId, incoming);
+    const tUpsert = Date.now();
+
+    const [allSystems, analysis, aiSummary] = await Promise.all([
+      System.get(propertyId),
+      InspectionAnalysisResult.getByPropertyId(propertyId),
+      getAiSummaryForProperty(propertyId),
+    ]);
+    const enriched = enrichSystemsWithAiCondition(allSystems, analysis, aiSummary);
+    const response = { systems: enriched };
+    if (aiSummary?.lastReanalysisAt) {
+      response.aiSummaryUpdatedAt = aiSummary.lastReanalysisAt;
+    }
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[perf] PUT /systems/${propertyId}/batch: upsert ${incoming.length} systems ${tUpsert - t0}ms | enrich ${Date.now() - tUpsert}ms | total ${Date.now() - t0}ms`);
+    }
+    return res.json(response);
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** PATCH /:propertyId - Update system (upsert by system_key). Body: system_key, data, next_service_date, etc. */
 router.patch("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "propertyId" }), async function (req, res, next) {
   try {

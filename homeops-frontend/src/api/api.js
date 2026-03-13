@@ -613,6 +613,11 @@ class AppApi {
     return res.system;
   }
 
+  static async batchUpdateSystems(propertyId, systems) {
+    let res = await this.request(`systems/${propertyId}/batch`, { systems }, 'PUT');
+    return res;
+  }
+
   static async getSystemsByPropertyId(propertyId) {
     let res = await this.request(`systems/${propertyId}`);
     return res;

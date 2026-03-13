@@ -359,8 +359,13 @@ router.post("/:propertyId/users", ensureLoggedIn, ensurePropertyAccess({ param: 
 /** PATCH /:propertyId - Update property. */
 router.patch("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "propertyId" }), async function (req, res, next) {
   try {
+    const t0 = Date.now();
     const property = await Property.updateProperty(req.params.propertyId, req.body);
+    const tDb = Date.now();
     const propertyWithUrl = await addPresignedUrlToItem(property, "main_photo", "main_photo_url");
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[perf] PATCH /properties/${req.params.propertyId}: db ${tDb - t0}ms | presign ${Date.now() - tDb}ms | total ${Date.now() - t0}ms`);
+    }
     return res.json({ property: propertyWithUrl });
   } catch (err) {
     return next(err);

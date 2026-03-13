@@ -126,6 +126,46 @@ class System {
       included,
     });
   }
+
+  /** Batch upsert systems for a property in a single SQL statement.
+   *  Uses INSERT ... ON CONFLICT (property_id, system_key) DO UPDATE.
+   *
+   *  @param {number} propertyId
+   *  @param {Array<{system_key: string, data?: object, next_service_date?: string|null, included?: boolean}>} systems
+   *  @returns {Promise<Array>} upserted rows
+   */
+  static async batchUpsert(propertyId, systems) {
+    if (!systems || systems.length === 0) return [];
+
+    const values = [];
+    const placeholders = [];
+    let idx = 1;
+
+    for (const sys of systems) {
+      const data = sys.data !== undefined ? sys.data : {};
+      const dateVal = (sys.next_service_date == null || sys.next_service_date === "")
+        ? null
+        : sys.next_service_date;
+      const included = sys.included !== undefined ? Boolean(sys.included) : true;
+
+      placeholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4})`);
+      values.push(propertyId, sys.system_key, JSON.stringify(data), dateVal, included);
+      idx += 5;
+    }
+
+    const sql = `
+      INSERT INTO property_systems (property_id, system_key, data, next_service_date, included)
+      VALUES ${placeholders.join(", ")}
+      ON CONFLICT (property_id, system_key) DO UPDATE SET
+        data = EXCLUDED.data,
+        next_service_date = EXCLUDED.next_service_date,
+        included = EXCLUDED.included,
+        updated_at = NOW()
+      RETURNING id, property_id, system_key, data, next_service_date, included`;
+
+    const result = await db.query(sql, values);
+    return result.rows;
+  }
 }
 
 module.exports = System;
