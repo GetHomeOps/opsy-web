@@ -546,9 +546,6 @@ function DocumentsTab({
       setUploadFiles([]);
       setUploadDocumentName("");
       await fetchDocuments();
-      setTimeout(() => {
-        setShowUploadModal(false);
-      }, 2000);
     }
   };
 
@@ -907,10 +904,10 @@ function DocumentsTab({
               {uploadSuccessCount > 0 && (
                 <div
                   ref={uploadSuccessBannerRef}
-                  className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-2 flex items-center gap-2"
+                  className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 flex items-center gap-2"
                 >
-                  <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <span className="text-indigo-800 dark:text-indigo-200 text-xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-emerald-800 dark:text-emerald-200 text-xs">
                     {uploadSuccessCount} file
                     {uploadSuccessCount !== 1 ? "s" : ""} uploaded successfully
                   </span>
@@ -999,9 +996,9 @@ function DocumentsTab({
                 />
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-5 text-center hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors cursor-pointer group"
+                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-5 text-center hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors cursor-pointer group"
                 >
-                  <Upload className="w-10 h-10 mx-auto mb-3 text-gray-400 dark:text-gray-500 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" />
+                  <Upload className="w-10 h-10 mx-auto mb-3 text-gray-400 dark:text-gray-500 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
                     Click to upload or drag and drop
                   </p>
@@ -1009,7 +1006,7 @@ function DocumentsTab({
                     PDF, JPG, PNG up to 10MB
                   </p>
                   {uploadFiles.length > 0 && (
-                    <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-2 font-medium">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 font-medium">
                       {uploadFiles.length} file
                       {uploadFiles.length !== 1 ? "s" : ""} selected
                     </p>
@@ -1031,7 +1028,7 @@ function DocumentsTab({
                   </div>
                   <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                     <div
-                      className="h-full bg-indigo-500 dark:bg-indigo-500 transition-all duration-300"
+                      className="h-full bg-emerald-500 dark:bg-emerald-500 transition-all duration-300"
                       style={{width: `${progress}%`}}
                     />
                   </div>
@@ -1040,42 +1037,78 @@ function DocumentsTab({
             </div>
 
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  if (!isUploading) {
-                    setShowUploadModal(false);
-                    setUploadFiles([]);
-                    setUploadError(null);
-                    clearUploadHookError();
-                  }
-                }}
-                disabled={isUploading}
-                className="btn-sm border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50 text-xs"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpload}
-                disabled={
-                  isUploading ||
-                  uploadFiles.length === 0 ||
-                  !uploadDocumentName.trim() ||
-                  !uploadDocumentDate
-                }
-                className="btn-sm bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 text-xs"
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Uploading…
-                  </>
-                ) : (
-                  <>
+              {uploadSuccessCount > 0 && !isUploading ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setUploadSuccessCount(0);
+                      setUploadDocumentDate(new Date().toISOString().slice(0, 10));
+                      setUploadError(null);
+                      clearUploadHookError();
+                    }}
+                    className="btn-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs"
+                  >
                     <Upload className="w-4 h-4" />
-                    Upload
-                  </>
-                )}
-              </button>
+                    Add more
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUploadModal(false);
+                      setUploadFiles([]);
+                      setUploadDocumentName("");
+                      setUploadDocumentDate(new Date().toISOString().slice(0, 10));
+                      setUploadError(null);
+                      setUploadSuccessCount(0);
+                      clearUploadHookError();
+                    }}
+                    className="btn-sm border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-200 text-xs"
+                  >
+                    Done
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      if (!isUploading) {
+                        setShowUploadModal(false);
+                        setUploadFiles([]);
+                        setUploadDocumentName("");
+                        setUploadDocumentDate(new Date().toISOString().slice(0, 10));
+                        setUploadError(null);
+                        setUploadSuccessCount(0);
+                        clearUploadHookError();
+                      }
+                    }}
+                    disabled={isUploading}
+                    className="btn-sm border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50 text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpload}
+                    disabled={
+                      isUploading ||
+                      uploadFiles.length === 0 ||
+                      !uploadDocumentName.trim() ||
+                      !uploadDocumentDate
+                    }
+                    className="btn-sm bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 text-xs"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Uploading…
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Upload
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

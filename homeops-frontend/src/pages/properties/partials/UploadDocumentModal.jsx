@@ -144,7 +144,6 @@ function UploadDocumentModal({
       setUploadFiles([]);
       setDocumentName("");
       onSuccess?.(createdDocs);
-      setTimeout(() => handleClose(), 2000);
     }
   };
 
@@ -365,30 +364,55 @@ function UploadDocumentModal({
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end">
-        <button
-          onClick={handleClose}
-          disabled={isUploading}
-          className="btn border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleUpload}
-          disabled={!canUpload}
-          className="btn bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-        >
-          {isUploading ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Uploading…
-            </>
-          ) : (
-            <>
+        {uploadSuccessCount > 0 && !isUploading ? (
+          <>
+            <button
+              onClick={() => {
+                setUploadSuccessCount(0);
+                setDocumentDate(new Date().toISOString().slice(0, 10));
+                setUploadError(null);
+                clearUploadHookError();
+              }}
+              className="btn bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
+            >
               <Upload className="w-4 h-4" />
-              Upload
-            </>
-          )}
-        </button>
+              Add more
+            </button>
+            <button
+              onClick={handleClose}
+              className="btn border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300"
+            >
+              Done
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={handleClose}
+              disabled={isUploading}
+              className="btn border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleUpload}
+              disabled={!canUpload}
+              className="btn bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Uploading…
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  Upload
+                </>
+              )}
+            </button>
+          </>
+        )}
       </div>
     </ModalBlank>
     <UpgradePrompt
