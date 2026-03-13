@@ -1,12 +1,15 @@
 import React from "react";
 import {useTranslation} from "react-i18next";
 
+const DEFAULT_PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+
 function PaginationClassic({
   currentPage,
   totalItems,
   itemsPerPage,
   onPageChange,
   onItemsPerPageChange,
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
 }) {
   // Calculate total number of pages
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -79,10 +82,11 @@ function PaginationClassic({
           value={itemsPerPage}
           onChange={(e) => handleItemsPerPageChange(e.target.value)}
         >
-          <option value="5">5</option>
-          <option value="10">10</option>
-          <option value="20">20</option>
-          <option value="50">50</option>
+          {pageSizeOptions.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
         </select>
         <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
           {t("results")}

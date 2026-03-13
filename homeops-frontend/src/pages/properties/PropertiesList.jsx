@@ -497,6 +497,20 @@ function PropertiesList() {
     }
   }, [sortedProperties.length, state.itemsPerPage, state.currentPage]);
 
+  /* ─── Grid view: use grid-specific page sizes (8,12,16,24), default 12 ─ */
+  const GRID_PAGE_SIZE_OPTIONS = [8, 12, 16, 24];
+  const LIST_PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+
+  useEffect(() => {
+    const opts =
+      viewMode === "grid" ? GRID_PAGE_SIZE_OPTIONS : LIST_PAGE_SIZE_OPTIONS;
+    if (!opts.includes(state.itemsPerPage)) {
+      const fallback = viewMode === "grid" ? 12 : 10;
+      dispatch({type: "SET_ITEMS_PER_PAGE", payload: fallback});
+      dispatch({type: "SET_CURRENT_PAGE", payload: 1});
+    }
+  }, [viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ─── Handlers ─────────────────────────────────────────────── */
 
   const handleSearchChange = (event) => {
@@ -1080,17 +1094,23 @@ function PropertiesList() {
               </div>
             )}
 
-            {sortedProperties.length > 0 && (
-              <div className="mt-8">
-                <PaginationClassic
-                  currentPage={state.currentPage}
-                  totalItems={sortedProperties.length}
-                  itemsPerPage={state.itemsPerPage}
-                  onPageChange={handlePageChange}
-                  onItemsPerPageChange={handleItemsPerPageChange}
-                />
-              </div>
-            )}
+            {sortedProperties.length > 0 &&
+              sortedProperties.length > state.itemsPerPage && (
+                <div className="mt-8">
+                  <PaginationClassic
+                    currentPage={state.currentPage}
+                    totalItems={sortedProperties.length}
+                    itemsPerPage={state.itemsPerPage}
+                    onPageChange={handlePageChange}
+                    onItemsPerPageChange={handleItemsPerPageChange}
+                    pageSizeOptions={
+                      viewMode === "grid"
+                        ? [8, 12, 16, 24]
+                        : [5, 10, 20, 50]
+                    }
+                  />
+                </div>
+              )}
           </div>
         </main>
       </div>
