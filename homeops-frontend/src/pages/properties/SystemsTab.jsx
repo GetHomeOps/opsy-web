@@ -338,13 +338,23 @@ function SystemsTab({
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Material
               </label>
-              <input
-                type="text"
+              <select
                 name="roofMaterial"
                 value={propertyData.roofMaterial || ""}
                 onChange={handleInputChange}
-                className="form-input w-full"
-              />
+                className="form-select w-full"
+              >
+                <option value="">Select material</option>
+                <option value="Built Up">Built Up</option>
+                <option value="Cedar Shake">Cedar Shake</option>
+                <option value="Composition">Composition</option>
+                <option value="Flat">Flat</option>
+                <option value="Green (Living)">Green (Living)</option>
+                <option value="Metal">Metal</option>
+                <option value="Tile">Tile</option>
+                <option value="Torch Down">Torch Down</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -500,13 +510,18 @@ function SystemsTab({
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Material
               </label>
-              <input
-                type="text"
+              <select
                 name="gutterMaterial"
                 value={propertyData.gutterMaterial || ""}
                 onChange={handleInputChange}
-                className="form-input w-full"
-              />
+                className="form-select w-full"
+              >
+                <option value="">Select material</option>
+                <option value="Aluminum">Aluminum</option>
+                <option value="Copper">Copper</option>
+                <option value="Vinyl">Vinyl</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -564,7 +579,7 @@ function SystemsTab({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                Last Inspection{" "}
+                Last Cleaning{" "}
                 <Tooltip
                   content="Disabled when marked as new installation"
                   position="right"
@@ -583,22 +598,22 @@ function SystemsTab({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                Warranty
+                Gutter Guards
               </label>
               <select
-                name="gutterWarranty"
-                value={propertyData.gutterWarranty || ""}
+                name="gutterGuards"
+                value={propertyData.gutterGuards || ""}
                 onChange={handleInputChange}
                 className="form-select w-full"
               >
                 <option value="">Select</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                Next Inspection
+                Next Cleaning Date
               </label>
               <DatePickerInput
                 name="gutterNextInspection"

@@ -318,7 +318,7 @@ function IdentityTab({
             <div className="md:col-span-2">
               <Field
                 onChange={handleInputChange}
-                label="Address Line 1"
+                label="Street"
                 name="addressLine1"
                 value={propertyData.addressLine1}
                 placeholder="e.g. 123 Main St"
@@ -326,14 +326,6 @@ function IdentityTab({
                 infoTooltip="Auto-populated when you select an address"
               />
             </div>
-            <Field
-              onChange={handleInputChange}
-              label="Address Line 2"
-              name="addressLine2"
-              value={propertyData.addressLine2}
-              placeholder="e.g. Apt 4, Suite 200"
-            />
-
             <Field
               onChange={handleInputChange}
               label="City"
@@ -365,7 +357,6 @@ function IdentityTab({
               readOnly
               infoTooltip="Auto-populated when you select an address"
             />
-
             <Field
               onChange={handleInputChange}
               label="County"
@@ -417,7 +408,6 @@ function IdentityTab({
             value={propertyData.ownerCity}
             placeholder="e.g. Seattle WA"
           />
-
           <Field
             onChange={handleInputChange}
             label="Occupant Name"
@@ -431,8 +421,6 @@ function IdentityTab({
             value={propertyData.occupantType}
             options={["Owner", "Tenant", "Vacant", "Unknown"]}
           />
-          <div className="hidden md:block" />
-
           <Field
             onChange={handleInputChange}
             label="Owner Phone"
@@ -475,14 +463,6 @@ function IdentityTab({
           />
           <Field
             onChange={handleInputChange}
-            label="Roof"
-            name="roofType"
-            value={propertyData.roofType}
-            placeholder="e.g. Composition"
-          />
-
-          <Field
-            onChange={handleInputChange}
             label="Year Built"
             name="yearBuilt"
             type="number"
@@ -513,7 +493,6 @@ function IdentityTab({
             type="number"
             value={propertyData.sqFtFinished}
           />
-
           <Field
             onChange={handleInputChange}
             label="Garage (ft²)"
@@ -528,35 +507,12 @@ function IdentityTab({
             type="number"
             value={propertyData.totalDwellingSqFt}
           />
-
           <Field
             onChange={handleInputChange}
             label="Lot Size"
             name="lotSize"
             value={propertyData.lotSize}
             placeholder="e.g. .200 ac / 8,700 sf"
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Lot Dim"
-            name="lotDim"
-            value={propertyData.lotDim}
-            placeholder="Optional"
-          />
-
-          <Field
-            onChange={handleInputChange}
-            label="Price / (ft²)"
-            name="pricePerSqFt"
-            value={propertyData.pricePerSqFt}
-            placeholder="e.g. $602.41"
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Total Price / (ft²)"
-            name="totalPricePerSqFt"
-            value={propertyData.totalPricePerSqFt}
-            placeholder="e.g. $602.41"
           />
         </div>
       </SectionWithProgress>
@@ -583,8 +539,6 @@ function IdentityTab({
             type="number"
             value={propertyData.bathCount || propertyData.bathrooms}
           />
-          <div className="hidden md:block" />
-
           <Field
             onChange={handleInputChange}
             label="Full Baths"
@@ -639,19 +593,26 @@ function IdentityTab({
             type="number"
             value={propertyData.fireplaces}
           />
-          <Field
+          <SelectField
             onChange={handleInputChange}
-            label="Fireplace Type(s)"
+            label="Fireplace Type"
             name="fireplaceTypes"
             value={propertyData.fireplaceTypes}
-            placeholder="e.g. Gas"
+            options={["Gas", "Wood", "Other"]}
           />
-          <Field
+          <SelectField
             onChange={handleInputChange}
             label="Basement"
             name="basement"
             value={propertyData.basement}
-            placeholder="e.g. Daylight, Fully Finished"
+            options={[
+              "Daylight",
+              "Fully Finished",
+              "Partially Finished",
+              "Roughed in",
+              "Unfinished",
+              "None",
+            ]}
           />
 
           <Field
