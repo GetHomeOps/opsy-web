@@ -9,7 +9,8 @@ import {PAGE_LAYOUT} from "../../constants/layout";
 import CalendarScheduleModal from "./CalendarScheduleModal";
 import DateOffsetControl from "../../components/DateOffsetControl";
 import {Popover, PopoverContent, PopoverTrigger} from "../../components/ui/popover";
-import {SkipForward} from "lucide-react";
+import {Calendar as CalendarIcon, SkipForward, Settings} from "lucide-react";
+import useCurrentAccount from "../../hooks/useCurrentAccount";
 
 const MONTH_NAMES = [
   "January",
@@ -74,6 +75,8 @@ const CALENDAR_MIN_DATE = subYears(new Date(), 50);
 const CALENDAR_MAX_DATE = addYears(new Date(), 10);
 
 function Calendar() {
+  const {currentAccount} = useCurrentAccount();
+  const accountUrl = currentAccount?.url || "";
   const today = new Date();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState("month");
@@ -93,6 +96,7 @@ function Calendar() {
   const [scheduleModalInitialDate, setScheduleModalInitialDate] = useState("");
   const [scheduleModalInitialTime, setScheduleModalInitialTime] = useState("");
   const [jumpPopoverOpen, setJumpPopoverOpen] = useState(false);
+  const [calendarSettingsOpen, setCalendarSettingsOpen] = useState(false);
 
   const getDays = useCallback(() => {
     const days = new Date(year, month + 1, 0).getDate();
@@ -363,6 +367,34 @@ function Calendar() {
               </div>
 
               <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2 items-center">
+                <Popover open={calendarSettingsOpen} onOpenChange={setCalendarSettingsOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="btn px-2.5 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300"
+                      aria-label="Calendar settings"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-48 p-1"
+                    align="end"
+                    side="bottom"
+                    sideOffset={6}
+                  >
+                    <a
+                      href={accountUrl ? `/${accountUrl}/settings/configuration#calendar-integrations` : "/settings/configuration#calendar-integrations"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setCalendarSettingsOpen(false)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-md transition-colors no-underline"
+                    >
+                      <CalendarIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                      Connect your calendar
+                    </a>
+                  </PopoverContent>
+                </Popover>
                 <button
                   type="button"
                   className="btn px-2.5 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-500 hover:text-gray-600 dark:text-gray-400 dark:hover:text-gray-300"

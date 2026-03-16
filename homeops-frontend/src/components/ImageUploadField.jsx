@@ -85,7 +85,7 @@ function ImageUploadField({
       <div
         className={`${sizeClass} rounded-xl overflow-hidden transition-all duration-200 flex flex-col items-center justify-center relative ${
           hasImage
-            ? "ring-2 ring-gray-200 dark:ring-gray-600 ring-offset-2 dark:ring-offset-gray-800 shadow-sm cursor-pointer"
+            ? "bg-white ring-2 ring-gray-200 dark:ring-gray-600 ring-offset-2 dark:ring-offset-gray-800 shadow-sm cursor-pointer"
             : "bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-750 border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:from-gray-100 hover:to-gray-200 dark:hover:from-gray-650 dark:hover:to-gray-700"
         }`}
         onClick={handleAreaClick}

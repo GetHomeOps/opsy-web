@@ -77,14 +77,16 @@ function DropdownProfile({align}) {
         aria-expanded={dropdownOpen}
       >
         {photoUrl ? (
-          <img
-            key={photoUrl}
-            className="w-8 h-8 rounded-full object-cover"
-            src={photoUrl}
-            width="32"
-            height="32"
-            alt={currentUser?.name || "User"}
-          />
+          <span className="inline-block w-8 h-8 rounded-full overflow-hidden bg-white shrink-0">
+            <img
+              key={photoUrl}
+              className="w-full h-full object-cover"
+              src={photoUrl}
+              width="32"
+              height="32"
+              alt={currentUser?.name || "User"}
+            />
+          </span>
         ) : (
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-600"
@@ -127,14 +129,16 @@ function DropdownProfile({align}) {
           <div className="px-2.5 pb-2 mb-1.5 border-b border-gray-200 dark:border-gray-700/60">
             <div className="flex items-start gap-2.5">
               {photoUrl ? (
-                <img
-                  key={photoUrl}
-                  className="w-9 h-9 rounded-full object-cover shrink-0"
-                  src={photoUrl}
-                  width="36"
-                  height="36"
-                  alt={currentUser?.name || "User"}
-                />
+                <span className="w-9 h-9 rounded-full overflow-hidden bg-white shrink-0">
+                  <img
+                    key={photoUrl}
+                    className="w-full h-full object-cover"
+                    src={photoUrl}
+                    width="36"
+                    height="36"
+                    alt={currentUser?.name || "User"}
+                  />
+                </span>
               ) : (
                 <div
                   className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 shrink-0"

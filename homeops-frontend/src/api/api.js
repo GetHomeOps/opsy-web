@@ -478,6 +478,33 @@ class AppApi {
     return this.request("mfa/disable", { codeOrBackupCode, password }, "POST");
   }
 
+  /* --------- Calendar Integrations --------- */
+
+  /** Get connected calendar integrations (Google, Outlook). */
+  static async getCalendarIntegrations() {
+    const res = await this.request("calendar-integrations");
+    return res.integrations ?? [];
+  }
+
+  /** Disconnect a calendar integration. */
+  static async deleteCalendarIntegration(id) {
+    await this.request(`calendar-integrations/${id}`, {}, "DELETE");
+  }
+
+  /**
+   * Get OAuth connect URL for a calendar provider. Requires auth (JWT). Returns the Google/Outlook OAuth URL
+   * so the frontend can redirect. Use this instead of direct navigation to /connect (which fails with 401
+   * because links don't send the Authorization header).
+   * @param {string} provider - "google" | "outlook"
+   * @param {string} [returnTo] - Path to return to after OAuth (e.g. "acme/settings/configuration")
+   * @returns {Promise<{ url: string }>}
+   */
+  static async getCalendarConnectUrl(provider, returnTo = "") {
+    const params = returnTo ? { returnTo } : {};
+    const res = await this.request(`calendar-integrations/oauth/${provider}/url`, params);
+    return res;
+  }
+
   static async revokeRefreshToken(refreshToken) {
     try {
       await fetch(`${BASE_URL}/auth/logout`, {

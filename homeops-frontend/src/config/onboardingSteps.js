@@ -12,7 +12,7 @@
  * - getActionPath: (context) => string | null - path to navigate, or null for custom action
  */
 
-import {User, Home} from "lucide-react";
+import {User, Home, Calendar} from "lucide-react";
 
 /**
  * Check if user has completed their profile.
@@ -39,6 +39,13 @@ export function hasFirstProperty(properties) {
 }
 
 /**
+ * Check if user has connected at least one calendar integration.
+ */
+export function hasCalendarIntegration(calendarIntegrations) {
+  return Array.isArray(calendarIntegrations) && calendarIntegrations.length > 0;
+}
+
+/**
  * Default onboarding steps for agent and homeowner roles.
  * Steps are evaluated in order; completion is computed via checkComplete.
  */
@@ -54,6 +61,16 @@ export const DEFAULT_ONBOARDING_STEPS = [
       ctx.accountUrl
         ? `/${ctx.accountUrl}/settings/configuration`
         : "/settings/accounts",
+  },
+  {
+    id: "connect-calendar",
+    titleKey: "onboarding.stepConnectCalendarTitle",
+    descriptionKey: "onboarding.stepConnectCalendarDescription",
+    actionLabelKey: "onboarding.stepConnectCalendarAction",
+    icon: Calendar,
+    checkComplete: (ctx) => hasCalendarIntegration(ctx.calendarIntegrations),
+    /** Use custom handler to open calendar integrations modal instead of navigating */
+    customActionId: "connectCalendar",
   },
   {
     id: "create-property",

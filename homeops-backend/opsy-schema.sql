@@ -713,6 +713,41 @@ CREATE INDEX idx_maintenance_events_date ON maintenance_events(scheduled_date);
 CREATE INDEX idx_maintenance_events_status ON maintenance_events(status);
 
 -- ============================================================
+-- Calendar Integrations (OAuth connections for Google/Outlook)
+-- ============================================================
+
+CREATE TABLE calendar_integrations (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider VARCHAR(20) NOT NULL CHECK (provider IN ('google', 'outlook')),
+    access_token_encrypted TEXT NOT NULL,
+    refresh_token_encrypted TEXT,
+    token_expires_at TIMESTAMPTZ,
+    calendar_id VARCHAR(255) DEFAULT 'primary',
+    sync_enabled BOOLEAN DEFAULT true,
+    last_synced_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (user_id, provider)
+);
+
+CREATE INDEX idx_calendar_integrations_user_id ON calendar_integrations(user_id);
+
+-- Tracks which maintenance events are synced to which external calendars
+CREATE TABLE event_calendar_syncs (
+    id SERIAL PRIMARY KEY,
+    maintenance_event_id INTEGER NOT NULL REFERENCES maintenance_events(id) ON DELETE CASCADE,
+    calendar_integration_id INTEGER NOT NULL REFERENCES calendar_integrations(id) ON DELETE CASCADE,
+    external_event_id VARCHAR(500) NOT NULL,
+    provider VARCHAR(20) NOT NULL CHECK (provider IN ('google', 'outlook')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (maintenance_event_id, calendar_integration_id)
+);
+
+CREATE INDEX idx_event_calendar_syncs_event ON event_calendar_syncs(maintenance_event_id);
+CREATE INDEX idx_event_calendar_syncs_integration ON event_calendar_syncs(calendar_integration_id);
+
+-- ============================================================
 -- Support Tickets (support & feedback)
 -- ============================================================
 

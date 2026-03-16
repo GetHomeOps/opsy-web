@@ -1014,6 +1014,7 @@ function MaintenanceScheduleModal({
   const [showAI, setShowAI] = useState(false);
   const [aiAdvice, setAiAdvice] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [calendarIntegrations, setCalendarIntegrations] = useState([]);
 
   const propertyName =
     propertyData.propertyName ||
@@ -1033,6 +1034,13 @@ function MaintenanceScheduleModal({
       .then((data) => setSavedProfessionals(data || []))
       .catch(() => setSavedProfessionals([]))
       .finally(() => setSavedProfessionalsLoading(false));
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    AppApi.getCalendarIntegrations()
+      .then((data) => setCalendarIntegrations(data || []))
+      .catch(() => setCalendarIntegrations([]));
   }, [isOpen]);
 
   useEffect(() => {
@@ -1268,19 +1276,28 @@ function MaintenanceScheduleModal({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-6 pt-5 border-t border-gray-200 dark:border-gray-700">
-        <div>
-          {currentStep > 0 && (
-            <button
-              type="button"
-              onClick={handleBack}
-              className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-            >
-              Back
-            </button>
-          )}
-        </div>
-        <div className="flex gap-3">
+      <div className="flex flex-col gap-2 mt-6 pt-5 border-t border-gray-200 dark:border-gray-700">
+        {currentStep === STEPS.length - 1 && calendarIntegrations.length > 0 && (
+          <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            <span>
+              Syncing with {calendarIntegrations.map((i) => (i.provider === "google" ? "Google Calendar" : "Outlook")).join(" & ")}
+            </span>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <div>
+            {currentStep > 0 && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+              >
+                Back
+              </button>
+            )}
+          </div>
+          <div className="flex gap-3">
           <button
             type="button"
             onClick={() => onClose(false)}
@@ -1315,15 +1332,12 @@ function MaintenanceScheduleModal({
             </button>
           )}
         </div>
+        </div>
       </div>
     </div>
   );
 
-  if (embedded) {
-    return content;
-  }
-
-  return (
+  return embedded ? content : (
     <ModalBlank
       id="maintenance-schedule-modal"
       modalOpen={isOpen}

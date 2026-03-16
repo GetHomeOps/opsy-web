@@ -1,10 +1,12 @@
 import React, {useEffect, useRef, useState} from "react";
+import {createPortal} from "react-dom";
 import {Link} from "react-router-dom";
 import {parseISO, format, isValid, isToday, isTomorrow} from "date-fns";
 import {Clock3, Calendar, AlertCircle, ChevronRight, Loader2} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
+import CalendarIntegrationsModal from "./CalendarIntegrationsModal";
 
 function formatEventDate(dateStr, timeStr) {
   if (dateStr == null) return "";
@@ -42,6 +44,7 @@ function DropdownReminders({align = "right"}) {
 
   const accountUrl = currentAccount?.url || "";
   const calendarPath = accountUrl ? `/${accountUrl}/calendar` : "/calendar";
+  const [calendarModalOpen, setCalendarModalOpen] = useState(false);
 
   const fetchEvents = () => {
     setLoading(true);
@@ -136,11 +139,7 @@ function DropdownReminders({align = "right"}) {
         leaveStart="opacity-100"
         leaveEnd="opacity-0"
       >
-        <div
-          ref={dropdown}
-          onFocus={() => setDropdownOpen(true)}
-          onBlur={() => setDropdownOpen(false)}
-        >
+        <div ref={dropdown}>
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700/60">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
               Events
@@ -247,8 +246,12 @@ function DropdownReminders({align = "right"}) {
             )}
           </div>
 
-          {events.length > 0 && (
-            <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/50">
+          <div
+            className={`px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 flex flex-col gap-2 ${
+              events.length > 0 ? "bg-gray-50/50 dark:bg-gray-800/50" : ""
+            }`}
+          >
+            {events.length > 0 && (
               <Link
                 to={calendarPath}
                 onClick={() => setDropdownOpen(false)}
@@ -256,10 +259,34 @@ function DropdownReminders({align = "right"}) {
               >
                 View calendar <ChevronRight className="w-4 h-4" />
               </Link>
-            </div>
-          )}
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setDropdownOpen(false);
+                requestAnimationFrame(() => {
+                  requestAnimationFrame(() => setCalendarModalOpen(true));
+                });
+              }}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors hover:opacity-90"
+              style={{backgroundColor: "#C76C4B"}}
+            >
+              Connect your Calendar
+            </button>
+          </div>
         </div>
       </Transition>
+
+      {calendarModalOpen &&
+        createPortal(
+          <CalendarIntegrationsModal
+            isOpen={true}
+            onClose={() => setCalendarModalOpen(false)}
+          />,
+          document.body,
+        )}
     </div>
   );
 }

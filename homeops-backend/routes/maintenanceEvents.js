@@ -11,6 +11,7 @@ const maintenanceEventUpdateSchema = require("../schemas/maintenanceEventUpdate.
 const { onEventScheduled } = require("../services/resourceAutoSend");
 const { getMaintenanceAdvice } = require("../services/maintenanceAdviceService");
 const InspectionChecklistItem = require("../models/inspectionChecklistItem");
+const { syncEventToCalendars, updateEventInCalendars, deleteEventFromCalendars } = require("../services/calendarSyncService");
 
 const router = express.Router();
 
@@ -163,6 +164,21 @@ router.post(
       } catch (autoErr) {
         console.error("[resourceAutoSend] event scheduled:", autoErr.message);
       }
+
+      try {
+        const propRes = await db.query(
+          `SELECT property_name, address, city, state FROM properties WHERE id = $1`,
+          [req.params.propertyId]
+        );
+        const p = propRes.rows[0];
+        const propertyInfo = {
+          propertyName: p?.property_name || "",
+          address: [p?.address, p?.city, p?.state].filter(Boolean).join(", ") || "",
+        };
+        await syncEventToCalendars(res.locals.user.id, event, propertyInfo);
+      } catch (calErr) {
+        console.error("[calendarSync] create sync failed:", calErr.message);
+      }
       return res.status(201).json({ event });
     } catch (err) {
       return next(err);
@@ -200,6 +216,23 @@ router.patch(
         throw new BadRequestError(errs);
       }
       const event = await MaintenanceEvent.update(req.params.id, req.body);
+      try {
+        const propRes = await db.query(
+          `SELECT p.property_name, p.address, p.city, p.state
+           FROM properties p JOIN maintenance_events me ON me.property_id = p.id
+           WHERE me.id = $1`,
+          [req.params.id]
+        );
+        const p = propRes.rows[0];
+        const propertyInfo = {
+          propertyName: p?.property_name || "",
+          address: [p?.address, p?.city, p?.state].filter(Boolean).join(", ") || "",
+        };
+        const userId = event.created_by || res.locals.user.id;
+        await updateEventInCalendars(userId, event, propertyInfo);
+      } catch (calErr) {
+        console.error("[calendarSync] update sync failed:", calErr.message);
+      }
       return res.json({ event });
     } catch (err) {
       return next(err);
@@ -215,6 +248,13 @@ router.delete(
   ensurePropertyAccess({ param: "propertyId" }),
   async function (req, res, next) {
     try {
+      const event = await MaintenanceEvent.getById(req.params.id);
+      const userId = event.created_by || res.locals.user.id;
+      try {
+        await deleteEventFromCalendars(userId, req.params.id);
+      } catch (calErr) {
+        console.error("[calendarSync] delete sync failed:", calErr.message);
+      }
       await MaintenanceEvent.delete(req.params.id);
       return res.json({ deleted: req.params.id });
     } catch (err) {

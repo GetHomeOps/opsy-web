@@ -89,4 +89,16 @@ module.exports = {
   STRIPE_CANCEL_URL: process.env.STRIPE_CANCEL_URL || (process.env.APP_BASE_URL ? `${process.env.APP_BASE_URL}/#/onboarding` : null),
   APP_BASE_URL: process.env.APP_BASE_URL || process.env.APP_WEB_ORIGIN || "http://localhost:5173",
   BILLING_MOCK_MODE: process.env.BILLING_MOCK_MODE === "true",
+
+  // Calendar integrations (Google Calendar, Microsoft Outlook)
+  // OAuth callbacks must hit the backend. BACKEND_URL = API base (e.g. http://localhost:3000)
+  BACKEND_URL: process.env.BACKEND_URL || `http://localhost:${PORT}`,
+  GOOGLE_CALENDAR_REDIRECT_URI: process.env.GOOGLE_CALENDAR_REDIRECT_URI ||
+    (process.env.BACKEND_URL ? `${process.env.BACKEND_URL.replace(/\/$/, "")}/calendar-integrations/oauth/google/callback` : null) ||
+    `http://localhost:${PORT}/calendar-integrations/oauth/google/callback`,
+  MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
+  MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
+  MICROSOFT_REDIRECT_URI: process.env.MICROSOFT_REDIRECT_URI ||
+    (process.env.BACKEND_URL ? `${process.env.BACKEND_URL.replace(/\/$/, "")}/calendar-integrations/oauth/outlook/callback` : null) ||
+    `http://localhost:${PORT}/calendar-integrations/oauth/outlook/callback`,
 };

@@ -51,6 +51,7 @@ const inspectionChecklistRoutes = require("./routes/inspectionChecklist");
 const aiRoutes = require("./routes/ai");
 const webhookRoutes = require("./routes/webhooks");
 const billingRoutes = require("./routes/billing");
+const calendarIntegrationsRoutes = require("./routes/calendarIntegrations");
 
 const app = express();
 
@@ -141,6 +142,7 @@ app.use("/inspection-analysis", inspectionAnalysisRoutes);
 app.use("/", inspectionChecklistRoutes);
 app.use("/ai", aiRoutes);
 app.use("/billing", billingRoutes);
+app.use("/calendar-integrations", calendarIntegrationsRoutes);
 
 // Serve React SPA when frontend build is present (same-origin deployment)
 const publicPath = path.join(__dirname, 'public');

@@ -9,9 +9,10 @@ import {DEFAULT_ONBOARDING_STEPS} from "../config/onboardingSteps";
  *
  * @param {Object} options
  * @param {Array} [options.steps] - Override default steps (optional)
+ * @param {Object} [options.extraContext] - Additional context merged in (e.g. calendarIntegrations)
  * @returns {{ steps: Array, completedCount: number, allComplete: boolean, context: Object }}
  */
-export default function useOnboardingProgress({steps = DEFAULT_ONBOARDING_STEPS} = {}) {
+export default function useOnboardingProgress({steps = DEFAULT_ONBOARDING_STEPS, extraContext = {}} = {}) {
   const {currentUser} = useAuth();
   const {currentAccount, properties = []} = useContext(PropertyContext) ?? {};
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
@@ -21,8 +22,9 @@ export default function useOnboardingProgress({steps = DEFAULT_ONBOARDING_STEPS}
       currentUser,
       properties,
       accountUrl,
+      ...extraContext,
     }),
-    [currentUser, properties, accountUrl],
+    [currentUser, properties, accountUrl, extraContext],
   );
 
   const stepsWithStatus = useMemo(() => {

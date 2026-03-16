@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { ShieldCheck, ShieldOff, Loader2, Globe } from "lucide-react";
+import { useParams } from "react-router-dom";
+import { ShieldCheck, ShieldOff, Loader2, Globe, Calendar, CheckCircle2 } from "lucide-react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import { useAuth } from "../../context/AuthContext";
@@ -52,6 +53,12 @@ function ConfigurationPage() {
   const [disableUsePassword, setDisableUsePassword] = useState(true);
   const [mfaActionError, setMfaActionError] = useState(null);
   const [mfaActionLoading, setMfaActionLoading] = useState(false);
+
+  const [calendarIntegrations, setCalendarIntegrations] = useState([]);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarDisconnecting, setCalendarDisconnecting] = useState(null);
+  const [calendarConnecting, setCalendarConnecting] = useState(null);
+  const [calendarMessage, setCalendarMessage] = useState(null);
 
   const [photoError, setPhotoError] = useState(null);
   const [pendingImageKey, setPendingImageKey] = useState(null);
@@ -136,6 +143,37 @@ function ConfigurationPage() {
     }
     fetchMfaStatus();
   }, [currentUser?.id, enableModalOpen, disableModalOpen]);
+
+  const { accountUrl } = useParams();
+  useEffect(() => {
+    async function fetchCalendars() {
+      if (!currentUser?.id) return;
+      setCalendarLoading(true);
+      try {
+        const list = await AppApi.getCalendarIntegrations();
+        setCalendarIntegrations(list);
+      } catch {
+        setCalendarIntegrations([]);
+      } finally {
+        setCalendarLoading(false);
+      }
+    }
+    fetchCalendars();
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const calendar = params.get("calendar");
+    const status = params.get("status");
+    if (calendar && status === "connected") {
+      setCalendarMessage(`${calendar === "google" ? "Google" : "Outlook"} Calendar connected.`);
+      setTimeout(() => setCalendarMessage(null), 5000);
+      window.history.replaceState({}, "", window.location.pathname);
+      AppApi.getCalendarIntegrations()
+        .then(setCalendarIntegrations)
+        .catch(() => {});
+    }
+  }, []);
 
   async function handleProfileSubmit(e) {
     e.preventDefault();
@@ -526,6 +564,112 @@ function ConfigurationPage() {
                     </button>
                   </div>
                 </form>
+              </section>
+
+              {/* Calendar Integrations */}
+              <section id="calendar-integrations" className={SETTINGS_CARD.card}>
+                <div className={SETTINGS_CARD.header}>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {t("settings.calendarIntegrations") || "Calendar Integrations"}
+                    </h2>
+                  </div>
+                  <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
+                    {t("settings.calendarIntegrationsDescription") ||
+                      "Connect your calendars so events you create sync automatically to Google Calendar and Outlook."}
+                  </p>
+                </div>
+                <div className={`${SETTINGS_CARD.body} space-y-4`}>
+                  {calendarMessage && (
+                    <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                      {calendarMessage}
+                    </div>
+                  )}
+                  {calendarLoading ? (
+                    <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      {t("loading") || "Loading..."}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {[
+                        { provider: "google", label: "Google Calendar" },
+                        { provider: "outlook", label: "Microsoft Outlook" },
+                      ].map(({ provider, label }) => {
+                        const integration = calendarIntegrations.find((i) => i.provider === provider);
+                        const returnTo = accountUrl ? `${accountUrl}/settings/configuration` : "settings/configuration";
+                        const isConnecting = calendarConnecting === provider;
+                        return (
+                          <div
+                            key={provider}
+                            className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              {integration ? (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600" />
+                              )}
+                              <span className="font-medium text-gray-800 dark:text-gray-100">{label}</span>
+                              <span className="text-sm text-gray-500 dark:text-gray-400">
+                                {integration ? (t("settings.connected") || "Connected") : (t("settings.notConnected") || "Not connected")}
+                              </span>
+                            </div>
+                            <div>
+                              {integration ? (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    setCalendarDisconnecting(integration.id);
+                                    try {
+                                      await AppApi.deleteCalendarIntegration(integration.id);
+                                      setCalendarIntegrations((prev) => prev.filter((i) => i.id !== integration.id));
+                                    } catch {
+                                      // ignore
+                                    } finally {
+                                      setCalendarDisconnecting(null);
+                                    }
+                                  }}
+                                  disabled={calendarDisconnecting === integration.id}
+                                  className="btn border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm"
+                                >
+                                  {calendarDisconnecting === integration.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    t("settings.disconnect") || "Disconnect"
+                                  )}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    setCalendarConnecting(provider);
+                                    try {
+                                      const { url } = await AppApi.getCalendarConnectUrl(provider, returnTo);
+                                      window.location.href = url;
+                                    } catch {
+                                      setCalendarConnecting(null);
+                                    }
+                                  }}
+                                  disabled={isConnecting}
+                                  className="btn bg-[#456564] hover:bg-[#34514f] text-white text-sm disabled:opacity-70"
+                                >
+                                  {isConnecting ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    t("settings.connect") || "Connect"
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </section>
 
               {/* Multi-Factor Authentication */}

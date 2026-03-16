@@ -1,38 +1,38 @@
-import React, {useState, useEffect, useCallback} from "react";
-import {useNavigate, useSearchParams} from "react-router-dom";
+import React, {useState, useEffect, useCallback, useMemo} from "react";
+import {useSearchParams} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import confetti from "canvas-confetti";
 import {Sparkles, Check, ChevronRight} from "lucide-react";
 import ModalBlank from "./ModalBlank";
 import {useAuth} from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
-import useAddPropertyWithLimitCheck from "../hooks/useAddPropertyWithLimitCheck";
 import useOnboardingProgress from "../hooks/useOnboardingProgress";
 import AppApi from "../api/api";
-import UpgradePrompt from "./UpgradePrompt";
 import OpsyMascot from "../images/opsy2.png";
 
 /** Roles that should see the welcome modal (agents and homeowners only). */
 const WELCOME_MODAL_ROLES = new Set(["agent", "homeowner"]);
 
-/** Custom action handlers keyed by customActionId. Uses onClose (not handleDismiss) so modal reopens when user returns. */
-function useCustomActionHandlers({onClose, handleAddProperty, navigate, accountUrl}) {
+/** Custom action handlers keyed by customActionId. Opens URLs in a new tab. */
+function useCustomActionHandlers({onClose, accountUrl}) {
   return useCallback(
     (step) => {
       if (step.customActionId === "addProperty") {
-        if (accountUrl) {
-          onClose();
-          handleAddProperty();
-        } else {
-          onClose();
-          navigate("/settings/accounts");
-        }
+        const url = accountUrl
+          ? `/${accountUrl}/properties/new`
+          : "/settings/accounts";
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else if (step.customActionId === "connectCalendar") {
+        const url = accountUrl
+          ? `/${accountUrl}/settings/configuration#calendar-integrations`
+          : "/settings/configuration#calendar-integrations";
+        window.open(url, "_blank", "noopener,noreferrer");
       } else if (step.actionPath) {
-        onClose();
-        navigate(step.actionPath);
+        window.open(step.actionPath, "_blank", "noopener,noreferrer");
       }
+      onClose();
     },
-    [handleAddProperty, onClose, navigate, accountUrl],
+    [onClose, accountUrl],
   );
 }
 
@@ -40,7 +40,6 @@ function WelcomeModal() {
   const {currentUser, refreshCurrentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const {t} = useTranslation();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -50,7 +49,6 @@ function WelcomeModal() {
 
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
-  const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] = useState(false);
   const handleDismiss = useCallback(async () => {
     if (!userId) {
       setModalOpen(false);
@@ -65,39 +63,44 @@ function WelcomeModal() {
     setModalOpen(false);
   }, [userId, refreshCurrentUser]);
 
-  const {handleAddProperty, isChecking: addPropertyChecking} = useAddPropertyWithLimitCheck({
-    accountId: currentAccount?.id,
-    accountUrl,
-    onLimitReached: () => {
-      handleDismiss();
-      setPropertyLimitUpgradeOpen(true);
-    },
-  });
+  const [calendarIntegrations, setCalendarIntegrations] = useState([]);
+  useEffect(() => {
+    if (!currentUser?.id || !showForRole) return;
+    AppApi.getCalendarIntegrations()
+      .then((data) => setCalendarIntegrations(data || []))
+      .catch(() => setCalendarIntegrations([]));
+  }, [currentUser?.id, showForRole]);
 
-  const {steps, completedCount, allComplete} = useOnboardingProgress();
+  const extraContext = useMemo(
+    () => ({calendarIntegrations}),
+    [calendarIntegrations],
+  );
+  const {steps, completedCount, allComplete} = useOnboardingProgress({
+    extraContext,
+  });
   const totalSteps = steps.length;
   const handleClose = useCallback(() => setModalOpen(false), []);
 
   const runCustomAction = useCustomActionHandlers({
     onClose: handleClose,
-    handleAddProperty,
-    navigate,
     accountUrl,
   });
 
   useEffect(() => {
     if (!userId || !showForRole) return;
-    const forceShow = searchParams.get("show_welcome") === "1";
-    const backendDismissed = currentUser?.welcomeModalDismissed === true;
-    const dismissed = !forceShow && backendDismissed;
-    if (!dismissed) {
-      setModalOpen(true);
+    if (allComplete) {
+      setModalOpen(false);
+      return;
     }
-  }, [userId, showForRole, currentUser?.welcomeModalDismissed, searchParams]);
+    setModalOpen(true);
+  }, [userId, showForRole, allComplete]);
 
-  // Confetti when modal opens
+  const confettiShownKey = userId ? `opsy_welcome_confetti_${userId}` : null;
+
+  // Confetti when modal opens — only on first login
   useEffect(() => {
-    if (!modalOpen) return;
+    if (!modalOpen || !userId || !confettiShownKey) return;
+    if (typeof localStorage !== "undefined" && localStorage.getItem(confettiShownKey)) return;
     const timeout = setTimeout(() => {
       const count = 700;
       const defaults = {
@@ -112,13 +115,19 @@ function WelcomeModal() {
       fire(0.1, {spread: 220, startVelocity: 45, decay: 0.92, scalar: 1.2});
       fire(0.1, {origin: {x: 0.2, y: 0.5}, spread: 100, angle: 60, startVelocity: 50});
       fire(0.1, {origin: {x: 0.8, y: 0.5}, spread: 100, angle: 120, startVelocity: 50});
+      try {
+        localStorage.setItem(confettiShownKey, "1");
+      } catch {
+        // localStorage may be disabled
+      }
     }, 300);
     return () => clearTimeout(timeout);
-  }, [modalOpen]);
+  }, [modalOpen, userId, confettiShownKey]);
 
-  // Confetti when all steps complete
+  // Confetti when all steps complete — only on first login
   useEffect(() => {
-    if (!modalOpen || !allComplete) return;
+    if (!modalOpen || !allComplete || !userId || !confettiShownKey) return;
+    if (typeof localStorage !== "undefined" && localStorage.getItem(confettiShownKey)) return;
     const timeout = setTimeout(() => {
       confetti({
         particleCount: 120,
@@ -126,23 +135,20 @@ function WelcomeModal() {
         origin: {y: 0.6},
         colors: ["#34d399", "#10b981", "#fbbf24", "#456564"],
       });
+      try {
+        localStorage.setItem(confettiShownKey, "1");
+      } catch {
+        // localStorage may be disabled
+      }
     }, 100);
     return () => clearTimeout(timeout);
-  }, [modalOpen, allComplete]);
+  }, [modalOpen, allComplete, userId, confettiShownKey]);
 
   const firstName =
     currentUser?.fullName?.split(" ")[0] || currentUser?.name?.split(" ")[0] || "";
 
   if (!modalOpen) {
-    return (
-      <UpgradePrompt
-        open={propertyLimitUpgradeOpen}
-        onClose={() => setPropertyLimitUpgradeOpen(false)}
-        title="Property limit reached"
-        message="You've used all properties on your current plan. Upgrade to add more."
-        upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
-      />
-    );
+    return null;
   }
 
   return (
@@ -272,12 +278,9 @@ function WelcomeModal() {
                           <button
                             type="button"
                             onClick={() => runCustomAction(step)}
-                            disabled={addPropertyChecking && step.customActionId === "addProperty"}
                             className="shrink-0 py-2 px-4 bg-[#456564] hover:bg-[#3a5554] disabled:opacity-60 text-white rounded-lg font-medium text-xs transition-colors flex items-center gap-1"
                           >
-                            {addPropertyChecking && step.customActionId === "addProperty"
-                              ? "..."
-                              : t(step.actionLabelKey)}
+                            {t(step.actionLabelKey)}
                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                         )}
@@ -301,14 +304,6 @@ function WelcomeModal() {
           </div>
         </div>
       </ModalBlank>
-
-      <UpgradePrompt
-        open={propertyLimitUpgradeOpen}
-        onClose={() => setPropertyLimitUpgradeOpen(false)}
-        title="Property limit reached"
-        message="You've used all properties on your current plan. Upgrade to add more."
-        upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
-      />
     </>
   );
 }
