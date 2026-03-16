@@ -1,7 +1,7 @@
-import React, {useState, useRef, useEffect, useContext} from "react";
+import React, {useState, useRef, useEffect} from "react";
 import {Link} from "react-router-dom";
 import Transition from "../utils/Transition";
-import AuthContext from "../context/AuthContext";
+import {useAuth} from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
 
@@ -26,7 +26,7 @@ function formatRole(role) {
 
 function DropdownProfile({align}) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const {currentUser, logout} = useContext(AuthContext);
+  const {currentUser, logout} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const {plan} = useBillingStatus();
   const {t} = useTranslation();
@@ -78,6 +78,7 @@ function DropdownProfile({align}) {
       >
         {photoUrl ? (
           <img
+            key={photoUrl}
             className="w-8 h-8 rounded-full object-cover"
             src={photoUrl}
             width="32"
@@ -127,6 +128,7 @@ function DropdownProfile({align}) {
             <div className="flex items-start gap-2.5">
               {photoUrl ? (
                 <img
+                  key={photoUrl}
                   className="w-9 h-9 rounded-full object-cover shrink-0"
                   src={photoUrl}
                   width="36"

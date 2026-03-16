@@ -407,6 +407,17 @@ export function AuthProvider({children}) {
     [token],
   );
 
+  /** Merge partial user updates into context (e.g. after profile save) so navbar etc. update immediately. */
+  const updateCurrentUser = useCallback((updates) => {
+    setCurrentUser((prev) => {
+      if (!prev?.data) return prev;
+      return {
+        ...prev,
+        data: {...prev.data, ...updates},
+      };
+    });
+  }, []);
+
   /** Handle user logout */
   function logout() {
     markPostLogoutRedirectReset();
@@ -442,6 +453,7 @@ export function AuthProvider({children}) {
         logout,
         handleOAuthCallback,
         refreshCurrentUser,
+        updateCurrentUser,
       }}
     >
       {children}

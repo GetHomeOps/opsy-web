@@ -794,5 +794,20 @@
   "yourHomeOpsTeam": "Tu equipo de HomeOps",
   "zip": "Código postal",
   "zipPlaceholder": "Código postal",
-  "zipValidationErrorMessage": "El código postal es obligatorio"
+  "zipValidationErrorMessage": "El código postal es obligatorio",
+  "onboarding.badge": "Comenzando",
+  "onboarding.title": "¡Bienvenido a Opsy!",
+  "onboarding.titleWithName": "¡Bienvenido, {{name}}!",
+  "onboarding.subtitle": "Completa estos pasos para aprovechar al máximo tu centro de gestión del hogar.",
+  "onboarding.progress": "{{completed}}/{{total}} completados",
+  "onboarding.step1Title": "Completa tu perfil",
+  "onboarding.step1Description": "Añade foto de perfil, nombre completo y teléfono.",
+  "onboarding.step1Action": "Completar perfil",
+  "onboarding.step2Title": "Crea tu primera propiedad",
+  "onboarding.step2Description": "Añade tu hogar para seguir sus detalles, documentos y puntuación de salud.",
+  "onboarding.step2Action": "Añadir propiedad",
+  "onboarding.successTitle": "¡Todo listo!",
+  "onboarding.successMessage": "Explora la plataforma.",
+  "onboarding.explore": "Empezar a explorar",
+  "onboarding.skip": "Omitir por ahora"
 }

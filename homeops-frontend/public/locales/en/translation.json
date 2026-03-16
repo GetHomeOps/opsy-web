@@ -808,5 +808,20 @@
   "welcome.feature3Title": "Find Professionals",
   "welcome.feature3Description": "Search our directory for trusted contractors, plumbers, electricians, and more.",
   "welcome.feature3Cta": "Browse directory",
-  "welcome.getStarted": "Get Started"
+  "welcome.getStarted": "Get Started",
+  "onboarding.badge": "Getting started",
+  "onboarding.title": "Welcome to Opsy!",
+  "onboarding.titleWithName": "Welcome, {{name}}!",
+  "onboarding.subtitle": "Complete these steps to get the most out of your home management hub.",
+  "onboarding.progress": "{{completed}}/{{total}} completed",
+  "onboarding.step1Title": "Complete your profile",
+  "onboarding.step1Description": "Add a profile photo, full name, and phone number.",
+  "onboarding.step1Action": "Complete Profile",
+  "onboarding.step2Title": "Create your first property",
+  "onboarding.step2Description": "Add your home to track its details, documents, and health score.",
+  "onboarding.step2Action": "Add Property",
+  "onboarding.successTitle": "You're all set!",
+  "onboarding.successMessage": "Start exploring the platform.",
+  "onboarding.explore": "Start exploring",
+  "onboarding.skip": "Skip for now"
 }

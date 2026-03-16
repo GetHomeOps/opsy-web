@@ -22,7 +22,7 @@ const LANGUAGES = [
 function ConfigurationPage() {
   const { t, i18n } = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser } = useAuth();
+  const { currentUser, refreshCurrentUser, updateCurrentUser } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [language, setLanguage] = useState(i18n.language?.split("-")[0] || "en");
@@ -56,6 +56,8 @@ function ConfigurationPage() {
   const [photoError, setPhotoError] = useState(null);
   const [pendingImageKey, setPendingImageKey] = useState(null);
   const [pendingRemovePhoto, setPendingRemovePhoto] = useState(false);
+  /** Latest image_url from save response; keeps photo visible immediately after save without reload */
+  const [savedImageUrl, setSavedImageUrl] = useState(null);
   const {
     uploadImage,
     imagePreviewUrl,
@@ -78,6 +80,7 @@ function ConfigurationPage() {
     ? null
     : imagePreviewUrl ||
       uploadedImageUrl ||
+      savedImageUrl ||
       currentUser?.avatarUrl ||
       currentUser?.image_url;
   const hasProfilePhoto =
@@ -147,14 +150,28 @@ function ConfigurationPage() {
         payload.avatar_url = null;
       } else if (pendingImageKey) {
         payload.image = pendingImageKey;
+        // Clear OAuth avatar so uploaded photo takes precedence (avatarUrl || image_url display order)
+        payload.avatar_url = null;
       }
-      await AppApi.updateUser(currentUser.id, payload);
+      const updatedUser = await AppApi.updateUser(currentUser.id, payload);
+      setSavedImageUrl(pendingRemovePhoto ? null : (updatedUser?.image_url ?? savedImageUrl));
+      const authUpdates = { name: updatedUser?.name, phone: updatedUser?.phone };
+      if (pendingRemovePhoto) {
+        authUpdates.image = null;
+        authUpdates.image_url = null;
+        authUpdates.avatarUrl = null;
+      } else if (pendingImageKey) {
+        authUpdates.image = updatedUser?.image;
+        authUpdates.image_url = updatedUser?.image_url;
+        authUpdates.avatarUrl = null; // Clear OAuth avatar so uploaded photo displays
+      }
+      updateCurrentUser(authUpdates);
+      await refreshCurrentUser();
       setProfileSuccess(true);
       clearPreview();
       clearUploadedUrl();
       setPendingImageKey(null);
       setPendingRemovePhoto(false);
-      setTimeout(() => window.location.reload(), 500);
     } catch (err) {
       setProfileError(err.message || err.messages?.[0] || "Failed to save profile");
     } finally {
