@@ -48,7 +48,6 @@ const PlatformEngagement = require("../models/platformEngagement");
 const RefreshToken = require("../models/refreshToken");
 const db = require("../db");
 
-const OAUTH_STATE_COOKIE = "oauth_state";
 const OAUTH_STATE_MAX_AGE = 10 * 60; // 10 minutes
 
 async function issueTokenPair(user) {
@@ -410,14 +409,10 @@ router.get("/google/signin", function (req, res, next) {
     return res.status(503).json({ error: { message: "Google sign-in is not configured" } });
   }
   try {
-    const state = crypto.randomBytes(24).toString("hex");
-    res.cookie(OAUTH_STATE_COOKIE, state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: OAUTH_STATE_MAX_AGE * 1000,
-      path: "/",
-    });
+    const state = jwt.sign(
+      { purpose: "auth-signin", nonce: crypto.randomBytes(24).toString("hex"), exp: Math.floor(Date.now() / 1000) + OAUTH_STATE_MAX_AGE },
+      SECRET_KEY
+    );
     const url = buildAuthUrl({ redirectUri: GOOGLE_REDIRECT_URI_SIGNIN, state });
     return res.redirect(url);
   } catch (err) {
@@ -431,14 +426,10 @@ router.get("/google/signup", function (req, res, next) {
     return res.status(503).json({ error: { message: "Google sign-up is not configured" } });
   }
   try {
-    const state = crypto.randomBytes(24).toString("hex");
-    res.cookie(OAUTH_STATE_COOKIE, state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: OAUTH_STATE_MAX_AGE * 1000,
-      path: "/",
-    });
+    const state = jwt.sign(
+      { purpose: "auth-signup", nonce: crypto.randomBytes(24).toString("hex"), exp: Math.floor(Date.now() / 1000) + OAUTH_STATE_MAX_AGE },
+      SECRET_KEY
+    );
     const url = buildAuthUrl({ redirectUri: GOOGLE_REDIRECT_URI_SIGNUP, state });
     return res.redirect(url);
   } catch (err) {
@@ -455,9 +446,14 @@ async function handleGoogleCallback(req, res, next, intent) {
     return res.redirect(redirectWithError("missing_params"));
   }
 
-  const storedState = req.cookies?.[OAUTH_STATE_COOKIE];
-  res.clearCookie(OAUTH_STATE_COOKIE, { path: "/" });
-  if (!storedState || storedState !== state) {
+  let payload;
+  try {
+    payload = jwt.verify(state, SECRET_KEY);
+  } catch {
+    return res.redirect(redirectWithError("invalid_state"));
+  }
+  const expectedPurpose = `auth-${intent}`;
+  if (payload.purpose !== expectedPurpose) {
     return res.redirect(redirectWithError("invalid_state"));
   }
 

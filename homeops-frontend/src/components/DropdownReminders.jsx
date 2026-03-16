@@ -1,12 +1,10 @@
 import React, {useEffect, useRef, useState} from "react";
-import {createPortal} from "react-dom";
 import {Link} from "react-router-dom";
 import {parseISO, format, isValid, isToday, isTomorrow} from "date-fns";
 import {Clock3, Calendar, AlertCircle, ChevronRight, Loader2} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
-import CalendarIntegrationsModal from "./CalendarIntegrationsModal";
 
 function formatEventDate(dateStr, timeStr) {
   if (dateStr == null) return "";
@@ -44,7 +42,7 @@ function DropdownReminders({align = "right"}) {
 
   const accountUrl = currentAccount?.url || "";
   const calendarPath = accountUrl ? `/${accountUrl}/calendar` : "/calendar";
-  const [calendarModalOpen, setCalendarModalOpen] = useState(false);
+  const calendarSettingsPath = accountUrl ? `/${accountUrl}/settings/configuration#calendar-integrations` : "/settings/configuration#calendar-integrations";
 
   const fetchEvents = () => {
     setLoading(true);
@@ -260,33 +258,17 @@ function DropdownReminders({align = "right"}) {
                 View calendar <ChevronRight className="w-4 h-4" />
               </Link>
             )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                setDropdownOpen(false);
-                requestAnimationFrame(() => {
-                  requestAnimationFrame(() => setCalendarModalOpen(true));
-                });
-              }}
-              className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors hover:opacity-90"
+            <Link
+              to={calendarSettingsPath}
+              onClick={() => setDropdownOpen(false)}
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors hover:opacity-90 no-underline"
               style={{backgroundColor: "#C76C4B"}}
             >
               Connect your Calendar
-            </button>
+            </Link>
           </div>
         </div>
       </Transition>
-
-      {calendarModalOpen &&
-        createPortal(
-          <CalendarIntegrationsModal
-            isOpen={true}
-            onClose={() => setCalendarModalOpen(false)}
-          />,
-          document.body,
-        )}
     </div>
   );
 }

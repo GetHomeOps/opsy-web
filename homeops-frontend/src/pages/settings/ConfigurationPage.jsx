@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { ShieldCheck, ShieldOff, Loader2, Globe, Calendar, CheckCircle2 } from "lucide-react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
@@ -145,6 +145,7 @@ function ConfigurationPage() {
   }, [currentUser?.id, enableModalOpen, disableModalOpen]);
 
   const { accountUrl } = useParams();
+  const { hash } = useLocation();
   useEffect(() => {
     async function fetchCalendars() {
       if (!currentUser?.id) return;
@@ -160,6 +161,20 @@ function ConfigurationPage() {
     }
     fetchCalendars();
   }, [currentUser?.id]);
+
+  // Scroll to calendar section when opening settings via #calendar-integrations
+  useEffect(() => {
+    if (hash !== "#calendar-integrations") return;
+    const el = document.getElementById("calendar-integrations");
+    if (el) {
+      const scroll = () => {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      };
+      // Delay slightly so layout is complete (especially with loading states)
+      const t = setTimeout(scroll, 150);
+      return () => clearTimeout(t);
+    }
+  }, [hash]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
