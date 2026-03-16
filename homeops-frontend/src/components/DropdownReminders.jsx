@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, useState} from "react";
 import {Link} from "react-router-dom";
 import {parseISO, format, isValid, isToday, isTomorrow} from "date-fns";
+import {parseDateInput} from "../lib/dateOffset";
 import {Clock3, Calendar, AlertCircle, ChevronRight, Loader2} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
@@ -96,12 +97,14 @@ function DropdownReminders({align = "right"}) {
   });
 
   const today = new Date().toDateString();
-  const todayEvents = events.filter(
-    (e) => new Date(e.scheduledDate).toDateString() === today,
-  );
-  const upcomingEvents = events.filter(
-    (e) => new Date(e.scheduledDate).toDateString() !== today,
-  );
+  const todayEvents = events.filter((e) => {
+    const d = parseDateInput(e.scheduledDate);
+    return d && d.toDateString() === today;
+  });
+  const upcomingEvents = events.filter((e) => {
+    const d = parseDateInput(e.scheduledDate);
+    return !d || d.toDateString() !== today;
+  });
   const hasReminderDot = todayEvents.length > 0;
 
   return (

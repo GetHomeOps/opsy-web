@@ -17,6 +17,11 @@ export const OFFSET_DIRECTIONS = {
   TODAY: "today",
 };
 
+/**
+ * Parse YYYY-MM-DD (or ISO date string) as local date.
+ * Avoids new Date("2025-03-16") which parses as UTC midnight and can show
+ * the previous calendar day in timezones west of UTC.
+ */
 export function parseDateInput(value) {
   if (!value) return undefined;
   if (value instanceof Date) return isValid(value) ? startOfDay(value) : undefined;
@@ -71,6 +76,16 @@ export function resolveOffsetDate({
     baseDate,
     resultDate: addDateOffset(baseDate, amount, unit),
   };
+}
+
+/**
+ * Parse a YYYY-MM-DD string as local date (avoids new Date(str) UTC-midnight bug
+ * which shifts the calendar day in timezones west of UTC).
+ * @param {string} value - Date string (YYYY-MM-DD)
+ * @returns {Date|undefined} Local midnight for that date, or undefined
+ */
+export function parseDateOnly(value) {
+  return parseDateInput(value);
 }
 
 export function isDateOutsideRange(date, {minDate, maxDate} = {}) {

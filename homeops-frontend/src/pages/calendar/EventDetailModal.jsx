@@ -3,6 +3,7 @@ import {X, MapPin, User, FileText, Calendar, Clock, Trash2, Loader2} from "lucid
 import ModalBlank from "../../components/ModalBlank";
 import AppApi from "../../api/api";
 import {buildGoogleCalendarUrl} from "../../lib/googleCalendarLink";
+import {parseDateInput} from "../../lib/dateOffset";
 
 /**
  * Normalized calendar event shape (from API).
@@ -72,8 +73,9 @@ function EventDetailModal({event, isOpen, onClose, onDeleted}) {
     ? "bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300"
     : "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300";
 
-  const formattedDate = event?.date
-    ? new Date(event.date).toLocaleDateString("en-US", {
+  const eventDate = event?.date ? parseDateInput(event.date) : null;
+  const formattedDate = eventDate
+    ? eventDate.toLocaleDateString("en-US", {
         weekday: "long",
         year: "numeric",
         month: "long",
@@ -202,7 +204,7 @@ function EventDetailModal({event, isOpen, onClose, onDeleted}) {
               </div>
             )}
 
-            {event.nextScheduledDate && event.type === "maintenance" && (
+            {event.nextScheduledDate && event.type === "maintenance" && parseDateInput(event.nextScheduledDate) && (
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
                   <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -212,7 +214,7 @@ function EventDetailModal({event, isOpen, onClose, onDeleted}) {
                     Next Scheduled
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {new Date(event.nextScheduledDate).toLocaleDateString("en-US", {
+                    {parseDateInput(event.nextScheduledDate)?.toLocaleDateString("en-US", {
                       weekday: "short",
                       month: "short",
                       day: "numeric",

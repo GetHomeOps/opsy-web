@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {createPortal} from "react-dom";
-import {addYears, subYears} from "date-fns";
+import {addYears, format, subYears} from "date-fns";
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import AppApi from "../../api/api";
@@ -11,6 +11,7 @@ import DateOffsetControl from "../../components/DateOffsetControl";
 import {Popover, PopoverContent, PopoverTrigger} from "../../components/ui/popover";
 import {Calendar as CalendarIcon, SkipForward, Settings} from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
+import {parseDateInput} from "../../lib/dateOffset";
 
 const MONTH_NAMES = [
   "January",
@@ -63,11 +64,12 @@ function normalizeEvent(raw) {
 }
 
 function computeNextDate(dateStr, recurrenceType) {
-  const d = new Date(dateStr);
+  const d = parseDateInput(dateStr);
+  if (!d) return "";
   if (recurrenceType === "quarterly") d.setMonth(d.getMonth() + 3);
   else if (recurrenceType === "semi-annually") d.setMonth(d.getMonth() + 6);
   else if (recurrenceType === "annually") d.setFullYear(d.getFullYear() + 1);
-  return d.toISOString().slice(0, 10);
+  return format(d, "yyyy-MM-dd");
 }
 
 const VIEW_MODES = ["month", "week", "day"];
@@ -210,16 +212,18 @@ function Calendar() {
 
   const getEventsForDay = (date) => {
     const dayStr = new Date(year, month, date).toDateString();
-    return filteredEvents.filter(
-      (e) => new Date(e.date).toDateString() === dayStr,
-    );
+    return filteredEvents.filter((e) => {
+      const eventDate = parseDateInput(e.date);
+      return eventDate && eventDate.toDateString() === dayStr;
+    });
   };
 
   const getEventsForDate = (d) => {
     const dayStr = d.toDateString();
-    return filteredEvents.filter(
-      (e) => new Date(e.date).toDateString() === dayStr,
-    );
+    return filteredEvents.filter((e) => {
+      const eventDate = parseDateInput(e.date);
+      return eventDate && eventDate.toDateString() === dayStr;
+    });
   };
 
   const weekDays = useMemo(() => {
