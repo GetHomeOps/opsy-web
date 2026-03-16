@@ -19,8 +19,9 @@ export const OFFSET_DIRECTIONS = {
 
 /**
  * Parse YYYY-MM-DD (or ISO date string) as local date.
- * Avoids new Date("2025-03-16") which parses as UTC midnight and can show
- * the previous calendar day in timezones west of UTC.
+ * Avoids new Date("2025-03-16") and new Date("2025-03-20T00:00:00.000Z")
+ * which parse as UTC midnight and can show the previous calendar day in
+ * timezones west of UTC.
  */
 export function parseDateInput(value) {
   if (!value) return undefined;
@@ -32,6 +33,13 @@ export function parseDateInput(value) {
 
   const parsed = parse(trimmed, "yyyy-MM-dd", new Date());
   if (isValid(parsed)) return startOfDay(parsed);
+
+  // ISO strings like "2025-03-20T00:00:00.000Z" - extract date part and parse as local
+  const datePart = trimmed.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    const localParsed = parse(datePart, "yyyy-MM-dd", new Date());
+    if (isValid(localParsed)) return startOfDay(localParsed);
+  }
 
   const iso = new Date(trimmed);
   return isValid(iso) ? startOfDay(iso) : undefined;

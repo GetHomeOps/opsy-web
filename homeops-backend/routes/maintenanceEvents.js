@@ -165,6 +165,7 @@ router.post(
         console.error("[resourceAutoSend] event scheduled:", autoErr.message);
       }
 
+      let calendarSync = { synced: [], failed: [] };
       try {
         const propRes = await db.query(
           `SELECT property_name, address, city, state FROM properties WHERE id = $1`,
@@ -175,11 +176,15 @@ router.post(
           propertyName: p?.property_name || "",
           address: [p?.address, p?.city, p?.state].filter(Boolean).join(", ") || "",
         };
-        await syncEventToCalendars(res.locals.user.id, event, propertyInfo);
+        calendarSync = await syncEventToCalendars(res.locals.user.id, event, propertyInfo);
+        if (calendarSync.failed.length > 0) {
+          console.error("[calendarSync] create sync partial/failed:", JSON.stringify(calendarSync.failed));
+        }
       } catch (calErr) {
         console.error("[calendarSync] create sync failed:", calErr.message);
+        calendarSync = { synced: [], failed: [{ provider: "unknown", error: calErr.message }] };
       }
-      return res.status(201).json({ event });
+      return res.status(201).json({ event, calendarSync });
     } catch (err) {
       return next(err);
     }

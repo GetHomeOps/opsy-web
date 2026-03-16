@@ -25,9 +25,13 @@ function isTokenExpired(expiresAt) {
 async function ensureValidTokens(integration) {
   const row = await CalendarIntegration.getWithTokens(integration.id);
   let accessToken = row.access_token;
-  let refreshToken = row.refresh_token;
+  const refreshToken = row.refresh_token;
 
-  if (isTokenExpired(row.token_expires_at) && refreshToken) {
+  if (isTokenExpired(row.token_expires_at)) {
+    if (!refreshToken) {
+      console.error(`[calendarSync] ${row.provider} token expired but no refresh_token; user must reconnect`);
+      throw new Error(`Calendar connection expired. Please reconnect ${row.provider} in Profile → Preferences → Calendar Integrations.`);
+    }
     try {
       if (row.provider === "google") {
         const refreshed = await refreshCalendarToken(refreshToken);
@@ -50,27 +54,61 @@ async function ensureValidTokens(integration) {
       }
     } catch (err) {
       console.error(`[calendarSync] Token refresh failed for ${row.provider}:`, err.message);
-      throw new Error(`Calendar token expired. Please reconnect ${row.provider} in settings.`);
+      throw new Error(`Calendar token expired. Please reconnect ${row.provider} in Profile → Preferences → Calendar Integrations.`);
     }
   }
   return { ...row, access_token: accessToken };
 }
 
+/** Normalize scheduled_date to YYYY-MM-DD string (handles Date objects from DB). */
+function toDateOnlyString(d) {
+  if (d == null) return "";
+  if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+  const date = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+/** Normalize time to HH:mm (DB may return HH:mm or HH:mm:ss; Google needs HH:mm:ss). */
+function toTimeHHmm(t) {
+  if (!t || typeof t !== "string") return "09:00";
+  const parts = String(t).trim().split(":");
+  const h = Math.min(23, Math.max(0, parseInt(parts[0], 10) || 9));
+  const m = Math.min(59, Math.max(0, parseInt(parts[1], 10) || 0));
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Add 1 hour to date+time, return RFC3339-local { start, end } (handles midnight rollover). */
+function buildStartEndDateTime(dateStr, timeHHmm) {
+  const [h, m] = timeHHmm.split(":").map((x) => parseInt(x, 10));
+  const startDateTime = `${dateStr}T${timeHHmm}:00`;
+  const startMins = h * 60 + m;
+  const endMins = (startMins + 60) % (24 * 60);
+  const endDayOffset = startMins + 60 >= 24 * 60 ? 1 : 0;
+  const endH = Math.floor(endMins / 60);
+  const endM = endMins % 60;
+  let endDateStr = dateStr;
+  if (endDayOffset > 0) {
+    const d = new Date(dateStr + "T12:00:00Z");
+    d.setUTCDate(d.getUTCDate() + 1);
+    endDateStr = d.toISOString().slice(0, 10);
+  }
+  const endDateTime = `${endDateStr}T${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}:00`;
+  return { startDateTime, endDateTime };
+}
+
 /** Convert maintenance event to calendar event format */
 function maintenanceToCalendarEvent(event, propertyName = "", propertyAddress = "") {
   const title = event.system_name || event.system_key || "Maintenance";
-  const dateStr = event.scheduled_date;
-  const timeStr = event.scheduled_time;
+  const dateStr = toDateOnlyString(event.scheduled_date);
+  const timeHHmm = toTimeHHmm(event.scheduled_time);
   const tz = event.timezone || "UTC";
 
-  const startDate = timeStr
-    ? `${dateStr}T${timeStr}:00`
-    : `${dateStr}T09:00:00`;
-  const [h, m] = (timeStr || "09:00").split(":");
-  const endHour = (parseInt(h, 10) + 1) % 24;
-  const endDate = timeStr
-    ? `${dateStr}T${String(endHour).padStart(2, "0")}:${m}:00`
-    : `${dateStr}T10:00:00`;
+  if (!dateStr) {
+    throw new Error("Event missing scheduled_date; cannot build calendar event");
+  }
+
+  const { startDateTime, endDateTime } = buildStartEndDateTime(dateStr, timeHHmm);
 
   const description = [
     propertyName && `Property: ${propertyName}`,
@@ -85,8 +123,8 @@ function maintenanceToCalendarEvent(event, propertyName = "", propertyAddress = 
     summary: title,
     description: description || "HomeOps maintenance event",
     location: propertyAddress || undefined,
-    start: { dateTime: startDate, timeZone: tz },
-    end: { dateTime: endDate, timeZone: tz },
+    start: { dateTime: startDateTime, timeZone: tz },
+    end: { dateTime: endDateTime, timeZone: tz },
   };
 }
 
@@ -133,8 +171,17 @@ async function syncToGoogle(integration, maintenanceEvent, propertyInfo = {}) {
     await CalendarIntegration.touchLastSynced(integration.id);
     return { success: true, externalId: eventId };
   } catch (err) {
-    console.error("[calendarSync] Google sync failed:", err.message);
-    return { success: false, error: err.message };
+    const errData = err.response?.data?.error;
+    const details = errData?.message || err.message || String(err);
+    const errorList = errData?.errors;
+    if (err.response?.status === 400) {
+      console.error("[calendarSync] Google Bad Request - payload:", JSON.stringify(calEvent));
+      if (Array.isArray(errorList) && errorList.length > 0) {
+        console.error("[calendarSync] Google error details:", JSON.stringify(errorList));
+      }
+    }
+    console.error("[calendarSync] Google sync failed:", details);
+    return { success: false, error: details };
   }
 }
 
@@ -235,8 +282,15 @@ async function syncEventToCalendars(userId, maintenanceEvent, propertyInfo = {})
   const synced = [];
   const failed = [];
 
-  for (const row of integrations) {
-    if (!row.sync_enabled) continue;
+  const toSync = integrations.filter((i) => i.sync_enabled);
+  if (toSync.length === 0) {
+    if (integrations.length > 0) {
+      console.warn("[calendarSync] User has calendar integrations but sync is disabled for all.");
+    }
+    return { synced, failed };
+  }
+
+  for (const row of toSync) {
     try {
       const integration = await ensureValidTokens(row);
       let result;
@@ -255,6 +309,9 @@ async function syncEventToCalendars(userId, maintenanceEvent, propertyInfo = {})
     } catch (err) {
       failed.push({ provider: row.provider, error: err.message });
     }
+  }
+  if (synced.length > 0) {
+    console.log(`[calendarSync] Synced event ${maintenanceEvent.id} to: ${synced.join(", ")}`);
   }
   return { synced, failed };
 }

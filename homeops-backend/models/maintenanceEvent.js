@@ -392,6 +392,14 @@ class MaintenanceEvent {
       return date.toISOString().slice(0, 10);
     };
 
+    /** Return YYYY-MM-DD so frontend gets date-only; avoids timezone shift when DB returns Date. */
+    const toDateOnly = (d) => {
+      if (d == null) return null;
+      if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+      const date = d instanceof Date ? d : new Date(d);
+      return isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+    };
+
     const maintenanceEvents = eventsResult.rows.map((r) => ({
       type: "maintenance",
       id: r.id,
@@ -403,7 +411,7 @@ class MaintenanceEvent {
       systemName: r.system_name || SYSTEM_LABELS[r.system_key] || r.system_key,
       contractorName: r.contractor_name,
       notes: r.message_body,
-      scheduledDate: r.scheduled_date,
+      scheduledDate: toDateOnly(r.scheduled_date),
       scheduledTime: r.scheduled_time,
       status: r.status,
       recurrenceType: r.recurrence_type,
@@ -426,7 +434,7 @@ class MaintenanceEvent {
         systemName: SYSTEM_LABELS[r.system_key] || r.system_key,
         contractorName: null,
         notes: null,
-        scheduledDate: r.next_service_date,
+        scheduledDate: toDateOnly(r.next_service_date),
         scheduledTime: null,
         status: "due",
         recurrenceType: null,

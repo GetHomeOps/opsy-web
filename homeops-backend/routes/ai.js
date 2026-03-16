@@ -22,6 +22,7 @@ const {
   generateAndStoreSummary,
   sanitizeResponse,
 } = require("../services/aiChatService");
+const { syncEventToCalendars } = require("../services/calendarSyncService");
 
 const router = express.Router();
 
@@ -791,6 +792,24 @@ router.post(
          WHERE id = $1::uuid`,
         [draftId, event.id, scheduledFor, notes || null]
       );
+
+      try {
+        const propRes = await db.query(
+          `SELECT property_name, address, city, state FROM properties WHERE id = $1`,
+          [draft.property_id]
+        );
+        const p = propRes.rows[0];
+        const propertyInfo = {
+          propertyName: p?.property_name || "",
+          address: [p?.address, p?.city, p?.state].filter(Boolean).join(", ") || "",
+        };
+        const calendarSync = await syncEventToCalendars(userId, event, propertyInfo);
+        if (calendarSync.failed.length > 0) {
+          console.error("[calendarSync] AI confirm-schedule sync partial/failed:", JSON.stringify(calendarSync.failed));
+        }
+      } catch (calErr) {
+        console.error("[calendarSync] AI confirm-schedule sync failed:", calErr.message);
+      }
 
       return res.json({
         status: "scheduled",
