@@ -55,8 +55,8 @@ function TicketsList({
   const label = statusLabel || defaultStatusLabel;
 
   return (
-    <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="px-6 py-5 bg-gray-50/80 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+    <section className="bg-white dark:bg-gray-800/95 rounded-xl shadow-sm border border-gray-200/60 dark:border-gray-700/60 overflow-hidden">
+      <div className="px-6 py-5 bg-gray-50/60 dark:bg-gray-800/30 border-b border-gray-200/60 dark:border-gray-700/60">
         <div className="flex items-center gap-2">
           <Ticket className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -87,7 +87,7 @@ function TicketsList({
                 tabIndex={0}
                 onClick={() => onTicketClick?.(ticket)}
                 onKeyDown={(e) => e.key === "Enter" && onTicketClick?.(ticket)}
-                className="rounded-xl border border-gray-200 dark:border-gray-700/60 p-4 bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100/80 dark:hover:bg-gray-700/40 hover:border-[#456564]/30 dark:hover:border-[#5a7a78]/40 cursor-pointer transition-all duration-200"
+                className="rounded-xl border border-gray-200/80 dark:border-gray-600/50 p-4 bg-gray-50/40 dark:bg-gray-800/20 hover:bg-gray-50/80 dark:hover:bg-gray-700/30 hover:border-gray-300 dark:hover:border-gray-600 cursor-default transition-all duration-200"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">

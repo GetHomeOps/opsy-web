@@ -280,6 +280,9 @@ CREATE TABLE properties (
     list_date DATE,
     expire_date DATE,
 
+    -- RentCast: when 'rentcast', identity fields from RentCast are read-only
+    identity_data_source VARCHAR(50) DEFAULT NULL,
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -753,13 +756,14 @@ CREATE INDEX idx_event_calendar_syncs_integration ON event_calendar_syncs(calend
 
 CREATE TABLE support_tickets (
     id SERIAL PRIMARY KEY,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('support', 'feedback')),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('support', 'feedback', 'data_adjustment')),
     subject VARCHAR(500) NOT NULL,
     description TEXT NOT NULL,
     status VARCHAR(30) NOT NULL DEFAULT 'new' CHECK (status IN (
         'new', 'working_on_it', 'solved',
         'waiting_on_user', 'resolved', 'closed',
-        'under_review', 'planned', 'implemented', 'rejected'
+        'under_review', 'planned', 'implemented', 'rejected',
+        'pending_review'
     )),
     subscription_tier VARCHAR(50),
     priority_score INTEGER NOT NULL DEFAULT 10,
@@ -768,6 +772,12 @@ CREATE TABLE support_tickets (
     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     internal_notes TEXT,
     attachment_keys TEXT[],
+    -- Data Adjustment Request (type='data_adjustment')
+    property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
+    data_source VARCHAR(50) DEFAULT NULL,
+    data_adjustment_field VARCHAR(100) DEFAULT NULL,
+    data_adjustment_current TEXT DEFAULT NULL,
+    data_adjustment_requested TEXT DEFAULT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -776,6 +786,7 @@ CREATE INDEX idx_support_tickets_created_by ON support_tickets(created_by);
 CREATE INDEX idx_support_tickets_account_id ON support_tickets(account_id);
 CREATE INDEX idx_support_tickets_status ON support_tickets(status);
 CREATE INDEX idx_support_tickets_priority ON support_tickets(priority_score DESC, created_at ASC);
+CREATE INDEX idx_support_tickets_property_id ON support_tickets(property_id);
 
 -- Support ticket replies (admin/user exchange on tickets)
 CREATE TABLE support_ticket_replies (

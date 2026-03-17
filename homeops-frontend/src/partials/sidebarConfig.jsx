@@ -22,6 +22,7 @@ import {
   ClipboardList,
   MessageSquare,
   MessageCircle,
+  SlidersHorizontal,
   CreditCard,
   Package,
   UsersRound,
@@ -169,16 +170,23 @@ export const SIDEBAR_CONFIG = [
         children: [
           {
             id: "support-management",
-            label: "Support Management",
+            label: "Support",
             path: "support-management",
             icon: icon(MessageSquare),
             roles: "adminOnly",
           },
           {
             id: "feedback-management",
-            label: "Feedback Management",
+            label: "Feedback",
             path: "feedback-management",
             icon: icon(MessageCircle),
+            roles: "adminOnly",
+          },
+          {
+            id: "data-adjustment-management",
+            label: "Data Adjustment",
+            path: "data-adjustment-management",
+            icon: icon(SlidersHorizontal),
             roles: "adminOnly",
           },
         ],

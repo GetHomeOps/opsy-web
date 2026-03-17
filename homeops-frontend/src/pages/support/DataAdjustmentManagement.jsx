@@ -12,12 +12,17 @@ import {
 } from "./components";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import {
-  SUPPORT_COLUMNS,
-  supportToColumnStatus,
-  columnToSupportStatus,
+  DATA_ADJUSTMENT_COLUMNS,
+  dataAdjustmentToColumnStatus,
+  columnToDataAdjustmentStatus,
 } from "./kanbanConfig";
 
-function SupportManagement() {
+const SORT_OPTIONS = [
+  {value: "newest", label: "Newest first"},
+  {value: "oldest", label: "Oldest first"},
+];
+
+function DataAdjustmentManagement() {
   const {accountUrl} = useParams();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -26,20 +31,22 @@ function SupportManagement() {
   const [error, setError] = useState(null);
   const [draggedTicket, setDraggedTicket] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
-  const [admins, setAdmins] = useState([]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilters, setActiveFilters] = useState([]);
+  const [sortBy, setSortBy] = useState("newest");
 
   const fetchTickets = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const list = await AppApi.getAllSupportTickets();
-      const filtered = (list || []).filter((t) => t.type === "support");
+      const filtered = (list || []).filter(
+        (t) => t.type === "data_adjustment",
+      );
       setTickets(filtered);
     } catch (err) {
-      setError(err.message || "Failed to load tickets");
+      setError(err.message || "Failed to load data adjustment tickets");
       setTickets([]);
     } finally {
       setLoading(false);
@@ -50,64 +57,35 @@ function SupportManagement() {
     fetchTickets();
   }, [fetchTickets]);
 
-  useEffect(() => {
-    async function fetchAdmins() {
-      try {
-        const list = await AppApi.getSupportAssignmentAdmins();
-        setAdmins(list || []);
-      } catch {
-        setAdmins([]);
-      }
-    }
-    fetchAdmins();
-  }, []);
-
-  const tierToPriority = (tier) => {
-    const t = (tier || "").toLowerCase();
-    if (["premium", "win"].includes(t)) return "urgent";
-    if (["pro", "maintain"].includes(t)) return "high";
-    if (["agent", "basic"].includes(t)) return "medium";
-    return "low";
-  };
-
   const planTiers = useMemo(() => {
     const set = new Set();
-    (tickets || []).forEach((t) =>
-      set.add((t.subscriptionTier || "Free").toLowerCase()),
-    );
+    (tickets || [])
+      .filter((t) => t.type === "data_adjustment")
+      .forEach((t) => set.add((t.subscriptionTier || "Free").toLowerCase()));
     return Array.from(set).sort();
   }, [tickets]);
 
   const filterCategories = useMemo(
     () => [
       {type: "status", label: "Status"},
-      {type: "priority", label: "Priority"},
       {type: "planTier", label: "Plan"},
-      {type: "assignedTo", label: "Assigned"},
     ],
     [],
   );
 
   const filterOptions = useMemo(
     () => ({
-      status: SUPPORT_COLUMNS.map((c) => ({value: c.id, label: c.title})),
-      priority: [
-        {value: "urgent", label: "Urgent"},
-        {value: "high", label: "High"},
-        {value: "medium", label: "Medium"},
-        {value: "low", label: "Low"},
-      ],
-      planTier: planTiers.map((t) => ({value: t, label: t})),
-      assignedTo: admins.map((a) => ({
-        value: String(a.id),
-        label: a.name || a.email,
+      status: DATA_ADJUSTMENT_COLUMNS.map((c) => ({
+        value: c.id,
+        label: c.title,
       })),
+      planTier: planTiers.map((t) => ({value: t, label: t})),
     }),
-    [planTiers, admins],
+    [planTiers],
   );
 
   const filteredTickets = useMemo(() => {
-    let list = tickets || [];
+    let list = (tickets || []).filter((t) => t.type === "data_adjustment");
     const byType = {};
     activeFilters.forEach((f) => {
       if (!byType[f.type]) byType[f.type] = [];
@@ -115,22 +93,12 @@ function SupportManagement() {
     });
     if (byType.status?.length) {
       list = list.filter((t) =>
-        byType.status.includes(supportToColumnStatus(t.status)),
-      );
-    }
-    if (byType.priority?.length) {
-      list = list.filter((t) =>
-        byType.priority.includes(tierToPriority(t.subscriptionTier)),
+        byType.status.includes(dataAdjustmentToColumnStatus(t.status)),
       );
     }
     if (byType.planTier?.length) {
       list = list.filter((t) =>
         byType.planTier.includes((t.subscriptionTier || "free").toLowerCase()),
-      );
-    }
-    if (byType.assignedTo?.length) {
-      list = list.filter((t) =>
-        byType.assignedTo.includes(String(t.assignedTo)),
       );
     }
     if (searchQuery.trim()) {
@@ -140,8 +108,7 @@ function SupportManagement() {
           (t.subject || "").toLowerCase().includes(q) ||
           (t.description || "").toLowerCase().includes(q) ||
           (t.createdByName || "").toLowerCase().includes(q) ||
-          (t.createdByEmail || "").toLowerCase().includes(q) ||
-          (t.accountName || "").toLowerCase().includes(q),
+          (t.dataAdjustmentField || "").toLowerCase().includes(q),
       );
     }
     return list;
@@ -149,21 +116,22 @@ function SupportManagement() {
 
   const ticketsByColumn = useMemo(() => {
     const acc = {};
-    SUPPORT_COLUMNS.forEach((col) => {
+    DATA_ADJUSTMENT_COLUMNS.forEach((col) => {
       let colTickets = filteredTickets.filter(
-        (t) => supportToColumnStatus(t.status) === col.id,
+        (t) => dataAdjustmentToColumnStatus(t.status) === col.id,
       );
-      // Sort: priorityScore desc, then createdAt oldest first
-      colTickets.sort((a, b) => {
-        const pa = a.priorityScore ?? 0;
-        const pb = b.priorityScore ?? 0;
-        if (pa !== pb) return pb - pa;
-        return new Date(a.createdAt) - new Date(b.createdAt);
-      });
+      if (sortBy === "oldest")
+        colTickets.sort(
+          (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+        );
+      else
+        colTickets.sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+        );
       acc[col.id] = colTickets;
     });
     return acc;
-  }, [filteredTickets]);
+  }, [filteredTickets, sortBy]);
 
   function addFilter(f) {
     if (activeFilters.some((x) => x.type === f.type && x.value === f.value))
@@ -183,7 +151,7 @@ function SupportManagement() {
   }
 
   async function handleStatusChange(ticketId, newStatus) {
-    const backendStatus = columnToSupportStatus(newStatus);
+    const backendStatus = columnToDataAdjustmentStatus(newStatus);
     try {
       await AppApi.updateSupportTicket(ticketId, {status: backendStatus});
       await fetchTickets();
@@ -193,7 +161,7 @@ function SupportManagement() {
   }
 
   function openDetail(ticket) {
-    navigate(`/${accountUrl}/support-management/${ticket.id}`);
+    navigate(`/${accountUrl}/data-adjustment-management/${ticket.id}`);
   }
 
   function handleDragStart(e, ticket) {
@@ -217,7 +185,7 @@ function SupportManagement() {
     setDragOverColumn(null);
     if (
       !draggedTicket ||
-      supportToColumnStatus(draggedTicket.status) === targetCol.id
+      dataAdjustmentToColumnStatus(draggedTicket.status) === targetCol.id
     ) {
       setDraggedTicket(null);
       return;
@@ -243,11 +211,11 @@ function SupportManagement() {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
               <div>
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                  Support Management
+                  Data Adjustment
                 </h1>
                 <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                  Click a ticket to open it. Use the grip handle to drag between
-                  columns.
+                  RentCast data change requests. Click a ticket to open it. Use
+                  the grip handle to drag between columns.
                 </p>
               </div>
               <button
@@ -264,10 +232,9 @@ function SupportManagement() {
             </div>
 
             <TicketKpiTracker
-              variant="support"
+              variant="data_adjustment"
               tickets={tickets}
               loading={loading}
-              tierToPriority={tierToPriority}
             />
 
             {error && (
@@ -279,13 +246,16 @@ function SupportManagement() {
             <FilterDropdownWithPills
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
-              searchPlaceholder="Search subject, description, user..."
+              searchPlaceholder="Search subject, description, field..."
               filterCategories={filterCategories}
               filterOptions={filterOptions}
               activeFilters={activeFilters}
               onAddFilter={addFilter}
               onRemoveFilter={removeFilter}
               onClearFilters={clearFilters}
+              sortOptions={SORT_OPTIONS}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
             />
           </div>
 
@@ -298,7 +268,7 @@ function SupportManagement() {
               className={`overflow-x-auto ${PAGE_LAYOUT.listPaddingX} pb-6`}
             >
               <div className="flex gap-4 min-w-max pb-4 items-start">
-                {SUPPORT_COLUMNS.map((col) => (
+                {DATA_ADJUSTMENT_COLUMNS.map((col) => (
                   <KanbanColumn
                     key={col.id}
                     title={col.title}
@@ -311,15 +281,12 @@ function SupportManagement() {
                     {(ticketsByColumn[col.id] || []).map((ticket) => (
                       <TicketCard
                         key={ticket.id}
-                        ticket={{
-                          ...ticket,
-                          priority: tierToPriority(ticket.subscriptionTier),
-                        }}
+                        ticket={ticket}
                         onClick={() => openDetail(ticket)}
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
                         isDragging={draggedTicket?.id === ticket.id}
-                        variant="support"
+                        variant="data_adjustment"
                       />
                     ))}
                   </KanbanColumn>
@@ -333,4 +300,4 @@ function SupportManagement() {
   );
 }
 
-export default SupportManagement;
+export default DataAdjustmentManagement;

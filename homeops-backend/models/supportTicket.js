@@ -51,13 +51,27 @@ async function resolveSubscriptionTier(userId, accountId) {
 /**
  * Create a new support ticket.
  * Automatically sets: createdBy, accountId, subscriptionTier, priorityScore, status, createdAt.
+ * For type 'data_adjustment': also stores propertyId, dataSource, fieldKey, currentValue,
+ * requestedValue and sets status to 'new'.
  */
-async function create({ type, subject, description, createdBy, accountId, attachmentKeys }) {
+async function create({
+  type,
+  subject,
+  description,
+  createdBy,
+  accountId,
+  attachmentKeys,
+  propertyId,
+  dataSource,
+  fieldKey,
+  currentValue,
+  requestedValue,
+}) {
   if (!type || !subject?.trim() || !description?.trim()) {
     throw new BadRequestError("type, subject, and description are required");
   }
-  if (!["support", "feedback"].includes(type)) {
-    throw new BadRequestError("type must be 'support' or 'feedback'");
+  if (!["support", "feedback", "data_adjustment"].includes(type)) {
+    throw new BadRequestError("type must be 'support', 'feedback', or 'data_adjustment'");
   }
   if (!createdBy || !accountId) {
     throw new BadRequestError("createdBy and accountId are required");
@@ -66,10 +80,13 @@ async function create({ type, subject, description, createdBy, accountId, attach
   const subscriptionTier = await resolveSubscriptionTier(createdBy, accountId);
   const priorityScore = getPriorityFromTier(subscriptionTier);
 
+  const status = type === "data_adjustment" ? "pending_review" : "new";
+
   const result = await db.query(
     `INSERT INTO support_tickets
-       (type, subject, description, status, subscription_tier, priority_score, created_by, account_id, attachment_keys)
-     VALUES ($1, $2, $3, 'new', $4, $5, $6, $7, $8)
+       (type, subject, description, status, subscription_tier, priority_score, created_by, account_id, attachment_keys,
+        property_id, data_source, data_adjustment_field, data_adjustment_current, data_adjustment_requested)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      RETURNING id, type, subject, description, status,
                subscription_tier AS "subscriptionTier",
                priority_score AS "priorityScore",
@@ -78,9 +95,29 @@ async function create({ type, subject, description, createdBy, accountId, attach
                account_id AS "accountId",
                internal_notes AS "internalNotes",
                attachment_keys AS "attachmentKeys",
+               property_id AS "propertyId",
+               data_source AS "dataSource",
+               data_adjustment_field AS "dataAdjustmentField",
+               data_adjustment_current AS "dataAdjustmentCurrent",
+               data_adjustment_requested AS "dataAdjustmentRequested",
                created_at AS "createdAt",
                updated_at AS "updatedAt"`,
-    [type, subject.trim(), description.trim(), subscriptionTier, priorityScore, createdBy, accountId, attachmentKeys || null]
+    [
+      type,
+      subject.trim(),
+      description.trim(),
+      status,
+      subscriptionTier,
+      priorityScore,
+      createdBy,
+      accountId,
+      attachmentKeys || null,
+      propertyId != null ? Number(propertyId) : null,
+      dataSource || null,
+      fieldKey || null,
+      currentValue || null,
+      requestedValue || null,
+    ]
   );
   const ticket = result.rows[0];
   const creator = await db.query(
@@ -108,6 +145,11 @@ async function get(id) {
             t.account_id AS "accountId",
             t.internal_notes AS "internalNotes",
             t.attachment_keys AS "attachmentKeys",
+            t.property_id AS "propertyId",
+            t.data_source AS "dataSource",
+            t.data_adjustment_field AS "dataAdjustmentField",
+            t.data_adjustment_current AS "dataAdjustmentCurrent",
+            t.data_adjustment_requested AS "dataAdjustmentRequested",
             t.created_at AS "createdAt",
             t.updated_at AS "updatedAt",
             u.name AS "createdByName",

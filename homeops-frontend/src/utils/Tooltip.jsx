@@ -92,6 +92,9 @@ function Tooltip({children, className, bg, size, position, content}) {
     </Transition>
   );
 
+  const portalContainer =
+    typeof document !== "undefined" ? document.body : null;
+
   return (
     <div
       ref={triggerRef}
@@ -103,7 +106,8 @@ function Tooltip({children, className, bg, size, position, content}) {
     >
       {children}
       {content &&
-        (createPortal(
+        portalContainer &&
+        createPortal(
           <div
             className="fixed z-[9999] pointer-events-none"
             style={{
@@ -114,8 +118,8 @@ function Tooltip({children, className, bg, size, position, content}) {
           >
             {tooltipContent}
           </div>,
-          document.body,
-        ))}
+          portalContainer,
+        )}
     </div>
   );
 }

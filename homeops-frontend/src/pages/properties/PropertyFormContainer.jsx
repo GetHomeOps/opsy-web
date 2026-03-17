@@ -81,6 +81,10 @@ import {
   isSectionComplete,
 } from "./constants/identitySections";
 import {
+  RENTCAST_FIELD_KEYS,
+  ADDRESS_FIELD_KEYS,
+} from "./constants/rentcastFields";
+import {
   isSystemComplete,
   isCustomSystemComplete,
 } from "./constants/systemSections";
@@ -107,6 +111,8 @@ import {
   ChevronDown,
   ChevronUp,
   FileBarChart,
+  FilePenLine,
+  Lock,
   Loader2,
   Sparkles,
   X,
@@ -540,6 +546,63 @@ function PropertyFormContainer() {
 
   // Merged formData – declared early so callbacks can reference it
   const mergedFormData = mergeFormDataFromTabs(state.formData);
+  const identityDataSource =
+    mergedFormData?.identityDataSource ??
+    state.property?.identity?.identityDataSource;
+  const currentPropertyId =
+    state.property?.identity?.id ??
+    state.property?.id ??
+    (uid !== "new" ? uid : null);
+  const currentPropertyContextLabel =
+    mergedFormData?.propertyName ||
+    mergedFormData?.address ||
+    state.property?.property_name ||
+    [mergedFormData?.address, mergedFormData?.city, mergedFormData?.state]
+      .filter(Boolean)
+      .join(", ");
+
+  const supportDataAdjustmentUrl = useCallback(
+    (fieldKey) => {
+      if (!accountUrl) return undefined;
+      if (!fieldKey) return undefined;
+
+      const base = `/${accountUrl}/settings/support/data-adjustment`;
+      const params = new URLSearchParams();
+
+      const currentVal =
+        mergedFormData?.[fieldKey] ??
+        mergedFormData?.identity?.[fieldKey];
+      if (currentVal != null && String(currentVal).trim() !== "") {
+        params.set("currentValue", String(currentVal).trim());
+      }
+
+      if (ADDRESS_FIELD_KEYS.has(fieldKey)) {
+        params.set("system", "Address");
+        params.set("field", fieldKey);
+        if (currentPropertyId) params.set("propertyId", String(currentPropertyId));
+        if (currentPropertyContextLabel)
+          params.set("propertyLabel", currentPropertyContextLabel);
+        return `${base}?${params.toString()}`;
+      }
+
+      if (identityDataSource !== "rentcast" || !RENTCAST_FIELD_KEYS.has(fieldKey))
+        return undefined;
+
+      params.set("system", "RentCast");
+      params.set("field", fieldKey);
+      if (currentPropertyId) params.set("propertyId", String(currentPropertyId));
+      if (currentPropertyContextLabel)
+        params.set("propertyLabel", currentPropertyContextLabel);
+      return `${base}?${params.toString()}`;
+    },
+    [
+      accountUrl,
+      currentPropertyContextLabel,
+      currentPropertyId,
+      identityDataSource,
+      mergedFormData,
+    ],
+  );
 
   const {
     uploadImage: uploadMainPhoto,
@@ -2219,6 +2282,35 @@ function PropertyFormContainer() {
                         </span>
                       </button>
                     </li>
+                    {identityDataSource === "rentcast" && (
+                      <li>
+                        <button
+                          type="button"
+                          className="w-full flex items-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActionsDropdownOpen(false);
+                            const base = `/${accountUrl}/settings/support/data-adjustment`;
+                            const params = new URLSearchParams();
+                            const pid =
+                              state.property?.identity?.id ??
+                              state.property?.id ??
+                              uid;
+                            if (pid) params.set("propertyId", String(pid));
+                            navigate(
+                              params.toString()
+                                ? `${base}?${params.toString()}`
+                                : base,
+                            );
+                          }}
+                        >
+                          <Lock className="w-5 h-5 shrink-0 text-amber-500 dark:text-amber-400" />
+                          <span className="text-sm font-medium ml-2">
+                            Request Data Adjustment
+                          </span>
+                        </button>
+                      </li>
+                    )}
                     <li>
                       <button
                         type="button"
@@ -2884,6 +2976,10 @@ function PropertyFormContainer() {
                     placesLoaded={identityPlacesLoaded}
                     placesError={identityPlacesError}
                     AutocompleteWrapper={IdentityAutocompleteWrapper}
+                    identityDataSource={
+                      identityDataSource
+                    }
+                    supportDataAdjustmentUrl={supportDataAdjustmentUrl}
                   />
                 )}
 

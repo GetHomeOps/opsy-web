@@ -7,14 +7,19 @@ import {
   XCircle,
   AlertTriangle,
   MessageCircle,
+  SlidersHorizontal,
 } from "lucide-react";
-import {supportToColumnStatus, feedbackToColumnStatus} from "../kanbanConfig";
+import {
+  supportToColumnStatus,
+  feedbackToColumnStatus,
+  dataAdjustmentToColumnStatus,
+} from "../kanbanConfig";
 
 /**
- * KPI tracker for support/feedback management pages.
+ * KPI tracker for support/feedback/data_adjustment management pages.
  * Displays ticket counts by status and priority, similar to Odoo helpdesk.
  * @param {Object} props
- * @param {'support'|'feedback'} props.variant
+ * @param {'support'|'feedback'|'data_adjustment'} props.variant
  * @param {Array} props.tickets - Full list of tickets (unfiltered for true metrics)
  * @param {boolean} props.loading
  * @param {Function} props.tierToPriority - (tier) => 'urgent'|'high'|'medium'|'low' - support only
@@ -27,7 +32,11 @@ function TicketKpiTracker({
 }) {
   const list = tickets || [];
   const toColumnStatus =
-    variant === "support" ? supportToColumnStatus : feedbackToColumnStatus;
+    variant === "support"
+      ? supportToColumnStatus
+      : variant === "feedback"
+        ? feedbackToColumnStatus
+        : dataAdjustmentToColumnStatus;
 
   const total = list.length;
   const newCount = list.filter(
@@ -53,9 +62,14 @@ function TicketKpiTracker({
     {
       label: "Total",
       value: total,
-      icon: variant === "support" ? MessageSquare : MessageCircle,
+      icon:
+        variant === "support"
+          ? MessageSquare
+          : variant === "feedback"
+            ? MessageCircle
+            : SlidersHorizontal,
       color:
-        "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
+        "bg-slate-50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300",
       iconColor: "text-slate-500 dark:text-slate-400",
     },
     {
@@ -74,7 +88,12 @@ function TicketKpiTracker({
       iconColor: "text-amber-500 dark:text-amber-400",
     },
     {
-      label: variant === "support" ? "Resolved" : "Implemented",
+      label:
+        variant === "support"
+          ? "Resolved"
+          : variant === "feedback"
+            ? "Implemented"
+            : "Resolved",
       value: resolved,
       icon: CheckCircle2,
       color:
@@ -85,7 +104,7 @@ function TicketKpiTracker({
       label: "Closed",
       value: closed,
       icon: XCircle,
-      color: "bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300",
+      color: "bg-gray-50 dark:bg-gray-800/40 text-gray-600 dark:text-gray-400",
       iconColor: "text-gray-500 dark:text-gray-400",
     },
   ];
@@ -108,7 +127,7 @@ function TicketKpiTracker({
         return (
           <div
             key={item.label}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200/60 dark:border-gray-600/40 ${item.color}`}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200/50 dark:border-gray-600/30 ${item.color}`}
           >
             <Icon
               className={`w-4 h-4 shrink-0 ${item.iconColor}`}

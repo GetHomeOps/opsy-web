@@ -213,7 +213,7 @@ function FeedbackManagement() {
       <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
-        <main className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <main className="flex flex-col flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           <div className={`${PAGE_LAYOUT.listPaddingX} py-6 flex-shrink-0`}>
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
               <div>
@@ -272,12 +272,9 @@ function FeedbackManagement() {
             </div>
           ) : (
             <div
-              className={`flex-1 min-h-0 overflow-x-auto overflow-y-hidden ${PAGE_LAYOUT.listPaddingX} pb-6`}
+              className={`overflow-x-auto ${PAGE_LAYOUT.listPaddingX} pb-6`}
             >
-              <div
-                className="flex gap-4 min-w-max pb-4"
-                style={{minHeight: "calc(100vh - 280px)"}}
-              >
+              <div className="flex gap-4 min-w-max pb-4 items-start">
                 {FEEDBACK_COLUMNS.map((col) => (
                   <KanbanColumn
                     key={col.id}

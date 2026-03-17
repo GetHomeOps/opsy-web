@@ -68,8 +68,10 @@ import ConfigurationPage from "../settings/ConfigurationPage";
 import SupportList from "../support/SupportList";
 import SupportNew from "../support/SupportNew";
 import SupportTicket from "../support/SupportTicket";
+import DataAdjustmentRequest from "../support/DataAdjustmentRequest";
 import SupportManagement from "../support/SupportManagement";
 import FeedbackManagement from "../support/FeedbackManagement";
+import DataAdjustmentManagement from "../support/DataAdjustmentManagement";
 import TicketDetailPage from "../support/TicketDetailPage";
 import ResourcesManagement from "../resources/ResourcesManagement";
 import Resource from "../resources/Resource";
@@ -308,6 +310,14 @@ function RoutesList() {
         element={
           <ProtectedRoute>
             <SupportNew />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/settings/support/data-adjustment"
+        element={
+          <ProtectedRoute>
+            <DataAdjustmentRequest />
           </ProtectedRoute>
         }
       />
@@ -712,6 +722,22 @@ function RoutesList() {
         element={
           <AdminRoute>
             <FeedbackManagement />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/data-adjustment-management/:ticketId"
+        element={
+          <AdminRoute>
+            <TicketDetailPage variant="data_adjustment" />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/data-adjustment-management"
+        element={
+          <AdminRoute>
+            <DataAdjustmentManagement />
           </AdminRoute>
         }
       />

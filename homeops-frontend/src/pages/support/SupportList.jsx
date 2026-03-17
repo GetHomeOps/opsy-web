@@ -110,14 +110,27 @@ function SupportList() {
                     "Submit a support request or share feedback. We'll get back to you as soon as possible."}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleNewTicket}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#456564] hover:bg-[#34514f] text-white rounded-lg text-sm font-medium"
-              >
-                <Plus className="w-4 h-4" />
-                {t("support.submitTicket") || "Submit a Ticket"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      `/${accountUrl || currentAccount?.url}/settings/support/data-adjustment`
+                    )
+                  }
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium"
+                >
+                  Request Data Adjustment
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNewTicket}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#456564] hover:bg-[#34514f] text-white rounded-lg text-sm font-medium"
+                >
+                  <Plus className="w-4 h-4" />
+                  {t("support.submitTicket") || "Submit a Ticket"}
+                </button>
+              </div>
             </div>
 
             <TicketsList

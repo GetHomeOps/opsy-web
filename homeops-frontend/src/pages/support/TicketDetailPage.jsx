@@ -5,8 +5,14 @@ import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import {TicketFormContainer} from "./components";
 import {PAGE_LAYOUT} from "../../constants/layout";
-import {supportToColumnStatus, columnToSupportStatus} from "./kanbanConfig";
-import {feedbackToColumnStatus, columnToFeedbackStatus} from "./kanbanConfig";
+import {
+  supportToColumnStatus,
+  columnToSupportStatus,
+  feedbackToColumnStatus,
+  columnToFeedbackStatus,
+  dataAdjustmentToColumnStatus,
+  columnToDataAdjustmentStatus,
+} from "./kanbanConfig";
 
 function tierToPriority(tier) {
   const t = (tier || "").toLowerCase();
@@ -33,7 +39,9 @@ function TicketDetailPage({variant = "support"}) {
   const listPath =
     variant === "support"
       ? `/${accountUrl}/support-management`
-      : `/${accountUrl}/feedback-management`;
+      : variant === "feedback"
+        ? `/${accountUrl}/feedback-management`
+        : `/${accountUrl}/data-adjustment-management`;
 
   const fetchTicket = useCallback(async () => {
     const id = Number(ticketId);
@@ -42,12 +50,15 @@ function TicketDetailPage({variant = "support"}) {
     setError(null);
     try {
       const t = await AppApi.getSupportTicket(id);
+      const toColumnStatus =
+        variant === "support"
+          ? supportToColumnStatus
+          : variant === "feedback"
+            ? feedbackToColumnStatus
+            : dataAdjustmentToColumnStatus;
       setTicket({
         ...t,
-        status:
-          variant === "support"
-            ? supportToColumnStatus(t.status)
-            : feedbackToColumnStatus(t.status),
+        status: toColumnStatus(t.status),
         priority: tierToPriority(t.subscriptionTier),
       });
     } catch (err) {
@@ -75,10 +86,13 @@ function TicketDetailPage({variant = "support"}) {
   }, []);
 
   async function handleStatusChange(ticketIdVal, newStatus) {
-    const backendStatus =
+    const toBackendStatus =
       variant === "support"
-        ? columnToSupportStatus(newStatus)
-        : columnToFeedbackStatus(newStatus);
+        ? columnToSupportStatus
+        : variant === "feedback"
+          ? columnToFeedbackStatus
+          : columnToDataAdjustmentStatus;
+    const backendStatus = toBackendStatus(newStatus);
     setUpdating(true);
     try {
       await AppApi.updateSupportTicket(ticketIdVal, {status: backendStatus});

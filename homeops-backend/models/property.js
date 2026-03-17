@@ -40,6 +40,7 @@ const PROPERTY_INSERT_COLUMNS = [
   "basement", "parking_type", "total_covered_parking", "total_uncovered_parking",
   "school_district", "elementary_school", "junior_high_school", "senior_high_school",
   "school_district_websites", "list_date", "expire_date",
+  "identity_data_source",
 ];
 
 /** Integer columns – coerce string to int; default 0 when missing/invalid */

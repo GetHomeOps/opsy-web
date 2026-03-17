@@ -270,7 +270,8 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
       return "directory";
     if (
       /\/support-management(\/|$)/.test(path) ||
-      /\/feedback-management(\/|$)/.test(path)
+      /\/feedback-management(\/|$)/.test(path) ||
+      /\/data-adjustment-management(\/|$)/.test(path)
     )
       return "operations";
     if (

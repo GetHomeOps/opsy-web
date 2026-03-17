@@ -37,6 +37,29 @@ export function feedbackToColumnStatus(s) {
   return "new";
 }
 
+/** Data Adjustment columns - same workflow as support */
+export const DATA_ADJUSTMENT_COLUMNS = [
+  { id: "new", title: "New", status: "new" },
+  { id: "in_progress", title: "In Progress", status: "working_on_it" },
+  { id: "completed", title: "Completed", status: "solved" },
+  { id: "closed", title: "Closed", status: "closed" },
+];
+
+/** Map backend status to column id (data adjustment) - includes pending_review */
+export function dataAdjustmentToColumnStatus(s) {
+  if (s === "new") return "new";
+  if (["working_on_it", "waiting_on_user", "in_progress", "pending_review"].includes(s))
+    return "in_progress";
+  if (["solved", "resolved"].includes(s)) return "completed";
+  if (s === "closed") return "closed";
+  return "new";
+}
+
+/** Map column id to backend status (data adjustment) */
+export function columnToDataAdjustmentStatus(colId) {
+  return DATA_ADJUSTMENT_COLUMNS.find((c) => c.id === colId)?.status ?? "new";
+}
+
 /** Map column id to backend status */
 export function columnToSupportStatus(colId) {
   return SUPPORT_COLUMNS.find((c) => c.id === colId)?.status ?? "new";

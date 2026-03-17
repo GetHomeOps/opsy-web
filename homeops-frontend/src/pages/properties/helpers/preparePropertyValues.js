@@ -163,6 +163,7 @@ const SNAKE_MAP = {
   price: "price",
   hpsScore: "hps_score",
   mainPhoto: "main_photo",
+  identityDataSource: "identity_data_source",
   homeownerIds: "homeowner_ids",
   teamMembers: "team_members",
   healthMetrics: "health_metrics",

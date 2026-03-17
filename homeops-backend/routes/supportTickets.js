@@ -15,7 +15,18 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
     const userId = res.locals.user?.id;
     if (!userId) throw new BadRequestError("Authentication required");
 
-    const { type, subject, description, accountId, attachmentKeys } = req.body;
+    const {
+      type,
+      subject,
+      description,
+      accountId,
+      attachmentKeys,
+      propertyId,
+      dataSource,
+      fieldKey,
+      currentValue,
+      requestedValue,
+    } = req.body;
     if (!accountId) throw new BadRequestError("accountId is required");
 
     const hasAccess = await Account.isUserLinkedToAccount(userId, Number(accountId));
@@ -30,6 +41,11 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
       createdBy: userId,
       accountId: Number(accountId),
       attachmentKeys: attachmentKeys || null,
+      propertyId: propertyId ?? undefined,
+      dataSource: dataSource ?? undefined,
+      fieldKey: fieldKey ?? undefined,
+      currentValue: currentValue ?? undefined,
+      requestedValue: requestedValue ?? undefined,
     });
     return res.status(201).json({ ticket });
   } catch (err) {

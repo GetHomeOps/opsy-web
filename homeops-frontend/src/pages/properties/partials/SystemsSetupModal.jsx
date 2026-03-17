@@ -1,5 +1,7 @@
-import React, {useState, useEffect, useCallback, useRef} from "react";
+import React, {useState, useEffect, useCallback, useId, useRef} from "react";
+import {createPortal} from "react-dom";
 import {useParams, useNavigate} from "react-router-dom";
+import {useDynamicPosition} from "../../../hooks/useDynamicPosition";
 import {useAuth} from "../../../context/AuthContext";
 import {
   Plus,
@@ -46,7 +48,6 @@ const AI_FIELD_GROUPS = [
     label: "Identity & Address",
     fields: [
       {key: "taxId", label: "Tax / Parcel ID"},
-      {key: "addressLine2", label: "Address Line 2"},
       {key: "county", label: "County"},
     ],
   },
@@ -120,6 +121,156 @@ const TOTAL_AI_FIELDS = AI_FIELD_GROUPS.reduce(
   0,
 );
 
+function SubtleLockIcon({className = ""}) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+    >
+      <path
+        d="M5 7V5.9C5 4.24 6.34 2.9 8 2.9c1.66 0 3 1.34 3 3V7"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="opacity-75"
+      />
+      <rect
+        x="3.25"
+        y="6.55"
+        width="9.5"
+        height="7.35"
+        rx="1.75"
+        fill="currentColor"
+        className="opacity-55"
+      />
+      <path
+        d="M8 9.05c.62 0 1.12.5 1.12 1.12 0 .43-.25.82-.62 1v1.01a.5.5 0 0 1-1 0v-1.01A1.12 1.12 0 0 1 8 9.05Z"
+        fill="#F3F4F6"
+        className="dark:fill-gray-300"
+      />
+    </svg>
+  );
+}
+
+const TOOLTIP_GAP = 8;
+const TOOLTIP_LEAVE_DELAY = 150;
+
+function LockedFieldControl({label, requestUrl}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerId = useId();
+  const wrapperRef = useRef(null);
+  const tooltipRef = useRef(null);
+  const leaveTimeoutRef = useRef(null);
+
+  const {top, left} = useDynamicPosition({
+    triggerRef: wrapperRef,
+    floatingRef: tooltipRef,
+    isVisible: isOpen && !!requestUrl,
+    preferredPosition: "top",
+    gap: TOOLTIP_GAP,
+  });
+
+  const openRequestCorrection = useCallback(() => {
+    if (!requestUrl) return;
+    window.open(requestUrl, "_blank", "noopener,noreferrer");
+  }, [requestUrl]);
+
+  const handleTriggerLeave = useCallback(() => {
+    leaveTimeoutRef.current = setTimeout(
+      () => setIsOpen(false),
+      TOOLTIP_LEAVE_DELAY,
+    );
+  }, []);
+
+  const handleTooltipEnter = useCallback(() => {
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+      leaveTimeoutRef.current = null;
+    }
+    setIsOpen(true);
+  }, []);
+
+  const handleTooltipLeave = useCallback(() => {
+    setIsOpen(false);
+  }, []);
+
+  if (!requestUrl) {
+    return (
+      <span className="inline-flex ml-1 align-middle cursor-help text-gray-400 dark:text-gray-500">
+        <SubtleLockIcon className="w-[0.95rem] h-[0.95rem]" />
+      </span>
+    );
+  }
+
+  const portalContainer =
+    typeof document !== "undefined" ? document.body : null;
+
+  const tooltipContent = (
+    <div
+      ref={tooltipRef}
+      role="tooltip"
+      aria-labelledby={triggerId}
+      className="fixed z-[9999] w-64 rounded-xl border border-gray-200/90 dark:border-gray-700/70 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-3 shadow-xl pointer-events-auto"
+      style={{
+        top,
+        left,
+        transform: "translateX(-50%)",
+      }}
+      onMouseEnter={handleTooltipEnter}
+      onMouseLeave={handleTooltipLeave}
+    >
+      <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+        Verified data from public records. This field is system-managed and
+        cannot be edited directly.
+      </p>
+      <button
+        type="button"
+        onClick={openRequestCorrection}
+        className="mt-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-[#456564] dark:hover:text-emerald-300 focus:outline-none focus:underline"
+      >
+        Request correction
+      </button>
+    </div>
+  );
+
+  return (
+    <span
+      ref={wrapperRef}
+      className="relative inline-flex ml-1 align-middle"
+      onMouseEnter={() => {
+        if (leaveTimeoutRef.current) {
+          clearTimeout(leaveTimeoutRef.current);
+          leaveTimeoutRef.current = null;
+        }
+        setIsOpen(true);
+      }}
+      onMouseLeave={handleTriggerLeave}
+      onFocusCapture={() => setIsOpen(true)}
+      onBlurCapture={(e) => {
+        if (!wrapperRef.current?.contains(e.relatedTarget)) {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <button
+        id={triggerId}
+        type="button"
+        onClick={openRequestCorrection}
+        className="inline-flex items-center justify-center rounded p-0.5 text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100/80 dark:hover:bg-gray-700/40 focus:outline-none focus:ring-2 focus:ring-gray-400/40 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-gray-900 transition-colors"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={`${label} is verified and system-managed. Request correction.`}
+      >
+        <SubtleLockIcon className="w-[0.95rem] h-[0.95rem]" />
+      </button>
+      {isOpen && portalContainer && createPortal(tooltipContent, portalContainer)}
+    </span>
+  );
+}
+
 /** Returns { status, message, iconColor, bgGradient, cardClass, textClass } based on lookup result. */
 function getDataLookupStatus(predictError, retrievedCount, totalFields) {
   if (predictError || retrievedCount === 0) {
@@ -140,7 +291,7 @@ function getDataLookupStatus(predictError, retrievedCount, totalFields) {
     return {
       status: "green",
       message:
-        "Congrats, we were able to pull most information from public records. Review and edit any fields below before saving.",
+        "Congrats, we were able to pull most information from public records.",
       iconColor: "text-emerald-600 dark:text-emerald-400",
       bgGradient:
         "from-emerald-500/12 to-emerald-500/5 dark:from-emerald-500/20 dark:to-emerald-500/8",
@@ -380,6 +531,9 @@ function SystemsSetupModal({
           payload[f.key] = f.type === "number" ? Number(val) : val;
         }
       }
+    }
+    if (hasPredicted) {
+      payload.identityDataSource = "rentcast";
     }
     onIdentityFieldsChange?.(payload);
 
@@ -1138,8 +1292,7 @@ function SystemsSetupModal({
                       ) : (
                         <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto leading-relaxed">
                           Pull property details from public records based on the
-                          address you provided. You can review and edit every
-                          field before saving.
+                          address you provided.
                         </p>
                       )}
                     </>
@@ -1182,7 +1335,7 @@ function SystemsSetupModal({
                 );
               })()}
 
-              {/* Property data fields (editable) */}
+              {/* Property data fields: API-populated are locked, others editable */}
               {hasPredicted && (
                 <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-5 md:p-6 space-y-5 max-h-[45vh] overflow-y-auto">
                   {AI_FIELD_GROUPS.map((group) => (
@@ -1191,24 +1344,70 @@ function SystemsSetupModal({
                         {group.label}
                       </h4>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {group.fields.map((f) => (
-                          <div key={f.key}>
-                            <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                              {f.label}
-                            </label>
-                            <input
-                              type={f.type === "number" ? "number" : "text"}
-                              value={aiFields[f.key] ?? ""}
-                              onChange={(e) =>
-                                setAiFields((prev) => ({
-                                  ...prev,
-                                  [f.key]: e.target.value,
-                                }))
-                              }
-                              className="form-input w-full text-sm rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#456564]/20 focus:border-[#456564] transition-colors py-1.5"
-                            />
-                          </div>
-                        ))}
+                        {group.fields.map((f) => {
+                          const val = aiFields[f.key];
+                          const isFromApi =
+                            val !== undefined &&
+                            val !== null &&
+                            String(val).trim() !== "";
+                          const supportUrl = (() => {
+                            if (!accountUrl || !isFromApi) return null;
+                            const params = new URLSearchParams();
+                            params.set("system", "RentCast");
+                            params.set("field", f.key);
+                            if (propertyId) {
+                              params.set("propertyId", String(propertyId));
+                            }
+                            const propertyLabel =
+                              identityFields.propertyName ||
+                              identityFields.address;
+                            if (propertyLabel) {
+                              params.set("propertyLabel", propertyLabel);
+                            }
+                            return `/${accountUrl}/settings/support/data-adjustment?${params.toString()}`;
+                          })();
+
+                          return (
+                            <div key={f.key}>
+                              <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                {f.label}
+                                {isFromApi && (
+                                  <LockedFieldControl
+                                    label={f.label}
+                                    requestUrl={supportUrl}
+                                  />
+                                )}
+                              </label>
+                              <input
+                                type={
+                                  f.type === "number" ? "number" : "text"
+                                }
+                                value={val ?? ""}
+                                readOnly={isFromApi}
+                                aria-readonly={isFromApi}
+                                aria-label={
+                                  isFromApi
+                                    ? `${f.label} (verified, read-only)`
+                                    : f.label
+                                }
+                                onChange={
+                                  isFromApi
+                                    ? undefined
+                                    : (e) =>
+                                        setAiFields((prev) => ({
+                                          ...prev,
+                                          [f.key]: e.target.value,
+                                        }))
+                                }
+                                className={
+                                  isFromApi
+                                    ? "form-input w-full text-sm rounded-lg border-gray-200 dark:border-gray-600 bg-gray-100/80 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-default py-1.5 focus:ring-1 focus:ring-gray-300 dark:focus:ring-gray-600 focus:border-gray-300 dark:focus:border-gray-600"
+                                    : "form-input w-full text-sm rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#456564]/20 focus:border-[#456564] transition-colors py-1.5"
+                                }
+                              />
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

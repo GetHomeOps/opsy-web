@@ -1,4 +1,5 @@
-import React from "react";
+import React, {useCallback, useId, useRef, useState} from "react";
+import {createPortal} from "react-dom";
 import {
   Home,
   User,
@@ -11,13 +12,289 @@ import {
   AlertCircle,
   Info,
 } from "lucide-react";
+import {useDynamicPosition} from "../../hooks/useDynamicPosition";
 import {usStates} from "../../data/states";
 import {
   IDENTITY_SECTIONS,
   getSectionProgress,
 } from "./constants/identitySections";
+import {
+  RENTCAST_FIELD_KEYS,
+  RENTCAST_VERIFIED_TOOLTIP,
+  AUTCOMPLETE_LOCK_TOOLTIP,
+} from "./constants/rentcastFields";
 import Tooltip from "../../utils/Tooltip";
 
+function SubtleLockIcon({className = ""}) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+    >
+      <path
+        d="M5 7V5.9C5 4.24 6.34 2.9 8 2.9c1.66 0 3 1.34 3 3V7"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="opacity-75"
+      />
+      <rect
+        x="3.25"
+        y="6.55"
+        width="9.5"
+        height="7.35"
+        rx="1.75"
+        fill="currentColor"
+        className="opacity-55"
+      />
+      <path
+        d="M8 9.05c.62 0 1.12.5 1.12 1.12 0 .43-.25.82-.62 1v1.01a.5.5 0 0 1-1 0v-1.01A1.12 1.12 0 0 1 8 9.05Z"
+        fill="#F3F4F6"
+        className="dark:fill-gray-300"
+      />
+    </svg>
+  );
+}
+
+const TOOLTIP_GAP = 8;
+
+const TOOLTIP_LEAVE_DELAY = 150;
+
+function LockedFieldControl({label, fieldName, supportDataAdjustmentUrl}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerId = useId();
+  const wrapperRef = useRef(null);
+  const tooltipRef = useRef(null);
+  const leaveTimeoutRef = useRef(null);
+
+  const requestUrl =
+    typeof supportDataAdjustmentUrl === "function"
+      ? supportDataAdjustmentUrl(fieldName)
+      : supportDataAdjustmentUrl;
+
+  const {top, left} = useDynamicPosition({
+    triggerRef: wrapperRef,
+    floatingRef: tooltipRef,
+    isVisible: isOpen && !!requestUrl,
+    preferredPosition: "top",
+    gap: TOOLTIP_GAP,
+  });
+
+  const openRequestCorrection = useCallback(() => {
+    if (!requestUrl) return;
+    window.open(requestUrl, "_blank", "noopener,noreferrer");
+  }, [requestUrl]);
+
+  const handleTriggerLeave = useCallback(() => {
+    leaveTimeoutRef.current = setTimeout(() => setIsOpen(false), TOOLTIP_LEAVE_DELAY);
+  }, []);
+
+  const handleTooltipEnter = useCallback(() => {
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+      leaveTimeoutRef.current = null;
+    }
+    setIsOpen(true);
+  }, []);
+
+  const handleTooltipLeave = useCallback(() => {
+    setIsOpen(false);
+  }, []);
+
+  if (!requestUrl) {
+    return (
+      <span className="inline-flex ml-1 align-middle cursor-help text-gray-400 dark:text-gray-500">
+        <SubtleLockIcon className="w-[0.95rem] h-[0.95rem]" />
+      </span>
+    );
+  }
+
+  const portalContainer =
+    typeof document !== "undefined" ? document.body : null;
+
+  const tooltipContent = (
+    <div
+      ref={tooltipRef}
+      role="tooltip"
+      aria-labelledby={triggerId}
+      className="fixed z-[9999] w-64 rounded-xl border border-gray-200/90 dark:border-gray-700/70 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-3 shadow-xl pointer-events-auto"
+      style={{
+        top,
+        left,
+        transform: "translateX(-50%)",
+      }}
+      onMouseEnter={handleTooltipEnter}
+      onMouseLeave={handleTooltipLeave}
+    >
+      <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+        Verified data from public records. This field is system-managed and
+        cannot be edited directly.
+      </p>
+      <button
+        type="button"
+        onClick={openRequestCorrection}
+        className="mt-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-[#456564] dark:hover:text-emerald-300 focus:outline-none focus:underline"
+      >
+        Request correction
+      </button>
+    </div>
+  );
+
+  return (
+    <span
+      ref={wrapperRef}
+      className="relative inline-flex ml-1 align-middle"
+      onMouseEnter={() => {
+        if (leaveTimeoutRef.current) {
+          clearTimeout(leaveTimeoutRef.current);
+          leaveTimeoutRef.current = null;
+        }
+        setIsOpen(true);
+      }}
+      onMouseLeave={handleTriggerLeave}
+      onFocusCapture={() => setIsOpen(true)}
+      onBlurCapture={(e) => {
+        if (!wrapperRef.current?.contains(e.relatedTarget)) {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <button
+        id={triggerId}
+        type="button"
+        onClick={openRequestCorrection}
+        className="inline-flex items-center justify-center rounded p-0.5 text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100/80 dark:hover:bg-gray-700/40 focus:outline-none focus:ring-2 focus:ring-gray-400/40 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-gray-900 transition-colors"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={`${label} is verified and system-managed. Request correction.`}
+      >
+        <SubtleLockIcon className="w-[0.95rem] h-[0.95rem]" />
+      </button>
+      {isOpen &&
+        portalContainer &&
+        createPortal(tooltipContent, portalContainer)}
+    </span>
+  );
+}
+
+/** Lock icon + tooltip for autocomplete-derived fields. Optional Request correction button when supportDataAdjustmentUrl is provided. */
+function AutocompleteLockControl({tooltipText, supportDataAdjustmentUrl, fieldName}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerId = useId();
+  const wrapperRef = useRef(null);
+  const tooltipRef = useRef(null);
+  const leaveTimeoutRef = useRef(null);
+
+  const requestUrl =
+    typeof supportDataAdjustmentUrl === "function"
+      ? supportDataAdjustmentUrl(fieldName)
+      : supportDataAdjustmentUrl;
+
+  const {top, left} = useDynamicPosition({
+    triggerRef: wrapperRef,
+    floatingRef: tooltipRef,
+    isVisible: isOpen && !!tooltipText,
+    preferredPosition: "top",
+    gap: TOOLTIP_GAP,
+  });
+
+  const openRequestCorrection = useCallback(() => {
+    if (!requestUrl) return;
+    window.open(requestUrl, "_blank", "noopener,noreferrer");
+  }, [requestUrl]);
+
+  const handleTriggerLeave = useCallback(() => {
+    leaveTimeoutRef.current = setTimeout(() => setIsOpen(false), TOOLTIP_LEAVE_DELAY);
+  }, []);
+
+  const handleTooltipEnter = useCallback(() => {
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+      leaveTimeoutRef.current = null;
+    }
+    setIsOpen(true);
+  }, []);
+
+  const handleTooltipLeave = useCallback(() => {
+    setIsOpen(false);
+  }, []);
+
+  const portalContainer =
+    typeof document !== "undefined" ? document.body : null;
+
+  const tooltipContent = (
+    <div
+      ref={tooltipRef}
+      role="tooltip"
+      aria-labelledby={triggerId}
+      className="fixed z-[9999] w-64 rounded-xl border border-gray-200/90 dark:border-gray-700/70 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-3 shadow-xl pointer-events-auto"
+      style={{
+        top,
+        left,
+        transform: "translateX(-50%)",
+      }}
+      onMouseEnter={handleTooltipEnter}
+      onMouseLeave={handleTooltipLeave}
+    >
+      <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300 whitespace-pre-line">
+        {tooltipText}
+      </p>
+      {requestUrl && (
+        <button
+          type="button"
+          onClick={openRequestCorrection}
+          className="mt-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-[#456564] dark:hover:text-emerald-300 focus:outline-none focus:underline"
+        >
+          Request correction
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <span
+      ref={wrapperRef}
+      className="relative inline-flex ml-1 align-middle"
+      onMouseEnter={() => {
+        if (leaveTimeoutRef.current) {
+          clearTimeout(leaveTimeoutRef.current);
+          leaveTimeoutRef.current = null;
+        }
+        setIsOpen(true);
+      }}
+      onMouseLeave={handleTriggerLeave}
+      onFocusCapture={() => setIsOpen(true)}
+      onBlurCapture={(e) => {
+        if (!wrapperRef.current?.contains(e.relatedTarget)) {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <button
+        id={triggerId}
+        type="button"
+        onClick={requestUrl ? openRequestCorrection : undefined}
+        className="inline-flex items-center justify-center rounded p-0.5 text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100/80 dark:hover:bg-gray-700/40 focus:outline-none focus:ring-2 focus:ring-gray-400/40 focus:ring-offset-1 focus:ring-offset-white dark:focus:ring-offset-gray-900 transition-colors"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={
+          requestUrl
+            ? "Address field is verified and system-managed. Request correction."
+            : tooltipText
+        }
+      >
+        <SubtleLockIcon className="w-[0.95rem] h-[0.95rem]" />
+      </button>
+      {isOpen &&
+        portalContainer &&
+        tooltipText &&
+        createPortal(tooltipContent, portalContainer)}
+    </span>
+  );
+}
 // Stable subcomponents; defined at module level so inputs don't remount on every keystroke.
 function Field({
   label,
@@ -32,25 +309,44 @@ function Field({
   inputRef,
   hint,
   infoTooltip,
+  lockTooltip,
   uncontrolled = false,
   readOnly = false,
+  verifiedLockTooltip,
+  supportDataAdjustmentUrl,
 }) {
   const errorClasses = error
     ? "border-red-300 dark:border-red-500 focus:border-red-500 focus:ring-red-500 dark:focus:border-red-500 dark:focus:ring-red-500"
     : "";
   const readOnlyClasses = readOnly
-    ? "bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed"
+    ? "bg-gray-100/80 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-default border-gray-200 dark:border-gray-600"
     : "";
   const inputProps = uncontrolled
     ? {defaultValue: value ?? "", autoComplete: "off"}
     : {value: value ?? "", onChange: readOnly ? undefined : onChange};
+
+  const lockContent = verifiedLockTooltip && (
+    <LockedFieldControl
+      label={label}
+      fieldName={name}
+      supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+    />
+  );
 
   return (
     <div>
       <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
-        {infoTooltip && (
+        {lockContent}
+        {lockTooltip && !verifiedLockTooltip && (
+          <AutocompleteLockControl
+            tooltipText={lockTooltip}
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+            fieldName={name}
+          />
+        )}
+        {infoTooltip && !verifiedLockTooltip && !lockTooltip && (
           <Tooltip content={infoTooltip} position="top">
             <Info className="w-4 h-4 ml-0.5 inline-block align-middle text-gray-400 dark:text-gray-500 cursor-help" />
           </Tooltip>
@@ -90,14 +386,25 @@ function SelectField({
   required = false,
   error,
   infoTooltip,
+  lockTooltip,
   readOnly = false,
+  verifiedLockTooltip,
+  supportDataAdjustmentUrl,
 }) {
   const errorClasses = error
     ? "border-red-300 dark:border-red-500 focus:border-red-500 focus:ring-red-500 dark:focus:border-red-500 dark:focus:ring-red-500"
     : "";
   const readOnlyClasses = readOnly
-    ? "bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed"
+    ? "bg-gray-100/80 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-default border-gray-200 dark:border-gray-600"
     : "";
+
+  const lockContent = verifiedLockTooltip && (
+    <LockedFieldControl
+      label={label}
+      fieldName={name}
+      supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+    />
+  );
 
   if (readOnly) {
     return (
@@ -105,7 +412,15 @@ function SelectField({
         <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
           {label}
           {required && <span className="text-red-500 ml-0.5">*</span>}
-          {infoTooltip && (
+          {lockContent}
+          {lockTooltip && !verifiedLockTooltip && (
+            <AutocompleteLockControl
+              tooltipText={lockTooltip}
+              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+              fieldName={name}
+            />
+          )}
+          {infoTooltip && !verifiedLockTooltip && !lockTooltip && (
             <Tooltip content={infoTooltip} position="top">
               <Info className="w-4 h-4 ml-0.5 inline-block align-middle text-gray-400 dark:text-gray-500 cursor-help" />
             </Tooltip>
@@ -126,7 +441,15 @@ function SelectField({
       <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
-        {infoTooltip && (
+        {lockContent}
+        {lockTooltip && !verifiedLockTooltip && (
+          <AutocompleteLockControl
+            tooltipText={lockTooltip}
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+            fieldName={name}
+          />
+        )}
+        {infoTooltip && !verifiedLockTooltip && !lockTooltip && (
           <Tooltip content={infoTooltip} position="top">
             <Info className="w-4 h-4 ml-0.5 inline-block align-middle text-gray-400 dark:text-gray-500 cursor-help" />
           </Tooltip>
@@ -231,6 +554,23 @@ function SectionWithProgress({
   );
 }
 
+/** Aliases for field keys when reading from propertyData (backend may use different keys) */
+const FIELD_VALUE_ALIASES = {
+  taxId: ["parcelTaxId"],
+  bedCount: ["rooms"],
+  bathCount: ["bathrooms"],
+  sqFtTotal: ["squareFeet"],
+};
+
+function getFieldValue(propertyData, fieldName) {
+  const keys = [fieldName, ...(FIELD_VALUE_ALIASES[fieldName] || [])];
+  for (const k of keys) {
+    const v = propertyData?.[k];
+    if (v !== undefined && v !== null) return v;
+  }
+  return undefined;
+}
+
 function IdentityTab({
   propertyData,
   handleInputChange,
@@ -239,7 +579,17 @@ function IdentityTab({
   placesLoaded,
   placesError,
   AutocompleteWrapper,
+  identityDataSource,
+  supportDataAdjustmentUrl,
 }) {
+  /** Lock only when field is RentCast-sourced AND has a non-empty API value */
+  const isRentCastLocked = (fieldName) => {
+    if (identityDataSource !== "rentcast" || !RENTCAST_FIELD_KEYS.has(fieldName))
+      return false;
+    const val = getFieldValue(propertyData, fieldName);
+    return val !== undefined && val !== null && String(val).trim() !== "";
+  };
+
   return (
     <div className="space-y-4">
       {/* Identity + Address */}
@@ -323,7 +673,8 @@ function IdentityTab({
                 value={propertyData.addressLine1}
                 placeholder="e.g. 123 Main St"
                 readOnly
-                infoTooltip="Auto-populated when you select an address"
+                lockTooltip={AUTCOMPLETE_LOCK_TOOLTIP}
+                supportDataAdjustmentUrl={supportDataAdjustmentUrl}
               />
             </div>
             <Field
@@ -334,7 +685,8 @@ function IdentityTab({
               required
               error={errors.city}
               readOnly
-              infoTooltip="Auto-populated when you select an address"
+              lockTooltip={AUTCOMPLETE_LOCK_TOOLTIP}
+              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
             />
             <SelectField
               onChange={handleInputChange}
@@ -345,7 +697,8 @@ function IdentityTab({
               required
               error={errors.state}
               readOnly
-              infoTooltip="Auto-populated when you select an address"
+              lockTooltip={AUTCOMPLETE_LOCK_TOOLTIP}
+              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
             />
             <Field
               onChange={handleInputChange}
@@ -355,7 +708,8 @@ function IdentityTab({
               required
               error={errors.zip}
               readOnly
-              infoTooltip="Auto-populated when you select an address"
+              lockTooltip={AUTCOMPLETE_LOCK_TOOLTIP}
+              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
             />
             <Field
               onChange={handleInputChange}
@@ -363,10 +717,14 @@ function IdentityTab({
               name="county"
               value={propertyData.county}
               placeholder="e.g. King"
-              readOnly={!!propertyData.addressLine1}
-              infoTooltip={
-                propertyData.addressLine1
-                  ? "Auto-populated when you select an address"
+              readOnly={isRentCastLocked("county") || !!propertyData.addressLine1}
+              verifiedLockTooltip={
+                isRentCastLocked("county") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              }
+              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+              lockTooltip={
+                !isRentCastLocked("county") && propertyData.addressLine1
+                  ? AUTCOMPLETE_LOCK_TOOLTIP
                   : undefined
               }
             />
@@ -376,6 +734,11 @@ function IdentityTab({
               name="taxId"
               value={propertyData.taxId || propertyData.parcelTaxId}
               placeholder="e.g. 9278300025"
+              readOnly={isRentCastLocked("taxId")}
+              verifiedLockTooltip={
+                isRentCastLocked("taxId") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              }
+              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
             />
           </div>
         </div>
@@ -394,12 +757,22 @@ function IdentityTab({
             label="Owner Name"
             name="ownerName"
             value={propertyData.ownerName}
+            readOnly={isRentCastLocked("ownerName")}
+            verifiedLockTooltip={
+              isRentCastLocked("ownerName") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
             label="Owner Name 2"
             name="ownerName2"
             value={propertyData.ownerName2}
+            readOnly={isRentCastLocked("ownerName2")}
+            verifiedLockTooltip={
+              isRentCastLocked("ownerName2") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -407,6 +780,11 @@ function IdentityTab({
             name="ownerCity"
             value={propertyData.ownerCity}
             placeholder="e.g. Seattle WA"
+            readOnly={isRentCastLocked("ownerCity")}
+            verifiedLockTooltip={
+              isRentCastLocked("ownerCity") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -453,6 +831,11 @@ function IdentityTab({
               "Land",
               "Other",
             ]}
+            readOnly={isRentCastLocked("propertyType")}
+            verifiedLockTooltip={
+              isRentCastLocked("propertyType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -460,6 +843,11 @@ function IdentityTab({
             name="subType"
             value={propertyData.subType}
             placeholder="e.g. Residential"
+            readOnly={isRentCastLocked("subType")}
+            verifiedLockTooltip={
+              isRentCastLocked("subType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -467,6 +855,11 @@ function IdentityTab({
             name="yearBuilt"
             type="number"
             value={propertyData.yearBuilt}
+            readOnly={isRentCastLocked("yearBuilt")}
+            verifiedLockTooltip={
+              isRentCastLocked("yearBuilt") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
         </div>
       </SectionWithProgress>
@@ -485,6 +878,11 @@ function IdentityTab({
             name="sqFtTotal"
             type="number"
             value={propertyData.sqFtTotal || propertyData.squareFeet}
+            readOnly={isRentCastLocked("sqFtTotal")}
+            verifiedLockTooltip={
+              isRentCastLocked("sqFtTotal") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -492,6 +890,11 @@ function IdentityTab({
             name="sqFtFinished"
             type="number"
             value={propertyData.sqFtFinished}
+            readOnly={isRentCastLocked("sqFtFinished")}
+            verifiedLockTooltip={
+              isRentCastLocked("sqFtFinished") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -506,6 +909,11 @@ function IdentityTab({
             name="totalDwellingSqFt"
             type="number"
             value={propertyData.totalDwellingSqFt}
+            readOnly={isRentCastLocked("totalDwellingSqFt")}
+            verifiedLockTooltip={
+              isRentCastLocked("totalDwellingSqFt") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -513,6 +921,11 @@ function IdentityTab({
             name="lotSize"
             value={propertyData.lotSize}
             placeholder="e.g. .200 ac / 8,700 sf"
+            readOnly={isRentCastLocked("lotSize")}
+            verifiedLockTooltip={
+              isRentCastLocked("lotSize") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
         </div>
       </SectionWithProgress>
@@ -531,6 +944,11 @@ function IdentityTab({
             name="bedCount"
             type="number"
             value={propertyData.bedCount || propertyData.rooms}
+            readOnly={isRentCastLocked("bedCount")}
+            verifiedLockTooltip={
+              isRentCastLocked("bedCount") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -538,6 +956,11 @@ function IdentityTab({
             name="bathCount"
             type="number"
             value={propertyData.bathCount || propertyData.bathrooms}
+            readOnly={isRentCastLocked("bathCount")}
+            verifiedLockTooltip={
+              isRentCastLocked("bathCount") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -545,6 +968,11 @@ function IdentityTab({
             name="fullBaths"
             type="number"
             value={propertyData.fullBaths}
+            readOnly={isRentCastLocked("fullBaths")}
+            verifiedLockTooltip={
+              isRentCastLocked("fullBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -552,6 +980,11 @@ function IdentityTab({
             name="threeQuarterBaths"
             type="number"
             value={propertyData.threeQuarterBaths}
+            readOnly={isRentCastLocked("threeQuarterBaths")}
+            verifiedLockTooltip={
+              isRentCastLocked("threeQuarterBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -559,6 +992,11 @@ function IdentityTab({
             name="halfBaths"
             type="number"
             value={propertyData.halfBaths}
+            readOnly={isRentCastLocked("halfBaths")}
+            verifiedLockTooltip={
+              isRentCastLocked("halfBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
 
           <Field
@@ -567,6 +1005,11 @@ function IdentityTab({
             name="numberOfShowers"
             type="number"
             value={propertyData.numberOfShowers}
+            readOnly={isRentCastLocked("numberOfShowers")}
+            verifiedLockTooltip={
+              isRentCastLocked("numberOfShowers") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -574,6 +1017,11 @@ function IdentityTab({
             name="numberOfBathtubs"
             type="number"
             value={propertyData.numberOfBathtubs}
+            readOnly={isRentCastLocked("numberOfBathtubs")}
+            verifiedLockTooltip={
+              isRentCastLocked("numberOfBathtubs") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
         </div>
       </SectionWithProgress>
@@ -592,6 +1040,11 @@ function IdentityTab({
             name="fireplaces"
             type="number"
             value={propertyData.fireplaces}
+            readOnly={isRentCastLocked("fireplaces")}
+            verifiedLockTooltip={
+              isRentCastLocked("fireplaces") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <SelectField
             onChange={handleInputChange}
@@ -599,6 +1052,11 @@ function IdentityTab({
             name="fireplaceTypes"
             value={propertyData.fireplaceTypes}
             options={["Gas", "Wood", "Other"]}
+            readOnly={isRentCastLocked("fireplaceTypes")}
+            verifiedLockTooltip={
+              isRentCastLocked("fireplaceTypes") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <SelectField
             onChange={handleInputChange}
@@ -613,6 +1071,11 @@ function IdentityTab({
               "Unfinished",
               "None",
             ]}
+            readOnly={isRentCastLocked("basement")}
+            verifiedLockTooltip={
+              isRentCastLocked("basement") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
 
           <Field
@@ -621,6 +1084,11 @@ function IdentityTab({
             name="parkingType"
             value={propertyData.parkingType}
             placeholder="e.g. Driveway Parking"
+            readOnly={isRentCastLocked("parkingType")}
+            verifiedLockTooltip={
+              isRentCastLocked("parkingType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -628,6 +1096,11 @@ function IdentityTab({
             name="totalCoveredParking"
             type="number"
             value={propertyData.totalCoveredParking}
+            readOnly={isRentCastLocked("totalCoveredParking")}
+            verifiedLockTooltip={
+              isRentCastLocked("totalCoveredParking") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -635,6 +1108,11 @@ function IdentityTab({
             name="totalUncoveredParking"
             type="number"
             value={propertyData.totalUncoveredParking}
+            readOnly={isRentCastLocked("totalUncoveredParking")}
+            verifiedLockTooltip={
+              isRentCastLocked("totalUncoveredParking") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
         </div>
       </SectionWithProgress>
@@ -653,24 +1131,44 @@ function IdentityTab({
             name="schoolDistrict"
             value={propertyData.schoolDistrict}
             placeholder="e.g. Seattle"
+            readOnly={isRentCastLocked("schoolDistrict")}
+            verifiedLockTooltip={
+              isRentCastLocked("schoolDistrict") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
             label="Elementary"
             name="elementarySchool"
             value={propertyData.elementarySchool}
+            readOnly={isRentCastLocked("elementarySchool")}
+            verifiedLockTooltip={
+              isRentCastLocked("elementarySchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
             label="Junior High"
             name="juniorHighSchool"
             value={propertyData.juniorHighSchool}
+            readOnly={isRentCastLocked("juniorHighSchool")}
+            verifiedLockTooltip={
+              isRentCastLocked("juniorHighSchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
             label="Senior High"
             name="seniorHighSchool"
             value={propertyData.seniorHighSchool}
+            readOnly={isRentCastLocked("seniorHighSchool")}
+            verifiedLockTooltip={
+              isRentCastLocked("seniorHighSchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
         </div>
       </SectionWithProgress>

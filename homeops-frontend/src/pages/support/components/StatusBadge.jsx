@@ -10,6 +10,7 @@ export const SUPPORT_STATUS_LABELS = {
   working_on_it: "In Progress",
   solved: "Completed",
   resolved: "Completed",
+  pending_review: "Pending Review",
 };
 
 /** Status display labels for feedback (4 columns) */
@@ -32,6 +33,7 @@ const STATUS_CLASSES = {
   working_on_it: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300",
   solved: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300",
   resolved: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300",
+  pending_review: "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300",
   under_review: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300",
   planned: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300",
   implemented: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300",
