@@ -738,6 +738,15 @@ function SubscriptionProductFormContainer() {
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 capitalize">
                   {getPageTitle()}
                 </h1>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-gray-500 dark:text-gray-400">
+                  <span>
+                    {t("subscriptionProducts.userType")}: {t(`subscriptionProducts.${state.formData.targetRole}`) || state.formData.targetRole}
+                  </span>
+                  <span className="text-gray-300 dark:text-gray-600">·</span>
+                  <span>
+                    {t("subscriptionProducts.code")}: {state.formData.code || "—"}
+                  </span>
+                </div>
                 {getDisplayPrice() !== "Select from Stripe" && (
                   <div className="mt-2 space-y-1">
                     <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
