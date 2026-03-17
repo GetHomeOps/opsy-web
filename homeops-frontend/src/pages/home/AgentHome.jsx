@@ -605,13 +605,7 @@ function AgentHome() {
                     {/* Health score overlay badge */}
                     <div className="absolute top-3 right-3">
                       <div
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold backdrop-blur-sm shadow-sm ${
-                          score >= 80
-                            ? "bg-emerald-500/90 text-white"
-                            : score >= 60
-                              ? "bg-amber-500/90 text-white"
-                              : "bg-red-500/90 text-white"
-                        }`}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold backdrop-blur-sm shadow-sm bg-emerald-500/90 text-white"
                       >
                         {score}%
                       </div>

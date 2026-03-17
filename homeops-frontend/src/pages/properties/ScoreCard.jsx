@@ -155,7 +155,7 @@ function ScoreCard({
       ? "text-green-400 dark:text-green-500"
       : totalScore >= 40
         ? "text-amber-400 dark:text-amber-500"
-        : "text-red-400 dark:text-red-500";
+        : "text-slate-400 dark:text-slate-500";
 
   return (
     <div
@@ -164,7 +164,7 @@ function ScoreCard({
           ? "ring-green-200/50 dark:ring-green-600/30"
           : totalScore >= 40
             ? "ring-amber-200/50 dark:ring-amber-600/30"
-            : "ring-red-200/50 dark:ring-red-600/30"
+            : "ring-slate-200/50 dark:ring-slate-600/30"
       }`}
     >
       {/* Subtle top accent line */}
@@ -176,16 +176,6 @@ function ScoreCard({
       </h2>
 
       <div className="flex flex-col lg:flex-row gap-2 items-center lg:items-start">
-        {/* Donut Chart */}
-        <div className="flex-shrink-0">
-          <DonutChart
-            percentage={Math.round(totalScore)}
-            size={72}
-            strokeWidth={6}
-            colorClass={scoreRingColorClass}
-          />
-        </div>
-
         {/* Progress bars */}
         <div className="flex-1 w-full min-w-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -324,7 +314,7 @@ function ScoreCard({
                         ? "text-green-400 dark:text-green-500"
                         : identityScore >= 40
                           ? "text-amber-400 dark:text-amber-500"
-                          : "text-red-400 dark:text-red-500"
+                          : "text-slate-400 dark:text-slate-500"
                     }
                   />
                 </div>
@@ -444,7 +434,7 @@ function ScoreCard({
                         ? "text-green-400 dark:text-green-500"
                         : systemsScore >= 40
                           ? "text-amber-400 dark:text-amber-500"
-                          : "text-red-400 dark:text-red-500"
+                          : "text-slate-400 dark:text-slate-500"
                     }
                   />
                 </div>
@@ -570,7 +560,7 @@ function ScoreCard({
                         ? "text-green-400 dark:text-green-500"
                         : maintenanceScore >= 40
                           ? "text-amber-400 dark:text-amber-500"
-                          : "text-red-400 dark:text-red-500"
+                          : "text-slate-400 dark:text-slate-500"
                     }
                   />
                 </div>

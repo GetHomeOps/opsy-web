@@ -916,7 +916,7 @@ function DocumentsTab({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Document Name <span className="text-red-500">*</span>
+                  Document Name
                 </label>
                 <input
                   type="text"
@@ -930,7 +930,7 @@ function DocumentsTab({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Document Date <span className="text-red-500">*</span>
+                  Document Date
                 </label>
                 <DatePickerInput
                   name="documentDate"
@@ -943,7 +943,7 @@ function DocumentsTab({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Document Type <span className="text-red-500">*</span>
+                  Document Type
                 </label>
                 <select
                   value={uploadDocumentType}
@@ -961,7 +961,7 @@ function DocumentsTab({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  System <span className="text-red-500">*</span>
+                  System
                 </label>
                 <select
                   value={uploadSystemKey}
@@ -979,7 +979,7 @@ function DocumentsTab({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  File(s) <span className="text-red-500">*</span>
+                  File(s)
                 </label>
                 <input
                   ref={fileInputRef}

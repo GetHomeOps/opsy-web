@@ -483,7 +483,7 @@ function MaintenanceFormPanel({
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   <Calendar className="w-4 h-4 inline mr-2" />
-                  Date <span className="text-red-500">*</span>
+                  Date
                 </label>
                 <DatePickerInput
                   name="date"
@@ -771,7 +771,7 @@ function MaintenanceFormPanel({
       {/* Footer: Save button (standalone) or hint (tab) */}
       <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          <span className="text-red-500">*</span> Required fields
+          Required fields
           {persistOnChange && (
             <span className="ml-2 text-gray-500">
               • Changes save when you click the property Save/Update button below

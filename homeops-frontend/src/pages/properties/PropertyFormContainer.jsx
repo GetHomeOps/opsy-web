@@ -23,7 +23,7 @@ import SystemsTab from "./SystemsTab";
 import MaintenanceTab from "./MaintenanceTab";
 import IdentityTab from "./IdentityTab";
 import DocumentsTab from "./DocumentsTab";
-import CircularProgress from "../../partials/propertyFeatures/CircularProgress";
+import OpsyHead from "../../images/opsy_head.png";
 import ScoreCard from "./ScoreCard";
 import HomeOpsTeam from "./partials/HomeOpsTeam";
 import SystemsSetupModal from "./partials/SystemsSetupModal";
@@ -1772,16 +1772,6 @@ function PropertyFormContainer() {
     ? mergeFormDataFromTabs(state.property)
     : mergedFormData;
 
-  // HPS score: use backend value when present, otherwise compute from current data so score shows on first load
-  const backendScore = cardData.hpsScore ?? cardData.hps_score;
-  const hasBackendScore =
-    backendScore != null && Number.isFinite(Number(backendScore));
-  const displayHpsScore = hasBackendScore
-    ? Math.round(Number(backendScore))
-    : computeHpsScore(
-        state.property ? mergeFormDataFromTabs(state.property) : mergedFormData,
-      );
-
   // Hero background image (same source as ImageUploadField)
   const heroImageUrl =
     mainPhotoPreviewUrl ||
@@ -2631,38 +2621,12 @@ function PropertyFormContainer() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-6">
-                <div className="text-right hidden sm:block">
-                  <div className="text-[10px] font-medium text-neutral-500 uppercase tracking-[0.12em] mb-1 opacity-70">
-                    Health Score
-                  </div>
-                  <div className="text-sm font-semibold text-neutral-900 dark:text-white tabular-nums">
-                    {displayHpsScore}/100
-                  </div>
-                </div>
-                <div
-                  className={`relative ${
-                    displayHpsScore >= 70
-                      ? "[box-shadow:0_0_20px_rgba(16,185,129,0.22)]"
-                      : displayHpsScore >= 40
-                        ? "[box-shadow:0_0_20px_rgba(245,158,11,0.22)]"
-                        : "[box-shadow:0_0_20px_rgba(239,68,68,0.22)]"
-                  } rounded-full`}
-                >
-                  <CircularProgress
-                    percentage={displayHpsScore}
-                    size={72}
-                    strokeWidth={6}
-                    innerTextClass="text-neutral-900 dark:text-white"
-                    colorClass={
-                      displayHpsScore >= 70
-                        ? "text-emerald-500"
-                        : displayHpsScore >= 40
-                          ? "text-amber-500"
-                          : "text-red-500"
-                    }
-                  />
-                </div>
+              <div className="flex items-center justify-end">
+                <img
+                  src={OpsyHead}
+                  alt="Opsy"
+                  className="w-24 h-24 object-contain"
+                />
               </div>
             </div>
 

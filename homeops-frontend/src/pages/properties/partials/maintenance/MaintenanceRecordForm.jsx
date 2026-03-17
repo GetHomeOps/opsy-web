@@ -314,7 +314,7 @@ function MaintenanceRecordForm({
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 <Calendar className="w-4 h-4 inline mr-2" />
-                Date <span className="text-red-500">*</span>
+                Date
               </label>
               <DatePickerInput
                 name="date"
@@ -412,7 +412,7 @@ function MaintenanceRecordForm({
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               <FileText className="w-4 h-4 inline mr-2" />
-              Work Description <span className="text-red-500">*</span>
+              Work Description
             </label>
             <textarea
               name="description"
@@ -539,7 +539,7 @@ function MaintenanceRecordForm({
 
           <div className="flex justify-between items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <div className="text-xs text-gray-500 dark:text-gray-400">
-              <span className="text-red-500">*</span> Required fields
+              Required fields
             </div>
             <div className="flex gap-3">
               <button

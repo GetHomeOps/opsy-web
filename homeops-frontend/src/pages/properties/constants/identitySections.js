@@ -7,7 +7,7 @@ export const IDENTITY_SECTIONS = [
     id: "identity_address",
     label: "Identity & Address",
     description: "Core property identification and location information",
-    fields: ["propertyName", "address", "addressLine1", "addressLine2", "city", "state", "zip", "county", "taxId"],
+    fields: ["propertyName", "address", "addressLine1", "city", "state", "zip", "county", "taxId"],
   },
   {
     id: "ownership_occupancy",
@@ -29,7 +29,6 @@ export const IDENTITY_SECTIONS = [
     fields: [
       "propertyType",
       "subType",
-      "roofType",
       "yearBuilt",
     ],
   },
@@ -43,9 +42,6 @@ export const IDENTITY_SECTIONS = [
       "garageSqFt",
       "totalDwellingSqFt",
       "lotSize",
-      "lotDim",
-      "pricePerSqFt",
-      "totalPricePerSqFt",
     ],
   },
   {
@@ -98,10 +94,33 @@ const FIELD_ALIASES = {
 
 /**
  * Get field value from propertyData, checking aliases.
+ * Special case: "address" is considered filled when we have address/fullAddress,
+ * or when addressLine1 + city + state + zip are all present (composed address).
  */
 function getFieldValue(propertyData, key) {
-  const val = propertyData[key];
-  if (val != null) return val;
+  const val = propertyData?.[key];
+  if (val != null && (typeof val !== "string" || String(val).trim() !== ""))
+    return val;
+  if (key === "address") {
+    const fullAddr = propertyData?.fullAddress;
+    if (fullAddr != null && String(fullAddr).trim()) return fullAddr;
+    const line1 = propertyData?.addressLine1;
+    const city = propertyData?.city;
+    const state = propertyData?.state;
+    const zip = propertyData?.zip;
+    if (
+      line1 &&
+      String(line1).trim() &&
+      city &&
+      String(city).trim() &&
+      state &&
+      String(state).trim() &&
+      zip &&
+      String(zip).trim()
+    ) {
+      return [line1, city, state, zip].filter(Boolean).join(", ");
+    }
+  }
   const aliases = FIELD_ALIASES[key];
   if (!aliases) return val;
   for (const alt of aliases) {

@@ -389,7 +389,7 @@ function HomeownerHome() {
   const getScoreGradient = (score) => {
     if (score >= 80) return ["#10b981", "#059669"];
     if (score >= 60) return ["#f59e0b", "#d97706"];
-    return ["#ef4444", "#dc2626"];
+    return ["#64748b", "#475569"];
   };
 
   const formatDate = (dateString) => {
@@ -778,7 +778,7 @@ function HomeownerHome() {
                       </div>
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-1.5">
                         <div
-                          className={`h-1.5 rounded-full ${stat.value >= 80 ? "bg-emerald-500" : stat.value >= 60 ? "bg-amber-500" : "bg-red-500"}`}
+                          className={`h-1.5 rounded-full ${stat.value >= 80 ? "bg-emerald-500" : stat.value >= 60 ? "bg-amber-500" : "bg-slate-500"}`}
                           style={{width: `${Math.min(100, Math.max(0, stat.value))}%`}}
                         />
                       </div>

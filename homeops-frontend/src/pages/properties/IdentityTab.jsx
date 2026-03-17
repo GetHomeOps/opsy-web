@@ -337,7 +337,6 @@ function Field({
     <div>
       <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
         {lockContent}
         {lockTooltip && !verifiedLockTooltip && (
           <AutocompleteLockControl
@@ -411,7 +410,6 @@ function SelectField({
       <div>
         <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
           {label}
-          {required && <span className="text-red-500 ml-0.5">*</span>}
           {lockContent}
           {lockTooltip && !verifiedLockTooltip && (
             <AutocompleteLockControl
@@ -440,7 +438,6 @@ function SelectField({
     <div>
       <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
         {lockContent}
         {lockTooltip && !verifiedLockTooltip && (
           <AutocompleteLockControl
