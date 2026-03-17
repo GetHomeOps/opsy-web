@@ -18,6 +18,7 @@ const fs = require('fs');
 const cors = require('cors');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { NotFoundError } = require("./expressError");
 const { authenticateJWT, ensureLoggedIn } = require("./middleware/auth");
@@ -55,15 +56,31 @@ const calendarIntegrationsRoutes = require("./routes/calendarIntegrations");
 
 const app = express();
 
-// Trust proxy (Railway, Heroku, nginx, etc.) so X-Forwarded-For is used for rate limiting
+// Trust proxy (Railway, Heroku, nginx, Cloudflare, etc.) so X-Forwarded-For is used for rate limiting
 app.set('trust proxy', 1);
+
+// Security headers: HSTS, X-Frame-Options, etc.
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Disable strict CSP for now; enable with custom policy if needed
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    frameguard: { action: 'sameorigin' },
+    noSniff: true,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  })
+);
 
 const corsOptions = {
   origin: process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',')
+    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
     : [
       'http://localhost:5173',
       'http://localhost:5174',
+      'https://app.heyopsy.com',
       'https://homeops-frontend2-production.up.railway.app'
     ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

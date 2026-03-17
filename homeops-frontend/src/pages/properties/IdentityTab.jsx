@@ -634,7 +634,11 @@ function IdentityTab({
                   placeholder="Start typing an address to search..."
                   required
                   error={errors.address || placesError}
-                  hint={placesLoaded ? "Autocomplete active" : undefined}
+                  readOnly={!!propertyData.addressLine1}
+                  lockTooltip={
+                    propertyData.addressLine1 ? AUTCOMPLETE_LOCK_TOOLTIP : undefined
+                  }
+                  supportDataAdjustmentUrl={supportDataAdjustmentUrl}
                 />
               </AutocompleteWrapper>
             ) : (
@@ -659,7 +663,11 @@ function IdentityTab({
                 placeholder="Start typing an address to search..."
                 required
                 error={errors.address || placesError}
-                hint={placesLoaded ? "Autocomplete active" : undefined}
+                readOnly={!!propertyData.addressLine1}
+                lockTooltip={
+                  propertyData.addressLine1 ? AUTCOMPLETE_LOCK_TOOLTIP : undefined
+                }
+                supportDataAdjustmentUrl={supportDataAdjustmentUrl}
               />
             )}
           </div>

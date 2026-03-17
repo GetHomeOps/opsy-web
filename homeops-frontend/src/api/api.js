@@ -1,7 +1,9 @@
 // In dev/same-origin, use '' (fetch relative to current origin). Otherwise use explicit URL.
+// NEVER default to http:// in production - causes "connection not secure" / mixed content.
+// When VITE_BASE_URL is unset in prod, use '' so buildApiUrl uses window.location.origin (same-origin).
 export const API_BASE_URL =
   import.meta.env.VITE_BASE_URL ??
-  (import.meta.env.DEV ? "" : "http://localhost:3000");
+  (import.meta.env.DEV ? "" : "");
 const BASE_URL = API_BASE_URL;
 
 // new URL() requires absolute URL; use window.location.origin when BASE_URL is empty (same-origin deploy)

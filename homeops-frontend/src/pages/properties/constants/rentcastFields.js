@@ -6,6 +6,7 @@
  */
 /** Address fields from autocomplete (Places) — also support Data Adjustment requests */
 export const ADDRESS_FIELD_KEYS = new Set([
+  "address",
   "addressLine1",
   "city",
   "state",
@@ -85,6 +86,7 @@ export const ADJUSTABLE_FIELD_KEYS = new Set([
 
 /** Human-readable labels for Data Adjustment Request field dropdown */
 export const RENTCAST_FIELD_LABELS = {
+  address: "Address",
   addressLine1: "Street",
   city: "City",
   state: "State",
@@ -131,4 +133,4 @@ export const RENTCAST_VERIFIED_TOOLTIP_WITH_ACTION =
 
 /** Tooltip for address fields derived from autocomplete (same format as RentCast tooltips) */
 export const AUTCOMPLETE_LOCK_TOOLTIP =
-  "Verified data from public records. This field is system-managed and cannot be edited directly.\n\nRequest correction.";
+  "Verified data from public records. This field is system-managed and cannot be edited directly.";

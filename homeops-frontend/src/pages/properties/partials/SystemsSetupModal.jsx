@@ -266,7 +266,9 @@ function LockedFieldControl({label, requestUrl}) {
       >
         <SubtleLockIcon className="w-[0.95rem] h-[0.95rem]" />
       </button>
-      {isOpen && portalContainer && createPortal(tooltipContent, portalContainer)}
+      {isOpen &&
+        portalContainer &&
+        createPortal(tooltipContent, portalContainer)}
     </span>
   );
 }
@@ -1173,11 +1175,6 @@ function SystemsSetupModal({
                   <div>
                     <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
                       Address
-                      {placesLoaded && (
-                        <span className="ml-2 text-emerald-600 dark:text-emerald-400 text-xs font-normal">
-                          Autocomplete active
-                        </span>
-                      )}
                     </label>
                     {AddressAutocompleteWrapper ? (
                       <AddressAutocompleteWrapper>
@@ -1379,9 +1376,7 @@ function SystemsSetupModal({
                                 )}
                               </label>
                               <input
-                                type={
-                                  f.type === "number" ? "number" : "text"
-                                }
+                                type={f.type === "number" ? "number" : "text"}
                                 value={val ?? ""}
                                 readOnly={isFromApi}
                                 aria-readonly={isFromApi}
