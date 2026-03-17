@@ -108,6 +108,8 @@ function reducer(state, action) {
 
 /* ─── Shared tiny components ─────────────────────────────────── */
 
+const HEALTH_BAR_GREEN = "#16a34a"; /* darker green for pill and health bars */
+
 const getHealthColor = (value) => {
   if (value >= 75) return "#22c55e";
   if (value >= 40) return "#eab308";
@@ -120,7 +122,7 @@ const HealthBar = ({value}) => (
     <div className="w-32 h-2 rounded-full bg-gray-200 dark:bg-gray-700/60">
       <div
         className="h-2 rounded-full transition-all duration-300"
-        style={{width: `${value}%`, backgroundColor: getHealthColor(value)}}
+        style={{width: `${value}%`, backgroundColor: HEALTH_BAR_GREEN}}
       />
     </div>
     <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
@@ -210,7 +212,7 @@ const PropertyCard = ({
           )}
           <span
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold text-white"
-            style={{backgroundColor: "#22c55e"}}
+            style={{backgroundColor: HEALTH_BAR_GREEN}}
           >
             {health}%
           </span>
