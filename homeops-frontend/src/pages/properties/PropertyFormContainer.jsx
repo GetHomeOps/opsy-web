@@ -458,7 +458,7 @@ function PropertyFormContainer() {
   const {users} = useContext(UserContext);
   const {contacts} = useContext(ContactContext);
   const {currentUser} = useAuth();
-  const {plan, isAdmin} = useBillingStatus();
+  const {plan, limits, isAdmin} = useBillingStatus();
   const accountUrl =
     accountUrlParam || currentAccount?.url || currentAccount?.name || "";
   const isPaidUser =
@@ -1831,6 +1831,7 @@ function PropertyFormContainer() {
             : null
         }
         systems={state.formData.systems}
+        limits={limits ?? {}}
         onUpdateAgentPermissions={(memberId, permissions) => {
           const next = homeopsTeam.map((m) =>
             String(m.id) === String(memberId)

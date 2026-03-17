@@ -10,12 +10,15 @@ function ModalBlank({
   closeOnBackdropClick = true,
   contentClassName,
   ignoreClickRef,
+  /** Additional refs for elements treated as "inside" modal (e.g. portaled dropdowns) */
+  ignoreClickRefs = [],
   /** Ignore outside clicks for this many ms after opening (prevents opening click from immediately closing) */
   ignoreOutsideClickForMs = 100,
 }) {
   const modalContent = useRef(null);
   const openedAtRef = useRef(null);
   const isOpen = modalOpen === true;
+  const allIgnoreRefs = [ignoreClickRef, ...(Array.isArray(ignoreClickRefs) ? ignoreClickRefs : [])].filter(Boolean);
 
   useEffect(() => {
     if (isOpen) openedAtRef.current = Date.now();
@@ -28,7 +31,7 @@ function ModalBlank({
       if (!isOpen) return;
       if (modalContent.current?.contains(target)) return;
       // Ignore clicks on the trigger button (e.g. Preview) so opening click doesn't immediately close
-      if (ignoreClickRef?.current?.contains(target)) return;
+      if (allIgnoreRefs.some((r) => r?.current?.contains(target))) return;
       // Ignore outside clicks shortly after open (opening click often bubbles to document)
       if (ignoreOutsideClickForMs > 0 && openedAtRef.current && Date.now() - openedAtRef.current < ignoreOutsideClickForMs) return;
       // Ignore clicks on detached nodes (e.g. dropdown options that unmount on select)
@@ -37,7 +40,7 @@ function ModalBlank({
     };
     document.addEventListener("click", clickHandler);
     return () => document.removeEventListener("click", clickHandler);
-  }, [isOpen, closeOnClickOutside, setModalOpen, ignoreClickRef, ignoreOutsideClickForMs]);
+  }, [isOpen, closeOnClickOutside, setModalOpen, allIgnoreRefs, ignoreOutsideClickForMs]);
 
   // close if the esc key is pressed
   useEffect(() => {

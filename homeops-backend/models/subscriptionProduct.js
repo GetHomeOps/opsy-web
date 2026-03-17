@@ -18,18 +18,23 @@ const { sqlForPartialUpdate } = require("../helpers/sql");
 const { loadPlans } = require("../services/planSeedService");
 
 async function upsertPlanLimits(productId, limits) {
-  const { maxProperties, maxContacts, maxViewers, maxTeamMembers, aiTokenMonthlyQuota } = limits || {};
+  const { maxProperties, maxContacts, maxViewers, maxTeamMembers, aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem } = limits || {};
+  const valueUsd = aiTokenMonthlyValueUsd != null && aiTokenMonthlyValueUsd !== "" ? Number(aiTokenMonthlyValueUsd) : null;
+  const priceUsd = aiTokenPriceUsd != null && aiTokenPriceUsd !== "" ? Number(aiTokenPriceUsd) : null;
   await db.query(
-    `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, ai_token_monthly_value_usd, ai_token_price_usd, max_documents_per_system, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
      ON CONFLICT (subscription_product_id) DO UPDATE SET
        max_properties = COALESCE(EXCLUDED.max_properties, plan_limits.max_properties),
        max_contacts = COALESCE(EXCLUDED.max_contacts, plan_limits.max_contacts),
        max_viewers = COALESCE(EXCLUDED.max_viewers, plan_limits.max_viewers),
        max_team_members = COALESCE(EXCLUDED.max_team_members, plan_limits.max_team_members),
        ai_token_monthly_quota = COALESCE(EXCLUDED.ai_token_monthly_quota, plan_limits.ai_token_monthly_quota),
+       ai_token_monthly_value_usd = COALESCE(EXCLUDED.ai_token_monthly_value_usd, plan_limits.ai_token_monthly_value_usd),
+       ai_token_price_usd = COALESCE(EXCLUDED.ai_token_price_usd, plan_limits.ai_token_price_usd),
+       max_documents_per_system = COALESCE(EXCLUDED.max_documents_per_system, plan_limits.max_documents_per_system),
        updated_at = NOW()`,
-    [productId, maxProperties ?? 1, maxContacts ?? 25, maxViewers ?? 2, maxTeamMembers ?? 5, aiTokenMonthlyQuota ?? 50000]
+    [productId, maxProperties ?? 1, maxContacts ?? 25, maxViewers ?? 2, maxTeamMembers ?? 5, aiTokenMonthlyQuota ?? 50000, valueUsd, priceUsd, maxDocumentsPerSystem ?? 5]
   );
 }
 
@@ -52,7 +57,7 @@ const PRODUCT_COLUMNS_BASE = `id, name, description, target_role AS "targetRole"
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 const PRODUCT_COLUMNS_FULL = `${PRODUCT_COLUMNS_BASE},
-  code, sort_order AS "sortOrder", trial_days AS "trialDays"`;
+  code, sort_order AS "sortOrder", trial_days AS "trialDays", features`;
 
 let _hasBillingColumns = null;
 async function hasBillingColumns() {
@@ -75,7 +80,7 @@ class SubscriptionProduct {
   static async create({ name, description, targetRole, price, billingInterval,
     maxProperties, maxContacts, maxViewers, maxTeamMembers,
     stripeProductId, stripePriceId, code, sortOrder, trialDays,
-    aiTokenMonthlyQuota, stripePriceIdMonth, stripePriceIdYear }) {
+    aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem, stripePriceIdMonth, stripePriceIdYear }) {
     if (!name) throw new BadRequestError("Name is required.");
     if (!targetRole) throw new BadRequestError("Target role is required.");
 
@@ -120,7 +125,7 @@ class SubscriptionProduct {
     }
     const product = result.rows[0];
     try {
-      await upsertPlanLimits(product.id, { maxProperties, maxContacts, maxViewers, maxTeamMembers, aiTokenMonthlyQuota });
+      await upsertPlanLimits(product.id, { maxProperties, maxContacts, maxViewers, maxTeamMembers, aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem });
       if (stripePriceIdMonth) await upsertPlanPrice(product.id, 'month', stripePriceIdMonth);
       if (stripePriceIdYear) await upsertPlanPrice(product.id, 'year', stripePriceIdYear);
     } catch (e) { /* plan_limits/plan_prices may not exist */ }
@@ -135,10 +140,14 @@ class SubscriptionProduct {
     );
     const product = result.rows[0];
     if (!product) throw new NotFoundError(`No product with id: ${id}`);
+    product.features = product.features || [];
     try {
       const [limRes, priceRes] = await Promise.all([
         db.query(`SELECT max_properties AS "maxProperties", max_contacts AS "maxContacts", max_viewers AS "maxViewers",
-                  max_team_members AS "maxTeamMembers", ai_token_monthly_quota AS "aiTokenMonthlyQuota"
+                  max_team_members AS "maxTeamMembers", ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+                  ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
+                  ai_token_price_usd AS "aiTokenPriceUsd",
+                  max_documents_per_system AS "maxDocumentsPerSystem"
                   FROM plan_limits WHERE subscription_product_id = $1`, [id]),
         db.query(`SELECT billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId"
                   FROM plan_prices WHERE subscription_product_id = $1`, [id]),
@@ -282,7 +291,7 @@ class SubscriptionProduct {
   }
 
   static async update(id, data) {
-    const { limits, prices, ...productData } = data;
+    const { limits, prices, features, ...productData } = data;
     const hasBilling = await hasBillingColumns();
 
     if (productData.code != null && productData.code !== "") {
@@ -329,6 +338,12 @@ class SubscriptionProduct {
       if (limits) await upsertPlanLimits(id, limits);
       if (prices?.month) await upsertPlanPrice(id, 'month', prices.month);
       if (prices?.year) await upsertPlanPrice(id, 'year', prices.year);
+      if (Array.isArray(features) && hasBilling) {
+        await db.query(
+          `UPDATE subscription_products SET features = $1, updated_at = NOW() WHERE id = $2`,
+          [JSON.stringify(features), id]
+        );
+      }
     } catch (e) { /* plan_limits/plan_prices may not exist */ }
     return SubscriptionProduct.get(id);
   }

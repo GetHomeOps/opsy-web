@@ -526,22 +526,34 @@ export default function OnboardingWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (role) {
-      setApiLoading(true);
-      Promise.all([
+  const loadPlans = React.useCallback(async () => {
+    if (!role) return;
+    setApiLoading(true);
+    try {
+      const [plans, products] = await Promise.all([
         AppApi.getBillingPlans(role)
           .then((r) => r.plans || [])
           .catch(() => []),
         AppApi.getSubscriptionProductsByRole(role).catch(() => []),
-      ])
-        .then(([plans, products]) => {
-          setApiPlans(plans);
-          setSubscriptionProducts(Array.isArray(products) ? products : []);
-        })
-        .finally(() => setApiLoading(false));
+      ]);
+      setApiPlans(plans);
+      setSubscriptionProducts(Array.isArray(products) ? products : []);
+    } finally {
+      setApiLoading(false);
     }
   }, [role]);
+
+  useEffect(() => {
+    if (role) loadPlans();
+  }, [role, loadPlans]);
+
+  useEffect(() => {
+    const onPlansUpdated = () => {
+      if (role) loadPlans();
+    };
+    window.addEventListener("plans-updated", onPlansUpdated);
+    return () => window.removeEventListener("plans-updated", onPlansUpdated);
+  }, [role, loadPlans]);
 
   const selectedPlan = apiPlans.find((p) => p.code === plan);
   const isFreePlan =

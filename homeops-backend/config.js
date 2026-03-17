@@ -90,6 +90,9 @@ module.exports = {
   APP_BASE_URL: process.env.APP_BASE_URL || process.env.APP_WEB_ORIGIN || "http://localhost:5173",
   BILLING_MOCK_MODE: process.env.BILLING_MOCK_MODE === "true",
 
+  // AI token cost (USD per token) - used when ai_token_monthly_value_usd is set to compute quota
+  AI_TOKEN_COST_USD: Number(process.env.AI_TOKEN_COST_USD) || 0.00002,
+
   // Calendar integrations (Google Calendar, Microsoft Outlook)
   // OAuth callbacks must hit the backend. BACKEND_URL = API base (e.g. http://localhost:3000)
   BACKEND_URL: process.env.BACKEND_URL || `http://localhost:${PORT}`,

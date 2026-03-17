@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import SelectDropdown from "../../contacts/SelectDropdown";
-import ContactSearchModal from "./ContactSearchModal";
 import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 import AppApi from "../../../api/api";
 
@@ -128,7 +127,18 @@ function SearchableEmailField({
     [agents],
   );
 
-  const { filteredContacts, allContactsFiltered } = useMemo(() => {
+  const filteredAgents = useMemo(() => {
+    if (!agentsWithEmail.length) return [];
+    const term = inputValue.trim().toLowerCase();
+    if (!term) return agentsWithEmail.slice(0, DROPDOWN_MAX_AGENTS);
+    return agentsWithEmail.filter((a) => {
+      const name = (a.name || "").toLowerCase();
+      const email = (a.email || "").toLowerCase();
+      return name.includes(term) || email.includes(term);
+    });
+  }, [agentsWithEmail, inputValue]);
+
+  const filteredContacts = useMemo(() => {
     const term = inputValue.trim().toLowerCase();
     const agentEmails = new Set(
       agentsWithEmail.map((a) => (a.email || "").trim().toLowerCase()),
@@ -136,39 +146,13 @@ function SearchableEmailField({
     const deduped = contactsWithEmail.filter(
       (c) => !agentEmails.has((c.email || "").trim().toLowerCase()),
     );
-    const filtered = term
-      ? deduped.filter((c) => {
-          const name = (c.name || "").toLowerCase();
-          const email = (c.email || "").toLowerCase();
-          return name.includes(term) || email.includes(term);
-        })
-      : deduped;
-    return {
-      filteredContacts: filtered.slice(0, DROPDOWN_MAX_CONTACTS),
-      allContactsFiltered: filtered,
-    };
+    if (!term) return deduped.slice(0, DROPDOWN_MAX_CONTACTS);
+    return deduped.filter((c) => {
+      const name = (c.name || "").toLowerCase();
+      const email = (c.email || "").toLowerCase();
+      return name.includes(term) || email.includes(term);
+    });
   }, [contactsWithEmail, agentsWithEmail, inputValue]);
-
-  const { filteredAgents, allAgentsFiltered } = useMemo(() => {
-    if (!agentsWithEmail.length) return { filteredAgents: [], allAgentsFiltered: [] };
-    const term = inputValue.trim().toLowerCase();
-    const filtered = term
-      ? agentsWithEmail.filter((a) => {
-          const name = (a.name || "").toLowerCase();
-          const email = (a.email || "").toLowerCase();
-          return name.includes(term) || email.includes(term);
-        })
-      : agentsWithEmail;
-    return {
-      filteredAgents: filtered.slice(0, DROPDOWN_MAX_AGENTS),
-      allAgentsFiltered: filtered,
-    };
-  }, [agentsWithEmail, inputValue]);
-
-  const hasMoreResults =
-    onSearchMore &&
-    (allAgentsFiltered.length > DROPDOWN_MAX_AGENTS ||
-      allContactsFiltered.length > DROPDOWN_MAX_CONTACTS);
 
   const allEmails = useMemo(() => {
     const set = new Set();
@@ -199,17 +183,8 @@ function SearchableEmailField({
         _group: "custom",
       });
     }
-    if (hasMoreResults) {
-      items.push({
-        id: "__search_more__",
-        email: null,
-        name: "Search more…",
-        isSearchMore: true,
-        _group: "search_more",
-      });
-    }
     return items;
-  }, [filteredAgents, filteredContacts, showCustomOption, inputValue, hasMoreResults]);
+  }, [filteredAgents, filteredContacts, showCustomOption, inputValue]);
 
   useEffect(() => {
     setInputValue(value || "");
@@ -217,7 +192,7 @@ function SearchableEmailField({
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target) && (!dropdownRef.current || !dropdownRef.current.contains(e.target))) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
         setIsOpen(false);
       }
     }
@@ -225,34 +200,15 @@ function SearchableEmailField({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useLayoutEffect(() => {
-    if (isOpen && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom,
-        left: rect.left,
-        width: rect.width,
-      });
-    } else {
-      setDropdownPosition(null);
-    }
-  }, [isOpen]);
-
   const handleSelect = useCallback(
     (contact) => {
-      if (contact?.isSearchMore && onSearchMore) {
-        onSearchMore();
-        setIsOpen(false);
-        setHighlightIndex(-1);
-        return;
-      }
       const email = contact.email?.trim() || contact.email;
       setInputValue(email);
       onChange(email);
       setIsOpen(false);
       setHighlightIndex(-1);
     },
-    [onChange, onSearchMore],
+    [onChange],
   );
 
   const handleInputChange = (e) => {
@@ -312,28 +268,6 @@ function SearchableEmailField({
 
   const renderOptionItem = (item, flatIdx) => {
     const isHighlighted = highlightIndex === flatIdx;
-    if (item.isSearchMore) {
-      return (
-        <li
-          key="__search_more__"
-          role="option"
-          aria-selected={isHighlighted}
-          className={`px-4 py-2.5 text-sm cursor-pointer flex items-center gap-3 ${
-            isHighlighted
-              ? "bg-[#456564]/10 dark:bg-[#5a7a78]/20 text-[#456564] dark:text-[#5a7a78]"
-              : "text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-          }`}
-          onMouseEnter={() => setHighlightIndex(flatIdx)}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            handleSelect(item);
-          }}
-        >
-          <Search className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
-          <span className="font-medium">{item.name}</span>
-        </li>
-      );
-    }
     if (item.isCustom) {
       return (
         <li
@@ -356,35 +290,12 @@ function SearchableEmailField({
       );
     }
 
-    if (item.isSearchMore) {
-      return (
-        <li
-          key="__search_more__"
-          role="option"
-          aria-selected={isHighlighted}
-          className={`px-4 py-2.5 text-sm cursor-pointer flex items-center gap-3 ${
-            isHighlighted
-              ? "bg-[#456564]/10 dark:bg-[#5a7a78]/20 text-[#456564] dark:text-[#5a7a78]"
-              : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-          }`}
-          onMouseEnter={() => setHighlightIndex(flatIdx)}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            handleSelect(item);
-          }}
-        >
-          <Search className="w-4 h-4 shrink-0" />
-          <span>{item.name}</span>
-        </li>
-      );
-    }
-
     const isAgent = item._group === "agent";
     const imgUrl = item.image_url || item.avatarUrl || item.avatar_url;
 
     return (
       <li
-        key={`option-${flatIdx}`}
+        key={`${item._group}-${item.id || item.email}`}
         role="option"
         aria-selected={isHighlighted}
         className={`px-4 py-2 cursor-pointer flex items-center gap-3 ${
@@ -483,83 +394,60 @@ function SearchableEmailField({
           service you!
         </p>
       )}
-      {isOpen &&
-        !disabled &&
-        dropdownPosition &&
-        createPortal(
-          <ul
-            ref={(el) => {
-              listRef.current = el;
-              dropdownRef.current = el;
-              if (dropdownContainerRef) dropdownContainerRef.current = el;
-            }}
-            className="fixed py-1 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-auto z-[250]"
-            role="listbox"
-            style={{
-              top: dropdownPosition.top + 4,
-              left: dropdownPosition.left,
-              width: dropdownPosition.width,
-            }}
-          >
-            {flatOptions.length === 0 ? (
-              <li className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                {inputValue.trim()
-                  ? "No matching results. Type a full email address."
-                  : "No contacts with email. Type an email address."}
-              </li>
-            ) : (
-              <>
-                {filteredAgents.length > 0 && (
-                  <>
-                    <li className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 select-none">
-                      Agents
-                    </li>
-                    {filteredAgents.map((a) => {
-                      const idx = flatIdx++;
-                      return renderOptionItem({...a, _group: "agent"}, idx);
-                    })}
-                  </>
-                )}
-                {filteredContacts.length > 0 && (
-                  <>
-                    {filteredAgents.length > 0 && (
-                      <li className="my-1 border-t border-gray-100 dark:border-gray-700" />
-                    )}
-                    <li className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 select-none">
-                      My Contacts
-                    </li>
-                    {filteredContacts.map((c) => {
-                      const idx = flatIdx++;
-                      return renderOptionItem({...c, _group: "contact"}, idx);
-                    })}
-                  </>
-                )}
-                {showCustomOption &&
-                  renderOptionItem(
-                    {
-                      id: "__custom__",
-                      email: inputValue.trim(),
-                      name: `Use "${inputValue.trim()}"`,
-                      isCustom: true,
-                      _group: "custom",
-                    },
-                    flatIdx++,
+      {isOpen && !disabled && (
+        <ul
+          ref={listRef}
+          className="absolute z-50 w-full mt-1 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-auto"
+          role="listbox"
+        >
+          {flatOptions.length === 0 ? (
+            <li className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+              {inputValue.trim()
+                ? "No matching results. Type a full email address."
+                : "No contacts with email. Type an email address."}
+            </li>
+          ) : (
+            <>
+              {filteredAgents.length > 0 && (
+                <>
+                  <li className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 select-none">
+                    Agents
+                  </li>
+                  {filteredAgents.map((a) => {
+                    const idx = flatIdx++;
+                    return renderOptionItem({...a, _group: "agent"}, idx);
+                  })}
+                </>
+              )}
+              {filteredContacts.length > 0 && (
+                <>
+                  {filteredAgents.length > 0 && (
+                    <li className="my-1 border-t border-gray-100 dark:border-gray-700" />
                   )}
-                {hasMoreResults &&
-                  renderOptionItem(
-                    {
-                      id: "__search_more__",
-                      name: "Search more…",
-                      isSearchMore: true,
-                      _group: "search_more",
-                    },
-                    flatIdx++,
-                  )}
-              </>
-            )}
-          </ul>,
-          document.body,
-        )}
+                  <li className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 select-none">
+                    My Contacts
+                  </li>
+                  {filteredContacts.map((c) => {
+                    const idx = flatIdx++;
+                    return renderOptionItem({...c, _group: "contact"}, idx);
+                  })}
+                </>
+              )}
+              {showCustomOption &&
+                renderOptionItem(
+                  {
+                    id: "__custom__",
+                    email: inputValue.trim(),
+                    name: `Use "${inputValue.trim()}"`,
+                    isCustom: true,
+                    _group: "custom",
+                  },
+                  flatIdx++,
+                )}
+            </>
+          )}
+        </ul>
+      )}
     </div>
   );
 }
@@ -760,8 +648,6 @@ function SharePropertyModal({
   const [platformAgents, setPlatformAgents] = useState([]);
   const [removeConfirmMember, setRemoveConfirmMember] = useState(null);
   const [removingMember, setRemovingMember] = useState(false);
-  const [searchMoreModalOpen, setSearchMoreModalOpen] = useState(false);
-  const emailDropdownRef = useRef(null);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -913,10 +799,11 @@ function SharePropertyModal({
     }
   }, [activeTab, membersByTab]);
 
-  /* Agent tab: default access restrictions to view for systems, maintenance, docs */
+  /* Homeowner inviting agent: default restrictions to view (instead of none) */
   useEffect(() => {
     if (
       activeTab === "agent" &&
+      isHomeowner &&
       !hasAgent &&
       Object.keys(permissions).length === 0
     ) {
@@ -926,7 +813,23 @@ function SharePropertyModal({
       });
       setPermissions(merged);
     }
-  }, [activeTab, hasAgent, permissions]);
+  }, [activeTab, isHomeowner, hasAgent, permissions]);
+
+  /* Agent inviting agent: default access restrictions to edit (on Apply to all line) */
+  useEffect(() => {
+    if (
+      activeTab === "agent" &&
+      !isHomeowner &&
+      !hasAgent &&
+      Object.keys(permissions).length === 0
+    ) {
+      const merged = {};
+      ACCESS_SECTIONS.forEach((s) => {
+        merged[s.id] = "edit";
+      });
+      setPermissions(merged);
+    }
+  }, [activeTab, isHomeowner, hasAgent, permissions]);
 
   const handleBlur = useCallback(() => {
     if (effectiveEmail && !EMAIL_REGEX.test(effectiveEmail)) {
@@ -1114,13 +1017,11 @@ function SharePropertyModal({
   }, [isRegularAgent]);
 
   return (
-    <>
     <ModalBlank
       id="share-property-modal"
       modalOpen={modalOpen}
       setModalOpen={setModalOpen}
       contentClassName="max-w-2xl min-w-[24rem] max-h-[90vh] flex flex-col"
-      ignoreClickRefs={[emailDropdownRef]}
     >
       <div
         className={`relative flex flex-col flex-1 min-h-0 overflow-hidden ${
@@ -1498,8 +1399,6 @@ function SharePropertyModal({
                           }
                           error={emailError}
                           showAgentInviteNote={activeTab === "agent"}
-                          onSearchMore={() => setSearchMoreModalOpen(true)}
-                          dropdownContainerRef={emailDropdownRef}
                           aria-label="Invitee email"
                           aria-invalid={!!emailError}
                           disabled={
@@ -1683,17 +1582,6 @@ function SharePropertyModal({
         </div>
       </ModalBlank>
     </ModalBlank>
-    <ContactSearchModal
-      modalOpen={searchMoreModalOpen}
-      setModalOpen={setSearchMoreModalOpen}
-      contacts={effectiveContacts}
-      agents={activeTab === "agent" ? platformAgents : []}
-      onSelect={(selectedEmail) => {
-        setEmail(selectedEmail);
-        setSearchMoreModalOpen(false);
-      }}
-    />
-    </>
   );
 }
 

@@ -1,0 +1,17 @@
+{
+  "description": "Default plan features loaded on npm start. Used by plan seed and as reference for new products.",
+  "features": [
+    { "id": "properties", "label": "Properties", "description": "", "included": true },
+    { "id": "storage", "label": "Document Storage", "description": "", "included": true },
+    { "id": "users", "label": "Users / Seats", "description": "", "included": true },
+    { "id": "contacts", "label": "Contacts", "description": "", "included": true },
+    { "id": "maintenance_tracking", "label": "Maintenance Tracking", "description": "", "included": true },
+    { "id": "ai_assistant", "label": "AI Assistant", "description": "", "included": false },
+    { "id": "data_ingestion", "label": "Data Ingestion", "description": "", "included": false },
+    { "id": "export", "label": "Export (PDF, CSV, Excel)", "description": "", "included": true },
+    { "id": "support", "label": "Support", "description": "", "included": true },
+    { "id": "inspection_analysis", "label": "AI Inspection Analysis", "description": "", "included": false },
+    { "id": "contractor_scheduling", "label": "Contractor Scheduling", "description": "", "included": false },
+    { "id": "priority_support", "label": "Priority Support", "description": "", "included": false }
+  ]
+}

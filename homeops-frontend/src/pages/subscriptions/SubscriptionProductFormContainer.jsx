@@ -1,6 +1,7 @@
 import React, {useReducer, useEffect, useState} from "react";
 import {useNavigate, useParams, useLocation} from "react-router-dom";
-import {AlertCircle, Package} from "lucide-react";
+import {Reorder, useDragControls} from "framer-motion";
+import {AlertCircle, Package, Layers, FileText, CreditCard, GripVertical, Plus, Trash2} from "lucide-react";
 import Banner from "../../partials/containers/Banner";
 import {useTranslation} from "react-i18next";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
@@ -37,6 +38,64 @@ function StripePriceSelect({label, prices, value, onChange, disabled}) {
   );
 }
 
+/** Sortable feature row - grip handle only, smooth layout animations, clear drag feedback. */
+function SortableFeatureRow({feature, idx, onFieldChange, onRemove, onDragStart, onDragEnd}) {
+  const dragControls = useDragControls();
+  return (
+    <Reorder.Item
+      value={feature}
+      as="div"
+      className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 relative"
+      style={{position: "relative"}}
+      dragListener={false}
+      dragControls={dragControls}
+      initial={false}
+      layout
+      transition={{type: "spring", stiffness: 400, damping: 35}}
+      whileDrag={{
+        scale: 1.02,
+        boxShadow: "0 10px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+        zIndex: 50,
+        cursor: "grabbing",
+      }}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
+      <div
+        className="shrink-0 flex items-center gap-2 min-w-[5rem] rounded p-1.5 -ml-1 -my-1 mr-1 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors cursor-grab active:cursor-grabbing select-none"
+        onPointerDown={(e) => dragControls.start(e)}
+        title="Drag to reorder"
+      >
+        <GripVertical className="h-5 w-5 text-gray-400 shrink-0" />
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!feature.included}
+            onChange={() => onFieldChange(idx, "included", !feature.included)}
+            className="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500"
+          />
+          <span className="text-sm font-medium">Included</span>
+        </label>
+      </div>
+      <input
+        type="text"
+        placeholder="Feature name"
+        value={feature.label || ""}
+        onChange={(e) => onFieldChange(idx, "label", e.target.value)}
+        className="form-input text-sm flex-1 min-w-0 select-text"
+      />
+      <button
+        type="button"
+        onClick={() => onRemove(idx)}
+        className="p-1.5 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 shrink-0"
+        title="Remove"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </Reorder.Item>
+  );
+}
+
 const initialFormData = {
   name: "",
   description: "",
@@ -50,8 +109,12 @@ const initialFormData = {
   maxViewers: 2,
   maxTeamMembers: 5,
   aiTokenMonthlyQuota: 50000,
+  aiTokenMonthlyValueUsd: "",
+  aiTokenPriceUsd: "",
+  maxDocumentsPerSystem: 5,
   stripePriceIdMonth: "",
   stripePriceIdYear: "",
+  features: [],
 };
 
 const initialState = {
@@ -106,6 +169,13 @@ function reducer(state, action) {
         formDataChanged: action.payload,
         isInitialLoad: false,
       };
+    case "SET_FEATURES":
+      return {
+        ...state,
+        formData: {...state.formData, features: action.payload},
+        formDataChanged: true,
+        isInitialLoad: false,
+      };
     default:
       return state;
   }
@@ -130,13 +200,30 @@ function mapProductToForm(product) {
     maxViewers: lim.maxViewers ?? product.maxViewers ?? 2,
     maxTeamMembers: lim.maxTeamMembers ?? product.maxTeamMembers ?? 5,
     aiTokenMonthlyQuota: lim.aiTokenMonthlyQuota ?? 50000,
+    aiTokenMonthlyValueUsd: lim.aiTokenMonthlyValueUsd != null ? String(lim.aiTokenMonthlyValueUsd) : "",
+    aiTokenPriceUsd: lim.aiTokenPriceUsd != null ? String(lim.aiTokenPriceUsd) : "",
+    maxDocumentsPerSystem: lim.maxDocumentsPerSystem ?? 5,
     stripePriceIdMonth: priceMonth?.stripePriceId || priceMonth?.stripe_price_id || "",
     stripePriceIdYear: priceYear?.stripePriceId || priceYear?.stripe_price_id || "",
+    features: Array.isArray(product.features) ? product.features.map((f) => ({
+      id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
+      label: f.label || "",
+      included: !!f.included,
+    })) : [],
   };
 }
 
+const TABS = [
+  { id: "details", labelKey: "subscriptionProducts.tabDetails", icon: Package },
+  { id: "limits", labelKey: "subscriptionProducts.tabTierLimits", icon: Layers },
+  { id: "description", labelKey: "subscriptionProducts.tabDescription", icon: FileText },
+  { id: "prices", labelKey: "subscriptionProducts.tabPrices", icon: CreditCard },
+];
+
 function SubscriptionProductFormContainer() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [activeTab, setActiveTab] = useState("details");
+  const [isFeaturesDragging, setIsFeaturesDragging] = useState(false);
   const [stripePrices, setStripePrices] = useState([]);
   const [products, setProducts] = useState([]);
   const {id} = useParams();
@@ -223,6 +310,36 @@ function SubscriptionProductFormContainer() {
     }
   }
 
+  function handleFeaturesChange(newFeatures) {
+    dispatch({type: "SET_FEATURES", payload: newFeatures});
+  }
+
+  function handleAddFeature() {
+    const features = [...(state.formData.features || [])];
+    features.push({ id: `f-${Date.now()}`, label: "", included: false });
+    handleFeaturesChange(features);
+  }
+
+  function handleRemoveFeature(idx) {
+    const features = [...(state.formData.features || [])].filter((_, i) => i !== idx);
+    handleFeaturesChange(features);
+  }
+
+  async function handleLoadDefaultFeatures() {
+    try {
+      const features = await AppApi.getDefaultPlanFeatures();
+      if (Array.isArray(features) && features.length > 0) {
+        handleFeaturesChange(features.map((f) => ({
+          id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
+          label: f.label || "",
+          included: !!f.included,
+        })));
+      }
+    } catch (err) {
+      console.warn("Could not load default features:", err);
+    }
+  }
+
   /** Form validation. Price comes from Stripe selection, not required. */
   function validateForm() {
     const newErrors = {};
@@ -240,12 +357,27 @@ function SubscriptionProductFormContainer() {
   }
 
   const limitFields = [
-    { id: "maxProperties", label: "Max Properties" },
-    { id: "maxContacts", label: "Max Contacts" },
-    { id: "maxViewers", label: "Max Viewers" },
-    { id: "maxTeamMembers", label: "Max Team Members" },
-    { id: "aiTokenMonthlyQuota", label: "AI Tokens / month" },
+    { id: "maxProperties", label: t("subscriptionProducts.tierLimits.maxProperties") || "Max Properties" },
+    { id: "maxContacts", label: t("subscriptionProducts.tierLimits.maxContacts") || "Max Contacts" },
+    { id: "maxViewers", label: t("subscriptionProducts.tierLimits.maxViewers") || "Max View-only Users" },
+    { id: "maxTeamMembers", label: t("subscriptionProducts.tierLimits.maxTeamMembers") || "Max Home Owners (per property)" },
+    { id: "maxDocumentsPerSystem", label: t("subscriptionProducts.tierLimits.maxDocsPerSystem") || "Max documents per system" },
+    { id: "aiTokenMonthlyQuota", label: t("subscriptionProducts.tierLimits.tokensPerMonth") || "AI Tokens / month (fallback)" },
   ];
+
+  const tabs = [
+    { id: "details", label: t("subscriptionProducts.tabs.productDetails") || "Product Details", icon: Package },
+    { id: "limits", label: t("subscriptionProducts.tabs.tierLimits") || "Tier Limits", icon: Layers },
+    { id: "description", label: t("subscriptionProducts.tabs.description") || "Description", icon: FileText },
+    { id: "prices", label: t("subscriptionProducts.tabs.prices") || "Prices", icon: CreditCard },
+  ];
+
+  function handleFeatureFieldChange(idx, field, value) {
+    const features = [...(state.formData.features || [])];
+    if (!features[idx]) return;
+    features[idx] = {...features[idx], [field]: value};
+    handleFeaturesChange(features);
+  }
 
   /** Create new product */
   async function handleSubmit(evt) {
@@ -268,6 +400,9 @@ function SubscriptionProductFormContainer() {
         maxViewers: Number(state.formData.maxViewers) || 2,
         maxTeamMembers: Number(state.formData.maxTeamMembers) || 5,
         aiTokenMonthlyQuota: Number(state.formData.aiTokenMonthlyQuota) || 50000,
+        aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd ? Number(state.formData.aiTokenMonthlyValueUsd) : null,
+        aiTokenPriceUsd: state.formData.aiTokenPriceUsd ? Number(state.formData.aiTokenPriceUsd) : null,
+        maxDocumentsPerSystem: Number(state.formData.maxDocumentsPerSystem) ?? 5,
         stripePriceIdMonth: state.formData.stripePriceIdMonth?.trim() || null,
         stripePriceIdYear: state.formData.stripePriceIdYear?.trim() || null,
       };
@@ -323,11 +458,19 @@ function SubscriptionProductFormContainer() {
           maxViewers: Number(state.formData.maxViewers) || 2,
           maxTeamMembers: Number(state.formData.maxTeamMembers) || 5,
           aiTokenMonthlyQuota: Number(state.formData.aiTokenMonthlyQuota) || 50000,
+          aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd ? Number(state.formData.aiTokenMonthlyValueUsd) : null,
+          aiTokenPriceUsd: state.formData.aiTokenPriceUsd ? Number(state.formData.aiTokenPriceUsd) : null,
+          maxDocumentsPerSystem: Number(state.formData.maxDocumentsPerSystem) ?? 5,
         },
         prices: {
           month: state.formData.stripePriceIdMonth?.trim() || null,
           year: state.formData.stripePriceIdYear?.trim() || null,
         },
+        features: (state.formData.features || []).filter((f) => f.label?.trim()).map((f) => ({
+          id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
+          label: f.label.trim(),
+          included: !!f.included,
+        })),
       };
 
       const res = await AppApi.updateSubscriptionProduct(Number(id), data);
@@ -342,6 +485,9 @@ function SubscriptionProductFormContainer() {
             message: t("subscriptionProducts.updatedSuccessfully"),
           },
         });
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("plans-updated"));
+        }
       }
     } catch (err) {
       console.error("Error updating subscription product:", err);
@@ -535,7 +681,7 @@ function SubscriptionProductFormContainer() {
               return (
                 <>
                   <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
-                    {navState.currentIndex} / {navState.totalItems}
+                    {navState.currentIndex}{" / "}{navState.totalItems}
                   </span>
                   <button
                     className="btn shadow-none p-1"
@@ -608,8 +754,33 @@ function SubscriptionProductFormContainer() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
           <form onSubmit={isNew ? handleSubmit : handleUpdate}>
             <div className="p-6">
+              {/* Tabs */}
+              <div className="flex border-b border-gray-200 dark:border-gray-600 mb-6 gap-1">
+                {[
+                  { id: "details", label: t("subscriptionProducts.tabs.productDetails"), icon: Package },
+                  { id: "limits", label: t("subscriptionProducts.tabs.tierLimits"), icon: Layers },
+                  { id: "description", label: t("subscriptionProducts.tabs.description"), icon: FileText },
+                  { id: "prices", label: t("subscriptionProducts.tabs.prices"), icon: CreditCard },
+                ].map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActiveTab(id)}
+                    className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      activeTab === id
+                        ? "border-[#456564] text-[#456564] dark:text-emerald-400"
+                        : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+
               <div className="space-y-8">
-                {/* Product Details Section */}
+                {/* Product Details Tab */}
+                {activeTab === "details" && (
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                     <Package className="h-5 w-5 text-[#6E8276]" />
@@ -743,13 +914,18 @@ function SubscriptionProductFormContainer() {
                     </div>
                   </div>
                 </div>
+                )}
 
-                {/* Tier Limits Section */}
+                {/* Tier Limits Tab */}
+                {activeTab === "limits" && (
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
                     Tier Limits
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    Enforced by backend validation across the platform.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {limitFields.map(({id, label}) => (
                       <div key={id}>
                         <label className={getLabelClasses()} htmlFor={id}>
@@ -765,10 +941,86 @@ function SubscriptionProductFormContainer() {
                         />
                       </div>
                     ))}
+                    <div>
+                      <label className={getLabelClasses()} htmlFor="aiTokenMonthlyValueUsd">
+                        {t("subscriptionProducts.tierLimits.tokenBudgetUsd") || "Token budget ($/month)"}
+                      </label>
+                      <input
+                        id="aiTokenMonthlyValueUsd"
+                        className={getInputClasses("aiTokenMonthlyValueUsd")}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="e.g. 1.00"
+                        value={state.formData.aiTokenMonthlyValueUsd}
+                        onChange={handleChange}
+                      />
+                    </div>
+                    <div>
+                      <label className={getLabelClasses()} htmlFor="aiTokenPriceUsd">
+                        {t("subscriptionProducts.tierLimits.tokenPriceUsd") || "Token price ($ per token)"}
+                      </label>
+                      <input
+                        id="aiTokenPriceUsd"
+                        className={getInputClasses("aiTokenPriceUsd")}
+                        type="number"
+                        min="0"
+                        step="0.00001"
+                        placeholder="e.g. 0.00002"
+                        value={state.formData.aiTokenPriceUsd}
+                        onChange={handleChange}
+                      />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        When both budget and price are set, AI tokens/month = budget ÷ price. Otherwise uses fallback or AI_TOKEN_COST_USD env.
+                      </p>
+                    </div>
                   </div>
                 </div>
+                )}
 
-                {/* Stripe Prices (select from Stripe) */}
+                {/* Description Tab - Plan Features */}
+                {activeTab === "description" && (
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-[#6E8276]" />
+                    {t("subscriptionProducts.tabs.description")}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    Manage the list of plan features displayed to users. Toggle Included / Not Included per feature.
+                  </p>
+                  <Reorder.Group
+                    as="div"
+                    axis="y"
+                    values={state.formData.features || []}
+                    onReorder={handleFeaturesChange}
+                    className={`mb-4 flex flex-col gap-3 transition-all duration-200 ${isFeaturesDragging ? "rounded-lg p-2 -m-2 ring-2 ring-dashed ring-[#6E8276]/50 bg-[#6E8276]/5 dark:bg-[#6E8276]/10" : ""}`}
+                  >
+                    {(state.formData.features || []).map((f, idx) => (
+                      <SortableFeatureRow
+                        key={f.id || idx}
+                        feature={f}
+                        idx={idx}
+                        onFieldChange={handleFeatureFieldChange}
+                        onRemove={handleRemoveFeature}
+                        onDragStart={() => setIsFeaturesDragging(true)}
+                        onDragEnd={() => setIsFeaturesDragging(false)}
+                      />
+                    ))}
+                  </Reorder.Group>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={handleAddFeature} className="btn bg-[#456564] hover:bg-[#34514f] text-white text-sm flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      {t("subscriptionProducts.features.addFeature") || "Add Feature"}
+                    </button>
+                    <button type="button" onClick={handleLoadDefaultFeatures} className="btn border border-gray-300 dark:border-gray-600 text-sm flex items-center gap-2">
+                      {t("subscriptionProducts.features.loadDefaults") || "Load Default Features"}
+                    </button>
+                  </div>
+                </div>
+                )}
+
+                {/* Prices Tab */}
+                {activeTab === "prices" && (
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
                     Stripe Prices
@@ -812,6 +1064,7 @@ function SubscriptionProductFormContainer() {
                     </p>
                   )}
                 </div>
+                )}
               </div>
             </div>
 

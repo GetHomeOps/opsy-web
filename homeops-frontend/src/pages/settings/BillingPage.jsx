@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from "react";
+import React, {useState, useEffect, useCallback} from "react";
 import {useTranslation} from "react-i18next";
 import {useNavigate} from "react-router-dom";
 import {
@@ -40,40 +40,51 @@ function BillingPage() {
     ? "agent"
     : "homeowner";
 
+  const fetchBilling = React.useCallback(async () => {
+    if (!accountId) return;
+    try {
+      setError(null);
+      const [statusRes, plansRes, pmRes, invoicesRes] = await Promise.all([
+        AppApi.getBillingStatus(accountId)
+          .then((r) => r)
+          .catch(() => null),
+        AppApi.getBillingPlans(targetRole)
+          .then((r) => r.plans || [])
+          .catch(() => []),
+        AppApi.getBillingPaymentMethod(accountId)
+          .then((r) => r?.paymentMethod)
+          .catch(() => null),
+        AppApi.getBillingInvoices(accountId)
+          .then((r) => r?.invoices || [])
+          .catch(() => []),
+      ]);
+      setBilling(statusRes);
+      setPlans(plansRes);
+      setPaymentMethod(pmRes);
+      setInvoices(invoicesRes);
+    } catch (err) {
+      setError(err?.message || "Failed to load billing data");
+    } finally {
+      setLoading(false);
+    }
+  }, [accountId, targetRole]);
+
   useEffect(() => {
     if (!accountId) {
       setLoading(false);
       return;
     }
-    async function fetch() {
-      try {
-        setError(null);
-        const [statusRes, plansRes, pmRes, invoicesRes] = await Promise.all([
-          AppApi.getBillingStatus(accountId)
-            .then((r) => r)
-            .catch(() => null),
-          AppApi.getBillingPlans(targetRole)
-            .then((r) => r.plans || [])
-            .catch(() => []),
-          AppApi.getBillingPaymentMethod(accountId)
-            .then((r) => r?.paymentMethod)
-            .catch(() => null),
-          AppApi.getBillingInvoices(accountId)
-            .then((r) => r?.invoices || [])
-            .catch(() => []),
-        ]);
-        setBilling(statusRes);
-        setPlans(plansRes);
-        setPaymentMethod(pmRes);
-        setInvoices(invoicesRes);
-      } catch (err) {
-        setError(err?.message || "Failed to load billing data");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetch();
-  }, [accountId, targetRole]);
+    setLoading(true);
+    fetchBilling();
+  }, [accountId, fetchBilling]);
+
+  useEffect(() => {
+    const onPlansUpdated = () => {
+      if (accountId) fetchBilling();
+    };
+    window.addEventListener("plans-updated", onPlansUpdated);
+    return () => window.removeEventListener("plans-updated", onPlansUpdated);
+  }, [accountId, fetchBilling]);
 
   async function handleManageBilling() {
     if (!accountId) return;

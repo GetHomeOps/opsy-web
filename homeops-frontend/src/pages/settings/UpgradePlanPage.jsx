@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from "react";
+import React, {useState, useEffect, useCallback} from "react";
 import {useNavigate} from "react-router-dom";
 import {
   Check,
@@ -36,35 +36,41 @@ function UpgradePlanPage() {
     : "homeowner";
   const fallbackPlans = targetRole === "agent" ? AGENT_PLANS : HOMEOWNER_PLANS;
 
+  const loadPlans = React.useCallback(async () => {
+    if (!accountId) return;
+    try {
+      setError(null);
+      const [statusRes, plansRes] = await Promise.all([
+        AppApi.getBillingStatus(accountId).catch(() => null),
+        AppApi.getBillingPlans(targetRole)
+          .then((r) => r.plans || [])
+          .catch(() => []),
+      ]);
+      setBilling(statusRes);
+      setPlans(plansRes.length > 0 ? plansRes : fallbackPlans);
+    } catch (err) {
+      setError(err?.message || "Failed to load plans");
+    } finally {
+      setLoading(false);
+    }
+  }, [accountId, targetRole, fallbackPlans]);
+
   useEffect(() => {
     if (!accountId) {
       setLoading(false);
       return;
     }
-    let cancelled = false;
-    async function load() {
-      try {
-        setError(null);
-        const [statusRes, plansRes] = await Promise.all([
-          AppApi.getBillingStatus(accountId).catch(() => null),
-          AppApi.getBillingPlans(targetRole)
-            .then((r) => r.plans || [])
-            .catch(() => []),
-        ]);
-        if (cancelled) return;
-        setBilling(statusRes);
-        setPlans(plansRes.length > 0 ? plansRes : fallbackPlans);
-      } catch (err) {
-        if (!cancelled) setError(err?.message || "Failed to load plans");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
+    setLoading(true);
+    loadPlans();
+  }, [accountId, loadPlans]);
+
+  useEffect(() => {
+    const onPlansUpdated = () => {
+      if (accountId) loadPlans();
     };
-  }, [accountId, targetRole]);
+    window.addEventListener("plans-updated", onPlansUpdated);
+    return () => window.removeEventListener("plans-updated", onPlansUpdated);
+  }, [accountId, loadPlans]);
 
   const currentPlanCode = billing?.plan?.code;
 
@@ -137,7 +143,7 @@ function UpgradePlanPage() {
       items.push(`${lim.maxDocumentsPerSystem} docs per system`);
     if (lim.maxViewers != null) items.push(`${lim.maxViewers} shared viewers`);
     if (lim.maxTeamMembers != null)
-      items.push(`${lim.maxTeamMembers} team members`);
+      items.push(`${lim.maxTeamMembers} home owners`);
     return items;
   }
 

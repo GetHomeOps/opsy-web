@@ -26,6 +26,7 @@ const { onUserCreated } = require("./resourceAutoSend");
 const Notification = require("../models/notification");
 const { sendInvitationEmail } = require("./emailService");
 const { APP_BASE_URL } = require("../config");
+const { canAddContact } = require("./tierService");
 
 const VALID_ACCOUNT_ROLES = new Set(["owner", "admin", "member", "view_only"]);
 
@@ -40,7 +41,7 @@ function mapToAccountRole(intendedRole, invitationType) {
   return "member";
 }
 
-async function createPropertyInvitation({ inviterUserId, inviteeEmail, accountId, propertyId, intendedRole }) {
+async function createPropertyInvitation({ inviterUserId, inviteeEmail, accountId, propertyId, intendedRole, inviterUserRole }) {
   const emailLower = (inviteeEmail || "").trim().toLowerCase();
   if (!emailLower) throw new BadRequestError("inviteeEmail is required");
 
@@ -63,6 +64,37 @@ async function createPropertyInvitation({ inviterUserId, inviteeEmail, accountId
   );
   if (pendingInv.rows.length > 0) {
     throw new BadRequestError("An invitation has already been sent to this email address.");
+  }
+
+  // Auto-create contact in My Contacts if invitee email doesn't exist
+  const existingContact = await db.query(
+    `SELECT c.id FROM contacts c
+     JOIN account_contacts ac ON ac.contact_id = c.id
+     WHERE LOWER(TRIM(c.email)) = $1 AND ac.account_id = $2
+     LIMIT 1`,
+    [emailLower, accountId]
+  );
+  if (existingContact.rows.length === 0) {
+    const tierCheck = await canAddContact(accountId, inviterUserRole);
+    if (tierCheck.allowed) {
+      try {
+        const contactName =
+          inviteeEmail.split("@")[0] || inviteeEmail;
+        const contact = await Contact.create({
+          name: contactName,
+          email: inviteeEmail.trim(),
+        });
+        await Contact.addToAccount({
+          contactId: contact.id,
+          accountId,
+        });
+      } catch (contactErr) {
+        console.error(
+          "[invitationService] Failed to auto-create contact for invitee:",
+          contactErr.message
+        );
+      }
+    }
   }
 
   const { token, tokenHash } = generateInvitationToken();

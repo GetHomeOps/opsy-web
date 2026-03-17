@@ -39,7 +39,7 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
       result = await createAccountInvitation({ inviterUserId, inviteeEmail, accountId, intendedRole });
     } else {
       if (!propertyId) throw new BadRequestError("propertyId is required for property invitations");
-      result = await createPropertyInvitation({ inviterUserId, inviteeEmail, accountId, propertyId, intendedRole });
+      result = await createPropertyInvitation({ inviterUserId, inviteeEmail, accountId, propertyId, intendedRole, inviterUserRole: userRole });
     }
 
     return res.status(201).json({ invitation: result.invitation, token: result.token });

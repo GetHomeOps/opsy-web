@@ -892,6 +892,12 @@ class AppApi {
     return res.product;
   }
 
+  /** Get default plan features from JSON (for new products). Super Admin only. */
+  static async getDefaultPlanFeatures() {
+    const res = await this.request(`subscription-products/default-features`);
+    return res.features || [];
+  }
+
   static async createSubscriptionProduct(data) {
     let res = await this.request(`subscription-products`, data, "POST");
     return res.product;

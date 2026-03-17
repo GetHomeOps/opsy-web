@@ -222,15 +222,15 @@ async function updatePlanFeatures(productId, features) {
     throw new BadRequestError("features must be an array");
   }
   for (const f of features) {
-    if (typeof f.id !== "string" || !f.id) {
-      throw new BadRequestError("Each feature must have a string id");
-    }
+    const id = f.id ?? f.label?.replace(/\s+/g, "-").toLowerCase() ?? `f-${Math.random().toString(36).slice(2, 9)}`;
     if (typeof f.label !== "string" || !f.label) {
       throw new BadRequestError("Each feature must have a string label");
     }
     if (typeof f.included !== "boolean") {
       throw new BadRequestError("Each feature must have a boolean included field");
     }
+    f.id = typeof f.id === "string" && f.id ? f.id : id;
+    if (f.description != null && typeof f.description !== "string") f.description = String(f.description);
   }
   await db.query(
     `UPDATE subscription_products SET features = $1, updated_at = NOW() WHERE id = $2`,

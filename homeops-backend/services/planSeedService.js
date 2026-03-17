@@ -67,12 +67,13 @@ async function ensureStripePlans() {
     let productId;
     if (existing.rows.length > 0) {
       productId = existing.rows[0].id;
+      // Update product fields but preserve features (admin-edited features persist; seed only applies to new products)
       await db.query(
         `UPDATE subscription_products
          SET name = $1, description = $2, target_role = $3, price = $4, sort_order = $5,
              trial_days = $6, max_properties = $7, max_contacts = $8, max_viewers = $9, max_team_members = $10,
-             features = $11, popular = $12, is_active = true, updated_at = NOW()
-         WHERE id = $13`,
+             popular = $11, is_active = true, updated_at = NOW()
+         WHERE id = $12`,
         [
           name,
           description || `${name} plan for ${targetRole}s`,
@@ -84,7 +85,6 @@ async function ensureStripePlans() {
           limits?.maxContacts ?? 25,
           limits?.maxViewers ?? 2,
           limits?.maxTeamMembers ?? 5,
-          featuresJson,
           popular ?? false,
           productId,
         ]

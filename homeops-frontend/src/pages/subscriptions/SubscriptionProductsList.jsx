@@ -582,6 +582,16 @@ function SubscriptionProductsList() {
       },
     },
     {
+      key: "maxViewers",
+      label: t("subscriptionProducts.viewers") || "View-only",
+      sortable: false,
+      render: (value, item) => {
+        const lim = item.limits || {};
+        const v = lim.maxViewers ?? item.maxViewers ?? "—";
+        return <span className="text-gray-700 dark:text-gray-300">{v}</span>;
+      },
+    },
+    {
       key: "aiTokenMonthlyQuota",
       label: t("subscriptionProducts.tokens") || "Tokens",
       sortable: false,

@@ -11,7 +11,7 @@
  */
 
 const db = require("../db");
-const { BILLING_MOCK_MODE } = require("../config");
+const { BILLING_MOCK_MODE, AI_TOKEN_COST_USD } = require("../config");
 
 const DEFAULT_LIMITS = {
   maxProperties: 3, maxContacts: 50, maxViewers: 5, maxTeamMembers: 10,
@@ -38,11 +38,24 @@ async function getAccountLimits(accountId) {
       `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
               pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
               pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+              pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
+              pl.ai_token_price_usd AS "aiTokenPriceUsd",
               pl.max_documents_per_system AS "maxDocumentsPerSystem"
        FROM plan_limits pl WHERE pl.subscription_product_id = $1`,
       [productId]
     );
-    if (limRes.rows[0]) return { ...DEFAULT_LIMITS, ...limRes.rows[0] };
+    if (limRes.rows[0]) {
+      const row = limRes.rows[0];
+      let aiTokenMonthlyQuota = row.aiTokenMonthlyQuota;
+      if (row.aiTokenMonthlyValueUsd != null && row.aiTokenMonthlyValueUsd > 0) {
+        const pricePerToken = row.aiTokenPriceUsd != null && row.aiTokenPriceUsd > 0
+          ? Number(row.aiTokenPriceUsd) : AI_TOKEN_COST_USD;
+        if (pricePerToken > 0) {
+          aiTokenMonthlyQuota = Math.floor(row.aiTokenMonthlyValueUsd / pricePerToken);
+        }
+      }
+      return { ...DEFAULT_LIMITS, ...row, aiTokenMonthlyQuota };
+    }
     const spRes = await db.query(
       `SELECT max_properties AS "maxProperties", max_contacts AS "maxContacts",
               max_viewers AS "maxViewers", max_team_members AS "maxTeamMembers"
@@ -56,12 +69,25 @@ async function getAccountLimits(accountId) {
     `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
             pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
             pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+            pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
+            pl.ai_token_price_usd AS "aiTokenPriceUsd",
             pl.max_documents_per_system AS "maxDocumentsPerSystem"
      FROM plan_limits pl
      JOIN subscription_products sp ON sp.id = pl.subscription_product_id
      WHERE sp.code = 'homeowner_free' LIMIT 1`
   );
-  if (freeRes.rows[0]) return { ...DEFAULT_LIMITS, ...freeRes.rows[0] };
+  if (freeRes.rows[0]) {
+    const row = freeRes.rows[0];
+    let aiTokenMonthlyQuota = row.aiTokenMonthlyQuota;
+    if (row.aiTokenMonthlyValueUsd != null && row.aiTokenMonthlyValueUsd > 0) {
+      const pricePerToken = row.aiTokenPriceUsd != null && row.aiTokenPriceUsd > 0
+        ? Number(row.aiTokenPriceUsd) : AI_TOKEN_COST_USD;
+      if (pricePerToken > 0) {
+        aiTokenMonthlyQuota = Math.floor(row.aiTokenMonthlyValueUsd / pricePerToken);
+      }
+    }
+    return { ...DEFAULT_LIMITS, ...row, aiTokenMonthlyQuota };
+  }
 
   const fallback = await db.query(
     `SELECT max_properties AS "maxProperties", max_contacts AS "maxContacts",

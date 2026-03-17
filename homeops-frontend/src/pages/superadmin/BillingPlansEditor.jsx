@@ -416,7 +416,7 @@ function BillingPlansEditor() {
                                 {key: "maxContacts", label: "Max Contacts"},
                                 {key: "aiTokenMonthlyQuota", label: "AI Tokens/mo"},
                                 {key: "maxViewers", label: "Max Viewers"},
-                                {key: "maxTeamMembers", label: "Max Team"},
+                                {key: "maxTeamMembers", label: "Max Home Owners"},
                                 {key: "maxDocumentsPerSystem", label: "Docs/System"},
                               ].map(({key, label}) => (
                                 <div key={key}>

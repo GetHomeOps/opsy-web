@@ -1,8 +1,9 @@
-import React, {useState, useEffect, useCallback} from "react";
+import React, {useState, useEffect, useCallback, useMemo} from "react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import DatePickerInput from "../../components/DatePickerInput";
+import PaginationClassic from "../../components/PaginationClassic";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import {
   DollarSign,
@@ -33,6 +34,8 @@ function getDefaultDateRange() {
   };
 }
 
+const DEFAULT_ITEMS_PER_PAGE = 10;
+
 function UnitCostDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [users, setUsers] = useState([]);
@@ -41,6 +44,13 @@ function UnitCostDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState(getDefaultDateRange);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
+
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return users.slice(start, start + itemsPerPage);
+  }, [users, currentPage, itemsPerPage]);
 
   const fetchData = useCallback(
     async (options = {}) => {
@@ -80,6 +90,18 @@ function UnitCostDashboard() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const totalPages = Math.ceil(users.length / itemsPerPage);
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [users.length, itemsPerPage, currentPage]);
+
+  const handleItemsPerPageChange = (value) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
+  };
 
   const totalApiCalls = users.reduce(
     (acc, u) => acc + (u.apiCallCount ?? 0),
@@ -232,40 +254,41 @@ function UnitCostDashboard() {
                 </p>
               </div>
             ) : (
-              <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-600">
-                        <th className="px-5 py-3 font-medium">User</th>
-                        <th className="px-5 py-3 font-medium">Role</th>
-                        <th className="px-5 py-3 font-medium">Account(s)</th>
-                        <th className="px-5 py-3 font-medium text-right">
-                          Total Cost
-                        </th>
-                        <th className="px-5 py-3 font-medium text-right">
-                          AI (OpenAI)
-                        </th>
-                        <th className="px-5 py-3 font-medium text-right">
-                          Storage (S3)
-                        </th>
-                        <th className="px-5 py-3 font-medium text-right">
-                          Email
-                        </th>
-                        <th className="px-5 py-3 font-medium text-right">
-                          API Calls
-                        </th>
-                        <th className="px-5 py-3 font-medium text-right">
-                          Documents
-                        </th>
-                        <th className="px-5 py-3 font-medium text-right">
-                          Tokens
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map((u) => (
-                        <tr
+              <>
+                <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-600">
+                          <th className="px-5 py-3 font-medium">User</th>
+                          <th className="px-5 py-3 font-medium">Role</th>
+                          <th className="px-5 py-3 font-medium">Account(s)</th>
+                          <th className="px-5 py-3 font-medium text-right">
+                            Total Cost
+                          </th>
+                          <th className="px-5 py-3 font-medium text-right">
+                            AI (OpenAI)
+                          </th>
+                          <th className="px-5 py-3 font-medium text-right">
+                            Storage (S3)
+                          </th>
+                          <th className="px-5 py-3 font-medium text-right">
+                            Email
+                          </th>
+                          <th className="px-5 py-3 font-medium text-right">
+                            API Calls
+                          </th>
+                          <th className="px-5 py-3 font-medium text-right">
+                            Documents
+                          </th>
+                          <th className="px-5 py-3 font-medium text-right">
+                            Tokens
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedUsers.map((u) => (
+                          <tr
                           key={u.userId}
                           className="border-b border-gray-100 dark:border-gray-700/60 last:border-0 hover:bg-gray-50/50 dark:hover:bg-gray-800/30"
                         >
@@ -324,12 +347,24 @@ function UnitCostDashboard() {
                           <td className="px-5 py-3 text-right">
                             {(u.tokenCount ?? 0).toLocaleString()}
                           </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+                {users.length > 0 && (
+                  <div className="mt-6">
+                    <PaginationClassic
+                      currentPage={currentPage}
+                      totalItems={users.length}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={setCurrentPage}
+                      onItemsPerPageChange={handleItemsPerPageChange}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </main>

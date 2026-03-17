@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const express = require("express");
 const jsonschema = require("jsonschema");
 const { ensureLoggedIn, ensureSuperAdmin } = require("../middleware/auth");
@@ -9,6 +11,24 @@ const subscriptionProductNewSchema = require("../schemas/subscriptionProductNew.
 const subscriptionProductUpdateSchema = require("../schemas/subscriptionProductUpdate.json");
 
 const router = express.Router();
+const FEATURES_DEFAULT_PATH = path.join(__dirname, "..", "data", "plan-features-default.json");
+
+/** GET /default-features - Default plan features for new products. Super admin only. */
+router.get("/default-features", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
+  try {
+    let features = [];
+    try {
+      const raw = fs.readFileSync(FEATURES_DEFAULT_PATH, "utf8");
+      const data = JSON.parse(raw);
+      features = data.features || [];
+    } catch (_) {
+      /* file may not exist */
+    }
+    return res.json({ features });
+  } catch (err) {
+    return next(err);
+  }
+});
 
 /** GET /for-role/:role - Get active products for role (homeowner, agent). */
 router.get("/for-role/:role", ensureLoggedIn, async function (req, res, next) {

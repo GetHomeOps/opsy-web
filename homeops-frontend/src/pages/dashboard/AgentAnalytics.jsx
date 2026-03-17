@@ -1,7 +1,8 @@
-import React, {useState, useEffect, useCallback} from "react";
+import React, {useState, useEffect, useCallback, useMemo} from "react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
+import PaginationClassic from "../../components/PaginationClassic";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import {
   Building2,
@@ -15,12 +16,21 @@ import {
   Loader2,
 } from "lucide-react";
 
+const DEFAULT_ITEMS_PER_PAGE = 10;
+
 function AgentAnalytics() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedAgents, setExpandedAgents] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
+
+  const paginatedAgents = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return agents.slice(start, start + itemsPerPage);
+  }, [agents, currentPage, itemsPerPage]);
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -42,6 +52,13 @@ function AgentAnalytics() {
     fetchAgents();
   }, [fetchAgents]);
 
+  useEffect(() => {
+    const totalPages = Math.ceil(agents.length / itemsPerPage);
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [agents.length, itemsPerPage, currentPage]);
+
   const toggleAgent = (agentId) => {
     setExpandedAgents((prev) => {
       const next = new Set(prev);
@@ -49,6 +66,11 @@ function AgentAnalytics() {
       else next.add(agentId);
       return next;
     });
+  };
+
+  const handleItemsPerPageChange = (value) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
   };
 
   return (
@@ -100,8 +122,9 @@ function AgentAnalytics() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {agents.map((agent) => {
+              <>
+                <div className="space-y-4">
+                  {paginatedAgents.map((agent) => {
                   const isExpanded = expandedAgents.has(agent.agentId);
                   const accounts = Array.isArray(agent.accounts)
                     ? agent.accounts
@@ -221,7 +244,19 @@ function AgentAnalytics() {
                     </div>
                   );
                 })}
-              </div>
+                </div>
+                {agents.length > 0 && (
+                  <div className="mt-6">
+                    <PaginationClassic
+                      currentPage={currentPage}
+                      totalItems={agents.length}
+                      itemsPerPage={itemsPerPage}
+                      onPageChange={setCurrentPage}
+                      onItemsPerPageChange={handleItemsPerPageChange}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </main>
