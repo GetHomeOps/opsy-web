@@ -361,6 +361,8 @@ function SystemsSetupModal({
     ownerName: "",
     ownerName2: "",
     ownerCity: "",
+    occupantName: "",
+    occupantType: "",
   });
 
   const [aiFields, setAiFields] = useState({});
@@ -447,6 +449,8 @@ function SystemsSetupModal({
       ownerName: formData?.ownerName ?? "",
       ownerName2: formData?.ownerName2 ?? "",
       ownerCity: formData?.ownerCity ?? "",
+      occupantName: formData?.occupantName ?? "",
+      occupantType: formData?.occupantType ?? "",
     });
     setAiFields({});
     setRetrievedFieldCount(0);
@@ -487,7 +491,7 @@ function SystemsSetupModal({
   };
 
   const PROPERTY_TYPE_PRESETS = [
-    {id: "primary", label: "Primary Property", suffix: "Primary Home"},
+    {id: "primary", label: "Primary Home", suffix: "Primary Home"},
     {id: "second", label: "Second Home", suffix: "Second Home"},
     {
       id: "investment",
@@ -503,11 +507,24 @@ function SystemsSetupModal({
       const preset = PROPERTY_TYPE_PRESETS.find((p) => p.id === next);
       if (preset) {
         const base = possessiveName || "My";
+        const ownerName =
+          (currentUser?.name || "").trim() ||
+          identityFields.ownerName?.trim() ||
+          "";
+        const isOwnerOccupied = next === "primary" || next === "second";
         setIdentityFields((prev) => ({
           ...prev,
           propertyName: `${base} ${preset.suffix}`,
+          occupantName: isOwnerOccupied ? ownerName : "",
+          occupantType: isOwnerOccupied ? "Owner" : "",
         }));
       }
+    } else {
+      setIdentityFields((prev) => ({
+        ...prev,
+        occupantName: "",
+        occupantType: "",
+      }));
     }
   };
 
