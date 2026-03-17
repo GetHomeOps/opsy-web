@@ -1,5 +1,11 @@
 import React from "react";
-import {Routes, Route, Navigate, useParams, useLocation} from "react-router-dom";
+import {
+  Routes,
+  Route,
+  Navigate,
+  useParams,
+  useLocation,
+} from "react-router-dom";
 import "../../css/style.css";
 
 import {Loader2} from "lucide-react";
@@ -73,6 +79,7 @@ import SupportManagement from "../support/SupportManagement";
 import FeedbackManagement from "../support/FeedbackManagement";
 import DataAdjustmentManagement from "../support/DataAdjustmentManagement";
 import TicketDetailPage from "../support/TicketDetailPage";
+import HelpdeskPage from "../support/HelpdeskPage";
 import ResourcesManagement from "../resources/ResourcesManagement";
 import Resource from "../resources/Resource";
 import ResourceViewerPage from "../resources/ResourceViewerPage";
@@ -86,6 +93,12 @@ import ComingSoon from "../ComingSoon";
 function BillingPlansRedirect() {
   const {accountUrl} = useParams();
   return <Navigate to={`/${accountUrl}/subscription-products`} replace />;
+}
+
+function HelpdeskLegacyRedirect({to}) {
+  const {accountUrl, ticketId} = useParams();
+  const suffix = ticketId ? `/${ticketId}` : "";
+  return <Navigate to={`/${accountUrl}/${to}${suffix}`} replace />;
 }
 
 function UpgradeRedirect() {
@@ -621,8 +634,17 @@ function RoutesList() {
           </SuperAdminRoute>
         }
       />
+      {/* Helpdesk unified module */}
       <Route
-        path="/:accountUrl/support-management/:ticketId"
+        path="/:accountUrl/helpdesk"
+        element={
+          <AdminRoute>
+            <HelpdeskPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/helpdesk/support/:ticketId"
         element={
           <AdminRoute>
             <TicketDetailPage variant="support" />
@@ -630,12 +652,53 @@ function RoutesList() {
         }
       />
       <Route
-        path="/:accountUrl/support-management"
+        path="/:accountUrl/helpdesk/support"
         element={
           <AdminRoute>
             <SupportManagement />
           </AdminRoute>
         }
+      />
+      <Route
+        path="/:accountUrl/helpdesk/feedback/:ticketId"
+        element={
+          <AdminRoute>
+            <TicketDetailPage variant="feedback" />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/helpdesk/feedback"
+        element={
+          <AdminRoute>
+            <FeedbackManagement />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/helpdesk/data-adjustments/:ticketId"
+        element={
+          <AdminRoute>
+            <TicketDetailPage variant="data_adjustment" />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/helpdesk/data-adjustments"
+        element={
+          <AdminRoute>
+            <DataAdjustmentManagement />
+          </AdminRoute>
+        }
+      />
+      {/* Legacy redirects for old bookmark/direct links */}
+      <Route
+        path="/:accountUrl/support-management/:ticketId"
+        element={<HelpdeskLegacyRedirect to="helpdesk/support" />}
+      />
+      <Route
+        path="/:accountUrl/support-management"
+        element={<HelpdeskLegacyRedirect to="helpdesk/support" />}
       />
       <Route
         path="/:accountUrl/resources/new"
@@ -711,35 +774,19 @@ function RoutesList() {
       />
       <Route
         path="/:accountUrl/feedback-management/:ticketId"
-        element={
-          <AdminRoute>
-            <TicketDetailPage variant="feedback" />
-          </AdminRoute>
-        }
+        element={<HelpdeskLegacyRedirect to="helpdesk/feedback" />}
       />
       <Route
         path="/:accountUrl/feedback-management"
-        element={
-          <AdminRoute>
-            <FeedbackManagement />
-          </AdminRoute>
-        }
+        element={<HelpdeskLegacyRedirect to="helpdesk/feedback" />}
       />
       <Route
         path="/:accountUrl/data-adjustment-management/:ticketId"
-        element={
-          <AdminRoute>
-            <TicketDetailPage variant="data_adjustment" />
-          </AdminRoute>
-        }
+        element={<HelpdeskLegacyRedirect to="helpdesk/data-adjustments" />}
       />
       <Route
         path="/:accountUrl/data-adjustment-management"
-        element={
-          <AdminRoute>
-            <DataAdjustmentManagement />
-          </AdminRoute>
-        }
+        element={<HelpdeskLegacyRedirect to="helpdesk/data-adjustments" />}
       />
       <Route
         path="/:accountUrl/pdfexample"

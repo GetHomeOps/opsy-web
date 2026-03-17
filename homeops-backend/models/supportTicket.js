@@ -244,7 +244,9 @@ async function listForAdmin() {
             u.email AS "createdByEmail",
             a.name AS "accountName",
             a.url AS "accountUrl",
-            au.name AS "assignedToName"
+            au.name AS "assignedToName",
+            (SELECT COUNT(*)::int FROM support_ticket_replies r WHERE r.ticket_id = t.id) AS "replyCount",
+            (SELECT r.role FROM support_ticket_replies r WHERE r.ticket_id = t.id ORDER BY r.created_at DESC LIMIT 1) AS "lastReplyRole"
      FROM support_tickets t
      LEFT JOIN users u ON u.id = t.created_by
      LEFT JOIN accounts a ON a.id = t.account_id

@@ -45,6 +45,9 @@ export function hasCalendarIntegration(calendarIntegrations) {
   return Array.isArray(calendarIntegrations) && calendarIntegrations.length > 0;
 }
 
+/** Alias for backward compatibility (fixes "hasConnectedCalendar is not defined"). */
+export const hasConnectedCalendar = hasCalendarIntegration;
+
 /**
  * Default onboarding steps for agent and homeowner roles.
  * Steps are evaluated in order; completion is computed via checkComplete.

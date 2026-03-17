@@ -3,7 +3,7 @@ import {useParams, useNavigate} from "react-router-dom";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
-import {Loader2, RefreshCw} from "lucide-react";
+import {Loader2, RefreshCw, ArrowLeft} from "lucide-react";
 import {
   TicketCard,
   KanbanColumn,
@@ -98,10 +98,13 @@ function SupportManagement() {
         {value: "low", label: "Low"},
       ],
       planTier: planTiers.map((t) => ({value: t, label: t})),
-      assignedTo: admins.map((a) => ({
-        value: String(a.id),
-        label: a.name || a.email,
-      })),
+      assignedTo: [
+        {value: "__unassigned__", label: "Unassigned"},
+        ...admins.map((a) => ({
+          value: String(a.id),
+          label: a.name || a.email,
+        })),
+      ],
     }),
     [planTiers, admins],
   );
@@ -141,7 +144,8 @@ function SupportManagement() {
           (t.description || "").toLowerCase().includes(q) ||
           (t.createdByName || "").toLowerCase().includes(q) ||
           (t.createdByEmail || "").toLowerCase().includes(q) ||
-          (t.accountName || "").toLowerCase().includes(q),
+          (t.accountName || "").toLowerCase().includes(q) ||
+          (t.assignedToName || "").toLowerCase().includes(q),
       );
     }
     return list;
@@ -153,7 +157,6 @@ function SupportManagement() {
       let colTickets = filteredTickets.filter(
         (t) => supportToColumnStatus(t.status) === col.id,
       );
-      // Sort: priorityScore desc, then createdAt oldest first
       colTickets.sort((a, b) => {
         const pa = a.priorityScore ?? 0;
         const pb = b.priorityScore ?? 0;
@@ -193,7 +196,7 @@ function SupportManagement() {
   }
 
   function openDetail(ticket) {
-    navigate(`/${accountUrl}/support-management/${ticket.id}`);
+    navigate(`/${accountUrl}/helpdesk/support/${ticket.id}`);
   }
 
   function handleDragStart(e, ticket) {
@@ -208,8 +211,10 @@ function SupportManagement() {
     setDragOverColumn(columnId);
   }
 
-  function handleDragLeave() {
-    setDragOverColumn(null);
+  function handleDragLeave(e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverColumn(null);
+    }
   }
 
   function handleDrop(e, targetCol) {
@@ -241,14 +246,22 @@ function SupportManagement() {
         <main className="flex flex-col flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           <div className={`${PAGE_LAYOUT.listPaddingX} py-6 flex-shrink-0`}>
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                  Support Management
-                </h1>
-                <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                  Click a ticket to open it. Use the grip handle to drag between
-                  columns.
-                </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/${accountUrl}/helpdesk`)}
+                  className="flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4 text-gray-500" />
+                </button>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                    Support
+                  </h1>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Drag cards between columns to update status
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -294,13 +307,12 @@ function SupportManagement() {
               <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
             </div>
           ) : (
-            <div
-              className={`overflow-x-auto ${PAGE_LAYOUT.listPaddingX} pb-6`}
-            >
+            <div className={`overflow-x-auto ${PAGE_LAYOUT.listPaddingX} pb-6`}>
               <div className="flex gap-4 min-w-max pb-4 items-start">
                 {SUPPORT_COLUMNS.map((col) => (
                   <KanbanColumn
                     key={col.id}
+                    id={col.id}
                     title={col.title}
                     count={ticketsByColumn[col.id]?.length || 0}
                     isDragOver={dragOverColumn === col.id}

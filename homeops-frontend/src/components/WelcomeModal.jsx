@@ -1,5 +1,4 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
-import {useSearchParams} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import confetti from "canvas-confetti";
 import {Sparkles, Check, ChevronRight} from "lucide-react";
@@ -40,7 +39,6 @@ function WelcomeModal() {
   const {currentUser, refreshCurrentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const {t} = useTranslation();
-  const [searchParams] = useSearchParams();
   const [modalOpen, setModalOpen] = useState(false);
 
   const userId = currentUser?.id ?? currentUser?.userId;
@@ -64,11 +62,14 @@ function WelcomeModal() {
   }, [userId, refreshCurrentUser]);
 
   const [calendarIntegrations, setCalendarIntegrations] = useState([]);
+  const [calendarIntegrationsLoaded, setCalendarIntegrationsLoaded] = useState(false);
   useEffect(() => {
     if (!currentUser?.id || !showForRole) return;
+    setCalendarIntegrationsLoaded(false);
     AppApi.getCalendarIntegrations()
       .then((data) => setCalendarIntegrations(data || []))
-      .catch(() => setCalendarIntegrations([]));
+      .catch(() => setCalendarIntegrations([]))
+      .finally(() => setCalendarIntegrationsLoaded(true));
   }, [currentUser?.id, showForRole]);
 
   const extraContext = useMemo(
@@ -88,12 +89,13 @@ function WelcomeModal() {
 
   useEffect(() => {
     if (!userId || !showForRole) return;
+    if (!calendarIntegrationsLoaded) return;
     if (allComplete) {
       setModalOpen(false);
       return;
     }
     setModalOpen(true);
-  }, [userId, showForRole, allComplete]);
+  }, [userId, showForRole, allComplete, calendarIntegrationsLoaded]);
 
   const confettiShownKey = userId ? `opsy_welcome_confetti_${userId}` : null;
 
@@ -101,6 +103,12 @@ function WelcomeModal() {
   useEffect(() => {
     if (!modalOpen || !userId || !confettiShownKey) return;
     if (typeof localStorage !== "undefined" && localStorage.getItem(confettiShownKey)) return;
+    // Set first so unmount/rerender cannot replay confetti this login.
+    try {
+      localStorage.setItem(confettiShownKey, "1");
+    } catch {
+      // localStorage may be disabled
+    }
     const timeout = setTimeout(() => {
       const count = 700;
       const defaults = {
@@ -115,34 +123,9 @@ function WelcomeModal() {
       fire(0.1, {spread: 220, startVelocity: 45, decay: 0.92, scalar: 1.2});
       fire(0.1, {origin: {x: 0.2, y: 0.5}, spread: 100, angle: 60, startVelocity: 50});
       fire(0.1, {origin: {x: 0.8, y: 0.5}, spread: 100, angle: 120, startVelocity: 50});
-      try {
-        localStorage.setItem(confettiShownKey, "1");
-      } catch {
-        // localStorage may be disabled
-      }
     }, 300);
     return () => clearTimeout(timeout);
   }, [modalOpen, userId, confettiShownKey]);
-
-  // Confetti when all steps complete — only on first login
-  useEffect(() => {
-    if (!modalOpen || !allComplete || !userId || !confettiShownKey) return;
-    if (typeof localStorage !== "undefined" && localStorage.getItem(confettiShownKey)) return;
-    const timeout = setTimeout(() => {
-      confetti({
-        particleCount: 120,
-        spread: 70,
-        origin: {y: 0.6},
-        colors: ["#34d399", "#10b981", "#fbbf24", "#456564"],
-      });
-      try {
-        localStorage.setItem(confettiShownKey, "1");
-      } catch {
-        // localStorage may be disabled
-      }
-    }, 100);
-    return () => clearTimeout(timeout);
-  }, [modalOpen, allComplete, userId, confettiShownKey]);
 
   const firstName =
     currentUser?.fullName?.split(" ")[0] || currentUser?.name?.split(" ")[0] || "";

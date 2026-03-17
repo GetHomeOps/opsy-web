@@ -79,6 +79,7 @@ import {
 import {
   IDENTITY_SECTIONS,
   isSectionComplete,
+  FIELD_ALIASES,
 } from "./constants/identitySections";
 import {
   RENTCAST_FIELD_KEYS,
@@ -569,9 +570,23 @@ function PropertyFormContainer() {
       const base = `/${accountUrl}/settings/support/data-adjustment`;
       const params = new URLSearchParams();
 
-      const currentVal =
-        mergedFormData?.[fieldKey] ??
-        mergedFormData?.identity?.[fieldKey];
+      const resolveCurrentVal = (key) => {
+        const v =
+          mergedFormData?.[key] ?? mergedFormData?.identity?.[key];
+        if (v != null && (typeof v !== "string" || String(v).trim() !== ""))
+          return v;
+        const aliases = FIELD_ALIASES[key];
+        if (aliases) {
+          for (const alt of aliases) {
+            const av =
+              mergedFormData?.[alt] ?? mergedFormData?.identity?.[alt];
+            if (av != null && (typeof av !== "string" || String(av).trim() !== ""))
+              return av;
+          }
+        }
+        return undefined;
+      };
+      const currentVal = resolveCurrentVal(fieldKey);
       if (currentVal != null && String(currentVal).trim() !== "") {
         params.set("currentValue", String(currentVal).trim());
       }

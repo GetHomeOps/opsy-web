@@ -15,15 +15,6 @@ import {
   dataAdjustmentToColumnStatus,
 } from "../kanbanConfig";
 
-/**
- * KPI tracker for support/feedback/data_adjustment management pages.
- * Displays ticket counts by status and priority, similar to Odoo helpdesk.
- * @param {Object} props
- * @param {'support'|'feedback'|'data_adjustment'} props.variant
- * @param {Array} props.tickets - Full list of tickets (unfiltered for true metrics)
- * @param {boolean} props.loading
- * @param {Function} props.tierToPriority - (tier) => 'urgent'|'high'|'medium'|'low' - support only
- */
 function TicketKpiTracker({
   variant,
   tickets = [],
@@ -45,10 +36,9 @@ function TicketKpiTracker({
   const inProgress = list.filter(
     (t) => toColumnStatus(t.status) === "in_progress",
   ).length;
-  const resolved =
-    variant === "support"
-      ? list.filter((t) => toColumnStatus(t.status) === "completed").length
-      : list.filter((t) => toColumnStatus(t.status) === "completed").length;
+  const resolved = list.filter(
+    (t) => toColumnStatus(t.status) === "completed",
+  ).length;
   const closed = list.filter(
     (t) => toColumnStatus(t.status) === "closed",
   ).length;
@@ -127,16 +117,16 @@ function TicketKpiTracker({
         return (
           <div
             key={item.label}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200/50 dark:border-gray-600/30 ${item.color}`}
+            className={`inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-gray-200/50 dark:border-gray-600/30 ${item.color} transition-colors`}
           >
             <Icon
               className={`w-4 h-4 shrink-0 ${item.iconColor}`}
               strokeWidth={2}
             />
-            <span className="text-sm font-medium tabular-nums">
+            <span className="text-sm font-semibold tabular-nums">
               {displayValue}
             </span>
-            <span className="text-sm opacity-90">{item.label}</span>
+            <span className="text-sm opacity-80">{item.label}</span>
           </div>
         );
       })}

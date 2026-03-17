@@ -3,7 +3,7 @@ import {useParams, useNavigate} from "react-router-dom";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
-import {Loader2, RefreshCw} from "lucide-react";
+import {Loader2, RefreshCw, ArrowLeft} from "lucide-react";
 import {
   TicketCard,
   KanbanColumn,
@@ -80,6 +80,7 @@ function FeedbackManagement() {
     () => [
       {type: "status", label: "Status"},
       {type: "planTier", label: "Plan"},
+      {type: "assignedTo", label: "Assigned"},
     ],
     [],
   );
@@ -88,8 +89,15 @@ function FeedbackManagement() {
     () => ({
       status: FEEDBACK_COLUMNS.map((c) => ({value: c.id, label: c.title})),
       planTier: planTiers.map((t) => ({value: t, label: t})),
+      assignedTo: [
+        {value: "__unassigned__", label: "Unassigned"},
+        ...admins.map((a) => ({
+          value: String(a.id),
+          label: a.name || a.email,
+        })),
+      ],
     }),
-    [planTiers],
+    [planTiers, admins],
   );
 
   const filteredTickets = useMemo(() => {
@@ -109,13 +117,22 @@ function FeedbackManagement() {
         byType.planTier.includes((t.subscriptionTier || "free").toLowerCase()),
       );
     }
+    if (byType.assignedTo?.length) {
+      list = list.filter((t) => {
+        if (byType.assignedTo.includes("__unassigned__")) {
+          if (t.assignedTo == null) return true;
+        }
+        return byType.assignedTo.includes(String(t.assignedTo));
+      });
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(
         (t) =>
           (t.subject || "").toLowerCase().includes(q) ||
           (t.description || "").toLowerCase().includes(q) ||
-          (t.createdByName || "").toLowerCase().includes(q),
+          (t.createdByName || "").toLowerCase().includes(q) ||
+          (t.assignedToName || "").toLowerCase().includes(q),
       );
     }
     return list;
@@ -168,7 +185,7 @@ function FeedbackManagement() {
   }
 
   function openDetail(ticket) {
-    navigate(`/${accountUrl}/feedback-management/${ticket.id}`);
+    navigate(`/${accountUrl}/helpdesk/feedback/${ticket.id}`);
   }
 
   function handleDragStart(e, ticket) {
@@ -183,8 +200,10 @@ function FeedbackManagement() {
     setDragOverColumn(columnId);
   }
 
-  function handleDragLeave() {
-    setDragOverColumn(null);
+  function handleDragLeave(e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverColumn(null);
+    }
   }
 
   function handleDrop(e, targetCol) {
@@ -216,14 +235,22 @@ function FeedbackManagement() {
         <main className="flex flex-col flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
           <div className={`${PAGE_LAYOUT.listPaddingX} py-6 flex-shrink-0`}>
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                  Feedback Management
-                </h1>
-                <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                  Click a ticket to open it. Use the grip handle to drag between
-                  columns.
-                </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/${accountUrl}/helpdesk`)}
+                  className="flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4 text-gray-500" />
+                </button>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                    Feedback
+                  </h1>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    Drag cards between columns to update status
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -278,6 +305,7 @@ function FeedbackManagement() {
                 {FEEDBACK_COLUMNS.map((col) => (
                   <KanbanColumn
                     key={col.id}
+                    id={col.id}
                     title={col.title}
                     count={ticketsByColumn[col.id]?.length || 0}
                     isDragOver={dragOverColumn === col.id}

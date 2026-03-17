@@ -3,8 +3,7 @@ import {useParams, useNavigate} from "react-router-dom";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
-import {TicketFormContainer} from "./components";
-import {PAGE_LAYOUT} from "../../constants/layout";
+import {TicketWorkspace} from "./components/workspace";
 import {
   supportToColumnStatus,
   columnToSupportStatus,
@@ -22,10 +21,6 @@ function tierToPriority(tier) {
   return "low";
 }
 
-/**
- * Full-page ticket detail view (Odoo-style).
- * Clicking a ticket on the Kanban navigates here instead of opening a modal.
- */
 function TicketDetailPage({variant = "support"}) {
   const {accountUrl, ticketId} = useParams();
   const navigate = useNavigate();
@@ -38,10 +33,10 @@ function TicketDetailPage({variant = "support"}) {
 
   const listPath =
     variant === "support"
-      ? `/${accountUrl}/support-management`
+      ? `/${accountUrl}/helpdesk/support`
       : variant === "feedback"
-        ? `/${accountUrl}/feedback-management`
-        : `/${accountUrl}/data-adjustment-management`;
+        ? `/${accountUrl}/helpdesk/feedback`
+        : `/${accountUrl}/helpdesk/data-adjustments`;
 
   const fetchTicket = useCallback(async () => {
     const id = Number(ticketId);
@@ -183,73 +178,53 @@ function TicketDetailPage({variant = "support"}) {
     navigate(listPath);
   }
 
-  if (loading) {
-    return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+  return (
+    <div className="flex h-[100dvh] overflow-hidden">
+      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
+        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+
+        {loading && (
           <main className="flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
-              <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-gray-600 dark:text-gray-400">
+              <div className="w-8 h-8 border-2 border-[#456564] border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Loading ticket...
               </p>
             </div>
           </main>
-        </div>
-      </div>
-    );
-  }
+        )}
 
-  if (error && !ticket) {
-    return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main
-            className={`flex-1 overflow-y-auto ${PAGE_LAYOUT.listPaddingX} py-8`}
-          >
-            <div className="max-w-2xl">
+        {error && !ticket && !loading && (
+          <main className="flex-1 flex items-center justify-center">
+            <div className="text-center max-w-sm">
               <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-              <div className="flex gap-2">
+              <div className="flex justify-center gap-3">
                 <button
                   type="button"
                   onClick={fetchTicket}
-                  className="btn bg-violet-600 text-white hover:bg-violet-700"
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-[#456564] text-white hover:bg-[#34514f] transition-colors"
                 >
                   Retry
                 </button>
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="btn bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                  className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
                   Back to list
                 </button>
               </div>
             </div>
           </main>
-        </div>
-      </div>
-    );
-  }
+        )}
 
-  return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main
-          className={`flex-1 overflow-y-auto ${PAGE_LAYOUT.listPaddingX} py-8`}
-        >
-          {ticket && (
-            <TicketFormContainer
+        {ticket && !loading && (
+          <main className="flex-1 overflow-hidden p-0 sm:p-2 lg:p-3">
+            <TicketWorkspace
               ticket={ticket}
               admins={admins}
               variant={variant}
-              asPage
               readOnly={false}
               onClose={handleClose}
               onStatusChange={handleStatusChange}
@@ -266,8 +241,8 @@ function TicketDetailPage({variant = "support"}) {
               onRefresh={fetchTicket}
               updating={updating}
             />
-          )}
-        </main>
+          </main>
+        )}
       </div>
     </div>
   );

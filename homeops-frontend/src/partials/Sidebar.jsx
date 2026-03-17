@@ -268,12 +268,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
       /\/my-professionals(\/|$)/.test(path)
     )
       return "directory";
-    if (
-      /\/support-management(\/|$)/.test(path) ||
-      /\/feedback-management(\/|$)/.test(path) ||
-      /\/data-adjustment-management(\/|$)/.test(path)
-    )
-      return "operations";
+    if (/\/helpdesk(\/|$)/.test(path)) return "helpdesk";
     if (
       /\/subscriptions(\/|$)/.test(path) ||
       /\/subscription-products(\/|$)/.test(path)

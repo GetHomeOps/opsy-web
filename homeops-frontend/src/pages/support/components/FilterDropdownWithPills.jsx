@@ -55,9 +55,9 @@ function FilterDropdownWithPills({
 
   return (
     <div className="space-y-3">
-      {/* Search + Filter button + Sort */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
+      {/* Search + Filter button + Sort — full width like PropertiesList */}
+      <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"

@@ -1349,17 +1349,27 @@ function SystemsSetupModal({
                 );
               })()}
 
-              {/* Property data fields: API-populated are locked, others editable */}
+              {/* Property data fields: only show fields with API data; API-populated are locked */}
               {hasPredicted && (
                 <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30 p-5 md:p-6 space-y-5 max-h-[45vh] overflow-y-auto">
-                  {AI_FIELD_GROUPS.map((group) => (
+                  {AI_FIELD_GROUPS.map((group) => {
+                    const fieldsWithData = group.fields.filter(
+                      (f) =>
+                        aiFields[f.key] !== undefined &&
+                        aiFields[f.key] !== null &&
+                        String(aiFields[f.key]).trim() !== "",
+                    );
+                    if (fieldsWithData.length === 0) return null;
+                    return (
                     <div key={group.label}>
                       <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
                         {group.label}
                       </h4>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {group.fields.map((f) => {
-                          const val = aiFields[f.key];
+                        {fieldsWithData.map((f) => {
+                          const val =
+                            aiFields[f.key] ??
+                            formData?.[f.key];
                           const isFromApi =
                             val !== undefined &&
                             val !== null &&
@@ -1377,6 +1387,9 @@ function SystemsSetupModal({
                               identityFields.address;
                             if (propertyLabel) {
                               params.set("propertyLabel", propertyLabel);
+                            }
+                            if (val != null && String(val).trim() !== "") {
+                              params.set("currentValue", String(val));
                             }
                             return `/${accountUrl}/settings/support/data-adjustment?${params.toString()}`;
                           })();
@@ -1422,7 +1435,8 @@ function SystemsSetupModal({
                         })}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

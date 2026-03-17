@@ -85,7 +85,7 @@ export const IDENTITY_SECTIONS = [
 ];
 
 /** Aliases for field keys (backend may use different names). */
-const FIELD_ALIASES = {
+export const FIELD_ALIASES = {
   taxId: ["parcelTaxId"],
   sqFtTotal: ["squareFeet"],
   bedCount: ["rooms"],
