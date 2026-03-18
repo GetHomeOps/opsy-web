@@ -42,8 +42,8 @@ function isSesConfigured() {
   );
 }
 
-async function sendViaSes({ to, subject, html }) {
-  const command = new SendEmailCommand({
+async function sendViaSes({ to, subject, html, replyTo }) {
+  const params = {
     Source: getFromAddress(),
     Destination: { ToAddresses: [to] },
     Message: {
@@ -52,7 +52,11 @@ async function sendViaSes({ to, subject, html }) {
         Html: { Data: html, Charset: "UTF-8" },
       },
     },
-  });
+  };
+  if (replyTo && replyTo.trim()) {
+    params.ReplyToAddresses = [replyTo.trim()];
+  }
+  const command = new SendEmailCommand(params);
 
   await sesClient.send(command);
   return { success: true };
@@ -167,9 +171,9 @@ async function sendContractorReportEmail({ to, reportUrl, contractorName, proper
 
 /**
  * Send scheduling notification email to a professional/contractor.
- * @param {Object} opts - { to, contractorName?, propertyAddress?, systemName?, scheduledDate?, scheduledTime?, messageBody?, senderName? }
+ * @param {Object} opts - { to, contractorName?, propertyAddress?, systemName?, scheduledDate?, scheduledTime?, messageBody?, senderName?, replyTo? }
  */
-async function sendScheduleNotificationEmail({ to, contractorName, propertyAddress, systemName, scheduledDate, scheduledTime, messageBody, senderName }) {
+async function sendScheduleNotificationEmail({ to, contractorName, propertyAddress, systemName, scheduledDate, scheduledTime, messageBody, senderName, replyTo }) {
   if (!isSesConfigured()) {
     console.warn("[emailService] SES not configured — skipping schedule notification email");
     return { success: false, reason: "ses_not_configured" };
@@ -227,7 +231,7 @@ async function sendScheduleNotificationEmail({ to, contractorName, propertyAddre
     </div>
   `;
 
-  return sendViaSes({ to, subject, html });
+  return sendViaSes({ to, subject, html, replyTo });
 }
 
 module.exports = {

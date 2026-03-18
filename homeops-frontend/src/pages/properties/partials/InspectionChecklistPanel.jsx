@@ -211,6 +211,7 @@ function SystemEventsModal({events, systemLabel, isOpen, onClose}) {
         <div className="space-y-2">
           {events.map((ev) => {
             const d = parseDateInput(ev.scheduled_date ?? ev.scheduledDate);
+            const todoTitle = ev.checklist_item_title ?? ev.checklistItemTitle;
             return (
               <div
                 key={ev.id}
@@ -220,6 +221,11 @@ function SystemEventsModal({events, systemLabel, isOpen, onClose}) {
                   <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div className="flex-1 min-w-0">
+                  {todoTitle && (
+                    <p className="text-xs font-medium text-[#456564] dark:text-[#7aa3a2] truncate mb-0.5">
+                      ToDo: {todoTitle}
+                    </p>
+                  )}
                   <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                     {d
                       ? d.toLocaleDateString("en-US", {
@@ -363,9 +369,20 @@ function ChecklistItem({
         {linkedEvent && onViewEvent && (
           <button
             type="button"
-            onClick={() => onViewEvent(linkedEvent)}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              setTimeout(() => onViewEvent(linkedEvent), 0);
+            }}
             className="inline-flex items-center px-1.5 py-1 rounded text-emerald-500 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all duration-150"
-            title={`Scheduled: ${linkedEvent.scheduled_date || "view event"}`}
+            title={(() => {
+              const d = parseDateInput(linkedEvent.scheduled_date ?? linkedEvent.scheduledDate);
+              const dateStr = d
+                ? d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+                : linkedEvent.scheduled_date || "—";
+              const contractor = linkedEvent.contractor_name || "No contractor";
+              return `${dateStr} · ${contractor}`;
+            })()}
           >
             <Calendar className="w-3.5 h-3.5" />
           </button>

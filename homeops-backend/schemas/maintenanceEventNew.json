@@ -31,6 +31,8 @@
     "email_reminder": {"type": "boolean"},
     "message_enabled": {"type": "boolean"},
     "message_body": {"type": ["string", "null"]},
+    "reply_email": {"type": ["string", "null"], "maxLength": 255},
+    "send_email_now": {"type": "boolean"},
     "timezone": {"type": ["string", "null"], "maxLength": 50},
     "checklist_item_id": {"type": ["integer", "null"]}
   },

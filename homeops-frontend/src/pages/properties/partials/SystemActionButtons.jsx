@@ -110,7 +110,8 @@ function SystemActionButtons({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            setShowScheduleModal(true);
+            e.preventDefault();
+            setTimeout(() => setShowScheduleModal(true), 0);
           }}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-emerald-200 dark:hover:bg-emerald-700/60 hover:text-emerald-800 dark:hover:text-emerald-100 transition-all duration-150"
           title="Schedule inspection or maintenance"

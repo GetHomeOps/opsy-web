@@ -2493,6 +2493,7 @@ function SystemsTab({
           <div className="space-y-2">
             {systemEventsModalEvents.map((ev) => {
               const d = parseDateInput(ev.scheduled_date ?? ev.scheduledDate);
+              const todoTitle = ev.checklist_item_title ?? ev.checklistItemTitle;
               return (
                 <div
                   key={ev.id}
@@ -2502,6 +2503,11 @@ function SystemsTab({
                     <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <div className="flex-1 min-w-0">
+                    {todoTitle && (
+                      <p className="text-xs font-medium text-[#456564] dark:text-[#7aa3a2] truncate mb-0.5">
+                        ToDo: {todoTitle}
+                      </p>
+                    )}
                     <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                       {d
                         ? d.toLocaleDateString("en-US", {

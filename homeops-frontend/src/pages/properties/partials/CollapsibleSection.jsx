@@ -445,10 +445,14 @@ function CollapsibleSection({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
+                      e.preventDefault();
                       const sysEvents = (maintenanceEvents || []).filter(
                         (ev) => (ev.system_key ?? ev.systemKey) === systemType,
                       );
-                      onViewSystemEvents?.(sysEvents, title || systemLabel);
+                      setTimeout(
+                        () => onViewSystemEvents?.(sysEvents, title || systemLabel),
+                        0,
+                      );
                     }}
                     className="inline-flex items-center justify-center w-[18px] h-[18px] text-emerald-600 dark:text-emerald-500/90 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors"
                   >

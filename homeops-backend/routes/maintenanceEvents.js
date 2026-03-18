@@ -188,14 +188,16 @@ router.post(
       }
 
       const contractorEmail = req.body.contractor_email;
-      if (contractorEmail) {
+      const sendEmailNow = req.body.send_email_now === true;
+      if (contractorEmail && sendEmailNow) {
         try {
           const userRes = await db.query(
-            `SELECT first_name, last_name FROM users WHERE id = $1`,
+            `SELECT name, email FROM users WHERE id = $1`,
             [res.locals.user.id]
           );
           const u = userRes.rows[0];
-          const senderName = u ? `${u.first_name || ""} ${u.last_name || ""}`.trim() : null;
+          const senderName = u?.name?.trim() || null;
+          const replyTo = req.body.reply_email?.trim() || u?.email || res.locals.user?.email || null;
           const propertyAddress = propRow ? [propRow.address, propRow.city, propRow.state].filter(Boolean).join(", ") : null;
 
           await sendScheduleNotificationEmail({
@@ -207,6 +209,7 @@ router.post(
             scheduledTime: event.scheduled_time,
             messageBody: event.message_body,
             senderName,
+            replyTo,
           });
         } catch (emailErr) {
           console.error("[emailService] Failed to send schedule notification:", emailErr.message);

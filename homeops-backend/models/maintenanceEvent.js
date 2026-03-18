@@ -53,13 +53,25 @@ class MaintenanceEvent {
 
   static async getByPropertyId(propertyId) {
     const result = await db.query(
-      `SELECT ${COLUMNS}
-       FROM maintenance_events
-       WHERE property_id = $1
-       ORDER BY scheduled_date ASC, scheduled_time ASC NULLS LAST`,
+      `SELECT me.id, me.property_id, me.system_key, me.system_name,
+         me.contractor_id, me.contractor_source, me.contractor_name,
+         me.scheduled_date, me.scheduled_time,
+         me.recurrence_type, me.recurrence_interval_value, me.recurrence_interval_unit,
+         me.alert_timing, me.alert_custom_days, me.email_reminder,
+         me.message_enabled, me.message_body,
+         me.status, me.timezone, me.checklist_item_id, me.created_by,
+         me.created_at, me.updated_at,
+         ici.title AS checklist_item_title
+       FROM maintenance_events me
+       LEFT JOIN inspection_checklist_items ici ON me.checklist_item_id = ici.id
+       WHERE me.property_id = $1
+       ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
       [propertyId],
     );
-    return result.rows;
+    return result.rows.map((r) => {
+      const { checklist_item_title, ...rest } = r;
+      return { ...rest, checklist_item_title: checklist_item_title || null };
+    });
   }
 
   static async getById(id) {

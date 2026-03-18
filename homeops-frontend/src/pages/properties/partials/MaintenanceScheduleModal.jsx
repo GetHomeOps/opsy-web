@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useMemo, useCallback, useRef} from "react";
 import {createPortal} from "react-dom";
 import {useNavigate, useParams} from "react-router-dom";
+import {useAuth} from "../../../context/AuthContext";
 import {
   X,
   Calendar,
@@ -327,6 +328,7 @@ function ContractorStep({
                     id: `contact-${c.id}`,
                     sourceId: c.id,
                     name: c.name,
+                    email: c.email || null,
                     source: "contact",
                   });
                   setContractorSearch("");
@@ -369,6 +371,7 @@ function ContractorStep({
                     id: `pro-${p.id}`,
                     sourceId: p.id,
                     name: proDisplayName(p),
+                    email: p.email || null,
                     source: "professional",
                   });
                   setContractorSearch("");
@@ -585,6 +588,8 @@ function ScheduleStep({
   checklistItems = [],
   selectedChecklistItemId,
   setSelectedChecklistItemId,
+  sendEmail,
+  setSendEmail,
 }) {
   return (
     <div className="space-y-6">
@@ -595,6 +600,31 @@ function ScheduleStep({
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Pick a date and configure recurrence and reminders.
         </p>
+      </div>
+
+      {/* Send email toggle */}
+      <div className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
+        <div className="flex items-center gap-2">
+          <Mail className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Send email to contractor when scheduling
+          </span>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={sendEmail}
+          onClick={() => setSendEmail(!sendEmail)}
+          className={`relative w-11 h-6 rounded-full transition-colors ${
+            sendEmail ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
+          }`}
+        >
+          <span
+            className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+              sendEmail ? "left-6" : "left-1"
+            }`}
+          />
+        </button>
       </div>
 
       {/* Date & Time */}
@@ -631,7 +661,12 @@ function ScheduleStep({
       </div>
 
       {/* Link to ToDo (checklist item) */}
-      {checklistItems.length > 0 && (
+      {(() => {
+        const pendingItems = checklistItems.filter(
+          (item) => (item.status || "").toLowerCase() !== "completed"
+        );
+        return pendingItems.length > 0;
+      })() && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             Link to ToDo
@@ -644,7 +679,11 @@ function ScheduleStep({
             className="form-select w-full"
           >
             <option value="">None — general maintenance</option>
-            {checklistItems.map((item) => (
+            {checklistItems
+              .filter(
+                (item) => (item.status || "").toLowerCase() !== "completed"
+              )
+              .map((item) => (
               <option key={item.id} value={item.id}>
                 {item.title}
                 {item.priority && item.priority !== "medium"
@@ -1014,6 +1053,7 @@ function MaintenanceScheduleModal({
 }) {
   const navigate = useNavigate();
   const {accountUrl} = useParams();
+  const {currentUser} = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1047,6 +1087,7 @@ function MaintenanceScheduleModal({
   const [aiAdvice, setAiAdvice] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [calendarIntegrations, setCalendarIntegrations] = useState([]);
+  const [sendEmail, setSendEmail] = useState(true);
 
   const propertyName =
     propertyData.propertyName ||
@@ -1116,6 +1157,7 @@ function MaintenanceScheduleModal({
       setShowAI(false);
       setAiAdvice(null);
       setAiLoading(false);
+      setSendEmail(true);
     }
   }, [
     isOpen,
@@ -1219,6 +1261,13 @@ function MaintenanceScheduleModal({
       email_reminder: emailReminder,
       message_enabled: messageEnabled && !!selectedContractor,
       message_body: messageEnabled ? messageBody : null,
+      contractor_email:
+        sendEmail && selectedContractor?.email
+          ? selectedContractor.email
+          : null,
+      reply_email:
+        currentUser?.data?.email || currentUser?.email || null,
+      send_email_now: sendEmail && !!selectedContractor?.email,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
 
@@ -1319,6 +1368,8 @@ function MaintenanceScheduleModal({
             checklistItems={checklistItems}
             selectedChecklistItemId={selectedChecklistItemId}
             setSelectedChecklistItemId={setSelectedChecklistItemId}
+            sendEmail={sendEmail}
+            setSendEmail={setSendEmail}
           />
         )}
         {currentStep === 3 && (
@@ -1386,16 +1437,33 @@ function MaintenanceScheduleModal({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={!scheduledDate || saving}
-                className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={
+                  !scheduledDate ||
+                  saving ||
+                  (sendEmail && !selectedContractor?.email)
+                }
+                className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                title={
+                  sendEmail && !selectedContractor?.email
+                    ? "Select a contractor with an email to send"
+                    : undefined
+                }
               >
                 {saving ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Saving...
                   </span>
+                ) : sendEmail && selectedContractor?.email ? (
+                  <>
+                    <Mail className="w-4 h-4" />
+                    Send email and schedule
+                  </>
                 ) : (
-                  "Schedule"
+                  <>
+                    <Calendar className="w-4 h-4" />
+                    Schedule
+                  </>
                 )}
               </button>
             )}

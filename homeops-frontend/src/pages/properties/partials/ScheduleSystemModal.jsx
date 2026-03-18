@@ -2,6 +2,7 @@ import React, {useState, useEffect, useMemo, useCallback, useRef} from "react";
 import {createPortal} from "react-dom";
 import {useParams} from "react-router-dom";
 import useCurrentAccount from "../../../hooks/useCurrentAccount";
+import {useAuth} from "../../../context/AuthContext";
 import {
   X,
   Calendar,
@@ -12,9 +13,9 @@ import {
   Clock,
   Bell,
   Star,
-  MessageSquare,
   Loader2,
   Wrench,
+  Mail,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
@@ -60,14 +61,14 @@ Thank you!`;
 
 /* ──────────────────────────── Step Indicator ──────────────────────────── */
 
-/** Fixed slot widths keep circles/labels aligned and avoid over-stretching */
-const STEP_SLOT_CLASS = "w-14 sm:w-16 flex-shrink-0";
-const CONNECTOR_LINE_CLASS = "w-6 sm:w-8 h-0.5 mx-0.5 sm:mx-1 flex-shrink-0";
+/** Fixed slot widths keep circles/labels aligned — wide enough for "Professional" */
+const STEP_SLOT_CLASS = "w-20 sm:w-24 flex-shrink-0";
+const CONNECTOR_LINE_CLASS = "w-8 sm:w-10 h-0.5 mx-1 sm:mx-2 flex-shrink-0";
 
 function StepIndicator({currentStep, steps}) {
   return (
     <div className="mb-6 flex justify-center">
-      <div className="w-full max-w-[320px] sm:max-w-[360px]">
+      <div className="w-full max-w-[420px] sm:max-w-[480px]">
         {/* Circles and connector lines */}
         <div className="flex items-center justify-center">
           {steps.map((step, idx) => {
@@ -117,7 +118,7 @@ function StepIndicator({currentStep, steps}) {
                   <div className={CONNECTOR_LINE_CLASS} aria-hidden />
                 )}
                 <span
-                  className={`${STEP_SLOT_CLASS} text-[10px] sm:text-xs font-medium text-center leading-tight block px-1 whitespace-normal break-words ${
+                  className={`${STEP_SLOT_CLASS} text-[10px] sm:text-xs font-medium text-center leading-tight block px-0.5 whitespace-nowrap ${
                     isActive || isCompleted
                       ? "text-[#456564] dark:text-[#7aa3a2]"
                       : "text-gray-400 dark:text-gray-500"
@@ -473,6 +474,8 @@ function DetailsStep({
   checklistItems = [],
   selectedChecklistItemId,
   setSelectedChecklistItemId,
+  sendEmail,
+  setSendEmail,
 }) {
   const hasRecommendations =
     scheduleType === "inspection" &&
@@ -486,9 +489,46 @@ function DetailsStep({
           Scheduling Details
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Pick a date and time, add notes, and set a reminder.
+          Pick a date and time and set a reminder.
         </p>
       </div>
+
+      {(() => {
+        const pendingItems = checklistItems.filter(
+          (item) => (item.status || "").toLowerCase() !== "completed"
+        );
+        return pendingItems.length > 0;
+      })() && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            Link to ToDo
+          </label>
+          <select
+            value={selectedChecklistItemId ?? ""}
+            onChange={(e) =>
+              setSelectedChecklistItemId(e.target.value || null)
+            }
+            className="form-select w-full"
+          >
+            <option value="">None — general event</option>
+            {checklistItems
+              .filter(
+                (item) => (item.status || "").toLowerCase() !== "completed"
+              )
+              .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+                {item.priority && item.priority !== "medium"
+                  ? ` (${item.priority})`
+                  : ""}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            Link this event to an inspection checklist item
+          </p>
+        </div>
+      )}
 
       {scheduleType === "inspection" && (
         <div className="rounded-lg border border-[#456564]/20 dark:border-[#7aa3a2]/30 bg-[#456564]/5 dark:bg-[#456564]/10 p-4">
@@ -519,6 +559,30 @@ function DetailsStep({
           )}
         </div>
       )}
+
+      <div className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
+        <div className="flex items-center gap-2">
+          <Mail className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Send email to contractor when scheduling
+          </span>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={sendEmail}
+          onClick={() => setSendEmail(!sendEmail)}
+          className={`relative w-11 h-6 rounded-full transition-colors ${
+            sendEmail ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
+          }`}
+        >
+          <span
+            className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+              sendEmail ? "left-6" : "left-1"
+            }`}
+          />
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
@@ -551,34 +615,6 @@ function DetailsStep({
           />
         </div>
       </div>
-
-      {checklistItems.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            Link to ToDo
-          </label>
-          <select
-            value={selectedChecklistItemId ?? ""}
-            onChange={(e) =>
-              setSelectedChecklistItemId(e.target.value || null)
-            }
-            className="form-select w-full"
-          >
-            <option value="">None — general event</option>
-            {checklistItems.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-                {item.priority && item.priority !== "medium"
-                  ? ` (${item.priority})`
-                  : ""}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-            Link this event to an inspection checklist item
-          </p>
-        </div>
-      )}
     </div>
   );
 }
@@ -592,9 +628,98 @@ const ALERT_OPTIONS = [
   {id: "2w", label: "2 weeks before"},
 ];
 
+function formatTimeForPreview(time) {
+  if (!time) return "";
+  const [h, m] = (time || "").split(":");
+  const hour = parseInt(h, 10);
+  if (isNaN(hour)) return time;
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${m || "00"} ${ampm}`;
+}
+
+function EmailPreview({
+  contractorName,
+  contractorEmail,
+  propertyAddress,
+  systemName,
+  scheduledDate,
+  scheduledTime,
+  messageBody,
+  setMessageBody,
+  senderName,
+  replyEmail,
+}) {
+  const formattedDate = scheduledDate
+    ? new Date(scheduledDate + "T00:00:00").toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "[date not set]";
+  const formattedTime = formatTimeForPreview(scheduledTime);
+
+  return (
+    <div className="flex flex-col h-full min-h-[320px] rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+        <Mail className="w-4 h-4 text-[#456564] flex-shrink-0" />
+        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+          Email Preview
+        </span>
+      </div>
+      <div className="flex-1 overflow-auto p-4 text-sm space-y-3">
+        <div className="space-y-1 text-gray-600 dark:text-gray-400">
+          <p>
+            <span className="font-medium text-gray-500 dark:text-gray-500">To:</span>{" "}
+            {contractorEmail ? (
+              <>
+                {contractorName || "Contractor"}
+                <span className="text-gray-400"> &lt;{contractorEmail}&gt;</span>
+              </>
+            ) : (
+              <span className="italic">No contractor selected</span>
+            )}
+          </p>
+          {replyEmail && (
+            <p>
+              <span className="font-medium text-gray-500 dark:text-gray-500">Reply-To:</span>{" "}
+              {replyEmail}
+            </p>
+          )}
+          <p>
+            <span className="font-medium text-gray-500 dark:text-gray-500">Subject:</span>{" "}
+            Service scheduled — {systemName || "Maintenance"}
+            {propertyAddress ? ` at ${propertyAddress}` : ""}
+          </p>
+        </div>
+        <div className="border-t border-gray-200 dark:border-gray-600 pt-3 mt-3">
+          <textarea
+            value={messageBody || ""}
+            onChange={(e) => setMessageBody(e.target.value)}
+            placeholder="Hi, I'd like to schedule..."
+            rows={8}
+            className="form-input w-full resize-y text-sm leading-relaxed min-h-[120px] border-gray-200 dark:border-gray-600"
+          />
+          {(propertyAddress || systemName || formattedDate) && (
+            <div className="mt-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 text-xs space-y-1">
+              {propertyAddress && <p><span className="font-medium">Property:</span> {propertyAddress}</p>}
+              {systemName && <p><span className="font-medium">System:</span> {systemName}</p>}
+              <p><span className="font-medium">Date:</span> {formattedDate}{formattedTime ? ` at ${formattedTime}` : ""}</p>
+              {senderName && <p><span className="font-medium">Requested by:</span> {senderName}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MessageStep({
   messageBody,
   setMessageBody,
+  replyEmail,
+  setReplyEmail,
   alertEnabled,
   setAlertEnabled,
   alertTiming,
@@ -603,103 +728,154 @@ function MessageStep({
   setAlertDate,
   alertTime,
   setAlertTime,
+  selectedProfessional,
+  propertyName,
+  systemLabel,
+  scheduledDate,
+  scheduledTime,
+  scheduleType,
+  senderName,
+  maintenanceRecommendations = [],
+  maintenanceLoading = false,
 }) {
+  const propertyAddress = propertyName; // Could be expanded with full address
+  const hasRecommendations =
+    scheduleType === "inspection" &&
+    Array.isArray(maintenanceRecommendations) &&
+    maintenanceRecommendations.length > 0;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-          Message your contractor
-        </h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Add a message to send with the scheduling request.
-        </p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-          <span className="flex items-center gap-1.5">
-            <MessageSquare className="w-4 h-4 text-[#456564]" />
-            Message
-          </span>
-        </label>
-        <textarea
-          value={messageBody}
-          onChange={(e) => setMessageBody(e.target.value)}
-          placeholder="Hi, I'd like to schedule..."
-          rows={6}
-          className="form-input w-full resize-none text-sm leading-relaxed"
-        />
-      </div>
-
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Bell className="w-4 h-4 text-[#456564]" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Set up alert/reminder
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-5">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            <span className="flex items-center gap-1.5">
+              <Mail className="w-4 h-4 text-[#456564]" />
+              Reply-to email
             </span>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={alertEnabled}
-            onClick={() => setAlertEnabled(!alertEnabled)}
-            className={`relative w-11 h-6 rounded-full transition-colors ${
-              alertEnabled ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                alertEnabled ? "left-6" : "left-1"
-              }`}
-            />
-          </button>
+          </label>
+          <input
+            type="email"
+            value={replyEmail}
+            onChange={(e) => setReplyEmail(e.target.value)}
+            placeholder="your@email.com"
+            className="form-input w-full text-sm"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Contractors will reply to this address instead of no-reply.
+          </p>
         </div>
-        {alertEnabled && (
-          <div className="space-y-3 mt-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                Remind me
-              </label>
-              <select
-                value={alertTiming}
-                onChange={(e) => setAlertTiming(e.target.value)}
-                className="form-select w-full text-sm"
-              >
-                {ALERT_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
+
+        {scheduleType === "inspection" && (hasRecommendations || maintenanceLoading) && (
+          <div className="rounded-lg border border-[#456564]/20 dark:border-[#7aa3a2]/30 bg-[#456564]/5 dark:bg-[#456564]/10 p-4">
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1.5">
+              <Wrench className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
+              Suggested inspection scope
+            </h4>
+            {maintenanceLoading ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Loading recommendations...
+              </p>
+            ) : hasRecommendations ? (
+              <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1.5">
+                {maintenanceRecommendations.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2] flex-shrink-0 mt-0.5" />
+                    <span>
+                      {typeof item === "string" ? item : item.task || item}
+                    </span>
+                  </li>
                 ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Or pick specific date
-                </label>
-                <DatePickerInput
-                  name="alertDate"
-                  value={alertDate}
-                  onChange={(e) => setAlertDate(e.target.value)}
-                  popoverClassName="z-[250]"
-                  showOffsetControl
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Time
-                </label>
-                <input
-                  type="time"
-                  value={alertTime}
-                  onChange={(e) => setAlertTime(e.target.value)}
-                  className="form-input w-full text-sm"
-                />
-              </div>
-            </div>
+              </ul>
+            ) : null}
           </div>
         )}
+
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-[#456564]" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Set up alert/reminder
+              </span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={alertEnabled}
+              onClick={() => setAlertEnabled(!alertEnabled)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                alertEnabled ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
+              }`}
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                  alertEnabled ? "left-6" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+          {alertEnabled && (
+            <div className="space-y-3 mt-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Remind me
+                </label>
+                <select
+                  value={alertTiming}
+                  onChange={(e) => setAlertTiming(e.target.value)}
+                  className="form-select w-full text-sm"
+                >
+                  {ALERT_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    Or pick specific date
+                  </label>
+                  <DatePickerInput
+                    name="alertDate"
+                    value={alertDate}
+                    onChange={(e) => setAlertDate(e.target.value)}
+                    popoverClassName="z-[250]"
+                    showOffsetControl
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    Time
+                  </label>
+                  <input
+                    type="time"
+                    value={alertTime}
+                    onChange={(e) => setAlertTime(e.target.value)}
+                    className="form-input w-full text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="lg:min-h-[320px]">
+        <EmailPreview
+          contractorName={selectedProfessional?.name}
+          contractorEmail={selectedProfessional?.email}
+          propertyAddress={propertyName}
+          systemName={systemLabel}
+          scheduledDate={scheduledDate}
+          scheduledTime={scheduledTime}
+          messageBody={messageBody}
+          setMessageBody={setMessageBody}
+          senderName={senderName}
+          replyEmail={replyEmail?.trim() || null}
+        />
       </div>
     </div>
   );
@@ -726,10 +902,12 @@ function ScheduleSystemModal({
 }) {
   const {accountUrl: paramAccountUrl} = useParams();
   const {currentAccount} = useCurrentAccount();
+  const {currentUser} = useAuth();
   const accountUrl = paramAccountUrl || currentAccount?.url || "";
   const [currentStep, setCurrentStep] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState(null); // "email" | "schedule"
   const [submitError, setSubmitError] = useState(null);
 
   const [scheduleType, setScheduleType] = useState(null);
@@ -743,6 +921,7 @@ function ScheduleSystemModal({
   const [selectedChecklistItemId, setSelectedChecklistItemId] = useState(null);
   const [checklistItems, setChecklistItems] = useState([]);
   const [messageBody, setMessageBody] = useState("");
+  const [replyEmail, setReplyEmail] = useState("");
   const [maintenanceRecommendations, setMaintenanceRecommendations] = useState(
     [],
   );
@@ -751,6 +930,7 @@ function ScheduleSystemModal({
   const [alertTiming, setAlertTiming] = useState("3d");
   const [alertDate, setAlertDate] = useState("");
   const [alertTime, setAlertTime] = useState("");
+  const [sendEmail, setSendEmail] = useState(true);
 
   const propertyName =
     propertyData?.propertyName ||
@@ -805,14 +985,20 @@ function ScheduleSystemModal({
       setScheduledTime("");
       setSelectedChecklistItemId(checklistItemId || null);
       setMessageBody("");
+      setReplyEmail(
+        currentUser?.data?.email ||
+          currentUser?.email ||
+          "",
+      );
       setMaintenanceRecommendations([]);
       setMaintenanceLoading(false);
       setAlertEnabled(true);
       setAlertTiming("3d");
       setAlertDate("");
       setAlertTime("");
+      setSendEmail(true);
     }
-  }, [isOpen]);
+  }, [isOpen, currentUser?.data?.email, currentUser?.email]);
   useEffect(() => {
     if (
       !isOpen ||
@@ -888,8 +1074,9 @@ function ScheduleSystemModal({
     return true;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (sendEmailNow = false) => {
     setSubmitError(null);
+    setSavingAction(sendEmailNow ? "email" : "schedule");
     const effectiveTime = scheduledTime?.trim() || getCurrentTimeHHMM();
     if (scheduledDate && onSchedule) {
       onSchedule(scheduledDate);
@@ -938,7 +1125,10 @@ function ScheduleSystemModal({
       contractor_id: selectedProfessional?.sourceId ?? null,
       contractor_source: selectedProfessional?.source ?? null,
       contractor_name: selectedProfessional?.name ?? null,
-      contractor_email: selectedProfessional?.email ?? null,
+      contractor_email:
+        sendEmailNow && selectedProfessional?.email
+          ? selectedProfessional.email
+          : null,
       scheduled_date: scheduledDate,
       scheduled_time: effectiveTime,
       recurrence_type: "one-time",
@@ -947,6 +1137,8 @@ function ScheduleSystemModal({
       email_reminder: alertEnabled,
       message_enabled: !!messageBody?.trim(),
       message_body: messageBody?.trim() || null,
+      reply_email: replyEmail?.trim() || null,
+      send_email_now: sendEmailNow,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       checklist_item_id: selectedChecklistItemId
         ? parseInt(selectedChecklistItemId, 10)
@@ -973,6 +1165,7 @@ function ScheduleSystemModal({
       );
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   };
 
@@ -983,7 +1176,7 @@ function ScheduleSystemModal({
         modalOpen={isOpen}
         setModalOpen={onClose}
         closeOnClickOutside={false}
-        contentClassName="max-w-md"
+        contentClassName="max-w-4xl"
       >
         <div className="relative p-8 flex flex-col items-center justify-center min-h-[200px]">
           <div className="flex flex-col items-center gap-3">
@@ -1009,7 +1202,7 @@ function ScheduleSystemModal({
       modalOpen={isOpen}
       setModalOpen={onClose}
       closeOnClickOutside={false}
-      contentClassName="max-w-lg"
+      contentClassName="max-w-4xl"
     >
       <div className="relative p-6">
         <div className="flex items-center justify-between mb-4">
@@ -1081,12 +1274,16 @@ function ScheduleSystemModal({
               checklistItems={checklistItems}
               selectedChecklistItemId={selectedChecklistItemId}
               setSelectedChecklistItemId={setSelectedChecklistItemId}
+              sendEmail={sendEmail}
+              setSendEmail={setSendEmail}
             />
           )}
           {currentStep === 3 && (
             <MessageStep
               messageBody={messageBody}
               setMessageBody={setMessageBody}
+              replyEmail={replyEmail}
+              setReplyEmail={setReplyEmail}
               alertEnabled={alertEnabled}
               setAlertEnabled={setAlertEnabled}
               alertTiming={alertTiming}
@@ -1095,6 +1292,17 @@ function ScheduleSystemModal({
               setAlertDate={setAlertDate}
               alertTime={alertTime}
               setAlertTime={setAlertTime}
+              selectedProfessional={selectedProfessional}
+              propertyName={propertyName}
+              systemLabel={systemLabel}
+              scheduledDate={scheduledDate}
+              scheduledTime={scheduledTime}
+              scheduleType={scheduleType}
+              senderName={
+                currentUser?.data?.name || currentUser?.name || ""
+              }
+              maintenanceRecommendations={maintenanceRecommendations}
+              maintenanceLoading={maintenanceLoading}
             />
           )}
         </div>
@@ -1135,17 +1343,38 @@ function ScheduleSystemModal({
             ) : (
               <button
                 type="button"
-                onClick={handleSubmit}
-                disabled={!scheduledDate || saving}
+                onClick={() =>
+                  handleSubmit(sendEmail && !!selectedProfessional?.email)
+                }
+                disabled={
+                  !scheduledDate ||
+                  saving ||
+                  (sendEmail && !selectedProfessional?.email)
+                }
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                title={
+                  sendEmail && !selectedProfessional?.email
+                    ? "Select a contractor with an email to send"
+                    : undefined
+                }
               >
                 {saving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Saving...
+                    {savingAction === "email"
+                      ? "Sending..."
+                      : "Saving..."}
+                  </>
+                ) : sendEmail && selectedProfessional?.email ? (
+                  <>
+                    <Mail className="w-4 h-4" />
+                    Send email and schedule
                   </>
                 ) : (
-                  "Schedule"
+                  <>
+                    <Calendar className="w-4 h-4" />
+                    Schedule
+                  </>
                 )}
               </button>
             )}
