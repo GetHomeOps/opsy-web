@@ -240,18 +240,19 @@ function HelpdeskPage() {
                       initial={{opacity: 0, y: 20}}
                       animate={{opacity: 1, y: 0}}
                       transition={{delay: idx * 0.08, duration: 0.35}}
+                      className="h-full"
                     >
                       <button
                         type="button"
                         onClick={() => navigate(card.path)}
-                        className="w-full text-left group relative rounded-2xl border border-gray-200/80 dark:border-gray-700/60 bg-white dark:bg-gray-800 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 dark:focus:ring-offset-gray-900"
+                        className="w-full h-full text-left group relative rounded-2xl border border-gray-200/80 dark:border-gray-700/60 bg-white dark:bg-gray-800 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 dark:focus:ring-offset-gray-900 flex flex-col items-stretch"
                       >
                         {/* Gradient accent strip */}
                         <div
                           className={`h-1.5 bg-gradient-to-r ${card.color}`}
                         />
 
-                        <div className="p-6">
+                        <div className="flex-1 flex flex-col p-6">
                           {/* Header */}
                           <div className="flex items-start justify-between mb-4">
                             <div

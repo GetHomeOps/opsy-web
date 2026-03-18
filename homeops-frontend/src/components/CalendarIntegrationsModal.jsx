@@ -1,6 +1,7 @@
 import React, {useState, useEffect} from "react";
 import {useTranslation} from "react-i18next";
 import {Calendar, CheckCircle2, Loader2} from "lucide-react";
+import { GoogleCalendarIcon, MicrosoftOutlookIcon } from "./CalendarProviderIcons";
 import ModalBlank from "./ModalBlank";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -61,9 +62,9 @@ function CalendarIntegrationsModal({isOpen, onClose}) {
         ) : (
           <div className="space-y-3">
             {[
-              {provider: "google", label: "Google Calendar"},
-              {provider: "outlook", label: "Microsoft Outlook"},
-            ].map(({provider, label}) => {
+              {provider: "google", label: "Google Calendar", Icon: GoogleCalendarIcon},
+              {provider: "outlook", label: "Microsoft Outlook", Icon: MicrosoftOutlookIcon},
+            ].map(({provider, label, Icon}) => {
               const integration = calendarIntegrations.find(
                 (i) => i.provider === provider,
               );
@@ -75,10 +76,11 @@ function CalendarIntegrationsModal({isOpen, onClose}) {
                 >
                   <div className="flex items-center gap-3">
                     {integration ? (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                     ) : (
-                      <div className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600" />
+                      <div className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0" />
                     )}
+                    <Icon className="w-5 h-5 flex-shrink-0" />
                     <span className="font-medium text-gray-800 dark:text-gray-100">
                       {label}
                     </span>

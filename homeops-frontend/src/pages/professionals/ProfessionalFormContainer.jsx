@@ -97,6 +97,7 @@ const initialState = {
   bannerMessage: "",
   projectPhotos: [],
   uploadingPhotos: false,
+  activeTab: 1,
 };
 
 function reducer(state, action) {
@@ -137,6 +138,8 @@ function reducer(state, action) {
       };
     case "SET_UPLOADING_PHOTOS":
       return {...state, uploadingPhotos: action.payload};
+    case "SET_ACTIVE_TAB":
+      return {...state, activeTab: action.payload};
     case "LOAD_PROFESSIONAL":
       return {
         ...state,
@@ -555,6 +558,18 @@ function ProfessionalFormContainer() {
       err[field] ? "!border-red-500" : ""
     }`;
 
+  const tabs = [
+    {id: 1, label: "Company"},
+    {id: 2, label: "Address"},
+    {id: 3, label: "Category & Services"},
+    {id: 4, label: "About"},
+    {id: 5, label: "Project Gallery"},
+  ];
+
+  const handleTabChange = (tabId) => {
+    dispatch({type: "SET_ACTIVE_TAB", payload: tabId});
+  };
+
   /* ─── Render ───────────────────────────────────────────────── */
 
   return (
@@ -700,8 +715,32 @@ function ProfessionalFormContainer() {
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-              <div className="p-6 space-y-8">
-                {/* ─── Company & Contact Info (required fields at top) ───── */}
+              <div className="border-b border-gray-200 dark:border-gray-700">
+                <div className="px-6">
+                  <nav className="flex flex-wrap gap-x-8 gap-y-2" aria-label="Tabs">
+                    {tabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => handleTabChange(tab.id)}
+                        className={`
+                          relative py-4 px-1 text-sm font-medium border-b-2 transition-colors duration-200
+                          ${
+                            state.activeTab === tab.id
+                              ? "border-[#456564] text-[#456564]"
+                              : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600"
+                          }
+                        `}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {state.activeTab === 1 && (
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-[#456564]" />
@@ -804,8 +843,10 @@ function ProfessionalFormContainer() {
                     </div>
                   </div>
                 </div>
+                )}
 
-                {/* ─── Address ─────────────────────────────────── */}
+                {state.activeTab === 2 && (
+                /* ─── Address ─────────────────────────────────── */
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-[#456564]" />
@@ -918,8 +959,9 @@ function ProfessionalFormContainer() {
                     </div>
                   </div>
                 </div>
+                )}
 
-                {/* ─── Category & Services ─────────────────────── */}
+                {state.activeTab === 3 && (
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                     <Briefcase className="h-5 w-5 text-[#456564]" />
@@ -1066,8 +1108,9 @@ function ProfessionalFormContainer() {
                     </div>
                   </div>
                 </div>
+                )}
 
-                {/* ─── About & Languages ───────────────────────── */}
+                {state.activeTab === 4 && (
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                     <FileText className="h-5 w-5 text-[#456564]" />
@@ -1115,8 +1158,9 @@ function ProfessionalFormContainer() {
                     </div>
                   </div>
                 </div>
+                )}
 
-                {/* ─── Project Gallery ─────────────────────────── */}
+                {state.activeTab === 5 && (
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                     <Camera className="h-5 w-5 text-[#456564]" />
@@ -1205,6 +1249,7 @@ function ProfessionalFormContainer() {
                     </p>
                   )}
                 </div>
+                )}
               </div>
 
               {/* ─── Save Footer ─────────────────────────────── */}
