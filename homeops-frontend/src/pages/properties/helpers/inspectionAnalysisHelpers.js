@@ -3,44 +3,35 @@
  * Aligns with backend SYSTEM_ALIASES and CANONICAL_SYSTEMS.
  */
 
-const SYSTEM_ALIASES = {
-  hvac: ["heating", "ac"],
-  "windows/doors": "windows",
-  "water heater": "waterHeating",
-  "gutters/drainage": "gutters",
-  "fire safety": "safety",
-  "air conditioning": "ac",
-  "water heating": "waterHeating",
-  exterior: "exterior",
-  siding: "exterior",
-};
+import {
+  normalizeAiSystemToken,
+  mapAiSystemTypeToIds,
+} from "./aiSystemNormalization";
 
-const CANONICAL_IDS = [
-  "roof",
-  "gutters",
-  "foundation",
-  "exterior",
-  "windows",
-  "heating",
-  "ac",
-  "waterHeating",
-  "electrical",
-  "plumbing",
-  "safety",
-  "inspections",
-];
+function getSystemKeyTokens(systemKey) {
+  const raw = String(systemKey || "").trim();
+  if (!raw) return [];
+  const normalized = normalizeAiSystemToken(raw);
+  const tokens = new Set([normalized]);
 
-function normalizeRawType(raw) {
-  if (!raw || typeof raw !== "string") return null;
-  const lower = raw.toLowerCase().trim().replace(/\s+/g, "");
-  for (const [alias, canonical] of Object.entries(SYSTEM_ALIASES)) {
-    const aliasNorm = alias.toLowerCase().replace(/\s+/g, "");
-    if (lower.includes(aliasNorm) || aliasNorm.includes(lower)) {
-      return Array.isArray(canonical) ? canonical : [canonical];
-    }
+  const mapped = mapAiSystemTypeToIds(raw);
+  mapped.forEach((id) => tokens.add(normalizeAiSystemToken(id)));
+
+  if (normalized.startsWith("custom")) {
+    tokens.add(normalized.replace(/^custom/, ""));
   }
-  const matched = CANONICAL_IDS.find((s) => lower.includes(s) || s.includes(lower));
-  return matched ? [matched] : [raw.trim()];
+  return [...tokens].filter(Boolean);
+}
+
+function getAnalysisTypeTokens(rawType) {
+  const raw = String(rawType || "").trim();
+  if (!raw) return [];
+  const normalized = normalizeAiSystemToken(raw);
+  const mapped = mapAiSystemTypeToIds(raw);
+  if (mapped.length > 0) {
+    return mapped.map((id) => normalizeAiSystemToken(id)).filter(Boolean);
+  }
+  return [normalized].filter(Boolean);
 }
 
 
@@ -52,14 +43,17 @@ function normalizeRawType(raw) {
  */
 export function matchesSystemForAnalysis(systemKey, rawType) {
   if (!systemKey || !rawType) return false;
-  const key = String(systemKey).toLowerCase().replace(/-/g, "");
-  const norm = normalizeRawType(rawType);
-  if (!norm) return false;
-  const normArr = Array.isArray(norm) ? norm : [norm];
-  return normArr.some((n) => {
-    const nLower = String(n).toLowerCase();
-    return key === nLower || key.includes(nLower) || nLower.includes(key);
-  });
+  const keyTokens = getSystemKeyTokens(systemKey);
+  const analysisTokens = getAnalysisTypeTokens(rawType);
+  if (keyTokens.length === 0 || analysisTokens.length === 0) return false;
+  return analysisTokens.some((analysisToken) =>
+    keyTokens.some(
+      (keyToken) =>
+        keyToken === analysisToken ||
+        keyToken.includes(analysisToken) ||
+        analysisToken.includes(keyToken),
+    ),
+  );
 }
 
 /**

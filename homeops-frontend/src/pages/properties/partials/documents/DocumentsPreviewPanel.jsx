@@ -1,4 +1,5 @@
 import React, {useState, useEffect} from "react";
+import {Link} from "react-router-dom";
 import {
   X,
   ExternalLink,
@@ -12,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Wrench,
 } from "lucide-react";
 
 function formatDate(dateString) {
@@ -43,6 +45,8 @@ function DocumentsPreviewPanel({
   getFileTypeColor,
   systemCategories = [],
   documentTypes = [],
+  accountUrl = "",
+  propertyUid,
 }) {
   // Hooks must run before any early return to satisfy Rules of Hooks
   // Smaller screens: collapsed by default (more space for preview). 1440px+: open by default.
@@ -153,6 +157,25 @@ function DocumentsPreviewPanel({
                     )}
                   </p>
                 </div>
+
+                {selectedDocument.maintenance_record_id &&
+                  accountUrl &&
+                  propertyUid && (
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1 block">
+                      Linked to
+                    </label>
+                    <Link
+                      to={`/${accountUrl}/properties/${propertyUid}/maintenance/${encodeURIComponent(
+                        selectedDocument.system || "roof",
+                      )}/${selectedDocument.maintenance_record_id}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+                    >
+                      <Wrench className="w-4 h-4" />
+                      View maintenance record
+                    </Link>
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 border-t border-gray-200 dark:border-gray-700 flex flex-col gap-1.5">
@@ -225,6 +248,18 @@ function DocumentsPreviewPanel({
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate min-w-0 flex-1">
                 {selectedDocument.name}
               </span>
+              {selectedDocument.maintenance_record_id && accountUrl && propertyUid && (
+                <Link
+                  to={`/${accountUrl}/properties/${propertyUid}/maintenance/${encodeURIComponent(
+                    selectedDocument.system || "roof",
+                  )}/${selectedDocument.maintenance_record_id}`}
+                  className="btn-sm border border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0"
+                  title="View maintenance record"
+                >
+                  <Wrench className="w-3.5 h-3.5" />
+                  Maintenance
+                </Link>
+              )}
               {(selectedDocument.system === "inspectionReport" ||
                 selectedDocument.type === "inspection") &&
                 onOpenAIReport && (

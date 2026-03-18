@@ -9,7 +9,6 @@ import {
   X,
   File,
   AlertCircle,
-  DollarSign,
   Clock,
   Mail,
   Phone,
@@ -18,6 +17,7 @@ import {
 import ModalBlank from "../../../../components/ModalBlank";
 import DatePickerInput from "../../../../components/DatePickerInput";
 import InstallerSelect from "../InstallerSelect";
+import { formatMaterialsUsedForDisplay } from "../../helpers/maintenanceRecordMapping";
 
 /**
  * Modal form for adding/editing maintenance records.
@@ -64,7 +64,7 @@ function MaintenanceRecordForm({
           cost: record.cost || "",
           workOrderNumber: record.workOrderNumber || "",
           nextServiceDate: record.nextServiceDate || "",
-          materialsUsed: record.materialsUsed || "",
+          materialsUsed: formatMaterialsUsedForDisplay(record.materialsUsed) || "",
           notes: record.notes || "",
           files: record.files || [],
         });
@@ -445,19 +445,23 @@ function MaintenanceRecordForm({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              <DollarSign className="w-4 h-4 inline mr-2" />
               Total Cost
             </label>
-            <input
-              type="number"
-              name="cost"
-              value={formData.cost}
-              onChange={handleInputChange}
-              placeholder="0.00"
-              step="0.01"
-              min="0"
-              className="form-input w-full"
-            />
+            <div className="relative flex">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
+                $
+              </span>
+              <input
+                type="number"
+                name="cost"
+                value={formData.cost}
+                onChange={handleInputChange}
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                className="form-input w-full pl-7"
+              />
+            </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Total amount charged for this maintenance service
             </p>

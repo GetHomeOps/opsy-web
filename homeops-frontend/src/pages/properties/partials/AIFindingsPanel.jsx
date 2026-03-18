@@ -12,6 +12,10 @@ import {
   ExternalLink,
 } from "lucide-react";
 import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
+import {
+  mapAiSystemTypeToIds,
+  getSystemLabelFromAiType,
+} from "../helpers/aiSystemNormalization";
 
 const CONDITION_COLORS = {
   excellent:
@@ -39,6 +43,20 @@ const PRIORITY_GROUP_META = {
   low: {label: "Routine", color: "text-gray-500 dark:text-gray-400", bg: "bg-gray-50/50 dark:bg-gray-800/30 border-gray-100 dark:border-gray-700"},
 };
 
+function getSystemGroupMeta(systemKey) {
+  const raw = String(systemKey || "").trim();
+  const matchedIds = mapAiSystemTypeToIds(raw, PROPERTY_SYSTEMS);
+  const foundById =
+    matchedIds.length > 0
+      ? PROPERTY_SYSTEMS.find((s) => s.id === matchedIds[0])
+      : null;
+  if (foundById) {
+    return {id: foundById.id, label: foundById.name, icon: foundById.icon};
+  }
+  if (!raw) return {id: "general", label: "General", icon: null};
+  return {id: raw, label: getSystemLabelFromAiType(raw), icon: null};
+}
+
 function sortBySeverity(items) {
   return [...items].sort((a, b) => {
     const aSev = SEVERITY_RANK[a.severity] ?? 2;
@@ -49,15 +67,6 @@ function sortBySeverity(items) {
     if (aPri !== bPri) return aPri - bPri;
     return (b.impactScore ?? 5) - (a.impactScore ?? 5);
   });
-}
-
-function groupByPriority(items) {
-  const groups = {urgent: [], high: [], medium: [], low: []};
-  for (const item of items) {
-    const p = item.priority || "medium";
-    (groups[p] || groups.medium).push(item);
-  }
-  return Object.entries(groups).filter(([, list]) => list.length > 0);
 }
 
 function AIFindingsPanel({
@@ -139,24 +148,20 @@ function AIFindingsPanel({
   } = result;
 
   const sortedNeeds = sortBySeverity(needsAttention);
-  const topNeeds = sortedNeeds.slice(0, 5);
-  const hasMoreNeeds = sortedNeeds.length > 5;
-  const maintenanceGroups = groupByPriority(maintenanceSuggestions);
-
-  const getSystemLabel = (systemKey) => {
-    const sys = PROPERTY_SYSTEMS.find((s) => s.id === systemKey);
-    if (sys?.name) return sys.name;
-    if (typeof systemKey === "string" && systemKey) {
-      return (
-        systemKey.charAt(0).toUpperCase() +
-        systemKey
-          .slice(1)
-          .replace(/([A-Z])/g, " $1")
-          .trim()
-      );
-    }
-    return systemKey;
-  };
+  const needsBySystem = sortedNeeds.reduce((acc, item) => {
+    const meta = getSystemGroupMeta(item.systemType);
+    const group = acc.get(meta.id) || {meta, items: []};
+    group.items.push(item);
+    acc.set(meta.id, group);
+    return acc;
+  }, new Map());
+  const maintenanceBySystem = maintenanceSuggestions.reduce((acc, item) => {
+    const meta = getSystemGroupMeta(item.systemType);
+    const group = acc.get(meta.id) || {meta, items: []};
+    group.items.push(item);
+    acc.set(meta.id, group);
+    return acc;
+  }, new Map());
 
   return (
     <div
@@ -194,7 +199,7 @@ function AIFindingsPanel({
       </div>
 
       {/* Needs attention */}
-      {topNeeds.length > 0 && (
+      {sortedNeeds.length > 0 && (
         <div>
           <button
             type="button"
@@ -207,56 +212,58 @@ function AIFindingsPanel({
               <ChevronRight className="w-4 h-4" />
             )}
             Needs attention ({sortedNeeds.length})
-            {hasMoreNeeds && !needsAttentionExpanded && (
-              <span className="text-xs font-normal text-gray-400 ml-1">
-                (showing top {topNeeds.length})
-              </span>
-            )}
           </button>
           {needsAttentionExpanded && (
-            <ul className="mt-2 space-y-2.5">
-              {topNeeds.map((item, idx) => (
-                <li key={idx} className="flex flex-col gap-1 text-xs pl-6 py-1.5 rounded-lg bg-white/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 px-3">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
-                        item.severity === "critical"
-                          ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                          : item.severity === "high"
-                            ? "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                            : item.severity === "medium"
-                              ? "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
-                              : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-                      }`}
-                    >
-                      {item.severity}
-                    </span>
-                    <span
-                      className={`font-medium ${
-                        SEVERITY_COLORS[item.severity] || ""
-                      }`}
-                    >
-                      {item.title}
-                    </span>
-                  </div>
-                  {item.suggestedAction && (
-                    <span className="text-gray-600 dark:text-gray-300 pl-0.5">
-                      {item.suggestedAction}
-                    </span>
-                  )}
-                  {item.evidence && (
-                    <span className="text-[11px] text-gray-400 dark:text-gray-500 italic pl-0.5 border-l-2 border-gray-200 dark:border-gray-600 ml-0.5 pl-2">
-                      &ldquo;{item.evidence}&rdquo;
-                    </span>
-                  )}
-                </li>
+            <div className="mt-2 space-y-3">
+              {Array.from(needsBySystem.values()).map(({meta, items}) => (
+                <div
+                  key={`needs-${meta.id}`}
+                  className="rounded-lg border border-gray-100 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 px-3 py-2"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                    {meta.label}
+                  </p>
+                  <ul className="space-y-2.5">
+                    {items.map((item, idx) => (
+                      <li key={`${meta.id}-${idx}`} className="flex flex-col gap-1 text-xs pl-1 py-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
+                              item.severity === "critical"
+                                ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                : item.severity === "high"
+                                  ? "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                                  : item.severity === "medium"
+                                    ? "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
+                                    : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                            }`}
+                          >
+                            {item.severity}
+                          </span>
+                          <span
+                            className={`font-medium ${
+                              SEVERITY_COLORS[item.severity] || ""
+                            }`}
+                          >
+                            {item.title}
+                          </span>
+                        </div>
+                        {item.suggestedAction && (
+                          <span className="text-gray-600 dark:text-gray-300 pl-0.5">
+                            {item.suggestedAction}
+                          </span>
+                        )}
+                        {item.evidence && (
+                          <span className="text-[11px] text-gray-400 dark:text-gray-500 italic pl-0.5 border-l-2 border-gray-200 dark:border-gray-600 ml-0.5 pl-2">
+                            &ldquo;{item.evidence}&rdquo;
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-              {hasMoreNeeds && (
-                <li className="text-[11px] text-gray-400 dark:text-gray-500 pl-6">
-                  + {sortedNeeds.length - topNeeds.length} more items — view full report for details
-                </li>
-              )}
-            </ul>
+            </div>
           )}
         </div>
       )}
@@ -270,7 +277,7 @@ function AIFindingsPanel({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
             {suggestedSystemsToAdd.map((s, idx) => {
               const sysKey = s.systemType || s.system_key;
-              const label = getSystemLabel(sysKey);
+              const label = getSystemLabelFromAiType(sysKey);
               const isSelected = selectedSuggestedSystems.includes(sysKey);
               const sys = PROPERTY_SYSTEMS.find((p) => p.id === sysKey);
               const Icon = sys?.icon;
@@ -341,7 +348,7 @@ function AIFindingsPanel({
         </div>
       )}
 
-      {/* Maintenance suggestions grouped by priority */}
+      {/* Maintenance suggestions grouped by system */}
       {maintenanceSuggestions.length > 0 && (
         <div>
           <button
@@ -354,16 +361,15 @@ function AIFindingsPanel({
             ) : (
               <ChevronRight className="w-4 h-4" />
             )}
-            Suggested maintenance ({maintenanceSuggestions.length})
+            Suggested maintenance by system ({maintenanceSuggestions.length})
           </button>
           {maintenanceExpanded && (
             <div className="mt-2 space-y-3">
-              {maintenanceGroups.map(([priority, items]) => {
-                const meta = PRIORITY_GROUP_META[priority] || PRIORITY_GROUP_META.medium;
+              {Array.from(maintenanceBySystem.values()).map(({meta: sysMeta, items}) => {
                 return (
-                  <div key={priority} className={`rounded-lg border px-3 py-2 ${meta.bg}`}>
-                    <p className={`text-[11px] font-semibold uppercase tracking-wide mb-1.5 ${meta.color}`}>
-                      {meta.label}
+                  <div key={`maint-${sysMeta.id}`} className="rounded-lg border px-3 py-2 border-gray-100 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide mb-1.5 text-gray-500 dark:text-gray-400">
+                      {sysMeta.label}
                     </p>
                     <ul className="space-y-2">
                       {items.map((item, idx) => (
@@ -372,9 +378,23 @@ function AIFindingsPanel({
                           className="flex items-start justify-between gap-3"
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-gray-800 dark:text-gray-200">
-                              {item.task || getSystemLabel(item.systemType)}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
+                                  (PRIORITY_GROUP_META[item.priority] ||
+                                    PRIORITY_GROUP_META.medium).color
+                                } ${
+                                  (PRIORITY_GROUP_META[item.priority] ||
+                                    PRIORITY_GROUP_META.medium).bg
+                                }`}
+                              >
+                                {(PRIORITY_GROUP_META[item.priority] ||
+                                  PRIORITY_GROUP_META.medium).label}
+                              </span>
+                              <p className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                                {item.task || getSystemLabelFromAiType(item.systemType)}
+                              </p>
+                            </div>
                             <p className="text-[11px] text-gray-500 dark:text-gray-400">
                               {item.suggestedWhen && <span>{item.suggestedWhen}</span>}
                               {item.rationale && (
@@ -394,7 +414,7 @@ function AIFindingsPanel({
                                 onClick={() =>
                                   onScheduleMaintenance({
                                     systemType: item.systemType,
-                                    systemLabel: getSystemLabel(item.systemType),
+                                    systemLabel: getSystemLabelFromAiType(item.systemType),
                                     task: item.task,
                                     suggestedWhen: item.suggestedWhen,
                                   })

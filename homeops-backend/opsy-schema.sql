@@ -357,9 +357,12 @@ CREATE TABLE property_documents (
     document_key VARCHAR(512) NOT NULL,
     document_type VARCHAR(255) NOT NULL,
     system_key VARCHAR(50) NOT NULL,
+    maintenance_record_id INTEGER REFERENCES property_maintenance(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX idx_property_documents_maintenance ON property_documents(maintenance_record_id);
 
 -- Document chunks with embeddings for RAG over property documents
 CREATE TABLE document_chunks (
@@ -885,6 +888,7 @@ CREATE TABLE notifications (
     resource_id INTEGER REFERENCES resources(id) ON DELETE CASCADE,
     communication_id INTEGER REFERENCES communications(id) ON DELETE CASCADE,
     invitation_id UUID REFERENCES invitations(id) ON DELETE SET NULL,
+    maintenance_record_id INTEGER REFERENCES property_maintenance(id) ON DELETE SET NULL,
     title VARCHAR(500),
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -9,8 +9,8 @@ import {
   Upload,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
-import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 import {getSystemFindingsFromAnalysis} from "../helpers/inspectionAnalysisHelpers";
+import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 
 const CONDITION_COLORS = {
   excellent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
@@ -75,8 +75,7 @@ function InspectionReportModal({
 
   const getSystemLabel = (systemKey) => {
     const key = typeof systemKey === "string" ? systemKey : systemKey?.systemType ?? systemKey?.system_key;
-    const sys = PROPERTY_SYSTEMS.find((s) => s.id === key);
-    return sys?.name || key || "—";
+    return getSystemLabelFromAiType(key) || "—";
   };
 
   return (

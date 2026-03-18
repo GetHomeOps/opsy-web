@@ -17,13 +17,14 @@ const DATA_FIELDS = [
   "contractorEmail",
   "contractorPhone",
   "description",
-  "priority",
   "cost",
   "workOrderNumber",
   "materialsUsed",
   "notes",
   "files",
   "requestStatus",
+  "checklist_item_id",
+  "hideSendToContractorBanner",
 ];
 
 const DATA_DEFAULTS = {
@@ -31,13 +32,14 @@ const DATA_DEFAULTS = {
   contractorEmail: "",
   contractorPhone: "",
   description: "",
-  priority: "Medium",
   cost: "",
   workOrderNumber: "",
-  materialsUsed: "",
+  materialsUsed: [],
   notes: "",
   files: [],
   requestStatus: null,
+  checklist_item_id: null,
+  hideSendToContractorBanner: false,
 };
 
 /**
@@ -65,8 +67,17 @@ export function toMaintenanceRecordPayload(recordData, propertyId) {
     throw new Error("Invalid property_id: must be an integer");
   }
 
+  const materialsUsed = normalizeMaterialsUsed(recordData.materialsUsed);
+
   const data = Object.fromEntries(
-    DATA_FIELDS.map((key) => [key, recordData[key] ?? DATA_DEFAULTS[key]]),
+    DATA_FIELDS.map((key) => {
+      if (key === "materialsUsed") return [key, materialsUsed];
+      if (key === "checklist_item_id") {
+        const v = recordData.checklist_item_id ?? recordData[key] ?? DATA_DEFAULTS[key];
+        return [key, v == null || v === "" ? null : v];
+      }
+      return [key, recordData[key] ?? DATA_DEFAULTS[key]];
+    }),
   );
 
   return {
@@ -78,6 +89,53 @@ export function toMaintenanceRecordPayload(recordData, propertyId) {
     status: String(recordData.status ?? "Completed").slice(0, 50),
     record_status: recordData.record_status ?? null,
   };
+}
+
+/** Format materialsUsed for display in textarea: array of { material, description, cost } → newline-separated string. */
+export function formatMaterialsUsedForDisplay(value) {
+  if (value == null || value === "") return "";
+  if (typeof value === "string") return value.trim();
+  if (!Array.isArray(value)) return String(value);
+  return value
+    .map((row) => {
+      const parts = [];
+      if (row?.material) parts.push(String(row.material).trim());
+      if (row?.description) parts.push(String(row.description).trim());
+      if (row?.cost && String(row.cost).trim()) parts.push(`$${String(row.cost).trim()}`);
+      return parts.filter(Boolean).join(" — ");
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Normalize materialsUsed for UI: always return array of { material, description, cost }. */
+function normalizeMaterialsUsedForUi(value) {
+  if (Array.isArray(value)) {
+    return value.map((row) => ({
+      material: String(row?.material ?? "").trim(),
+      description: String(row?.description ?? "").trim(),
+      cost: String(row?.cost ?? "").trim(),
+    }));
+  }
+  if (value != null && String(value).trim()) {
+    return [{ material: String(value).trim(), description: "", cost: "" }];
+  }
+  return [];
+}
+
+/** Normalize materialsUsed: support legacy string or new array format. */
+function normalizeMaterialsUsed(value) {
+  if (Array.isArray(value)) {
+    return value.map((row) => ({
+      material: String(row?.material ?? "").trim(),
+      description: String(row?.description ?? "").trim(),
+      cost: String(row?.cost ?? "").trim(),
+    }));
+  }
+  if (value != null && String(value).trim()) {
+    return [{ material: String(value).trim(), description: "", cost: "" }];
+  }
+  return [];
 }
 
 /** Format a date value to YYYY-MM-DD or null (for "date" format) */
@@ -107,7 +165,13 @@ function formatDateTime(value) {
  */
 export function fromMaintenanceRecordBackend(backend) {
   if (!backend) return null;
-  const d = backend.data || {};
+  const raw = backend.data;
+  let d;
+  if (typeof raw === "string") {
+    try { d = JSON.parse(raw) ?? {}; } catch (_) { d = {}; }
+  } else {
+    d = raw || {};
+  }
   return {
     id: backend.id,
     property_id: backend.property_id,
@@ -120,13 +184,14 @@ export function fromMaintenanceRecordBackend(backend) {
     contractorEmail: d.contractorEmail ?? "",
     contractorPhone: d.contractorPhone ?? "",
     description: d.description ?? "",
-    priority: d.priority ?? "Medium",
     cost: d.cost ?? "",
     workOrderNumber: d.workOrderNumber ?? "",
-    materialsUsed: d.materialsUsed ?? "",
+    materialsUsed: normalizeMaterialsUsedForUi(d.materialsUsed),
     notes: d.notes ?? "",
     files: d.files ?? [],
     requestStatus: d.requestStatus ?? backend.requestStatus ?? null,
+    checklist_item_id: d.checklist_item_id ?? null,
+    hideSendToContractorBanner: Boolean(d.hideSendToContractorBanner),
     record_status:
       backend.recordStatus ??
       backend.record_status ??

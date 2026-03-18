@@ -18,9 +18,9 @@ const region = process.env.AWS_SES_REGION || process.env.AWS_REGION || "us-east-
 const credentials =
   process.env.AWS_SES_ACCESS_KEY_ID && process.env.AWS_SES_SECRET_ACCESS_KEY
     ? {
-        accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY,
-      }
+      accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY,
+    }
     : undefined;
 const sesClient = new SESClient({ region, ...(credentials && { credentials }) });
 
@@ -101,8 +101,8 @@ async function sendInvitationEmail({ to, inviteUrl, inviterName, inviteeName, ty
   const inviterText = inviterName ? `${inviterName} has` : "Someone has";
   const contextText = isProperty
     ? (propertyAddress
-        ? `${inviterText} invited you to join a property: ${propertyAddress}.`
-        : `${inviterText} invited you to join a property.`)
+      ? `${inviterText} invited you to join a property: ${propertyAddress}.`
+      : `${inviterText} invited you to join a property.`)
     : `${inviterText} invited you to join ${appName}.`;
 
   const html = `
@@ -123,9 +123,9 @@ async function sendInvitationEmail({ to, inviteUrl, inviterName, inviteeName, ty
 
 /**
  * Send contractor report request email with a link to fill out the maintenance report.
- * @param {Object} opts - { to, reportUrl, contractorName?, propertyAddress?, systemName?, senderName? }
+ * @param {Object} opts - { to, reportUrl, contractorName?, propertyAddress?, systemName?, senderName?, origin?, inspectionDate? }
  */
-async function sendContractorReportEmail({ to, reportUrl, contractorName, propertyAddress, systemName, senderName }) {
+async function sendContractorReportEmail({ to, reportUrl, contractorName, propertyAddress, systemName, senderName, origin, inspectionDate }) {
   if (!isSesConfigured()) {
     throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials");
   }
@@ -135,12 +135,24 @@ async function sendContractorReportEmail({ to, reportUrl, contractorName, proper
   const propertyText = propertyAddress ? ` for the property at <strong>${propertyAddress}</strong>` : "";
   const systemText = systemName ? ` regarding <strong>${systemName}</strong>` : "";
 
+  const detailsRows = [];
+  if (origin) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Origin:</td><td><a href="${origin}">${origin}</a></td></tr>`);
+  if (propertyAddress) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Property:</td><td>${propertyAddress}</td></tr>`);
+  if (senderName) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Requested by:</td><td>${senderName}</td></tr>`);
+  if (inspectionDate) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Date of inspection:</td><td>${inspectionDate}</td></tr>`);
+  const detailsSection = detailsRows.length > 0
+    ? `<div style="margin: 16px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 14px;">
+        <table style="border-collapse: collapse;">${detailsRows.join("")}</table>
+      </div>`
+    : "";
+
   const subject = `${appName}: Maintenance report request${propertyAddress ? ` – ${propertyAddress}` : ""}`;
   const html = `
     <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
       <h2 style="color: #456564;">Maintenance Report Request</h2>
       <p>${greeting}</p>
       <p>${requester} has requested that you fill out a maintenance/inspection report${propertyText}${systemText}.</p>
+      ${detailsSection}
       <p>Please click the button below to open the report form and provide your findings:</p>
       <p style="margin: 24px 0;">
         <a href="${reportUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Fill Out Report</a>

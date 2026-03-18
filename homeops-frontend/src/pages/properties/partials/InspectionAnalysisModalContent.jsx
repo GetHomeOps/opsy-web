@@ -20,7 +20,7 @@ import {
   Building,
 } from "lucide-react";
 import {useInspectionAnalysis} from "../../../hooks/useInspectionAnalysis";
-import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
+import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 import InspectionChecklistPanel from "./InspectionChecklistPanel";
 
 const CONDITION_BADGES = {
@@ -52,11 +52,6 @@ function formatConfidence(n) {
   return `${Math.round(n * 100)}%`;
 }
 
-function getSystemLabel(systemKey) {
-  if (!systemKey) return "Maintenance";
-  const sys = PROPERTY_SYSTEMS.find((s) => s.id === systemKey);
-  return sys?.name || systemKey;
-}
 
 /** Parse backend quota error "AI token quota exceeded (used/quota this month)..." */
 function parseQuotaFromError(errorMsg) {
@@ -414,7 +409,7 @@ export default function InspectionAnalysisModalContent({
       const sysType =
         item.systemType ?? item.system_type ?? item.category ?? "general";
       return {
-        task: item.task ?? item.title ?? getSystemLabel(sysType),
+        task: item.task ?? item.title ?? getSystemLabelFromAiType(sysType),
         systemType: sysType,
         suggestedWhen:
           item.suggestedWhen ?? item.suggested_schedule_window ?? "",
@@ -479,7 +474,7 @@ export default function InspectionAnalysisModalContent({
                       className="border-t border-neutral-100 dark:border-neutral-700/50 bg-neutral-50/50 dark:bg-neutral-800/30 hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                     >
                       <td className="py-2 px-3 font-medium text-neutral-800 dark:text-neutral-200">
-                        {(getSystemLabel(
+                        {(getSystemLabelFromAiType(
                           s.systemType ?? s.system_key ?? s.name,
                         ) ||
                           s.name) ??
@@ -572,7 +567,7 @@ export default function InspectionAnalysisModalContent({
                         onClick={() =>
                           onScheduleMaintenance({
                             systemType: a.systemType,
-                            systemLabel: getSystemLabel(a.systemType),
+                            systemLabel: getSystemLabelFromAiType(a.systemType),
                             task: a.task,
                             suggestedWhen: a.suggestedWhen,
                           })

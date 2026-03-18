@@ -5,14 +5,18 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import PropertyContext from "../../context/PropertyContext";
 import ContactContext from "../../context/ContactContext";
+import {useAuth} from "../../context/AuthContext";
 import {MaintenanceFormPanel} from "./partials/maintenance";
 import PropertyUnauthorized from "./PropertyUnauthorized";
 import PropertyNotFound from "./PropertyNotFound";
 import {ApiError} from "../../api/api";
+import AppApi from "../../api/api";
 import {
-  PROPERTY_SYSTEMS,
-  DEFAULT_SYSTEM_IDS,
-} from "./constants/propertySystems";
+  fromMaintenanceRecordBackend,
+  mapMaintenanceRecordsFromBackend,
+  toMaintenanceRecordPayload,
+} from "./helpers/maintenanceRecordMapping";
+import {PROPERTY_SYSTEMS} from "./constants/propertySystems";
 
 function isPropertyNotFoundError(err) {
   if (!(err instanceof ApiError)) return false;
@@ -44,19 +48,21 @@ function MaintenanceRecordPage() {
   const {accountUrl, uid: propertyId, systemId, recordId} = useParams();
   const navigate = useNavigate();
 
-  const {getPropertyById, updateProperty} = useContext(PropertyContext);
+  const {getPropertyById} = useContext(PropertyContext);
   const {contacts} = useContext(ContactContext);
+  const {currentUser} = useAuth();
 
   const [property, setProperty] = useState(null);
   const [record, setRecord] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const [propertyAccessDenied, setPropertyAccessDenied] = useState(false);
   const [propertyNotFound, setPropertyNotFound] = useState(false);
 
-  // Load property and find the record
+  // Load property and maintenance record (maintenance is fetched separately; property API does not include it)
   useEffect(() => {
-    async function loadProperty() {
+    async function loadData() {
       setLoading(true);
       setPropertyAccessDenied(false);
       setPropertyNotFound(false);
@@ -64,14 +70,12 @@ function MaintenanceRecordPage() {
         const propertyData = await getPropertyById(propertyId);
         setProperty(propertyData);
 
-        // Find the specific record if editing existing
-        if (
-          recordId &&
-          recordId !== "new" &&
-          propertyData?.maintenanceHistory
-        ) {
-          const existingRecord = propertyData.maintenanceHistory.find(
-            (r) => r.id === recordId,
+        if (recordId && recordId !== "new") {
+          const numericPropertyId = propertyData?.id ?? propertyData?.property_id ?? propertyId;
+          const rawRecords = await AppApi.getMaintenanceRecordsByPropertyId(numericPropertyId);
+          const mapped = mapMaintenanceRecordsFromBackend(rawRecords ?? []);
+          const existingRecord = mapped.find(
+            (r) => String(r.id) === String(recordId),
           );
           setRecord(existingRecord || null);
         } else {
@@ -93,7 +97,7 @@ function MaintenanceRecordPage() {
         setLoading(false);
       }
     }
-    loadProperty();
+    loadData();
   }, [propertyId, recordId, getPropertyById]);
 
   // Get system name
@@ -110,43 +114,37 @@ function MaintenanceRecordPage() {
     return systemId || "System";
   };
 
-  // Handle save
+  // Handle save — persists via maintenance API
   const handleSave = async (recordData) => {
+    const numericPropertyId = property?.id ?? property?.property_id ?? propertyId;
+    setIsSubmitting(true);
     try {
-      // Update the property's maintenance history
-      const updatedHistory = [...(property?.maintenanceHistory || [])];
-      const existingIndex = updatedHistory.findIndex(
-        (r) => r.id === recordData.id,
-      );
-
-      if (existingIndex >= 0) {
-        updatedHistory[existingIndex] = recordData;
+      if (recordData.id && !String(recordData.id).startsWith("MT-")) {
+        const payload = toMaintenanceRecordPayload(recordData, numericPropertyId);
+        const updated = await AppApi.updateMaintenanceRecord(recordData.id, payload);
+        setRecord(fromMaintenanceRecordBackend(updated));
       } else {
-        updatedHistory.push(recordData);
-      }
-
-      // Update property via context (if available)
-      if (updateProperty) {
-        await updateProperty(propertyId, {
-          ...property,
-          maintenanceHistory: updatedHistory,
+        const created = await AppApi.createMaintenanceRecord({
+          ...toMaintenanceRecordPayload(recordData, numericPropertyId),
+          property_id: numericPropertyId,
         });
+        setRecord(fromMaintenanceRecordBackend(created));
       }
-
-      setRecord(recordData);
       setSaveMessage({type: "success", text: "Record saved successfully!"});
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
       console.error("Error saving record:", err);
       setSaveMessage({
         type: "error",
-        text: "Failed to save record. Please try again.",
+        text: err?.message || "Failed to save record. Please try again.",
       });
       setTimeout(() => setSaveMessage(null), 5000);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Handle delete
+  // Handle delete — persists via maintenance API
   const handleDelete = async (deleteRecordId) => {
     if (
       !window.confirm(
@@ -157,24 +155,14 @@ function MaintenanceRecordPage() {
     }
 
     try {
-      const updatedHistory = (property?.maintenanceHistory || []).filter(
-        (r) => r.id !== deleteRecordId,
-      );
-
-      if (updateProperty) {
-        await updateProperty(propertyId, {
-          ...property,
-          maintenanceHistory: updatedHistory,
-        });
-      }
-
-      // Navigate back to property after deletion
+      const numericPropertyId = property?.id ?? property?.property_id ?? propertyId;
+      await AppApi.deleteMaintenanceRecord(deleteRecordId, numericPropertyId);
       navigate(`/${accountUrl}/properties/${propertyId}`);
     } catch (err) {
       console.error("Error deleting record:", err);
       setSaveMessage({
         type: "error",
-        text: "Failed to delete record. Please try again.",
+        text: err?.message || "Failed to delete record. Please try again.",
       });
       setTimeout(() => setSaveMessage(null), 5000);
     }
@@ -263,19 +251,6 @@ function MaintenanceRecordPage() {
               )}
             </div>
 
-            {/* Save/Error Message */}
-            {saveMessage && (
-              <div
-                className={`mb-4 p-4 rounded-lg ${
-                  saveMessage.type === "success"
-                    ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                    : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800"
-                }`}
-              >
-                {saveMessage.text}
-              </div>
-            )}
-
             {/* Form Card */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
               <MaintenanceFormPanel
@@ -287,6 +262,26 @@ function MaintenanceRecordPage() {
                 onDelete={handleDelete}
                 contacts={contacts || []}
                 isNewRecord={!record}
+                isSubmitting={isSubmitting}
+                saveBarAtTop
+                propertyAddress={
+                  property
+                    ? [property.address, property.city, property.state]
+                        .filter(Boolean)
+                        .join(", ") || ""
+                    : ""
+                }
+                senderName={currentUser?.data?.name || currentUser?.name || ""}
+                externalBanner={
+                  saveMessage
+                    ? {
+                        open: true,
+                        message: saveMessage.text,
+                        type: saveMessage.type || "success",
+                      }
+                    : null
+                }
+                onExternalBannerClose={() => setSaveMessage(null)}
               />
             </div>
           </div>

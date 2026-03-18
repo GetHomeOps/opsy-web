@@ -19,12 +19,12 @@ class PropertyDocument {
   /** Create a new property document.
    *
    * Data should include:
-   *   { property_id, document_name, document_date, document_key, document_type, system_key }
+   *   { property_id, document_name, document_date, document_key, document_type, system_key, maintenance_record_id }
    *
    * Returns the created document row.
    */
   static async create(data) {
-    const { property_id, document_name, document_date, document_key, document_type, system_key } = data;
+    const { property_id, document_name, document_date, document_key, document_type, system_key, maintenance_record_id } = data;
     const systemKey = system_key == null || system_key === "" ? "general" : system_key;
 
     if (!property_id || !document_name || !document_date || !document_key || !document_type) {
@@ -39,8 +39,9 @@ class PropertyDocument {
           document_date,
           document_key,
           document_type,
-          system_key)
-        VALUES ($1, $2, $3, $4, $5, $6)
+          system_key,
+          maintenance_record_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id,
                   property_id,
                   document_name,
@@ -48,9 +49,10 @@ class PropertyDocument {
                   document_key,
                   document_type,
                   system_key,
+                  maintenance_record_id,
                   created_at,
                   updated_at`,
-        [property_id, document_name, document_date, document_key, document_type, system_key]
+        [property_id, document_name, document_date, document_key, document_type, system_key, maintenance_record_id ?? null]
       );
       return result.rows[0];
     } catch (err) {
@@ -72,6 +74,7 @@ class PropertyDocument {
               document_key,
               document_type,
               system_key,
+              maintenance_record_id,
               created_at,
               updated_at
        FROM property_documents
@@ -98,6 +101,7 @@ class PropertyDocument {
               document_key,
               document_type,
               system_key,
+              maintenance_record_id,
               created_at,
               updated_at
        FROM property_documents

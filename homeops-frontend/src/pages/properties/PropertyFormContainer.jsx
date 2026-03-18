@@ -3032,6 +3032,9 @@ function PropertyFormContainer() {
                         });
                       }, 100);
                     }}
+                    onFormDirty={(dirty) => {
+                      if (dirty) dispatch({type: "SET_FORM_CHANGED", payload: true});
+                    }}
                     contacts={contacts ?? []}
                   />
                 )}
@@ -3075,6 +3078,8 @@ function PropertyFormContainer() {
                     >
                       <DocumentsTab
                         propertyData={mergedFormData}
+                        accountUrl={accountUrl}
+                        propertyUid={uid}
                         onOpenAIAssistant={
                           uid !== "new"
                             ? openAiAssistantWithPlanCheck

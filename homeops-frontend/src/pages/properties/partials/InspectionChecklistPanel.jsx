@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import AppApi from "../../../api/api";
 import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
+import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 
 const STATUS_CONFIG = {
   pending: {
@@ -75,8 +76,7 @@ const PRIORITY_COLORS = {
 
 function getSystemLabel(systemKey) {
   if (!systemKey) return "General";
-  const sys = PROPERTY_SYSTEMS.find((s) => s.id === systemKey);
-  return sys?.name || systemKey.charAt(0).toUpperCase() + systemKey.slice(1);
+  return getSystemLabelFromAiType(systemKey);
 }
 
 function ProgressBar({completed, total, className = ""}) {

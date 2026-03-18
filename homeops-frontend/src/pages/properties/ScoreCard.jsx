@@ -78,19 +78,11 @@ function ScoreCard({
     ? (currentSystems / systemItems.length) * 100
     : 0;
 
-  // Maintenance: show same systems as Systems section
-  // TODO: Backend should return per-system maintenance completion
-  const currentMaintenance =
-    propertyData.healthMetrics?.maintenanceCompleted?.current ?? 0;
-  const maintenanceScore = systemItems.length
-    ? (currentMaintenance / systemItems.length) * 100
-    : 0;
+  // Maintenance: compute completion from checklist progress + maintenance records (same logic as checklist items)
 
-  const totalScore = (identityScore + systemsScore + maintenanceScore) / 3;
-
-  // Fetch inspection checklist progress when Maintenance section is expanded (for per-system completion)
+  // Fetch inspection checklist progress on mount (needed for Maintenance % based on completion)
   useEffect(() => {
-    if (!propertyId || !maintenanceOpen) return;
+    if (!propertyId) return;
     let cancelled = false;
     AppApi.getInspectionChecklistProgress(propertyId)
       .then((res) => {
@@ -100,7 +92,7 @@ function ScoreCard({
         if (!cancelled) setChecklistProgress(null);
       });
     return () => { cancelled = true; };
-  }, [propertyId, maintenanceOpen]);
+  }, [propertyId]);
 
   /** Check if a system has all pending checklist items completed. */
   const isSystemMaintenanceComplete = useCallback(
@@ -149,6 +141,26 @@ function ScoreCard({
     },
     [maintenanceRecords]
   );
+
+  /** Count systems where maintenance is complete (checklist done OR all records completed). */
+  const currentMaintenance = useMemo(() => {
+    const count = systemItems.filter((system) => {
+      const fromChecklist = isSystemMaintenanceComplete(system);
+      const fromRecords = isSystemMaintenanceCompleteFromRecords(system);
+      return fromChecklist === true || fromRecords === true;
+    }).length;
+    // Use computed count when we have checklist or records; otherwise fall back to backend
+    if (checklistProgress !== null || (Array.isArray(maintenanceRecords) && maintenanceRecords.length > 0)) {
+      return count;
+    }
+    return propertyData.healthMetrics?.maintenanceCompleted?.current ?? 0;
+  }, [systemItems, checklistProgress, maintenanceRecords, propertyData.healthMetrics, isSystemMaintenanceComplete, isSystemMaintenanceCompleteFromRecords]);
+
+  const maintenanceScore = systemItems.length
+    ? (currentMaintenance / systemItems.length) * 100
+    : 0;
+
+  const totalScore = (identityScore + systemsScore + maintenanceScore) / 3;
 
   const scoreRingColorClass =
     totalScore >= 60
@@ -603,7 +615,7 @@ function ScoreCard({
               {/* Maintenance Checklist - same systems as Systems section */}
               <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
-                  {systemItems.map((system, idx) => {
+                  {systemItems.map((system) => {
                     const predefinedSystem = PROPERTY_SYSTEMS.find(
                       (s) => s.id === system.id
                     );
@@ -612,11 +624,7 @@ function ScoreCard({
                     const fromChecklist = isSystemMaintenanceComplete(system);
                     const fromRecords = isSystemMaintenanceCompleteFromRecords(system);
                     const isComplete =
-                      fromChecklist === true || fromRecords === true
-                        ? true
-                        : fromChecklist === false || fromRecords === false
-                          ? false
-                          : idx < currentMaintenance;
+                      fromChecklist === true || fromRecords === true;
                     return (
                       <div
                         key={system.id}

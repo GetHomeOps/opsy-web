@@ -673,7 +673,7 @@ class AppApi {
 
   static async createMaintenanceRecord(data) {
     let res = await this.request(`maintenance/record/${data.property_id}`, data, 'POST');
-    return res.maintenance;
+    return res.maintenanceRecord ?? res.maintenance;
   }
 
   static async updateMaintenanceRecord(id, data) {

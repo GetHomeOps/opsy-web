@@ -1,6 +1,6 @@
 import React, {useState, useRef, useEffect} from "react";
 import {Link} from "react-router-dom";
-import {Bell, ChevronRight, BookOpen, UserPlus} from "lucide-react";
+import {Bell, ChevronRight, BookOpen, UserPlus, Wrench} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -148,23 +148,26 @@ function DropdownNotifications({align = "right"}) {
               <ul className="py-2">
                 {notifications.map((n) => {
                   const isInvitation = n.type === "property_invitation";
+                  const isContractorReport = n.type === "contractor_report_submitted";
                   const isCommunication = n.type === "communication_sent" && (n.communicationId ?? n.resourceId);
                   const isResource = n.type === "resource_sent" && n.resourceId;
                   const basePath =
                     isInvitation && n.propertyUid && n.accountUrl
                       ? `/${n.accountUrl}/properties/${n.propertyUid}`
-                      : isCommunication
-                        ? `/${accountUrl}/communications/${n.communicationId ?? n.resourceId}/view`
-                        : isResource
-                          ? `/${accountUrl}/resources/${n.resourceId}/view`
-                          : isInvitation
-                            ? invitationsPath
-                            : homePath;
+                      : isContractorReport && n.maintenancePropertyUid && n.maintenanceAccountUrl
+                        ? `/${n.maintenanceAccountUrl}/properties/${n.maintenancePropertyUid}?tab=maintenance`
+                        : isCommunication
+                          ? `/${accountUrl}/communications/${n.communicationId ?? n.resourceId}/view`
+                          : isResource
+                            ? `/${accountUrl}/resources/${n.resourceId}/view`
+                            : isInvitation
+                              ? invitationsPath
+                              : homePath;
                   const linkTo =
                     isInvitation &&
                     n.invitationId &&
                     basePath.includes("/properties/")
-                      ? `${basePath}?invitation=${n.invitationId}`
+                      ? `${basePath}${basePath.includes("?") ? "&" : "?"}invitation=${n.invitationId}`
                       : basePath;
                   return (
                     <li
@@ -187,6 +190,8 @@ function DropdownNotifications({align = "right"}) {
                         <div className="w-9 h-9 rounded-lg bg-[#456564]/15 dark:bg-[#456564]/20 flex items-center justify-center shrink-0">
                           {isInvitation ? (
                             <UserPlus className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isContractorReport ? (
+                            <Wrench className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : (
                             <BookOpen className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           )}

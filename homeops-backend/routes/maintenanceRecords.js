@@ -7,6 +7,7 @@ const { BadRequestError } = require("../expressError");
 const MaintenanceRecord = require("../models/maintenanceRecord");
 const ContractorReportToken = require("../models/contractorReportToken");
 const { triggerReanalysisOnMaintenance } = require("../services/ai/propertyReanalysisService");
+const { syncMaintenanceRecordDocuments } = require("../services/maintenanceRecordDocumentsService");
 const InspectionChecklistItem = require("../models/inspectionChecklistItem");
 const { generateInvitationToken } = require("../helpers/invitationTokens");
 const { sendContractorReportEmail } = require("../services/emailService");
@@ -44,6 +45,12 @@ router.post("/:PropertyId", ensureLoggedIn, ensurePropertyAccess({ param: "Prope
     }
     const { maintenanceRecords } = req.body;
     const created = await MaintenanceRecord.createMany(maintenanceRecords);
+    // Sync files to property_documents so they appear in Documents tab
+    for (const r of created) {
+      syncMaintenanceRecordDocuments(r).catch((err) =>
+        console.error("[maintenanceRecordDocuments] Sync failed:", err.message)
+      );
+    }
     // Trigger AI reanalysis per property (async, non-blocking)
     const byProperty = new Map();
     for (const r of created) {
@@ -90,6 +97,9 @@ router.post("/record/:PropertyId", ensureLoggedIn, ensurePropertyAccess({ param:
       }).catch((err) => console.error("[inspectionChecklist] Auto-link failed:", err.message));
     }
 
+    syncMaintenanceRecordDocuments(maintenanceRecord).catch((err) =>
+      console.error("[maintenanceRecordDocuments] Sync failed:", err.message)
+    );
     triggerReanalysisOnMaintenance(propertyId, maintenanceRecord).catch((err) =>
       console.error("[propertyReanalysis] Maintenance trigger failed:", err.message)
     );
@@ -121,6 +131,9 @@ router.patch("/:recordId", ensureLoggedIn, loadPropertyIdFromRecord, ensurePrope
     }
     const maintenance = await MaintenanceRecord.update(recordId, req.body);
 
+    syncMaintenanceRecordDocuments(maintenance).catch((err) =>
+      console.error("[maintenanceRecordDocuments] Sync failed:", err.message)
+    );
     const checklistItemId = req.body.checklist_item_id || (req.body.data && req.body.data.checklist_item_id);
     if (checklistItemId && maintenance.status === "Completed") {
       InspectionChecklistItem.complete(checklistItemId, {
@@ -181,7 +194,7 @@ router.post("/:recordId/send-to-contractor", ensureLoggedIn, loadPropertyIdFromR
 
     // Build report URL and send email
     const baseUrl = (APP_BASE_URL || process.env.APP_WEB_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
-    const reportUrl = `${baseUrl}/#/contractor-report?token=${encodeURIComponent(token)}`;
+    const reportUrl = `${baseUrl}/contractor-report?token=${encodeURIComponent(token)}`;
 
     // Fetch property and sender info for the email
     const propResult = await db.query(`SELECT address, city, state FROM properties WHERE id = $1`, [record.property_id]);
@@ -199,6 +212,21 @@ router.post("/:recordId/send-to-contractor", ensureLoggedIn, loadPropertyIdFromR
       safety: "Safety", inspections: "Inspections",
     };
 
+    const inspectionDate = record.completed_at
+      ? new Date(record.completed_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+      : null;
+
+    let inspectionFinding = null;
+    const checklistItemId = data.checklist_item_id;
+    if (checklistItemId) {
+      try {
+        const item = await InspectionChecklistItem.get(checklistItemId);
+        inspectionFinding = item?.title || null;
+      } catch (_) {
+        // Ignore if checklist item not found
+      }
+    }
+
     try {
       await sendContractorReportEmail({
         to: contractorEmail,
@@ -207,6 +235,8 @@ router.post("/:recordId/send-to-contractor", ensureLoggedIn, loadPropertyIdFromR
         propertyAddress,
         systemName: SYSTEM_LABELS[record.system_key] || record.system_key,
         senderName,
+        origin: baseUrl,
+        inspectionDate,
       });
     } catch (emailErr) {
       console.error("[maintenanceRecords] Failed to send contractor report email:", emailErr.message);

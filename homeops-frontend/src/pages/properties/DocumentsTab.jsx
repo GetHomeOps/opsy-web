@@ -210,6 +210,8 @@ function InlineDocumentPreview({
 
 function DocumentsTab({
   propertyData,
+  accountUrl = "",
+  propertyUid,
   onOpenAIAssistant,
   onOpenAIReport,
   openUploadModalForInspectionReport = false,
@@ -320,6 +322,7 @@ function DocumentsTab({
     document_date: doc.document_date,
     created_at: doc.created_at,
     updated_at: doc.updated_at,
+    maintenance_record_id: doc.maintenance_record_id,
   });
 
   const availableYears = useMemo(() => {
@@ -844,6 +847,8 @@ function DocumentsTab({
             getFileTypeColor={getFileTypeColor}
             systemCategories={systemCategories}
             documentTypes={documentTypes}
+            accountUrl={accountUrl}
+            propertyUid={propertyUid ?? propertyData?.property_uid ?? propertyData?.identity?.property_uid}
           />
         </div>
       </div>

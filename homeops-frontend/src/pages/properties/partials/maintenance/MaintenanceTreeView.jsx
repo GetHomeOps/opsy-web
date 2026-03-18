@@ -292,22 +292,28 @@ function MaintenanceTreeView({
                             >
                               {formatDate(record.date)}
                             </div>
-                            {record.contractor != null &&
-                              record.contractor !== "" && (
-                                <div
-                                  className={`text-xs truncate ${
-                                    isSelected
-                                      ? "text-slate-600 dark:text-slate-300"
-                                      : "text-gray-500 dark:text-gray-400"
-                                  }`}
-                                >
-                                  {contacts.find(
+                            {(record.workOrderNumber != null &&
+                              record.workOrderNumber !== "") ||
+                            (record.contractor != null &&
+                              record.contractor !== "") ? (
+                              <div
+                                className={`text-xs truncate ${
+                                  isSelected
+                                    ? "text-slate-600 dark:text-slate-300"
+                                    : "text-gray-500 dark:text-gray-400"
+                                }`}
+                              >
+                                {record.workOrderNumber ? (
+                                  <>WO: {record.workOrderNumber}</>
+                                ) : (
+                                  contacts.find(
                                     (c) =>
                                       String(c.id) ===
                                       String(record.contractor),
-                                  )?.name || record.contractor}
-                                </div>
-                              )}
+                                  )?.name || record.contractor
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       );

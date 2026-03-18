@@ -31,6 +31,11 @@ import UpgradePrompt from "../../../components/UpgradePrompt";
 import OpsyMascot from "../../../images/opsy1.png";
 import HouseIcon from "../../../images/house_icon.png";
 import GlassIcon from "../../../images/glass.png";
+import {
+  normalizeAiSystemToken,
+  toDisplaySystemName,
+  mapAiSystemTypeToIds,
+} from "../helpers/aiSystemNormalization";
 
 /** Step definitions for the stepper. Order matters. */
 const STEP_IDS = ["identity", "details", "inspection", "systems"];
@@ -696,38 +701,49 @@ function SystemsSetupModal({
     }
   };
 
-  // Pre-select systems when first reaching Systems step: AI suggestions if report analyzed, else all systems
+  // Pre-select systems when first reaching Systems step:
+  // - If AI suggested systems exist, add those.
+  // - Otherwise preserve current selection; only default to all when nothing is selected yet.
   useEffect(() => {
     if (step !== "systems" || hasAppliedSuggestedRef.current) return;
     hasAppliedSuggestedRef.current = true;
 
     const suggested = analysisResult?.suggestedSystemsToAdd ?? [];
     if (suggested.length > 0) {
-      const standardIds = [];
-      const customNames = [];
-      suggested.forEach((s) => {
+      const selectedSuggestedNorm = new Set(
+        [...selectedSuggestedSystems]
+          .map((k) => normalizeAiSystemToken(k))
+          .filter(Boolean),
+      );
+      const selectedOnlySuggestions = suggested.filter((s) =>
+        selectedSuggestedNorm.has(
+          normalizeAiSystemToken(s.systemType ?? s.system_key),
+        ),
+      );
+      const shouldRespectSelection =
+        hasAutoSelectedSuggestedRef.current || selectedSuggestedNorm.size > 0;
+      const suggestionsToApply = shouldRespectSelection
+        ? selectedOnlySuggestions
+        : suggested;
+
+      const standardIds = new Set();
+      const customNames = new Set();
+      suggestionsToApply.forEach((s) => {
         const raw = String(s.systemType ?? s.system_key ?? "").trim();
         if (!raw) return;
-        const match = SETUP_SYSTEMS.find(
-          (sys) => sys.id === raw || sys.id.toLowerCase() === raw.toLowerCase(),
-        );
-        if (match) {
-          standardIds.push(match.id);
+        const mappedIds = mapAiSystemTypeToIds(raw, SETUP_SYSTEMS);
+        if (mappedIds.length > 0) {
+          mappedIds.forEach((id) => standardIds.add(id));
         } else {
-          const displayName =
-            raw.charAt(0).toUpperCase() +
-            raw
-              .slice(1)
-              .replace(/([A-Z])/g, " $1")
-              .trim();
-          customNames.push(displayName);
+          const displayName = toDisplaySystemName(raw);
+          if (displayName) customNames.add(displayName);
         }
       });
       const existingCustomNames = new Set(
         custom.map((c) => c.name.toLowerCase()),
       );
-      const newCustomEntries = customNames
-        .filter((name) => !existingCustomNames.has(name.toLowerCase()))
+      const newCustomEntries = [...customNames]
+        .filter((name) => !existingCustomNames.has(String(name).toLowerCase()))
         .map((name) => ({
           id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           name,
@@ -747,10 +763,18 @@ function SystemsSetupModal({
         setCustom((prev) => [...prev, ...newCustomEntries]);
       }
     } else {
-      // No report analyzed: pre-select all systems by default
-      setSelected(new Set(SETUP_SYSTEMS.map((s) => s.id)));
+      // No report analyzed: preserve saved/loaded systems in Configure flow.
+      // Only fall back to selecting all for first-time setup when there is no selection yet.
+      setSelected((prev) =>
+        prev.size > 0 ? prev : new Set(SETUP_SYSTEMS.map((s) => s.id)),
+      );
     }
-  }, [step, analysisResult?.suggestedSystemsToAdd, custom]);
+  }, [
+    step,
+    analysisResult?.suggestedSystemsToAdd,
+    selectedSuggestedSystems,
+    custom,
+  ]);
 
   const handleSkipSystems = () => {
     persistSystems();
@@ -988,9 +1012,15 @@ function SystemsSetupModal({
     const sysKeys = suggested
       .map((s) => String(s.systemType ?? s.system_key ?? "").trim())
       .filter(Boolean);
+    const normalizedSysKeys = sysKeys.map((k) => normalizeAiSystemToken(k));
+    const selectedNorm = new Set(
+      [...selectedSuggestedSystems]
+        .map((k) => normalizeAiSystemToken(k))
+        .filter(Boolean),
+    );
     const allSelected =
-      sysKeys.length > 0 &&
-      sysKeys.every((k) => selectedSuggestedSystems.has(k));
+      normalizedSysKeys.length > 0 &&
+      normalizedSysKeys.every((k) => selectedNorm.has(k));
     setSelectedSuggestedSystems(allSelected ? new Set() : new Set(sysKeys));
   };
 

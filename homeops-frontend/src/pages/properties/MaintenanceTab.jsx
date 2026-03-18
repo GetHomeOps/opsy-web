@@ -13,7 +13,9 @@ import {
   MaintenanceTreeView,
   MaintenanceFormPanel,
 } from "./partials/maintenance";
+import {isNewMaintenanceRecord} from "./helpers/maintenanceRecordMapping";
 import PropertyContext from "../../context/PropertyContext";
+import {useAuth} from "../../context/AuthContext";
 import ModalBlank from "../../components/ModalBlank";
 
 /**
@@ -31,6 +33,7 @@ function MaintenanceTab({
   savedMaintenanceRecords: savedMaintenanceRecordsArray = [],
   onMaintenanceRecordsChange,
   onMaintenanceRecordAdded,
+  onFormDirty,
   contacts = [],
 }) {
   const {uid: propertyId, accountUrl} = useParams();
@@ -43,6 +46,12 @@ function MaintenanceTab({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [recordToDeleteId, setRecordToDeleteId] = useState(null);
   const {setMaintenanceRecords} = useContext(PropertyContext);
+  const {currentUser} = useAuth();
+  const propertyAddress = useMemo(() => {
+    const p = propertyData || {};
+    return [p.address, p.city, p.state].filter(Boolean).join(", ") || "";
+  }, [propertyData?.address, propertyData?.city, propertyData?.state]);
+  const senderName = currentUser?.data?.name || currentUser?.name || "";
   // Close mobile sidebar on escape key
   useEffect(() => {
     const handleKeydown = (e) => {
@@ -127,6 +136,42 @@ function MaintenanceTab({
     setSelectedSystemId(systemId);
     setIsNewRecord(true);
   }, []);
+
+  // After save, temp IDs (MT-*) are replaced by backend IDs.
+  // Reconcile selected record so open-in-tab and edits target the saved record.
+  useEffect(() => {
+    if (!selectedRecord || !isNewMaintenanceRecord(selectedRecord)) return;
+
+    const source = Array.isArray(savedMaintenanceRecordsArray)
+      ? savedMaintenanceRecordsArray
+      : [];
+    if (source.length === 0) return;
+
+    const normDate = (v) => (v == null ? "" : String(v).trim().slice(0, 10));
+    const sameSystem = (candidate) =>
+      String(candidate.systemId || "") === String(selectedRecord.systemId || "");
+    const sameDate = (candidate) =>
+      normDate(candidate.date) === normDate(selectedRecord.date);
+    const sameContractor = (candidate) =>
+      String(candidate.contractor || "").trim() ===
+      String(selectedRecord.contractor || "").trim();
+    const sameWorkOrder = (candidate) =>
+      String(candidate.workOrderNumber || "").trim() ===
+      String(selectedRecord.workOrderNumber || "").trim();
+
+    const matchedRecord = source.find(
+      (candidate) =>
+        sameSystem(candidate) &&
+        sameDate(candidate) &&
+        (sameContractor(candidate) || sameWorkOrder(candidate)),
+    );
+
+    if (matchedRecord) {
+      setSelectedRecord(matchedRecord);
+      setSelectedSystemId(matchedRecord.systemId || selectedRecord.systemId || null);
+      setIsNewRecord(false);
+    }
+  }, [savedMaintenanceRecordsArray, selectedRecord]);
 
   const handleRecordChange = useCallback(
     (recordData) => {
@@ -221,11 +266,11 @@ function MaintenanceTab({
         data?.record?.id ?? data?.record?.recordId ?? selectedRecord?.id;
       if (sysId && recId) {
         const path = `/${accountUrlPath}/properties/${uid}/maintenance/${encodeURIComponent(sysId)}/${encodeURIComponent(recId)}`;
-        const url = `${window.location.origin}/#${path}`;
+        const url = `${window.location.origin}${path}`;
         window.open(url, "_blank");
       } else {
         const path = `/${accountUrlPath}/properties/${uid}`;
-        const url = `${window.location.origin}/#${path}`;
+        const url = `${window.location.origin}${path}`;
         window.open(url, "_blank");
       }
     },
@@ -273,7 +318,7 @@ function MaintenanceTab({
   return (
     <div
       data-section-id="maintenance"
-      className={`relative flex h-[calc(100vh-200px)] min-h-[600px] bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 ${sidebarCollapsed ? "" : "gap-4"}`}
+      className={`relative flex h-[calc(100vh-120px)] min-h-[700px] bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 ${sidebarCollapsed ? "" : "gap-4"}`}
     >
       {/* Delete confirmation modal - rendered via portal to escape overflow:hidden */}
       {createPortal(
@@ -403,10 +448,14 @@ function MaintenanceTab({
             systemName={getSystemName(selectedSystemId)}
             propertyId={propertyId}
             onRecordChange={handleRecordChange}
+            onFormDirty={onFormDirty}
             onDelete={handleDeleteRecord}
             onOpenInNewTab={handleOpenInNewTab}
             contacts={contacts}
             isNewRecord={isNewRecord}
+            savedMaintenanceRecords={savedMaintenanceRecordsArray ?? []}
+            propertyAddress={propertyAddress}
+            senderName={senderName}
           />
         </div>
       </div>

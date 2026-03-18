@@ -11,7 +11,9 @@ function ContactSearchModal({
   setModalOpen,
   contacts = [],
   agents = [],
+  savedProfessionals = [],
   onSelect,
+  onSelectContact,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -22,6 +24,20 @@ function ContactSearchModal({
   const dedupedContacts = (contacts || []).filter(
     (c) => !agentEmails.has((c.email || "").trim().toLowerCase())
   );
+
+  const filteredSavedProfessionals = useMemo(() => {
+    if (!term) return savedProfessionals || [];
+    return (savedProfessionals || []).filter((p) => {
+      const name = (p.name || "").toLowerCase();
+      const email = (p.email || "").toLowerCase();
+      const company = (p.companyName || "").toLowerCase();
+      return (
+        name.includes(term) ||
+        email.includes(term) ||
+        company.includes(term)
+      );
+    });
+  }, [savedProfessionals, term]);
 
   const filteredAgents = useMemo(() => {
     if (!term) return agents || [];
@@ -42,8 +58,12 @@ function ContactSearchModal({
   }, [dedupedContacts, term]);
 
   const handleSelect = (item) => {
-    const email = item.email?.trim() || item.email;
-    if (email && onSelect) onSelect(email);
+    if (onSelectContact) {
+      onSelectContact(item);
+    } else {
+      const email = item.email?.trim() || item.email;
+      if (email && onSelect) onSelect(email);
+    }
     setModalOpen(false);
     setSearchTerm("");
   };
@@ -57,7 +77,7 @@ function ContactSearchModal({
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Search contacts & agents
+            Search contacts, agents & professionals
           </h2>
           <button
             type="button"
@@ -114,6 +134,37 @@ function ContactSearchModal({
             </div>
           )}
 
+          {filteredSavedProfessionals.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                Favorite Professionals
+              </p>
+              <ul className="space-y-1">
+                {filteredSavedProfessionals.map((p) => (
+                  <li key={`pro-${p.id}`}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(p)}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-[#456564]/20 dark:bg-[#6b9a7a]/30 flex items-center justify-center text-[#456564] dark:text-[#6b9a7a] text-xs font-semibold shrink-0">
+                        {(p.name || p.email)?.charAt(0)?.toUpperCase() || "?"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {p.name || "Unknown"}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {p.email?.trim()}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {filteredContacts.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
@@ -145,7 +196,9 @@ function ContactSearchModal({
             </div>
           )}
 
-          {filteredAgents.length === 0 && filteredContacts.length === 0 && (
+          {filteredAgents.length === 0 &&
+            filteredContacts.length === 0 &&
+            filteredSavedProfessionals.length === 0 && (
             <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
               {searchTerm.trim()
                 ? "No matches found."

@@ -28,6 +28,7 @@ import {
   PROPERTY_SYSTEMS,
   DEFAULT_SYSTEM_IDS,
 } from "../constants/propertySystems";
+import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 
 function AIAssistantSidebar({
   isOpen,
@@ -214,7 +215,7 @@ function AIAssistantSidebar({
       const systemKey = s.system_key ?? s.id;
       const displayName =
         s.name ??
-        PROPERTY_SYSTEMS.find((p) => p.id === systemKey)?.name ??
+        getSystemLabelFromAiType(systemKey) ??
         systemKey;
       return { id: systemKey, name: displayName };
     });

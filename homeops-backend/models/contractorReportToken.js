@@ -38,6 +38,7 @@ class ContractorReportToken {
     const result = await db.query(
       `SELECT crt.id, crt.maintenance_record_id AS "maintenanceRecordId",
               crt.property_id AS "propertyId",
+              crt.created_by AS "createdBy",
               crt.contractor_email AS "contractorEmail",
               crt.contractor_name AS "contractorName",
               crt.status, crt.expires_at AS "expiresAt",
