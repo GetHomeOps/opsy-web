@@ -519,7 +519,6 @@ export default function InspectionAnalysisModalContent({
           </p>
           <InspectionChecklistPanel
             propertyId={propertyId}
-            onScheduleMaintenance={onScheduleMaintenance}
           />
         </section>
 

@@ -582,6 +582,9 @@ function ScheduleStep({
   setAlertCustomDays,
   emailReminder,
   setEmailReminder,
+  checklistItems = [],
+  selectedChecklistItemId,
+  setSelectedChecklistItemId,
 }) {
   return (
     <div className="space-y-6">
@@ -626,6 +629,32 @@ function ScheduleStep({
           />
         </div>
       </div>
+
+      {/* Link to ToDo (checklist item) */}
+      {checklistItems.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            Link to ToDo
+          </label>
+          <select
+            value={selectedChecklistItemId ?? ""}
+            onChange={(e) =>
+              setSelectedChecklistItemId(e.target.value ? e.target.value : null)
+            }
+            className="form-select w-full"
+          >
+            <option value="">None — general maintenance</option>
+            {checklistItems.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+                {item.priority && item.priority !== "medium"
+                  ? ` (${item.priority})`
+                  : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Recurrence */}
       <div>
@@ -980,6 +1009,7 @@ function MaintenanceScheduleModal({
   onSchedule,
   initialScheduledDate = "",
   initialScheduledTime = "",
+  initialChecklistItemId = null,
   embedded = false,
 }) {
   const navigate = useNavigate();
@@ -1001,6 +1031,8 @@ function MaintenanceScheduleModal({
   // Step 2 state
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
+  const [selectedChecklistItemId, setSelectedChecklistItemId] = useState(null);
+  const [checklistItems, setChecklistItems] = useState([]);
   const [recurrenceType, setRecurrenceType] = useState("one-time");
   const [customIntervalValue, setCustomIntervalValue] = useState(3);
   const [customIntervalUnit, setCustomIntervalUnit] = useState("months");
@@ -1044,6 +1076,24 @@ function MaintenanceScheduleModal({
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen || !propertyId || !systemType) {
+      setChecklistItems([]);
+      return;
+    }
+    let cancelled = false;
+    AppApi.getInspectionChecklist(propertyId, {systemKey: systemType})
+      .then((items) => {
+        if (!cancelled) setChecklistItems(items || []);
+      })
+      .catch(() => {
+        if (!cancelled) setChecklistItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, propertyId, systemType]);
+
+  useEffect(() => {
     if (isOpen) {
       setCurrentStep(0);
       setShowSuccess(false);
@@ -1054,6 +1104,7 @@ function MaintenanceScheduleModal({
       setContractorSearch("");
       setScheduledDate(initialScheduledDate || "");
       setScheduledTime(initialScheduledTime || "");
+      setSelectedChecklistItemId(initialChecklistItemId ?? null);
       setRecurrenceType("one-time");
       setCustomIntervalValue(3);
       setCustomIntervalUnit("months");
@@ -1066,7 +1117,12 @@ function MaintenanceScheduleModal({
       setAiAdvice(null);
       setAiLoading(false);
     }
-  }, [isOpen, initialScheduledDate, initialScheduledTime]);
+  }, [
+    isOpen,
+    initialScheduledDate,
+    initialScheduledTime,
+    initialChecklistItemId,
+  ]);
 
   // Update message template when dependencies change
   useEffect(() => {
@@ -1143,6 +1199,9 @@ function MaintenanceScheduleModal({
       contractor_id: selectedContractor?.sourceId ?? null,
       contractor_source: selectedContractor?.source ?? null,
       contractor_name: selectedContractor?.name ?? null,
+      checklist_item_id: selectedChecklistItemId
+        ? parseInt(selectedChecklistItemId, 10)
+        : null,
       scheduled_date: scheduledDate,
       scheduled_time: (() => {
         const t = scheduledTime?.trim();
@@ -1257,6 +1316,9 @@ function MaintenanceScheduleModal({
             setAlertCustomDays={setAlertCustomDays}
             emailReminder={emailReminder}
             setEmailReminder={setEmailReminder}
+            checklistItems={checklistItems}
+            selectedChecklistItemId={selectedChecklistItemId}
+            setSelectedChecklistItemId={setSelectedChecklistItemId}
           />
         )}
         {currentStep === 3 && (
@@ -1277,14 +1339,20 @@ function MaintenanceScheduleModal({
 
       {/* Footer */}
       <div className="flex flex-col gap-2 mt-6 pt-5 border-t border-gray-200 dark:border-gray-700">
-        {currentStep === STEPS.length - 1 && calendarIntegrations.length > 0 && (
-          <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-            <span>
-              Syncing with {calendarIntegrations.map((i) => (i.provider === "google" ? "Google Calendar" : "Outlook")).join(" & ")}
-            </span>
-          </div>
-        )}
+        {currentStep === STEPS.length - 1 &&
+          calendarIntegrations.length > 0 && (
+            <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              <span>
+                Syncing with{" "}
+                {calendarIntegrations
+                  .map((i) =>
+                    i.provider === "google" ? "Google Calendar" : "Outlook",
+                  )
+                  .join(" & ")}
+              </span>
+            </div>
+          )}
         <div className="flex items-center justify-between">
           <div>
             {currentStep > 0 && (
@@ -1298,46 +1366,48 @@ function MaintenanceScheduleModal({
             )}
           </div>
           <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => onClose(false)}
-            className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-          >
-            Cancel
-          </button>
-          {currentStep < STEPS.length - 1 ? (
             <button
               type="button"
-              onClick={handleNext}
-              disabled={!canAdvance()}
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={() => onClose(false)}
+              className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
             >
-              Next
+              Cancel
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={!scheduledDate || saving}
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {saving ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
-                </span>
-              ) : (
-                "Schedule"
-              )}
-            </button>
-          )}
-        </div>
+            {currentStep < STEPS.length - 1 ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={!canAdvance()}
+                className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!scheduledDate || saving}
+                className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </span>
+                ) : (
+                  "Schedule"
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 
-  return embedded ? content : (
+  return embedded ? (
+    content
+  ) : (
     <ModalBlank
       id="maintenance-schedule-modal"
       modalOpen={isOpen}

@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useMemo, useContext} from "react";
+import React, {useState, useEffect, useMemo, useCallback, useContext} from "react";
 import {
   Building,
   Droplet,
@@ -7,6 +7,8 @@ import {
   Shield,
   FileCheck,
   Info,
+  Calendar,
+  X,
 } from "lucide-react";
 import {
   STANDARD_CUSTOM_SYSTEM_FIELDS,
@@ -28,6 +30,8 @@ import {getDisplayNamesWithCounters} from "./helpers/systemKeyUtils";
 import DatePickerInput from "../../components/DatePickerInput";
 import ContactContext from "../../context/ContactContext";
 import CollapsibleSection from "./partials/CollapsibleSection";
+import ModalBlank from "../../components/ModalBlank";
+import {parseDateInput} from "../../lib/dateOffset";
 import InstallerSelect from "./partials/InstallerSelect";
 import Tooltip from "../../utils/Tooltip";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
@@ -118,6 +122,16 @@ function SystemsTab({
     propertyIdFallback;
 
   const [aiAuditModalOpen, setAiAuditModalOpen] = useState(false);
+  const [systemEventsModalOpen, setSystemEventsModalOpen] = useState(false);
+  const [systemEventsModalEvents, setSystemEventsModalEvents] = useState([]);
+  const [systemEventsModalLabel, setSystemEventsModalLabel] = useState("");
+
+  const handleViewSystemEvents = useCallback((events, label) => {
+    setSystemEventsModalEvents(events || []);
+    setSystemEventsModalLabel(label || "");
+    setSystemEventsModalOpen(true);
+  }, []);
+
   const handleOpenAIAssistant = (labelOrContext) => {
     if (onOpenAIAssistantProp) {
       onOpenAIAssistantProp(labelOrContext);
@@ -328,6 +342,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.roof}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -500,6 +515,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.gutters}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -666,6 +682,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.foundation}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -777,6 +794,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.exterior}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -895,6 +913,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.windows}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -1057,6 +1076,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.heating}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -1227,6 +1247,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.ac}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -1400,6 +1421,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.waterHeating}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -1575,6 +1597,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.electrical}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -1750,6 +1773,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.plumbing}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -1946,6 +1970,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.safety}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -2017,6 +2042,7 @@ function SystemsTab({
           maintenanceEvents={maintenanceEvents}
           maintenanceRecords={maintenanceRecords}
           onScheduleSuccess={onScheduleSuccess}
+          onViewSystemEvents={handleViewSystemEvents}
           aiCondition={aiConditionBySystem.inspections}
           inspectionAnalysis={inspectionAnalysis}
           onOpenInspectionReport={onOpenInspectionReport}
@@ -2300,6 +2326,7 @@ function SystemsTab({
               maintenanceEvents={maintenanceEvents}
               maintenanceRecords={maintenanceRecords}
               onScheduleSuccess={onScheduleSuccess}
+              onViewSystemEvents={handleViewSystemEvents}
               aiCondition={aiConditionBySystem[sectionId] ?? aiConditionBySystem[`custom-${systemName}`]}
               inspectionAnalysis={inspectionAnalysis}
               onOpenInspectionReport={onOpenInspectionReport}
@@ -2433,6 +2460,72 @@ function SystemsTab({
       onClose={() => setAiAuditModalOpen(false)}
       propertyId={propertyId}
     />
+
+    <ModalBlank
+      id="system-events-modal"
+      modalOpen={systemEventsModalOpen}
+      setModalOpen={setSystemEventsModalOpen}
+      contentClassName="max-w-md"
+    >
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Scheduled Events
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {systemEventsModalLabel}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSystemEventsModalOpen(false)}
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        {systemEventsModalEvents.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+            No events scheduled for this system.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {systemEventsModalEvents.map((ev) => {
+              const d = parseDateInput(ev.scheduled_date ?? ev.scheduledDate);
+              return (
+                <div
+                  key={ev.id}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/30"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
+                    <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                      {d
+                        ? d.toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })
+                        : "No date"}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {ev.contractor_name || "No professional assigned"}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 flex-shrink-0">
+                    {ev.status || "scheduled"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </ModalBlank>
     </>
   );
 }

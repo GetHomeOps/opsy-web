@@ -12,6 +12,7 @@ const { onEventScheduled } = require("../services/resourceAutoSend");
 const { getMaintenanceAdvice } = require("../services/maintenanceAdviceService");
 const InspectionChecklistItem = require("../models/inspectionChecklistItem");
 const { syncEventToCalendars, updateEventInCalendars, deleteEventFromCalendars } = require("../services/calendarSyncService");
+const { sendScheduleNotificationEmail } = require("../services/emailService");
 
 const router = express.Router();
 
@@ -166,15 +167,16 @@ router.post(
       }
 
       let calendarSync = { synced: [], failed: [] };
+      let propRow = null;
       try {
         const propRes = await db.query(
           `SELECT property_name, address, city, state FROM properties WHERE id = $1`,
           [req.params.propertyId]
         );
-        const p = propRes.rows[0];
+        propRow = propRes.rows[0];
         const propertyInfo = {
-          propertyName: p?.property_name || "",
-          address: [p?.address, p?.city, p?.state].filter(Boolean).join(", ") || "",
+          propertyName: propRow?.property_name || "",
+          address: [propRow?.address, propRow?.city, propRow?.state].filter(Boolean).join(", ") || "",
         };
         calendarSync = await syncEventToCalendars(res.locals.user.id, event, propertyInfo);
         if (calendarSync.failed.length > 0) {
@@ -184,6 +186,33 @@ router.post(
         console.error("[calendarSync] create sync failed:", calErr.message);
         calendarSync = { synced: [], failed: [{ provider: "unknown", error: calErr.message }] };
       }
+
+      const contractorEmail = req.body.contractor_email;
+      if (contractorEmail) {
+        try {
+          const userRes = await db.query(
+            `SELECT first_name, last_name FROM users WHERE id = $1`,
+            [res.locals.user.id]
+          );
+          const u = userRes.rows[0];
+          const senderName = u ? `${u.first_name || ""} ${u.last_name || ""}`.trim() : null;
+          const propertyAddress = propRow ? [propRow.address, propRow.city, propRow.state].filter(Boolean).join(", ") : null;
+
+          await sendScheduleNotificationEmail({
+            to: contractorEmail,
+            contractorName: event.contractor_name,
+            propertyAddress: propertyAddress || propRow?.property_name,
+            systemName: event.system_name,
+            scheduledDate: event.scheduled_date,
+            scheduledTime: event.scheduled_time,
+            messageBody: event.message_body,
+            senderName,
+          });
+        } catch (emailErr) {
+          console.error("[emailService] Failed to send schedule notification:", emailErr.message);
+        }
+      }
+
       return res.status(201).json({ event, calendarSync });
     } catch (err) {
       return next(err);

@@ -165,8 +165,74 @@ async function sendContractorReportEmail({ to, reportUrl, contractorName, proper
   return sendViaSes({ to, subject, html });
 }
 
+/**
+ * Send scheduling notification email to a professional/contractor.
+ * @param {Object} opts - { to, contractorName?, propertyAddress?, systemName?, scheduledDate?, scheduledTime?, messageBody?, senderName? }
+ */
+async function sendScheduleNotificationEmail({ to, contractorName, propertyAddress, systemName, scheduledDate, scheduledTime, messageBody, senderName }) {
+  if (!isSesConfigured()) {
+    console.warn("[emailService] SES not configured — skipping schedule notification email");
+    return { success: false, reason: "ses_not_configured" };
+  }
+
+  const greeting = contractorName ? `Hi ${contractorName},` : "Hi,";
+  const requester = senderName || "A homeowner";
+  const propertyText = propertyAddress ? ` at <strong>${propertyAddress}</strong>` : "";
+  const systemText = systemName ? ` for <strong>${systemName}</strong>` : "";
+
+  const formattedDate = scheduledDate
+    ? new Date(scheduledDate + "T00:00:00").toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
+  const formattedTime = scheduledTime
+    ? (() => {
+        const [h, m] = scheduledTime.split(":");
+        const hour = parseInt(h, 10);
+        const ampm = hour >= 12 ? "PM" : "AM";
+        const hour12 = hour % 12 || 12;
+        return `${hour12}:${m} ${ampm}`;
+      })()
+    : null;
+
+  const detailsRows = [];
+  if (propertyAddress) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Property:</td><td>${propertyAddress}</td></tr>`);
+  if (systemName) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">System:</td><td>${systemName}</td></tr>`);
+  if (formattedDate) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Date:</td><td>${formattedDate}${formattedTime ? ` at ${formattedTime}` : ""}</td></tr>`);
+  if (senderName) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Requested by:</td><td>${senderName}</td></tr>`);
+  const detailsSection = detailsRows.length > 0
+    ? `<div style="margin: 16px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 14px;">
+        <table style="border-collapse: collapse;">${detailsRows.join("")}</table>
+      </div>`
+    : "";
+
+  const messageSection = messageBody
+    ? `<div style="margin: 16px 0; padding: 12px 16px; background: #f0fdf4; border-left: 3px solid #456564; border-radius: 4px; font-size: 14px; color: #374151; white-space: pre-wrap;">${messageBody}</div>`
+    : "";
+
+  const subject = `${appName}: Service scheduled${systemName ? ` — ${systemName}` : ""}${propertyAddress ? ` at ${propertyAddress}` : ""}`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+      <h2 style="color: #456564;">Service Scheduled</h2>
+      <p>${greeting}</p>
+      <p>${requester} has scheduled a service${systemText}${propertyText}.</p>
+      ${detailsSection}
+      ${messageSection ? `<p style="font-size: 14px; color: #374151;">Message from homeowner:</p>${messageSection}` : ""}
+      <p style="color: #6b7280; font-size: 14px;">Please confirm this appointment or reach out to the homeowner to discuss the details.</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${appName} Team</p>
+    </div>
+  `;
+
+  return sendViaSes({ to, subject, html });
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendInvitationEmail,
   sendContractorReportEmail,
+  sendScheduleNotificationEmail,
 };

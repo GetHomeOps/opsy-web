@@ -1,4 +1,4 @@
-import React, {useMemo} from "react";
+import React, {useMemo, useState} from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -14,7 +14,10 @@ import {
 } from "lucide-react";
 import SystemActionButtons from "./SystemActionButtons";
 import Tooltip from "../../../utils/Tooltip";
-import {getSystemStatus, getCurrentConditionValue} from "../helpers/systemStatusHelpers";
+import {
+  getSystemStatus,
+  getCurrentConditionValue,
+} from "../helpers/systemStatusHelpers";
 import {getSystemFindingsFromAnalysis} from "../helpers/inspectionAnalysisHelpers";
 import InspectionChecklistPanel from "./InspectionChecklistPanel";
 
@@ -51,6 +54,7 @@ function CollapsibleSection({
   maintenanceEvents = [],
   maintenanceRecords = [],
   checklistSystemKey,
+  onViewSystemEvents,
 }) {
   const formStatus = useMemo(
     () =>
@@ -62,7 +66,11 @@ function CollapsibleSection({
             customSystemsData,
             maintenanceEvents,
           )
-        : {needsAttention: false, attentionReasons: [], hasScheduledEvent: false},
+        : {
+            needsAttention: false,
+            attentionReasons: [],
+            hasScheduledEvent: false,
+          },
     [
       showActionButtons,
       propertyData,
@@ -79,21 +87,22 @@ function CollapsibleSection({
   );
 
   // Unified health: merge form-based reasons with AI findings (both drive "needs attention")
-  const {needsAttention, attentionReasons, hasScheduledEvent, scheduledDate} = useMemo(() => {
-    const reasons = [...(formStatus.attentionReasons || [])];
-    const aiNeeds = systemFindings?.needsAttention ?? [];
-    aiNeeds.forEach((n) => {
-      const label = n.title || n.suggestedAction || "AI finding";
-      if (label && !reasons.includes(label)) reasons.push(label);
-    });
-    const merged = formStatus.needsAttention || aiNeeds.length > 0;
-    return {
-      needsAttention: merged,
-      attentionReasons: reasons,
-      hasScheduledEvent: formStatus.hasScheduledEvent,
-      scheduledDate: formStatus.scheduledDate,
-    };
-  }, [formStatus, systemFindings]);
+  const {needsAttention, attentionReasons, hasScheduledEvent, scheduledDate} =
+    useMemo(() => {
+      const reasons = [...(formStatus.attentionReasons || [])];
+      const aiNeeds = systemFindings?.needsAttention ?? [];
+      aiNeeds.forEach((n) => {
+        const label = n.title || n.suggestedAction || "AI finding";
+        if (label && !reasons.includes(label)) reasons.push(label);
+      });
+      const merged = formStatus.needsAttention || aiNeeds.length > 0;
+      return {
+        needsAttention: merged,
+        attentionReasons: reasons,
+        hasScheduledEvent: formStatus.hasScheduledEvent,
+        scheduledDate: formStatus.scheduledDate,
+      };
+    }, [formStatus, systemFindings]);
 
   const aiInspectionTooltip = useMemo(() => {
     if (!aiCondition) return null;
@@ -126,42 +135,72 @@ function CollapsibleSection({
     const c = aiCondition.confidence;
     const confLabel = c >= 0.8 ? "High" : c >= 0.5 ? "Med" : "Low";
 
-    const {needsAttention: needs, maintenanceSuggestions: maint} = systemFindings;
+    const {needsAttention: needs, maintenanceSuggestions: maint} =
+      systemFindings;
 
     return (
       <div className="flex flex-col gap-2 min-w-[180px]">
         <div className="flex items-center gap-2">
-          <FileSearch className={`w-4 h-4 flex-shrink-0 ${conditionColor}`} strokeWidth={2} />
+          <FileSearch
+            className={`w-4 h-4 flex-shrink-0 ${conditionColor}`}
+            strokeWidth={2}
+          />
           <span className="text-xs font-medium">AI Inspection</span>
         </div>
         {PriorityIcon && (
           <div className="flex items-center gap-2">
-            <PriorityIcon className={`w-4 h-4 flex-shrink-0 ${priorityColor}`} strokeWidth={2} />
+            <PriorityIcon
+              className={`w-4 h-4 flex-shrink-0 ${priorityColor}`}
+              strokeWidth={2}
+            />
             <span className="text-xs text-gray-600 dark:text-gray-400">
-              {sev === "urgent" || sev === "high" || sev === "critical" ? "High priority" : sev === "medium" ? "Medium priority" : "Low priority"}
+              {sev === "urgent" || sev === "high" || sev === "critical"
+                ? "High priority"
+                : sev === "medium"
+                  ? "Medium priority"
+                  : "Low priority"}
             </span>
           </div>
         )}
         {c != null && (
           <div className="flex items-center gap-2">
-            <Gauge className="w-4 h-4 flex-shrink-0 text-gray-500 dark:text-gray-400" strokeWidth={2} />
-            <span className="text-xs text-gray-600 dark:text-gray-400">{confLabel} confidence</span>
+            <Gauge
+              className="w-4 h-4 flex-shrink-0 text-gray-500 dark:text-gray-400"
+              strokeWidth={2}
+            />
+            <span className="text-xs text-gray-600 dark:text-gray-400">
+              {confLabel} confidence
+            </span>
           </div>
         )}
         {needs.length > 0 && (
           <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" strokeWidth={2} />
+            <AlertTriangle
+              className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400"
+              strokeWidth={2}
+            />
             <span className="text-xs text-gray-600 dark:text-gray-400">
-              {needs.slice(0, 2).map((n) => n.title || n.suggestedAction || "—").filter(Boolean).join("; ")}
+              {needs
+                .slice(0, 2)
+                .map((n) => n.title || n.suggestedAction || "—")
+                .filter(Boolean)
+                .join("; ")}
               {needs.length > 2 ? ` +${needs.length - 2} more` : ""}
             </span>
           </div>
         )}
         {maint.length > 0 && (
           <div className="flex items-start gap-2">
-            <Wrench className="w-4 h-4 flex-shrink-0 mt-0.5 text-gray-500 dark:text-gray-400" strokeWidth={2} />
+            <Wrench
+              className="w-4 h-4 flex-shrink-0 mt-0.5 text-gray-500 dark:text-gray-400"
+              strokeWidth={2}
+            />
             <span className="text-xs text-gray-600 dark:text-gray-400">
-              {maint.slice(0, 2).map((m) => m.task || "—").filter(Boolean).join("; ")}
+              {maint
+                .slice(0, 2)
+                .map((m) => m.task || "—")
+                .filter(Boolean)
+                .join("; ")}
               {maint.length > 2 ? ` +${maint.length - 2} more` : ""}
             </span>
           </div>
@@ -295,77 +334,94 @@ function CollapsibleSection({
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
             >
-              {aiCondition && (aiCondition.confidence == null || aiCondition.confidence >= 0.5) && aiInspectionTooltip && (
-                <Tooltip
-                  content={aiInspectionTooltip}
-                  position="bottom"
-                  size="xl"
-                >
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenInspectionReport?.(systemType);
-                    }}
-                    className={`inline-flex items-center justify-center w-[18px] h-[18px] transition-colors rounded hover:opacity-80 p-0.5 ${
-                      aiCondition.status === "excellent"
-                        ? "text-emerald-600 dark:text-emerald-500/90"
-                        : aiCondition.status === "good"
-                          ? "text-emerald-500 dark:text-[#456564]"
-                          : aiCondition.status === "fair"
-                            ? "text-amber-600 dark:text-amber-500/90"
-                            : aiCondition.status === "poor"
-                              ? "text-red-600 dark:text-red-500/90"
-                              : "text-gray-500 dark:text-gray-400"
-                    }`}
-                    aria-label={`AI Inspection: ${aiCondition.status || "unknown"} condition`}
+              {aiCondition &&
+                (aiCondition.confidence == null ||
+                  aiCondition.confidence >= 0.5) &&
+                aiInspectionTooltip && (
+                  <Tooltip
+                    content={aiInspectionTooltip}
+                    position="bottom"
+                    size="xl"
                   >
-                    <FileSearch className="w-[18px] h-[18px]" strokeWidth={2} />
-                  </button>
-                </Tooltip>
-              )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenInspectionReport?.(systemType);
+                      }}
+                      className={`inline-flex items-center justify-center w-[18px] h-[18px] transition-colors rounded hover:opacity-80 p-0.5 ${
+                        aiCondition.status === "excellent"
+                          ? "text-emerald-600 dark:text-emerald-500/90"
+                          : aiCondition.status === "good"
+                            ? "text-emerald-500 dark:text-[#456564]"
+                            : aiCondition.status === "fair"
+                              ? "text-amber-600 dark:text-amber-500/90"
+                              : aiCondition.status === "poor"
+                                ? "text-red-600 dark:text-red-500/90"
+                                : "text-gray-500 dark:text-gray-400"
+                      }`}
+                      aria-label={`AI Inspection: ${aiCondition.status || "unknown"} condition`}
+                    >
+                      <FileSearch
+                        className="w-[18px] h-[18px]"
+                        strokeWidth={2}
+                      />
+                    </button>
+                  </Tooltip>
+                )}
               {needsAttention && (
                 <Tooltip
-                  content={
-                    (() => {
-                      const getIconForReason = (reason) => {
-                        const r = (reason || "").toLowerCase();
-                        if (r.includes("inspection date")) return Calendar;
-                        if (r.includes("installation")) return Wrench;
-                        if (r.includes("condition")) return Gauge;
-                        if (r.includes("issues")) return AlertCircle;
-                        return AlertTriangle;
-                      };
-                      return (
-                        <div className="flex flex-col gap-2 min-w-[180px]">
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-500" strokeWidth={2} />
-                            <span className="text-xs font-medium">Needs attention</span>
-                          </div>
-                          {attentionReasons.length > 0 ? (
-                            <ul className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400 list-none pl-0">
-                              {attentionReasons.map((reason, i) => {
-                                const ReasonIcon = getIconForReason(reason);
-                                return (
-                                  <li key={i} className="flex items-start gap-2">
-                                    <ReasonIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" strokeWidth={2} />
-                                    <span>{reason}</span>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          ) : (
-                            <span className="text-xs text-gray-600 dark:text-gray-400">Action may be required</span>
-                          )}
+                  content={(() => {
+                    const getIconForReason = (reason) => {
+                      const r = (reason || "").toLowerCase();
+                      if (r.includes("inspection date")) return Calendar;
+                      if (r.includes("installation")) return Wrench;
+                      if (r.includes("condition")) return Gauge;
+                      if (r.includes("issues")) return AlertCircle;
+                      return AlertTriangle;
+                    };
+                    return (
+                      <div className="flex flex-col gap-2 min-w-[180px]">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle
+                            className="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-500"
+                            strokeWidth={2}
+                          />
+                          <span className="text-xs font-medium">
+                            Needs attention
+                          </span>
                         </div>
-                      );
-                    })()
-                  }
+                        {attentionReasons.length > 0 ? (
+                          <ul className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400 list-none pl-0">
+                            {attentionReasons.map((reason, i) => {
+                              const ReasonIcon = getIconForReason(reason);
+                              return (
+                                <li key={i} className="flex items-start gap-2">
+                                  <ReasonIcon
+                                    className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400"
+                                    strokeWidth={2}
+                                  />
+                                  <span>{reason}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            Action may be required
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   position="bottom"
                   size="xl"
                 >
                   <span className="inline-flex items-center justify-center w-[18px] h-[18px] text-amber-600 dark:text-amber-500/90 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-default">
-                    <AlertTriangle className="w-[18px] h-[18px]" strokeWidth={2} />
+                    <AlertTriangle
+                      className="w-[18px] h-[18px]"
+                      strokeWidth={2}
+                    />
                   </span>
                 </Tooltip>
               )}
@@ -373,19 +429,31 @@ function CollapsibleSection({
                 <Tooltip
                   content={
                     scheduledDate
-                      ? `Scheduled for ${new Date(scheduledDate).toLocaleDateString("en-US", {
+                      ? `Scheduled for ${new Date(
+                          scheduledDate,
+                        ).toLocaleDateString("en-US", {
                           weekday: "short",
                           month: "short",
                           day: "numeric",
                           year: "numeric",
-                        })}`
-                      : "Scheduled event"
+                        })} — Click to view all`
+                      : "Scheduled event — Click to view all"
                   }
                   position="bottom"
                 >
-                  <span className="inline-flex items-center justify-center w-[18px] h-[18px] text-emerald-600 dark:text-emerald-500/90 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors cursor-default">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const sysEvents = (maintenanceEvents || []).filter(
+                        (ev) => (ev.system_key ?? ev.systemKey) === systemType,
+                      );
+                      onViewSystemEvents?.(sysEvents, title || systemLabel);
+                    }}
+                    className="inline-flex items-center justify-center w-[18px] h-[18px] text-emerald-600 dark:text-emerald-500/90 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors"
+                  >
                     <Calendar className="w-[18px] h-[18px]" strokeWidth={2} />
-                  </span>
+                  </button>
                 </Tooltip>
               )}
               {onOpenAIAssistant && (
@@ -394,21 +462,47 @@ function CollapsibleSection({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const cond = aiCondition?.status || getCurrentConditionValue(propertyData, systemType) || null;
+                      const cond =
+                        aiCondition?.status ||
+                        getCurrentConditionValue(propertyData, systemType) ||
+                        null;
                       const nextDate = formStatus.scheduledDate;
                       const nextTime = formStatus.scheduledTime;
-                      const upcomingForSystem = (maintenanceEvents || []).filter(
-                        (e) => (e.system_key ?? e.systemKey) === systemType && (e.scheduled_date ?? e.scheduledDate) >= new Date().toISOString().slice(0, 10)
+                      const upcomingForSystem = (
+                        maintenanceEvents || []
+                      ).filter(
+                        (e) =>
+                          (e.system_key ?? e.systemKey) === systemType &&
+                          (e.scheduled_date ?? e.scheduledDate) >=
+                            new Date().toISOString().slice(0, 10),
                       );
-                      const findings = getSystemFindingsFromAnalysis(systemType, inspectionAnalysis);
+                      const findings = getSystemFindingsFromAnalysis(
+                        systemType,
+                        inspectionAnalysis,
+                      );
                       const lastInspField = systemType?.startsWith("custom-")
                         ? null
-                        : {roof: "roofLastInspection", gutters: "gutterLastInspection", foundation: "foundationLastInspection", exterior: "sidingLastInspection", windows: "windowLastInspection", heating: "heatingLastInspection", ac: "acLastInspection", waterHeating: "waterHeatingLastInspection", electrical: "electricalLastInspection", plumbing: "plumbingLastInspection"}[systemType];
-                      const lastMaint = lastInspField ? propertyData?.[lastInspField] : null;
+                        : {
+                            roof: "roofLastInspection",
+                            gutters: "gutterLastInspection",
+                            foundation: "foundationLastInspection",
+                            exterior: "sidingLastInspection",
+                            windows: "windowLastInspection",
+                            heating: "heatingLastInspection",
+                            ac: "acLastInspection",
+                            waterHeating: "waterHeatingLastInspection",
+                            electrical: "electricalLastInspection",
+                            plumbing: "plumbingLastInspection",
+                          }[systemType];
+                      const lastMaint = lastInspField
+                        ? propertyData?.[lastInspField]
+                        : null;
                       onOpenAIAssistant({
                         systemId: systemType,
                         systemName: systemLabel || title,
-                        systemCondition: cond ? String(cond).toLowerCase() : null,
+                        systemCondition: cond
+                          ? String(cond).toLowerCase()
+                          : null,
                         lastMaintenanceDate: lastMaint || null,
                         upcomingEvents: upcomingForSystem.map((ev) => ({
                           date: ev.scheduled_date ?? ev.scheduledDate,
@@ -421,11 +515,13 @@ function CollapsibleSection({
                             severity: n.severity,
                             suggestedAction: n.suggestedAction,
                           })),
-                          ...(findings.maintenanceSuggestions || []).map((m) => ({
-                            title: m.task || m.systemType,
-                            severity: m.priority,
-                            suggestedAction: m.suggestedWhen || m.rationale,
-                          })),
+                          ...(findings.maintenanceSuggestions || []).map(
+                            (m) => ({
+                              title: m.task || m.systemType,
+                              severity: m.priority,
+                              suggestedAction: m.suggestedWhen || m.rationale,
+                            }),
+                          ),
                         ],
                       });
                     }}
@@ -467,7 +563,6 @@ function CollapsibleSection({
           <InspectionChecklistPanel
             propertyId={propertyId}
             systemKey={checklistSystemKey ?? systemType}
-            onScheduleMaintenance={onScheduleInspection ? (data) => onScheduleInspection(data) : undefined}
             maintenanceRecords={maintenanceRecords}
             compact
           />

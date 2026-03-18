@@ -9,8 +9,6 @@ import React, {useState, useEffect, useCallback, useMemo, useRef} from "react";
 import {
   CheckCircle2,
   Circle,
-  Clock,
-  MinusCircle,
   AlertTriangle,
   AlertOctagon,
   AlertCircle,
@@ -21,49 +19,34 @@ import {
   ClipboardList,
   Plus,
   Trash2,
+  X,
+  MapPin,
   User,
+  Clock,
 } from "lucide-react";
 import AppApi from "../../../api/api";
-import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
+import ModalBlank from "../../../components/ModalBlank";
+import {parseDateInput} from "../../../lib/dateOffset";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 
 const INSPECTION_CHECKLIST_UPDATED_EVENT = "inspection-checklist:updated";
 
-function emitInspectionChecklistUpdated() {
+function emitInspectionChecklistUpdated(detail = {}) {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(INSPECTION_CHECKLIST_UPDATED_EVENT));
+  window.dispatchEvent(
+    new CustomEvent(INSPECTION_CHECKLIST_UPDATED_EVENT, {detail}),
+  );
 }
 
+/** Checked vs unchecked - only two states for UI. */
 const STATUS_CONFIG = {
-  pending: {
-    icon: Circle,
-    label: "Pending",
-    color: "text-gray-400 dark:text-gray-500",
-    bg: "bg-gray-100 dark:bg-gray-700",
-  },
-  in_progress: {
-    icon: Clock,
-    label: "In Progress",
-    color: "text-blue-500 dark:text-blue-400",
-    bg: "bg-blue-50 dark:bg-blue-900/30",
-  },
   completed: {
     icon: CheckCircle2,
-    label: "Done",
     color: "text-emerald-600 dark:text-emerald-400",
-    bg: "bg-emerald-50 dark:bg-emerald-900/30",
   },
-  deferred: {
-    icon: Clock,
-    label: "Deferred",
-    color: "text-amber-500 dark:text-amber-400",
-    bg: "bg-amber-50 dark:bg-amber-900/30",
-  },
-  not_applicable: {
-    icon: MinusCircle,
-    label: "N/A",
+  not_completed: {
+    icon: Circle,
     color: "text-gray-400 dark:text-gray-500",
-    bg: "bg-gray-50 dark:bg-gray-800",
   },
 };
 
@@ -81,6 +64,20 @@ const PRIORITY_COLORS = {
   low: "text-gray-500 dark:text-gray-400",
 };
 
+const PRIORITY_PILL_STYLES = {
+  urgent: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
+  high: "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400",
+  medium: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  low: "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400",
+};
+
+const LEFT_BORDER_BY_PRIORITY = {
+  urgent: "border-l-red-500 dark:border-l-red-400",
+  high: "border-l-red-400 dark:border-l-red-500",
+  medium: "border-l-amber-400 dark:border-l-amber-500",
+  low: "border-l-gray-300 dark:border-l-gray-600",
+};
+
 function getSystemLabel(systemKey) {
   if (!systemKey) return "General";
   return getSystemLabelFromAiType(systemKey);
@@ -89,11 +86,11 @@ function getSystemLabel(systemKey) {
 function ProgressBar({completed, total, className = ""}) {
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={`flex items-center gap-2.5 ${className}`}>
       <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
         <div
-          className="h-full bg-emerald-500 dark:bg-emerald-400 rounded-full transition-all duration-500"
-          style={{width: `${pct}%`}}
+          className="h-full rounded-full transition-all duration-500 ease-out animate-pulse"
+          style={{width: `${pct}%`, backgroundColor: "#32bd7c"}}
         />
       </div>
       <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap">
@@ -103,94 +100,219 @@ function ProgressBar({completed, total, className = ""}) {
   );
 }
 
+function EventDetailInlineModal({event, isOpen, onClose}) {
+  if (!event) return null;
+  const eventDate = parseDateInput(event.scheduled_date ?? event.scheduledDate);
+  const formattedDate = eventDate
+    ? eventDate.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "";
+  const formattedTime = event.scheduled_time
+    ? (() => {
+        const [h, m] = event.scheduled_time.split(":");
+        const hour = parseInt(h, 10);
+        const ampm = hour >= 12 ? "PM" : "AM";
+        const hour12 = hour % 12 || 12;
+        return `${hour12}:${m} ${ampm}`;
+      })()
+    : null;
+  const statusLabel =
+    event.status === "scheduled"
+      ? "Scheduled"
+      : event.status === "completed"
+        ? "Completed"
+        : event.status || "Scheduled";
+
+  return (
+    <ModalBlank
+      id="checklist-event-detail"
+      modalOpen={isOpen}
+      setModalOpen={onClose}
+      contentClassName="max-w-sm"
+    >
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                {statusLabel}
+              </span>
+            </div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              {event.system_name || "Maintenance"}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => onClose(false)}
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <span className="text-sm text-gray-700 dark:text-gray-300">
+              {formattedDate}
+              {formattedTime && ` at ${formattedTime}`}
+            </span>
+          </div>
+          {event.contractor_name && (
+            <div className="flex items-center gap-2.5">
+              <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {event.contractor_name}
+              </span>
+            </div>
+          )}
+          {event.message_body && (
+            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+              {event.message_body}
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalBlank>
+  );
+}
+
+function SystemEventsModal({events, systemLabel, isOpen, onClose}) {
+  if (!events?.length) return null;
+  return (
+    <ModalBlank
+      id="system-events-modal"
+      modalOpen={isOpen}
+      setModalOpen={onClose}
+      contentClassName="max-w-md"
+    >
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Scheduled Events
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {systemLabel}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onClose(false)}
+            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="space-y-2">
+          {events.map((ev) => {
+            const d = parseDateInput(ev.scheduled_date ?? ev.scheduledDate);
+            return (
+              <div
+                key={ev.id}
+                className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/30"
+              >
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                    {d
+                      ? d.toLocaleDateString("en-US", {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "No date"}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {ev.contractor_name || "No professional assigned"}
+                  </p>
+                </div>
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 flex-shrink-0">
+                  {ev.status || "scheduled"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </ModalBlank>
+  );
+}
+
 function ChecklistItem({
   item,
   onStatusChange,
-  onSchedule,
   onDelete,
+  linkedEvent = null,
+  onViewEvent,
   isAddressedByMaintenance = false,
+  isSyncing = false,
 }) {
-  const [updating, setUpdating] = useState(false);
   const isUserCreated = item.source === "user_created";
   // User's explicit status takes precedence: if they unchecked (pending/in_progress), show as unchecked
   const explicitlyIncomplete = ["pending", "in_progress"].includes(
     String(item.status ?? "").toLowerCase(),
   );
-  const isCrossedOut =
+  const isChecked =
     item.status === "completed" ||
     (isAddressedByMaintenance && !explicitlyIncomplete);
-  const statusConf = isAddressedByMaintenance && !explicitlyIncomplete
+  const statusConf = isChecked
     ? STATUS_CONFIG.completed
-    : STATUS_CONFIG[item.status] || STATUS_CONFIG.pending;
+    : STATUS_CONFIG.not_completed;
   const StatusIcon = statusConf.icon;
   const SevIcon = SEVERITY_ICONS[item.severity] || SEVERITY_ICONS.medium;
   const priorityColor =
     PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
 
-  const handleToggle = async () => {
-    if (updating) return;
+  const handleToggle = () => {
+    if (isSyncing) return;
     const nextStatus = item.status === "completed" ? "pending" : "completed";
-    setUpdating(true);
-    try {
-      await onStatusChange(item.id, nextStatus);
-    } finally {
-      setUpdating(false);
-    }
+    onStatusChange(item.id, nextStatus);
   };
 
-  const handleStatusSelect = async (newStatus) => {
-    if (updating || newStatus === item.status) return;
-    setUpdating(true);
-    try {
-      await onStatusChange(item.id, newStatus);
-    } finally {
-      setUpdating(false);
-    }
-  };
+  const effectivePriority =
+    item.priority ||
+    (item.severity === "critical"
+      ? "urgent"
+      : item.severity === "high"
+        ? "high"
+        : "medium");
+  const leftBorder =
+    LEFT_BORDER_BY_PRIORITY[effectivePriority] ||
+    LEFT_BORDER_BY_PRIORITY.medium;
+  const pillStyle =
+    PRIORITY_PILL_STYLES[effectivePriority] || PRIORITY_PILL_STYLES.medium;
 
   return (
     <div
-      className={`flex items-start gap-3 py-2.5 px-3 rounded-lg border transition-colors ${
-        isCrossedOut
-          ? "border-emerald-200/50 dark:border-emerald-800/30 bg-emerald-50/30 dark:bg-emerald-900/10"
-          : isUserCreated
-            ? "border-violet-200/50 dark:border-violet-800/30 bg-violet-50/20 dark:bg-violet-900/10 hover:bg-violet-50/40 dark:hover:bg-violet-900/20"
-            : "border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/30 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+      className={`group flex items-start gap-3 py-2.5 px-3 rounded-lg border border-l-[3px] transition-all duration-200 ${
+        isChecked
+          ? `border-emerald-200/60 dark:border-emerald-800/30 border-l-emerald-400 dark:border-l-emerald-500 bg-emerald-50/40 dark:bg-emerald-900/10`
+          : `border-gray-100 dark:border-gray-700/50 ${leftBorder} bg-white dark:bg-gray-800/30 hover:bg-gray-50/80 dark:hover:bg-gray-800/50 hover:shadow-sm`
       }`}
     >
       <button
         type="button"
         onClick={handleToggle}
-        disabled={updating}
-        className={`mt-0.5 flex-shrink-0 transition-colors ${statusConf.color} hover:opacity-70`}
-        title={isCrossedOut ? "Mark as pending" : "Mark as done"}
+        disabled={isSyncing}
+        className={`mt-0.5 flex-shrink-0 transition-all duration-200 ${statusConf.color} hover:scale-110 ${isSyncing ? "opacity-70" : ""}`}
+        title={isChecked ? "Mark as pending" : "Mark as done"}
       >
-        {updating ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
-        ) : (
-          <StatusIcon
-            className="w-5 h-5"
-            strokeWidth={isCrossedOut ? 2.5 : 1.5}
-          />
-        )}
+        <StatusIcon className="w-5 h-5" strokeWidth={isChecked ? 2.5 : 1.5} />
       </button>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          {isUserCreated ? (
-            <User
-              className="w-3.5 h-3.5 flex-shrink-0 text-violet-500 dark:text-violet-400"
-              strokeWidth={2}
-            />
-          ) : item.severity ? (
-            <SevIcon
-              className={`w-3.5 h-3.5 flex-shrink-0 ${priorityColor}`}
-              strokeWidth={2}
-            />
-          ) : null}
           <span
-            className={`text-sm font-medium ${
-              isCrossedOut
+            className={`text-sm font-medium transition-colors duration-200 ${
+              isChecked
                 ? "text-gray-400 dark:text-gray-500 line-through"
                 : "text-gray-800 dark:text-gray-200"
             }`}
@@ -198,71 +320,66 @@ function ChecklistItem({
             {item.title}
           </span>
           {isUserCreated && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/15 dark:text-[#7aa3a2]">
               My ToDo
             </span>
           )}
-          {item.priority && item.priority !== "medium" && (
-            <span
-              className={`text-[10px] font-semibold uppercase tracking-wide ${priorityColor}`}
-            >
-              {item.priority}
-            </span>
-          )}
+          {effectivePriority && effectivePriority !== "medium" && (
+              <span
+                className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full transition-opacity duration-150 ${pillStyle} ${
+                  isChecked ? "opacity-45" : ""
+                }`}
+              >
+                <SevIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
+                {effectivePriority}
+              </span>
+            )}
         </div>
-        {item.description && !isCrossedOut && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+        {item.description && (
+          <p
+            className={`text-xs mt-1 line-clamp-2 leading-relaxed ${
+              isChecked
+                ? "text-gray-400/80 dark:text-gray-500/80"
+                : "text-gray-500 dark:text-gray-400"
+            }`}
+          >
             {item.description}
           </p>
         )}
-        {item.suggested_when && !isCrossedOut && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 italic">
+        {item.suggested_when && (
+          <p
+            className={`text-[11px] mt-1 italic ${
+              isChecked
+                ? "text-gray-400/80 dark:text-gray-500/80"
+                : "text-gray-400 dark:text-gray-500"
+            }`}
+          >
             {item.suggested_when}
           </p>
         )}
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0">
-        {!isCrossedOut && onSchedule && (
+        {linkedEvent && onViewEvent && (
           <button
             type="button"
-            onClick={() =>
-              onSchedule({
-                systemType: item.system_key,
-                systemLabel: getSystemLabel(item.system_key),
-                task: item.title,
-                suggestedWhen: item.suggested_when,
-                checklistItemId: item.id,
-              })
-            }
-            className="inline-flex items-center gap-1 px-1.5 py-1 rounded text-[10px] font-medium bg-[#456564]/10 hover:bg-[#456564]/20 text-[#456564] dark:text-[#7aa3a2] transition-colors"
-            title="Schedule maintenance"
+            onClick={() => onViewEvent(linkedEvent)}
+            className="inline-flex items-center px-1.5 py-1 rounded text-emerald-500 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all duration-150"
+            title={`Scheduled: ${linkedEvent.scheduled_date || "view event"}`}
           >
-            <Calendar className="w-3 h-3" />
+            <Calendar className="w-3.5 h-3.5" />
           </button>
         )}
         {isUserCreated && onDelete && (
           <button
             type="button"
             onClick={() => onDelete(item.id)}
-            className="inline-flex items-center gap-1 px-1.5 py-1 rounded text-[10px] font-medium text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="opacity-0 group-hover:opacity-100 inline-flex items-center px-1.5 py-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-150"
             title="Delete ToDo"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
-        <select
-          value={item.status}
-          onChange={(e) => handleStatusSelect(e.target.value)}
-          disabled={updating}
-          className="text-[10px] bg-transparent border-0 text-gray-400 dark:text-gray-500 cursor-pointer focus:ring-0 p-0 pr-4 appearance-auto"
-        >
-          <option value="pending">Pending</option>
-          <option value="in_progress">In Progress</option>
-          <option value="completed">Done</option>
-          <option value="deferred">Deferred</option>
-          <option value="not_applicable">N/A</option>
-        </select>
       </div>
     </div>
   );
@@ -313,7 +430,7 @@ function AddTodoForm({systemKey, propertyId, onItemCreated}) {
       <button
         type="button"
         onClick={handleOpen}
-        className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-md transition-colors w-full"
+        className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#456564] dark:text-[#7aa3a2] hover:bg-[#456564]/5 dark:hover:bg-[#7aa3a2]/10 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 hover:border-[#456564]/30 dark:hover:border-[#7aa3a2]/30 transition-all duration-200 w-full"
       >
         <Plus className="w-3.5 h-3.5" />
         Add ToDo
@@ -322,7 +439,10 @@ function AddTodoForm({systemKey, propertyId, onItemCreated}) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-violet-200 dark:border-violet-800/50 bg-violet-50/30 dark:bg-violet-900/10 p-3 space-y-2">
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30 p-3 space-y-2"
+    >
       <input
         ref={inputRef}
         type="text"
@@ -330,20 +450,20 @@ function AddTodoForm({systemKey, propertyId, onItemCreated}) {
         onChange={(e) => setTitle(e.target.value)}
         placeholder="What needs to be done?"
         maxLength={500}
-        className="w-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-400 dark:focus:ring-violet-500"
+        className="w-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#456564] dark:focus:ring-[#7aa3a2]"
       />
       <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Notes (optional)"
         rows={2}
-        className="w-full text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-400 dark:focus:ring-violet-500 resize-none"
+        className="w-full text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md px-2.5 py-1.5 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#456564] dark:focus:ring-[#7aa3a2] resize-none"
       />
       <div className="flex items-center justify-between gap-2">
         <select
           value={priority}
           onChange={(e) => setPriority(e.target.value)}
-          className="text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md px-2 py-1 text-gray-600 dark:text-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-400"
+          className="text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md px-2 py-1 text-gray-600 dark:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#456564]"
         >
           <option value="low">Low priority</option>
           <option value="medium">Medium priority</option>
@@ -361,7 +481,7 @@ function AddTodoForm({systemKey, propertyId, onItemCreated}) {
           <button
             type="submit"
             disabled={!title.trim() || saving}
-            className="text-xs font-medium px-3 py-1 rounded-md bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="text-xs font-medium px-3 py-1 rounded-md bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? "Adding..." : "Add"}
           </button>
@@ -374,25 +494,34 @@ function AddTodoForm({systemKey, propertyId, onItemCreated}) {
 export default function InspectionChecklistPanel({
   propertyId,
   systemKey = null,
-  onScheduleMaintenance,
   maintenanceRecords = [],
   compact = false,
 }) {
   const [items, setItems] = useState([]);
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [syncingItemId, setSyncingItemId] = useState(null);
+  const skipNextLoadRef = useRef(false);
   const [expandedSystems, setExpandedSystems] = useState(new Set());
+  const [maintenanceEvents, setMaintenanceEvents] = useState([]);
+  const [selectedEventForDetail, setSelectedEventForDetail] = useState(null);
+  const [eventDetailOpen, setEventDetailOpen] = useState(false);
+  const [systemEventsModalOpen, setSystemEventsModalOpen] = useState(false);
+  const [systemEventsModalEvents, setSystemEventsModalEvents] = useState([]);
+  const [systemEventsModalLabel, setSystemEventsModalLabel] = useState("");
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async ({showLoader = true} = {}) => {
     if (!propertyId) return;
-    setLoading(true);
+    if (showLoader) setLoading(true);
     try {
-      const [itemsRes, progressRes] = await Promise.all([
+      const [itemsRes, progressRes, eventsRes] = await Promise.all([
         AppApi.getInspectionChecklist(propertyId, {systemKey}),
         AppApi.getInspectionChecklistProgress(propertyId),
+        AppApi.getMaintenanceEventsByProperty(propertyId).catch(() => []),
       ]);
       setItems(itemsRes);
       setProgress(progressRes);
+      setMaintenanceEvents(eventsRes || []);
       if (!systemKey) {
         const systems = new Set(itemsRes.map((i) => i.system_key));
         setExpandedSystems(systems);
@@ -400,70 +529,97 @@ export default function InspectionChecklistPanel({
     } catch (err) {
       console.error("[InspectionChecklistPanel] Load failed:", err);
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   }, [propertyId, systemKey]);
 
   useEffect(() => {
-    loadData();
+    loadData({showLoader: true});
+  }, [loadData]);
+
+  useEffect(() => {
+    const handleChecklistUpdated = (event) => {
+      if (event?.detail?.skipChecklistReload) return;
+      if (skipNextLoadRef.current) {
+        skipNextLoadRef.current = false;
+        return;
+      }
+      // Avoid replacing checklist content with a loading skeleton; this can
+      // shift surrounding layout and make the page scroll jump during toggles.
+      loadData({showLoader: false});
+    };
+    window.addEventListener(
+      INSPECTION_CHECKLIST_UPDATED_EVENT,
+      handleChecklistUpdated,
+    );
+    return () =>
+      window.removeEventListener(
+        INSPECTION_CHECKLIST_UPDATED_EVENT,
+        handleChecklistUpdated,
+      );
   }, [loadData]);
 
   const handleStatusChange = useCallback(
     async (itemId, newStatus) => {
+      const item = items.find((i) => i.id === itemId);
+      if (!item) return;
+      setSyncingItemId(itemId);
+      // Optimistic update: apply immediately for instant feedback
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === itemId
+            ? {
+                ...i,
+                status: newStatus,
+                completed_at:
+                  newStatus === "completed" ? new Date().toISOString() : null,
+              }
+            : i,
+        ),
+      );
+      setProgress((prev) => {
+        if (!prev) return prev;
+        const sys = item.system_key;
+        const sysProgress = prev.bySystem[sys] || {
+          total: 0,
+          completed: 0,
+          pending: 0,
+          in_progress: 0,
+          deferred: 0,
+          not_applicable: 0,
+        };
+        const oldStatus = item.status;
+        const newSysProgress = {...sysProgress};
+        if (oldStatus && newSysProgress[oldStatus] > 0)
+          newSysProgress[oldStatus]--;
+        newSysProgress[newStatus] = (newSysProgress[newStatus] || 0) + 1;
+        const newBySystem = {...prev.bySystem, [sys]: newSysProgress};
+        let totalCompleted = 0;
+        let totalPending = 0;
+        for (const s of Object.values(newBySystem)) {
+          totalCompleted += s.completed || 0;
+          totalPending += s.pending || 0;
+        }
+        return {
+          ...prev,
+          completed: totalCompleted,
+          pending: totalPending,
+          bySystem: newBySystem,
+        };
+      });
       try {
         if (newStatus === "completed") {
           await AppApi.completeChecklistItem(itemId);
         } else {
           await AppApi.updateChecklistItem(itemId, {status: newStatus});
         }
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === itemId
-              ? {
-                  ...item,
-                  status: newStatus,
-                  completed_at:
-                    newStatus === "completed" ? new Date().toISOString() : null,
-                }
-              : item,
-          ),
-        );
-        setProgress((prev) => {
-          if (!prev) return prev;
-          const item = items.find((i) => i.id === itemId);
-          if (!item) return prev;
-          const sys = item.system_key;
-          const sysProgress = prev.bySystem[sys] || {
-            total: 0,
-            completed: 0,
-            pending: 0,
-            in_progress: 0,
-            deferred: 0,
-            not_applicable: 0,
-          };
-          const oldStatus = item.status;
-          const newSysProgress = {...sysProgress};
-          if (oldStatus && newSysProgress[oldStatus] > 0)
-            newSysProgress[oldStatus]--;
-          newSysProgress[newStatus] = (newSysProgress[newStatus] || 0) + 1;
-          const newBySystem = {...prev.bySystem, [sys]: newSysProgress};
-          let totalCompleted = 0;
-          let totalPending = 0;
-          for (const s of Object.values(newBySystem)) {
-            totalCompleted += s.completed || 0;
-            totalPending += s.pending || 0;
-          }
-          return {
-            ...prev,
-            completed: totalCompleted,
-            pending: totalPending,
-            bySystem: newBySystem,
-          };
-        });
-        emitInspectionChecklistUpdated();
+        skipNextLoadRef.current = true;
+        emitInspectionChecklistUpdated({skipChecklistReload: true});
       } catch (err) {
         console.error("[InspectionChecklistPanel] Status update failed:", err);
-        loadData();
+        loadData({showLoader: false});
+      } finally {
+        setSyncingItemId(null);
       }
     },
     [items, loadData],
@@ -475,9 +631,18 @@ export default function InspectionChecklistPanel({
       if (!prev) return prev;
       const sys = newItem.system_key;
       const sysProgress = prev.bySystem[sys] || {
-        total: 0, completed: 0, pending: 0, in_progress: 0, deferred: 0, not_applicable: 0,
+        total: 0,
+        completed: 0,
+        pending: 0,
+        in_progress: 0,
+        deferred: 0,
+        not_applicable: 0,
       };
-      const newSysProgress = {...sysProgress, total: sysProgress.total + 1, pending: sysProgress.pending + 1};
+      const newSysProgress = {
+        ...sysProgress,
+        total: sysProgress.total + 1,
+        pending: sysProgress.pending + 1,
+      };
       return {
         ...prev,
         total: prev.total + 1,
@@ -490,37 +655,53 @@ export default function InspectionChecklistPanel({
       next.add(newItem.system_key);
       return next;
     });
+    skipNextLoadRef.current = true;
     emitInspectionChecklistUpdated();
   }, []);
 
-  const handleDeleteItem = useCallback(async (itemId) => {
-    const item = items.find((i) => i.id === itemId);
-    if (!item) return;
-    try {
-      await AppApi.deleteChecklistItem(itemId);
-      setItems((prev) => prev.filter((i) => i.id !== itemId));
-      setProgress((prev) => {
-        if (!prev) return prev;
-        const sys = item.system_key;
-        const sysProgress = prev.bySystem[sys];
-        if (!sysProgress) return prev;
-        const newSysProgress = {...sysProgress, total: Math.max(0, sysProgress.total - 1)};
-        const st = item.status;
-        if (st && newSysProgress[st] > 0) newSysProgress[st]--;
-        const newBySystem = {...prev.bySystem, [sys]: newSysProgress};
-        let totalAll = 0, totalCompleted = 0, totalPending = 0;
-        for (const s of Object.values(newBySystem)) {
-          totalAll += s.total || 0;
-          totalCompleted += s.completed || 0;
-          totalPending += s.pending || 0;
-        }
-        return {...prev, total: totalAll, completed: totalCompleted, pending: totalPending, bySystem: newBySystem};
-      });
-      emitInspectionChecklistUpdated();
-    } catch (err) {
-      console.error("[InspectionChecklistPanel] Delete failed:", err);
-    }
-  }, [items]);
+  const handleDeleteItem = useCallback(
+    async (itemId) => {
+      const item = items.find((i) => i.id === itemId);
+      if (!item) return;
+      try {
+        await AppApi.deleteChecklistItem(itemId);
+        setItems((prev) => prev.filter((i) => i.id !== itemId));
+        setProgress((prev) => {
+          if (!prev) return prev;
+          const sys = item.system_key;
+          const sysProgress = prev.bySystem[sys];
+          if (!sysProgress) return prev;
+          const newSysProgress = {
+            ...sysProgress,
+            total: Math.max(0, sysProgress.total - 1),
+          };
+          const st = item.status;
+          if (st && newSysProgress[st] > 0) newSysProgress[st]--;
+          const newBySystem = {...prev.bySystem, [sys]: newSysProgress};
+          let totalAll = 0,
+            totalCompleted = 0,
+            totalPending = 0;
+          for (const s of Object.values(newBySystem)) {
+            totalAll += s.total || 0;
+            totalCompleted += s.completed || 0;
+            totalPending += s.pending || 0;
+          }
+          return {
+            ...prev,
+            total: totalAll,
+            completed: totalCompleted,
+            pending: totalPending,
+            bySystem: newBySystem,
+          };
+        });
+        skipNextLoadRef.current = true;
+        emitInspectionChecklistUpdated();
+      } catch (err) {
+        console.error("[InspectionChecklistPanel] Delete failed:", err);
+      }
+    },
+    [items],
+  );
 
   const groupedItems = useMemo(() => {
     const groups = {};
@@ -531,6 +712,34 @@ export default function InspectionChecklistPanel({
     }
     return groups;
   }, [items]);
+
+  const eventsByChecklistItemId = useMemo(() => {
+    const map = {};
+    for (const ev of maintenanceEvents || []) {
+      const cid = ev.checklist_item_id ?? ev.checklistItemId;
+      if (cid != null) {
+        map[Number(cid)] = ev;
+      }
+    }
+    return map;
+  }, [maintenanceEvents]);
+
+  const handleViewEvent = useCallback((event) => {
+    setSelectedEventForDetail(event);
+    setEventDetailOpen(true);
+  }, []);
+
+  const handleViewSystemEvents = useCallback(
+    (sysKey, label) => {
+      const sysEvents = (maintenanceEvents || []).filter(
+        (ev) => (ev.system_key ?? ev.systemKey) === sysKey,
+      );
+      setSystemEventsModalEvents(sysEvents);
+      setSystemEventsModalLabel(label || getSystemLabel(sysKey));
+      setSystemEventsModalOpen(true);
+    },
+    [maintenanceEvents],
+  );
 
   const completedChecklistItemIds = useMemo(() => {
     const ids = new Set();
@@ -580,21 +789,27 @@ export default function InspectionChecklistPanel({
 
   if (systemKey) {
     const sysKeyLower = systemKey.toLowerCase();
-    const sysItems = groupedItems[systemKey]
-      || Object.entries(groupedItems).find(([k]) => k.toLowerCase() === sysKeyLower)?.[1]
-      || [];
-    const sysProgress = progress?.bySystem?.[systemKey]
-      ?? Object.entries(progress?.bySystem || {}).find(([k]) => k.toLowerCase() === sysKeyLower)?.[1];
+    const sysItems =
+      groupedItems[systemKey] ||
+      Object.entries(groupedItems).find(
+        ([k]) => k.toLowerCase() === sysKeyLower,
+      )?.[1] ||
+      [];
+    const sysProgress =
+      progress?.bySystem?.[systemKey] ??
+      Object.entries(progress?.bySystem || {}).find(
+        ([k]) => k.toLowerCase() === sysKeyLower,
+      )?.[1];
     const inspectionItems = sysItems.filter((i) => i.source !== "user_created");
     const userItems = sysItems.filter((i) => i.source === "user_created");
     const hasAnyItems = sysItems.length > 0;
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {sysProgress && hasAnyItems && (
           <ProgressBar
             completed={sysProgress.completed}
             total={sysProgress.total}
-            className="mb-2"
+            className="mb-3"
           />
         )}
         {inspectionItems.map((item) => (
@@ -602,32 +817,47 @@ export default function InspectionChecklistPanel({
             key={item.id}
             item={item}
             onStatusChange={handleStatusChange}
-            onSchedule={onScheduleMaintenance}
             onDelete={handleDeleteItem}
+            linkedEvent={eventsByChecklistItemId[Number(item.id)] || null}
+            onViewEvent={handleViewEvent}
             isAddressedByMaintenance={completedChecklistItemIds.has(
               Number(item.id),
             )}
+            isSyncing={syncingItemId === item.id}
           />
         ))}
         {userItems.length > 0 && inspectionItems.length > 0 && (
-          <div className="border-t border-gray-100 dark:border-gray-700/50 my-2" />
+          <div className="flex items-center gap-2 my-3">
+            <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
+            <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+              My ToDos
+            </span>
+            <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
+          </div>
         )}
         {userItems.map((item) => (
           <ChecklistItem
             key={item.id}
             item={item}
             onStatusChange={handleStatusChange}
-            onSchedule={onScheduleMaintenance}
             onDelete={handleDeleteItem}
+            linkedEvent={eventsByChecklistItemId[Number(item.id)] || null}
+            onViewEvent={handleViewEvent}
             isAddressedByMaintenance={completedChecklistItemIds.has(
               Number(item.id),
             )}
+            isSyncing={syncingItemId === item.id}
           />
         ))}
         <AddTodoForm
           systemKey={systemKey}
           propertyId={propertyId}
           onItemCreated={handleItemCreated}
+        />
+        <EventDetailInlineModal
+          event={selectedEventForDetail}
+          isOpen={eventDetailOpen}
+          onClose={setEventDetailOpen}
         />
       </div>
     );
@@ -648,7 +878,9 @@ export default function InspectionChecklistPanel({
       {Object.entries(groupedItems).map(([sysKey, sysItems]) => {
         const isExpanded = expandedSystems.has(sysKey);
         const sysProgress = progress?.bySystem?.[sysKey];
-        const inspectionItems = sysItems.filter((i) => i.source !== "user_created");
+        const inspectionItems = sysItems.filter(
+          (i) => i.source !== "user_created",
+        );
         const userItems = sysItems.filter((i) => i.source === "user_created");
         return (
           <div
@@ -677,32 +909,46 @@ export default function InspectionChecklistPanel({
               )}
             </button>
             {isExpanded && (
-              <div className="px-3 pb-2.5 space-y-1.5">
+              <div className="px-3 pb-3 space-y-2">
                 {inspectionItems.map((item) => (
                   <ChecklistItem
                     key={item.id}
                     item={item}
                     onStatusChange={handleStatusChange}
-                    onSchedule={onScheduleMaintenance}
                     onDelete={handleDeleteItem}
+                    linkedEvent={
+                      eventsByChecklistItemId[Number(item.id)] || null
+                    }
+                    onViewEvent={handleViewEvent}
                     isAddressedByMaintenance={completedChecklistItemIds.has(
                       Number(item.id),
                     )}
+                    isSyncing={syncingItemId === item.id}
                   />
                 ))}
                 {userItems.length > 0 && inspectionItems.length > 0 && (
-                  <div className="border-t border-gray-100 dark:border-gray-700/50 my-2" />
+                  <div className="flex items-center gap-2 my-3">
+                    <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                      My ToDos
+                    </span>
+                    <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
+                  </div>
                 )}
                 {userItems.map((item) => (
                   <ChecklistItem
                     key={item.id}
                     item={item}
                     onStatusChange={handleStatusChange}
-                    onSchedule={onScheduleMaintenance}
                     onDelete={handleDeleteItem}
+                    linkedEvent={
+                      eventsByChecklistItemId[Number(item.id)] || null
+                    }
+                    onViewEvent={handleViewEvent}
                     isAddressedByMaintenance={completedChecklistItemIds.has(
                       Number(item.id),
                     )}
+                    isSyncing={syncingItemId === item.id}
                   />
                 ))}
                 <AddTodoForm
@@ -715,6 +961,17 @@ export default function InspectionChecklistPanel({
           </div>
         );
       })}
+      <EventDetailInlineModal
+        event={selectedEventForDetail}
+        isOpen={eventDetailOpen}
+        onClose={setEventDetailOpen}
+      />
+      <SystemEventsModal
+        events={systemEventsModalEvents}
+        systemLabel={systemEventsModalLabel}
+        isOpen={systemEventsModalOpen}
+        onClose={setSystemEventsModalOpen}
+      />
     </div>
   );
 }

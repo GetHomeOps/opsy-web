@@ -977,7 +977,12 @@ function PropertyFormContainer() {
   const fetchMaintenanceEvents = useCallback(() => {
     if (!effectivePropertyId) return;
     AppApi.getMaintenanceEventsByProperty(effectivePropertyId)
-      .then((events) => setMaintenanceEvents(events ?? []))
+      .then((events) => {
+        setMaintenanceEvents(events ?? []);
+        window.dispatchEvent(
+          new CustomEvent("inspection-checklist:updated"),
+        );
+      })
       .catch(() => setMaintenanceEvents([]));
   }, [effectivePropertyId]);
   useEffect(() => {
@@ -2197,6 +2202,7 @@ function PropertyFormContainer() {
             : null
         }
         propertyData={state.property ?? {}}
+        checklistItemId={scheduleFromAiPrefill?.checklistItemId ?? null}
       />
       <div className="fixed top-18 right-0 w-auto sm:w-full z-50">
         <Banner

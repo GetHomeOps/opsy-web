@@ -280,6 +280,7 @@ function ProfessionalStep({
                     id: `contact-${c.id}`,
                     sourceId: c.id,
                     name: c.name,
+                    email: c.email || null,
                     source: "contact",
                   });
                   setProfessionalSearch("");
@@ -322,6 +323,7 @@ function ProfessionalStep({
                     id: `pro-${p.id}`,
                     sourceId: p.id,
                     name: proDisplayName(p),
+                    email: p.email || null,
                     source: "professional",
                   });
                   setProfessionalSearch("");
@@ -468,6 +470,9 @@ function DetailsStep({
   scheduleType,
   maintenanceRecommendations = [],
   maintenanceLoading = false,
+  checklistItems = [],
+  selectedChecklistItemId,
+  setSelectedChecklistItemId,
 }) {
   const hasRecommendations =
     scheduleType === "inspection" &&
@@ -546,6 +551,34 @@ function DetailsStep({
           />
         </div>
       </div>
+
+      {checklistItems.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+            Link to ToDo
+          </label>
+          <select
+            value={selectedChecklistItemId ?? ""}
+            onChange={(e) =>
+              setSelectedChecklistItemId(e.target.value || null)
+            }
+            className="form-select w-full"
+          >
+            <option value="">None — general event</option>
+            {checklistItems.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+                {item.priority && item.priority !== "medium"
+                  ? ` (${item.priority})`
+                  : ""}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            Link this event to an inspection checklist item
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -707,6 +740,8 @@ function ScheduleSystemModal({
 
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
+  const [selectedChecklistItemId, setSelectedChecklistItemId] = useState(null);
+  const [checklistItems, setChecklistItems] = useState([]);
   const [messageBody, setMessageBody] = useState("");
   const [maintenanceRecommendations, setMaintenanceRecommendations] = useState(
     [],
@@ -726,12 +761,35 @@ function ScheduleSystemModal({
     ? `/${accountUrl}/professionals`
     : "/professionals";
 
+  const propId =
+    propertyId ??
+    propertyData?.id ??
+    propertyData?.identity?.id ??
+    propertyData?.property_uid ??
+    propertyData?.identity?.property_uid;
+
   useEffect(() => {
     if (!isOpen) return;
     AppApi.getSavedProfessionals()
       .then((data) => setSavedProfessionals(data || []))
       .catch(() => setSavedProfessionals([]));
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !propId || !systemType) {
+      setChecklistItems([]);
+      return;
+    }
+    let cancelled = false;
+    AppApi.getInspectionChecklist(propId, {systemKey: systemType})
+      .then((items) => {
+        if (!cancelled) setChecklistItems(items || []);
+      })
+      .catch(() => {
+        if (!cancelled) setChecklistItems([]);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen, propId, systemType]);
 
   useEffect(() => {
     if (isOpen) {
@@ -745,6 +803,7 @@ function ScheduleSystemModal({
       setProfessionalSearch("");
       setScheduledDate("");
       setScheduledTime("");
+      setSelectedChecklistItemId(checklistItemId || null);
       setMessageBody("");
       setMaintenanceRecommendations([]);
       setMaintenanceLoading(false);
@@ -754,14 +813,6 @@ function ScheduleSystemModal({
       setAlertTime("");
     }
   }, [isOpen]);
-
-  /* Fetch maintenance recommendations when scheduling an inspection */
-  const propId =
-    propertyId ??
-    propertyData?.id ??
-    propertyData?.identity?.id ??
-    propertyData?.property_uid ??
-    propertyData?.identity?.property_uid;
   useEffect(() => {
     if (
       !isOpen ||
@@ -887,6 +938,7 @@ function ScheduleSystemModal({
       contractor_id: selectedProfessional?.sourceId ?? null,
       contractor_source: selectedProfessional?.source ?? null,
       contractor_name: selectedProfessional?.name ?? null,
+      contractor_email: selectedProfessional?.email ?? null,
       scheduled_date: scheduledDate,
       scheduled_time: effectiveTime,
       recurrence_type: "one-time",
@@ -896,7 +948,9 @@ function ScheduleSystemModal({
       message_enabled: !!messageBody?.trim(),
       message_body: messageBody?.trim() || null,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      checklist_item_id: checklistItemId || null,
+      checklist_item_id: selectedChecklistItemId
+        ? parseInt(selectedChecklistItemId, 10)
+        : null,
     };
 
     setSaving(true);
@@ -1024,6 +1078,9 @@ function ScheduleSystemModal({
               scheduleType={scheduleType}
               maintenanceRecommendations={maintenanceRecommendations}
               maintenanceLoading={maintenanceLoading}
+              checklistItems={checklistItems}
+              selectedChecklistItemId={selectedChecklistItemId}
+              setSelectedChecklistItemId={setSelectedChecklistItemId}
             />
           )}
           {currentStep === 3 && (
