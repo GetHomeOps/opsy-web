@@ -1044,7 +1044,7 @@ class AppApi {
     return res;
   }
 
-  /* --------- Property Data Lookup (RentCast) --------- */
+  /* --------- Property Data Lookup (ATTOM / RentCast) --------- */
 
   static async lookupPropertyDetails(propertyInfo) {
     let res = await this.request("predict/property-details", propertyInfo, "POST");

@@ -394,6 +394,7 @@ function SystemsSetupModal({
   );
   const [savingProperty, setSavingProperty] = useState(false);
   const [propertyTypePreset, setPropertyTypePreset] = useState(null);
+  const [lookupSource, setLookupSource] = useState(null);
 
   const {currentUser} = useAuth();
   const firstName =
@@ -482,6 +483,7 @@ function SystemsSetupModal({
     setSavingProperty(false);
     setSavePropertyError(null);
     setPropertyTypePreset(null);
+    setLookupSource(null);
     hasAppliedSuggestedRef.current = false;
     hasAutoSelectedSuggestedRef.current = false;
     if (pollIntervalRef.current) {
@@ -557,7 +559,7 @@ function SystemsSetupModal({
       }
     }
     if (hasPredicted) {
-      payload.identityDataSource = "rentcast";
+      payload.identityDataSource = lookupSource ?? "attom";
     }
     onIdentityFieldsChange?.(payload);
 
@@ -593,6 +595,7 @@ function SystemsSetupModal({
       };
       const result = await AppApi.lookupPropertyDetails(propertyInfo);
       if (result?.prediction) {
+        setLookupSource(result.source ?? "attom");
         const p = result.prediction;
         const newFields = {};
         for (const group of AI_FIELD_GROUPS) {
@@ -1407,7 +1410,11 @@ function SystemsSetupModal({
                           const supportUrl = (() => {
                             if (!accountUrl || !isFromApi) return null;
                             const params = new URLSearchParams();
-                            params.set("system", "RentCast");
+                            const systemLabel =
+                              (lookupSource || formData?.identity_data_source) === "rentcast"
+                                ? "RentCast"
+                                : "ATTOM";
+                            params.set("system", systemLabel);
                             params.set("field", f.key);
                             if (propertyId) {
                               params.set("propertyId", String(propertyId));

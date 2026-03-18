@@ -579,9 +579,10 @@ function IdentityTab({
   identityDataSource,
   supportDataAdjustmentUrl,
 }) {
-  /** Lock only when field is RentCast-sourced AND has a non-empty API value */
+  /** Lock only when field is API-sourced (RentCast or ATTOM) AND has a non-empty API value */
   const isRentCastLocked = (fieldName) => {
-    if (identityDataSource !== "rentcast" || !RENTCAST_FIELD_KEYS.has(fieldName))
+    const isApiSourced = identityDataSource === "rentcast" || identityDataSource === "attom";
+    if (!isApiSourced || !RENTCAST_FIELD_KEYS.has(fieldName))
       return false;
     const val = getFieldValue(propertyData, fieldName);
     return val !== undefined && val !== null && String(val).trim() !== "";

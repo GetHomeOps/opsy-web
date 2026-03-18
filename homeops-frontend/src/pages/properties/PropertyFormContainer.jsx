@@ -600,10 +600,11 @@ function PropertyFormContainer() {
         return `${base}?${params.toString()}`;
       }
 
-      if (identityDataSource !== "rentcast" || !RENTCAST_FIELD_KEYS.has(fieldKey))
+      const isApiSourced = identityDataSource === "rentcast" || identityDataSource === "attom";
+      if (!isApiSourced || !RENTCAST_FIELD_KEYS.has(fieldKey))
         return undefined;
 
-      params.set("system", "RentCast");
+      params.set("system", identityDataSource === "attom" ? "ATTOM" : "RentCast");
       params.set("field", fieldKey);
       if (currentPropertyId) params.set("propertyId", String(currentPropertyId));
       if (currentPropertyContextLabel)

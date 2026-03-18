@@ -3,4 +3,5 @@ node_modules/
 .env.example
 migrations/
 rentcast-debug.json
+attom-debug.json
 public/
