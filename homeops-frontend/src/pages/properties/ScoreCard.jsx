@@ -24,10 +24,17 @@ import {
   CUSTOM_SYSTEM_DEFAULT_ICON,
 } from "./constants/propertySystems";
 
-/** Convert camelCase to snake_case for matching checklist system_key. */
-function toSnakeCase(s) {
-  if (!s || typeof s !== "string") return "";
-  return s.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
+const INSPECTION_CHECKLIST_UPDATED_EVENT = "inspection-checklist:updated";
+
+/** Normalize any system key/name to comparable snake_case token. */
+function normalizeSystemKey(value) {
+  if (!value || typeof value !== "string") return "";
+  return value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function ScoreCard({
@@ -41,12 +48,13 @@ function ScoreCard({
   const [systemsOpen, setSystemsOpen] = useState(false);
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
   const [checklistProgress, setChecklistProgress] = useState(null);
+  const [checklistItems, setChecklistItems] = useState(null);
 
   // Identity: compute completion from actual form sections
   const identitySections = IDENTITY_SECTIONS;
   const completedIdentitySections = useMemo(
     () => identitySections.filter((s) => isSectionComplete(propertyData, s)),
-    [propertyData]
+    [propertyData],
   );
   const identityScore = identitySections.length
     ? (completedIdentitySections.length / identitySections.length) * 100
@@ -70,9 +78,9 @@ function ScoreCard({
       countCompletedSystemsWithCustom(
         propertyData,
         visibleSystemIds,
-        customSystemNames
+        customSystemNames,
       ),
-    [propertyData, visibleSystemIds, customSystemNames]
+    [propertyData, visibleSystemIds, customSystemNames],
   );
   const systemsScore = systemItems.length
     ? (currentSystems / systemItems.length) * 100
@@ -80,81 +88,178 @@ function ScoreCard({
 
   // Maintenance: compute completion from checklist progress + maintenance records (same logic as checklist items)
 
-  // Fetch inspection checklist progress on mount (needed for Maintenance % based on completion)
-  useEffect(() => {
+  const refreshMaintenanceChecklistData = useCallback(async () => {
     if (!propertyId) return;
-    let cancelled = false;
-    AppApi.getInspectionChecklistProgress(propertyId)
-      .then((res) => {
-        if (!cancelled) setChecklistProgress(res);
-      })
-      .catch(() => {
-        if (!cancelled) setChecklistProgress(null);
-      });
-    return () => { cancelled = true; };
+    try {
+      const cacheBust = Date.now();
+      const [progressRes, itemsRes] = await Promise.all([
+        AppApi.getInspectionChecklistProgress(propertyId),
+        AppApi.getInspectionChecklist(propertyId, { _t: cacheBust }),
+      ]);
+      setChecklistProgress(progressRes);
+      setChecklistItems(Array.isArray(itemsRes) ? itemsRes : []);
+    } catch (_) {
+      setChecklistProgress(null);
+      setChecklistItems(null);
+    }
   }, [propertyId]);
 
-  /** Check if a system has all pending checklist items completed. */
-  const isSystemMaintenanceComplete = useCallback(
+  // Fetch checklist data on mount and whenever checklist changes in-panel.
+  useEffect(() => {
+    if (!propertyId) return;
+    refreshMaintenanceChecklistData();
+    if (typeof window === "undefined") return;
+    const handleChecklistUpdate = () => {
+      refreshMaintenanceChecklistData();
+    };
+    window.addEventListener(
+      INSPECTION_CHECKLIST_UPDATED_EVENT,
+      handleChecklistUpdate,
+    );
+    return () => {
+      window.removeEventListener(
+        INSPECTION_CHECKLIST_UPDATED_EVENT,
+        handleChecklistUpdate,
+      );
+    };
+  }, [propertyId, refreshMaintenanceChecklistData]);
+
+  /** Return all normalized aliases we can use to match a system across APIs. */
+  const getSystemAliases = useCallback((system) => {
+    const aliases = new Set();
+    const rawId = String(system?.id ?? "");
+    const rawName = String(system?.name ?? "");
+    const customNameFromId = rawId.match(/^custom-(.+)-\d+$/)?.[1] ?? "";
+
+    [rawId, rawName, customNameFromId].forEach((candidate) => {
+      const normalized = normalizeSystemKey(candidate);
+      if (normalized) aliases.add(normalized);
+    });
+    return aliases;
+  }, []);
+
+  /** Resolve checklist progress entry for a given system, if present. */
+  const getChecklistProgressForSystem = useCallback(
     (system) => {
       const bySystem = checklistProgress?.bySystem ?? {};
-      // Try direct match, snake_case, and lowercase
-      const sysId = system.id;
-      const snakeId = toSnakeCase(sysId);
-      const matchKey = Object.keys(bySystem).find(
-        (k) =>
-          k === sysId ||
-          k.toLowerCase() === sysId.toLowerCase() ||
-          k.toLowerCase() === snakeId
+      const aliases = getSystemAliases(system);
+      const matchKey = Object.keys(bySystem).find((key) =>
+        aliases.has(normalizeSystemKey(key)),
       );
-      const prog = matchKey ? bySystem[matchKey] : null;
+      return matchKey ? bySystem[matchKey] : null;
+    },
+    [checklistProgress, getSystemAliases],
+  );
+
+  /** Return all maintenance records that belong to a system. */
+  const getMaintenanceRecordsForSystem = useCallback(
+    (system) => {
+      const aliases = getSystemAliases(system);
+      const records = Array.isArray(maintenanceRecords)
+        ? maintenanceRecords
+        : [];
+      return records.filter((r) => {
+        const rSystemKey = String(r.systemId ?? r.system_key ?? "");
+        return aliases.has(normalizeSystemKey(rSystemKey));
+      });
+    },
+    [maintenanceRecords, getSystemAliases],
+  );
+
+  /** Checklist items linked to completed maintenance records are treated as complete. */
+  const completedChecklistItemIds = useMemo(() => {
+    const ids = new Set();
+    (Array.isArray(maintenanceRecords) ? maintenanceRecords : []).forEach((r) => {
+      const cid = r.checklist_item_id ?? r.checklistItemId;
+      if (cid == null || cid === "") return;
+      const status = String(r.status ?? "").toLowerCase();
+      const recordStatus = String(r.record_status ?? r.recordStatus ?? "").toLowerCase();
+      const isCompletedRecord =
+        status === "completed" ||
+        recordStatus === "contractor_completed" ||
+        recordStatus === "user_completed";
+      if (isCompletedRecord) ids.add(String(cid));
+    });
+    return ids;
+  }, [maintenanceRecords]);
+
+  /** Return checklist items that belong to a system. */
+  const getChecklistItemsForSystem = useCallback(
+    (system) => {
+      const aliases = getSystemAliases(system);
+      const items = Array.isArray(checklistItems) ? checklistItems : [];
+      return items.filter((item) => {
+        const itemKey = String(item.system_key ?? item.systemKey ?? "");
+        return aliases.has(normalizeSystemKey(itemKey));
+      });
+    },
+    [checklistItems, getSystemAliases],
+  );
+
+  /**
+   * System is complete when:
+   * - It has checklist items AND all are done (no pending/in_progress), OR
+   * - It has no checklist items AND has at least one maintenance record.
+   */
+  const isSystemMaintenanceComplete = useCallback(
+    (system) => {
+      // Prefer item-level checklist logic when items are available, because
+      // checklist rows can be crossed out by linked maintenance records.
+      if (Array.isArray(checklistItems)) {
+        const systemChecklistItems = getChecklistItemsForSystem(system);
+        if (systemChecklistItems.length > 0) {
+          return systemChecklistItems.every((item) => {
+            const itemStatus = String(item.status ?? "").toLowerCase();
+            // User explicitly unchecked (pending/in_progress) → treat as incomplete
+            if (itemStatus === "pending" || itemStatus === "in_progress")
+              return false;
+            return (
+              itemStatus === "completed" ||
+              completedChecklistItemIds.has(String(item.id))
+            );
+          });
+        }
+      }
+
+      const prog = getChecklistProgressForSystem(system);
       if (prog && prog.total > 0) {
         const pending = prog.pending ?? 0;
         const inProgress = prog.in_progress ?? 0;
         return pending === 0 && inProgress === 0;
       }
-      return null; // No checklist items for this system
+      const systemRecords = getMaintenanceRecordsForSystem(system);
+      return systemRecords.length > 0;
     },
-    [checklistProgress]
+    [
+      checklistItems,
+      getChecklistItemsForSystem,
+      completedChecklistItemIds,
+      getChecklistProgressForSystem,
+      getMaintenanceRecordsForSystem,
+    ],
   );
 
-  /** Check if all maintenance records for a system are completed/fulfilled. */
-  const isSystemMaintenanceCompleteFromRecords = useCallback(
-    (system) => {
-      const records = Array.isArray(maintenanceRecords) ? maintenanceRecords : [];
-      const sysId = system.id;
-      const snakeId = toSnakeCase(sysId);
-      const systemRecords = records.filter((r) => {
-        const rSys = (r.systemId ?? r.system_key ?? "").toString();
-        if (!rSys) return false;
-        return (
-          rSys === sysId ||
-          rSys.toLowerCase() === sysId.toLowerCase() ||
-          rSys.toLowerCase() === snakeId
-        );
-      });
-      if (systemRecords.length === 0) return null;
-      const allCompleted = systemRecords.every(
-        (r) => String(r.status ?? "").toLowerCase() === "completed"
-      );
-      return allCompleted;
-    },
-    [maintenanceRecords]
-  );
-
-  /** Count systems where maintenance is complete (checklist done OR all records completed). */
+  /** Count systems where maintenance is complete per checklist/record rules. */
   const currentMaintenance = useMemo(() => {
-    const count = systemItems.filter((system) => {
-      const fromChecklist = isSystemMaintenanceComplete(system);
-      const fromRecords = isSystemMaintenanceCompleteFromRecords(system);
-      return fromChecklist === true || fromRecords === true;
-    }).length;
+    const count = systemItems.filter((system) => isSystemMaintenanceComplete(system))
+      .length;
     // Use computed count when we have checklist or records; otherwise fall back to backend
-    if (checklistProgress !== null || (Array.isArray(maintenanceRecords) && maintenanceRecords.length > 0)) {
+    if (
+      Array.isArray(checklistItems) ||
+      checklistProgress !== null ||
+      (Array.isArray(maintenanceRecords) && maintenanceRecords.length > 0)
+    ) {
       return count;
     }
     return propertyData.healthMetrics?.maintenanceCompleted?.current ?? 0;
-  }, [systemItems, checklistProgress, maintenanceRecords, propertyData.healthMetrics, isSystemMaintenanceComplete, isSystemMaintenanceCompleteFromRecords]);
+  }, [
+    systemItems,
+    checklistItems,
+    checklistProgress,
+    maintenanceRecords,
+    propertyData.healthMetrics,
+    isSystemMaintenanceComplete,
+  ]);
 
   const maintenanceScore = systemItems.length
     ? (currentMaintenance / systemItems.length) * 100
@@ -301,7 +406,8 @@ function ScoreCard({
                       {Math.round(identityScore)}%
                     </div>
                     <div className="text-[11px] text-gray-500 dark:text-gray-400">
-                      {completedIdentitySections.length}/{identitySections.length}
+                      {completedIdentitySections.length}/
+                      {identitySections.length}
                     </div>
                   </div>
                   {identityOpen ? (
@@ -313,93 +419,93 @@ function ScoreCard({
               </button>
 
               {identityOpen && (
-              <div className="mt-2">
-              {/* Mini Donut Chart */}
-              <div className="flex items-center gap-4 mb-2">
-                <div className="flex-shrink-0">
-                  <DonutChart
-                    percentage={Math.round(identityScore)}
-                    size={56}
-                    strokeWidth={6}
-                    colorClass={
-                      identityScore >= 60
-                        ? "text-green-400 dark:text-green-500"
-                        : identityScore >= 40
-                          ? "text-amber-400 dark:text-amber-500"
-                          : "text-slate-400 dark:text-slate-500"
-                    }
-                  />
-                </div>
-                <div className="flex-1 space-y-1.5 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      Complete
-                    </span>
-                    <span className="text-xs font-semibold text-green-600 dark:text-green-400">
-                      {completedIdentitySections.length}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-green-500 dark:bg-green-400 h-1.5 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${identityScore}%`,
-                      }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      Incomplete
-                    </span>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {identitySections.length -
-                        completedIdentitySections.length}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-orange-500 dark:bg-orange-400 h-1.5 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${100 - identityScore}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Identity Sections Checklist */}
-              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
-                  {identitySections.map((section) => {
-                    const isCompleted = isSectionComplete(
-                      propertyData,
-                      section
-                    );
-                    return (
-                      <div
-                        key={section.id}
-                        className="flex items-center gap-1.5 py-0.5"
-                      >
-                        {isCompleted ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500 dark:text-green-400 flex-shrink-0" />
-                        ) : (
-                          <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0"></div>
-                        )}
-                        <span
-                          className={
-                            isCompleted
-                              ? "text-gray-700 dark:text-gray-300 line-through"
-                              : "text-gray-500 dark:text-gray-400"
-                          }
-                        >
-                          {section.label}
+                <div className="mt-2">
+                  {/* Mini Donut Chart */}
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="flex-shrink-0">
+                      <DonutChart
+                        percentage={Math.round(identityScore)}
+                        size={56}
+                        strokeWidth={6}
+                        colorClass={
+                          identityScore >= 60
+                            ? "text-green-400 dark:text-green-500"
+                            : identityScore >= 40
+                              ? "text-amber-400 dark:text-amber-500"
+                              : "text-slate-400 dark:text-slate-500"
+                        }
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Complete
+                        </span>
+                        <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                          {completedIdentitySections.length}
                         </span>
                       </div>
-                    );
-                  })}
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                        <div
+                          className="bg-green-500 dark:bg-green-400 h-1.5 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${identityScore}%`,
+                          }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Incomplete
+                        </span>
+                        <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                          {identitySections.length -
+                            completedIdentitySections.length}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                        <div
+                          className="bg-orange-500 dark:bg-orange-400 h-1.5 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${100 - identityScore}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Identity Sections Checklist */}
+                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
+                      {identitySections.map((section) => {
+                        const isCompleted = isSectionComplete(
+                          propertyData,
+                          section,
+                        );
+                        return (
+                          <div
+                            key={section.id}
+                            className="flex items-center gap-1.5 py-0.5"
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 dark:text-green-400 flex-shrink-0" />
+                            ) : (
+                              <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0"></div>
+                            )}
+                            <span
+                              className={
+                                isCompleted
+                                  ? "text-gray-700 dark:text-gray-300 line-through"
+                                  : "text-gray-500 dark:text-gray-400"
+                              }
+                            >
+                              {section.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              </div>
               )}
             </div>
 
@@ -433,99 +539,100 @@ function ScoreCard({
               </button>
 
               {systemsOpen && (
-              <div className="mt-2">
-              {/* Mini Donut Chart */}
-              <div className="flex items-center gap-4 mb-2">
-                <div className="flex-shrink-0">
-                  <DonutChart
-                    percentage={Math.round(systemsScore)}
-                    size={56}
-                    strokeWidth={6}
-                    colorClass={
-                      systemsScore >= 60
-                        ? "text-green-400 dark:text-green-500"
-                        : systemsScore >= 40
-                          ? "text-amber-400 dark:text-amber-500"
-                          : "text-slate-400 dark:text-slate-500"
-                    }
-                  />
-                </div>
-                <div className="flex-1 space-y-1.5 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      Identified
-                    </span>
-                    <span className="text-xs font-semibold text-green-600 dark:text-green-400">
-                      {currentSystems}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-green-500 dark:bg-green-400 h-1.5 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${systemsScore}%`,
-                      }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      Missing
-                    </span>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {systemItems.length - currentSystems}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-orange-500 dark:bg-orange-400 h-1.5 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${100 - systemsScore}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Systems List - shows selected systems */}
-              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
-                  {systemItems.map((system) => {
-                    const predefinedSystem = PROPERTY_SYSTEMS.find(
-                      (s) => s.id === system.id
-                    );
-                    const Icon = predefinedSystem?.icon || CUSTOM_SYSTEM_DEFAULT_ICON;
-                    const isIdentified = predefinedSystem
-                      ? isSystemComplete(propertyData, system.id)
-                      : isCustomSystemComplete(
-                          propertyData.customSystemsData ?? {},
-                          system.name
-                        );
-                    return (
-                      <div
-                        key={system.id}
-                        className="flex items-center gap-1.5 py-0.5"
-                      >
-                        {isIdentified ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500 dark:text-green-400 flex-shrink-0" />
-                        ) : (
-                          <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0"></div>
-                        )}
-                        <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                        <span
-                          className={
-                            isIdentified
-                              ? "text-gray-700 dark:text-gray-300 line-through"
-                              : "text-gray-500 dark:text-gray-400"
-                          }
-                        >
-                          {system.name}
+                <div className="mt-2">
+                  {/* Mini Donut Chart */}
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="flex-shrink-0">
+                      <DonutChart
+                        percentage={Math.round(systemsScore)}
+                        size={56}
+                        strokeWidth={6}
+                        colorClass={
+                          systemsScore >= 60
+                            ? "text-green-400 dark:text-green-500"
+                            : systemsScore >= 40
+                              ? "text-amber-400 dark:text-amber-500"
+                              : "text-slate-400 dark:text-slate-500"
+                        }
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Identified
+                        </span>
+                        <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                          {currentSystems}
                         </span>
                       </div>
-                    );
-                  })}
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                        <div
+                          className="bg-green-500 dark:bg-green-400 h-1.5 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${systemsScore}%`,
+                          }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Missing
+                        </span>
+                        <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                          {systemItems.length - currentSystems}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                        <div
+                          className="bg-orange-500 dark:bg-orange-400 h-1.5 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${100 - systemsScore}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Systems List - shows selected systems */}
+                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
+                      {systemItems.map((system) => {
+                        const predefinedSystem = PROPERTY_SYSTEMS.find(
+                          (s) => s.id === system.id,
+                        );
+                        const Icon =
+                          predefinedSystem?.icon || CUSTOM_SYSTEM_DEFAULT_ICON;
+                        const isIdentified = predefinedSystem
+                          ? isSystemComplete(propertyData, system.id)
+                          : isCustomSystemComplete(
+                              propertyData.customSystemsData ?? {},
+                              system.name,
+                            );
+                        return (
+                          <div
+                            key={system.id}
+                            className="flex items-center gap-1.5 py-0.5"
+                          >
+                            {isIdentified ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 dark:text-green-400 flex-shrink-0" />
+                            ) : (
+                              <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0"></div>
+                            )}
+                            <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                            <span
+                              className={
+                                isIdentified
+                                  ? "text-gray-700 dark:text-gray-300 line-through"
+                                  : "text-gray-500 dark:text-gray-400"
+                              }
+                            >
+                              {system.name}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              </div>
               )}
             </div>
 
@@ -559,98 +666,95 @@ function ScoreCard({
               </button>
 
               {maintenanceOpen && (
-              <div className="mt-2">
-              {/* Mini Donut Chart */}
-              <div className="flex items-center gap-4 mb-2">
-                <div className="flex-shrink-0">
-                  <DonutChart
-                    percentage={Math.round(maintenanceScore)}
-                    size={56}
-                    strokeWidth={6}
-                    colorClass={
-                      maintenanceScore >= 60
-                        ? "text-green-400 dark:text-green-500"
-                        : maintenanceScore >= 40
-                          ? "text-amber-400 dark:text-amber-500"
-                          : "text-slate-400 dark:text-slate-500"
-                    }
-                  />
-                </div>
-                <div className="flex-1 space-y-1.5 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      Complete
-                    </span>
-                    <span className="text-xs font-semibold text-green-600 dark:text-green-400">
-                      {currentMaintenance}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-green-500 dark:bg-green-400 h-1.5 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${maintenanceScore}%`,
-                      }}
-                    ></div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      Incomplete
-                    </span>
-                    <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                      {systemItems.length - currentMaintenance}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className="bg-orange-500 dark:bg-orange-400 h-1.5 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${100 - maintenanceScore}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Maintenance Checklist - same systems as Systems section */}
-              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
-                  {systemItems.map((system) => {
-                    const predefinedSystem = PROPERTY_SYSTEMS.find(
-                      (s) => s.id === system.id
-                    );
-                    const Icon = predefinedSystem?.icon || CUSTOM_SYSTEM_DEFAULT_ICON;
-                    // Cross out when: (1) all inspection checklist items done, or (2) all maintenance records completed
-                    const fromChecklist = isSystemMaintenanceComplete(system);
-                    const fromRecords = isSystemMaintenanceCompleteFromRecords(system);
-                    const isComplete =
-                      fromChecklist === true || fromRecords === true;
-                    return (
-                      <div
-                        key={system.id}
-                        className="flex items-center gap-1.5 py-0.5"
-                      >
-                        {isComplete ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500 dark:text-green-400 flex-shrink-0" />
-                        ) : (
-                          <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0"></div>
-                        )}
-                        <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                        <span
-                          className={
-                            isComplete
-                              ? "text-gray-700 dark:text-gray-300 line-through"
-                              : "text-gray-500 dark:text-gray-400"
-                          }
-                        >
-                          {system.name}
+                <div className="mt-2">
+                  {/* Mini Donut Chart */}
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="flex-shrink-0">
+                      <DonutChart
+                        percentage={Math.round(maintenanceScore)}
+                        size={56}
+                        strokeWidth={6}
+                        colorClass={
+                          maintenanceScore >= 60
+                            ? "text-green-400 dark:text-green-500"
+                            : maintenanceScore >= 40
+                              ? "text-amber-400 dark:text-amber-500"
+                              : "text-slate-400 dark:text-slate-500"
+                        }
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Complete
+                        </span>
+                        <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                          {currentMaintenance}
                         </span>
                       </div>
-                    );
-                  })}
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                        <div
+                          className="bg-green-500 dark:bg-green-400 h-1.5 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${maintenanceScore}%`,
+                          }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Incomplete
+                        </span>
+                        <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                          {systemItems.length - currentMaintenance}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                        <div
+                          className="bg-orange-500 dark:bg-orange-400 h-1.5 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${100 - maintenanceScore}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Maintenance Checklist - same systems as Systems section */}
+                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-xs">
+                      {systemItems.map((system) => {
+                        const predefinedSystem = PROPERTY_SYSTEMS.find(
+                          (s) => s.id === system.id,
+                        );
+                        const Icon =
+                          predefinedSystem?.icon || CUSTOM_SYSTEM_DEFAULT_ICON;
+                        const isComplete = isSystemMaintenanceComplete(system);
+                        return (
+                          <div
+                            key={system.id}
+                            className="flex items-center gap-1.5 py-0.5"
+                          >
+                            {isComplete ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 dark:text-green-400 flex-shrink-0" />
+                            ) : (
+                              <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0"></div>
+                            )}
+                            <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                            <span
+                              className={
+                                isComplete
+                                  ? "text-gray-700 dark:text-gray-300 line-through"
+                                  : "text-gray-500 dark:text-gray-400"
+                              }
+                            >
+                              {system.name}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              </div>
               )}
             </div>
           </div>

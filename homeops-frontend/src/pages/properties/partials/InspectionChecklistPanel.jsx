@@ -27,6 +27,13 @@ import AppApi from "../../../api/api";
 import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 
+const INSPECTION_CHECKLIST_UPDATED_EVENT = "inspection-checklist:updated";
+
+function emitInspectionChecklistUpdated() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(INSPECTION_CHECKLIST_UPDATED_EVENT));
+}
+
 const STATUS_CONFIG = {
   pending: {
     icon: Circle,
@@ -105,8 +112,14 @@ function ChecklistItem({
 }) {
   const [updating, setUpdating] = useState(false);
   const isUserCreated = item.source === "user_created";
-  const isCrossedOut = item.status === "completed" || isAddressedByMaintenance;
-  const statusConf = isAddressedByMaintenance
+  // User's explicit status takes precedence: if they unchecked (pending/in_progress), show as unchecked
+  const explicitlyIncomplete = ["pending", "in_progress"].includes(
+    String(item.status ?? "").toLowerCase(),
+  );
+  const isCrossedOut =
+    item.status === "completed" ||
+    (isAddressedByMaintenance && !explicitlyIncomplete);
+  const statusConf = isAddressedByMaintenance && !explicitlyIncomplete
     ? STATUS_CONFIG.completed
     : STATUS_CONFIG[item.status] || STATUS_CONFIG.pending;
   const StatusIcon = statusConf.icon;
@@ -447,6 +460,7 @@ export default function InspectionChecklistPanel({
             bySystem: newBySystem,
           };
         });
+        emitInspectionChecklistUpdated();
       } catch (err) {
         console.error("[InspectionChecklistPanel] Status update failed:", err);
         loadData();
@@ -476,6 +490,7 @@ export default function InspectionChecklistPanel({
       next.add(newItem.system_key);
       return next;
     });
+    emitInspectionChecklistUpdated();
   }, []);
 
   const handleDeleteItem = useCallback(async (itemId) => {
@@ -501,6 +516,7 @@ export default function InspectionChecklistPanel({
         }
         return {...prev, total: totalAll, completed: totalCompleted, pending: totalPending, bySystem: newBySystem};
       });
+      emitInspectionChecklistUpdated();
     } catch (err) {
       console.error("[InspectionChecklistPanel] Delete failed:", err);
     }
