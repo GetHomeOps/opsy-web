@@ -1,13 +1,16 @@
 import React, {useState, useEffect} from "react";
-import {useSearchParams, useLocation} from "react-router-dom";
+import {useSearchParams, useLocation, useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import AppApi from "../../api/api";
+import {useAuth} from "../../context/AuthContext";
 import {Check, Mail, Lock, User, AlertCircle, Building2} from "lucide-react";
 import Logo from "../../images/logo-no-bg.png";
 
 function UserConfirmationEmail() {
   const {t} = useTranslation();
+  const navigate = useNavigate();
   const location = useLocation();
+  const {login} = useAuth();
   const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     name: "",
@@ -93,8 +96,15 @@ function UserConfirmationEmail() {
         name: formData.name,
       });
       if (res?.success === true) {
-        setSuccess(true);
-        return;
+        try {
+          await login({ email: userEmail, password: formData.password });
+          const accountUrl = location.pathname?.split("/")?.[1] || "home";
+          navigate(`/${accountUrl}/home`, { replace: true });
+          return;
+        } catch (loginErr) {
+          setSuccess(true);
+          return;
+        }
       }
       setErrors((prev) => ({
         ...prev,

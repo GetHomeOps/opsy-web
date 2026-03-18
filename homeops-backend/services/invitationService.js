@@ -170,7 +170,8 @@ async function sendInvitationEmailForInvitation({ invitation, token, inviterUser
   const baseUrl = (APP_BASE_URL || process.env.APP_WEB_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
   const account = await Account.get(invitation.accountId);
   const accountUrl = account?.url || account?.name || "home";
-  const inviteUrl = `${baseUrl}/#/${accountUrl}/invite/confirm?token=${encodeURIComponent(token)}&email=${encodeURIComponent(invitation.inviteeEmail)}`;
+  // Use path-based URL for BrowserRouter (no hash)
+  const inviteUrl = `${baseUrl}/${accountUrl}/invite/confirm?token=${encodeURIComponent(token)}&email=${encodeURIComponent(invitation.inviteeEmail)}`;
   let inviterName = null;
   let propertyAddress = null;
   if (inviterUserId) {

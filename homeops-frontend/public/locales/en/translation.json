@@ -418,6 +418,7 @@
   "responsiblePlaceholder": "Enter responsible",
   "responsibleValidationErrorMessage": "Responsible is required",
   "results": "results",
+  "resendInvitationEmail": "Resend invitation email",
   "rfqSubmission": "RFQ Submission",
   "rfqSubmissionMethod": "RFQ Submission Method",
   "rfqSubmissionMethodPlaceholder": "Select RFQ Submission Method",

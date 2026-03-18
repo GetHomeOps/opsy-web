@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import {useNavigate, useParams, useLocation, Link} from "react-router-dom";
-import {AlertCircle, Mail, User, UserCircle, ExternalLink} from "lucide-react";
+import {AlertCircle, Mail, User, UserCircle} from "lucide-react";
 import Banner from "../../partials/containers/Banner";
 import ModalBlank from "../../components/ModalBlank";
 import {useTranslation} from "react-i18next";
@@ -274,18 +274,21 @@ function UsersFormContainer() {
       const result = await createUserInvitation({
         inviteeEmail: user?.email || state.user?.email || state.formData?.email,
         accountId: currentAccount?.id,
-        intendedRole: 'member',
-        type: 'account',
+        intendedRole: "member",
+        type: "account",
       });
 
       if (result?.invitation) {
-        const email = user?.email || state.user?.email || state.formData?.email || "";
+        const email =
+          user?.email || state.user?.email || state.formData?.email || "";
         dispatch({
           type: "SET_BANNER",
           payload: {
             open: true,
             type: "success",
-            message: t("confirmationEmailMessage")?.replace("{{email}}", email) || `Invitation email sent to ${email}. Please check your email for the confirmation link.`,
+            message:
+              t("confirmationEmailMessage")?.replace("{{email}}", email) ||
+              `Invitation email sent to ${email}. Please check your email for the confirmation link.`,
           },
         });
         return result;
@@ -741,7 +744,7 @@ function UsersFormContainer() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[var(--color-gray-50)] dark:bg-gray-900">
+    <div className="relative min-h-screen bg-white dark:bg-gray-900">
       <div className="fixed top-18 right-0 w-auto sm:w-full z-50">
         <Banner
           type={state.bannerType}
@@ -877,19 +880,21 @@ function UsersFormContainer() {
               </div>
             )}
 
-            {/* Activated/Pending Status Button */}
+            {/* Activated/Pending Status - Informational only */}
             {state.user &&
               (!state.user.isActive && !state.user.is_active ? (
-                <a
-                  onClick={(e) => {
-                    e.preventDefault();
-                    sendUserInvitation(state.user);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 shadow-sm hover:shadow-md bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437] hover:bg-[#fccccc] dark:hover:bg-[#4d2a3a] cursor-pointer"
-                >
-                  <span>Pending</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437]">
+                    <span>Pending</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => sendUserInvitation(state.user)}
+                    className="text-sm font-medium text-[#456564] dark:text-[#8fa3a2] hover:underline"
+                  >
+                    {t("resendInvitationEmail") || "Resend invitation email"}
+                  </button>
+                </div>
               ) : (
                 <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]">
                   <span>Active</span>

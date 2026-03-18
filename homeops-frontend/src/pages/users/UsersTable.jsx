@@ -39,7 +39,7 @@ function UsersTable({
   const getRolePillStyles = (role) => {
     const r = (role || "").toLowerCase();
     const styles = {
-      admin: "bg-[#6366f1] dark:bg-[#4f46e5]/30 text-[#4338ca] dark:text-[#a5b4fc]",
+      admin: "bg-indigo-100 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400",
       agent: "bg-[#3b82f6]/20 dark:bg-[#3b82f6]/20 text-[#1d4ed8] dark:text-[#93c5fd]",
       homeowner: "bg-[#22c55e]/20 dark:bg-[#22c55e]/20 text-[#15803d] dark:text-[#86efac]",
       super_admin:
