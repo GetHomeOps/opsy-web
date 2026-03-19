@@ -11,6 +11,7 @@ const PropertyContext = createContext();
 /* Context for Properties */
 export function PropertyProvider({children}) {
   const [properties, setProperties] = useState([]);
+  const [propertiesLoading, setPropertiesLoading] = useState(true);
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [viewMode, setViewMode] = useLocalStorage(
@@ -37,25 +38,37 @@ export function PropertyProvider({children}) {
 
   /* Get properties from backend */
   async function fetchProperties() {
-    if (isLoading || !currentUser) {
-      setProperties([]);
+    if (isLoading) {
+      setPropertiesLoading(true);
       return;
     }
+    if (!currentUser) {
+      setProperties([]);
+      setPropertiesLoading(false);
+      return;
+    }
+    if (currentUser.role !== "super_admin" && !currentAccount?.id) {
+      setProperties([]);
+      setPropertiesLoading(true);
+      return;
+    }
+
+    setPropertiesLoading(true);
     try {
       let fetchedProperties;
       if (currentUser.role === "super_admin") {
         fetchedProperties = await AppApi.getAllProperties();
       } else {
-        if (currentAccount?.id) {
-          fetchedProperties = await AppApi.getPropertiesByUserId(
-            currentUser.id,
-          );
-        }
+        fetchedProperties = await AppApi.getPropertiesByUserId(
+          currentUser.id,
+        );
       }
       setProperties((fetchedProperties || []).map(normalizePropertyForList));
     } catch (err) {
       console.error("There was an error retrieving properties:", err);
       setProperties([]);
+    } finally {
+      setPropertiesLoading(false);
     }
   }
 
@@ -302,6 +315,7 @@ export function PropertyProvider({children}) {
     () => ({
       currentAccount,
       properties,
+      propertiesLoading,
       selectedItems,
       setSelectedItems,
       viewMode,
@@ -325,7 +339,7 @@ export function PropertyProvider({children}) {
       createMaintenanceRecords,
       refreshProperties: fetchProperties,
     }),
-    [properties, currentAccount, maintenanceRecords, viewMode],
+    [properties, propertiesLoading, currentAccount, maintenanceRecords, viewMode],
   );
 
   return (

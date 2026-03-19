@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import {useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
-import {Sparkles} from "lucide-react";
+import {Loader2, Sparkles} from "lucide-react";
 
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
@@ -306,6 +306,7 @@ function PropertiesList() {
 
   const {
     properties,
+    propertiesLoading,
     setProperties,
     refreshProperties,
     viewMode,
@@ -664,6 +665,22 @@ function PropertiesList() {
       isSelected={selectedItems.includes(item.id)}
       onItemClick={() => onItemClick(item)}
     />
+  );
+
+  const propertiesLoadingCard = (
+    <div className="bg-white dark:bg-gray-800 shadow-xs rounded-xl border border-gray-200 dark:border-gray-700/60">
+      <div
+        className="flex justify-center items-center py-16 px-6 min-h-[220px]"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <Loader2
+          className="w-10 h-10 text-[#456564] animate-spin shrink-0"
+          aria-hidden
+        />
+      </div>
+    </div>
   );
 
   const allSelected =
@@ -1059,58 +1076,72 @@ function PropertiesList() {
 
             {/* ─── Content: Table or Grid ─────────────────────── */}
             {viewMode === "list" ? (
-              <DataTable
-                items={paginatedProperties}
-                columns={columns}
-                onItemClick={handlePropertyClick}
-                onSelect={handleToggleSelect}
-                selectedItems={selectedProperties}
-                totalItems={sortedProperties.length}
-                title="properties"
-                sortConfig={sortConfig}
-                onSort={handleSort}
-                renderItem={renderPropertyRow}
-                allSelected={allSelected}
-              />
+              propertiesLoading ? (
+                propertiesLoadingCard
+              ) : (
+                <DataTable
+                  items={paginatedProperties}
+                  columns={columns}
+                  onItemClick={handlePropertyClick}
+                  onSelect={handleToggleSelect}
+                  selectedItems={selectedProperties}
+                  totalItems={sortedProperties.length}
+                  title="properties"
+                  sortConfig={sortConfig}
+                  onSort={handleSort}
+                  renderItem={renderPropertyRow}
+                  allSelected={allSelected}
+                />
+              )
             ) : (
               <div>
-                {paginatedProperties.length === 0 ? (
+                {propertiesLoading ? (
+                  propertiesLoadingCard
+                ) : paginatedProperties.length === 0 ? (
                   <div className="bg-white dark:bg-gray-800 shadow-xs rounded-xl border border-gray-200 dark:border-gray-700/60">
                     <div className="text-center py-16 px-6">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700/60 mb-4">
-                        <svg
-                          className="w-8 h-8 text-gray-400 dark:text-gray-500"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.5}
-                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"
-                          />
-                        </svg>
-                      </div>
-                      <p className="text-gray-600 dark:text-gray-300 font-medium mb-2">
-                        {t("propertiesGrid.emptyState")}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleNewProperty}
-                        disabled={addPropertyChecking}
-                        className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-70"
-                      >
-                        <svg
-                          className="fill-current shrink-0"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 16 16"
-                        >
-                          <path d="M15 7H9V1c0-.6-.4-1-1-1S7 .4 7 1v6H1c-.6 0-1 .4-1 1s.4 1 1 1h6v6c0 .6.4 1 1 1s1-.4 1-1V9h6c.6 0 1-.4 1-1s-.4-1-1-1z" />
-                        </svg>
-                        <span className="ml-2">{t("addProperty")}</span>
-                      </button>
+                      {properties.length === 0 ? (
+                        <>
+                          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700/60 mb-4">
+                            <svg
+                              className="w-8 h-8 text-gray-400 dark:text-gray-500"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.5}
+                                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"
+                              />
+                            </svg>
+                          </div>
+                          <p className="text-gray-600 dark:text-gray-300 font-medium mb-2">
+                            {t("propertiesGrid.emptyState")}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleNewProperty}
+                            disabled={addPropertyChecking}
+                            className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-70"
+                          >
+                            <svg
+                              className="fill-current shrink-0"
+                              width="16"
+                              height="16"
+                              viewBox="0 0 16 16"
+                            >
+                              <path d="M15 7H9V1c0-.6-.4-1-1-1S7 .4 7 1v6H1c-.6 0-1 .4-1 1s.4 1 1 1h6v6c0 .6.4 1 1 1s1-.4 1-1V9h6c.6 0 1-.4 1-1s-.4-1-1-1z" />
+                            </svg>
+                            <span className="ml-2">{t("addProperty")}</span>
+                          </button>
+                        </>
+                      ) : (
+                        <p className="text-gray-600 dark:text-gray-300 font-medium">
+                          {t("noItemsFound")}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ) : (
