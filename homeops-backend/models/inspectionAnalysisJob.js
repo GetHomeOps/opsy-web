@@ -52,6 +52,35 @@ class InspectionAnalysisJob {
     return job;
   }
 
+  /** Latest queued/processing job for this property + report file (for resume after UI closes). */
+  static async getActiveForPropertyReport(propertyId, s3Key) {
+    if (!propertyId || !s3Key) return null;
+    const result = await db.query(
+      `SELECT id, status, progress, error_message, s3_key, file_name, mime_type, created_at
+       FROM inspection_analysis_jobs
+       WHERE property_id = $1 AND s3_key = $2
+         AND status IN ('queued', 'processing')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [propertyId, s3Key]
+    );
+    return result.rows[0] || null;
+  }
+
+  /** Any in-flight job for the property (e.g. document row not listed yet). */
+  static async getLatestActiveForProperty(propertyId) {
+    if (!propertyId) return null;
+    const result = await db.query(
+      `SELECT id, status, progress, error_message, s3_key, file_name, mime_type, created_at
+       FROM inspection_analysis_jobs
+       WHERE property_id = $1 AND status IN ('queued', 'processing')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [propertyId]
+    );
+    return result.rows[0] || null;
+  }
+
   /** Get latest result for a property (if any). */
   static async getLatestResultByProperty(propertyId) {
     const result = await db.query(

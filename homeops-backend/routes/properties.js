@@ -243,11 +243,34 @@ router.get(
   async function (req, res, next) {
     try {
       const propertyId = req.params.propertyId;
+      const reportS3Key = (req.query.reportS3Key || "").trim();
       const result = await InspectionAnalysisResult.getByPropertyId(propertyId);
       if (!result) {
-        return res.json({ analysis: null });
+        let pendingJob = null;
+        let row = null;
+        if (reportS3Key) {
+          row = await InspectionAnalysisJob.getActiveForPropertyReport(
+            propertyId,
+            reportS3Key
+          );
+        } else {
+          row = await InspectionAnalysisJob.getLatestActiveForProperty(
+            propertyId
+          );
+        }
+        if (row) {
+          pendingJob = {
+            jobId: row.id,
+            status: row.status,
+            progress: row.progress,
+            s3Key: row.s3_key,
+            fileName: row.file_name,
+            mimeType: row.mime_type,
+          };
+        }
+        return res.json({ analysis: null, pendingJob });
       }
-      return res.json({
+      const payload = {
         analysis: {
           conditionRating: result.condition_rating,
           conditionConfidence: result.condition_confidence,
@@ -260,7 +283,9 @@ router.get(
           citations: result.citations,
           createdAt: result.created_at,
         },
-      });
+        pendingJob: null,
+      };
+      return res.json(payload);
     } catch (err) {
       return next(err);
     }

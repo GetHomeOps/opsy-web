@@ -937,9 +937,13 @@ class AppApi {
     return res;
   }
 
-  static async getInspectionAnalysisByProperty(propertyId) {
-    const res = await this.request(`properties/${propertyId}/inspection-analysis`);
-    return res.analysis ?? null;
+  static async getInspectionAnalysisByProperty(propertyId, query = {}) {
+    const res = await this.request(
+      `properties/${propertyId}/inspection-analysis`,
+      query,
+      "GET"
+    );
+    return res;
   }
 
   /* --------- Inspection Checklist --------- */

@@ -855,7 +855,7 @@ function PropertyFormContainer() {
   useEffect(() => {
     if (!propertyIdForApi) return;
     AppApi.getInspectionAnalysisByProperty(propertyIdForApi)
-      .then((a) => setInspectionAnalysis(a))
+      .then((res) => setInspectionAnalysis(res?.analysis ?? null))
       .catch(() => setInspectionAnalysis(null));
   }, [propertyIdForApi]);
 
@@ -866,9 +866,10 @@ function PropertyFormContainer() {
       const eventPropertyId = String(event?.detail?.propertyId ?? "");
       if (eventPropertyId && eventPropertyId !== normalizedPropertyId) return;
       try {
-        const nextAnalysis =
-          await AppApi.getInspectionAnalysisByProperty(propertyIdForApi);
-        setInspectionAnalysis(nextAnalysis ?? null);
+        const res = await AppApi.getInspectionAnalysisByProperty(
+          propertyIdForApi,
+        );
+        setInspectionAnalysis(res?.analysis ?? null);
       } catch {
         // Keep existing analysis if refresh fails.
       }

@@ -36,6 +36,11 @@ import {
   toDisplaySystemName,
   mapAiSystemTypeToIds,
 } from "../helpers/aiSystemNormalization";
+import {
+  setInspectionFlowState,
+  clearInspectionFlowState,
+  getInspectionFlowState,
+} from "../helpers/inspectionFlowSession";
 
 /** Step definitions for the stepper. Order matters. */
 const STEP_IDS = ["identity", "details", "inspection", "systems"];
@@ -472,7 +477,7 @@ function SystemsSetupModal({
     setPredicting(false);
     setPredictError(null);
     setHasPredicted(false);
-    setInspectionReportAvailable(null);
+    setInspectionReportAvailable(onlyStep === "inspection" ? true : null);
     setUploadedDocs([]);
     setAnalysisJobId(null);
     setAnalysisStatus(null);
@@ -786,11 +791,6 @@ function SystemsSetupModal({
     custom,
   ]);
 
-  const handleSkipSystems = () => {
-    persistSystems();
-    setModalOpen(false);
-  };
-
   // Poll analysis job status
   useEffect(() => {
     if (!analysisJobId) return;
@@ -800,6 +800,15 @@ function SystemsSetupModal({
         setAnalysisStatus(data.status);
         setAnalysisProgress(data.progress);
         setAnalysisError(data.errorMessage || null);
+        if (propertyId) {
+          const cur = getInspectionFlowState(propertyId);
+          if (cur?.phase === "analyzing") {
+            setInspectionFlowState(propertyId, {
+              ...cur,
+              progress: data.progress ?? cur.progress,
+            });
+          }
+        }
         if (data.status === "completed" && data.result) {
           setAnalysisResult(data.result);
           if (pollIntervalRef.current) {
@@ -827,7 +836,14 @@ function SystemsSetupModal({
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [analysisJobId]);
+  }, [analysisJobId, propertyId]);
+
+  useEffect(() => {
+    if (!propertyId) return;
+    if (analysisStatus === "completed" || analysisStatus === "failed") {
+      clearInspectionFlowState(propertyId);
+    }
+  }, [propertyId, analysisStatus]);
 
   // Auto-select all suggested systems when analysis completes (tiles appear pre-checked)
   useEffect(() => {
@@ -845,16 +861,30 @@ function SystemsSetupModal({
   const startAnalysisForDoc = useCallback(
     async (s3Key, fileName, mimeType) => {
       if (!propertyId) return;
+      setInspectionFlowState(propertyId, {
+        phase: "starting_analysis",
+        fileName,
+        s3Key,
+        mimeType: mimeType || "application/pdf",
+      });
       try {
         const jobId = await AppApi.startInspectionAnalysis(propertyId, {
           s3Key,
           fileName,
           mimeType,
         });
+        setInspectionFlowState(propertyId, {
+          phase: "analyzing",
+          jobId,
+          fileName,
+          s3Key,
+          mimeType: mimeType || "application/pdf",
+        });
         setAnalysisJobId(jobId);
         setAnalysisStatus("queued");
         setAnalysisError(null);
       } catch (err) {
+        clearInspectionFlowState(propertyId);
         const msg = err?.message || "Failed to start analysis";
         setAnalysisError(msg);
         setAnalysisStatus("failed");
@@ -878,6 +908,17 @@ function SystemsSetupModal({
     error: uploadError,
   } = useDocumentUpload();
 
+  useEffect(() => {
+    if (!propertyId || !isUploading) return;
+    const cur = getInspectionFlowState(propertyId);
+    if (cur?.phase === "uploading") {
+      setInspectionFlowState(propertyId, {
+        ...cur,
+        progress: uploadProgress,
+      });
+    }
+  }, [propertyId, isUploading, uploadProgress]);
+
   const isTierError = (err) => {
     const status = err?.status ?? err?.response?.status;
     const msg = (err?.message || err?.error?.message || "").toLowerCase();
@@ -898,41 +939,56 @@ function SystemsSetupModal({
       );
       if (!propertyId || files.length === 0) return;
       for (const file of files) {
+        setInspectionFlowState(propertyId, {
+          phase: "uploading",
+          fileName: file.name,
+          progress: 0,
+        });
         const result = await uploadDocument(file);
-        if (result?.key) {
-          try {
-            AppApi._suppressTierEmit = true;
-            const docDate = new Date().toISOString().slice(0, 10);
-            await AppApi.createPropertyDocument({
-              property_id: propertyId,
-              document_name: "Inspection Report",
-              document_date: docDate,
-              document_key: result.key,
-              document_type: "inspection",
-              system_key: "inspectionReport",
-            });
+        if (!result?.key) {
+          clearInspectionFlowState(propertyId);
+          continue;
+        }
+        setInspectionFlowState(propertyId, {
+          phase: "saving",
+          fileName: file.name,
+          s3Key: result.key,
+          mimeType: file.type || "application/pdf",
+        });
+        try {
+          AppApi._suppressTierEmit = true;
+          const docDate = new Date().toISOString().slice(0, 10);
+          await AppApi.createPropertyDocument({
+            property_id: propertyId,
+            document_name: "Inspection Report",
+            document_date: docDate,
+            document_key: result.key,
+            document_type: "inspection",
+            system_key: "inspectionReport",
+          });
+          setUploadedDocs((prev) => [
+            ...prev,
+            {key: result.key, name: file.name, type: file.type},
+          ]);
+          if (file.type === "application/pdf") {
+            await startAnalysisForDoc(result.key, file.name, file.type);
+            break;
+          }
+          clearInspectionFlowState(propertyId);
+        } catch (docErr) {
+          if (isTierError(docErr)) {
             setUploadedDocs((prev) => [
               ...prev,
               {key: result.key, name: file.name, type: file.type},
             ]);
-            if (file.type === "application/pdf") {
-              await startAnalysisForDoc(result.key, file.name, file.type);
-              break;
-            }
-          } catch (docErr) {
-            if (isTierError(docErr)) {
-              setUploadedDocs((prev) => [
-                ...prev,
-                {key: result.key, name: file.name, type: file.type},
-              ]);
-              setPlanRestrictionForAnalysis(true);
-            } else {
-              throw docErr;
-            }
-            break;
-          } finally {
-            AppApi._suppressTierEmit = false;
+            setPlanRestrictionForAnalysis(true);
+          } else {
+            clearInspectionFlowState(propertyId);
+            throw docErr;
           }
+          break;
+        } finally {
+          AppApi._suppressTierEmit = false;
         }
       }
     },
@@ -945,41 +1001,56 @@ function SystemsSetupModal({
       e.target.value = "";
       if (!propertyId || files.length === 0) return;
       for (const file of files) {
+        setInspectionFlowState(propertyId, {
+          phase: "uploading",
+          fileName: file.name,
+          progress: 0,
+        });
         const result = await uploadDocument(file);
-        if (result?.key) {
-          try {
-            AppApi._suppressTierEmit = true;
-            const docDate = new Date().toISOString().slice(0, 10);
-            await AppApi.createPropertyDocument({
-              property_id: propertyId,
-              document_name: "Inspection Report",
-              document_date: docDate,
-              document_key: result.key,
-              document_type: "inspection",
-              system_key: "inspectionReport",
-            });
+        if (!result?.key) {
+          clearInspectionFlowState(propertyId);
+          continue;
+        }
+        setInspectionFlowState(propertyId, {
+          phase: "saving",
+          fileName: file.name,
+          s3Key: result.key,
+          mimeType: file.type || "application/pdf",
+        });
+        try {
+          AppApi._suppressTierEmit = true;
+          const docDate = new Date().toISOString().slice(0, 10);
+          await AppApi.createPropertyDocument({
+            property_id: propertyId,
+            document_name: "Inspection Report",
+            document_date: docDate,
+            document_key: result.key,
+            document_type: "inspection",
+            system_key: "inspectionReport",
+          });
+          setUploadedDocs((prev) => [
+            ...prev,
+            {key: result.key, name: file.name, type: file.type},
+          ]);
+          if (file.type === "application/pdf") {
+            await startAnalysisForDoc(result.key, file.name, file.type);
+            break;
+          }
+          clearInspectionFlowState(propertyId);
+        } catch (docErr) {
+          if (isTierError(docErr)) {
             setUploadedDocs((prev) => [
               ...prev,
               {key: result.key, name: file.name, type: file.type},
             ]);
-            if (file.type === "application/pdf") {
-              await startAnalysisForDoc(result.key, file.name, file.type);
-              break;
-            }
-          } catch (docErr) {
-            if (isTierError(docErr)) {
-              setUploadedDocs((prev) => [
-                ...prev,
-                {key: result.key, name: file.name, type: file.type},
-              ]);
-              setPlanRestrictionForAnalysis(true);
-            } else {
-              throw docErr;
-            }
-            break;
-          } finally {
-            AppApi._suppressTierEmit = false;
+            setPlanRestrictionForAnalysis(true);
+          } else {
+            clearInspectionFlowState(propertyId);
+            throw docErr;
           }
+          break;
+        } finally {
+          AppApi._suppressTierEmit = false;
         }
       }
     },
@@ -995,6 +1066,7 @@ function SystemsSetupModal({
         setAnalysisResult(null);
         setAnalysisError(null);
         setPlanRestrictionForAnalysis(false);
+        if (propertyId) clearInspectionFlowState(propertyId);
       }
       return next;
     });
@@ -1747,21 +1819,12 @@ function SystemsSetupModal({
                   </button>
                 )}
                 <div className="flex gap-3 ml-auto">
-                  {!isNewProperty && (
-                    <button
-                      type="button"
-                      onClick={handleSkipSystems}
-                      className="btn border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-                    >
-                      Skip
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={handleSave}
                     className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2"
                   >
-                    Complete setup
+                    {isNewProperty ? "Complete setup" : "Update systems"}
                     <CheckCircle2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -1783,79 +1846,90 @@ function SystemsSetupModal({
                   />
                 </div>
                 <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                  Inspection Report
+                  {inspectionUploadOnly
+                    ? "Upload inspection report"
+                    : "Inspection Report"}
                 </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-                  Do you have an inspection report available for this property?
-                </p>
+                {!inspectionUploadOnly && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                    Do you have an inspection report available for this property?
+                  </p>
+                )}
+                {inspectionUploadOnly && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+                    Add a PDF or image. AI analysis runs automatically for PDFs.
+                  </p>
+                )}
               </div>
 
-              {/* Yes/No toggle */}
-              <div className="flex justify-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => setInspectionReportAvailable(true)}
-                  className={`flex items-center gap-3 px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
-                    inspectionReportAvailable === true
-                      ? "border-[#456564] bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm"
-                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800/50"
-                  }`}
-                >
-                  <div
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+              {/* Yes/No toggle — skipped when opened for upload-only (e.g. Passport Opsymization) */}
+              {!inspectionUploadOnly && (
+                <div className="flex justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setInspectionReportAvailable(true)}
+                    className={`flex items-center gap-3 px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
                       inspectionReportAvailable === true
-                        ? "border-[#456564] bg-[#456564]"
-                        : "border-gray-300 dark:border-gray-500"
+                        ? "border-[#456564] bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm"
+                        : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800/50"
                     }`}
                   >
-                    {inspectionReportAvailable === true && (
-                      <div className="w-2 h-2 rounded-full bg-white" />
-                    )}
-                  </div>
-                  <span
-                    className={`font-medium ${
-                      inspectionReportAvailable === true
-                        ? "text-gray-900 dark:text-white"
-                        : "text-gray-600 dark:text-gray-400"
-                    }`}
-                  >
-                    Yes
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInspectionReportAvailable(false)}
-                  className={`flex items-center gap-3 px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
-                    inspectionReportAvailable === false
-                      ? "border-[#456564] bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm"
-                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800/50"
-                  }`}
-                >
-                  <div
-                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    <div
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        inspectionReportAvailable === true
+                          ? "border-[#456564] bg-[#456564]"
+                          : "border-gray-300 dark:border-gray-500"
+                      }`}
+                    >
+                      {inspectionReportAvailable === true && (
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <span
+                      className={`font-medium ${
+                        inspectionReportAvailable === true
+                          ? "text-gray-900 dark:text-white"
+                          : "text-gray-600 dark:text-gray-400"
+                      }`}
+                    >
+                      Yes
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInspectionReportAvailable(false)}
+                    className={`flex items-center gap-3 px-6 py-4 rounded-xl border-2 transition-all duration-200 ${
                       inspectionReportAvailable === false
-                        ? "border-[#456564] bg-[#456564]"
-                        : "border-gray-300 dark:border-gray-500"
+                        ? "border-[#456564] bg-[#456564]/10 dark:bg-[#456564]/20 shadow-sm"
+                        : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800/50"
                     }`}
                   >
-                    {inspectionReportAvailable === false && (
-                      <div className="w-2 h-2 rounded-full bg-white" />
-                    )}
-                  </div>
-                  <span
-                    className={`font-medium ${
-                      inspectionReportAvailable === false
-                        ? "text-gray-900 dark:text-white"
-                        : "text-gray-600 dark:text-gray-400"
-                    }`}
-                  >
-                    No
-                  </span>
-                </button>
-              </div>
+                    <div
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        inspectionReportAvailable === false
+                          ? "border-[#456564] bg-[#456564]"
+                          : "border-gray-300 dark:border-gray-500"
+                      }`}
+                    >
+                      {inspectionReportAvailable === false && (
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <span
+                      className={`font-medium ${
+                        inspectionReportAvailable === false
+                          ? "text-gray-900 dark:text-white"
+                          : "text-gray-600 dark:text-gray-400"
+                      }`}
+                    >
+                      No
+                    </span>
+                  </button>
+                </div>
+              )}
 
-              {/* File upload (shown when Yes) */}
-              {inspectionReportAvailable === true && (
+              {/* File upload (shown when Yes, or immediately in upload-only flow) */}
+              {(inspectionUploadOnly || inspectionReportAvailable === true) && (
                 <div className="space-y-4">
                   {!propertyId && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">

@@ -102,8 +102,15 @@ export default function InspectionAnalysisModalContent({
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
     : "/professionals";
-  const {status, data, error, refresh, load, startAnalysis} =
-    useInspectionAnalysis(propertyId);
+  const {
+    status,
+    data,
+    error,
+    refresh,
+    load,
+    startAnalysis,
+    analysisProgress,
+  } = useInspectionAnalysis(propertyId);
   const [missingSystems, setMissingSystems] = useState([]);
 
   useEffect(() => {
@@ -146,8 +153,13 @@ export default function InspectionAnalysisModalContent({
   }
 
   if (status === "idle" || status === "loading") {
+    const primary =
+      analysisProgress ||
+      (status === "idle"
+        ? "Loading…"
+        : "Preparing inspection analysis…");
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6">
+      <div className="flex flex-col items-center justify-center py-12 px-6 max-w-lg mx-auto text-center">
         <div className="animate-pulse space-y-4 w-full max-w-md">
           <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
           <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-full" />
@@ -155,10 +167,16 @@ export default function InspectionAnalysisModalContent({
           <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-2/3 mt-6" />
           <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-4/5" />
         </div>
-        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-6 flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Analyzing report…
+        <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300 mt-6 flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+          {primary}
         </p>
+        {analysisProgress && status === "loading" && (
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2 leading-relaxed">
+            You can close this window — analysis keeps running. Reopen anytime
+            to see live progress.
+          </p>
+        )}
       </div>
     );
   }
