@@ -336,6 +336,7 @@ function SystemsSetupModal({
   onSaveProperty,
   onScheduleMaintenance,
   upgradeUrl: upgradeUrlProp,
+  externalSuggestedSystems = [],
 }) {
   const {accountUrl: accountUrlParam} = useParams();
   const navigate = useNavigate();
@@ -670,7 +671,9 @@ function SystemsSetupModal({
   };
 
   const visibleSteps = onlyStep
-    ? [onlyStep]
+    ? onlyStep === "inspection"
+      ? ["inspection", "systems"]
+      : [onlyStep]
     : isNewProperty
       ? STEP_IDS
       : STEP_IDS.filter((s) => s === "inspection" || s === "systems");
@@ -705,13 +708,16 @@ function SystemsSetupModal({
   };
 
   // Pre-select systems when first reaching Systems step:
-  // - If AI suggested systems exist, add those.
+  // - If AI suggested systems exist (from internal analysis or external prop), add those.
   // - Otherwise preserve current selection; only default to all when nothing is selected yet.
   useEffect(() => {
     if (step !== "systems" || hasAppliedSuggestedRef.current) return;
     hasAppliedSuggestedRef.current = true;
 
-    const suggested = analysisResult?.suggestedSystemsToAdd ?? [];
+    const suggested =
+      (analysisResult?.suggestedSystemsToAdd ?? []).length > 0
+        ? analysisResult.suggestedSystemsToAdd
+        : externalSuggestedSystems ?? [];
     if (suggested.length > 0) {
       const selectedSuggestedNorm = new Set(
         [...selectedSuggestedSystems]
@@ -775,6 +781,7 @@ function SystemsSetupModal({
   }, [
     step,
     analysisResult?.suggestedSystemsToAdd,
+    externalSuggestedSystems,
     selectedSuggestedSystems,
     custom,
   ]);
@@ -1031,6 +1038,20 @@ function SystemsSetupModal({
     onScheduleMaintenance?.(item);
     setModalOpen(false);
   };
+
+  const suggestedFromAi = analysisResult?.suggestedSystemsToAdd ?? [];
+  const initialSelectedSet = new Set(selectedSystemIds ?? []);
+  const allSuggestedAlreadyIncluded =
+    suggestedFromAi.length > 0 &&
+    suggestedFromAi.every((s) => {
+      const raw = String(s.systemType ?? s.system_key ?? "").trim();
+      if (!raw) return true;
+      const mappedIds = mapAiSystemTypeToIds(raw, SETUP_SYSTEMS);
+      return mappedIds.length > 0 && mappedIds.every((id) => initialSelectedSet.has(id));
+    });
+  const allSystemsIncluded =
+    allSuggestedAlreadyIncluded &&
+    SETUP_SYSTEMS.every((s) => initialSelectedSet.has(s.id));
 
   return (
     <ModalBlank
@@ -1394,84 +1415,83 @@ function SystemsSetupModal({
                     );
                     if (fieldsWithData.length === 0) return null;
                     return (
-                    <div key={group.label}>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                        {group.label}
-                      </h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {fieldsWithData.map((f) => {
-                          const val =
-                            aiFields[f.key] ??
-                            formData?.[f.key];
-                          const isFromApi =
-                            val !== undefined &&
-                            val !== null &&
-                            String(val).trim() !== "";
-                          const supportUrl = (() => {
-                            if (!accountUrl || !isFromApi) return null;
-                            const params = new URLSearchParams();
-                            const systemLabel =
-                              (lookupSource || formData?.identity_data_source) === "rentcast"
-                                ? "RentCast"
-                                : "ATTOM";
-                            params.set("system", systemLabel);
-                            params.set("field", f.key);
-                            if (propertyId) {
-                              params.set("propertyId", String(propertyId));
-                            }
-                            const propertyLabel =
-                              identityFields.propertyName ||
-                              identityFields.address;
-                            if (propertyLabel) {
-                              params.set("propertyLabel", propertyLabel);
-                            }
-                            if (val != null && String(val).trim() !== "") {
-                              params.set("currentValue", String(val));
-                            }
-                            return `/${accountUrl}/settings/support/data-adjustment?${params.toString()}`;
-                          })();
+                      <div key={group.label}>
+                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                          {group.label}
+                        </h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {fieldsWithData.map((f) => {
+                            const val = aiFields[f.key] ?? formData?.[f.key];
+                            const isFromApi =
+                              val !== undefined &&
+                              val !== null &&
+                              String(val).trim() !== "";
+                            const supportUrl = (() => {
+                              if (!accountUrl || !isFromApi) return null;
+                              const params = new URLSearchParams();
+                              const systemLabel =
+                                (lookupSource ||
+                                  formData?.identity_data_source) === "rentcast"
+                                  ? "RentCast"
+                                  : "ATTOM";
+                              params.set("system", systemLabel);
+                              params.set("field", f.key);
+                              if (propertyId) {
+                                params.set("propertyId", String(propertyId));
+                              }
+                              const propertyLabel =
+                                identityFields.propertyName ||
+                                identityFields.address;
+                              if (propertyLabel) {
+                                params.set("propertyLabel", propertyLabel);
+                              }
+                              if (val != null && String(val).trim() !== "") {
+                                params.set("currentValue", String(val));
+                              }
+                              return `/${accountUrl}/settings/support/data-adjustment?${params.toString()}`;
+                            })();
 
-                          return (
-                            <div key={f.key}>
-                              <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                {f.label}
-                                {isFromApi && (
-                                  <LockedFieldControl
-                                    label={f.label}
-                                    requestUrl={supportUrl}
-                                  />
-                                )}
-                              </label>
-                              <input
-                                type={f.type === "number" ? "number" : "text"}
-                                value={val ?? ""}
-                                readOnly={isFromApi}
-                                aria-readonly={isFromApi}
-                                aria-label={
-                                  isFromApi
-                                    ? `${f.label} (verified, read-only)`
-                                    : f.label
-                                }
-                                onChange={
-                                  isFromApi
-                                    ? undefined
-                                    : (e) =>
-                                        setAiFields((prev) => ({
-                                          ...prev,
-                                          [f.key]: e.target.value,
-                                        }))
-                                }
-                                className={
-                                  isFromApi
-                                    ? "form-input w-full text-sm rounded-lg border-gray-200 dark:border-gray-600 bg-gray-100/80 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-default py-1.5 focus:ring-1 focus:ring-gray-300 dark:focus:ring-gray-600 focus:border-gray-300 dark:focus:border-gray-600"
-                                    : "form-input w-full text-sm rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#456564]/20 focus:border-[#456564] transition-colors py-1.5"
-                                }
-                              />
-                            </div>
-                          );
-                        })}
+                            return (
+                              <div key={f.key}>
+                                <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                  {f.label}
+                                  {isFromApi && (
+                                    <LockedFieldControl
+                                      label={f.label}
+                                      requestUrl={supportUrl}
+                                    />
+                                  )}
+                                </label>
+                                <input
+                                  type={f.type === "number" ? "number" : "text"}
+                                  value={val ?? ""}
+                                  readOnly={isFromApi}
+                                  aria-readonly={isFromApi}
+                                  aria-label={
+                                    isFromApi
+                                      ? `${f.label} (verified, read-only)`
+                                      : f.label
+                                  }
+                                  onChange={
+                                    isFromApi
+                                      ? undefined
+                                      : (e) =>
+                                          setAiFields((prev) => ({
+                                            ...prev,
+                                            [f.key]: e.target.value,
+                                          }))
+                                  }
+                                  className={
+                                    isFromApi
+                                      ? "form-input w-full text-sm rounded-lg border-gray-200 dark:border-gray-600 bg-gray-100/80 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-default py-1.5 focus:ring-1 focus:ring-gray-300 dark:focus:ring-gray-600 focus:border-gray-300 dark:focus:border-gray-600"
+                                      : "form-input w-full text-sm rounded-lg border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#456564]/20 focus:border-[#456564] transition-colors py-1.5"
+                                  }
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -1944,7 +1964,7 @@ function SystemsSetupModal({
                     </div>
                   )}
 
-                  {/* AI Findings panel — hidden when plan restriction (we show inline message above instead) */}
+                  {/* AI Findings panel — hidden when plan restriction or all suggested already on property */}
                   {!planRestrictionForAnalysis &&
                     (analysisJobId || analysisStatus) && (
                       <AIFindingsPanel
@@ -1953,7 +1973,9 @@ function SystemsSetupModal({
                         errorMessage={analysisError}
                         result={analysisResult}
                         suggestedSystemsToAdd={
-                          analysisResult?.suggestedSystemsToAdd ?? []
+                          allSuggestedAlreadyIncluded
+                            ? []
+                            : analysisResult?.suggestedSystemsToAdd ?? []
                         }
                         selectedSuggestedSystems={[...selectedSuggestedSystems]}
                         onToggleSuggestedSystem={toggleSuggestedSystem}
@@ -1964,6 +1986,7 @@ function SystemsSetupModal({
                         onRetry={handleRetryAnalysis}
                       />
                     )}
+
                 </div>
               )}
 
@@ -1979,30 +2002,52 @@ function SystemsSetupModal({
                     </button>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={handleInspectionContinue}
-                  disabled={
-                    analysisStatus === "queued" ||
-                    analysisStatus === "processing"
-                  }
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 ml-auto disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {analysisStatus === "queued" ||
-                  analysisStatus === "processing" ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Analyzing…
-                    </>
-                  ) : inspectionUploadOnly ? (
-                    "Done"
+                {analysisStatus === "completed" && suggestedFromAi.length > 0 ? (
+                  allSystemsIncluded ? (
+                    <button
+                      type="button"
+                      onClick={() => setModalOpen(false)}
+                      className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 ml-auto"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Done
+                    </button>
                   ) : (
-                    <>
-                      Continue
+                    <button
+                      type="button"
+                      onClick={() => setStep("systems")}
+                      className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 ml-auto"
+                    >
+                      Continue to systems
                       <ChevronRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                    </button>
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleInspectionContinue}
+                    disabled={
+                      analysisStatus === "queued" ||
+                      analysisStatus === "processing"
+                    }
+                    className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 ml-auto disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {analysisStatus === "queued" ||
+                    analysisStatus === "processing" ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Analyzing…
+                      </>
+                    ) : inspectionUploadOnly ? (
+                      "Done"
+                    ) : (
+                      <>
+                        Continue
+                        <ChevronRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           )}

@@ -109,6 +109,12 @@ IMPACT SCORE (1-10): Rate each finding's real-world impact on habitability, safe
 - suggestedWhen: use phrases like "within 30 days", "within 6 months", "annually", "as soon as possible".
 - Use confidence 0.7-0.95 for items with clear verbatim evidence; 0.5-0.7 for items where evidence is indirect but present. Do NOT include items below 0.5 confidence.
 
+DEDUPLICATION — MINIMIZE DUPLICATES:
+- Do NOT include duplicate or near-duplicate items. Each distinct finding or recommendation should appear exactly once.
+- If the report mentions the same issue in multiple places (e.g. front stairs and rear stairs for handrails), consolidate into a single entry. Use the most complete description and strongest evidence.
+- Avoid rephrased versions of the same recommendation (e.g. "Install graspable handrail" vs "Install a graspable handrail that is..."). Choose one clear phrasing.
+- Before adding each item, check that you have not already included an equivalent finding. Prefer quality over quantity.
+
 Output format:
 {
   "condition": "good|fair|poor|excellent",
@@ -161,7 +167,9 @@ SYSTEM TYPE: For each finding, choose the best-fitting system:
 
 CRITICAL: Do NOT suggest or use "Appliances" or appliance-related systems. We track only property systems, not appliances.
 
-DEDUPLICATION: Do NOT create redundant or overlapping systems. Each area maps to one system. "structure"/"foundation" -> foundation. "fuel storage"/"oil tank" -> heating. "chimney"/"fireplace" -> heating. "attic"/"insulation" -> exterior. "crawl space"/"basement" -> foundation. "garage"/"garage door" -> exterior. "ventilation" -> ac. "smoke detectors"/"CO detectors" -> safety. Do NOT include "inspections" as a system.
+DEDUPLICATION — SYSTEMS: Do NOT create redundant or overlapping systems. Each area maps to one system. "structure"/"foundation" -> foundation. "fuel storage"/"oil tank" -> heating. "chimney"/"fireplace" -> heating. "attic"/"insulation" -> exterior. "crawl space"/"basement" -> foundation. "garage"/"garage door" -> exterior. "ventilation" -> ac. "smoke detectors"/"CO detectors" -> safety. Do NOT include "inspections" as a system.
+
+DEDUPLICATION — FINDINGS: Do NOT include duplicate or near-duplicate items in needsAttention or maintenanceSuggestions. Each distinct issue should appear only ONCE. If the report mentions the same issue in multiple places, consolidate into a single entry. Avoid rephrased versions of the same recommendation — pick one clear formulation and include it once.
 
 - For suggestedSystemsToAdd: include every system the report inspected with findings.
 - Use confidence 0.7-0.95 for items with clear verbatim evidence; 0.5-0.7 for indirect evidence. Do NOT include items below 0.5 confidence.
@@ -245,6 +253,70 @@ function sortNeedsAttention(items) {
 
 function sortMaintenanceSuggestions(items) {
   return [...items].sort((a, b) => priorityScore(b) - priorityScore(a));
+}
+
+/**
+ * Normalize evidence string for deduplication (collapse whitespace, lowercase,
+ * common variants). Helps detect when the same report quote appears under multiple systems.
+ */
+function normalizeEvidenceForDedup(ev) {
+  if (!ev || typeof ev !== "string") return "";
+  return ev
+    .toLowerCase()
+    .trim()
+    .replace(/°/g, " degrees ")
+    .replace(/\s+/g, " ")
+    .replace(/[.,;:!?]+$/g, "")
+    .trim();
+}
+
+/** Min length for evidence to use as dedup key; shorter kept but not used to detect duplicates. */
+const MIN_EVIDENCE_DEDUP_LENGTH = 30;
+
+/**
+ * Deduplicate findings that share the same evidence (report quote).
+ * When duplicate evidence is found across systems, keep the item with the highest score.
+ * Prevents the same finding from appearing under both "plumbing" and "waterHeating" etc.
+ * Also treats as duplicate when one evidence string contains the other (handles truncation).
+ */
+function deduplicateFindingsByEvidence(items, scoreFn) {
+  const byEvidence = new Map();
+  const normToKey = new Map(); // norm -> canonical key (for containment checks)
+
+  for (const item of items) {
+    const ev = (item.evidence || item.rationale || "").toString().trim();
+    const norm = normalizeEvidenceForDedup(ev);
+    if (norm.length < MIN_EVIDENCE_LENGTH) {
+      byEvidence.set(`__short_${byEvidence.size}`, item);
+      continue;
+    }
+
+    // Exact match
+    let canonicalKey = normToKey.get(norm);
+    if (!canonicalKey) {
+      // Check for containment: is this a subset of an existing key, or does an existing key overlap?
+      for (const [key, existingNorm] of normToKey) {
+        if (key.startsWith("__short")) continue;
+        const shorter = norm.length < existingNorm.length ? norm : existingNorm;
+        const longer = norm.length >= existingNorm.length ? norm : existingNorm;
+        if (shorter.length >= MIN_EVIDENCE_DEDUP_LENGTH && longer.includes(shorter)) {
+          canonicalKey = key;
+          break;
+        }
+      }
+      if (!canonicalKey) {
+        canonicalKey = norm;
+        normToKey.set(norm, norm);
+      }
+    }
+
+    const existing = byEvidence.get(canonicalKey);
+    if (!existing || scoreFn(item) > scoreFn(existing)) {
+      byEvidence.set(canonicalKey, item);
+      if (canonicalKey === norm) normToKey.set(norm, norm);
+    }
+  }
+  return Array.from(byEvidence.values());
 }
 
 /**
@@ -445,12 +517,16 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
     if (m.systemType) systemsWithFindings.add(m.systemType.toLowerCase());
   }
 
+  // Deduplicate findings that appear under multiple systems (same evidence quote)
+  const dedupedNeedsAttention = deduplicateFindingsByEvidence(allNeedsAttention, severityScore);
+  const dedupedMaintenanceSuggestions = deduplicateFindingsByEvidence(allMaintenanceSuggestions, priorityScore);
+
   const overallCondition = inventory.overallCondition || {};
   return {
     condition: overallCondition,
     systemsDetected: allSystemsDetected,
-    needsAttention: sortNeedsAttention(allNeedsAttention),
-    maintenanceSuggestions: sortMaintenanceSuggestions(allMaintenanceSuggestions),
+    needsAttention: sortNeedsAttention(dedupedNeedsAttention),
+    maintenanceSuggestions: sortMaintenanceSuggestions(dedupedMaintenanceSuggestions),
     suggestedSystemsToAdd: dedupedSystems
       .filter((s) => systemsWithFindings.has(s.systemType.toLowerCase()))
       .map((s) => ({
@@ -633,33 +709,35 @@ async function runAnalysis(jobId) {
       return true;
     });
 
+  const rawMaintenanceSuggestions = (parsed.maintenanceSuggestions || [])
+    .filter((s) => !isExcludedSystem(s.systemType) && hasValidEvidence(s))
+    .map((s) => ({
+      systemType: normalizeSystemType(s.systemType) || s.systemType,
+      task: s.task || "",
+      suggestedWhen: s.suggestedWhen || "",
+      priority: s.priority || "medium",
+      rationale: s.rationale || "",
+      confidence: s.confidence ?? 0.5,
+      impactScore: s.impactScore ?? 5,
+      evidence: s.evidence || null,
+    }));
   const maintenanceSuggestions = sortMaintenanceSuggestions(
-    (parsed.maintenanceSuggestions || [])
-      .filter((s) => !isExcludedSystem(s.systemType) && hasValidEvidence(s))
-      .map((s) => ({
-        systemType: normalizeSystemType(s.systemType) || s.systemType,
-        task: s.task || "",
-        suggestedWhen: s.suggestedWhen || "",
-        priority: s.priority || "medium",
-        rationale: s.rationale || "",
-        confidence: s.confidence ?? 0.5,
-        impactScore: s.impactScore ?? 5,
-        evidence: s.evidence || null,
-      }))
+    deduplicateFindingsByEvidence(rawMaintenanceSuggestions, priorityScore)
   );
 
+  const rawNeedsAttention = (parsed.needsAttention || [])
+    .filter((n) => !isExcludedSystem(n.systemType) && hasValidEvidence(n))
+    .map((n) => ({
+      title: n.title || "",
+      systemType: n.systemType ? normalizeSystemType(n.systemType) || n.systemType : null,
+      severity: n.severity || "medium",
+      evidence: n.evidence || null,
+      suggestedAction: n.suggestedAction || "",
+      priority: n.priority || "medium",
+      impactScore: n.impactScore ?? 5,
+    }));
   const needsAttention = sortNeedsAttention(
-    (parsed.needsAttention || [])
-      .filter((n) => !isExcludedSystem(n.systemType) && hasValidEvidence(n))
-      .map((n) => ({
-        title: n.title || "",
-        systemType: n.systemType ? normalizeSystemType(n.systemType) || n.systemType : null,
-        severity: n.severity || "medium",
-        evidence: n.evidence || null,
-        suggestedAction: n.suggestedAction || "",
-        priority: n.priority || "medium",
-        impactScore: n.impactScore ?? 5,
-      }))
+    deduplicateFindingsByEvidence(rawNeedsAttention, severityScore)
   );
 
   try {

@@ -562,7 +562,7 @@ function CollapsibleSection({
       </div>
 
       {/* Inspection checklist for this system — visible when expanded */}
-      {isOpen && showActionButtons && inspectionAnalysis && propertyId && (
+      {isOpen && showActionButtons && propertyId && (
         <div className="px-6 pb-2">
           <InspectionChecklistPanel
             propertyId={propertyId}

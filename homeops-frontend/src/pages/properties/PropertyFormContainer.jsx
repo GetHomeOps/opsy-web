@@ -168,6 +168,7 @@ const initialState = {
 };
 
 const FREE_PLAN_CODES = ["homeowner_free", "agent_free", "free"];
+const INSPECTION_ANALYSIS_UPDATED_EVENT = "inspection-analysis:updated";
 
 const INVITE_AGENT_DISMISS_KEY = "opsy-invite-agent-dismissed";
 
@@ -231,9 +232,8 @@ function reducer(state, action) {
       const p = action.payload ?? {};
       const hasTabbed =
         "identity" in p || "systems" in p || "maintenanceRecords" in p;
-      const sysDirty = !state.isInitialLoad && ("systems" in p)
-        ? true
-        : state.systemsDirty;
+      const sysDirty =
+        !state.isInitialLoad && "systems" in p ? true : state.systemsDirty;
       if (hasTabbed) {
         return {
           ...state,
@@ -363,18 +363,23 @@ function reducer(state, action) {
       };
     }
     case "SAVE_COMPLETED": {
-      const {propertyPayload, systems, banner, aiSummaryUpdatedAt} = action.payload;
+      const {propertyPayload, systems, banner, aiSummaryUpdatedAt} =
+        action.payload;
       const nextFormData = propertyPayload
         ? propertyPayload.identity && propertyPayload.systems
           ? {...propertyPayload}
           : splitFormDataByTabs(propertyPayload)
         : {...initialFormData};
-      const savedRecords = propertyPayload ? (propertyPayload.maintenanceRecords ?? []) : [];
+      const savedRecords = propertyPayload
+        ? (propertyPayload.maintenanceRecords ?? [])
+        : [];
       return {
         ...state,
         property: propertyPayload,
         formData: nextFormData,
-        savedMaintenanceRecords: Array.isArray(savedRecords) ? savedRecords : [],
+        savedMaintenanceRecords: Array.isArray(savedRecords)
+          ? savedRecords
+          : [],
         systems: systems ?? state.systems,
         formDataChanged: false,
         systemsDirty: false,
@@ -474,6 +479,7 @@ function PropertyFormContainer() {
   const [systemsSetupModalOpen, setSystemsSetupModalOpen] = useState(false);
   const [systemsSetupInitialStep, setSystemsSetupInitialStep] = useState(null);
   const [systemsSetupOnlyStep, setSystemsSetupOnlyStep] = useState(null);
+  const [externalSuggestedSystems, setExternalSuggestedSystems] = useState([]);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
   const [upgradePromptTitle, setUpgradePromptTitle] =
     useState("Upgrade your plan");
@@ -571,16 +577,17 @@ function PropertyFormContainer() {
       const params = new URLSearchParams();
 
       const resolveCurrentVal = (key) => {
-        const v =
-          mergedFormData?.[key] ?? mergedFormData?.identity?.[key];
+        const v = mergedFormData?.[key] ?? mergedFormData?.identity?.[key];
         if (v != null && (typeof v !== "string" || String(v).trim() !== ""))
           return v;
         const aliases = FIELD_ALIASES[key];
         if (aliases) {
           for (const alt of aliases) {
-            const av =
-              mergedFormData?.[alt] ?? mergedFormData?.identity?.[alt];
-            if (av != null && (typeof av !== "string" || String(av).trim() !== ""))
+            const av = mergedFormData?.[alt] ?? mergedFormData?.identity?.[alt];
+            if (
+              av != null &&
+              (typeof av !== "string" || String(av).trim() !== "")
+            )
               return av;
           }
         }
@@ -594,19 +601,24 @@ function PropertyFormContainer() {
       if (ADDRESS_FIELD_KEYS.has(fieldKey)) {
         params.set("system", "Address");
         params.set("field", fieldKey);
-        if (currentPropertyId) params.set("propertyId", String(currentPropertyId));
+        if (currentPropertyId)
+          params.set("propertyId", String(currentPropertyId));
         if (currentPropertyContextLabel)
           params.set("propertyLabel", currentPropertyContextLabel);
         return `${base}?${params.toString()}`;
       }
 
-      const isApiSourced = identityDataSource === "rentcast" || identityDataSource === "attom";
-      if (!isApiSourced || !RENTCAST_FIELD_KEYS.has(fieldKey))
-        return undefined;
+      const isApiSourced =
+        identityDataSource === "rentcast" || identityDataSource === "attom";
+      if (!isApiSourced || !RENTCAST_FIELD_KEYS.has(fieldKey)) return undefined;
 
-      params.set("system", identityDataSource === "attom" ? "ATTOM" : "RentCast");
+      params.set(
+        "system",
+        identityDataSource === "attom" ? "ATTOM" : "RentCast",
+      );
       params.set("field", fieldKey);
-      if (currentPropertyId) params.set("propertyId", String(currentPropertyId));
+      if (currentPropertyId)
+        params.set("propertyId", String(currentPropertyId));
       if (currentPropertyContextLabel)
         params.set("propertyLabel", currentPropertyContextLabel);
       return `${base}?${params.toString()}`;
@@ -847,6 +859,32 @@ function PropertyFormContainer() {
       .catch(() => setInspectionAnalysis(null));
   }, [propertyIdForApi]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !propertyIdForApi) return;
+    const normalizedPropertyId = String(propertyIdForApi);
+    const handleInspectionAnalysisUpdated = async (event) => {
+      const eventPropertyId = String(event?.detail?.propertyId ?? "");
+      if (eventPropertyId && eventPropertyId !== normalizedPropertyId) return;
+      try {
+        const nextAnalysis =
+          await AppApi.getInspectionAnalysisByProperty(propertyIdForApi);
+        setInspectionAnalysis(nextAnalysis ?? null);
+      } catch {
+        // Keep existing analysis if refresh fails.
+      }
+    };
+    window.addEventListener(
+      INSPECTION_ANALYSIS_UPDATED_EVENT,
+      handleInspectionAnalysisUpdated,
+    );
+    return () => {
+      window.removeEventListener(
+        INSPECTION_ANALYSIS_UPDATED_EVENT,
+        handleInspectionAnalysisUpdated,
+      );
+    };
+  }, [propertyIdForApi]);
+
   /* Get property by ID and its systems */
   useEffect(() => {
     async function loadPropertyAndSystems() {
@@ -980,9 +1018,7 @@ function PropertyFormContainer() {
     AppApi.getMaintenanceEventsByProperty(effectivePropertyId)
       .then((events) => {
         setMaintenanceEvents(events ?? []);
-        window.dispatchEvent(
-          new CustomEvent("inspection-checklist:updated"),
-        );
+        window.dispatchEvent(new CustomEvent("inspection-checklist:updated"));
       })
       .catch(() => setMaintenanceEvents([]));
   }, [effectivePropertyId]);
@@ -1003,6 +1039,49 @@ function PropertyFormContainer() {
       cancelled = true;
     };
   }, [effectivePropertyId]);
+
+  const refreshPropertySystems = useCallback(async () => {
+    if (!effectivePropertyId) return;
+    try {
+      const systemsRes = await getSystemsByPropertyId(effectivePropertyId);
+      const systemsArr = systemsRes?.systems ?? systemsRes ?? [];
+      const includedSystems = (systemsArr ?? []).filter(
+        (s) => s.included !== false,
+      );
+      const fromSystems = mapSystemsFromBackend(includedSystems);
+      const selectedIdsFromBackend = includedSystems
+        .map((s) => s.system_key ?? s.systemKey)
+        .filter((k) => k && !String(k).startsWith("custom-"));
+      const customNamesFromBackend = Object.keys(
+        fromSystems.customSystemsData ?? {},
+      );
+      dispatch({
+        type: "SET_SYSTEMS_FORM_DATA_SILENT",
+        payload: {
+          selectedSystemIds:
+            selectedIdsFromBackend.length > 0
+              ? selectedIdsFromBackend
+              : (state.formData.systems?.selectedSystemIds ?? []),
+          customSystemNames:
+            customNamesFromBackend.length > 0
+              ? customNamesFromBackend
+              : (state.formData.systems?.customSystemNames ?? []),
+          customSystemsData:
+            fromSystems.customSystemsData ??
+            state.formData.systems?.customSystemsData ??
+            {},
+        },
+      });
+      dispatch({type: "SET_SYSTEMS", payload: systemsArr ?? []});
+    } catch (err) {
+      console.error("[PropertyForm] refreshPropertySystems error:", err);
+    }
+  }, [
+    effectivePropertyId,
+    getSystemsByPropertyId,
+    dispatch,
+    state.formData.systems,
+  ]);
 
   /* Reset form when navigating TO new from another property (not on initial mount); clear 403 when uid changes */
   const prevUidRef = useRef(null);
@@ -1539,8 +1618,11 @@ function PropertyFormContainer() {
       if (process.env.NODE_ENV === "development") {
         console.debug(
           "[perf] updateProperty",
-          (performance.now() - t1).toFixed(0), "ms |",
-          "payload:", (JSON.stringify(identityPayload).length / 1024).toFixed(1), "KB",
+          (performance.now() - t1).toFixed(0),
+          "ms |",
+          "payload:",
+          (JSON.stringify(identityPayload).length / 1024).toFixed(1),
+          "KB",
         );
       }
       if (res) {
@@ -1584,11 +1666,16 @@ function PropertyFormContainer() {
         if (process.env.NODE_ENV === "development") {
           console.debug(
             "[perf] save plan:",
-            "team:", teamUnchanged ? "skip" : "update",
-            "| systems:", state.systemsDirty ? systemsArray.length : "skip (clean)",
-            "| maintenance: del", syncPlan.toDelete.length,
-            "create", syncPlan.toCreate.length,
-            "update", syncPlan.toUpdate.length,
+            "team:",
+            teamUnchanged ? "skip" : "update",
+            "| systems:",
+            state.systemsDirty ? systemsArray.length : "skip (clean)",
+            "| maintenance: del",
+            syncPlan.toDelete.length,
+            "create",
+            syncPlan.toCreate.length,
+            "update",
+            syncPlan.toUpdate.length,
           );
         }
         const tParallel = performance.now();
@@ -1609,11 +1696,14 @@ function PropertyFormContainer() {
           let updated = [];
           if (syncPlan.toDelete.length > 0) {
             await Promise.all(
-              syncPlan.toDelete.map((id) => deleteMaintenanceRecord(id, res.id)),
+              syncPlan.toDelete.map((id) =>
+                deleteMaintenanceRecord(id, res.id),
+              ),
             );
           }
           if (syncPlan.toCreate.length > 0) {
-            created = (await createMaintenanceRecords(res.id, syncPlan.toCreate)) ?? [];
+            created =
+              (await createMaintenanceRecords(res.id, syncPlan.toCreate)) ?? [];
           }
           if (syncPlan.toUpdate.length > 0) {
             updated = await Promise.all(
@@ -1625,16 +1715,14 @@ function PropertyFormContainer() {
           return {created, updated};
         })();
 
-        const [teamResult, systemsResult, maintenanceSyncResult] = await Promise.all([
-          teamPromise,
-          systemsPromise,
-          maintenancePromise,
-        ]);
+        const [teamResult, systemsResult, maintenanceSyncResult] =
+          await Promise.all([teamPromise, systemsPromise, maintenancePromise]);
 
         if (process.env.NODE_ENV === "development") {
           console.debug(
             "[perf] parallel phase (team+systems+maintenance)",
-            (performance.now() - tParallel).toFixed(0), "ms",
+            (performance.now() - tParallel).toFixed(0),
+            "ms",
           );
         }
 
@@ -1669,7 +1757,11 @@ function PropertyFormContainer() {
               image_url:
                 m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
               image:
-                m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
+                m.image ??
+                u?.image ??
+                u?.avatarUrl ??
+                u?.avatar_url ??
+                u?.avatar,
             };
           });
           setHomeopsTeam(enriched);
@@ -1683,15 +1775,21 @@ function PropertyFormContainer() {
         ];
         if (process.env.NODE_ENV === "development") {
           console.debug(
-            "[perf] handleUpdate total", (performance.now() - t0).toFixed(0), "ms |",
-            "API calls: ~" + (1 + (teamUnchanged ? 0 : 2) + (state.systemsDirty ? 1 : 0) +
-              syncPlan.toDelete.length + (syncPlan.toCreate.length ? 1 : 0) + syncPlan.toUpdate.length),
+            "[perf] handleUpdate total",
+            (performance.now() - t0).toFixed(0),
+            "ms |",
+            "API calls: ~" +
+              (1 +
+                (teamUnchanged ? 0 : 2) +
+                (state.systemsDirty ? 1 : 0) +
+                syncPlan.toDelete.length +
+                (syncPlan.toCreate.length ? 1 : 0) +
+                syncPlan.toUpdate.length),
           );
         }
 
-        const maintenanceRecords = mapMaintenanceRecordsFromBackend(
-          allBackendRecords,
-        );
+        const maintenanceRecords =
+          mapMaintenanceRecordsFromBackend(allBackendRecords);
         setMaintenanceRecords(maintenanceRecords);
         originalMaintenanceRecordIdsRef.current = new Set(
           maintenanceRecords
@@ -2010,11 +2108,13 @@ function PropertyFormContainer() {
           if (!open) {
             setSystemsSetupInitialStep(null);
             setSystemsSetupOnlyStep(null);
+            setExternalSuggestedSystems([]);
           }
           setSystemsSetupModalOpen(open);
         }}
         initialStep={systemsSetupInitialStep}
         onlyStep={systemsSetupOnlyStep}
+        externalSuggestedSystems={externalSuggestedSystems}
         propertyId={
           createdPropertyFromModal?.id ??
           (uid !== "new"
@@ -2165,7 +2265,10 @@ function PropertyFormContainer() {
                 numericId,
                 state.systems ?? [],
               );
-              const systemsRes = await updateSystemsForProperty(numericId, systemsArray);
+              const systemsRes = await updateSystemsForProperty(
+                numericId,
+                systemsArray,
+              );
               const systemsFromBackend =
                 systemsRes?.systems ?? systemsRes ?? [];
               dispatch({type: "SET_SYSTEMS", payload: systemsFromBackend});
@@ -2962,9 +3065,7 @@ function PropertyFormContainer() {
                     placesLoaded={identityPlacesLoaded}
                     placesError={identityPlacesError}
                     AutocompleteWrapper={IdentityAutocompleteWrapper}
-                    identityDataSource={
-                      identityDataSource
-                    }
+                    identityDataSource={identityDataSource}
                     supportDataAdjustmentUrl={supportDataAdjustmentUrl}
                   />
                 )}
@@ -3040,7 +3141,8 @@ function PropertyFormContainer() {
                       }, 100);
                     }}
                     onFormDirty={(dirty) => {
-                      if (dirty) dispatch({type: "SET_FORM_CHANGED", payload: true});
+                      if (dirty)
+                        dispatch({type: "SET_FORM_CHANGED", payload: true});
                     }}
                     contacts={contacts ?? []}
                   />
@@ -3574,6 +3676,15 @@ function PropertyFormContainer() {
                 }
               : undefined
           }
+          propertySystems={state.systems ?? []}
+          customSystemNames={state.formData.systems?.customSystemNames ?? []}
+          onContinueToSystems={(suggested) => {
+            setBlankModalOpen(false);
+            setExternalSuggestedSystems(suggested);
+            setSystemsSetupOnlyStep("systems");
+            setSystemsSetupInitialStep("systems");
+            setSystemsSetupModalOpen(true);
+          }}
         />
       </ModalBlank>
 

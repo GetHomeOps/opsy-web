@@ -13,6 +13,18 @@ import {
 
 const POLL_INTERVAL_MS = 2500;
 const MAX_POLL_DURATION_MS = 60000;
+const INSPECTION_CHECKLIST_UPDATED_EVENT = "inspection-checklist:updated";
+const INSPECTION_ANALYSIS_UPDATED_EVENT = "inspection-analysis:updated";
+
+function emitInspectionAnalysisDerivedUpdates(propertyId) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(INSPECTION_CHECKLIST_UPDATED_EVENT));
+  window.dispatchEvent(
+    new CustomEvent(INSPECTION_ANALYSIS_UPDATED_EVENT, {
+      detail: { propertyId: String(propertyId) },
+    }),
+  );
+}
 
 function isInspectionReport(doc) {
   const sys = (doc.system_key ?? doc.system ?? "").toLowerCase();
@@ -172,6 +184,7 @@ export function useInspectionAnalysis(propertyId) {
           setData(job.result);
           setStatus("ready");
           cacheRef.current.set(cacheKey, { data: job.result, reportMeta: meta });
+          emitInspectionAnalysisDerivedUpdates(propertyId);
           return;
         }
         if (job.status === "failed") {

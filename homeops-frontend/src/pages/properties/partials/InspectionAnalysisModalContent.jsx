@@ -5,7 +5,7 @@
  * Includes per-system scheduling like AIFindingsPanel in the setup modal.
  */
 
-import React, {useEffect, useRef, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {useNavigate, useParams} from "react-router-dom";
 import {
   Loader2,
@@ -18,9 +18,13 @@ import {
   FileCheck,
   Sparkles,
   Building,
+  ChevronRight,
 } from "lucide-react";
 import {useInspectionAnalysis} from "../../../hooks/useInspectionAnalysis";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
+import {
+  filterSuggestedSystemsNotOnProperty,
+} from "../helpers/suggestedSystemsHelpers";
 import InspectionChecklistPanel from "./InspectionChecklistPanel";
 
 const CONDITION_BADGES = {
@@ -52,13 +56,12 @@ function formatConfidence(n) {
   return `${Math.round(n * 100)}%`;
 }
 
-
 /** Parse backend quota error "AI token quota exceeded (used/quota this month)..." */
 function parseQuotaFromError(errorMsg) {
   if (!errorMsg || typeof errorMsg !== "string") return null;
   const m = errorMsg.match(/\((\d+)\/(\d+)\s+this month\)/);
   if (!m) return null;
-  return { used: parseInt(m[1], 10), quota: parseInt(m[2], 10) };
+  return {used: parseInt(m[1], 10), quota: parseInt(m[2], 10)};
 }
 
 const AI_ANALYSIS_FEATURES = [
@@ -90,6 +93,9 @@ export default function InspectionAnalysisModalContent({
   onScheduleMaintenance,
   onTierRestriction,
   onUploadReport,
+  propertySystems = [],
+  customSystemNames = [],
+  onContinueToSystems,
 }) {
   const navigate = useNavigate();
   const {accountUrl} = useParams();
@@ -98,12 +104,32 @@ export default function InspectionAnalysisModalContent({
     : "/professionals";
   const {status, data, error, refresh, load, startAnalysis} =
     useInspectionAnalysis(propertyId);
+  const [missingSystems, setMissingSystems] = useState([]);
 
   useEffect(() => {
     if (isOpen && propertyId) {
       load();
     }
   }, [isOpen, propertyId, load]);
+
+  useEffect(() => {
+    if (status !== "ready" || !data || !propertyId || !isOpen) {
+      setMissingSystems([]);
+      return;
+    }
+    const raw =
+      data.suggested_systems_to_add ?? data.suggestedSystemsToAdd ?? [];
+    if (!Array.isArray(raw) || raw.length === 0) {
+      setMissingSystems([]);
+      return;
+    }
+    const missing = filterSuggestedSystemsNotOnProperty(
+      raw,
+      propertySystems,
+      customSystemNames,
+    );
+    setMissingSystems(missing);
+  }, [status, data, propertyId, isOpen, propertySystems, customSystemNames]);
 
   // Don't call onTierRestriction — we show the quota message inline. That avoids
   // stacking UpgradePrompt + TierLimitBanner + inline message (3 different UIs).
@@ -199,8 +225,12 @@ export default function InspectionAnalysisModalContent({
                 <Icon className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
               </div>
               <div className="text-left min-w-0">
-                <p className="font-medium text-neutral-800 dark:text-neutral-200 text-sm mb-1">{title}</p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">{desc}</p>
+                <p className="font-medium text-neutral-800 dark:text-neutral-200 text-sm mb-1">
+                  {title}
+                </p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  {desc}
+                </p>
               </div>
             </div>
           ))}
@@ -263,7 +293,8 @@ export default function InspectionAnalysisModalContent({
             Ready to analyze
           </h3>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-xl">
-            You have an inspection report. Run AI analysis to extract condition ratings, system findings, and maintenance recommendations.
+            You have an inspection report. Run AI analysis to extract condition
+            ratings, system findings, and maintenance recommendations.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10 flex-1">
@@ -276,8 +307,12 @@ export default function InspectionAnalysisModalContent({
                 <Icon className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
               </div>
               <div className="text-left min-w-0">
-                <p className="font-medium text-neutral-800 dark:text-neutral-200 text-sm mb-1">{title}</p>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">{desc}</p>
+                <p className="font-medium text-neutral-800 dark:text-neutral-200 text-sm mb-1">
+                  {title}
+                </p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  {desc}
+                </p>
               </div>
             </div>
           ))}
@@ -517,9 +552,7 @@ export default function InspectionAnalysisModalContent({
             Track progress on items identified in the inspection report. Mark
             items as done when completed.
           </p>
-          <InspectionChecklistPanel
-            propertyId={propertyId}
-          />
+          <InspectionChecklistPanel propertyId={propertyId} />
         </section>
 
         {/* Recommended Actions (raw from analysis) */}
@@ -601,6 +634,32 @@ export default function InspectionAnalysisModalContent({
             </ul>
           )}
         </section>
+        {missingSystems.length > 0 && onContinueToSystems && (
+          <section className="rounded-xl border border-[#456564]/20 dark:border-[#456564]/30 bg-[#456564]/[0.04] dark:bg-[#456564]/10 p-4 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+                {missingSystems.length} system{missingSystems.length !== 1 ? "s" : ""} identified not on your property
+              </p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                {missingSystems
+                  .map((s) =>
+                    getSystemLabelFromAiType(
+                      s.systemType ?? s.system_key ?? s.name,
+                    ),
+                  )
+                  .join(", ")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onContinueToSystems(missingSystems)}
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium transition-colors"
+            >
+              Continue
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </section>
+        )}
       </div>
     );
   }
