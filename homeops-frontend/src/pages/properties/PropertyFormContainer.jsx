@@ -1870,19 +1870,38 @@ function PropertyFormContainer() {
     }),
   );
 
-  const buildNavigationState = (propertyUid) => {
-    // Sort by passport_id ascending to match PropertiesList default order
+  const buildNavigationState = (propertyUid, preferredVisiblePropertyIds) => {
+    const normalizedUid = String(propertyUid);
+    const preferredIds = Array.isArray(preferredVisiblePropertyIds)
+      ? preferredVisiblePropertyIds.filter((id) => id != null)
+      : [];
+
+    if (preferredIds.length > 0) {
+      const scopedIndex = preferredIds.findIndex(
+        (id) => String(id) === normalizedUid,
+      );
+      if (scopedIndex !== -1) {
+        return {
+          currentIndex: scopedIndex + 1,
+          totalItems: preferredIds.length,
+          visiblePropertyIds: preferredIds,
+        };
+      }
+    }
+
+    // Fallback: sort by passport_id ascending to match PropertiesList default order.
     const sortedProperties = [...properties].sort((a, b) =>
       (a.passport_id || "").localeCompare(b.passport_id || ""),
     );
-    const propertyIndex = sortedProperties.findIndex(
-      (p) => (p.property_uid ?? p.id) === propertyUid,
+    const visiblePropertyIds = sortedProperties.map((p) => p.property_uid ?? p.id);
+    const propertyIndex = visiblePropertyIds.findIndex(
+      (id) => String(id) === normalizedUid,
     );
     if (propertyIndex === -1) return null;
     return {
       currentIndex: propertyIndex + 1,
-      totalItems: sortedProperties.length,
-      visiblePropertyIds: sortedProperties.map((p) => p.property_uid ?? p.id),
+      totalItems: visiblePropertyIds.length,
+      visiblePropertyIds,
     };
   };
 
@@ -2580,8 +2599,11 @@ function PropertyFormContainer() {
             {uid &&
               uid !== "new" &&
               (() => {
-                // Use location.state if available, otherwise build from properties
-                const navState = location.state || buildNavigationState(uid);
+                // Prefer navigation scoped from list filters/search when available.
+                const navState =
+                  buildNavigationState(uid, location.state?.visiblePropertyIds) ||
+                  location.state ||
+                  buildNavigationState(uid);
 
                 if (!navState) return null;
 
@@ -2601,8 +2623,10 @@ function PropertyFormContainer() {
                           const prevIndex = navState.currentIndex - 2;
                           const prevPropertyId =
                             navState.visiblePropertyIds[prevIndex];
-                          const prevNavState =
-                            buildNavigationState(prevPropertyId);
+                          const prevNavState = buildNavigationState(
+                            prevPropertyId,
+                            navState.visiblePropertyIds,
+                          );
                           navigate(
                             `/${accountUrl}/properties/${prevPropertyId}`,
                             {
@@ -2643,8 +2667,10 @@ function PropertyFormContainer() {
                           const nextIndex = navState.currentIndex;
                           const nextPropertyId =
                             navState.visiblePropertyIds[nextIndex];
-                          const nextNavState =
-                            buildNavigationState(nextPropertyId);
+                          const nextNavState = buildNavigationState(
+                            nextPropertyId,
+                            navState.visiblePropertyIds,
+                          );
                           navigate(
                             `/${accountUrl}/properties/${nextPropertyId}`,
                             {

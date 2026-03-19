@@ -27,6 +27,7 @@ import AppApi from "../../api/api";
 import UpgradePrompt from "../../components/UpgradePrompt";
 
 const PAGE_STORAGE_KEY = "properties_list_page";
+let transientListState = null;
 
 const FILTER_CATEGORIES = [
   {type: "city", labelKey: "city"},
@@ -281,15 +282,26 @@ function PropertiesList() {
       onLimitReached: () => setPropertyLimitUpgradeOpen(true),
     });
   const [selectedProperties, setSelectedProperties] = useState([]);
-  const [sortConfig, setSortConfig] = useState({
-    key: "passport_id",
-    direction: "asc",
-  });
+  const [sortConfig, setSortConfig] = useState(
+    () =>
+      transientListState?.sortConfig ?? {
+        key: "passport_id",
+        direction: "asc",
+      },
+  );
 
   const [state, dispatch] = useReducer(reducer, initialState, (baseState) => ({
     ...baseState,
-    currentPage:
-      Number(localStorage.getItem(PAGE_STORAGE_KEY)) || baseState.currentPage,
+    ...((transientListState && {
+      currentPage: transientListState.currentPage,
+      itemsPerPage: transientListState.itemsPerPage,
+      searchTerm: transientListState.searchTerm,
+      activeFilters: transientListState.activeFilters,
+    }) ||
+      {}),
+    currentPage: transientListState?.currentPage
+      ? transientListState.currentPage
+      : Number(localStorage.getItem(PAGE_STORAGE_KEY)) || baseState.currentPage,
   }));
 
   const {
@@ -300,6 +312,14 @@ function PropertiesList() {
     setViewMode,
     deleteProperty,
   } = useContext(propertyContext);
+
+  useEffect(() => {
+    if (transientListState?.viewMode) {
+      setViewMode(transientListState.viewMode);
+    }
+    // Consume once so this only restores when returning immediately.
+    transientListState = null;
+  }, [setViewMode]);
 
   /* ─── Derive filter options from data ──────────────────────── */
 
@@ -531,6 +551,14 @@ function PropertiesList() {
 
   const handleNewProperty = () => handleAddProperty();
   const handleOpenAIAssistant = (property) => {
+    transientListState = {
+      currentPage: state.currentPage,
+      itemsPerPage: state.itemsPerPage,
+      searchTerm: state.searchTerm,
+      activeFilters: state.activeFilters,
+      sortConfig,
+      viewMode,
+    };
     const uid = property.property_uid ?? property.id;
     const propertyIndex = sortedProperties.findIndex(
       (p) => (p.property_uid ?? p.id) === uid,
@@ -546,6 +574,14 @@ function PropertiesList() {
     });
   };
   const handlePropertyClick = (property) => {
+    transientListState = {
+      currentPage: state.currentPage,
+      itemsPerPage: state.itemsPerPage,
+      searchTerm: state.searchTerm,
+      activeFilters: state.activeFilters,
+      sortConfig,
+      viewMode,
+    };
     const propertyIndex = sortedProperties.findIndex(
       (p) => (p.property_uid ?? p.id) === property.property_uid,
     );
