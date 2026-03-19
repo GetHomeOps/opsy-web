@@ -45,6 +45,15 @@ router.post("/", ensureLoggedIn, ensurePropertyAccess({ fromBody: "property_id",
       throw new BadRequestError(`Missing required fields: ${missing.join(", ")}`);
     }
 
+    if (systemKey === "inspectionReport") {
+      const n = await PropertyDocument.countByPropertyAndSystemKey(propertyId, "inspectionReport");
+      if (n >= 1) {
+        throw new BadRequestError(
+          "This property already has an inspection report. Delete it before uploading another."
+        );
+      }
+    }
+
     const userRole = res.locals.user?.role;
     if (systemKey && userRole !== "super_admin" && userRole !== "admin") {
       const accRes = await db.query(

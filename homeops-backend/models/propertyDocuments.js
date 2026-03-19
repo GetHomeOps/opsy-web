@@ -112,6 +112,17 @@ class PropertyDocument {
     return result.rows;
   }
 
+  /** Count documents for a property under a given system_key (e.g. inspectionReport). */
+  static async countByPropertyAndSystemKey(propertyId, systemKey) {
+    const result = await db.query(
+      `SELECT COUNT(*)::int AS n
+       FROM property_documents
+       WHERE property_id = $1 AND system_key = $2`,
+      [propertyId, systemKey]
+    );
+    return result.rows[0]?.n ?? 0;
+  }
+
   /** Delete a property document by id.
    *
    * Returns { deleted: id }.

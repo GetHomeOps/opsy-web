@@ -6,6 +6,7 @@ import {
   Upload,
   PanelLeftClose,
   File,
+  Plus,
 } from "lucide-react";
 
 function formatDate(dateString) {
@@ -32,6 +33,10 @@ function DocumentsTreeView({
   setSearchQuery,
   onSelectDocument,
   onUpload,
+  /** (systemId) => void — opens upload with System preset to that tree node */
+  onUploadForSystem,
+  /** system ids where inline “add” is disabled (e.g. inspection report slot full) */
+  systemUploadDisabledIds = [],
   onCollapse,
   getDocumentIcon,
   getFileTypeColor,
@@ -138,6 +143,26 @@ function DocumentsTreeView({
                   <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
                     {categoryDocs.length}
                   </span>
+                )}
+                {onUploadForSystem && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!systemUploadDisabledIds.includes(category.id)) {
+                        onUploadForSystem(category.id);
+                      }
+                    }}
+                    disabled={systemUploadDisabledIds.includes(category.id)}
+                    className="p-1 rounded-md text-gray-500 hover:text-[#456654] hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                    title={
+                      systemUploadDisabledIds.includes(category.id)
+                        ? "This property already has an inspection report"
+                        : `Add document for ${category.label}`
+                    }
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
                 )}
               </div>
 

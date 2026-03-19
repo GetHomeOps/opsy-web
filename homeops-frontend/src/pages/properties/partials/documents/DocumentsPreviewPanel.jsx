@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from "react";
+import React, {useState} from "react";
 import {Link} from "react-router-dom";
 import {
   X,
@@ -8,8 +8,8 @@ import {
   Folder,
   Loader2,
   AlertCircle,
-  PanelRightOpen,
-  PanelRightClose,
+  PanelLeftOpen,
+  PanelLeftClose,
   ChevronDown,
   ChevronUp,
   Sparkles,
@@ -48,19 +48,8 @@ function DocumentsPreviewPanel({
   accountUrl = "",
   propertyUid,
 }) {
-  // Hooks must run before any early return to satisfy Rules of Hooks
-  // Smaller screens: collapsed by default (more space for preview). 1440px+: open by default.
+  // Details column is on the left; keep it collapsed by default so preview gets full width.
   const [metadataOpen, setMetadataOpen] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1440px)");
-    const handleChange = (e) => {
-      setMetadataOpen(e.matches);
-    };
-    handleChange(mq); // set initial state on mount
-    mq.addEventListener("change", handleChange);
-    return () => mq.removeEventListener("change", handleChange);
-  }, []);
 
   if (!selectedDocument) {
     return (
@@ -88,14 +77,17 @@ function DocumentsPreviewPanel({
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-2">
         <button
+          type="button"
           onClick={() => setMetadataOpen((o) => !o)}
           className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 transition-colors flex-shrink-0"
           title={metadataOpen ? "Hide details" : "Show details"}
+          aria-expanded={metadataOpen}
+          aria-label={metadataOpen ? "Hide details" : "Show details"}
         >
           {metadataOpen ? (
-            <PanelRightClose className="w-4 h-4" />
+            <PanelLeftClose className="w-4 h-4" />
           ) : (
-            <PanelRightOpen className="w-4 h-4" />
+            <PanelLeftOpen className="w-4 h-4" />
           )}
         </button>
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate min-w-0 flex-1">

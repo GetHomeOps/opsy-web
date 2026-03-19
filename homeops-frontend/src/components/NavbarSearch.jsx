@@ -184,6 +184,88 @@ function NavbarSearch({disabled = false}) {
     />
   );
 
+  const dropdownPanelClassName =
+    "max-h-80 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg py-1.5 min-w-0";
+
+  const dropdownBody = (
+    <>
+      {query.trim() && (
+        <>
+          {results.contacts.length > 0 && (
+            <div className="px-1.5 pb-1.5">
+              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase px-2.5 py-0.5 mb-0.5">
+                Contacts
+              </div>
+              {results.contacts.map((c) => (
+                <button
+                  key={c.id}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg"
+                  onClick={() => handleSelectContact(c)}
+                >
+                  <User className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span className="truncate">
+                    {c.name || c.email || "Contact"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {results.properties.length > 0 && (
+            <div className="px-1.5 pb-1.5">
+              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase px-2.5 py-0.5 mb-0.5">
+                Properties
+              </div>
+              {results.properties.map((p) => (
+                <button
+                  key={p.property_uid ?? p.id ?? p.uid}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg"
+                  onClick={() => handleSelectProperty(p)}
+                >
+                  <Building2 className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span className="truncate">
+                    {p.property_name ||
+                      p.propertyName ||
+                      p.nickname ||
+                      p.address ||
+                      p.street_address ||
+                      "Property"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {results.pages.length > 0 && (
+            <div className="px-1.5">
+              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase px-2.5 py-0.5 mb-0.5">
+                Pages
+              </div>
+              {results.pages.map((page) => (
+                <button
+                  key={page.path}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg"
+                  onClick={() => handleSelectPage(page)}
+                >
+                  <FileText className="w-4 h-4 shrink-0 text-gray-400" />
+                  <span>{page.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {!loading && query.trim() && !hasResults && (
+            <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+              No results for "{query}"
+            </div>
+          )}
+        </>
+      )}
+      {!query.trim() && (
+        <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+          Search properties, contacts by name or email, or find pages
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div ref={containerRef} className="relative w-full max-w-xl">
       {/* Desktop: full search bar always visible */}
@@ -226,106 +308,43 @@ function NavbarSearch({disabled = false}) {
           open ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
         }`}
       >
-        <div
-          className={`relative flex flex-col px-2.5 py-1.5 rounded-xl w-full shadow-lg ${searchBarClasses}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex items-center gap-2 w-full">
-            <Search className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`} />
-            <input
-              ref={mobileInputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onFocus={() => !disabled && setOpen(true)}
-              placeholder="Search properties, contacts & pages…"
-              disabled={disabled}
-              className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
-              aria-label="Search"
-            />
+        <div className="relative w-full">
+          <div
+            className={`relative flex flex-col px-2.5 py-1.5 rounded-xl w-full shadow-lg ${searchBarClasses}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 w-full">
+              <Search className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`} />
+              <input
+                ref={mobileInputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => !disabled && setOpen(true)}
+                placeholder="Search properties, contacts & pages…"
+                disabled={disabled}
+                className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
+                aria-label="Search"
+              />
+            </div>
           </div>
+          {showDropdown && (
+            <div
+              className={`absolute top-full left-0 right-0 mt-1 w-full z-[61] ${dropdownPanelClassName}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {dropdownBody}
+            </div>
+          )}
         </div>
       </div>
 
       {showDropdown && (
         <div
-          className="absolute top-full left-0 mt-1 w-full max-h-80 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-50 py-1.5"
+          className={`hidden md:block absolute top-full left-0 mt-1 w-full z-50 ${dropdownPanelClassName}`}
           onClick={(e) => e.stopPropagation()}
         >
-          {query.trim() && (
-            <>
-              {results.contacts.length > 0 && (
-                <div className="px-1.5 pb-1.5">
-                  <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase px-2.5 py-0.5 mb-0.5">
-                    Contacts
-                  </div>
-                  {results.contacts.map((c) => (
-                    <button
-                      key={c.id}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg"
-                      onClick={() => handleSelectContact(c)}
-                    >
-                      <User className="w-4 h-4 shrink-0 text-gray-400" />
-                      <span className="truncate">
-                        {c.name || c.email || "Contact"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {results.properties.length > 0 && (
-                <div className="px-1.5 pb-1.5">
-                  <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase px-2.5 py-0.5 mb-0.5">
-                    Properties
-                  </div>
-                  {results.properties.map((p) => (
-                    <button
-                      key={p.property_uid ?? p.id ?? p.uid}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg"
-                      onClick={() => handleSelectProperty(p)}
-                    >
-                      <Building2 className="w-4 h-4 shrink-0 text-gray-400" />
-                      <span className="truncate">
-                        {p.property_name ||
-                          p.propertyName ||
-                          p.nickname ||
-                          p.address ||
-                          p.street_address ||
-                          "Property"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {results.pages.length > 0 && (
-                <div className="px-1.5">
-                  <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase px-2.5 py-0.5 mb-0.5">
-                    Pages
-                  </div>
-                  {results.pages.map((page) => (
-                    <button
-                      key={page.path}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg"
-                      onClick={() => handleSelectPage(page)}
-                    >
-                      <FileText className="w-4 h-4 shrink-0 text-gray-400" />
-                      <span>{page.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {!loading && query.trim() && !hasResults && (
-                <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
-                  No results for "{query}"
-                </div>
-              )}
-            </>
-          )}
-          {!query.trim() && (
-            <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
-              Search properties, contacts by name or email, or find pages
-            </div>
-          )}
+          {dropdownBody}
         </div>
       )}
     </div>

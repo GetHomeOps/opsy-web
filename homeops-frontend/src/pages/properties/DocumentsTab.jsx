@@ -242,8 +242,15 @@ function DocumentsTab({
   const [uploadSuccessCount, setUploadSuccessCount] = useState(0);
   const [uploadError, setUploadError] = useState(null);
   const [indexingDocs, setIndexingDocs] = useState(false);
+  const [inspectionUploadBlockedNotice, setInspectionUploadBlockedNotice] =
+    useState(null);
   const fileInputRef = useRef(null);
   const uploadSuccessBannerRef = useRef(null);
+
+  const hasInspectionReport = useMemo(
+    () => documents.some((d) => d.system_key === "inspectionReport"),
+    [documents],
+  );
 
   useEffect(() => {
     if (uploadSuccessCount > 0) {
@@ -274,13 +281,22 @@ function DocumentsTab({
 
   // Open upload modal with inspection report preselected when requested from Inspection Analysis
   useEffect(() => {
-    if (openUploadModalForInspectionReport) {
-      setUploadSystemKey("inspectionReport");
-      setUploadDocumentType("inspection");
-      setShowUploadModal(true);
-      onUploadModalOpened?.();
+    if (!openUploadModalForInspectionReport) return;
+    onUploadModalOpened?.();
+    if (hasInspectionReport) {
+      setInspectionUploadBlockedNotice(
+        "This property already has an inspection report. Delete it in the documents list before uploading a new one.",
+      );
+      return;
     }
-  }, [openUploadModalForInspectionReport, onUploadModalOpened]);
+    setUploadSystemKey("inspectionReport");
+    setUploadDocumentType("inspection");
+    setShowUploadModal(true);
+  }, [
+    openUploadModalForInspectionReport,
+    onUploadModalOpened,
+    hasInspectionReport,
+  ]);
 
   const fetchDocuments = useCallback(async () => {
     if (!propertyId) {
@@ -426,6 +442,51 @@ function DocumentsTab({
     return match ? [match] : systemsToShow;
   }, [systemsToShow, selectedSystem]);
 
+  const openUploadModalWithSystem = useCallback(
+    (systemId) => {
+      setUploadSystemKey(systemId);
+      setUploadDocumentType(
+        systemId === "inspectionReport" ? "inspection" : "receipt",
+      );
+      setUploadDocumentName("");
+      setUploadFiles([]);
+      setUploadError(null);
+      setUploadSuccessCount(0);
+      clearUploadHookError();
+      setShowUploadModal(true);
+      setSidebarOpen(false);
+    },
+    [clearUploadHookError],
+  );
+
+  const openDefaultUploadModal = useCallback(() => {
+    const otherSystem = systemsToShow.find((s) => s.id !== "inspectionReport")
+      ?.id;
+    const defaultSystem = !hasInspectionReport
+      ? "inspectionReport"
+      : otherSystem ?? "roof";
+    setUploadSystemKey(defaultSystem);
+    setUploadDocumentType(
+      defaultSystem === "inspectionReport" ? "inspection" : "receipt",
+    );
+    setUploadDocumentName("");
+    setUploadFiles([]);
+    setUploadError(null);
+    setUploadSuccessCount(0);
+    clearUploadHookError();
+    setShowUploadModal(true);
+    setSidebarOpen(false);
+  }, [clearUploadHookError, hasInspectionReport, systemsToShow]);
+
+  useEffect(() => {
+    if (!showUploadModal || !hasInspectionReport) return;
+    if (uploadSystemKey !== "inspectionReport") return;
+    const next =
+      systemsToShow.find((s) => s.id !== "inspectionReport")?.id ?? "roof";
+    setUploadSystemKey(next);
+    setUploadDocumentType("receipt");
+  }, [showUploadModal, hasInspectionReport, uploadSystemKey, systemsToShow]);
+
   const handleSelectDocument = useCallback(
     (doc) => {
       const docRow = documents.find((d) => d.id === doc.id);
@@ -479,6 +540,20 @@ function DocumentsTab({
     if (!propertyId) {
       setUploadError("Save the property first to upload documents.");
       return;
+    }
+    if (uploadSystemKey === "inspectionReport") {
+      if (hasInspectionReport) {
+        setUploadError(
+          "This property already has an inspection report. Delete it first to upload another.",
+        );
+        return;
+      }
+      if (uploadFiles.length > 1) {
+        setUploadError(
+          "Only one file can be uploaded as the property inspection report.",
+        );
+        return;
+      }
     }
     if (uploadFiles.length === 0) {
       setUploadError("Please select at least one file.");
@@ -639,6 +714,20 @@ function DocumentsTab({
 
   return (
     <div className="relative flex h-[calc(100vh-200px)] min-h-[600px] bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+      {inspectionUploadBlockedNotice && (
+        <div className="absolute top-2 left-2 right-2 z-[60] flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-sm text-amber-900 dark:text-amber-100 shadow-sm">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <p className="flex-1 min-w-0">{inspectionUploadBlockedNotice}</p>
+          <button
+            type="button"
+            onClick={() => setInspectionUploadBlockedNotice(null)}
+            className="shrink-0 p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-200"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -687,10 +776,11 @@ function DocumentsTab({
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
               onSelectDocument={handleDocumentSelect}
-              onUpload={() => {
-                setShowUploadModal(true);
-                setSidebarOpen(false);
-              }}
+              onUpload={openDefaultUploadModal}
+              onUploadForSystem={openUploadModalWithSystem}
+              systemUploadDisabledIds={
+                hasInspectionReport ? ["inspectionReport"] : []
+              }
               onCollapse={() => {
                 setSidebarCollapsed(true);
                 setSidebarOpen(false);
@@ -975,8 +1065,17 @@ function DocumentsTab({
                   required
                 >
                   {systemsToShow.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
+                    <option
+                      key={cat.id}
+                      value={cat.id}
+                      disabled={
+                        hasInspectionReport && cat.id === "inspectionReport"
+                      }
+                    >
                       {cat.label}
+                      {hasInspectionReport && cat.id === "inspectionReport"
+                        ? " (already uploaded)"
+                        : ""}
                     </option>
                   ))}
                 </select>
@@ -989,7 +1088,7 @@ function DocumentsTab({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  multiple
+                  multiple={uploadSystemKey !== "inspectionReport"}
                   accept=".pdf,.jpg,.jpeg,.png,.webp,.gif"
                   className="hidden"
                   onChange={(e) => {
