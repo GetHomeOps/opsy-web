@@ -105,6 +105,24 @@ CREATE INDEX idx_password_reset_tokens_token_hash ON password_reset_tokens(token
 CREATE INDEX idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
 
 -- ============================================================
+-- Email verification (strict mode for local / password sign-up)
+-- Raw token sent by email; hash stored like password_reset_tokens
+-- ============================================================
+
+CREATE TABLE email_verification_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_email_verification_tokens_user_id ON email_verification_tokens(user_id);
+CREATE INDEX idx_email_verification_tokens_token_hash ON email_verification_tokens(token_hash);
+CREATE INDEX idx_email_verification_tokens_expires_at ON email_verification_tokens(expires_at);
+
+-- ============================================================
 -- API Usage (per-user AI token tracking for tier limits)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS user_api_usage (
@@ -476,6 +494,8 @@ CREATE TABLE plan_limits (
     max_viewers INTEGER NOT NULL DEFAULT 2,
     max_team_members INTEGER NOT NULL DEFAULT 5,
     ai_token_monthly_quota INTEGER DEFAULT 50000,
+    ai_token_monthly_value_usd DECIMAL(10, 4) DEFAULT NULL,
+    ai_token_price_usd DECIMAL(12, 8) DEFAULT NULL,
     max_documents_per_system INTEGER DEFAULT 5,
     other_limits JSONB DEFAULT '{}',
     updated_at TIMESTAMPTZ DEFAULT NOW()

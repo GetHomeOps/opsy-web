@@ -4,8 +4,9 @@
  * Email Service
  *
  * Sends transactional emails via AWS SES.
- * Requires: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION (or AWS_SES_REGION)
- * Optional: SES_FROM_EMAIL, SES_FROM_NAME (defaults from config)
+ * Requires: SES_FROM_EMAIL (verified in SES). Credentials: AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY,
+ * or AWS_PROFILE, or IAM role / ~/.aws/credentials (default chain). Region: AWS_REGION or AWS_SES_REGION.
+ * Optional: SES_FROM_NAME (defaults from config)
  *
  * When email is not configured, password reset logs the link to console (dev).
  */
@@ -33,13 +34,13 @@ function getFromAddress() {
   return `${name} <${email}>`;
 }
 
+/**
+ * True when a verified From address is set. AWS credentials may come from env vars,
+ * ~/.aws/credentials (default profile), or an IAM role (ECS/Lambda/EC2) via the SDK default chain.
+ * Omit SES_FROM_EMAIL in local .env to skip sending and log the reset link instead (see passwordResetService).
+ */
 function isSesConfigured() {
-  return !!(
-    process.env.SES_FROM_EMAIL &&
-    (process.env.AWS_ACCESS_KEY_ID ||
-      process.env.AWS_SES_ACCESS_KEY_ID ||
-      process.env.AWS_PROFILE)
-  );
+  return !!(process.env.SES_FROM_EMAIL && process.env.SES_FROM_EMAIL.trim());
 }
 
 async function sendViaSes({ to, subject, html, replyTo }) {
@@ -64,7 +65,9 @@ async function sendViaSes({ to, subject, html, replyTo }) {
 
 async function sendPasswordResetEmail({ to, resetUrl, userName }) {
   if (!isSesConfigured()) {
-    throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)");
+    throw new Error(
+      "SES not configured. Set SES_FROM_EMAIL (verified in SES) and AWS credentials or use an IAM role / aws configure."
+    );
   }
 
   const html = `
@@ -87,13 +90,40 @@ async function sendPasswordResetEmail({ to, resetUrl, userName }) {
   });
 }
 
+async function sendEmailVerificationEmail({ to, verifyUrl, userName }) {
+  if (!isSesConfigured()) {
+    throw new Error(
+      "SES not configured. Set SES_FROM_EMAIL (verified in SES) and AWS credentials or use an IAM role / aws configure."
+    );
+  }
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color: #456564;">Verify your email</h2>
+      <p>Hi${userName ? ` ${userName}` : ""},</p>
+      <p>Thanks for signing up for ${appName}. Please confirm your email address by clicking the button below:</p>
+      <p style="margin: 24px 0;">
+        <a href="${verifyUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Verify email</a>
+      </p>
+      <p style="color: #6b7280; font-size: 14px;">This link expires in 48 hours. If you didn&apos;t create an account, you can ignore this email.</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${appName} Team</p>
+    </div>
+  `;
+
+  return sendViaSes({
+    to,
+    subject: `Verify your email — ${appName}`,
+    html,
+  });
+}
+
 /**
  * Send invitation email with confirmation link.
  * @param {Object} opts - { to, inviteUrl, inviterName?, inviteeName?, type: 'account'|'property', propertyAddress? }
  */
 async function sendInvitationEmail({ to, inviteUrl, inviterName, inviteeName, type = "account", propertyAddress }) {
   if (!isSesConfigured()) {
-    throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials");
+    throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
   }
 
   const isProperty = type === "property";
@@ -131,7 +161,7 @@ async function sendInvitationEmail({ to, inviteUrl, inviterName, inviteeName, ty
  */
 async function sendContractorReportEmail({ to, reportUrl, contractorName, propertyAddress, systemName, senderName, origin, inspectionDate }) {
   if (!isSesConfigured()) {
-    throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials");
+    throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
   }
 
   const greeting = contractorName ? `Hi ${contractorName},` : "Hi,";
@@ -186,21 +216,21 @@ async function sendScheduleNotificationEmail({ to, contractorName, propertyAddre
 
   const formattedDate = scheduledDate
     ? new Date(scheduledDate + "T00:00:00").toLocaleDateString("en-US", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
     : null;
 
   const formattedTime = scheduledTime
     ? (() => {
-        const [h, m] = scheduledTime.split(":");
-        const hour = parseInt(h, 10);
-        const ampm = hour >= 12 ? "PM" : "AM";
-        const hour12 = hour % 12 || 12;
-        return `${hour12}:${m} ${ampm}`;
-      })()
+      const [h, m] = scheduledTime.split(":");
+      const hour = parseInt(h, 10);
+      const ampm = hour >= 12 ? "PM" : "AM";
+      const hour12 = hour % 12 || 12;
+      return `${hour12}:${m} ${ampm}`;
+    })()
     : null;
 
   const detailsRows = [];
@@ -236,6 +266,7 @@ async function sendScheduleNotificationEmail({ to, contractorName, propertyAddre
 
 module.exports = {
   sendPasswordResetEmail,
+  sendEmailVerificationEmail,
   sendInvitationEmail,
   sendContractorReportEmail,
   sendScheduleNotificationEmail,

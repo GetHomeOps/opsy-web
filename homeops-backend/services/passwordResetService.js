@@ -51,8 +51,9 @@ async function requestPasswordReset(email) {
   );
 
   const { APP_WEB_ORIGIN, APP_BASE_URL } = require("../config");
-  const baseUrl = APP_BASE_URL || APP_WEB_ORIGIN || "http://localhost:5173";
-  const resetUrl = `${baseUrl}/#/reset-password?token=${token}`;
+  // BrowserRouter (path URLs), not hash routes — must match frontend /reset-password
+  const baseUrl = (APP_BASE_URL || APP_WEB_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
+  const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
   try {
     await sendPasswordResetEmail({ to: user.email, resetUrl, userName: user.name });
@@ -108,7 +109,7 @@ async function resetPasswordWithToken(token, newPassword) {
   await db.query("BEGIN");
   try {
     await db.query(
-      `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+      `UPDATE users SET password_hash = $1, email_verified = true, updated_at = NOW() WHERE id = $2`,
       [hashedPassword, row.user_id]
     );
     await db.query(

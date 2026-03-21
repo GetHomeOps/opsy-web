@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useRef} from "react";
 import {Link, useNavigate} from "react-router-dom";
-import {AlertCircle, ChevronLeft, ExternalLink, Loader2} from "lucide-react";
+import {AlertCircle, ChevronLeft, ExternalLink, Loader2, Mail} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import {useTranslation} from "react-i18next";
 import AppApi, {API_BASE_URL} from "../../api/api";
@@ -34,6 +34,7 @@ function Signup() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
+  const [pendingVerification, setPendingVerification] = useState(null);
   const justSignedUp = useRef(false);
   const passwordRef = useRef(null);
 
@@ -172,7 +173,14 @@ function Signup() {
 
     setIsSubmitting(true);
     try {
-      await signup(formData);
+      const signupResult = await signup(formData);
+      if (signupResult?.verificationRequired) {
+        setPendingVerification({
+          email: signupResult.email,
+          message: signupResult.message,
+        });
+        return;
+      }
       justSignedUp.current = true;
     } catch (err) {
       if (isEmailExistsError(err)) {
@@ -291,6 +299,40 @@ function Signup() {
               <img src={OpsyHeader} alt="Opsy" className="max-w-full h-auto" />
             </div>
 
+            {pendingVerification ? (
+              <div className="text-center">
+                <div className="w-12 h-12 rounded-full bg-[#456564]/10 flex items-center justify-center mx-auto mb-4">
+                  <Mail className="w-6 h-6 text-[#456564]" aria-hidden />
+                </div>
+                <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
+                  {t("signup.checkEmailTitle", "Check your email")}
+                </h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                  {pendingVerification.message ||
+                    t(
+                      "signup.checkEmailBody",
+                      "We sent a verification link. Open it to activate your account, then sign in.",
+                    )}
+                </p>
+                {pendingVerification.email ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-6 break-all">
+                    {pendingVerification.email}
+                  </p>
+                ) : (
+                  <div className="mb-6" />
+                )}
+                <Link
+                  to="/signin"
+                  state={{email: pendingVerification.email}}
+                  className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white inline-flex items-center justify-center"
+                >
+                  {t("signup.goToSignIn", "Go to sign in")}
+                </Link>
+              </div>
+            ) : null}
+
+            {!pendingVerification && (
+            <>
             <div className="flex items-center gap-2 mb-6">
               {step > 1 && (
                 <button
@@ -489,6 +531,9 @@ function Signup() {
                   </button>
                 </div>
               </form>
+            )}
+
+            </>
             )}
 
             <div className="pt-5 mt-6 border-t border-gray-200 dark:border-gray-600 text-center space-y-2">

@@ -435,6 +435,21 @@ const formatCurrency = new Intl.NumberFormat("en-US", {
   currency: "USD",
 });
 
+/** Router nav slice after create — avoids duplicating newUid if context already includes it. */
+function buildPropertyFormNavStateFromProperties(properties, newUid) {
+  const u = String(newUid);
+  const baseIds = (properties ?? []).map((p) => p.property_uid ?? p.id);
+  const visiblePropertyIds = baseIds.some((id) => String(id) === u)
+    ? baseIds
+    : [...baseIds, newUid];
+  const idx = visiblePropertyIds.findIndex((id) => String(id) === u);
+  return {
+    currentIndex: idx + 1,
+    totalItems: visiblePropertyIds.length,
+    visiblePropertyIds,
+  };
+}
+
 /* Property Form Container */
 function PropertyFormContainer() {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -787,17 +802,16 @@ function PropertyFormContainer() {
       setCreatedPropertyFromModal(null);
       navigate(`/${accountUrl}/properties/${newUid}`, {
         replace: true,
-        state: {
-          currentIndex: properties.length + 1,
-          totalItems: properties.length + 1,
-          visiblePropertyIds: [
-            ...properties.map((p) => p.property_uid ?? p.id),
-            newUid,
-          ],
-        },
+        state: buildPropertyFormNavStateFromProperties(properties, newUid),
       });
     }
-  }, [systemsSetupModalOpen, createdPropertyFromModal]);
+  }, [
+    systemsSetupModalOpen,
+    createdPropertyFromModal,
+    properties,
+    accountUrl,
+    navigate,
+  ]);
 
   /* Open AI sidebar when navigating from property card with openAiSidebar */
   useEffect(() => {
@@ -866,9 +880,8 @@ function PropertyFormContainer() {
       const eventPropertyId = String(event?.detail?.propertyId ?? "");
       if (eventPropertyId && eventPropertyId !== normalizedPropertyId) return;
       try {
-        const res = await AppApi.getInspectionAnalysisByProperty(
-          propertyIdForApi,
-        );
+        const res =
+          await AppApi.getInspectionAnalysisByProperty(propertyIdForApi);
         setInspectionAnalysis(res?.analysis ?? null);
       } catch {
         // Keep existing analysis if refresh fails.
@@ -1394,12 +1407,7 @@ function PropertyFormContainer() {
           state: {
             createdProperty: preloadedPayload,
             createdPropertyUid: newUid,
-            currentIndex: properties.length + 1,
-            totalItems: properties.length + 1,
-            visiblePropertyIds: [
-              ...properties.map((p) => p.property_uid ?? p.id),
-              newUid,
-            ],
+            ...buildPropertyFormNavStateFromProperties(properties, newUid),
           },
         });
         dispatch({
@@ -1877,15 +1885,35 @@ function PropertyFormContainer() {
       ? preferredVisiblePropertyIds.filter((id) => id != null)
       : [];
 
+    const knownPropertyIds = new Set(
+      properties.map((p) => String(p.property_uid ?? p.id)),
+    );
+
+    // Drop deleted/stale ids, dedupe, and keep the current property (handles createProperty +
+    // navigate appending the same uid twice, and router state left over after delete).
+    const sanitizePreferredIds = (ids) => {
+      const seen = new Set();
+      const out = [];
+      for (const id of ids) {
+        const s = String(id);
+        if (seen.has(s)) continue;
+        if (!knownPropertyIds.has(s) && s !== normalizedUid) continue;
+        seen.add(s);
+        out.push(id);
+      }
+      return out;
+    };
+
     if (preferredIds.length > 0) {
-      const scopedIndex = preferredIds.findIndex(
+      const sanitized = sanitizePreferredIds(preferredIds);
+      const scopedIndex = sanitized.findIndex(
         (id) => String(id) === normalizedUid,
       );
       if (scopedIndex !== -1) {
         return {
           currentIndex: scopedIndex + 1,
-          totalItems: preferredIds.length,
-          visiblePropertyIds: preferredIds,
+          totalItems: sanitized.length,
+          visiblePropertyIds: sanitized,
         };
       }
     }
@@ -1894,7 +1922,9 @@ function PropertyFormContainer() {
     const sortedProperties = [...properties].sort((a, b) =>
       (a.passport_id || "").localeCompare(b.passport_id || ""),
     );
-    const visiblePropertyIds = sortedProperties.map((p) => p.property_uid ?? p.id);
+    const visiblePropertyIds = sortedProperties.map(
+      (p) => p.property_uid ?? p.id,
+    );
     const propertyIndex = visiblePropertyIds.findIndex(
       (id) => String(id) === normalizedUid,
     );
@@ -2246,14 +2276,10 @@ function PropertyFormContainer() {
             setCreatedPropertyFromModal(null);
             navigate(`/${accountUrl}/properties/${newUid}`, {
               replace: true,
-              state: {
-                currentIndex: properties.length + 1,
-                totalItems: properties.length + 1,
-                visiblePropertyIds: [
-                  ...properties.map((p) => p.property_uid ?? p.id),
-                  newUid,
-                ],
-              },
+              state: buildPropertyFormNavStateFromProperties(
+                properties,
+                newUid,
+              ),
             });
           } else if (uid !== "new") {
             const rawId =
@@ -2602,9 +2628,10 @@ function PropertyFormContainer() {
               (() => {
                 // Prefer navigation scoped from list filters/search when available.
                 const navState =
-                  buildNavigationState(uid, location.state?.visiblePropertyIds) ||
-                  location.state ||
-                  buildNavigationState(uid);
+                  buildNavigationState(
+                    uid,
+                    location.state?.visiblePropertyIds,
+                  ) ?? buildNavigationState(uid);
 
                 if (!navState) return null;
 

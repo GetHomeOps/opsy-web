@@ -9,6 +9,25 @@ import useOnboardingProgress from "../hooks/useOnboardingProgress";
 import AppApi from "../api/api";
 import OpsyMascot from "../images/opsy2.png";
 
+/**
+ * Default `canvas-confetti` uses a worker + OffscreenCanvas; some browsers fail silently.
+ * A main-thread instance is more reliable for the welcome modal overlay.
+ */
+let welcomeConfettiFire = null;
+function getWelcomeConfettiFire() {
+  if (typeof window === "undefined") return null;
+  if (!welcomeConfettiFire) {
+    welcomeConfettiFire = confetti.create(null, {
+      resize: true,
+      useWorker: false,
+    });
+  }
+  return welcomeConfettiFire;
+}
+
+/** Stacking: backdrop z-[200] (ModalBlank default) → confetti → dialog (particles visible around the card). */
+const WELCOME_CONFETTI_Z_INDEX = 210;
+
 /** Roles that should see the welcome modal (agents and homeowners only). */
 const WELCOME_MODAL_ROLES = new Set(["agent", "homeowner"]);
 
@@ -97,33 +116,43 @@ function WelcomeModal() {
     setModalOpen(true);
   }, [userId, showForRole, allComplete, calendarIntegrationsLoaded]);
 
-  const confettiShownKey = userId ? `opsy_welcome_confetti_${userId}` : null;
+  // v2: earlier builds set localStorage before drawing; invisible confetti still blocked retries.
+  const confettiShownKey = userId ? `opsy_welcome_confetti_v2_${userId}` : null;
 
-  // Confetti when modal opens — only on first login
+  // Confetti when modal opens — only once per user (localStorage).
+  // Persist only after firing so a failed/invisible run can retry; delay survives Strict Mode cleanup.
   useEffect(() => {
     if (!modalOpen || !userId || !confettiShownKey) return;
     if (typeof localStorage !== "undefined" && localStorage.getItem(confettiShownKey)) return;
-    // Set first so unmount/rerender cannot replay confetti this login.
-    try {
-      localStorage.setItem(confettiShownKey, "1");
-    } catch {
-      // localStorage may be disabled
-    }
     const timeout = setTimeout(() => {
+      const fireConfetti = getWelcomeConfettiFire();
+      if (!fireConfetti) return;
       const count = 700;
       const defaults = {
         origin: {y: 0.6},
         colors: ["#456564", "#5a8180", "#7aa3a2", "#fbbf24", "#34d399"],
+        zIndex: WELCOME_CONFETTI_Z_INDEX,
       };
-      const fire = (particleRatio, opts) =>
-        confetti({...defaults, ...opts, particleCount: Math.floor(count * particleRatio)});
-      fire(0.25, {spread: 70, startVelocity: 65});
-      fire(0.2, {spread: 120});
-      fire(0.35, {spread: 180, scalar: 0.9, decay: 0.9});
-      fire(0.1, {spread: 220, startVelocity: 45, decay: 0.92, scalar: 1.2});
-      fire(0.1, {origin: {x: 0.2, y: 0.5}, spread: 100, angle: 60, startVelocity: 50});
-      fire(0.1, {origin: {x: 0.8, y: 0.5}, spread: 100, angle: 120, startVelocity: 50});
-    }, 300);
+      try {
+        const fire = (particleRatio, opts) =>
+          fireConfetti({
+            ...defaults,
+            ...opts,
+            particleCount: Math.floor(count * particleRatio),
+          });
+        fire(0.25, {spread: 70, startVelocity: 65});
+        fire(0.2, {spread: 120});
+        fire(0.35, {spread: 180, scalar: 0.9, decay: 0.9});
+        fire(0.1, {spread: 220, startVelocity: 45, decay: 0.92, scalar: 1.2});
+        fire(0.1, {origin: {x: 0.2, y: 0.5}, spread: 100, angle: 60, startVelocity: 50});
+        fire(0.1, {origin: {x: 0.8, y: 0.5}, spread: 100, angle: 120, startVelocity: 50});
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem(confettiShownKey, "1");
+        }
+      } catch {
+        // Don't persist — allow retry on next open
+      }
+    }, 320);
     return () => clearTimeout(timeout);
   }, [modalOpen, userId, confettiShownKey]);
 
@@ -144,6 +173,7 @@ function WelcomeModal() {
         }}
         closeOnClickOutside={false}
         contentClassName="max-w-lg"
+        dialogZClassName="z-[220]"
       >
         <div className="relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-br from-[#456564] via-[#5a8180] to-[#3a5554] opacity-[0.07] dark:opacity-[0.15]" />

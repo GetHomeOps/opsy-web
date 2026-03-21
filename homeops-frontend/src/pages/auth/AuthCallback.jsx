@@ -17,6 +17,8 @@ const ERROR_MESSAGES = {
   no_email: "Google did not provide an email. Please try another account.",
   oauth_failed: "Authentication failed. Please try again.",
   inactive: "Your account is inactive. Please contact support.",
+  google_email_unverified:
+    "Google has not verified this email address yet. Verify it in your Google account settings, then try again.",
 };
 
 function AuthCallback() {

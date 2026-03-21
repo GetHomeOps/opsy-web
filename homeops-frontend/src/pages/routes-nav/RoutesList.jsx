@@ -24,6 +24,7 @@ import Signup from "../auth/Signup";
 import AuthCallback from "../auth/AuthCallback";
 import ForgotPassword from "../auth/ForgotPassword";
 import ResetPassword from "../auth/ResetPassword";
+import VerifyEmail from "../auth/VerifyEmail";
 import ContractorReportPage from "../properties/ContractorReportPage";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 
@@ -117,7 +118,11 @@ function RoutesList() {
 
   // Let the OAuth callback render immediately — it has its own loading UI.
   // All other routes wait for AuthContext to finish initialising.
-  if (isLoading && location.pathname !== "/auth/callback") {
+  if (
+    isLoading &&
+    location.pathname !== "/auth/callback" &&
+    location.pathname !== "/verify-email"
+  ) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
@@ -158,6 +163,14 @@ function RoutesList() {
         element={
           <PublicRoute>
             <ResetPassword />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/verify-email"
+        element={
+          <PublicRoute>
+            <VerifyEmail />
           </PublicRoute>
         }
       />

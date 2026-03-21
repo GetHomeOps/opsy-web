@@ -138,6 +138,9 @@ export function AuthProvider({children}) {
   }
 
   function extractTokenFromSignupResponse(signupResponse) {
+    if (signupResponse?.verificationRequired) {
+      return null;
+    }
     if (signupResponse?.accessToken) {
       return {
         accessToken: signupResponse.accessToken,
@@ -310,11 +313,25 @@ export function AuthProvider({children}) {
     setIsSigningUp(true);
     try {
       const signupResponse = await AppApi.signup(signupData);
+      const extracted = extractTokenFromSignupResponse(signupResponse);
+      if (signupResponse?.verificationRequired) {
+        setIsSigningUp(false);
+        return {
+          verificationRequired: true,
+          email: signupResponse.email,
+          message: signupResponse.message,
+        };
+      }
+      if (!extracted?.accessToken) {
+        throw new Error(
+          "Invalid signup response: expected accessToken or verificationRequired.",
+        );
+      }
       const {
         accessToken,
         refreshToken,
         user: signupUser,
-      } = extractTokenFromSignupResponse(signupResponse);
+      } = extracted;
 
       const decodedToken = initializeAuthentication(accessToken, refreshToken);
       const {email} = decodedToken;
@@ -386,6 +403,25 @@ export function AuthProvider({children}) {
     }
   }
 
+  /** After user clicks email verification link: exchange token for session. */
+  const completeEmailVerification = useCallback(async function completeEmailVerificationInner(
+    verificationToken,
+  ) {
+    const {accessToken, refreshToken} = await AppApi.verifyEmailWithToken(
+      verificationToken,
+    );
+    const decodedToken = initializeAuthentication(accessToken, refreshToken);
+    const {email} = decodedToken;
+    const currentUser = await AppApi.getCurrentUser(email);
+    const userAccounts = await getUserAccounts(currentUser.id);
+    setCurrentUser({
+      isLoading: false,
+      data: {...currentUser, accounts: userAccounts || []},
+    });
+    localStorage.removeItem("current-account");
+    return {...currentUser, accounts: userAccounts || []};
+  }, []);
+
   /** Refresh current user from API (e.g. after onboarding completion). */
   const refreshCurrentUser = useCallback(
     async function refreshCurrentUser() {
@@ -450,6 +486,7 @@ export function AuthProvider({children}) {
         login,
         completeMfaLogin,
         signup,
+        completeEmailVerification,
         logout,
         handleOAuthCallback,
         refreshCurrentUser,

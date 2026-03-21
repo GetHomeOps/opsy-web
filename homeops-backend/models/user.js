@@ -48,7 +48,9 @@ class User {
              contact_id AS "contact",
              is_active AS "isActive",
              mfa_enabled AS "mfaEnabled",
-             onboarding_completed AS "onboardingCompleted"
+             onboarding_completed AS "onboardingCompleted",
+             email_verified AS "emailVerified",
+             auth_provider AS "authProvider"
       FROM users
       WHERE email = $1`,
       [email]
@@ -64,6 +66,11 @@ class User {
       const isValid = await bcrypt.compare(password, user.password);
       if (isValid === true) {
         delete user.password;
+        if (user.emailVerified !== true && user.role !== "super_admin") {
+          throw new UnauthorizedError(
+            "Please verify your email before signing in. Check your inbox for the verification link, or use \"Resend verification\" on the sign-in page."
+          );
+        }
         return user;
       }
     }
@@ -107,11 +114,13 @@ class User {
 
     const includeOnboarding = onboarding_completed === false;
     const cols = includeOnboarding
-      ? "email, password_hash, name, phone, role, contact_id, is_active, onboarding_completed"
-      : "email, password_hash, name, phone, role, contact_id, is_active";
-    const vals = includeOnboarding ? "$1,$2,$3,$4,$5,$6,$7,$8" : "$1,$2,$3,$4,$5,$6,$7";
+      ? "email, password_hash, name, phone, role, contact_id, is_active, onboarding_completed, auth_provider, email_verified"
+      : "email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified";
+    const vals = includeOnboarding ? "$1,$2,$3,$4,$5,$6,$7,$8,$9,$10" : "$1,$2,$3,$4,$5,$6,$7,$8,$9";
     const params = [email, hashedPassword, name, phone, role, contactId, is_active];
     if (includeOnboarding) params.push(false);
+    // Bootstrap super admin (npm start) has no inbox to verify
+    params.push("local", role === "super_admin");
 
     const result = await db.query(`
         INSERT INTO users (${cols})
@@ -225,9 +234,13 @@ class User {
   }
 
   /** Link Google account to existing user (e.g. local user signing in with Google). */
-  static async linkGoogle(userId, googleSub) {
+  static async linkGoogle(userId, googleSub, emailVerifiedFromGoogle = true) {
+    const ev =
+      emailVerifiedFromGoogle === undefined || emailVerifiedFromGoogle === null
+        ? true
+        : !!emailVerifiedFromGoogle;
     const result = await db.query(
-      `UPDATE users SET google_sub = $1, auth_provider = 'google' WHERE id = $2
+      `UPDATE users SET google_sub = $1, auth_provider = 'google', email_verified = $3 WHERE id = $2
        RETURNING id, email, name, phone, role, contact_id AS "contact",
                  is_active AS "isActive", image, auth_provider AS "authProvider",
                  google_sub AS "googleSub", avatar_url AS "avatarUrl",
@@ -235,7 +248,17 @@ class User {
                  subscription_tier AS "subscriptionTier",
                  onboarding_completed AS "onboardingCompleted",
                  welcome_modal_dismissed AS "welcomeModalDismissed"`,
-      [googleSub, userId]
+      [googleSub, userId, ev]
+    );
+    return result.rows[0] || null;
+  }
+
+  /** Set email_verified (e.g. after accepting invitation or admin action). */
+  static async setEmailVerified(userId, verified = true) {
+    const result = await db.query(
+      `UPDATE users SET email_verified = $1, updated_at = NOW() WHERE id = $2
+       RETURNING id, email_verified AS "emailVerified"`,
+      [!!verified, userId]
     );
     return result.rows[0] || null;
   }
@@ -519,6 +542,11 @@ class User {
         console.log("Super admin initialized");
         return res;
       }
+
+      await db.query(
+        `UPDATE users SET email_verified = true, updated_at = NOW()
+         WHERE role = 'super_admin' AND email_verified IS NOT TRUE`
+      );
 
       return result.rows[0];
     } catch (err) {

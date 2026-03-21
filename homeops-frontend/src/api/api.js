@@ -74,7 +74,19 @@ class AppApi {
   }
 
   /** Refresh token if expired/expiring. Returns fresh token or null. Skips for pure auth endpoints (login, register, etc.). */
-  static AUTH_NO_REFRESH = new Set(["auth/login", "auth/token", "auth/register", "auth/refresh", "auth/forgot-password", "auth/reset-password", "auth/google/signin", "auth/google/signup", "auth/check-email"]);
+  static AUTH_NO_REFRESH = new Set([
+    "auth/login",
+    "auth/token",
+    "auth/register",
+    "auth/refresh",
+    "auth/forgot-password",
+    "auth/reset-password",
+    "auth/verify-email",
+    "auth/resend-verification",
+    "auth/google/signin",
+    "auth/google/signup",
+    "auth/check-email",
+  ]);
   static async ensureValidToken(endpoint) {
     const token = AppApi.getToken();
     if (!token || AppApi.AUTH_NO_REFRESH.has(endpoint)) return token;
@@ -228,6 +240,25 @@ class AppApi {
   static async signup(data) {
     let res = await this.request(`auth/register`, data, "POST");
     return res;
+  }
+
+  static async verifyEmailWithToken(token) {
+    const url = buildApiUrl("auth/verify-email");
+    const res = await fetch(url.toString(), {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({token}),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      const message = errBody?.error?.message ?? res.statusText;
+      throw new ApiError(Array.isArray(message) ? message : [message], res.status);
+    }
+    return res.json();
+  }
+
+  static async resendVerificationEmail(email) {
+    return this.request("auth/resend-verification", {email}, "POST");
   }
 
   /** Fetch current authenticated user + accounts in one request. */

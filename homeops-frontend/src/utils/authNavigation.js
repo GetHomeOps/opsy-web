@@ -6,6 +6,7 @@ const GLOBAL_ROUTE_PREFIXES = new Set([
   "signup",
   "forgot-password",
   "reset-password",
+  "verify-email",
   "privacy-policy",
   "auth",
   "onboarding",

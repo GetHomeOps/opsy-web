@@ -14,6 +14,10 @@ function ModalBlank({
   ignoreClickRefs = [],
   /** Ignore outside clicks for this many ms after opening (prevents opening click from immediately closing) */
   ignoreOutsideClickForMs = 100,
+  /** Tailwind z-index class for the dimmed backdrop (default above app chrome at z-[100]) */
+  backdropZClassName = "z-[200]",
+  /** Tailwind z-index class for the dialog shell; raise above confetti etc. while backdrop stays lower */
+  dialogZClassName = "z-[200]",
 }) {
   const modalContent = useRef(null);
   const openedAtRef = useRef(null);
@@ -59,9 +63,9 @@ function ModalBlank({
 
   return (
     <>
-      {/* Modal backdrop - click to close, z-[200] ensures modals appear above floating elements like ImageUploadField (z-[100]) */}
+      {/* Modal backdrop — z-index overridable (e.g. confetti between backdrop and dialog) */}
       <Transition
-        className={`fixed inset-0 bg-gray-900/30 z-[200] transition-opacity cursor-default ${
+        className={`fixed inset-0 bg-gray-900/30 ${backdropZClassName} transition-opacity cursor-default ${
           isOpen ? "pointer-events-auto" : "pointer-events-none"
         }`}
         show={isOpen}
@@ -78,7 +82,7 @@ function ModalBlank({
       {/* Modal dialog */}
       <Transition
         id={id}
-        className="fixed inset-0 z-[200] overflow-hidden flex items-center my-4 justify-center px-4 sm:px-6"
+        className={`fixed inset-0 ${dialogZClassName} overflow-hidden flex items-center my-4 justify-center px-4 sm:px-6`}
         role="dialog"
         aria-modal="true"
         show={isOpen}

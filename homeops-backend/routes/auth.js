@@ -7,7 +7,9 @@
  *
  * Endpoints:
  * - POST /token: Authenticate with email/password, returns access + refresh tokens
- * - POST /register: Create user, account, contact, and default subscription
+ * - POST /register: Create user, account, contact (no JWT; sends verification email)
+ * - POST /verify-email: Confirm email token, returns access + refresh tokens
+ * - POST /resend-verification: Resend verification email (rate limited)
  * - POST /refresh: Exchange a valid refresh token for a new access + refresh pair
  * - POST /logout: Revoke a refresh token
  * - POST /change-password: Update password (requires current password)
@@ -39,6 +41,11 @@ const userRegisterSchema = require("../schemas/userRegister.json");
 const { BadRequestError, UnauthorizedError, ForbiddenError } = require("../expressError");
 const { acceptInvitation } = require("../services/invitationService");
 const { requestPasswordReset, resetPasswordWithToken } = require("../services/passwordResetService");
+const {
+  createAndSendVerificationEmail,
+  verifyEmailWithToken,
+  requestResendVerification,
+} = require("../services/emailVerificationService");
 const { onUserCreated } = require("../services/resourceAutoSend");
 const stripeService = require("../services/stripeService");
 const Account = require("../models/account");
@@ -49,6 +56,14 @@ const RefreshToken = require("../models/refreshToken");
 const db = require("../db");
 
 const OAUTH_STATE_MAX_AGE = 10 * 60; // 10 minutes
+
+/** Strict auth: JWT only when email is verified and user may use the app (active or onboarding). */
+function userMayReceiveAuthTokens(user) {
+  const verified = user?.emailVerified === true || user?.role === "super_admin";
+  if (!user || !verified) return false;
+  if (!(user.isActive || user.onboardingCompleted === false)) return false;
+  return true;
+}
 
 async function issueTokenPair(user) {
   const accessToken = createAccessToken(user);
@@ -72,8 +87,7 @@ router.post("/token", async function (req, res, next) {
     const { email, password } = body;
     const user = await User.authenticate(email, password);
 
-    // Allow active users or pending signups (incomplete onboarding) so they can complete it
-    const canProceed = user && (user.isActive || user.onboardingCompleted === false);
+    const canProceed = userMayReceiveAuthTokens(user);
     if (!canProceed) {
       throw new UnauthorizedError("User account is inactive or not found");
     }
@@ -154,8 +168,21 @@ router.post("/register", async function (req, res, next) {
       console.error("[resourceAutoSend] register:", autoErr.message);
     }
 
-    const tokens = await issueTokenPair(newUser);
-    return res.status(201).json(tokens);
+    let sendFailed = false;
+    try {
+      await createAndSendVerificationEmail(newUser.id);
+    } catch (verifySendErr) {
+      sendFailed = true;
+      console.error("[auth/register] verification email:", verifySendErr.message);
+    }
+
+    return res.status(201).json({
+      verificationRequired: true,
+      email: normalized.email,
+      message: sendFailed
+        ? 'Account created, but we could not send the verification email. Use "Resend verification" on the sign-in page.'
+        : "Check your email to verify your account before signing in.",
+    });
   } catch (err) {
     await db.query("ROLLBACK");
     return next(err);
@@ -187,15 +214,14 @@ router.post("/refresh", async function (req, res, next) {
     await RefreshToken.deleteByHash(tokenHash);
 
     const user = await User.getById(payload.id);
-    // Allow active users or pending signups (incomplete onboarding) so they can complete it
-    const canProceed = user && (user.isActive || user.onboardingCompleted === false);
+    const canProceed = userMayReceiveAuthTokens(user);
     if (!canProceed) {
       throw new UnauthorizedError("User account is inactive or not found");
     }
 
     const tokens = await issueTokenPair(user);
 
-    RefreshToken.cleanupExpired().catch(() => {});
+    RefreshToken.cleanupExpired().catch(() => { });
 
     return res.json(tokens);
   } catch (err) {
@@ -263,8 +289,7 @@ router.post("/mfa/verify", mfaVerifyLimiter, async function (req, res, next) {
     }
 
     const user = await User.getById(userId);
-    // Allow active users or pending signups (incomplete onboarding) so they can complete it
-    const canProceed = user && (user.isActive || user.onboardingCompleted === false);
+    const canProceed = userMayReceiveAuthTokens(user);
     if (!canProceed) {
       throw new UnauthorizedError("User not found or inactive");
     }
@@ -337,6 +362,40 @@ router.post("/reset-password", async function (req, res, next) {
   try {
     const { token, newPassword } = req.body;
     const result = await resetPasswordWithToken(token, newPassword);
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post("/verify-email", async function (req, res, next) {
+  try {
+    const rawToken = req.body?.token;
+    const user = await verifyEmailWithToken(rawToken);
+    if (!userMayReceiveAuthTokens(user)) {
+      throw new UnauthorizedError("Your account cannot start a session. Please contact support.");
+    }
+    const tokens = await issueTokenPair(user);
+    try {
+      await PlatformEngagement.logEvent({ userId: user.id, eventType: "email_verified_login", eventData: {} });
+    } catch (logErr) { /* don't block */ }
+    return res.json({ ...tokens, emailVerified: true });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+const resendVerificationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { message: "Too many resend requests. Please try again later.", status: 429 } },
+});
+
+router.post("/resend-verification", resendVerificationLimiter, async function (req, res, next) {
+  try {
+    const result = await requestResendVerification(req.body?.email);
     return res.json(result);
   } catch (err) {
     return next(err);
@@ -480,7 +539,7 @@ async function handleGoogleCallback(req, res, next, intent) {
           if (user) {
             // Same Google account — use as resume
           } else if (userByEmail && !userByEmail.googleSub) {
-            user = await User.linkGoogle(userByEmail.id, sub);
+            user = await User.linkGoogle(userByEmail.id, sub, email_verified);
           } else {
             return res.redirect(redirectWithError("account_exists"));
           }
@@ -522,20 +581,24 @@ async function handleGoogleCallback(req, res, next, intent) {
       if (user) {
         // Sign in OK — user already set from findByGoogleSub
       } else if (userByEmail && !userByEmail.googleSub) {
-        user = await User.linkGoogle(userByEmail.id, sub);
+        user = await User.linkGoogle(userByEmail.id, sub, email_verified);
       } else {
         return res.redirect(redirectWithError("no_account"));
       }
     }
-    // Allow active users or pending signups (incomplete onboarding) so they can complete it
-    const canProceed = user && (user.isActive || user.onboardingCompleted === false);
+
+    user = await User.getById(user.id);
+    const canProceed = userMayReceiveAuthTokens(user);
     if (!canProceed) {
+      if (user && user.emailVerified !== true) {
+        return res.redirect(redirectWithError("google_email_unverified"));
+      }
       return res.redirect(redirectWithError("inactive"));
     }
 
     const { accessToken, refreshToken } = await issueTokenPair(user);
     PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: { provider: "google" } })
-      .catch(() => {});
+      .catch(() => { });
 
     return res.redirect(redirectWithToken(accessToken, refreshToken));
   } catch (err) {

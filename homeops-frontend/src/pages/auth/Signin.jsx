@@ -8,7 +8,7 @@ import {
 import {useTranslation} from "react-i18next";
 import {AlertCircle, ExternalLink, Loader2, ShieldCheck} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
-import {API_BASE_URL} from "../../api/api";
+import AppApi, {API_BASE_URL} from "../../api/api";
 import {
   canRedirectToPathForUser,
   consumePostLogoutRedirectReset,
@@ -37,6 +37,7 @@ function Signin() {
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [mfaSubmitting, setMfaSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [resendVerifyState, setResendVerifyState] = useState("idle");
   const justLoggedIn = useRef(false);
 
   const {t, i18n} = useTranslation();
@@ -110,7 +111,9 @@ function Signin() {
             ? err
             : [err?.message || err?.toString?.() || String(err)]);
         let messages = Array.isArray(raw)
-          ? raw.map((e) => (typeof e === "string" ? e : e?.message || String(e)))
+          ? raw.map((e) =>
+              typeof e === "string" ? e : e?.message || String(e),
+            )
           : [typeof raw === "string" ? raw : String(raw)];
 
         if (err?.status === 500 || (err?.status >= 502 && err?.status < 600)) {
@@ -125,11 +128,15 @@ function Signin() {
           err?.status === 401 &&
           messages.some((m) =>
             /invalid|username|password|email|credential/i.test(String(m)),
-          )
+          ) &&
+          !messages.some((m) => /verify your email/i.test(String(m)))
         ) {
           messages = ["Invalid email or password"];
         }
         setFormErrors(messages);
+        if (!messages.some((m) => /verify your email/i.test(String(m)))) {
+          setResendVerifyState("idle");
+        }
       }
       justLoggedIn.current = false;
     } finally {
@@ -161,6 +168,26 @@ function Signin() {
       [name]: value,
     }));
     if (formErrors.length) setFormErrors([]);
+    setResendVerifyState("idle");
+  }
+
+  const showVerifyResendHint = /verify your email/i.test(errorMessage || "");
+
+  async function handleResendVerification() {
+    const email = formData.email.trim();
+    if (!email) {
+      setFormErrors([
+        t("signin.emailRequiredForResend", "Enter your email above, then try again."),
+      ]);
+      return;
+    }
+    setResendVerifyState("sending");
+    try {
+      await AppApi.resendVerificationEmail(email);
+      setResendVerifyState("sent");
+    } catch {
+      setResendVerifyState("error");
+    }
   }
 
   return (
@@ -194,11 +221,43 @@ function Signin() {
             )}
 
             {errorMessage && (
-              <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 flex items-center gap-2 mb-4">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
-                <span className="text-red-800 dark:text-red-200 text-sm">
-                  {errorMessage}
-                </span>
+              <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 flex flex-col gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
+                  <span className="text-red-800 dark:text-red-200 text-sm">
+                    {errorMessage}
+                  </span>
+                </div>
+                {showVerifyResendHint ? (
+                  <div className="pl-7 space-y-2">
+                    <button
+                      type="button"
+                      onClick={handleResendVerification}
+                      disabled={resendVerifyState === "sending"}
+                      className="text-sm font-medium text-[#456564] hover:underline disabled:opacity-50"
+                    >
+                      {resendVerifyState === "sending"
+                        ? t("signin.resending", "Sending…")
+                        : t("signin.resendVerification", "Resend verification email")}
+                    </button>
+                    {resendVerifyState === "sent" ? (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                        {t(
+                          "signin.resendVerificationSent",
+                          "If an account needs verification, we sent a new link.",
+                        )}
+                      </p>
+                    ) : null}
+                    {resendVerifyState === "error" ? (
+                      <p className="text-xs text-red-700 dark:text-red-300">
+                        {t(
+                          "signin.resendVerificationFailed",
+                          "Could not send email. Try again later.",
+                        )}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             )}
 

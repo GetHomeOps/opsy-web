@@ -324,6 +324,8 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
       }
     }
 
+    await User.setEmailVerified(user.id, true);
+
     await db.query("COMMIT");
     return { user, invitation: accepted };
   } catch (err) {
