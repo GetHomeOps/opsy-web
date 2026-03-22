@@ -14,7 +14,12 @@ require("colors");
 const SECRET_KEY = process.env.SECRET_KEY || process.env.JWT_SECRET || "secret-dev";
 const MFA_ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY;
 const MFA_ENCRYPTION_KEY_ID = process.env.MFA_ENCRYPTION_KEY_ID || "default";
-const APP_NAME = process.env.APP_NAME || "HomeOps";
+const rawAppName = process.env.APP_NAME;
+const APP_NAME = rawAppName || "Opsy";
+/** Product name in transactional email subjects, bodies, and default From display name. Legacy APP_NAME=HomeOps maps to Opsy. */
+const EMAIL_BRAND_NAME =
+  process.env.EMAIL_BRAND_NAME ||
+  (rawAppName === "HomeOps" ? "Opsy" : APP_NAME);
 
 const PORT = +process.env.PORT || 3000;
 
@@ -67,6 +72,7 @@ module.exports = {
   MFA_ENCRYPTION_KEY,
   MFA_ENCRYPTION_KEY_ID,
   APP_NAME,
+  EMAIL_BRAND_NAME,
   PORT,
   BCRYPT_WORK_FACTOR,
   getDatabaseUri,

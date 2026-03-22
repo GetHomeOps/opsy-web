@@ -85,7 +85,7 @@ function LivePreview({ form, template }) {
               </div>
             ) : (
               <div className="text-white text-sm font-semibold tracking-wide opacity-90">
-                HomeOps
+                Opsy
               </div>
             )}
           </div>

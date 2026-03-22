@@ -12,8 +12,14 @@
  */
 
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
-const { APP_NAME } = require("../config");
-const appName = APP_NAME || "HomeOps";
+const { EMAIL_BRAND_NAME } = require("../config");
+const brandName = EMAIL_BRAND_NAME;
+
+/** Replace legacy product name in "requested by" lines (e.g. account name "HomeOps Team"). */
+function sanitizeSenderLabelForEmail(name) {
+  if (!name || typeof name !== "string") return name;
+  return name.replace(/\bHomeOps\b/g, "Opsy");
+}
 
 const region = process.env.AWS_SES_REGION || process.env.AWS_REGION || "us-east-1";
 const credentials =
@@ -27,7 +33,8 @@ const sesClient = new SESClient({ region, ...(credentials && { credentials }) })
 
 function getFromAddress() {
   const email = process.env.SES_FROM_EMAIL;
-  const name = process.env.SES_FROM_NAME || appName;
+  const rawFromName = process.env.SES_FROM_NAME || brandName;
+  const name = rawFromName === "HomeOps" ? "Opsy" : rawFromName;
   if (!email) {
     throw new Error("SES_FROM_EMAIL not configured. Set it in .env (e.g. noreply@yourdomain.com)");
   }
@@ -74,18 +81,18 @@ async function sendPasswordResetEmail({ to, resetUrl, userName }) {
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
       <h2 style="color: #456564;">Reset your password</h2>
       <p>Hi${userName ? ` ${userName}` : ""},</p>
-      <p>We received a request to reset your ${appName} password. Click the button below to set a new password:</p>
+      <p>We received a request to reset your ${brandName} password. Click the button below to set a new password:</p>
       <p style="margin: 24px 0;">
         <a href="${resetUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reset Password</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${appName} Team</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
     </div>
   `;
 
   return sendViaSes({
     to,
-    subject: `Reset your ${appName} password`,
+    subject: `Reset your ${brandName} password`,
     html,
   });
 }
@@ -101,18 +108,18 @@ async function sendEmailVerificationEmail({ to, verifyUrl, userName }) {
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
       <h2 style="color: #456564;">Verify your email</h2>
       <p>Hi${userName ? ` ${userName}` : ""},</p>
-      <p>Thanks for signing up for ${appName}. Please confirm your email address by clicking the button below:</p>
+      <p>Thanks for signing up for ${brandName}. Please confirm your email address by clicking the button below:</p>
       <p style="margin: 24px 0;">
         <a href="${verifyUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Verify email</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">This link expires in 48 hours. If you didn&apos;t create an account, you can ignore this email.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${appName} Team</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
     </div>
   `;
 
   return sendViaSes({
     to,
-    subject: `Verify your email — ${appName}`,
+    subject: `Verify your email — ${brandName}`,
     html,
   });
 }
@@ -129,7 +136,7 @@ async function sendInvitationEmail({ to, inviteUrl, inviterName, inviteeName, ty
   const isProperty = type === "property";
   const subject = isProperty
     ? `You've been invited to join a property${propertyAddress ? `: ${propertyAddress}` : ""}`
-    : `You've been invited to join ${appName}`;
+    : `You've been invited to join ${brandName}`;
 
   const intro = inviteeName ? `Hi ${inviteeName},` : "Hi,";
   const inviterText = inviterName ? `${inviterName} has` : "Someone has";
@@ -137,18 +144,18 @@ async function sendInvitationEmail({ to, inviteUrl, inviterName, inviteeName, ty
     ? (propertyAddress
       ? `${inviterText} invited you to join a property: ${propertyAddress}.`
       : `${inviterText} invited you to join a property.`)
-    : `${inviterText} invited you to join ${appName}.`;
+    : `${inviterText} invited you to join ${brandName}.`;
 
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-      <h2 style="color: #456564;">You're invited to ${appName}</h2>
+      <h2 style="color: #456564;">You're invited to ${brandName}</h2>
       <p>${intro}</p>
       <p>${contextText} Click the button below to accept and set up your account:</p>
       <p style="margin: 24px 0;">
         <a href="${inviteUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Accept invitation</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">This link expires in 48 hours. If you didn't expect this invite, you can safely ignore this email.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${appName} Team</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
     </div>
   `;
 
@@ -165,14 +172,15 @@ async function sendContractorReportEmail({ to, reportUrl, contractorName, proper
   }
 
   const greeting = contractorName ? `Hi ${contractorName},` : "Hi,";
-  const requester = senderName ? senderName : "A homeowner";
+  const senderLabel = sanitizeSenderLabelForEmail(senderName);
+  const requester = senderLabel ? senderLabel : "A homeowner";
   const propertyText = propertyAddress ? ` for the property at <strong>${propertyAddress}</strong>` : "";
   const systemText = systemName ? ` regarding <strong>${systemName}</strong>` : "";
 
   const detailsRows = [];
   if (origin) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Origin:</td><td><a href="${origin}">${origin}</a></td></tr>`);
   if (propertyAddress) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Property:</td><td>${propertyAddress}</td></tr>`);
-  if (senderName) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Requested by:</td><td>${senderName}</td></tr>`);
+  if (senderName) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Requested by:</td><td>${senderLabel}</td></tr>`);
   if (inspectionDate) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Date of inspection:</td><td>${inspectionDate}</td></tr>`);
   const detailsSection = detailsRows.length > 0
     ? `<div style="margin: 16px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 14px;">
@@ -180,7 +188,7 @@ async function sendContractorReportEmail({ to, reportUrl, contractorName, proper
       </div>`
     : "";
 
-  const subject = `${appName}: Maintenance report request${propertyAddress ? ` – ${propertyAddress}` : ""}`;
+  const subject = `${brandName}: Maintenance report request${propertyAddress ? ` – ${propertyAddress}` : ""}`;
   const html = `
     <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
       <h2 style="color: #456564;">Maintenance Report Request</h2>
@@ -192,7 +200,7 @@ async function sendContractorReportEmail({ to, reportUrl, contractorName, proper
         <a href="${reportUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Fill Out Report</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">This link expires in 7 days. If you have questions, please contact the homeowner directly.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${appName} Team</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
     </div>
   `;
 
@@ -210,7 +218,8 @@ async function sendScheduleNotificationEmail({ to, contractorName, propertyAddre
   }
 
   const greeting = contractorName ? `Hi ${contractorName},` : "Hi,";
-  const requester = senderName || "A homeowner";
+  const senderLabel = sanitizeSenderLabelForEmail(senderName);
+  const requester = senderLabel || "A homeowner";
   const propertyText = propertyAddress ? ` at <strong>${propertyAddress}</strong>` : "";
   const systemText = systemName ? ` for <strong>${systemName}</strong>` : "";
 
@@ -237,7 +246,7 @@ async function sendScheduleNotificationEmail({ to, contractorName, propertyAddre
   if (propertyAddress) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Property:</td><td>${propertyAddress}</td></tr>`);
   if (systemName) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">System:</td><td>${systemName}</td></tr>`);
   if (formattedDate) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Date:</td><td>${formattedDate}${formattedTime ? ` at ${formattedTime}` : ""}</td></tr>`);
-  if (senderName) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Requested by:</td><td>${senderName}</td></tr>`);
+  if (senderName) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Requested by:</td><td>${senderLabel}</td></tr>`);
   const detailsSection = detailsRows.length > 0
     ? `<div style="margin: 16px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 14px;">
         <table style="border-collapse: collapse;">${detailsRows.join("")}</table>
@@ -248,7 +257,7 @@ async function sendScheduleNotificationEmail({ to, contractorName, propertyAddre
     ? `<div style="margin: 16px 0; padding: 12px 16px; background: #f0fdf4; border-left: 3px solid #456564; border-radius: 4px; font-size: 14px; color: #374151; white-space: pre-wrap;">${messageBody}</div>`
     : "";
 
-  const subject = `${appName}: Service scheduled${systemName ? ` — ${systemName}` : ""}${propertyAddress ? ` at ${propertyAddress}` : ""}`;
+  const subject = `${brandName}: Service scheduled${systemName ? ` — ${systemName}` : ""}${propertyAddress ? ` at ${propertyAddress}` : ""}`;
   const html = `
     <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
       <h2 style="color: #456564;">Service Scheduled</h2>
@@ -257,7 +266,7 @@ async function sendScheduleNotificationEmail({ to, contractorName, propertyAddre
       ${detailsSection}
       ${messageSection ? `<p style="font-size: 14px; color: #374151;">Message from homeowner:</p>${messageSection}` : ""}
       <p style="color: #6b7280; font-size: 14px;">Please confirm this appointment or reach out to the homeowner to discuss the details.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${appName} Team</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
     </div>
   `;
 

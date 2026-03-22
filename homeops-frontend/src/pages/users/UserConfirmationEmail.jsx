@@ -158,25 +158,25 @@ function UserConfirmationEmail() {
             <div className="mb-8 flex items-center gap-3">
               <img
                 src={Logo}
-                alt="HomeOps"
+                alt="Opsy"
                 className="h-10 w-auto"
                 onError={(event) => {
                   event.target.style.display = "none";
                 }}
               />
               <div>
-                <h1 className="text-xl font-semibold">HomeOps</h1>
+                <h1 className="text-xl font-semibold">Opsy</h1>
                 <p className="text-xs text-white/80">
                   {t("propertyManagementPlatform") || "Property Management Platform"}
                 </p>
               </div>
             </div>
             <h2 className="text-2xl font-semibold leading-tight">
-              {t("welcomeToHomeOps") || "Welcome to HomeOps!"}
+              {t("welcomeToHomeOps") || "Welcome to Opsy!"}
             </h2>
             <p className="mt-3 text-sm text-white/85">
               {t("invitationMessage") ||
-                "You've been invited to join HomeOps. Please confirm your information and set up your password to get started."}
+                "You've been invited to join Opsy. Please confirm your information and set up your password to get started."}
             </p>
             <div className="mt-8 rounded-lg border border-white/20 bg-white/10 p-3 text-xs text-white/90">
               {t("passwordMinLength") || "Password must be at least 8 characters"}
@@ -338,7 +338,7 @@ function UserConfirmationEmail() {
 
             <div className="mt-5 flex items-center justify-center gap-1.5 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
               <Building2 className="h-3.5 w-3.5 text-[#456564]" />
-              <span>{t("homeOpsFooter") || "© HomeOps. All rights reserved."}</span>
+              <span>{t("homeOpsFooter") || "© Opsy. All rights reserved."}</span>
             </div>
           </div>
         </div>

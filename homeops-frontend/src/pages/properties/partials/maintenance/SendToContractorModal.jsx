@@ -16,6 +16,9 @@ function SendToContractorModal({
   isSending,
   onSend,
 }) {
+  const displaySenderName = senderName
+    ? senderName.replace(/\bHomeOps\b/g, "Opsy")
+    : "";
   const subject = `Opsy: Maintenance report request${propertyAddress ? ` – ${propertyAddress}` : systemName ? ` – ${systemName}` : ""}`;
 
   return (
@@ -81,7 +84,7 @@ function SendToContractorModal({
                 Hi {contractorName || "there"},
               </p>
               <p className="text-sm text-gray-700 dark:text-gray-300">
-                {senderName || "A homeowner"} has requested that you fill out a
+                {displaySenderName || "A homeowner"} has requested that you fill out a
                 maintenance/inspection report
                 {propertyAddress ? (
                   <>
@@ -103,7 +106,7 @@ function SendToContractorModal({
               </p>
               {(origin ||
                 propertyAddress ||
-                senderName ||
+                displaySenderName ||
                 inspectionDate ||
                 inspectionFinding) && (
                 <div className="mt-3 py-2 px-3 bg-gray-100 dark:bg-gray-800 rounded-md text-xs space-y-1.5">
@@ -130,12 +133,12 @@ function SendToContractorModal({
                       {propertyAddress}
                     </p>
                   )}
-                  {senderName && (
+                  {displaySenderName && (
                     <p className="text-gray-600 dark:text-gray-400">
                       <span className="font-medium text-gray-500 dark:text-gray-500">
                         Requested by:
                       </span>{" "}
-                      {senderName}
+                      {displaySenderName}
                     </p>
                   )}
                   {inspectionDate && (

@@ -8,7 +8,7 @@ TOTP-based MFA using authenticator apps (Google Authenticator, Microsoft Authent
 |----------|----------|-------------|
 | `MFA_ENCRYPTION_KEY` | Yes (production) | 32-byte key (hex or base64) for AES-256-GCM encryption of TOTP secrets. Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `MFA_ENCRYPTION_KEY_ID` | No | Reserved for future key rotation support. |
-| `APP_NAME` | No | Issuer name shown in authenticator apps (default: HomeOps). |
+| `APP_NAME` | No | Issuer name shown in authenticator apps (default: Opsy). |
 
 ## Database Setup
 
