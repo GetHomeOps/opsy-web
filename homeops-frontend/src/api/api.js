@@ -1229,6 +1229,11 @@ class AppApi {
     return res.review;
   }
 
+  /** Send a contact message to a professional (backend delivers via AWS SES). */
+  static async contactProfessional(professionalId, { message }) {
+    return this.request(`professionals/${professionalId}/contact`, { message }, "POST");
+  }
+
   static async createProfessional(data) {
     let res = await this.request("professionals", data, "POST");
     return res.professional;

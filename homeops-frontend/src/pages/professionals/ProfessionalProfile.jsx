@@ -36,6 +36,14 @@ const TABS = [
   {id: "reviews", label: "Reviews"},
 ];
 
+const DEFAULT_CONTACT_MESSAGE = `Hi,
+
+I'm interested in having some work done and would like a quote. Could you review what I need and share your pricing and availability?
+
+Please reply to this email when you can. I'll receive your message directly.
+
+Thanks`;
+
 function ProfessionalProfile() {
   const {proId} = useParams();
   const navigate = useNavigate();
@@ -46,6 +54,10 @@ function ProfessionalProfile() {
   const [professional, setProfessional] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [messageText, setMessageText] = useState(DEFAULT_CONTACT_MESSAGE);
+  const [messageSent, setMessageSent] = useState(false);
+  const [messageSending, setMessageSending] = useState(false);
+  const [messageError, setMessageError] = useState(null);
 
   useEffect(() => {
     if (!proId) {
@@ -74,6 +86,12 @@ function ProfessionalProfile() {
         setProfessional(null);
       })
       .finally(() => setLoading(false));
+  }, [proId]);
+
+  useEffect(() => {
+    setMessageText(DEFAULT_CONTACT_MESSAGE);
+    setMessageError(null);
+    setMessageSent(false);
   }, [proId]);
 
   const fetchReviewsAndEligibility = useCallback(() => {
@@ -121,10 +139,13 @@ function ProfessionalProfile() {
     fetchReviewsAndEligibility();
   }, [proId, fetchReviewsAndEligibility]);
 
-  const [saved, setSaved] = useState(professional?.saved ?? false);
+  const [saved, setSaved] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
-  const [messageText, setMessageText] = useState("");
-  const [messageSent, setMessageSent] = useState(false);
+
+  useEffect(() => {
+    if (!professional || String(professional.id) !== String(proId)) return;
+    setSaved(Boolean(professional.saved));
+  }, [professional, proId]);
   const [carouselIdx, setCarouselIdx] = useState(0);
 
   const [reviews, setReviews] = useState([]);
@@ -189,20 +210,52 @@ function ProfessionalProfile() {
     return () => container.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!proId) return;
     const next = !saved;
-    setSaved(next);
-    if (next) {
-      setSaveToast(true);
-      setTimeout(() => setSaveToast(false), 3000);
+    try {
+      if (next) {
+        await AppApi.saveProfessional(proId);
+      } else {
+        await AppApi.unsaveProfessional(proId);
+      }
+      setSaved(next);
+      setProfessional((prev) =>
+        prev && String(prev.id) === String(proId)
+          ? {...prev, saved: next}
+          : prev,
+      );
+      if (next) {
+        setSaveToast(true);
+        setTimeout(() => setSaveToast(false), 3000);
+      }
+    } catch {
+      // Leave UI unchanged on API failure (same as directory)
     }
   };
 
-  const handleSendMessage = () => {
-    if (!messageText.trim()) return;
-    setMessageSent(true);
-    setTimeout(() => setMessageSent(false), 3000);
-    setMessageText("");
+  const handleSendMessage = async () => {
+    const text = messageText.trim();
+    if (!text || !proId || messageSending) return;
+    setMessageError(null);
+    setMessageSending(true);
+    try {
+      await AppApi.contactProfessional(proId, { message: text });
+      setMessageSent(true);
+      setTimeout(() => setMessageSent(false), 4000);
+      setMessageText(DEFAULT_CONTACT_MESSAGE);
+    } catch (err) {
+      setMessageError(
+        err?.message || err?.messages?.[0] || "Could not send message",
+      );
+    } finally {
+      setMessageSending(false);
+    }
+  };
+
+  const onContactMessageChange = (e) => {
+    setMessageError(null);
+    setMessageText(e.target.value);
   };
 
   if (loading) {
@@ -492,19 +545,29 @@ function ProfessionalProfile() {
                   </p>
                   <textarea
                     value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    rows={3}
+                    onChange={onContactMessageChange}
+                    rows={4}
+                    disabled={messageSending}
                     placeholder="Hi, I'm looking for help with a project..."
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] focus:bg-white dark:focus:bg-gray-800 transition-all resize-none"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] focus:bg-white dark:focus:bg-gray-800 transition-all resize-none disabled:opacity-60"
                   />
+                  {messageError && (
+                    <p className="text-[11px] text-red-600 dark:text-red-400 mt-2">
+                      {messageError}
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={handleSendMessage}
-                    disabled={!messageText.trim()}
+                    disabled={!messageText.trim() || messageSending}
                     className="w-full mt-2.5 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    Send Message
+                    {messageSending ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    )}
+                    {messageSending ? "Sending…" : "Send Message"}
                   </button>
                   {messageSent && (
                     <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 mt-2">
@@ -527,23 +590,33 @@ function ProfessionalProfile() {
                   </p>
                   <textarea
                     value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    rows={3}
+                    onChange={onContactMessageChange}
+                    rows={4}
+                    disabled={messageSending}
                     placeholder="Hi, I'm looking for help with a project..."
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] focus:bg-white dark:focus:bg-gray-800 transition-all resize-none"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] focus:bg-white dark:focus:bg-gray-800 transition-all resize-none disabled:opacity-60"
                   />
-                  <div className="flex items-center gap-3 mt-2.5">
+                  {messageError && (
+                    <p className="text-[11px] text-red-600 dark:text-red-400 mt-2">
+                      {messageError}
+                    </p>
+                  )}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-2.5">
                     <button
                       type="button"
                       onClick={handleSendMessage}
-                      disabled={!messageText.trim()}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      disabled={!messageText.trim() || messageSending}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
-                      <Send className="w-3.5 h-3.5" />
-                      Send Message
+                      {messageSending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      {messageSending ? "Sending…" : "Send Message"}
                     </button>
                     {messageSent && (
-                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 justify-center sm:justify-start">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Sent!
                       </span>

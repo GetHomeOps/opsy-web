@@ -273,10 +273,74 @@ async function sendScheduleNotificationEmail({ to, contractorName, propertyAddre
   return sendViaSes({ to, subject, html, replyTo });
 }
 
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Notify a professional of a directory message from a logged-in homeowner (SES → pro's email).
+ * Reply-To is set to the sender so the professional can respond directly.
+ */
+async function sendProfessionalContactEmail({
+  to,
+  professionalCompanyName,
+  message,
+  senderName,
+  senderEmail,
+}) {
+  if (!isSesConfigured()) {
+    throw new Error(
+      "SES not configured. Set SES_FROM_EMAIL (verified in SES) and AWS credentials or use an IAM role / aws configure."
+    );
+  }
+  if (!to || !String(to).trim()) {
+    throw new Error("Recipient email is required");
+  }
+
+  const company = escapeHtml(professionalCompanyName || "Professional");
+  const safeBody = escapeHtml(message)
+    .replace(/\r\n/g, "\n")
+    .replace(/\n/g, "<br/>");
+  const senderLabel = escapeHtml(senderName || senderEmail || "A homeowner");
+  const senderLine =
+    senderName && senderEmail
+      ? `${escapeHtml(senderName)} &lt;${escapeHtml(senderEmail)}&gt;`
+      : escapeHtml(senderEmail || "");
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+      <h2 style="color: #456564;">New message via ${escapeHtml(brandName)}</h2>
+      <p>You have a new inquiry from someone viewing your listing <strong>${company}</strong> on ${escapeHtml(brandName)}.</p>
+      <p style="margin: 16px 0 8px; font-size: 14px; color: #374151;"><strong>From:</strong> ${senderLine || senderLabel}</p>
+      <div style="margin: 16px 0; padding: 16px; background: #f9fafb; border-radius: 8px; border-left: 3px solid #456564; font-size: 15px; color: #111827; line-height: 1.5;">
+        ${safeBody}
+      </div>
+      <p style="color: #6b7280; font-size: 14px;">You can reply directly to this email to reach the sender.</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 24px;">— ${escapeHtml(brandName)}</p>
+    </div>
+  `;
+
+  const rawSubject = `${brandName}: Message about ${professionalCompanyName || "your listing"}`;
+  const subject = rawSubject.length > 200 ? `${rawSubject.slice(0, 197)}...` : rawSubject;
+
+  return sendViaSes({
+    to: String(to).trim(),
+    subject,
+    html,
+    replyTo: senderEmail,
+  });
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendEmailVerificationEmail,
   sendInvitationEmail,
   sendContractorReportEmail,
   sendScheduleNotificationEmail,
+  sendProfessionalContactEmail,
 };

@@ -3,9 +3,11 @@
 const express = require("express");
 const jsonschema = require("jsonschema");
 const { ensureLoggedIn, ensurePlatformAdmin } = require("../middleware/auth");
-const { BadRequestError } = require("../expressError");
+const { BadRequestError, ExpressError } = require("../expressError");
 const Professional = require("../models/professional");
 const ProfessionalReview = require("../models/professionalReview");
+const User = require("../models/user");
+const { sendProfessionalContactEmail } = require("../services/emailService");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
 const professionalReviewNewSchema = require("../schemas/professionalReviewNew.json");
 
@@ -101,6 +103,58 @@ router.post("/:id/reviews", ensureLoggedIn, async function (req, res, next) {
       comment: comment || null,
     });
     return res.status(201).json({ review });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+const CONTACT_MESSAGE_MAX = 8000;
+
+/** POST /:id/contact - Send a message to the professional via AWS SES (logged-in users). */
+router.post("/:id/contact", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const userId = res.locals.user?.id;
+    if (!userId) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+    const professionalId = parseInt(req.params.id, 10);
+    if (isNaN(professionalId)) throw new BadRequestError("Invalid professional ID");
+
+    const raw = req.body?.message;
+    if (typeof raw !== "string" || !raw.trim()) {
+      throw new BadRequestError("message is required");
+    }
+    const message = raw.trim();
+    if (message.length > CONTACT_MESSAGE_MAX) {
+      throw new BadRequestError(`message must be at most ${CONTACT_MESSAGE_MAX} characters`);
+    }
+
+    const pro = await Professional.get(String(professionalId), userId);
+    const toEmail = pro.email && String(pro.email).trim();
+    if (!toEmail) {
+      throw new BadRequestError("This professional does not have an email on file.");
+    }
+
+    const user = await User.getById(userId);
+    const senderName = user?.name || null;
+    const senderEmail = res.locals.user.email;
+
+    try {
+      await sendProfessionalContactEmail({
+        to: toEmail,
+        professionalCompanyName: pro.company_name || pro.contact_name || `${pro.first_name} ${pro.last_name}`.trim(),
+        message,
+        senderName,
+        senderEmail,
+      });
+    } catch (e) {
+      const msg = e?.message || "";
+      if (msg.includes("SES not configured") || msg.includes("SES_FROM_EMAIL")) {
+        return next(new ExpressError("Email delivery is not configured on this server.", 503));
+      }
+      throw e;
+    }
+
+    return res.status(200).json({ sent: true });
   } catch (err) {
     return next(err);
   }
