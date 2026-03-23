@@ -59,14 +59,26 @@ function WelcomeModal() {
   const {currentAccount} = useCurrentAccount();
   const {t} = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
+  /** Hide for this session only (Skip for now); modal can show again after reload or next visit. */
+  const [sessionSkipped, setSessionSkipped] = useState(false);
 
   const userId = currentUser?.id ?? currentUser?.userId;
   const role = (currentUser?.role ?? "").toLowerCase();
   const showForRole = WELCOME_MODAL_ROLES.has(role);
+  const welcomeDismissedPermanently = Boolean(currentUser?.welcomeModalDismissed);
 
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
-  const handleDismiss = useCallback(async () => {
+  useEffect(() => {
+    setSessionSkipped(false);
+  }, [userId]);
+
+  const handleSkipForNow = useCallback(() => {
+    setSessionSkipped(true);
+    setModalOpen(false);
+  }, []);
+
+  const handleDismissPermanently = useCallback(async () => {
     if (!userId) {
       setModalOpen(false);
       return;
@@ -109,12 +121,23 @@ function WelcomeModal() {
   useEffect(() => {
     if (!userId || !showForRole) return;
     if (!calendarIntegrationsLoaded) return;
+    if (welcomeDismissedPermanently || sessionSkipped) {
+      setModalOpen(false);
+      return;
+    }
     if (allComplete) {
       setModalOpen(false);
       return;
     }
     setModalOpen(true);
-  }, [userId, showForRole, allComplete, calendarIntegrationsLoaded]);
+  }, [
+    userId,
+    showForRole,
+    allComplete,
+    calendarIntegrationsLoaded,
+    welcomeDismissedPermanently,
+    sessionSkipped,
+  ]);
 
   // v2: earlier builds set localStorage before drawing; invisible confetti still blocked retries.
   const confettiShownKey = userId ? `opsy_welcome_confetti_v2_${userId}` : null;
@@ -169,7 +192,7 @@ function WelcomeModal() {
         id="welcome-modal"
         modalOpen={modalOpen}
         setModalOpen={(open) => {
-          if (!open) handleDismiss();
+          if (!open) handleSkipForNow();
         }}
         closeOnClickOutside={false}
         contentClassName="max-w-lg"
@@ -220,7 +243,7 @@ function WelcomeModal() {
                 </p>
                 <button
                   type="button"
-                  onClick={handleDismiss}
+                  onClick={handleDismissPermanently}
                   className="w-full py-3 px-6 bg-[#456564] hover:bg-[#3a5554] text-white rounded-xl font-semibold text-sm transition-colors shadow-sm hover:shadow-md"
                 >
                   {t("onboarding.explore")}
@@ -302,16 +325,29 @@ function WelcomeModal() {
                   })}
                 </div>
 
-                {/* Skip link */}
-                <p className="text-center">
+                {/* Skip vs permanent dismiss */}
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-center">
                   <button
                     type="button"
-                    onClick={handleDismiss}
+                    onClick={handleSkipForNow}
                     className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 underline underline-offset-2"
                   >
                     {t("onboarding.skip")}
                   </button>
-                </p>
+                  <span
+                    className="hidden sm:inline text-gray-300 dark:text-gray-600"
+                    aria-hidden
+                  >
+                    |
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleDismissPermanently}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 underline underline-offset-2"
+                  >
+                    {t("onboarding.doNotShowAgain")}
+                  </button>
+                </div>
               </>
             )}
           </div>

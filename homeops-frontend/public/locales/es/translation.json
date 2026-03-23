@@ -782,6 +782,9 @@
   "userCreatedSuccessfullyMessage": "Usuario creado correctamente",
   "userDeleteConfirmationMessage": "¿Estás seguro de que quieres eliminar este usuario?",
   "userDeletedSuccessfullyMessage": "Usuario eliminado correctamente",
+  "userBulkDeleteFailedMessage": "No se pudieron eliminar los usuarios. Inténtalo de nuevo.",
+  "userBulkDeleteNoResultMessage": "No se pudieron eliminar los usuarios seleccionados. Actualiza la página e inténtalo de nuevo.",
+  "userDeleteFailed": "No se pudo eliminar el usuario.",
   "userInformation": "Información del usuario",
   "userNotAuthorizedErrorMessage": "No tienes acceso a este usuario",
   "userNotFoundErrorMessage": "Usuario no encontrado",
@@ -848,5 +851,6 @@
   "onboarding.successTitle": "¡Todo listo!",
   "onboarding.successMessage": "Explora la plataforma.",
   "onboarding.explore": "Empezar a explorar",
-  "onboarding.skip": "Omitir por ahora"
+  "onboarding.skip": "Omitir por ahora",
+  "onboarding.doNotShowAgain": "No volver a mostrar"
 }

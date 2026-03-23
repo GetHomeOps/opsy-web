@@ -82,6 +82,13 @@ export const SIDEBAR_CONFIG = [
             roles: "adminOnly",
           },
           {
+            id: "property-analytics",
+            label: "Properties",
+            path: "dashboard/properties",
+            icon: icon(Building2),
+            roles: "adminOnly",
+          },
+          {
             id: "unit-cost",
             label: "Unit Cost",
             path: "dashboard/unit-cost",

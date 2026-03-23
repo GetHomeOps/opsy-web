@@ -220,6 +220,7 @@ async function sendInvitationEmailForInvitation({ invitation, token, inviterUser
     const inviter = await db.query(`SELECT name FROM users WHERE id = $1`, [inviterUserId]);
     inviterName = inviter.rows[0]?.name || null;
   }
+  const emailType = type === "property" ? "invitation_property" : "invitation_account";
   await sendInvitationEmail({
     to: invitation.inviteeEmail,
     inviteUrl,
@@ -228,6 +229,14 @@ async function sendInvitationEmailForInvitation({ invitation, token, inviterUser
     type,
     propertyAddress,
     inviteeHasAccount: hasExistingAccount,
+    usage:
+      invitation.accountId && inviterUserId
+        ? {
+            accountId: invitation.accountId,
+            userId: inviterUserId,
+            emailType,
+          }
+        : undefined,
   });
 }
 

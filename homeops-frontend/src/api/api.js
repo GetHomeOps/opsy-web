@@ -34,6 +34,18 @@ export class ApiError extends Error {
   }
 }
 
+/** User-facing copy from API errors (ApiError, fetch failures, etc.). */
+export function getApiErrorMessage(err, fallback = "Something went wrong.") {
+  if (err == null) return fallback;
+  const first = err.messages?.[0];
+  if (typeof first === "string" && first.trim()) return first;
+  if (first && typeof first === "object" && typeof first.message === "string") {
+    return first.message;
+  }
+  if (typeof err.message === "string" && err.message.trim()) return err.message;
+  return fallback;
+}
+
 class AppApi {
   static token;
   static _refreshPromise = null;
@@ -1137,6 +1149,11 @@ class AppApi {
   static async getAgentAnalytics() {
     let res = await this.request("analytics/agents");
     return res.agents ?? [];
+  }
+
+  static async getPropertyAnalytics() {
+    let res = await this.request("analytics/properties");
+    return res.properties ?? [];
   }
 
   /* --------- Platform Engagement --------- */

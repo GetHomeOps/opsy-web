@@ -497,7 +497,9 @@ class User {
     try {
       const isOwner = await isAccountOwner(id);
       if (isOwner) {
-        throw new BadRequestError("User is an account owner and cannot be removed");
+        throw new BadRequestError(
+          "This user is a property owner and cannot be deleted."
+        );
       }
       else {
         const result = await db.query(

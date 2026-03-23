@@ -782,6 +782,9 @@
   "userCreatedSuccessfullyMessage": "User created successfully",
   "userDeleteConfirmationMessage": "Are you sure you want to delete this user?",
   "userDeletedSuccessfullyMessage": "User deleted successfully",
+  "userBulkDeleteFailedMessage": "Could not delete users. Please try again.",
+  "userBulkDeleteNoResultMessage": "Unable to delete the selected user(s). Please refresh and try again.",
+  "userDeleteFailed": "Could not delete user.",
   "userInformation": "User Information",
   "userNotAuthorizedErrorMessage": "You do not have access to this user",
   "userNotFoundErrorMessage": "User not found",
@@ -862,5 +865,6 @@
   "onboarding.successTitle": "You're all set!",
   "onboarding.successMessage": "Start exploring the platform.",
   "onboarding.explore": "Start exploring",
-  "onboarding.skip": "Skip for now"
+  "onboarding.skip": "Skip for now",
+  "onboarding.doNotShowAgain": "Do not show again"
 }

@@ -17,7 +17,7 @@ import contactContext from "../../context/ContactContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
 import {useAuth} from "../../context/AuthContext";
-import AppApi from "../../api/api";
+import AppApi, {getApiErrorMessage} from "../../api/api";
 import SelectDropdown from "../contacts/SelectDropdown";
 import useImageUpload from "../../hooks/useImageUpload";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
@@ -577,7 +577,10 @@ function UsersFormContainer() {
         payload: {
           open: true,
           type: "error",
-          message: `Error deleting user: ${error.message || error}`,
+          message: getApiErrorMessage(
+            error,
+            t("userDeleteFailed") || "Could not delete user.",
+          ),
         },
       });
     }

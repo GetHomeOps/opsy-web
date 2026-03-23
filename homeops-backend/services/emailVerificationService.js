@@ -46,8 +46,27 @@ async function createAndSendVerificationEmail(userId) {
   const baseUrl = (APP_BASE_URL || APP_WEB_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
   const verifyUrl = `${baseUrl}/verify-email?token=${encodeURIComponent(token)}`;
 
+  let verificationUsage;
   try {
-    await sendEmailVerificationEmail({ to: user.email, verifyUrl, userName: user.name });
+    const acctRes = await db.query(
+      `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY id ASC LIMIT 1`,
+      [userId]
+    );
+    const aid = acctRes.rows[0]?.account_id;
+    if (aid) {
+      verificationUsage = { accountId: aid, userId, emailType: "email_verification" };
+    }
+  } catch (_) {
+    // omit usage if lookup fails
+  }
+
+  try {
+    await sendEmailVerificationEmail({
+      to: user.email,
+      verifyUrl,
+      userName: user.name,
+      usage: verificationUsage,
+    });
   } catch (err) {
     console.error("[emailVerificationService] Failed to send email:", err.message);
     if (process.env.NODE_ENV !== "production") {

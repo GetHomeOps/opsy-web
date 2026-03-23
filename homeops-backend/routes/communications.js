@@ -308,6 +308,10 @@ router.post("/:id/send", ensureLoggedIn, ensureAdminOrSuperAdmin, async (req, re
           userName: u.name,
           subjectLine: comm.subject,
           viewUrl,
+          usage:
+            comm.accountId && userId
+              ? { accountId: comm.accountId, userId, emailType: "communication_notify" }
+              : undefined,
         }).catch((e) => console.error("[communications/send] notify email:", e.message));
       }
     }

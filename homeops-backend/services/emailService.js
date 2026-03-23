@@ -50,7 +50,7 @@ function isSesConfigured() {
   return !!(process.env.SES_FROM_EMAIL && process.env.SES_FROM_EMAIL.trim());
 }
 
-async function sendViaSes({ to, subject, html, replyTo }) {
+async function sendViaSes({ to, subject, html, replyTo, usage }) {
   const params = {
     Source: getFromAddress(),
     Destination: { ToAddresses: [to] },
@@ -67,10 +67,18 @@ async function sendViaSes({ to, subject, html, replyTo }) {
   const command = new SendEmailCommand(params);
 
   await sesClient.send(command);
+  if (usage?.accountId != null && usage?.userId != null) {
+    const { logEmailUsage } = require("./usageService");
+    logEmailUsage({
+      accountId: usage.accountId,
+      userId: usage.userId,
+      emailType: usage.emailType || "transactional",
+    }).catch((err) => console.error("[emailService] logEmailUsage:", err.message));
+  }
   return { success: true };
 }
 
-async function sendPasswordResetEmail({ to, resetUrl, userName }) {
+async function sendPasswordResetEmail({ to, resetUrl, userName, usage }) {
   if (!isSesConfigured()) {
     throw new Error(
       "SES not configured. Set SES_FROM_EMAIL (verified in SES) and AWS credentials or use an IAM role / aws configure."
@@ -94,10 +102,11 @@ async function sendPasswordResetEmail({ to, resetUrl, userName }) {
     to,
     subject: `Reset your ${brandName} password`,
     html,
+    usage,
   });
 }
 
-async function sendEmailVerificationEmail({ to, verifyUrl, userName }) {
+async function sendEmailVerificationEmail({ to, verifyUrl, userName, usage }) {
   if (!isSesConfigured()) {
     throw new Error(
       "SES not configured. Set SES_FROM_EMAIL (verified in SES) and AWS credentials or use an IAM role / aws configure."
@@ -121,6 +130,7 @@ async function sendEmailVerificationEmail({ to, verifyUrl, userName }) {
     to,
     subject: `Verify your email — ${brandName}`,
     html,
+    usage,
   });
 }
 
@@ -137,6 +147,7 @@ async function sendInvitationEmail({
   type = "account",
   propertyAddress,
   inviteeHasAccount = false,
+  usage,
 }) {
   if (!isSesConfigured()) {
     throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
@@ -189,14 +200,24 @@ async function sendInvitationEmail({
     </div>
   `;
 
-  return sendViaSes({ to, subject, html });
+  return sendViaSes({ to, subject, html, usage });
 }
 
 /**
  * Send contractor report request email with a link to fill out the maintenance report.
  * @param {Object} opts - { to, reportUrl, contractorName?, propertyAddress?, systemName?, senderName?, origin?, inspectionDate? }
  */
-async function sendContractorReportEmail({ to, reportUrl, contractorName, propertyAddress, systemName, senderName, origin, inspectionDate }) {
+async function sendContractorReportEmail({
+  to,
+  reportUrl,
+  contractorName,
+  propertyAddress,
+  systemName,
+  senderName,
+  origin,
+  inspectionDate,
+  usage,
+}) {
   if (!isSesConfigured()) {
     throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
   }
@@ -234,14 +255,25 @@ async function sendContractorReportEmail({ to, reportUrl, contractorName, proper
     </div>
   `;
 
-  return sendViaSes({ to, subject, html });
+  return sendViaSes({ to, subject, html, usage });
 }
 
 /**
  * Send scheduling notification email to a professional/contractor.
  * @param {Object} opts - { to, contractorName?, propertyAddress?, systemName?, scheduledDate?, scheduledTime?, messageBody?, senderName?, replyTo? }
  */
-async function sendScheduleNotificationEmail({ to, contractorName, propertyAddress, systemName, scheduledDate, scheduledTime, messageBody, senderName, replyTo }) {
+async function sendScheduleNotificationEmail({
+  to,
+  contractorName,
+  propertyAddress,
+  systemName,
+  scheduledDate,
+  scheduledTime,
+  messageBody,
+  senderName,
+  replyTo,
+  usage,
+}) {
   if (!isSesConfigured()) {
     console.warn("[emailService] SES not configured — skipping schedule notification email");
     return { success: false, reason: "ses_not_configured" };
@@ -300,7 +332,7 @@ async function sendScheduleNotificationEmail({ to, contractorName, propertyAddre
     </div>
   `;
 
-  return sendViaSes({ to, subject, html, replyTo });
+  return sendViaSes({ to, subject, html, replyTo, usage });
 }
 
 function escapeHtml(s) {
@@ -322,6 +354,7 @@ async function sendProfessionalContactEmail({
   message,
   senderName,
   senderEmail,
+  usage,
 }) {
   if (!isSesConfigured()) {
     throw new Error(
@@ -363,13 +396,14 @@ async function sendProfessionalContactEmail({
     subject,
     html,
     replyTo: senderEmail,
+    usage,
   });
 }
 
 /**
  * Notify a recipient by email that a communication is available in Opsy (in-app is primary).
  */
-async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl }) {
+async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl, usage }) {
   if (!isSesConfigured()) {
     console.warn("[emailService] SES not configured — skipping communication notify email");
     return { success: false, reason: "ses_not_configured" };
@@ -393,6 +427,7 @@ async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl
     to,
     subject: `${subjectLine || "New message"} — ${brandName}`,
     html,
+    usage,
   });
 }
 

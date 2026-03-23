@@ -102,4 +102,14 @@ router.get("/agents", ensurePlatformAdmin, async function (req, res, next) {
   }
 });
 
+/** GET /properties - Property analytics: team, owner, per-member activity. Platform admin only. */
+router.get("/properties", ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    const result = await PlatformMetrics.getPropertyAnalytics();
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+});
+
 module.exports = router;

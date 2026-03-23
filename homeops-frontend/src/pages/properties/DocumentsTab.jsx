@@ -593,6 +593,7 @@ function DocumentsTab({
             document_key: s3Key,
             document_type: uploadDocumentType,
             system_key: uploadSystemKey,
+            file_size_bytes: file.size,
           });
           successCount++;
           setUploadSuccessCount(successCount);

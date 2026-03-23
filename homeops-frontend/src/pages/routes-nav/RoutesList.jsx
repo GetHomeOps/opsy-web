@@ -63,6 +63,7 @@ import CategoryFormContainer from "../professionals/categories/CategoryFormConta
 import DashboardOverview from "../dashboard/DashboardOverview";
 import AccountAnalytics from "../dashboard/AccountAnalytics";
 import AgentAnalytics from "../dashboard/AgentAnalytics";
+import PropertyAnalytics from "../dashboard/PropertyAnalytics";
 import CostAnalytics from "../dashboard/CostAnalytics";
 import UnitCostDashboard from "../dashboard/UnitCostDashboard";
 import EngagementDashboard from "../dashboard/EngagementDashboard";
@@ -265,6 +266,14 @@ function RoutesList() {
         element={
           <AdminRoute>
             <AgentAnalytics />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/dashboard/properties"
+        element={
+          <AdminRoute>
+            <PropertyAnalytics />
           </AdminRoute>
         }
       />

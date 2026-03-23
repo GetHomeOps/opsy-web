@@ -51,16 +51,36 @@ const TABS = [
   },
 ];
 
-/** Maps a team member's role to the corresponding tab id */
+/** Maps a team member's role to the corresponding tab id (platform `role` vs property access `property_role`) */
 function memberRoleToTab(m) {
-  const role = (m.role ?? m.property_role ?? "").toLowerCase();
-  if (["agent", "admin", "super_admin"].includes(role)) return "agent";
-  if (["homeowner", "owner"].includes(role)) return "homeowner";
-  if (["insurer", "insurance", "insurance agent"].includes(role))
+  const platform = (m.role ?? "").toLowerCase();
+  const prop = (m.property_role ?? "").toLowerCase();
+  if (["agent", "admin", "super_admin"].includes(platform)) return "agent";
+  if (platform === "homeowner" || platform === "owner") return "homeowner";
+  if (["insurer", "insurance", "insurance agent"].includes(platform))
     return "insurance";
-  if (["mortgage partner", "mortgage", "mortgage agent"].includes(role))
+  if (["mortgage partner", "mortgage", "mortgage agent"].includes(platform))
+    return "mortgage";
+  if (prop === "owner") return "homeowner";
+  if (["insurer", "insurance", "insurance agent"].includes(prop))
+    return "insurance";
+  if (["mortgage partner", "mortgage", "mortgage agent"].includes(prop))
     return "mortgage";
   return "homeowner";
+}
+
+/** Human-readable platform role for team lists (users.role — Agent, Homeowner, etc.) */
+function getPlatformTeamRoleLabel(m) {
+  if (!m) return null;
+  const r = (m.role ?? "").toLowerCase();
+  if (["agent", "admin", "super_admin"].includes(r)) return "Agent";
+  if (["homeowner", "owner"].includes(r)) return "Homeowner";
+  if (["insurer", "insurance", "insurance agent"].includes(r))
+    return "Insurance";
+  if (["mortgage partner", "mortgage", "mortgage agent"].includes(r))
+    return "Mortgage";
+  if (m.role) return m.role;
+  return null;
 }
 
 const PERMISSION_OPTIONS = [
@@ -641,16 +661,7 @@ function TeamMemberCard({
   /* Only show resend for pending invitations – not for users who already accepted */
   const hasResend =
     isPending && m.invitationId && onResendInvitation;
-  const displayRole = (() => {
-    const r = (m.role ?? "").toLowerCase();
-    if (["agent", "admin", "super_admin"].includes(r)) return "Agent";
-    if (["homeowner", "owner"].includes(r)) return "Homeowner";
-    if (["insurer", "insurance", "insurance agent"].includes(r))
-      return "Insurance";
-    if (["mortgage partner", "mortgage", "mortgage agent"].includes(r))
-      return "Mortgage";
-    return m.role ?? "Member";
-  })();
+  const displayRole = getPlatformTeamRoleLabel(m) ?? "Member";
 
   return (
     <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600">
@@ -888,8 +899,28 @@ function SharePropertyModal({
       if (groups[tab]) groups[tab].push(m);
       else groups.homeowner.push(m);
     });
+
+    /* If the signed-in user is on the team but tab grouping missed them (e.g. odd role payloads), list them on Agent / Homeowner tab when their platform role matches */
+    const selfId = currentUser?.id;
+    if (selfId != null) {
+      const idStr = String(selfId);
+      const self = (teamMembers ?? []).find(
+        (m) => m && String(m.id) === idStr,
+      );
+      if (self) {
+        if (isAgent && !groups.agent.some((m) => String(m.id) === idStr)) {
+          groups.agent.push(self);
+        }
+        if (
+          isHomeowner &&
+          !groups.homeowner.some((m) => String(m.id) === idStr)
+        ) {
+          groups.homeowner.push(self);
+        }
+      }
+    }
     return groups;
-  }, [teamMembers]);
+  }, [teamMembers, currentUser?.id, isAgent, isHomeowner]);
 
   /* Only one agent per property - block adding when one already exists */
   const hasAgent = useMemo(
@@ -1034,6 +1065,11 @@ function SharePropertyModal({
     [teamMembers],
   );
 
+  const propertyOwnerPlatformLabel = useMemo(
+    () => getPlatformTeamRoleLabel(propertyOwner),
+    [propertyOwner],
+  );
+
   /* Team members excluding the owner (to avoid duplicate display in "All" tab) */
   const teamMembersExcludingOwner = useMemo(() => {
     if (!propertyOwner?.id) return teamMembers ?? [];
@@ -1104,14 +1140,7 @@ function SharePropertyModal({
     }
   }, [removeConfirmMember, onRemoveMember]);
 
-  /* Regular agents see only Home Owner tab; admin/super_admin see both Agent and Home Owner; homeowners see both. */
-  const isRegularAgent = currentRole === "agent";
-  const visibleTabs = useMemo(() => {
-    return TABS.filter((tab) => {
-      if (tab.id === "agent" && isRegularAgent) return false;
-      return true;
-    });
-  }, [isRegularAgent]);
+  const visibleTabs = TABS;
 
   return (
     <>
@@ -1238,6 +1267,11 @@ function SharePropertyModal({
                             <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                               {propertyOwner.email ||
                                 propertyOwner.inviteeEmail}
+                            </p>
+                          )}
+                          {propertyOwnerPlatformLabel && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                              {propertyOwnerPlatformLabel}
                             </p>
                           )}
                           <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-[#456564]/20 dark:bg-[#5a7a78]/30 text-[#456564] dark:text-[#5a7a78] text-xs font-semibold">

@@ -412,6 +412,143 @@ class PlatformMetrics {
 
     return { agents };
   }
+
+  /**
+   * Property analytics: each property with account, document count, team (property_users),
+   * owner(s), and per-member activity (page views scoped to property URL, inspection AI jobs,
+   * maintenance events created, invitations tied to the property).
+   */
+  static async getPropertyAnalytics() {
+    const propsRes = await db.query(
+      `SELECT p.id AS "propertyId",
+              p.property_uid AS "propertyUid",
+              p.property_name AS "propertyName",
+              p.address,
+              p.city,
+              p.state,
+              p.owner_name AS "recordOwnerName",
+              a.id AS "accountId",
+              a.name AS "accountName",
+              (SELECT COUNT(*)::int FROM property_documents pd WHERE pd.property_id = p.id) AS "documentsCount"
+       FROM properties p
+       JOIN accounts a ON a.id = p.account_id
+       ORDER BY a.name NULLS LAST, p.property_name NULLS LAST, p.id`
+    );
+
+    const teamRes = await db.query(
+      `SELECT pu.property_id AS "propertyId",
+              pu.user_id AS "userId",
+              pu.role AS "propertyRole",
+              u.name AS "userName",
+              u.email AS "userEmail",
+              u.role::text AS "userRole"
+       FROM property_users pu
+       JOIN users u ON u.id = pu.user_id
+       ORDER BY pu.property_id,
+         CASE pu.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END,
+         u.name NULLS LAST`
+    );
+
+    const visitsRes = await db.query(
+      `WITH visit_slugs AS (
+         SELECT (regexp_match(e.event_data->>'path', '/properties/([^/?#]+)'))[1] AS slug,
+                e.user_id AS user_id,
+                COUNT(*)::int AS visits
+         FROM platform_engagement_events e
+         WHERE e.event_type = 'page_view'
+           AND e.user_id IS NOT NULL
+           AND e.event_data->>'path' IS NOT NULL
+           AND e.event_data->>'path' LIKE '%/properties/%'
+         GROUP BY 1, 2
+       )
+       SELECT p.id AS "propertyId",
+              v.user_id AS "userId",
+              v.visits AS "pageViews"
+       FROM visit_slugs v
+       JOIN properties p ON p.property_uid IS NOT NULL AND p.property_uid = v.slug
+       WHERE v.slug IS NOT NULL`
+    );
+
+    const aiRes = await db.query(
+      `SELECT property_id AS "propertyId",
+              user_id AS "userId",
+              COUNT(*)::int AS "aiAnalyses"
+       FROM inspection_analysis_jobs
+       GROUP BY property_id, user_id`
+    );
+
+    const maintRes = await db.query(
+      `SELECT property_id AS "propertyId",
+              created_by AS "userId",
+              COUNT(*)::int AS "maintenanceEvents"
+       FROM maintenance_events
+       WHERE created_by IS NOT NULL
+       GROUP BY property_id, created_by`
+    );
+
+    const invRes = await db.query(
+      `SELECT property_id AS "propertyId",
+              inviter_user_id AS "userId",
+              COUNT(*)::int AS "invitationsSent"
+       FROM invitations
+       WHERE property_id IS NOT NULL
+       GROUP BY property_id, inviter_user_id`
+    );
+
+    const statKey = (propertyId, userId) => `${propertyId}:${userId}`;
+    const visitMap = new Map();
+    for (const r of visitsRes.rows) {
+      visitMap.set(statKey(r.propertyId, r.userId), r.pageViews);
+    }
+    const aiMap = new Map();
+    for (const r of aiRes.rows) {
+      aiMap.set(statKey(r.propertyId, r.userId), r.aiAnalyses);
+    }
+    const maintMap = new Map();
+    for (const r of maintRes.rows) {
+      maintMap.set(statKey(r.propertyId, r.userId), r.maintenanceEvents);
+    }
+    const invMap = new Map();
+    for (const r of invRes.rows) {
+      invMap.set(statKey(r.propertyId, r.userId), r.invitationsSent);
+    }
+
+    const teamByProperty = new Map();
+    for (const row of teamRes.rows) {
+      if (!teamByProperty.has(row.propertyId)) teamByProperty.set(row.propertyId, []);
+      teamByProperty.get(row.propertyId).push(row);
+    }
+
+    const properties = propsRes.rows.map((p) => {
+      const rawMembers = teamByProperty.get(p.propertyId) || [];
+      const members = rawMembers.map((m) => ({
+        userId: m.userId,
+        userName: m.userName,
+        userEmail: m.userEmail,
+        userRole: m.userRole || "",
+        propertyRole: m.propertyRole,
+        pageViews: visitMap.get(statKey(p.propertyId, m.userId)) ?? 0,
+        aiAnalyses: aiMap.get(statKey(p.propertyId, m.userId)) ?? 0,
+        maintenanceEvents: maintMap.get(statKey(p.propertyId, m.userId)) ?? 0,
+        invitationsSent: invMap.get(statKey(p.propertyId, m.userId)) ?? 0,
+      }));
+
+      const ownerMembers = members.filter((m) => m.propertyRole === "owner");
+      let ownerDisplay =
+        ownerMembers.map((o) => o.userName || o.userEmail).filter(Boolean).join(", ") || null;
+      if (!ownerDisplay) ownerDisplay = p.recordOwnerName || null;
+
+      const { recordOwnerName, ...rest } = p;
+      return {
+        ...rest,
+        ownerDisplay,
+        teamCount: members.length,
+        members,
+      };
+    });
+
+    return { properties };
+  }
 }
 
 module.exports = PlatformMetrics;

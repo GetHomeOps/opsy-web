@@ -7,6 +7,7 @@ const { BadRequestError, ExpressError } = require("../expressError");
 const Professional = require("../models/professional");
 const ProfessionalReview = require("../models/professionalReview");
 const User = require("../models/user");
+const db = require("../db");
 const { sendProfessionalContactEmail } = require("../services/emailService");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
 const professionalReviewNewSchema = require("../schemas/professionalReviewNew.json");
@@ -138,6 +139,20 @@ router.post("/:id/contact", ensureLoggedIn, async function (req, res, next) {
     const senderName = user?.name || null;
     const senderEmail = res.locals.user.email;
 
+    let proContactUsage;
+    try {
+      const acctRes = await db.query(
+        `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY id ASC LIMIT 1`,
+        [userId]
+      );
+      const aid = acctRes.rows[0]?.account_id;
+      if (aid) {
+        proContactUsage = { accountId: aid, userId, emailType: "professional_contact" };
+      }
+    } catch (_) {
+      // omit usage
+    }
+
     try {
       await sendProfessionalContactEmail({
         to: toEmail,
@@ -145,6 +160,7 @@ router.post("/:id/contact", ensureLoggedIn, async function (req, res, next) {
         message,
         senderName,
         senderEmail,
+        usage: proContactUsage,
       });
     } catch (e) {
       const msg = e?.message || "";

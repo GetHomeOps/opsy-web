@@ -55,8 +55,27 @@ async function requestPasswordReset(email) {
   const baseUrl = (APP_BASE_URL || APP_WEB_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
   const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
 
+  let passwordResetUsage;
   try {
-    await sendPasswordResetEmail({ to: user.email, resetUrl, userName: user.name });
+    const acctRes = await db.query(
+      `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY id ASC LIMIT 1`,
+      [user.id]
+    );
+    const aid = acctRes.rows[0]?.account_id;
+    if (aid) {
+      passwordResetUsage = { accountId: aid, userId: user.id, emailType: "password_reset" };
+    }
+  } catch (_) {
+    // omit usage if lookup fails
+  }
+
+  try {
+    await sendPasswordResetEmail({
+      to: user.email,
+      resetUrl,
+      userName: user.name,
+      usage: passwordResetUsage,
+    });
   } catch (err) {
     console.error("[passwordResetService] Failed to send email:", err.message);
     // In development without email, log the link

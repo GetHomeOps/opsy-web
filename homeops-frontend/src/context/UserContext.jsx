@@ -142,15 +142,15 @@ export function UserProvider({children}) {
   // Delete a user
   const deleteUser = async (id) => {
     try {
-      let res = await AppApi.deleteUser(id);
-
-      if (res) {
-        // Remove user from context immediately (like ContactContext does)
-        setUsers((prevUsers) =>
-          prevUsers.filter((user) => user.id !== Number(id)),
-        );
-        return res;
+      const res = await AppApi.deleteUser(id);
+      if (!res) {
+        throw new Error("Could not delete user.");
       }
+      // Remove user from context immediately (like ContactContext does)
+      setUsers((prevUsers) =>
+        prevUsers.filter((user) => user.id !== Number(id)),
+      );
+      return res;
     } catch (error) {
       console.error("Error deleting user:", error);
       throw error;

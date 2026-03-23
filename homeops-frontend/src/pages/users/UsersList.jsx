@@ -13,6 +13,7 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import userContext from "../../context/UserContext";
+import {getApiErrorMessage} from "../../api/api";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import FilterDropdown from "../../components/FilterDropdown";
@@ -354,6 +355,7 @@ function UsersList() {
     try {
       // Store the IDs of successfully deleted users
       const deletedIds = [];
+      const failureMessages = [];
 
       // Delete each selected user
       for (const userId of selectedItems) {
@@ -363,10 +365,15 @@ function UsersList() {
             deletedIds.push(userId);
           }
         } catch (error) {
-          console.error(`Error deleting user ${userId}:`, error);
+          failureMessages.push(
+            getApiErrorMessage(error, "Could not delete user."),
+          );
           // Continue with other deletions even if one fails
         }
       }
+
+      const uniqueFailures = [...new Set(failureMessages)];
+      const failedCount = selectedItems.length - deletedIds.length;
 
       // Only show success if at least one user was deleted
       if (deletedIds.length > 0) {
@@ -383,15 +390,39 @@ function UsersList() {
           dispatch({type: "SET_CURRENT_PAGE", payload: state.currentPage - 1});
         }
 
-        // Show success message
+        let bannerType = "success";
+        let message = `${deletedIds.length} user${
+          deletedIds.length !== 1 ? "s" : ""
+        } deleted successfully`;
+        if (uniqueFailures.length > 0) {
+          bannerType = "warning";
+          const detail =
+            uniqueFailures.length === 1
+              ? uniqueFailures[0]
+              : uniqueFailures.join("; ");
+          message = `${message}. ${failedCount} user${
+            failedCount !== 1 ? "s" : ""
+          } could not be deleted: ${detail}`;
+        }
+
         dispatch({
           type: "SET_BANNER",
           payload: {
             open: true,
-            type: "success",
-            message: `${deletedIds.length} user${
-              deletedIds.length !== 1 ? "s" : ""
-            } deleted successfully`,
+            type: bannerType,
+            message,
+          },
+        });
+      } else if (uniqueFailures.length > 0) {
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "error",
+            message:
+              uniqueFailures.length === 1
+                ? uniqueFailures[0]
+                : uniqueFailures.join("; "),
           },
         });
       } else {
@@ -400,7 +431,9 @@ function UsersList() {
           payload: {
             open: true,
             type: "error",
-            message: "No users were deleted. Please try again.",
+            message:
+              t("userBulkDeleteNoResultMessage") ||
+              "Unable to delete the selected user(s). Please refresh and try again.",
           },
         });
       }
@@ -411,7 +444,11 @@ function UsersList() {
         payload: {
           open: true,
           type: "error",
-          message: `Error deleting users. Please try again.`,
+          message: getApiErrorMessage(
+            error,
+            t("userBulkDeleteFailedMessage") ||
+              "Could not delete users. Please try again.",
+          ),
         },
       });
     } finally {

@@ -8,6 +8,7 @@ const { BadRequestError, ForbiddenError } = require("../expressError");
 const documentRagService = require("../services/documentRagService");
 const { triggerReanalysisOnDocument } = require("../services/ai/propertyReanalysisService");
 const { canUploadDocumentToSystem } = require("../services/tierService");
+const { logStorageUsage } = require("../services/usageService");
 const db = require("../db");
 
 /** Set req.params.propertyId from document id so ensurePropertyAccess can run. */
@@ -77,6 +78,20 @@ router.post("/", ensureLoggedIn, ensurePropertyAccess({ fromBody: "property_id",
       document_type,
       system_key: systemKey,
     });
+
+    const accRow = await db.query(`SELECT account_id FROM properties WHERE id = $1`, [propertyId]);
+    const storageAccountId = accRow.rows[0]?.account_id;
+    const storageUserId = res.locals.user?.id;
+    const fileSizeBytes = Math.max(0, Number(req.body.file_size_bytes) || 0);
+    if (storageAccountId && storageUserId) {
+      logStorageUsage({
+        accountId: storageAccountId,
+        userId: storageUserId,
+        fileSizeBytes,
+        fileKey: document_key,
+      }).catch((err) => console.error("[propertyDocuments] logStorageUsage:", err.message));
+    }
+
     documentRagService.ingestDocument(propertyId, document.id).catch((err) => {
       if (!err?.message?.includes("pgvector not available")) {
         console.error("[documentRag] Ingest on upload failed:", err.message);

@@ -120,6 +120,7 @@ function UploadDocumentModal({
             document_key: s3Key,
             document_type: documentType,
             system_key: uploadSystemKey,
+            file_size_bytes: file.size,
           });
           successCount++;
           setUploadSuccessCount(successCount);

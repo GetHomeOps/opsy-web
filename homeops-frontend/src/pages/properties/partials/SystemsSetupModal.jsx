@@ -965,6 +965,7 @@ function SystemsSetupModal({
             document_key: result.key,
             document_type: "inspection",
             system_key: "inspectionReport",
+            file_size_bytes: file.size,
           });
           setUploadedDocs((prev) => [
             ...prev,
@@ -1027,6 +1028,7 @@ function SystemsSetupModal({
             document_key: result.key,
             document_type: "inspection",
             system_key: "inspectionReport",
+            file_size_bytes: file.size,
           });
           setUploadedDocs((prev) => [
             ...prev,

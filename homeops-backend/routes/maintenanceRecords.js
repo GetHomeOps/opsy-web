@@ -227,6 +227,10 @@ router.post("/:recordId/send-to-contractor", ensureLoggedIn, loadPropertyIdFromR
       }
     }
 
+    const accForUsage = await db.query(`SELECT account_id FROM properties WHERE id = $1`, [record.property_id]);
+    const contractorReportAccountId = accForUsage.rows[0]?.account_id;
+    const contractorReportUserId = res.locals.user?.id;
+
     try {
       await sendContractorReportEmail({
         to: contractorEmail,
@@ -237,6 +241,14 @@ router.post("/:recordId/send-to-contractor", ensureLoggedIn, loadPropertyIdFromR
         senderName,
         origin: baseUrl,
         inspectionDate,
+        usage:
+          contractorReportAccountId && contractorReportUserId
+            ? {
+                accountId: contractorReportAccountId,
+                userId: contractorReportUserId,
+                emailType: "contractor_report",
+              }
+            : undefined,
       });
     } catch (emailErr) {
       console.error("[maintenanceRecords] Failed to send contractor report email:", emailErr.message);
