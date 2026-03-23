@@ -59,6 +59,21 @@ function Signin() {
     };
   }, []);
 
+  /** Prefill email from query (e.g. property invitation for an existing user). */
+  useEffect(() => {
+    const qEmail = searchParams.get("email");
+    if (!qEmail?.trim()) return;
+    let decoded = qEmail.trim();
+    try {
+      decoded = decodeURIComponent(decoded);
+    } catch {
+      /* use raw */
+    }
+    setFormData((prev) =>
+      prev.email.trim() ? prev : {...prev, email: decoded},
+    );
+  }, [searchParams]);
+
   const changeLanguage = (lng) => {
     i18n.changeLanguage(lng);
   };
@@ -177,7 +192,10 @@ function Signin() {
     const email = formData.email.trim();
     if (!email) {
       setFormErrors([
-        t("signin.emailRequiredForResend", "Enter your email above, then try again."),
+        t(
+          "signin.emailRequiredForResend",
+          "Enter your email above, then try again.",
+        ),
       ]);
       return;
     }
@@ -238,7 +256,10 @@ function Signin() {
                     >
                       {resendVerifyState === "sending"
                         ? t("signin.resending", "Sending…")
-                        : t("signin.resendVerification", "Resend verification email")}
+                        : t(
+                            "signin.resendVerification",
+                            "Resend verification email",
+                          )}
                     </button>
                     {resendVerifyState === "sent" ? (
                       <p className="text-xs text-emerald-700 dark:text-emerald-300">
@@ -370,8 +391,12 @@ function Signin() {
                   <div className="flex flex-col items-center mt-6 gap-3">
                     <button
                       type="submit"
-                      disabled={isSubmitting}
-                      className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white flex items-center justify-center gap-2"
+                      disabled={
+                        isSubmitting ||
+                        !formData.email.trim() ||
+                        !formData.password
+                      }
+                      className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmitting && (
                         <Loader2
@@ -403,7 +428,11 @@ function Signin() {
 
                 <a
                   href={`${API_BASE_URL}/auth/google/signin`}
-                  onClick={() => {
+                  onClick={(e) => {
+                    if (oauthLoading) {
+                      e.preventDefault();
+                      return;
+                    }
                     setOauthLoading(true);
                     if (isPostLogoutRedirectResetPending()) {
                       sessionStorage.removeItem("oauth_return_to");
@@ -421,7 +450,7 @@ function Signin() {
                       sessionStorage.setItem("oauth_return_to", from);
                     }
                   }}
-                  className="btn w-full flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className={`btn w-full flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 ${oauthLoading ? "opacity-70 pointer-events-none" : ""}`}
                   aria-busy={oauthLoading}
                 >
                   {oauthLoading ? (

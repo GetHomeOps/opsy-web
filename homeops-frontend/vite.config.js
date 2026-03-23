@@ -12,6 +12,10 @@ export default defineConfig({
   define: {
     'process.env': process.env
   },
+  resolve: {
+    // Single React instance — avoids duplicate context (e.g. useAuth sees no provider)
+    dedupe: ['react', 'react-dom'],
+  },
   plugins: [react()],
   server: {
     proxy: {

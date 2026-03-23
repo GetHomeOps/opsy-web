@@ -40,6 +40,9 @@ app.use(i18nextMiddleware.handle(i18next));
 
 app.get('/locales/:lng/:ns', (req, res) => {
   const { lng, ns } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(lng) || !/^[a-zA-Z0-9_-]+$/.test(ns)) {
+    return res.status(400).json({ error: 'Invalid locale parameters' });
+  }
   const filePath = path.join(__dirname, 'locales', lng, `${ns}.json`);
 
   fs.readFile(filePath, 'utf8', (err, data) => {

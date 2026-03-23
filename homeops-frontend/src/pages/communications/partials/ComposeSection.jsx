@@ -14,6 +14,7 @@ import {
   GripVertical,
   Image,
 } from "lucide-react";
+import { getVideoThumbnailSync } from "../../../utils/videoThumbnail";
 
 function ComposeSection({ form, updateForm, disabled, template, setTemplate, accountId }) {
   const [pdfUploading, setPdfUploading] = useState(false);
@@ -420,17 +421,28 @@ function ComposeSection({ form, updateForm, disabled, template, setTemplate, acc
           {/* Existing attachments */}
           {(form.attachments || []).length > 0 && (
             <div className="space-y-2 mb-3">
-              {form.attachments.map((att, idx) => (
+              {form.attachments.map((att, idx) => {
+                const videoThumb =
+                  att.type === "video_link" && att.url ? getVideoThumbnailSync(att.url) : null;
+                return (
                 <div
                   key={idx}
                   className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
-                    {att.type === "image" && <ImagePlus className="w-4 h-4 text-blue-500" />}
-                    {att.type === "pdf" && <FileUp className="w-4 h-4 text-red-500" />}
-                    {att.type === "video_link" && <Video className="w-4 h-4 text-purple-500" />}
-                    {att.type === "web_link" && <Link className="w-4 h-4 text-emerald-500" />}
-                  </div>
+                  {videoThumb ? (
+                    <img
+                      src={videoThumb}
+                      alt=""
+                      className="w-16 h-10 rounded-md object-cover border border-gray-200 dark:border-gray-600 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                      {att.type === "image" && <ImagePlus className="w-4 h-4 text-blue-500" />}
+                      {att.type === "pdf" && <FileUp className="w-4 h-4 text-red-500" />}
+                      {att.type === "video_link" && <Video className="w-4 h-4 text-purple-500" />}
+                      {att.type === "web_link" && <Link className="w-4 h-4 text-emerald-500" />}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
                       {att.filename || att.url || att.type}
@@ -447,7 +459,8 @@ function ComposeSection({ form, updateForm, disabled, template, setTemplate, acc
                     </button>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

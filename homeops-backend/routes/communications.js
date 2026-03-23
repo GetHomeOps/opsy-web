@@ -15,9 +15,22 @@ const {
   resolveRecipients,
   estimateRecipients,
 } = require("../services/commRecipients");
+const { ALLOWED_TRIGGER_EVENTS } = require("../services/commAutoSend");
+const { sendCommunicationNotifyEmail } = require("../services/emailService");
+const { APP_BASE_URL } = require("../config");
 const db = require("../db");
 
 const router = express.Router();
+
+function normalizeCommRules(rules) {
+  if (!Array.isArray(rules)) return [];
+  return rules
+    .filter((r) => r && ALLOWED_TRIGGER_EVENTS.has(r.triggerEvent))
+    .map((r) => ({
+      triggerEvent: r.triggerEvent,
+      triggerRole: "homeowner",
+    }));
+}
 
 function toDb(body) {
   const map = {
@@ -34,6 +47,9 @@ function toDb(body) {
   const out = {};
   for (const [k, v] of Object.entries(map)) {
     if (body[k] !== undefined) out[v] = body[k];
+  }
+  if (out.delivery_channel !== undefined) {
+    out.delivery_channel = "in_app";
   }
   return out;
 }
@@ -178,14 +194,13 @@ router.post("/", ensureLoggedIn, ensureAdminOrSuperAdmin, async (req, res, next)
       await CommAttachment.syncForComm(comm.id, req.body.attachments);
     }
 
-    if (req.body.rules?.length) {
-      for (const rule of req.body.rules) {
-        await db.query(
-          `INSERT INTO comm_rules (account_id, communication_id, trigger_event, trigger_role, is_active)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [dbData.account_id, comm.id, rule.triggerEvent, rule.triggerRole || null, true]
-        );
-      }
+    const rulesToSave = normalizeCommRules(req.body.rules || []);
+    for (const rule of rulesToSave) {
+      await db.query(
+        `INSERT INTO comm_rules (account_id, communication_id, trigger_event, trigger_role, is_active)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [dbData.account_id, comm.id, rule.triggerEvent, rule.triggerRole, true]
+      );
     }
 
     const full = await Communication.getById(comm.id);
@@ -212,11 +227,12 @@ router.patch("/:id", ensureLoggedIn, ensureAdminOrSuperAdmin, async (req, res, n
 
     if (req.body.rules !== undefined) {
       await db.query(`DELETE FROM comm_rules WHERE communication_id = $1`, [comm.id]);
-      for (const rule of (req.body.rules || [])) {
+      const rulesToSave = normalizeCommRules(req.body.rules || []);
+      for (const rule of rulesToSave) {
         await db.query(
           `INSERT INTO comm_rules (account_id, communication_id, trigger_event, trigger_role, is_active)
            VALUES ($1, $2, $3, $4, $5)`,
-          [existing.accountId, comm.id, rule.triggerEvent, rule.triggerRole || null, true]
+          [existing.accountId, comm.id, rule.triggerEvent, rule.triggerRole, true]
         );
       }
     }
@@ -266,16 +282,9 @@ router.post("/:id/send", ensureLoggedIn, ensureAdminOrSuperAdmin, async (req, re
     for (const uid of userIds) {
       await db.query(
         `INSERT INTO comm_recipients (communication_id, user_id, channel, status, delivered_at)
-         VALUES ($1, $2, $3, 'delivered', NOW())`,
-        [comm.id, uid, comm.deliveryChannel === "email" ? "email" : "in_app"]
+         VALUES ($1, $2, 'in_app', 'delivered', NOW())`,
+        [comm.id, uid]
       );
-      if (comm.deliveryChannel === "both") {
-        await db.query(
-          `INSERT INTO comm_recipients (communication_id, user_id, channel, status, delivered_at)
-           VALUES ($1, $2, 'email', 'delivered', NOW())`,
-          [comm.id, uid]
-        );
-      }
     }
 
     if (userIds.length > 0) {
@@ -284,6 +293,23 @@ router.post("/:id/send", ensureLoggedIn, ensureAdminOrSuperAdmin, async (req, re
         communicationId: comm.id,
         title: `New: ${comm.subject || "Message"}`,
       });
+
+      const accRow = await db.query(`SELECT url, name FROM accounts WHERE id = $1`, [comm.accountId]);
+      const accountSlug = String(accRow.rows[0]?.url || accRow.rows[0]?.name || "home").replace(
+        /^\/+|\/+$/g,
+        ""
+      );
+      const base = (APP_BASE_URL || "").replace(/\/$/, "");
+      for (const u of users) {
+        if (!u?.email) continue;
+        const viewUrl = `${base}/${accountSlug}/communications/${comm.id}/view`;
+        sendCommunicationNotifyEmail({
+          to: u.email,
+          userName: u.name,
+          subjectLine: comm.subject,
+          viewUrl,
+        }).catch((e) => console.error("[communications/send] notify email:", e.message));
+      }
     }
 
     const updated = await Communication.getById(req.params.id);

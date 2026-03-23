@@ -32,8 +32,6 @@ export function ContactProvider({children}) {
   const {currentUser, isLoading} = useAuth();
   const {t} = useTranslation();
 
-  const [testVariable, setTestVariable] = useState([]);
-
   const {generateUniqueName} = useUniqueIdentifiers({
     items: contacts,
     nameKey: "name",
@@ -262,10 +260,6 @@ export function ContactProvider({children}) {
     }
   };
 
-  function handleTestVariableChange(testVar) {
-    setTestVariable((prev) => [...prev, testVar]);
-  }
-
   const contextValue = useMemo(
     () => ({
       contacts,
@@ -287,8 +281,6 @@ export function ContactProvider({children}) {
       handleToggleSelection,
       listSortedItems: listSortedItems || [],
       currentAccount,
-      testVariable,
-      handleTestVariableChange,
     }),
     [
       contacts,
@@ -299,8 +291,6 @@ export function ContactProvider({children}) {
       currentAccount,
       handleListSort,
       refreshContacts,
-      testVariable,
-      handleTestVariableChange,
     ],
   );
 

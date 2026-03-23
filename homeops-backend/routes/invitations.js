@@ -1,9 +1,10 @@
 "use strict";
 
 const express = require("express");
-const { ensureLoggedIn, ensurePropertyOwner } = require("../middleware/auth");
+const { ensureLoggedIn, ensurePropertyOwner, ensurePropertyAccess, ensureUserCanAccessAccountByParam } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const Invitation = require("../models/invitation");
+const Notification = require("../models/notification");
 const { createPropertyInvitation, createAccountInvitation, acceptInvitation, acceptInvitationForLoggedInUser, resendInvitation } = require("../services/invitationService");
 const { canInviteViewer, canAddTeamMember } = require("../services/tierService");
 
@@ -72,20 +73,39 @@ router.post("/:id/accept-in-app", ensureLoggedIn, async function (req, res, next
   }
 });
 
-/** POST /:id/decline - Decline invitation. */
+/** POST /:id/decline - Decline invitation. Only the invitee can decline. */
 router.post("/:id/decline", ensureLoggedIn, async function (req, res, next) {
   try {
+    const invitation = await Invitation.get(req.params.id);
+    if (!invitation) throw new BadRequestError("Invitation not found");
+    if (invitation.inviteeEmail?.toLowerCase() !== res.locals.user.email?.toLowerCase()) {
+      throw new ForbiddenError("You can only decline invitations sent to you.");
+    }
     const result = await Invitation.decline(req.params.id);
+    if (invitation.type === "property") {
+      await Notification.deletePropertyInvitationNotifications(req.params.id);
+    }
     return res.json(result);
   } catch (err) {
     return next(err);
   }
 });
 
-/** POST /:id/revoke - Revoke pending invitation. */
+/** POST /:id/revoke - Revoke pending invitation. Only the inviter or admin can revoke. */
 router.post("/:id/revoke", ensureLoggedIn, async function (req, res, next) {
   try {
+    const invitation = await Invitation.get(req.params.id);
+    if (!invitation) throw new BadRequestError("Invitation not found");
+    const user = res.locals.user;
+    const isInviter = invitation.inviterUserId === user.id;
+    const isAdmin = user.role === "super_admin" || user.role === "admin";
+    if (!isInviter && !isAdmin) {
+      throw new ForbiddenError("You can only revoke invitations you sent.");
+    }
     const result = await Invitation.revoke(req.params.id);
+    if (invitation.type === "property") {
+      await Notification.deletePropertyInvitationNotifications(req.params.id);
+    }
     return res.json(result);
   } catch (err) {
     return next(err);
@@ -131,8 +151,8 @@ router.get("/received", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
-/** GET /property/:propertyId - List invitations for property. Query: status. */
-router.get("/property/:propertyId", ensureLoggedIn, async function (req, res, next) {
+/** GET /property/:propertyId - List invitations for property. Requires property access. */
+router.get("/property/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "propertyId" }), async function (req, res, next) {
   try {
     const { status } = req.query;
     const invitations = await Invitation.getByProperty(req.params.propertyId, { status });
@@ -142,8 +162,8 @@ router.get("/property/:propertyId", ensureLoggedIn, async function (req, res, ne
   }
 });
 
-/** GET /account/:accountId - List invitations for account. Query: status. */
-router.get("/account/:accountId", ensureLoggedIn, async function (req, res, next) {
+/** GET /account/:accountId - List invitations for account. Requires account membership. */
+router.get("/account/:accountId", ensureLoggedIn, ensureUserCanAccessAccountByParam("accountId"), async function (req, res, next) {
   try {
     const { status } = req.query;
     const invitations = await Invitation.getByAccount(req.params.accountId, { status });

@@ -269,6 +269,45 @@ function ensureAdminOrSuperAdmin(req, res, next) {
   throw new UnauthorizedError("Not authorized.");
 }
 
+/**
+ * Require that the requesting user is a member of the same account as the
+ * target resource (contact or database), identified by :id in params.
+ * Admins and super_admins bypass the check.
+ */
+function ensureContactBelongsToUserAccount(paramName = "id") {
+  return async function _ensureContactOwnership(req, res, next) {
+    try {
+      const user = res.locals.user;
+      if (!user?.id) throw new UnauthorizedError();
+      if (user.role === "super_admin" || user.role === "admin") return next();
+      const contactId = req.params[paramName];
+      if (!contactId) throw new ForbiddenError("Contact identifier missing.");
+      const result = await db.query(
+        `SELECT 1 FROM account_contacts ac
+         JOIN account_users au ON ac.account_id = au.account_id
+         WHERE ac.contact_id = $1 AND au.user_id = $2
+         LIMIT 1`,
+        [contactId, user.id]
+      );
+      if (result.rows.length === 0) throw new ForbiddenError("You do not have access to this contact.");
+      return next();
+    } catch (err) {
+      return next(err);
+    }
+  };
+}
+
+/** Require that the requesting user owns or shares an account with the target user. */
+function ensureSelfOrAdmin(paramName = "userId") {
+  return function _ensureSelfOrAdmin(req, res, next) {
+    const user = res.locals.user;
+    if (!user?.id) throw new UnauthorizedError();
+    if (user.role === "super_admin" || user.role === "admin") return next();
+    if (String(user.id) === String(req.params[paramName])) return next();
+    throw new ForbiddenError("You may only access your own data.");
+  };
+}
+
 function clearPropertyAccessCache(propertyId, userId) {
   if (propertyId && userId) {
     _accessGrantCache.delete(_cacheKey(userId, propertyId));
@@ -293,5 +332,7 @@ module.exports = {
   ensureUserCanAccessAccountFromBody,
   ensureAgentOrSelf,
   ensureCanViewUser,
+  ensureContactBelongsToUserAccount,
+  ensureSelfOrAdmin,
   clearPropertyAccessCache,
 };

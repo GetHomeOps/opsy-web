@@ -2,7 +2,7 @@
 
 const express = require("express");
 const jsonschema = require("jsonschema");
-const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensurePropertyAccess, ensureUserCanAccessAccountFromBody, clearPropertyAccessCache } = require("../middleware/auth");
+const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensurePropertyAccess, ensurePropertyOwner, ensureUserCanAccessAccountFromBody, clearPropertyAccessCache } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const Property = require("../models/property");
 const propertyNewSchema = require("../schemas/propertyNew.json");
@@ -408,8 +408,8 @@ router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: 
   }
 });
 
-/** DELETE /:propertyId - Delete property. Requires property access. */
-router.delete("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "propertyId" }), async function (req, res, next) {
+/** DELETE /:propertyId - Delete property. Requires property owner role. */
+router.delete("/:propertyId", ensureLoggedIn, ensurePropertyOwner("propertyId"), async function (req, res, next) {
   try {
     await Property.remove(req.params.propertyId);
     return res.json({ deleted: true });

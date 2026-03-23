@@ -1,13 +1,7 @@
 import React, { useState, useEffect } from "react";
 import AppApi from "../../../api/api";
 import { Monitor, Smartphone, FileUp, Video, Link, ExternalLink } from "lucide-react";
-
-function getVideoThumbnail(url) {
-  if (!url) return null;
-  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
-  if (ytMatch) return `https://img.youtube.com/vi/${ytMatch[1]}/mqdefault.jpg`;
-  return null;
-}
+import { getVideoThumbnailSync } from "../../../utils/videoThumbnail";
 
 /** Ensure HTML renders correctly (handles escaped entities and content shape). */
 function getBodyHtml(content) {
@@ -140,7 +134,7 @@ function LivePreview({ form, template }) {
                     );
                   }
                   if (att.type === "video_link") {
-                    const thumb = getVideoThumbnail(att.url);
+                    const thumb = getVideoThumbnailSync(att.url);
                     return (
                       <div key={idx} className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700">
                         {thumb && (

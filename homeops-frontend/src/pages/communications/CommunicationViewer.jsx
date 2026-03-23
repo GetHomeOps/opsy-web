@@ -10,13 +10,7 @@ import {
 } from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
-
-function getVideoThumbnail(url) {
-  if (!url) return null;
-  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
-  if (ytMatch) return `https://img.youtube.com/vi/${ytMatch[1]}/mqdefault.jpg`;
-  return null;
-}
+import {getVideoThumbnailSync} from "../../utils/videoThumbnail";
 
 /** Ensure HTML renders correctly (handles escaped entities and content shape). */
 function getBodyHtml(content) {
@@ -237,12 +231,14 @@ function CommunicationViewer() {
       {communication && !loading && (
         <article className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
           {thumbnailUrl && (
-            <div className="aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-700">
-              <img
-                src={thumbnailUrl}
-                alt={communication.subject || ""}
-                className="w-full h-full object-cover"
-              />
+            <div className="px-4 pt-4 sm:px-6 sm:pt-6">
+              <div className="max-w-md mx-auto rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+                <img
+                  src={thumbnailUrl}
+                  alt={communication.subject || ""}
+                  className="w-full h-auto max-h-40 sm:max-h-44 object-cover"
+                />
+              </div>
             </div>
           )}
 
@@ -309,7 +305,7 @@ function CommunicationViewer() {
                     );
                   }
                   if (att.type === "video_link" && att.url) {
-                    const thumb = getVideoThumbnail(att.url);
+                    const thumb = getVideoThumbnailSync(att.url);
                     return (
                       <div
                         key={idx}

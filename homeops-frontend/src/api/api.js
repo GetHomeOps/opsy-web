@@ -171,6 +171,10 @@ class AppApi {
       console.error("API Error:", resp.statusText, resp.status);
       throw new ApiError(messages, resp.status);
     }
+    const contentType = resp.headers.get("content-type");
+    if (resp.status === 204 || !contentType?.includes("application/json")) {
+      return {};
+    }
     return await resp.json();
   }
 
@@ -1467,6 +1471,21 @@ class AppApi {
 
   static async markAllNotificationsRead() {
     return this.request("notifications/read-all", {}, "POST");
+  }
+
+  /* --------- Homeowner → agent inbox --------- */
+
+  static async submitHomeownerAgentInquiry(data) {
+    return this.request("homeowner-agent-inquiries", data, "POST");
+  }
+
+  static async getHomeownerAgentInquiries(accountId, params = {}) {
+    const res = await this.request("homeowner-agent-inquiries", { accountId, ...params });
+    return res.inquiries ?? [];
+  }
+
+  static async markHomeownerAgentInquiryRead(id) {
+    return this.request(`homeowner-agent-inquiries/${id}/read`, {}, "POST");
   }
 }
 

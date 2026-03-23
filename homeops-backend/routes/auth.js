@@ -47,6 +47,7 @@ const {
   requestResendVerification,
 } = require("../services/emailVerificationService");
 const { onUserCreated } = require("../services/resourceAutoSend");
+const commAutoSend = require("../services/commAutoSend");
 const stripeService = require("../services/stripeService");
 const Account = require("../models/account");
 const Contact = require("../models/contact");
@@ -167,6 +168,15 @@ router.post("/register", async function (req, res, next) {
     } catch (autoErr) {
       console.error("[resourceAutoSend] register:", autoErr.message);
     }
+    try {
+      await commAutoSend.onUserCreated({
+        userId: newUser.id,
+        role: "homeowner",
+        accountId: account.id,
+      });
+    } catch (commErr) {
+      console.error("[commAutoSend] register:", commErr.message);
+    }
 
     let sendFailed = false;
     try {
@@ -206,12 +216,10 @@ router.post("/refresh", async function (req, res, next) {
     }
 
     const tokenHash = RefreshToken.hash(refreshToken);
-    const stored = await RefreshToken.findByHash(tokenHash);
+    const stored = await RefreshToken.consumeByHash(tokenHash);
     if (!stored) {
       throw new UnauthorizedError("Refresh token has been revoked or is invalid");
     }
-
-    await RefreshToken.deleteByHash(tokenHash);
 
     const user = await User.getById(payload.id);
     const canProceed = userMayReceiveAuthTokens(user);
@@ -250,8 +258,8 @@ router.post("/change-password", ensureLoggedIn, async function (req, res, next) 
     if (!currentPassword || !newPassword) {
       throw new BadRequestError("Current password and new password are required");
     }
-    if (newPassword.length < 4) {
-      throw new BadRequestError("New password must be at least 4 characters");
+    if (newPassword.length < 8) {
+      throw new BadRequestError("New password must be at least 8 characters");
     }
     await User.changePassword(userId, currentPassword, newPassword);
     return res.json({ success: true, message: "Password updated successfully" });
@@ -653,20 +661,32 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     const hadNoRole = !existingUser?.role;
     const user = await User.completeOnboarding(userId, { role, subscriptionTier });
 
+    const accountResult = await db.query(
+      `SELECT account_id FROM account_users WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+
     if (hadNoRole) {
       try {
         await onUserCreated({ userId, role });
       } catch (autoErr) {
         console.error("[resourceAutoSend] complete-onboarding:", autoErr.message);
       }
+      if (role === "homeowner" && accountResult.rows[0]?.account_id) {
+        try {
+          await commAutoSend.onUserCreated({
+            userId,
+            role: "homeowner",
+            accountId: accountResult.rows[0].account_id,
+          });
+        } catch (commErr) {
+          console.error("[commAutoSend] complete-onboarding:", commErr.message);
+        }
+      }
     }
 
     // Create/ensure default subscription for FREE tier (idempotent); paid tiers get subscription from Stripe webhook
     const SKIP_SUBSCRIPTION_ROLES = ["super_admin", "admin"];
-    const accountResult = await db.query(
-      `SELECT account_id FROM account_users WHERE user_id = $1 LIMIT 1`,
-      [userId]
-    );
     const userRole = existingUser?.role || role;
     if (accountResult.rows[0] && !isPaidTier && !SKIP_SUBSCRIPTION_ROLES.includes(userRole)) {
       try {

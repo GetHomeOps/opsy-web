@@ -16,16 +16,8 @@ const RECIPIENT_PRESETS_AGENT = [
 ];
 
 const AUTO_SEND_TRIGGERS = [
-  { value: "user_created", label: "Creates an account" },
-  { value: "property_created", label: "Creates a property" },
-  { value: "maintenance_recorded", label: "Records maintenance" },
-  { value: "event_scheduled", label: "Schedules an event" },
-];
-
-const AUTO_SEND_ROLES = [
-  { value: "", label: "Any user" },
-  { value: "homeowner", label: "Homeowner" },
-  { value: "agent", label: "Agent" },
+  { value: "user_created", label: "On account creation" },
+  { value: "property_invitation_accepted", label: "Property invitation accepted" },
 ];
 
 function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions, estimatedCount }) {
@@ -66,7 +58,7 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
   // Auto-send rules management
   const addRule = () => {
     updateForm({
-      rules: [...(form.rules || []), { triggerEvent: "user_created", triggerRole: "" }],
+      rules: [...(form.rules || []), { triggerEvent: "user_created", triggerRole: "homeowner" }],
     });
   };
 
@@ -222,7 +214,8 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
         {isAutoSend && (
           <div className="space-y-3">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Automatically send this message when <strong>any</strong> of these events happen.
+              Automatically send this message to the <strong>homeowner</strong> who triggers the event (when{" "}
+              <strong>any</strong> of these rules match).
             </p>
             {(form.rules || []).map((rule, idx) => (
               <div
@@ -230,16 +223,6 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
                 className="flex items-center gap-3 p-3.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30"
               >
                 <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">When</span>
-                <select
-                  value={rule.triggerRole || ""}
-                  onChange={(e) => updateRule(idx, "triggerRole", e.target.value || null)}
-                  disabled={disabled}
-                  className="form-select flex-1 min-w-0 text-sm disabled:opacity-60"
-                >
-                  {AUTO_SEND_ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
                 <select
                   value={rule.triggerEvent}
                   onChange={(e) => updateRule(idx, "triggerEvent", e.target.value)}

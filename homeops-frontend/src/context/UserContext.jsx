@@ -1,4 +1,4 @@
-import React, {createContext, useState, useContext, useEffect, useCallback} from "react";
+import React, {createContext, useState, useContext, useEffect, useCallback, useMemo} from "react";
 import {useTableSort} from "../hooks/useTableSort";
 import AppApi from "../api/api";
 import {useAuth} from "./AuthContext";
@@ -206,13 +206,9 @@ export function UserProvider({children}) {
         const length = 16;
         const charset =
           "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-        let password = "";
-        for (let i = 0; i < length; i++) {
-          password += charset.charAt(
-            Math.floor(Math.random() * charset.length),
-          );
-        }
-        return password;
+        const values = new Uint32Array(length);
+        crypto.getRandomValues(values);
+        return Array.from(values, (v) => charset[v % charset.length]).join("");
       };
 
       const userData = {
@@ -256,26 +252,29 @@ export function UserProvider({children}) {
     }
   };
 
+  const contextValue = useMemo(
+    () => ({
+      users,
+      selectedItems,
+      setSelectedItems,
+      handleToggleSelection,
+      setUsers,
+      createUser,
+      deleteUser,
+      duplicateUser,
+      bulkDuplicateUsers,
+      createUserInvitation,
+      confirmInvitation,
+      refetchUsers,
+      sortedUsers: listSortedItems,
+      sortConfig: listSortConfig,
+      handleSort: handleListSort,
+    }),
+    [users, selectedItems, listSortedItems, listSortConfig, handleListSort, refetchUsers],
+  );
+
   return (
-    <UserContext.Provider
-      value={{
-        users,
-        selectedItems,
-        setSelectedItems,
-        handleToggleSelection,
-        setUsers,
-        createUser,
-        deleteUser,
-        duplicateUser,
-        bulkDuplicateUsers,
-        createUserInvitation,
-        confirmInvitation,
-        refetchUsers,
-        sortedUsers: listSortedItems,
-        sortConfig: listSortConfig,
-        handleSort: handleListSort,
-      }}
-    >
+    <UserContext.Provider value={contextValue}>
       {children}
     </UserContext.Provider>
   );

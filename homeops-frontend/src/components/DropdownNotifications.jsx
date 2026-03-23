@@ -1,6 +1,6 @@
 import React, {useState, useRef, useEffect} from "react";
 import {Link} from "react-router-dom";
-import {Bell, ChevronRight, BookOpen, UserPlus, Wrench} from "lucide-react";
+import {Bell, ChevronRight, BookOpen, UserPlus, Wrench, MessageSquare} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -33,6 +33,9 @@ function DropdownNotifications({align = "right"}) {
   const invitationsPath = accountUrl
     ? `/${accountUrl}/invitations`
     : "/invitations";
+  const clientMessagesPath = accountUrl
+    ? `/${accountUrl}/homeowner-messages`
+    : "/";
 
   const fetchData = () => {
     setLoading(true);
@@ -149,20 +152,23 @@ function DropdownNotifications({align = "right"}) {
                 {notifications.map((n) => {
                   const isInvitation = n.type === "property_invitation";
                   const isContractorReport = n.type === "contractor_report_submitted";
+                  const isHomeownerInquiry = n.type === "homeowner_inquiry";
                   const isCommunication = n.type === "communication_sent" && (n.communicationId ?? n.resourceId);
                   const isResource = n.type === "resource_sent" && n.resourceId;
                   const basePath =
-                    isInvitation && n.propertyUid && n.accountUrl
-                      ? `/${n.accountUrl}/properties/${n.propertyUid}`
-                      : isContractorReport && n.maintenancePropertyUid && n.maintenanceAccountUrl
-                        ? `/${n.maintenanceAccountUrl}/properties/${n.maintenancePropertyUid}?tab=maintenance`
-                        : isCommunication
-                          ? `/${accountUrl}/communications/${n.communicationId ?? n.resourceId}/view`
-                          : isResource
-                            ? `/${accountUrl}/resources/${n.resourceId}/view`
-                            : isInvitation
-                              ? invitationsPath
-                              : homePath;
+                    isHomeownerInquiry
+                      ? `${clientMessagesPath}${n.homeownerInquiryId ? `?highlight=${n.homeownerInquiryId}` : ""}`
+                      : isInvitation && n.propertyUid && n.accountUrl
+                        ? `/${n.accountUrl}/properties/${n.propertyUid}`
+                        : isContractorReport && n.maintenancePropertyUid && n.maintenanceAccountUrl
+                          ? `/${n.maintenanceAccountUrl}/properties/${n.maintenancePropertyUid}?tab=maintenance`
+                          : isCommunication
+                            ? `/${accountUrl}/communications/${n.communicationId ?? n.resourceId}/view`
+                            : isResource
+                              ? `/${accountUrl}/resources/${n.resourceId}/view`
+                              : isInvitation
+                                ? invitationsPath
+                                : homePath;
                   const linkTo =
                     isInvitation &&
                     n.invitationId &&
@@ -192,6 +198,8 @@ function DropdownNotifications({align = "right"}) {
                             <UserPlus className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isContractorReport ? (
                             <Wrench className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isHomeownerInquiry ? (
+                            <MessageSquare className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : (
                             <BookOpen className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           )}

@@ -11,7 +11,7 @@
 require("dotenv").config();
 require("colors");
 
-const SECRET_KEY = process.env.SECRET_KEY || process.env.JWT_SECRET || "secret-dev";
+const SECRET_KEY = process.env.SECRET_KEY || process.env.JWT_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new Error("SECRET_KEY is required in production"); })() : "secret-dev");
 const MFA_ENCRYPTION_KEY = process.env.MFA_ENCRYPTION_KEY;
 const MFA_ENCRYPTION_KEY_ID = process.env.MFA_ENCRYPTION_KEY_ID || "default";
 const rawAppName = process.env.APP_NAME;
@@ -47,7 +47,7 @@ if (process.env.NODE_ENV !== "test") {
   console.log(`
 ${"Opsy Config:".green}
 ${"NODE_ENV:".yellow}           ${process.env.NODE_ENV}
-${"SECRET_KEY:".yellow}         ${SECRET_KEY}
+${"SECRET_KEY:".yellow}         ${SECRET_KEY === "secret-dev" ? "[DEFAULT - NOT FOR PRODUCTION]".red : "[SET]".green}
 ${"PORT:".yellow}               ${PORT}
 ${"BCRYPT_WORK_FACTOR:".yellow} ${BCRYPT_WORK_FACTOR}
 ${"Database:".yellow}           ${getDatabaseUri()}

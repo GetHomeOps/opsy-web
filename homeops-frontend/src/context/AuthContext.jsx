@@ -15,12 +15,12 @@ export const TOKEN_STORAGE_ID = "app-token";
 export const REFRESH_TOKEN_STORAGE_ID = "app-refresh-token";
 
 /* Context for Authentication */
-const AuthContext = createContext();
+const AuthContext = createContext(undefined);
 
 /* Custom hook to use the AuthContext */
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;

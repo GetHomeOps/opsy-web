@@ -2,7 +2,7 @@
 
 const express = require("express");
 const jsonschema = require("jsonschema");
-const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensureUserCanAccessAccountByParam } = require("../middleware/auth");
+const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensureAdminOrSuperAdmin, ensureUserCanAccessAccountByParam } = require("../middleware/auth");
 const { BadRequestError } = require("../expressError");
 const Subscription = require("../models/subscription");
 const subscriptionNewSchema = require("../schemas/subscriptionNew.json");
@@ -93,8 +93,8 @@ router.post("/account", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
-/** GET /:id - Get single subscription. */
-router.get("/:id", ensureLoggedIn, async function (req, res, next) {
+/** GET /:id - Get single subscription. Admin only. */
+router.get("/:id", ensureAdminOrSuperAdmin, async function (req, res, next) {
   try {
     const subscription = await Subscription.get(Number(req.params.id));
     return res.json({ subscription });

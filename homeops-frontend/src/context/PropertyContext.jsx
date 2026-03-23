@@ -265,7 +265,6 @@ export function PropertyProvider({children}) {
     try {
       const res = await AppApi.createMaintenanceRecord(data);
       return res;
-      console.log("Res from createMaintenanceRecord: ", res);
     } catch (err) {
       console.error("There was an error creating maintenance record:", err);
       throw err;
@@ -295,10 +294,8 @@ export function PropertyProvider({children}) {
 
   /*  Get all maintenance records by property ID */
   async function getMaintenanceRecordsByPropertyId(propertyId) {
-    console.log("Getting maintenance records by property ID: ", propertyId);
     try {
       const res = await AppApi.getMaintenanceRecordsByPropertyId(propertyId);
-      console.log("Maintenance records by property ID: ", res);
       return res;
     } catch (err) {
       console.error(
@@ -308,8 +305,6 @@ export function PropertyProvider({children}) {
       throw err;
     }
   }
-
-  useEffect(() => {}, [isLoading, currentUser, currentAccount]);
 
   const contextValue = useMemo(
     () => ({

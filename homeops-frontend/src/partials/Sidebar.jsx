@@ -350,16 +350,16 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     };
     document.addEventListener("click", clickHandler);
     return () => document.removeEventListener("click", clickHandler);
-  });
+  }, [sidebarOpen, setSidebarOpen]);
 
   useEffect(() => {
-    const keyHandler = ({keyCode}) => {
-      if (!sidebarOpen || keyCode !== 27) return;
+    const keyHandler = ({key}) => {
+      if (!sidebarOpen || key !== "Escape") return;
       setSidebarOpen(false);
     };
     document.addEventListener("keydown", keyHandler);
     return () => document.removeEventListener("keydown", keyHandler);
-  });
+  }, [sidebarOpen, setSidebarOpen]);
 
   useEffect(() => {
     localStorage.setItem("sidebar-expanded", sidebarExpanded);

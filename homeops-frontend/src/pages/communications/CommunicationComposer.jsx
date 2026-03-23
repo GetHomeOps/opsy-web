@@ -90,6 +90,10 @@ function CommunicationComposer() {
       const res = await AppApi.getCommunication(id);
       const c = res.communication;
       const hasRules = res.rules?.length > 0;
+      const allowedTriggers = new Set([
+        "user_created",
+        "property_invitation_accepted",
+      ]);
       setForm({
         subject: c.subject || "",
         content: c.content || {body: ""},
@@ -97,7 +101,7 @@ function CommunicationComposer() {
         templateId: c.templateId,
         recipientMode: c.recipientMode || "",
         recipientIds: c.recipientIds || [],
-        deliveryChannel: c.deliveryChannel || "in_app",
+        deliveryChannel: "in_app",
         deliveryMode: hasRules
           ? "auto_send"
           : c.scheduledAt
@@ -107,7 +111,9 @@ function CommunicationComposer() {
           ? new Date(c.scheduledAt).toISOString().slice(0, 16)
           : "",
         attachments: res.attachments || [],
-        rules: res.rules || [],
+        rules: (res.rules || [])
+          .filter((r) => allowedTriggers.has(r.triggerEvent))
+          .map((r) => ({...r, triggerRole: "homeowner"})),
         status: c.status,
       });
       lastSavedRef.current = JSON.stringify(c);
@@ -153,7 +159,7 @@ function CommunicationComposer() {
       form.deliveryMode === "auto_send" ? null : form.recipientMode || null,
     recipientIds:
       form.deliveryMode === "auto_send" ? [] : form.recipientIds || [],
-    deliveryChannel: form.deliveryChannel || "in_app",
+    deliveryChannel: "in_app",
     attachments: form.attachments || [],
     rules: form.deliveryMode === "auto_send" ? form.rules || [] : [],
     ...overrides,
@@ -206,6 +212,9 @@ function CommunicationComposer() {
       if (form.deliveryMode === "schedule" && form.scheduledAt) {
         await AppApi.scheduleCommunication(commId, form.scheduledAt);
         showBanner("success", "Communication scheduled.");
+      } else if (form.deliveryMode === "auto_send") {
+        await AppApi.sendCommunication(commId);
+        showBanner("success", "Auto-send rules are now active.");
       } else {
         await AppApi.sendCommunication(commId);
         showBanner("success", `Sent to ${estimatedCount ?? 0} recipients.`);

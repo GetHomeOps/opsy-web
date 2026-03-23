@@ -1,7 +1,5 @@
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
 const express = require("express");
 const { ensureLoggedIn } = require("../middleware/auth");
 const { BadRequestError } = require("../expressError");
@@ -337,20 +335,6 @@ router.post("/property-details", ensureLoggedIn, async function (req, res, next)
     }
 
     const rawProperty = properties[0];
-
-    // Debug: log raw ATTOM property JSON (full structure)
-    console.log("=== ATTOM raw property JSON ===");
-    console.log(JSON.stringify(rawProperty, null, 2));
-    console.log("=== ATTOM top-level keys:", Object.keys(rawProperty));
-
-    // Debug: write full ATTOM response to file (optional, for troubleshooting)
-    const debugPath = path.join(process.cwd(), "attom-debug.json");
-    try {
-      fs.writeFileSync(debugPath, JSON.stringify(data, null, 2), "utf8");
-      console.log("ATTOM API raw response written to", debugPath);
-    } catch (writeErr) {
-      console.error("ATTOM debug write failed:", writeErr.message);
-    }
 
     const prediction = mapAttomToFields(rawProperty);
 

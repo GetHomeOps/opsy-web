@@ -1,11 +1,5 @@
 import React from "react";
-import { Send, Mail, Smartphone, Clock, Zap } from "lucide-react";
-
-const CHANNELS = [
-  { value: "in_app", label: "In-app (Opsy)", icon: Smartphone, desc: "Notification bell in the app" },
-  { value: "email", label: "Email", icon: Mail, desc: "Send via email" },
-  { value: "both", label: "Both", icon: Send, desc: "In-app notification + email" },
-];
+import { Send, Smartphone, Clock, Zap } from "lucide-react";
 
 function DeliverySection({ form, updateForm, disabled }) {
   const isAutoSend = form.deliveryMode === "auto_send";
@@ -24,35 +18,18 @@ function DeliverySection({ form, updateForm, disabled }) {
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Channel selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Delivery channel
           </label>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {CHANNELS.map((ch) => {
-              const Icon = ch.icon;
-              const selected = (form.deliveryChannel || "in_app") === ch.value;
-              return (
-                <button
-                  key={ch.value}
-                  type="button"
-                  onClick={() => !disabled && updateForm({ deliveryChannel: ch.value })}
-                  disabled={disabled}
-                  className={`flex items-center gap-3 p-3.5 rounded-xl border-2 text-left transition-colors disabled:opacity-60 ${
-                    selected
-                      ? "border-[#456564] bg-[#456564]/5 dark:bg-[#456564]/10"
-                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
-                  }`}
-                >
-                  <Icon className={`w-5 h-5 shrink-0 ${selected ? "text-[#456564]" : "text-gray-400"}`} />
-                  <div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">{ch.label}</span>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ch.desc}</p>
-                  </div>
-                </button>
-              );
-            })}
+          <div className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-[#456564] bg-[#456564]/5 dark:bg-[#456564]/10">
+            <Smartphone className="w-5 h-5 shrink-0 text-[#456564] mt-0.5" />
+            <div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">Opsy (in-app)</span>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Recipients get a notification in the app. When you send, they also receive an email with a link to open the message.
+              </p>
+            </div>
           </div>
         </div>
 

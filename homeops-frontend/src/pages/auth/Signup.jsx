@@ -1,6 +1,12 @@
 import React, {useState, useEffect, useRef} from "react";
 import {Link, useNavigate} from "react-router-dom";
-import {AlertCircle, ChevronLeft, ExternalLink, Loader2, Mail} from "lucide-react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ExternalLink,
+  Loader2,
+  Mail,
+} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import {useTranslation} from "react-i18next";
 import AppApi, {API_BASE_URL} from "../../api/api";
@@ -9,7 +15,7 @@ import "../../i18n";
 import OpsyHeader from "../../images/OpsyHeader.png";
 import MountRainier from "../../images/MountRainier.webp";
 
-const MIN_PASSWORD_LENGTH = 7;
+const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_REGEX = /\S+@\S+\.\S+/;
 
 function isValidEmail(email) {
@@ -269,8 +275,14 @@ function Signup() {
   const GoogleButton = () => (
     <a
       href={`${API_BASE_URL}/auth/google/signup`}
-      onClick={() => setOauthLoading(true)}
-      className="btn w-full flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-70 disabled:cursor-not-allowed"
+      onClick={(e) => {
+        if (oauthLoading) {
+          e.preventDefault();
+          return;
+        }
+        setOauthLoading(true);
+      }}
+      className={`btn w-full flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 ${oauthLoading ? "opacity-70 pointer-events-none" : ""}`}
       aria-busy={oauthLoading}
     >
       {oauthLoading ? (
@@ -332,208 +344,209 @@ function Signup() {
             ) : null}
 
             {!pendingVerification && (
-            <>
-            <div className="flex items-center gap-2 mb-6">
-              {step > 1 && (
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="p-1 -ml-1 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  aria-label={t("back")}
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-              )}
-              <h1 className="text-2xl text-gray-800 dark:text-gray-100 font-semibold text-center flex-1">
-                {t("signup.title")}
-              </h1>
-            </div>
-
-            {errorMessage && (
-              <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 flex items-center gap-2 mb-4">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
-                <span className="text-red-800 dark:text-red-200 text-sm">
-                  {errorMessage}
-                </span>
-              </div>
-            )}
-
-            {step <= 2 && (
-              <form
-                onSubmit={
-                  step === 1 ? handleContinueEmail : handleContinuePassword
-                }
-                noValidate
-              >
-                <div className="space-y-4">
-                  <GoogleButton />
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-200 dark:border-gray-600" />
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">
-                        {t("or")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                      htmlFor="email"
+              <>
+                <div className="flex items-center gap-2 mb-6">
+                  {step > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleBack}
+                      className="p-1 -ml-1 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      aria-label={t("back")}
                     >
-                      {t("emailAddress")}
-                    </label>
-                    <input
-                      id="email"
-                      className={`${inputClass("email")} ${step === 2 ? "bg-gray-50 dark:bg-gray-700/50 cursor-not-allowed" : ""}`}
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={step === 1 ? handleChange : undefined}
-                      readOnly={step === 2}
-                      tabIndex={step === 2 ? -1 : undefined}
-                      onKeyDown={
-                        step === 1
-                          ? (e) =>
-                              handleKeyDown(e, () => handleContinueEmail(e))
-                          : undefined
-                      }
-                      placeholder="you@example.com"
-                      autoFocus={step === 1}
-                    />
-                    {fieldErrors.email && (
-                      <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                        {fieldErrors.email}
-                      </p>
-                    )}
-                  </div>
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                  )}
+                  <h1 className="text-2xl text-gray-800 dark:text-gray-100 font-semibold text-center flex-1">
+                    {t("signup.title")}
+                  </h1>
                 </div>
 
-                <div
-                  className="overflow-hidden transition-all duration-300 ease-out"
-                  style={{
-                    display: "grid",
-                    gridTemplateRows: step >= 2 ? "1fr" : "0fr",
-                    opacity: step >= 2 ? 1 : 0,
-                  }}
-                >
-                  <div className="overflow-hidden">
-                    <div className="pt-4">
-                      <label
-                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                        htmlFor="password"
-                      >
-                        {t("password")}
-                      </label>
-                      <input
-                        ref={passwordRef}
-                        id="password"
-                        className={inputClass("password")}
-                        type="password"
-                        autoComplete="new-password"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        onKeyDown={(e) =>
-                          handleKeyDown(e, () => handleContinuePassword(e))
-                        }
-                      />
-                      {fieldErrors.password ? (
-                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                          {fieldErrors.password}
-                        </p>
-                      ) : (
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          {t(
-                            "signup.passwordPlaceholder",
-                            "At least 6 characters",
-                          )}
-                        </p>
-                      )}
-                    </div>
+                {errorMessage && (
+                  <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 flex items-center gap-2 mb-4">
+                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
+                    <span className="text-red-800 dark:text-red-200 text-sm">
+                      {errorMessage}
+                    </span>
                   </div>
-                </div>
+                )}
 
-                <div className="mt-4">
-                  <button
-                    type="submit"
-                    disabled={
-                      step === 1 ? !emailValid || checkingEmail : !passwordValid
+                {step <= 2 && (
+                  <form
+                    onSubmit={
+                      step === 1 ? handleContinueEmail : handleContinuePassword
                     }
-                    className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    noValidate
                   >
-                    {checkingEmail && (
-                      <Loader2
-                        className="w-4 h-4 animate-spin shrink-0"
-                        aria-hidden
-                      />
-                    )}
-                    {checkingEmail ? t("checking") : t("continue")}
-                  </button>
-                </div>
-              </form>
-            )}
+                    <div className="space-y-4">
+                      <GoogleButton />
 
-            {step === 3 && (
-              <form onSubmit={handleSubmit} noValidate>
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-0.5">
-                      {t("emailAddress")}
-                    </p>
-                    <p className="text-base text-gray-800 dark:text-gray-200 font-medium">
-                      {formData.email}
-                    </p>
-                  </div>
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-gray-200 dark:border-gray-600" />
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                          <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">
+                            {t("or")}
+                          </span>
+                        </div>
+                      </div>
 
-                  <div>
-                    <label
-                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                      htmlFor="name"
+                      <div>
+                        <label
+                          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                          htmlFor="email"
+                        >
+                          {t("emailAddress")}
+                        </label>
+                        <input
+                          id="email"
+                          className={`${inputClass("email")} ${step === 2 ? "bg-gray-50 dark:bg-gray-700/50 cursor-not-allowed" : ""}`}
+                          type="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={step === 1 ? handleChange : undefined}
+                          readOnly={step === 2}
+                          tabIndex={step === 2 ? -1 : undefined}
+                          onKeyDown={
+                            step === 1
+                              ? (e) =>
+                                  handleKeyDown(e, () => handleContinueEmail(e))
+                              : undefined
+                          }
+                          placeholder="you@example.com"
+                          autoFocus={step === 1}
+                        />
+                        {fieldErrors.email && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {fieldErrors.email}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div
+                      className="overflow-hidden transition-all duration-300 ease-out"
+                      style={{
+                        display: "grid",
+                        gridTemplateRows: step >= 2 ? "1fr" : "0fr",
+                        opacity: step >= 2 ? 1 : 0,
+                      }}
                     >
-                      {t("name")}
-                    </label>
-                    <input
-                      id="name"
-                      className={inputClass("name")}
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && e.target.form?.requestSubmit()
-                      }
-                      placeholder={t("enterYourName")}
-                      autoFocus
-                    />
-                    {fieldErrors.name && (
-                      <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                        {fieldErrors.name}
-                      </p>
-                    )}
-                  </div>
+                      <div className="overflow-hidden">
+                        <div className="pt-4">
+                          <label
+                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                            htmlFor="password"
+                          >
+                            {t("password")}
+                          </label>
+                          <input
+                            ref={passwordRef}
+                            id="password"
+                            className={inputClass("password")}
+                            type="password"
+                            autoComplete="new-password"
+                            name="password"
+                            value={formData.password}
+                            onChange={handleChange}
+                            onKeyDown={(e) =>
+                              handleKeyDown(e, () => handleContinuePassword(e))
+                            }
+                          />
+                          {fieldErrors.password ? (
+                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                              {fieldErrors.password}
+                            </p>
+                          ) : (
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {t(
+                                "signup.passwordPlaceholder",
+                                "At least 8 characters",
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || !nameValid}
-                    className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting && (
-                      <Loader2
-                        className="w-4 h-4 animate-spin shrink-0"
-                        aria-hidden
-                      />
-                    )}
-                    {isSubmitting ? t("signingUp") : t("signUp")}
-                  </button>
-                </div>
-              </form>
-            )}
+                    <div className="mt-4">
+                      <button
+                        type="submit"
+                        disabled={
+                          step === 1
+                            ? !emailValid || checkingEmail
+                            : !passwordValid
+                        }
+                        className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {checkingEmail && (
+                          <Loader2
+                            className="w-4 h-4 animate-spin shrink-0"
+                            aria-hidden
+                          />
+                        )}
+                        {checkingEmail ? t("checking") : t("continue")}
+                      </button>
+                    </div>
+                  </form>
+                )}
 
-            </>
+                {step === 3 && (
+                  <form onSubmit={handleSubmit} noValidate>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-0.5">
+                          {t("emailAddress")}
+                        </p>
+                        <p className="text-base text-gray-800 dark:text-gray-200 font-medium">
+                          {formData.email}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label
+                          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                          htmlFor="name"
+                        >
+                          {t("name")}
+                        </label>
+                        <input
+                          id="name"
+                          className={inputClass("name")}
+                          type="text"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleChange}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" && e.target.form?.requestSubmit()
+                          }
+                          placeholder={t("enterYourName")}
+                          autoFocus
+                        />
+                        {fieldErrors.name && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {fieldErrors.name}
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !nameValid}
+                        className="btn w-full bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isSubmitting && (
+                          <Loader2
+                            className="w-4 h-4 animate-spin shrink-0"
+                            aria-hidden
+                          />
+                        )}
+                        {isSubmitting ? t("signingUp") : t("signUp")}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </>
             )}
 
             <div className="pt-5 mt-6 border-t border-gray-200 dark:border-gray-600 text-center space-y-2">

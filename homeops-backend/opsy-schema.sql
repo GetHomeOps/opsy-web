@@ -897,6 +897,25 @@ CREATE INDEX idx_communications_scheduled ON communications(scheduled_at) WHERE 
 CREATE INDEX idx_communications_created_by ON communications(created_by);
 
 -- ============================================================
+-- Homeowner → agent inbox (messages, referral requests, refer-agent)
+-- ============================================================
+
+CREATE TABLE homeowner_agent_inquiries (
+    id SERIAL PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    sender_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    agent_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind VARCHAR(30) NOT NULL CHECK (kind IN ('message', 'referral_request', 'refer_agent')),
+    payload JSONB NOT NULL DEFAULT '{}',
+    agent_read_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_hai_agent_account ON homeowner_agent_inquiries(agent_user_id, account_id);
+CREATE INDEX idx_hai_account_created ON homeowner_agent_inquiries(account_id, created_at DESC);
+
+-- ============================================================
 -- Notifications (when resources are sent, recipients get notified)
 -- Homeowners and agents see these in the bell dropdown and home page
 -- ============================================================
@@ -909,6 +928,7 @@ CREATE TABLE notifications (
     communication_id INTEGER REFERENCES communications(id) ON DELETE CASCADE,
     invitation_id UUID REFERENCES invitations(id) ON DELETE SET NULL,
     maintenance_record_id INTEGER REFERENCES property_maintenance(id) ON DELETE SET NULL,
+    homeowner_inquiry_id INTEGER REFERENCES homeowner_agent_inquiries(id) ON DELETE SET NULL,
     title VARCHAR(500),
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

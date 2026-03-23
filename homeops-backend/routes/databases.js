@@ -2,7 +2,7 @@
 
 const express = require("express");
 const jsonschema = require("jsonschema");
-const { ensureLoggedIn, ensureSuperAdmin, ensureAdminOrSuperAdmin } = require("../middleware/auth");
+const { ensureLoggedIn, ensureSuperAdmin, ensureAdminOrSuperAdmin, ensureSelfOrAdmin } = require("../middleware/auth");
 const { BadRequestError } = require("../expressError");
 const Database = require("../models/database");
 const databaseUpdateSchema = require("../schemas/databaseUpdate.json");
@@ -19,8 +19,8 @@ router.get("/", ensureSuperAdmin, async function (req, res, next) {
   }
 });
 
-/** GET /user/:userId - List databases for user. */
-router.get("/user/:userId", ensureLoggedIn, async function (req, res, next) {
+/** GET /user/:userId - List databases for user. Must be self or admin. */
+router.get("/user/:userId", ensureLoggedIn, ensureSelfOrAdmin("userId"), async function (req, res, next) {
   try {
     const databases = await Database.getUserDatabases(req.params.userId);
     return res.json({ databases });
@@ -31,8 +31,8 @@ router.get("/user/:userId", ensureLoggedIn, async function (req, res, next) {
 
 
 
-/** GET /:id - Get single database. */
-router.get("/:id", ensureLoggedIn, async function (req, res, next) {
+/** GET /:id - Get single database. Admin only. */
+router.get("/:id", ensureAdminOrSuperAdmin, async function (req, res, next) {
   try {
     const database = await Database.get(req.params.id);
     return res.json({ database });
@@ -41,8 +41,8 @@ router.get("/:id", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
-/** POST / - Create database. Body: { name }. */
-router.post("/", ensureLoggedIn, async function (req, res, next) {
+/** POST / - Create database. Body: { name }. Admin only. */
+router.post("/", ensureAdminOrSuperAdmin, async function (req, res, next) {
   try {
     const validator = jsonschema.validate(req.body, databaseUpdateSchema);
     if (!validator.valid) {
@@ -67,8 +67,8 @@ router.post("/user_databases", ensureAdminOrSuperAdmin, async function (req, res
   }
 });
 
-/** PATCH /:id - Update database. Body: { name, url }. */
-router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
+/** PATCH /:id - Update database. Body: { name, url }. Admin only. */
+router.patch("/:id", ensureAdminOrSuperAdmin, async function (req, res, next) {
   try {
     const validator = jsonschema.validate(req.body, databaseUpdateSchema);
     if (!validator.valid) {
@@ -83,8 +83,8 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
-/** DELETE /:id - Remove database. */
-router.delete("/:id", ensureLoggedIn, async function (req, res, next) {
+/** DELETE /:id - Remove database. Admin only. */
+router.delete("/:id", ensureAdminOrSuperAdmin, async function (req, res, next) {
   try {
     await Database.remove(req.params.id);
     return res.json({ deleted: req.params.id });

@@ -25,6 +25,10 @@ function ForgotPassword() {
       setFormErrors([t("forgotPassword.emailRequired", "Email is required")]);
       return;
     }
+    if (!/\S+@\S+\.\S+/.test(email.trim())) {
+      setFormErrors([t("forgotPassword.emailInvalid", "Please enter a valid email address")]);
+      return;
+    }
     setIsSubmitting(true);
     try {
       await AppApi.requestPasswordReset(email.trim());

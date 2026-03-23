@@ -2,7 +2,7 @@
 
 const express = require("express");
 const jsonschema = require("jsonschema");
-const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensureAdminOrSuperAdmin } = require("../middleware/auth");
+const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensureAdminOrSuperAdmin, ensureUserCanAccessAccountByParam, ensureSelfOrAdmin } = require("../middleware/auth");
 const { BadRequestError } = require("../expressError");
 const Account = require("../models/account");
 const accountUpdateSchema = require("../schemas/accountUpdate.json");
@@ -19,8 +19,8 @@ router.get("/", ensurePlatformAdmin, async function (req, res, next) {
   }
 });
 
-/** GET /user/:userId - List accounts for a user. */
-router.get("/user/:userId", ensureLoggedIn, async function (req, res, next) {
+/** GET /user/:userId - List accounts for a user. Must be self or admin. */
+router.get("/user/:userId", ensureLoggedIn, ensureSelfOrAdmin("userId"), async function (req, res, next) {
   try {
     const accounts = await Account.getUserAccounts(req.params.userId);
     return res.json({ accounts });
@@ -29,8 +29,8 @@ router.get("/user/:userId", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
-/** GET /:id - Get single account. */
-router.get("/:id", ensureLoggedIn, async function (req, res, next) {
+/** GET /:id - Get single account. Requires account membership. */
+router.get("/:id", ensureLoggedIn, ensureUserCanAccessAccountByParam("id"), async function (req, res, next) {
   try {
     const account = await Account.get(req.params.id);
     return res.json({ account });
@@ -59,8 +59,8 @@ router.post("/account_users", ensureAdminOrSuperAdmin, async function (req, res,
   }
 });
 
-/** PATCH /:id - Update account. */
-router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
+/** PATCH /:id - Update account. Requires account membership. */
+router.patch("/:id", ensureLoggedIn, ensureUserCanAccessAccountByParam("id"), async function (req, res, next) {
   try {
     const account = await Account.update(req.params.id, req.body);
     return res.json({ account });
@@ -69,8 +69,8 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
-/** DELETE /:id - Remove account. */
-router.delete("/:id", ensureLoggedIn, async function (req, res, next) {
+/** DELETE /:id - Remove account. Admin or super admin only. */
+router.delete("/:id", ensurePlatformAdmin, async function (req, res, next) {
   try {
     await Account.remove(req.params.id);
     return res.json({ deleted: req.params.id });

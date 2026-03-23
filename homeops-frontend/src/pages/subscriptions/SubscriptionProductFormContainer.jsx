@@ -790,7 +790,7 @@ function SubscriptionProductFormContainer() {
               <div className="space-y-8">
                 {/* Product Details Tab */}
                 {activeTab === "details" && (
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                     <Package className="h-5 w-5 text-[#6E8276]" />
                     {t("subscriptionProducts.productDetails")}
@@ -927,7 +927,7 @@ function SubscriptionProductFormContainer() {
 
                 {/* Tier Limits Tab */}
                 {activeTab === "limits" && (
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
                     Tier Limits
                   </h3>
@@ -989,7 +989,7 @@ function SubscriptionProductFormContainer() {
 
                 {/* Description Tab - Plan Features */}
                 {activeTab === "description" && (
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2">
                     <FileText className="h-5 w-5 text-[#6E8276]" />
                     {t("subscriptionProducts.tabs.description")}
@@ -1030,7 +1030,7 @@ function SubscriptionProductFormContainer() {
 
                 {/* Prices Tab */}
                 {activeTab === "prices" && (
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                <div>
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
                     Stripe Prices
                   </h3>

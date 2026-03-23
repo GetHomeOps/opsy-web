@@ -88,6 +88,7 @@ import ResourcePreviewPage from "../resources/ResourcePreviewPage";
 import CommunicationsList from "../communications/CommunicationsList";
 import CommunicationComposer from "../communications/CommunicationComposer";
 import CommunicationViewerPage from "../communications/CommunicationViewerPage";
+import HomeownerAgentInbox from "../network/HomeownerAgentInbox";
 import Calendar from "../calendar/Calendar";
 import ComingSoon from "../ComingSoon";
 
@@ -782,6 +783,14 @@ function RoutesList() {
         element={
           <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
             <CommunicationsList />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/homeowner-messages"
+        element={
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+            <HomeownerAgentInbox />
           </AdminRoute>
         }
       />

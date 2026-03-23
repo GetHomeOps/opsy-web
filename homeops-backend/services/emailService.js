@@ -125,10 +125,19 @@ async function sendEmailVerificationEmail({ to, verifyUrl, userName }) {
 }
 
 /**
- * Send invitation email with confirmation link.
- * @param {Object} opts - { to, inviteUrl, inviterName?, inviteeName?, type: 'account'|'property', propertyAddress? }
+ * Send invitation email with confirmation or sign-in link.
+ * @param {Object} opts - { to, inviteUrl, inviterName?, inviteeName?, type: 'account'|'property', propertyAddress?,
+ *   inviteeHasAccount?: boolean } — for property invites, inviteeHasAccount selects existing-user vs new-user copy.
  */
-async function sendInvitationEmail({ to, inviteUrl, inviterName, inviteeName, type = "account", propertyAddress }) {
+async function sendInvitationEmail({
+  to,
+  inviteUrl,
+  inviterName,
+  inviteeName,
+  type = "account",
+  propertyAddress,
+  inviteeHasAccount = false,
+}) {
   if (!isSesConfigured()) {
     throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
   }
@@ -146,15 +155,36 @@ async function sendInvitationEmail({ to, inviteUrl, inviterName, inviteeName, ty
       : `${inviterText} invited you to join a property.`)
     : `${inviterText} invited you to join ${brandName}.`;
 
+  let headline;
+  let bodyExtra;
+  let ctaLabel;
+  let footerNote =
+    "This invitation expires in 48 hours. If you didn't expect this invite, you can safely ignore this email.";
+
+  if (isProperty && inviteeHasAccount) {
+    headline = "Property invitation";
+    bodyExtra =
+      `${contextText} You already have a ${brandName} account. Use the button below to open the property and accept or decline. If you're not signed in, you'll be asked to sign in first. You can also respond from your notifications (bell icon) when signed in.`;
+    ctaLabel = "View Invitation";
+  } else if (isProperty) {
+    headline = `Property invitation — ${brandName}`;
+    bodyExtra = `${contextText} Use the button below to join ${brandName} and set your password to accept this invitation.`;
+    ctaLabel = "Accept invitation";
+  } else {
+    headline = `You're invited to ${brandName}`;
+    bodyExtra = `${contextText} Click the button below to accept and set up your account:`;
+    ctaLabel = "Accept invitation";
+  }
+
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-      <h2 style="color: #456564;">You're invited to ${brandName}</h2>
+      <h2 style="color: #456564;">${headline}</h2>
       <p>${intro}</p>
-      <p>${contextText} Click the button below to accept and set up your account:</p>
+      <p>${bodyExtra}</p>
       <p style="margin: 24px 0;">
-        <a href="${inviteUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Accept invitation</a>
+        <a href="${inviteUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">${ctaLabel}</a>
       </p>
-      <p style="color: #6b7280; font-size: 14px;">This link expires in 48 hours. If you didn't expect this invite, you can safely ignore this email.</p>
+      <p style="color: #6b7280; font-size: 14px;">${footerNote}</p>
       <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
     </div>
   `;
@@ -336,6 +366,36 @@ async function sendProfessionalContactEmail({
   });
 }
 
+/**
+ * Notify a recipient by email that a communication is available in Opsy (in-app is primary).
+ */
+async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl }) {
+  if (!isSesConfigured()) {
+    console.warn("[emailService] SES not configured — skipping communication notify email");
+    return { success: false, reason: "ses_not_configured" };
+  }
+  const greeting = userName ? `Hi ${escapeHtml(userName)},` : "Hi,";
+  const title = escapeHtml(subjectLine || "New message");
+  const safeUrl = escapeHtml(viewUrl);
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color: #456564;">${title}</h2>
+      <p>${greeting}</p>
+      <p>You have a new message in ${escapeHtml(brandName)}. Open it in the app using the link below.</p>
+      <p style="margin: 24px 0;">
+        <a href="${safeUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View in ${escapeHtml(brandName)}</a>
+      </p>
+      <p style="color: #6b7280; font-size: 14px;">This link opens the message in your browser. Sign in if prompted.</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${escapeHtml(brandName)} Team</p>
+    </div>
+  `;
+  return sendViaSes({
+    to,
+    subject: `${subjectLine || "New message"} — ${brandName}`,
+    html,
+  });
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendEmailVerificationEmail,
@@ -343,4 +403,5 @@ module.exports = {
   sendContractorReportEmail,
   sendScheduleNotificationEmail,
   sendProfessionalContactEmail,
+  sendCommunicationNotifyEmail,
 };

@@ -2,30 +2,32 @@
 
 /**
  * Auto-send communications when trigger events fire.
- * Called from auth (user created), properties (property created), maintenance, etc.
+ * Rules are scoped by account_id and only apply to sent communications.
+ * Recipients are always the triggering homeowner (in-app notification).
  */
 
 const db = require("../db");
 const Notification = require("../models/notification");
 
-async function getRulesForTrigger(triggerEvent, triggerRole = null) {
-  const conditions = [`cr.is_active = true`, `cr.trigger_event = $1`];
-  const values = [triggerEvent];
-  let idx = 2;
+const ALLOWED_TRIGGER_EVENTS = new Set([
+  "user_created",
+  "property_invitation_accepted",
+]);
 
-  if (triggerRole) {
-    conditions.push(`(cr.trigger_role = $${idx} OR cr.trigger_role IS NULL)`);
-    values.push(triggerRole);
-  }
+async function getRulesForTrigger(triggerEvent, accountId) {
+  if (!accountId || !ALLOWED_TRIGGER_EVENTS.has(triggerEvent)) return [];
 
   const result = await db.query(
     `SELECT cr.id, cr.communication_id, cr.trigger_event, cr.trigger_role,
             c.subject, c.delivery_channel AS "deliveryChannel"
      FROM comm_rules cr
      JOIN communications c ON c.id = cr.communication_id
-     WHERE ${conditions.join(" AND ")}
-       AND c.status = 'draft'`,
-    values
+     WHERE cr.is_active = true
+       AND cr.trigger_event = $1
+       AND cr.account_id = $2
+       AND c.status = 'sent'
+       AND (cr.trigger_role IS NULL OR cr.trigger_role = 'homeowner')`,
+    [triggerEvent, accountId]
   );
   return result.rows;
 }
@@ -45,57 +47,56 @@ async function sendToUser(communicationId, userId, title) {
   );
 }
 
-async function onUserCreated({ userId, role }) {
-  const rules = await getRulesForTrigger("user_created", role);
+/**
+ * Homeowner account creation (self-serve signup, Google signup, onboarding, or new user via invite).
+ */
+async function onUserCreated({ userId, role, accountId }) {
+  if (!userId || !accountId) return;
+  if (role !== "homeowner") return;
+
+  const rules = await getRulesForTrigger("user_created", accountId);
   for (const rule of rules) {
     try {
-      await sendToUser(rule.communication_id, userId, `New: ${rule.subject || "Message"}`);
+      await sendToUser(
+        rule.communication_id,
+        userId,
+        `New: ${rule.subject || "Message"}`
+      );
     } catch (err) {
-      console.error(`[commAutoSend] Failed comm ${rule.communication_id} → user ${userId}:`, err.message);
+      console.error(
+        `[commAutoSend] user_created comm ${rule.communication_id} → user ${userId}:`,
+        err.message
+      );
     }
   }
 }
 
-async function onPropertyCreated({ createdByUserId, creatorRole }) {
-  if (!createdByUserId) return;
-  const rules = await getRulesForTrigger("property_created", creatorRole);
-  for (const rule of rules) {
-    try {
-      await sendToUser(rule.communication_id, createdByUserId, `New: ${rule.subject || "Message"}`);
-    } catch (err) {
-      console.error(`[commAutoSend] Failed comm ${rule.communication_id} → user ${createdByUserId}:`, err.message);
-    }
-  }
-}
+/**
+ * A user accepted a property invitation (new or existing user).
+ */
+async function onPropertyInvitationAccepted({ userId, accountId }) {
+  if (!userId || !accountId) return;
 
-async function onMaintenanceRecorded({ createdByUserId, creatorRole }) {
-  if (!createdByUserId) return;
-  const rules = await getRulesForTrigger("maintenance_recorded", creatorRole);
+  const rules = await getRulesForTrigger("property_invitation_accepted", accountId);
   for (const rule of rules) {
     try {
-      await sendToUser(rule.communication_id, createdByUserId, `New: ${rule.subject || "Message"}`);
+      await sendToUser(
+        rule.communication_id,
+        userId,
+        `New: ${rule.subject || "Message"}`
+      );
     } catch (err) {
-      console.error(`[commAutoSend] Failed comm ${rule.communication_id} → user ${createdByUserId}:`, err.message);
-    }
-  }
-}
-
-async function onEventScheduled({ createdByUserId, creatorRole }) {
-  if (!createdByUserId) return;
-  const rules = await getRulesForTrigger("event_scheduled", creatorRole);
-  for (const rule of rules) {
-    try {
-      await sendToUser(rule.communication_id, createdByUserId, `New: ${rule.subject || "Message"}`);
-    } catch (err) {
-      console.error(`[commAutoSend] Failed comm ${rule.communication_id} → user ${createdByUserId}:`, err.message);
+      console.error(
+        `[commAutoSend] property_invitation_accepted comm ${rule.communication_id} → user ${userId}:`,
+        err.message
+      );
     }
   }
 }
 
 module.exports = {
   onUserCreated,
-  onPropertyCreated,
-  onMaintenanceRecorded,
-  onEventScheduled,
+  onPropertyInvitationAccepted,
   getRulesForTrigger,
+  ALLOWED_TRIGGER_EVENTS,
 };

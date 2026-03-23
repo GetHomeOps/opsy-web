@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, Loader2, Lock } from "lucide-react";
@@ -7,7 +7,7 @@ import Logo from "../../images/logo-no-bg.png";
 import MountRainier from "../../images/MountRainier.webp";
 import "../../i18n";
 
-const MIN_PASSWORD_LENGTH = 4;
+const MIN_PASSWORD_LENGTH = 8;
 
 function ResetPassword() {
   const { t } = useTranslation();
@@ -21,6 +21,13 @@ function ResetPassword() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const redirectTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -63,7 +70,7 @@ function ResetPassword() {
     try {
       await AppApi.resetPassword(token, newPassword);
       setSuccess(true);
-      setTimeout(() => navigate("/signin", { replace: true }), 2000);
+      redirectTimerRef.current = setTimeout(() => navigate("/signin", { replace: true }), 2000);
     } catch (err) {
       const raw =
         err?.messages ??
@@ -171,7 +178,10 @@ function ResetPassword() {
                       className="form-input w-full"
                       type="password"
                       value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        if (fieldErrors.newPassword) setFieldErrors((prev) => { const next = {...prev}; delete next.newPassword; return next; });
+                      }}
                       disabled={isSubmitting}
                     />
                     {fieldErrors.newPassword && (
@@ -192,7 +202,10 @@ function ResetPassword() {
                       className="form-input w-full"
                       type="password"
                       value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (fieldErrors.confirmPassword) setFieldErrors((prev) => { const next = {...prev}; delete next.confirmPassword; return next; });
+                      }}
                       disabled={isSubmitting}
                     />
                     {fieldErrors.confirmPassword && (

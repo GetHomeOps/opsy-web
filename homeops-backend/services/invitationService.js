@@ -114,11 +114,11 @@ async function createPropertyInvitation({ inviterUserId, inviteeEmail, accountId
 
   // If invitee is an existing user, create in-app notification for bell icon
   const existingUser = await db.query(
-    `SELECT id FROM users WHERE email = $1 AND is_active = true`,
-    [inviteeEmail]
+    `SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 AND is_active = true`,
+    [emailLower]
   );
-  if (existingUser.rows.length > 0) {
-    const inviteeUserId = existingUser.rows[0].id;
+  const inviteeUserId = existingUser.rows[0]?.id ?? null;
+  if (inviteeUserId != null) {
     try {
       await Notification.create({
         userId: inviteeUserId,
@@ -132,7 +132,13 @@ async function createPropertyInvitation({ inviterUserId, inviteeEmail, accountId
   }
 
   try {
-    await sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type: 'property' });
+    await sendInvitationEmailForInvitation({
+      invitation,
+      token,
+      inviterUserId,
+      type: "property",
+      inviteeUserId,
+    });
   } catch (err) {
     console.error("[invitationService] Failed to send invitation email:", err.message);
   }
@@ -157,7 +163,7 @@ async function createAccountInvitation({ inviterUserId, inviteeEmail, accountId,
   });
 
   try {
-    await sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type: 'account' });
+    await sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type: "account" });
   } catch (err) {
     console.error("[invitationService] Failed to send invitation email:", err.message);
   }
@@ -166,21 +172,53 @@ async function createAccountInvitation({ inviterUserId, inviteeEmail, accountId,
 }
 
 /** Build invite URL and send email. Used after create and resend. */
-async function sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type }) {
+async function sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type, inviteeUserId }) {
   const baseUrl = (APP_BASE_URL || process.env.APP_WEB_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
   const account = await Account.get(invitation.accountId);
-  const accountUrl = account?.url || account?.name || "home";
-  // Use path-based URL for BrowserRouter (no hash)
-  const inviteUrl = `${baseUrl}/${accountUrl}/invite/confirm?token=${encodeURIComponent(token)}&email=${encodeURIComponent(invitation.inviteeEmail)}`;
-  let inviterName = null;
+  const accountUrl = String(account?.url || account?.name || "home").replace(/^\/+/, "");
+  const emailNorm = (invitation.inviteeEmail || "").trim().toLowerCase();
+
+  let resolvedInviteeUserId = inviteeUserId;
+  if (type === "property" && resolvedInviteeUserId === undefined) {
+    const r = await db.query(
+      `SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 AND is_active = true`,
+      [emailNorm]
+    );
+    resolvedInviteeUserId = r.rows[0]?.id ?? null;
+  }
+
+  const hasExistingAccount = type === "property" && resolvedInviteeUserId != null;
+
   let propertyAddress = null;
+  let propertyUid = null;
+  if (type === "property" && invitation.propertyId) {
+    const prop = await db.query(
+      `SELECT address, property_uid FROM properties WHERE id = $1`,
+      [invitation.propertyId]
+    );
+    propertyAddress = prop.rows[0]?.address || null;
+    propertyUid = prop.rows[0]?.property_uid || null;
+  }
+
+  let inviteUrl;
+  if (hasExistingAccount && propertyUid) {
+    inviteUrl = `${baseUrl}/${accountUrl}/properties/${propertyUid}?invitation=${encodeURIComponent(String(invitation.id))}`;
+  } else if (hasExistingAccount) {
+    const q = new URLSearchParams();
+    q.set("email", invitation.inviteeEmail.trim());
+    const linked = await Account.isUserLinkedToAccount(resolvedInviteeUserId, invitation.accountId);
+    if (linked) {
+      q.set("returnTo", `/${accountUrl}/invitations`);
+    }
+    inviteUrl = `${baseUrl}/signin?${q.toString()}`;
+  } else {
+    inviteUrl = `${baseUrl}/${accountUrl}/invite/confirm?token=${encodeURIComponent(token)}&email=${encodeURIComponent(invitation.inviteeEmail)}`;
+  }
+
+  let inviterName = null;
   if (inviterUserId) {
     const inviter = await db.query(`SELECT name FROM users WHERE id = $1`, [inviterUserId]);
     inviterName = inviter.rows[0]?.name || null;
-  }
-  if (type === 'property' && invitation.propertyId) {
-    const prop = await db.query(`SELECT address FROM properties WHERE id = $1`, [invitation.propertyId]);
-    propertyAddress = prop.rows[0]?.address || null;
   }
   await sendInvitationEmail({
     to: invitation.inviteeEmail,
@@ -189,6 +227,7 @@ async function sendInvitationEmailForInvitation({ invitation, token, inviterUser
     inviteeName: null,
     type,
     propertyAddress,
+    inviteeHasAccount: hasExistingAccount,
   });
 }
 
@@ -209,6 +248,7 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
 
   await db.query("BEGIN");
   try {
+    let createdNewUserViaInvite = false;
     if (!user) {
       const existingUser = await db.query(
         `SELECT id, email, name, role, is_active FROM users WHERE email = $1`,
@@ -264,6 +304,7 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
         is_active: true,
       });
       user = newUser;
+      createdNewUserViaInvite = true;
       const newAccount = await Account.linkNewUserToAccount({ name, userId: user.id });
 
       // New invited users get homeowner role; only create subscription for non-internal roles
@@ -327,6 +368,46 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
     await User.setEmailVerified(user.id, true);
 
     await db.query("COMMIT");
+
+    if (accepted.type === "property") {
+      try {
+        await Notification.deletePropertyInvitationNotifications(invitation.id);
+      } catch (notifErr) {
+        console.error(
+          "[invitationService] Failed to remove invitation notification:",
+          notifErr.message
+        );
+      }
+    }
+
+    try {
+      const commAutoSend = require("./commAutoSend");
+      const acceptedRole = user.role || "homeowner";
+      if (accepted.accountId && acceptedRole === "homeowner") {
+        if (createdNewUserViaInvite) {
+          commAutoSend
+            .onUserCreated({
+              userId: user.id,
+              role: "homeowner",
+              accountId: accepted.accountId,
+            })
+            .catch((e) => console.error("[commAutoSend] acceptInvitation user_created:", e.message));
+        }
+        if (accepted.type === "property") {
+          commAutoSend
+            .onPropertyInvitationAccepted({
+              userId: user.id,
+              accountId: accepted.accountId,
+            })
+            .catch((e) =>
+              console.error("[commAutoSend] acceptInvitation property_invitation:", e.message)
+            );
+        }
+      }
+    } catch (commErr) {
+      console.error("[commAutoSend] acceptInvitation:", commErr.message);
+    }
+
     return { user, invitation: accepted };
   } catch (err) {
     await db.query("ROLLBACK");

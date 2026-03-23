@@ -27,6 +27,7 @@ import {
   BarChart3,
   DollarSign,
   Sparkles,
+  Inbox,
 } from "lucide-react";
 
 const ICON_SIZE = 18;
@@ -146,6 +147,13 @@ export const SIDEBAR_CONFIG = [
         label: "Communications",
         path: "communications",
         icon: icon(BookOpen),
+        roles: "adminOrAgent",
+      },
+      {
+        id: "homeowner-messages",
+        label: "Client messages",
+        path: "homeowner-messages",
+        icon: icon(Inbox),
         roles: "adminOrAgent",
       },
     ],

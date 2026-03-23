@@ -2,7 +2,7 @@
 
 const express = require("express");
 const jsonschema = require("jsonschema");
-const { ensureSuperAdmin, ensurePlatformAdmin, ensureLoggedIn, ensureUserCanAccessAccountByParam } = require("../middleware/auth");
+const { ensureSuperAdmin, ensurePlatformAdmin, ensureLoggedIn, ensureUserCanAccessAccountByParam, ensureContactBelongsToUserAccount } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const Contact = require("../models/contact");
 const Tag = require("../models/tag");
@@ -76,8 +76,8 @@ router.get("/account/:accountId", ensureLoggedIn, ensureUserCanAccessAccountByPa
   }
 });
 
-/** GET /:id - Get single contact by id. */
-router.get("/:id", ensureLoggedIn, async function (req, res, next) {
+/** GET /:id - Get single contact by id. Requires account membership. */
+router.get("/:id", ensureLoggedIn, ensureContactBelongsToUserAccount("id"), async function (req, res, next) {
   try {
     const contact = await Contact.get(req.params.id);
     const contactWithUrl = await addPresignedUrlToItem(contact, "image", "image_url");
@@ -133,8 +133,8 @@ router.post("/account_contacts", ensureLoggedIn, async function (req, res, next)
   }
 });
 
-/** PATCH /:id - Update contact. */
-router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
+/** PATCH /:id - Update contact. Requires account membership. */
+router.patch("/:id", ensureLoggedIn, ensureContactBelongsToUserAccount("id"), async function (req, res, next) {
   try {
     const validator = jsonschema.validate(req.body, contactUpdateSchema);
     if (!validator.valid) {
@@ -149,8 +149,8 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
-/** DELETE /:id - Remove contact. */
-router.delete("/:id", ensureLoggedIn, async function (req, res, next) {
+/** DELETE /:id - Remove contact. Requires account membership. */
+router.delete("/:id", ensureLoggedIn, ensureContactBelongsToUserAccount("id"), async function (req, res, next) {
   try {
     await Contact.remove(req.params.id);
     return res.json({ deleted: req.params.id });

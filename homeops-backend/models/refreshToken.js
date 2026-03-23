@@ -26,6 +26,17 @@ class RefreshToken {
     return result.rows[0] || null;
   }
 
+  /** Atomically find and delete a refresh token. Returns the deleted row or null. */
+  static async consumeByHash(tokenHash) {
+    const result = await db.query(
+      `DELETE FROM refresh_tokens
+       WHERE token_hash = $1 AND expires_at > NOW()
+       RETURNING id, user_id, token_hash, expires_at`,
+      [tokenHash]
+    );
+    return result.rows[0] || null;
+  }
+
   static async deleteByHash(tokenHash) {
     await db.query(
       `DELETE FROM refresh_tokens WHERE token_hash = $1`,

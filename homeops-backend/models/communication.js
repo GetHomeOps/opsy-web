@@ -49,7 +49,7 @@ class Communication {
         image_key || null,
         recipient_mode,
         JSON.stringify(Array.isArray(recipient_ids) ? recipient_ids : []),
-        ["email", "in_app", "both"].includes(delivery_channel) ? delivery_channel : "in_app",
+        "in_app",
         status,
         scheduled_at,
         created_by,
@@ -119,6 +119,7 @@ class Communication {
         let val = data[key];
         if (key === "content" && typeof val === "object") val = JSON.stringify(val);
         if (key === "recipient_ids") val = JSON.stringify(Array.isArray(val) ? val : []);
+        if (key === "delivery_channel") val = "in_app";
         sets.push(`${col} = $${idx}`);
         values.push(val);
         idx++;
@@ -161,11 +162,21 @@ class Communication {
   /** List communications sent to the given user (for Discover feed). */
   static async listForRecipient(userId, filters = {}) {
     const { limit = 50 } = filters;
+    // One row per communication: comm_recipients may have multiple rows per user
+    // (e.g. in_app + email when delivery_channel is "both").
     const result = await db.query(
       `SELECT c.id, c.subject, c.content, c.image_key AS "imageKey", c.sent_at AS "sentAt", c.account_id AS "accountId",
-              u.name AS "createdByName"
+              u.name AS "createdByName",
+              (SELECT ca.url FROM comm_attachments ca
+               WHERE ca.communication_id = c.id AND ca.type = 'video_link' AND ca.url IS NOT NULL AND TRIM(ca.url) <> ''
+               ORDER BY ca.sort_order NULLS LAST, ca.id
+               LIMIT 1) AS "videoUrl"
        FROM communications c
-       INNER JOIN comm_recipients cr ON cr.communication_id = c.id AND cr.user_id = $1
+       INNER JOIN (
+         SELECT DISTINCT communication_id
+         FROM comm_recipients
+         WHERE user_id = $1
+       ) cr ON cr.communication_id = c.id
        LEFT JOIN users u ON u.id = c.created_by
        WHERE c.status = 'sent'
        ORDER BY c.sent_at DESC NULLS LAST
