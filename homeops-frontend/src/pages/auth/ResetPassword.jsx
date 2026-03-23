@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AlertCircle, Loader2, Lock } from "lucide-react";
 import AppApi from "../../api/api";
 import Logo from "../../images/logo-no-bg.png";
-import MountRainier from "../../images/MountRainier.png";
+import MountRainier from "../../images/MountRainier.webp";
 import "../../i18n";
 
 const MIN_PASSWORD_LENGTH = 4;

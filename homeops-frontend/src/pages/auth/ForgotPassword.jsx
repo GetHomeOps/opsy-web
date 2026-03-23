@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AlertCircle, Loader2, Mail } from "lucide-react";
 import AppApi from "../../api/api";
 import OpsyHeader from "../../images/OpsyHeader.png";
-import MountRainier from "../../images/MountRainier.png";
+import MountRainier from "../../images/MountRainier.webp";
 import "../../i18n";
 
 function ForgotPassword() {

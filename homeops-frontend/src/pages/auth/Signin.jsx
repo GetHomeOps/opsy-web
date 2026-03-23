@@ -17,7 +17,7 @@ import {
 import "../../i18n";
 
 import OpsyHeader from "../../images/OpsyHeader.png";
-import MountRainier from "../../images/MountRainier.png";
+import MountRainier from "../../images/MountRainier.webp";
 
 function Signin() {
   const navigate = useNavigate();

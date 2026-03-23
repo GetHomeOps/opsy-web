@@ -3,7 +3,7 @@ import {Link} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {ArrowLeft} from "lucide-react";
 import OpsyHeader from "../../images/OpsyHeader.png";
-import MountRainier from "../../images/MountRainier.png";
+import MountRainier from "../../images/MountRainier.webp";
 import "../../i18n";
 
 function PrivacyPolicy() {

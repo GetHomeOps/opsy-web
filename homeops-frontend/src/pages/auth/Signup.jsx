@@ -7,7 +7,7 @@ import AppApi, {API_BASE_URL} from "../../api/api";
 import "../../i18n";
 
 import OpsyHeader from "../../images/OpsyHeader.png";
-import MountRainier from "../../images/MountRainier.png";
+import MountRainier from "../../images/MountRainier.webp";
 
 const MIN_PASSWORD_LENGTH = 7;
 const EMAIL_REGEX = /\S+@\S+\.\S+/;

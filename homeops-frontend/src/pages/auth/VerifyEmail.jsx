@@ -8,7 +8,7 @@ import {
   consumePostLogoutRedirectReset,
 } from "../../utils/authNavigation";
 import Logo from "../../images/logo-no-bg.png";
-import MountRainier from "../../images/MountRainier.png";
+import MountRainier from "../../images/MountRainier.webp";
 import "../../i18n";
 
 function VerifyEmail() {
