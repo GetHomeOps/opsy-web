@@ -449,4 +449,65 @@ router.post("/sync", ensureLoggedIn, ensureSuperAdmin, async function (req, res,
   }
 });
 
+/** POST /billing/admin/reconcile-user/:userId - Force reconcile subscription state for a user's primary account (Super Admin). */
+router.post("/admin/reconcile-user/:userId", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
+  try {
+    if (BILLING_MOCK_MODE || !stripeService.stripe) {
+      return res.json({ message: "Stripe not configured or mock mode enabled", updated: 0 });
+    }
+
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) throw new BadRequestError("Invalid userId");
+
+    const accountRes = await db.query(
+      `SELECT au.account_id
+       FROM account_users au
+       LEFT JOIN accounts a ON a.id = au.account_id
+       WHERE au.user_id = $1
+       ORDER BY (a.owner_user_id = $1) DESC, au.account_id ASC
+       LIMIT 1`,
+      [userId]
+    );
+    const accountId = accountRes.rows[0]?.account_id;
+    if (!accountId) {
+      return res.json({ message: "User has no linked account", updated: 0 });
+    }
+
+    const customerRes = await db.query(
+      `SELECT stripe_customer_id FROM accounts WHERE id = $1`,
+      [accountId]
+    );
+    const stripeCustomerId = customerRes.rows[0]?.stripe_customer_id;
+    if (!stripeCustomerId) {
+      return res.json({ message: "No Stripe customer linked to user's account", accountId, updated: 0 });
+    }
+
+    const subscriptions = await stripeService.stripe.subscriptions.list({
+      customer: stripeCustomerId,
+      status: "all",
+      limit: 20,
+    });
+
+    if (!subscriptions?.data?.length) {
+      return res.json({ message: "No subscriptions found in Stripe for this account", accountId, updated: 0 });
+    }
+
+    let updated = 0;
+    for (const sub of subscriptions.data) {
+      const full = await stripeService.stripe.subscriptions.retrieve(sub.id, { expand: ["items.data.price"] });
+      await stripeService.handleSubscriptionUpdated(full);
+      updated += 1;
+    }
+
+    return res.json({
+      message: "Reconciliation complete",
+      accountId,
+      stripeCustomerId,
+      updated,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 module.exports = router;

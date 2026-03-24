@@ -46,9 +46,81 @@ function ensurePlatformAdmin(req, res, next) {
 }
 
 /** Require authenticated user (res.locals.user.email must exist). */
-function ensureLoggedIn(req, res, next) {
-  if (res.locals.user?.email) return next();
-  throw new UnauthorizedError();
+function shouldSkipSubscriptionGate(req) {
+  const baseUrl = req.baseUrl || "";
+  const path = req.path || "";
+
+  // Keep billing endpoints accessible so users can recover from failed activation.
+  if (baseUrl === "/billing") return true;
+
+  // Allow onboarding completion and auth maintenance endpoints.
+  if (baseUrl === "/auth") {
+    return (
+      path === "/complete-onboarding" ||
+      path === "/refresh" ||
+      path === "/logout" ||
+      path === "/change-password"
+    );
+  }
+
+  return false;
+}
+
+async function userRequiresPaidSubscription(userId) {
+  const userRes = await db.query(
+    `SELECT role, subscription_tier AS "subscriptionTier", onboarding_completed AS "onboardingCompleted"
+     FROM users
+     WHERE id = $1`,
+    [userId]
+  );
+  const user = userRes.rows[0];
+  if (!user) return false;
+  if (user.onboardingCompleted === false) return false;
+  if (user.role === "super_admin" || user.role === "admin") return false;
+
+  // Agents are always paid; homeowners are paid when they selected non-free tiers.
+  if (user.role === "agent") return true;
+  if (user.role === "homeowner" && user.subscriptionTier && user.subscriptionTier !== "free") return true;
+
+  return false;
+}
+
+async function hasActivePaidSubscription(userId) {
+  const subRes = await db.query(
+    `SELECT 1
+     FROM account_users au
+     JOIN account_subscriptions asub ON asub.account_id = au.account_id
+     JOIN subscription_products sp ON sp.id = asub.subscription_product_id
+     WHERE au.user_id = $1
+       AND asub.status IN ('active', 'trialing')
+       AND COALESCE(sp.price, 0) > 0
+     LIMIT 1`,
+    [userId]
+  );
+  return subRes.rows.length > 0;
+}
+
+async function ensureLoggedIn(req, res, next) {
+  try {
+    if (!res.locals.user?.email) throw new UnauthorizedError();
+
+    const userId = res.locals.user?.id;
+    if (!userId) throw new UnauthorizedError();
+
+    if (!shouldSkipSubscriptionGate(req)) {
+      const needsPaidSubscription = await userRequiresPaidSubscription(userId);
+      if (needsPaidSubscription) {
+        const hasPaidSubscription = await hasActivePaidSubscription(userId);
+        if (!hasPaidSubscription) {
+          throw new ForbiddenError("Active paid subscription required.");
+        }
+      }
+    }
+
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 }
 
 /** Require current user matches params.email. */

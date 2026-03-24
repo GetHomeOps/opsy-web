@@ -150,7 +150,10 @@ function CommunicationComposer() {
         attachments: res.attachments || [],
         rules: (res.rules || [])
           .filter((r) => allowedTriggers.has(r.triggerEvent))
-          .map((r) => ({...r, triggerRole: "homeowner"})),
+          .map((r) => ({
+            triggerEvent: r.triggerEvent,
+            triggerRole: r.triggerRole || "homeowner",
+          })),
         status: c.status,
       });
       lastSavedRef.current = JSON.stringify(c);

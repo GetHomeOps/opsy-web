@@ -20,6 +20,11 @@ const AUTO_SEND_TRIGGERS = [
   { value: "property_invitation_accepted", label: "Property invitation accepted" },
 ];
 
+const AUTO_SEND_TRIGGER_ROLES = [
+  { value: "homeowner", label: "Homeowner" },
+  { value: "agent", label: "Agent" },
+];
+
 function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions, estimatedCount }) {
   const [recipientSearch, setRecipientSearch] = useState("");
   const presets = isAdmin ? RECIPIENT_PRESETS_ADMIN : RECIPIENT_PRESETS_AGENT;
@@ -214,25 +219,50 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
         {isAutoSend && (
           <div className="space-y-3">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Automatically send this message to the <strong>homeowner</strong> who triggers the event (when{" "}
-              <strong>any</strong> of these rules match).
+              {isAdmin ? (
+                <>
+                  Automatically send to the <strong>homeowner</strong> or <strong>agent</strong> who triggers
+                  the event (when <strong>any</strong> of these rules match).
+                </>
+              ) : (
+                <>
+                  Automatically send this message to the <strong>homeowner</strong> who triggers the event
+                  (when <strong>any</strong> of these rules match).
+                </>
+              )}
             </p>
             {(form.rules || []).map((rule, idx) => (
               <div
                 key={idx}
-                className="flex items-center gap-3 p-3.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30"
+                className="flex flex-wrap items-center gap-3 p-3.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30"
               >
                 <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">When</span>
                 <select
                   value={rule.triggerEvent}
                   onChange={(e) => updateRule(idx, "triggerEvent", e.target.value)}
                   disabled={disabled}
-                  className="form-select flex-1 min-w-0 text-sm disabled:opacity-60"
+                  className="form-select flex-1 min-w-[10rem] text-sm disabled:opacity-60"
                 >
                   {AUTO_SEND_TRIGGERS.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
+                {isAdmin && (
+                  <>
+                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">→</span>
+                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">To</span>
+                    <select
+                      value={rule.triggerRole === "agent" ? "agent" : "homeowner"}
+                      onChange={(e) => updateRule(idx, "triggerRole", e.target.value)}
+                      disabled={disabled}
+                      className="form-select flex-1 min-w-[8rem] text-sm disabled:opacity-60"
+                    >
+                      {AUTO_SEND_TRIGGER_ROLES.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
                 {!disabled && (
                   <button
                     type="button"

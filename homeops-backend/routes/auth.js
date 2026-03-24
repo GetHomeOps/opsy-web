@@ -655,6 +655,11 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
         console.warn(`[complete-onboarding] Stripe session verification failed for user ${userId}: ${verification.reason}`);
         throw new ForbiddenError("Payment could not be verified. Please complete checkout or contact support.");
       }
+      const syncResult = await stripeService.syncCheckoutSessionSubscription(stripeSessionId, { userId });
+      if (!syncResult?.synced) {
+        console.warn(`[complete-onboarding] Stripe sync failed for user ${userId}: ${syncResult?.reason || "unknown_reason"}`);
+        throw new ForbiddenError("Payment was verified but subscription activation is incomplete. Please retry in a moment or contact support.");
+      }
     }
 
     const existingUser = await User.getById(userId);
@@ -672,11 +677,14 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
       } catch (autoErr) {
         console.error("[resourceAutoSend] complete-onboarding:", autoErr.message);
       }
-      if (role === "homeowner" && accountResult.rows[0]?.account_id) {
+      if (
+        (role === "homeowner" || role === "agent") &&
+        accountResult.rows[0]?.account_id
+      ) {
         try {
           await commAutoSend.onUserCreated({
             userId,
-            role: "homeowner",
+            role,
             accountId: accountResult.rows[0].account_id,
           });
         } catch (commErr) {

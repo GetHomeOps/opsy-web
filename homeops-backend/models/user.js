@@ -383,17 +383,65 @@ class User {
   static async getAll() {
     try {
       const userRes = await db.query(`
-        SELECT id,
-               email,
-               name,
-               phone,
-               role,
-               contact_id AS "contact",
-               is_active AS "isActive",
-               image,
-               created_at AS "createdAt",
-               updated_at AS "updatedAt"
-        FROM users`
+        SELECT u.id,
+               u.email,
+               u.name,
+               u.phone,
+               u.role,
+               u.contact_id AS "contact",
+               u.is_active AS "isActive",
+               u.onboarding_completed AS "onboardingCompleted",
+               u.subscription_tier AS "subscriptionTier",
+               u.image,
+               u.created_at AS "createdAt",
+               u.updated_at AS "updatedAt",
+               latest_sub.status AS "latestSubscriptionStatus",
+               latest_sub.code AS "latestSubscriptionPlanCode",
+               latest_sub.account_id AS "latestSubscriptionAccountId",
+               latest_sub.updated_at AS "latestSubscriptionUpdatedAt",
+               CASE
+                 WHEN u.onboarding_completed = false THEN false
+                 WHEN u.role = 'agent' THEN true
+                 WHEN u.role = 'homeowner' AND u.subscription_tier IS NOT NULL AND u.subscription_tier <> 'free' THEN true
+                 ELSE false
+               END AS "paidRequired",
+               (paid_active.has_paid IS NOT NULL) AS "hasActivePaidSubscription",
+               CASE
+                 WHEN u.is_active IS NOT TRUE THEN 'disabled'
+                 WHEN u.onboarding_completed = false THEN 'onboarding_pending'
+                 WHEN (
+                   CASE
+                     WHEN u.onboarding_completed = false THEN false
+                     WHEN u.role = 'agent' THEN true
+                     WHEN u.role = 'homeowner' AND u.subscription_tier IS NOT NULL AND u.subscription_tier <> 'free' THEN true
+                     ELSE false
+                   END
+                 ) AND paid_active.has_paid IS NULL THEN 'payment_pending'
+                 ELSE 'active'
+               END AS "accessState"
+        FROM users u
+        LEFT JOIN LATERAL (
+          SELECT asub.status, sp.code, asub.account_id, asub.updated_at
+          FROM account_users au
+          JOIN account_subscriptions asub ON asub.account_id = au.account_id
+          LEFT JOIN subscription_products sp ON sp.id = asub.subscription_product_id
+          WHERE au.user_id = u.id
+          ORDER BY
+            CASE WHEN asub.status IN ('active', 'trialing') THEN 0 ELSE 1 END,
+            asub.updated_at DESC NULLS LAST,
+            asub.id DESC
+          LIMIT 1
+        ) latest_sub ON true
+        LEFT JOIN LATERAL (
+          SELECT 1 AS has_paid
+          FROM account_users au
+          JOIN account_subscriptions asub ON asub.account_id = au.account_id
+          JOIN subscription_products sp ON sp.id = asub.subscription_product_id
+          WHERE au.user_id = u.id
+            AND asub.status IN ('active', 'trialing')
+            AND COALESCE(sp.price, 0) > 0
+          LIMIT 1
+        ) paid_active ON true`
       );
 
       const users = userRes.rows;

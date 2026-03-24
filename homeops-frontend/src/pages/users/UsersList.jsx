@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useContext,
 } from "react";
-import {useNavigate, useLocation, useParams} from "react-router-dom";
+import {useNavigate, useParams} from "react-router-dom";
 
 import {useTranslation} from "react-i18next";
 
@@ -13,12 +13,13 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import userContext from "../../context/UserContext";
-import {getApiErrorMessage} from "../../api/api";
+import AppApi, {getApiErrorMessage} from "../../api/api";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import FilterDropdown from "../../components/FilterDropdown";
 import UsersTable from "./UsersTable";
 import ListDropdown from "../../partials/buttons/ListDropdown";
+import {useAuth} from "../../context/AuthContext";
 
 const USER_FILTER_CATEGORIES = [
   {type: "role", labelKey: "role"},
@@ -143,6 +144,7 @@ function UsersList() {
   const {t, i18n} = useTranslation();
   const navigate = useNavigate();
   const {accountUrl} = useParams();
+  const {currentUser} = useAuth();
 
   // Set up component's initial state
   const [state, dispatch] = useReducer(reducer, {
@@ -456,6 +458,39 @@ function UsersList() {
     }
   }
 
+  async function handleReconcileBilling(user) {
+    if (!user?.id) return;
+    dispatch({type: "SET_SUBMITTING", payload: true});
+    try {
+      const res = await AppApi.reconcileUserBilling(user.id);
+      await refetchUsers?.();
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message: res?.message
+            ? `${res.message}${res.updated ? ` (${res.updated} subscription${res.updated !== 1 ? "s" : ""} synced)` : ""}`
+            : "Billing reconciliation completed.",
+        },
+      });
+    } catch (error) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: getApiErrorMessage(
+            error,
+            "Billing reconciliation failed. Please retry or check Stripe configuration.",
+          ),
+        },
+      });
+    } finally {
+      dispatch({type: "SET_SUBMITTING", payload: false});
+    }
+  }
+
   return (
     <div className="flex h-[100dvh] overflow-hidden">
       {/* Sidebar */}
@@ -712,6 +747,8 @@ function UsersList() {
                 onUserClick={handleUserClick}
                 sortConfig={sortConfig}
                 onSort={handleSort}
+                isSuperAdmin={currentUser?.role === "super_admin"}
+                onReconcileBilling={handleReconcileBilling}
               />
               {/* Pagination */}
               {filteredUsers.length > 0 && (

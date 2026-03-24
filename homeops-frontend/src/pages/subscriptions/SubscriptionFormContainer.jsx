@@ -377,7 +377,7 @@ function SubscriptionFormContainer() {
 
   if (state.isLoading) {
     return (
-      <div className="relative min-h-screen bg-[var(--color-gray-50)] dark:bg-gray-900">
+      <div className="relative min-h-screen">
         <div className="flex justify-center items-center py-32">
           <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
             <svg
@@ -408,7 +408,7 @@ function SubscriptionFormContainer() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[var(--color-gray-50)] dark:bg-gray-900">
+    <div className="relative min-h-screen">
       {/* Banner */}
       <div className="fixed top-18 right-0 w-auto sm:w-full z-50">
         <Banner

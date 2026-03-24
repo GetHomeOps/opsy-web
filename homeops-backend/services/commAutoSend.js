@@ -3,7 +3,8 @@
 /**
  * Auto-send communications when trigger events fire.
  * Rules are scoped by account_id and only apply to sent communications.
- * Recipients are always the triggering homeowner (in-app notification).
+ * Recipient is the user who triggered the event (in-app notification), filtered by rule trigger_role
+ * (homeowner vs agent). NULL trigger_role is treated as homeowner for legacy rows.
  */
 
 const db = require("../db");
@@ -14,8 +15,11 @@ const ALLOWED_TRIGGER_EVENTS = new Set([
   "property_invitation_accepted",
 ]);
 
-async function getRulesForTrigger(triggerEvent, accountId) {
+async function getRulesForTrigger(triggerEvent, accountId, triggeringUserRole) {
   if (!accountId || !ALLOWED_TRIGGER_EVENTS.has(triggerEvent)) return [];
+
+  const role =
+    triggeringUserRole === "agent" ? "agent" : "homeowner";
 
   const result = await db.query(
     `SELECT cr.id, cr.communication_id, cr.trigger_event, cr.trigger_role,
@@ -26,8 +30,11 @@ async function getRulesForTrigger(triggerEvent, accountId) {
        AND cr.trigger_event = $1
        AND cr.account_id = $2
        AND c.status = 'sent'
-       AND (cr.trigger_role IS NULL OR cr.trigger_role = 'homeowner')`,
-    [triggerEvent, accountId]
+       AND (
+         ($3 = 'homeowner' AND (cr.trigger_role IS NULL OR cr.trigger_role = 'homeowner'))
+         OR ($3 = 'agent' AND cr.trigger_role = 'agent')
+       )`,
+    [triggerEvent, accountId, role]
   );
   return result.rows;
 }
@@ -52,9 +59,9 @@ async function sendToUser(communicationId, userId, title) {
  */
 async function onUserCreated({ userId, role, accountId }) {
   if (!userId || !accountId) return;
-  if (role !== "homeowner") return;
+  if (role !== "homeowner" && role !== "agent") return;
 
-  const rules = await getRulesForTrigger("user_created", accountId);
+  const rules = await getRulesForTrigger("user_created", accountId, role);
   for (const rule of rules) {
     try {
       await sendToUser(
@@ -74,10 +81,15 @@ async function onUserCreated({ userId, role, accountId }) {
 /**
  * A user accepted a property invitation (new or existing user).
  */
-async function onPropertyInvitationAccepted({ userId, accountId }) {
+async function onPropertyInvitationAccepted({ userId, accountId, role }) {
   if (!userId || !accountId) return;
 
-  const rules = await getRulesForTrigger("property_invitation_accepted", accountId);
+  const effectiveRole = role === "agent" ? "agent" : "homeowner";
+  const rules = await getRulesForTrigger(
+    "property_invitation_accepted",
+    accountId,
+    effectiveRole
+  );
   for (const rule of rules) {
     try {
       await sendToUser(

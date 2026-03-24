@@ -130,10 +130,10 @@ export default function BillingSuccess() {
         <p className="text-gray-600 dark:text-gray-400 text-center mb-4">{error}</p>
         <button
           type="button"
-          onClick={() => navigate("/onboarding", {replace: true})}
+          onClick={() => navigate("/settings/upgrade?billing_required=1", {replace: true})}
           className="btn bg-violet-600 text-white"
         >
-          Back to onboarding
+          Go to billing
         </button>
       </main>
     );

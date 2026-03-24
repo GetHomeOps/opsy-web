@@ -1,6 +1,5 @@
 import React, {useMemo} from "react";
 import {useTranslation} from "react-i18next";
-import {useNavigate, useParams} from "react-router-dom";
 import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
 
@@ -14,10 +13,10 @@ function UsersTable({
   sortConfig,
   onSort,
   onUserClick,
+  isSuperAdmin = false,
+  onReconcileBilling,
 }) {
   const {t} = useTranslation();
-  const navigate = useNavigate();
-  const {accountUrl} = useParams();
 
   // Get current page items
   const currentUsers = useMemo(() => {
@@ -107,6 +106,70 @@ function UsersTable({
           >
             {isActive ? t("active") || "Active" : t("pending") || "Pending"}
           </span>
+        );
+      },
+    },
+    {
+      key: "billingState",
+      label: "Billing",
+      sortable: false,
+      render: (value, item) => {
+        const state = item.accessState;
+        const latestStatus = item.latestSubscriptionStatus;
+        const paidRequired = item.paidRequired;
+
+        if (!paidRequired) {
+          return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 dark:bg-gray-700/60 text-gray-700 dark:text-gray-300">
+              Not required
+            </span>
+          );
+        }
+
+        if (state === "payment_pending") {
+          return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
+              Payment pending
+            </span>
+          );
+        }
+
+        if (latestStatus === "active" || latestStatus === "trialing") {
+          return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]">
+              {latestStatus}
+            </span>
+          );
+        }
+
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400">
+            {latestStatus || "Unknown"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "billingActions",
+      label: "Actions",
+      sortable: false,
+      render: (value, item) => {
+        if (!isSuperAdmin) return <span className="text-gray-400">-</span>;
+        const canReconcile =
+          item.paidRequired && !item.hasActivePaidSubscription && !!onReconcileBilling;
+        if (!canReconcile) return <span className="text-gray-400">-</span>;
+
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReconcileBilling(item);
+            }}
+            className="btn-xs bg-violet-600 hover:bg-violet-700 text-white"
+          >
+            Reconcile billing
+          </button>
         );
       },
     },

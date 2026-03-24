@@ -277,6 +277,31 @@ async function handleCheckoutCompleted(session) {
   );
 }
 
+/** Upsert paid subscription state from a completed Checkout Session (webhook-independent fallback). */
+async function syncCheckoutSessionSubscription(sessionId, { userId } = {}) {
+  if (!sessionId) return { synced: false, reason: "missing_session_id" };
+  if (BILLING_MOCK_MODE || !stripe) return { synced: true, mock: true };
+
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  if (!session) return { synced: false, reason: "session_not_found" };
+
+  if (userId && session.metadata?.user_id && String(session.metadata.user_id) !== String(userId)) {
+    return { synced: false, reason: "session_user_mismatch" };
+  }
+
+  if (!session.subscription) {
+    return { synced: false, reason: "missing_subscription" };
+  }
+
+  const subscription = await stripe.subscriptions.retrieve(session.subscription);
+  if (!(subscription.status === "active" || subscription.status === "trialing")) {
+    return { synced: false, reason: "subscription_not_active", status: subscription.status };
+  }
+
+  await handleCheckoutCompleted(session);
+  return { synced: true, subscriptionId: subscription.id };
+}
+
 /** Process customer.subscription.updated / deleted */
 async function handleSubscriptionUpdated(subscription) {
   const subId = subscription.id;
@@ -593,4 +618,5 @@ module.exports = {
   getCustomerPaymentMethod,
   listCustomerInvoices,
   verifyCheckoutSession,
+  syncCheckoutSessionSubscription,
 };

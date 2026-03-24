@@ -392,12 +392,15 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
     try {
       const commAutoSend = require("./commAutoSend");
       const acceptedRole = user.role || "homeowner";
-      if (accepted.accountId && acceptedRole === "homeowner") {
+      if (
+        accepted.accountId &&
+        (acceptedRole === "homeowner" || acceptedRole === "agent")
+      ) {
         if (createdNewUserViaInvite) {
           commAutoSend
             .onUserCreated({
               userId: user.id,
-              role: "homeowner",
+              role: acceptedRole,
               accountId: accepted.accountId,
             })
             .catch((e) => console.error("[commAutoSend] acceptInvitation user_created:", e.message));
@@ -407,6 +410,7 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
             .onPropertyInvitationAccepted({
               userId: user.id,
               accountId: accepted.accountId,
+              role: acceptedRole,
             })
             .catch((e) =>
               console.error("[commAutoSend] acceptInvitation property_invitation:", e.message)

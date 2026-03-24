@@ -22,14 +22,18 @@ const db = require("../db");
 
 const router = express.Router();
 
-function normalizeCommRules(rules) {
+function normalizeCommRules(rules, editorRole) {
   if (!Array.isArray(rules)) return [];
+  const canSetAgentRole = editorRole === "super_admin" || editorRole === "admin";
   return rules
     .filter((r) => r && ALLOWED_TRIGGER_EVENTS.has(r.triggerEvent))
-    .map((r) => ({
-      triggerEvent: r.triggerEvent,
-      triggerRole: "homeowner",
-    }));
+    .map((r) => {
+      const wantsAgent = canSetAgentRole && r.triggerRole === "agent";
+      return {
+        triggerEvent: r.triggerEvent,
+        triggerRole: wantsAgent ? "agent" : "homeowner",
+      };
+    });
 }
 
 function toDb(body) {
@@ -194,7 +198,7 @@ router.post("/", ensureLoggedIn, ensureAdminOrSuperAdmin, async (req, res, next)
       await CommAttachment.syncForComm(comm.id, req.body.attachments);
     }
 
-    const rulesToSave = normalizeCommRules(req.body.rules || []);
+    const rulesToSave = normalizeCommRules(req.body.rules || [], res.locals.user?.role);
     for (const rule of rulesToSave) {
       await db.query(
         `INSERT INTO comm_rules (account_id, communication_id, trigger_event, trigger_role, is_active)
@@ -227,7 +231,7 @@ router.patch("/:id", ensureLoggedIn, ensureAdminOrSuperAdmin, async (req, res, n
 
     if (req.body.rules !== undefined) {
       await db.query(`DELETE FROM comm_rules WHERE communication_id = $1`, [comm.id]);
-      const rulesToSave = normalizeCommRules(req.body.rules || []);
+      const rulesToSave = normalizeCommRules(req.body.rules || [], res.locals.user?.role);
       for (const rule of rulesToSave) {
         await db.query(
           `INSERT INTO comm_rules (account_id, communication_id, trigger_event, trigger_role, is_active)

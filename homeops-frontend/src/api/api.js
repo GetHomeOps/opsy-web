@@ -467,6 +467,11 @@ class AppApi {
     return this.request(`billing/invoices`, params);
   }
 
+  /** Super Admin: reconcile a user's Stripe billing state into local DB */
+  static async reconcileUserBilling(userId) {
+    return this.request(`billing/admin/reconcile-user/${userId}`, {}, "POST");
+  }
+
   /** Super Admin: list all plans with limits and prices */
   static async getBillingPlansAll() {
     const res = await this.request(`billing/plans`);
