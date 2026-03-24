@@ -1,6 +1,7 @@
 import React, {useContext, useMemo} from "react";
 import {Plus, Mail} from "lucide-react";
 import UserContext from "../../../context/UserContext";
+import {useAuth} from "../../../context/AuthContext";
 
 function HomeOpsTeam({
   teamMembers = [],
@@ -9,6 +10,19 @@ function HomeOpsTeam({
   hideAddButton,
 }) {
   const {users = []} = useContext(UserContext);
+  const {currentUser} = useAuth();
+
+  const teamSectionTitle = useMemo(() => {
+    const firstName =
+      (currentUser?.name || "").trim().split(/\s+/)[0] ||
+      currentUser?.firstName ||
+      "";
+    if (!firstName) return "Your Opsy team";
+    const possessive = firstName.endsWith("s")
+      ? `${firstName}'`
+      : `${firstName}'s`;
+    return `${possessive} Opsy Team`;
+  }, [currentUser]);
 
   const isPropertyOwner = (m) =>
     ((m.property_role ?? m.role ?? "").toLowerCase() === "owner" ||
@@ -44,7 +58,7 @@ function HomeOpsTeam({
       <div className="flex items-center justify-between px-6 md:px-8 pt-6 md:pt-8 pb-3 md:pb-4">
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-neutral-900 dark:text-white mb-0.5">
-            Your Opsy team
+            {teamSectionTitle}
           </h2>
           <p className="text-sm text-neutral-500 dark:text-neutral-400">
             People with access to this property

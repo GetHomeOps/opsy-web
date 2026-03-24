@@ -324,16 +324,31 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     (path, activePaths, excludeFromActive) => {
       if (
         excludeFromActive?.some((excl) =>
-          new RegExp(`\\/${excl}(\\/|$)`).test(pathname),
+          new RegExp(`\\/${excl.replace(/\//g, "\\/")}(\\/|$)`).test(
+            pathname,
+          ),
         )
       )
         return false;
+
+      // Match against the path after /:accountUrl/ so e.g. "properties" does not
+      // match .../dashboard/properties (regex on full pathname would).
+      const acctPrefix = accountUrl ? `/${accountUrl}` : "";
+      let relative = pathname;
+      if (acctPrefix && pathname.startsWith(`${acctPrefix}/`)) {
+        relative = pathname.slice(acctPrefix.length + 1);
+      } else if (acctPrefix && pathname === acctPrefix) {
+        relative = "";
+      } else if (pathname.startsWith("/")) {
+        relative = pathname.slice(1);
+      }
+
       const segments = activePaths || [path];
-      return segments.some((seg) =>
-        new RegExp(`\\/${seg}(\\/|$)`).test(pathname),
+      return segments.some(
+        (seg) => relative === seg || relative.startsWith(`${seg}/`),
       );
     },
-    [pathname],
+    [pathname, accountUrl],
   );
 
   useEffect(() => {

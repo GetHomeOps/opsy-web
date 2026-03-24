@@ -50,7 +50,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
     >
       <div className="px-0 sm:px-4 lg:px-5 xxl:px-12">
         <div
-          className={`flex items-center justify-between h-16 gap-4 ${
+          className={`grid h-16 min-w-0 grid-cols-[auto_minmax(2.25rem,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-4 ${
             variant === "v2" || variant === "v3"
               ? ""
               : aiPanelOpen
@@ -59,7 +59,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
           }`}
         >
           {/* Header: Left side */}
-          <div className="flex shrink-0">
+          <div className="flex shrink-0 justify-self-start">
             <button
               className="text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 lg:hidden"
               aria-controls="sidebar"
@@ -82,13 +82,13 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
             </button>
           </div>
 
-          {/* Header: Center — Search bar */}
-          <div className="flex-1 flex justify-center min-w-0 max-w-2xl mx-auto">
+          {/* Header: Center — Search (min column width keeps icon from overlapping the AI control when the right cluster is wide) */}
+          <div className="flex min-w-0 w-full justify-center justify-self-stretch">
             <NavbarSearch disabled={aiPanelOpen} />
           </div>
 
           {/* Header: Right side — AI Assistant, Help, Reminders, Notifications, User */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center justify-self-end gap-1 sm:gap-2 lg:gap-3 shrink-0 min-w-0">
             <button
               ref={aiAssistantButtonRef}
               onClick={handleAiAssistantClick}
@@ -113,10 +113,10 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
             >
               <HelpCircle className="w-5 h-5" />
             </Link>
-            <hr className="w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none" />
+            <hr className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none shrink-0" />
             <Reminders align="right" />
             <Notifications align="right" />
-            <hr className="w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none" />
+            <hr className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none shrink-0" />
             <UserMenu align="right" />
           </div>
         </div>

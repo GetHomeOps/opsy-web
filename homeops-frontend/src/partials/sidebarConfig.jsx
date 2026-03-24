@@ -83,7 +83,7 @@ export const SIDEBAR_CONFIG = [
           },
           {
             id: "property-analytics",
-            label: "Properties",
+            label: "Property Analytics",
             path: "dashboard/properties",
             icon: icon(Building2),
             roles: "adminOnly",

@@ -112,7 +112,7 @@ function NavbarSearch({disabled = false}) {
   }, [query, properties, contacts, visiblePages]);
 
   const focusSearchInput = () => {
-    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    const isMobile = window.matchMedia("(max-width: 1023px)").matches;
     setTimeout(() => {
       const el = isMobile ? mobileInputRef.current : inputRef.current;
       el?.focus();
@@ -267,10 +267,10 @@ function NavbarSearch({disabled = false}) {
   );
 
   return (
-    <div ref={containerRef} className="relative w-full max-w-xl">
-      {/* Desktop: full search bar always visible */}
+    <div ref={containerRef} className="relative w-full min-w-0 max-w-xl">
+      {/* Wide screens: inline search bar. Below lg, icon opens overlay (avoids crowding the navbar). */}
       <div
-        className={`hidden md:flex items-center gap-2 px-2.5 py-1 rounded-xl w-full focus-within:ring-0 ${searchBarClasses}`}
+        className={`hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-xl w-full min-w-0 focus-within:ring-0 ${searchBarClasses}`}
         onClick={() => {
           if (disabled) return;
           setOpen(true);
@@ -289,7 +289,7 @@ function NavbarSearch({disabled = false}) {
           setOpen(true);
           focusSearchInput();
         }}
-        className={`md:hidden flex items-center justify-center w-9 h-9 rounded-xl ${searchBarClasses}`}
+        className={`lg:hidden flex items-center justify-center w-9 h-9 shrink-0 rounded-xl ${searchBarClasses}`}
         aria-label="Search"
       >
         <Search className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`} />
@@ -298,13 +298,13 @@ function NavbarSearch({disabled = false}) {
       {/* Mobile overlay: full search bar when expanded */}
       {open && (
         <div
-          className="md:hidden fixed inset-0 z-50 bg-black/30 dark:bg-black/50"
+          className="lg:hidden fixed inset-0 z-50 bg-black/30 dark:bg-black/50"
           onClick={() => setOpen(false)}
           aria-hidden="true"
         />
       )}
       <div
-        className={`md:hidden fixed inset-x-4 top-4 z-[60] transition-all duration-200 ${
+        className={`lg:hidden fixed inset-x-4 top-4 z-[60] transition-all duration-200 ${
           open ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
         }`}
       >
@@ -341,7 +341,7 @@ function NavbarSearch({disabled = false}) {
 
       {showDropdown && (
         <div
-          className={`hidden md:block absolute top-full left-0 mt-1 w-full z-50 ${dropdownPanelClassName}`}
+          className={`hidden lg:block absolute top-full left-0 mt-1 w-full z-50 ${dropdownPanelClassName}`}
           onClick={(e) => e.stopPropagation()}
         >
           {dropdownBody}

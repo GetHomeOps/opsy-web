@@ -287,9 +287,9 @@ function ScoreCard({
       {/* Subtle top accent line */}
       <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-slate-400/40 to-transparent dark:via-slate-500/40" />
 
-      {/* HomeOps Digital Passport Status header and summary */}
+      {/* Opsy Digital Passport header and summary */}
       <h2 className="text-sm font-medium text-gray-900 dark:text-white mb-1.5">
-        HomeOps Digital Passport Status
+        Opsy Digital Passport
       </h2>
 
       <div className="flex flex-col lg:flex-row gap-2 items-center lg:items-start">

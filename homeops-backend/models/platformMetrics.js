@@ -407,7 +407,42 @@ class PlatformMetrics {
          ORDER BY p.property_name NULLS LAST, p.address`,
         [agent.agentId]
       );
-      agent.properties = propsRes.rows;
+      const propRows = propsRes.rows;
+      const propIds = propRows.map((r) => r.propertyId).filter(Boolean);
+      let membersByProperty = new Map();
+      if (propIds.length > 0) {
+        const memRes = await db.query(
+          `SELECT pu.property_id AS "propertyId",
+                  pu.user_id AS "userId",
+                  pu.role AS "propertyRole",
+                  u.name AS "userName",
+                  u.email AS "userEmail",
+                  u.role::text AS "userRole"
+           FROM property_users pu
+           JOIN users u ON u.id = pu.user_id
+           WHERE pu.property_id = ANY($1::int[])
+           ORDER BY pu.property_id,
+             CASE pu.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END,
+             u.name NULLS LAST`,
+          [propIds]
+        );
+        for (const row of memRes.rows) {
+          if (!membersByProperty.has(row.propertyId)) {
+            membersByProperty.set(row.propertyId, []);
+          }
+          membersByProperty.get(row.propertyId).push({
+            userId: row.userId,
+            userName: row.userName,
+            userEmail: row.userEmail,
+            userRole: row.userRole || "",
+            propertyRole: row.propertyRole,
+          });
+        }
+      }
+      agent.properties = propRows.map((p) => ({
+        ...p,
+        members: membersByProperty.get(p.propertyId) || [],
+      }));
     }
 
     return { agents };

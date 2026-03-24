@@ -72,10 +72,14 @@ function DropdownProfile({align}) {
       <button
         ref={trigger}
         className="inline-flex justify-center items-center group"
+        type="button"
         aria-haspopup="true"
         onClick={() => setDropdownOpen(!dropdownOpen)}
         aria-expanded={dropdownOpen}
       >
+        <span className="sr-only lg:hidden">
+          {currentUser?.name ? `Account menu, ${currentUser.name}` : "Account menu"}
+        </span>
         {photoUrl ? (
           <span className="inline-block w-8 h-8 rounded-full overflow-hidden bg-white shrink-0">
             <img
@@ -84,7 +88,7 @@ function DropdownProfile({align}) {
               src={photoUrl}
               width="32"
               height="32"
-              alt={currentUser?.name || "User"}
+              alt=""
             />
           </span>
         ) : (
@@ -95,7 +99,7 @@ function DropdownProfile({align}) {
             {initials}
           </div>
         )}
-        <div className="flex items-center truncate">
+        <div className="hidden min-w-0 lg:flex items-center truncate">
           <span className="truncate ml-2 text-sm font-medium text-gray-600 dark:text-gray-100 group-hover:text-gray-800 dark:group-hover:text-white">
             {currentUser?.name}
           </span>
