@@ -2,7 +2,7 @@ import React, {useState} from "react";
 
 import Sidebar from "../partials/Sidebar";
 import Header from "../partials/Header";
-import {Sparkles} from "lucide-react";
+import {Clock} from "lucide-react";
 
 function ComingSoon() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -18,7 +18,7 @@ function ComingSoon() {
           <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
               <div className="w-16 h-16 rounded-full bg-[#456564]/10 flex items-center justify-center mb-6">
-                <Sparkles
+                <Clock
                   className="w-8 h-8 text-[#456564]"
                   strokeWidth={1.5}
                 />

@@ -26,7 +26,7 @@ import {
   BookOpen,
   BarChart3,
   DollarSign,
-  Sparkles,
+  Clock,
   Inbox,
 } from "lucide-react";
 
@@ -226,7 +226,7 @@ export const COMING_SOON = {
   id: "coming-soon",
   label: "Coming Soon",
   path: "coming-soon",
-  icon: icon(Sparkles),
+  icon: icon(Clock),
   roles: "all",
 };
 

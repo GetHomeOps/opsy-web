@@ -1,4 +1,4 @@
-import React, {useReducer, useEffect, useMemo} from "react";
+import React, {useReducer, useEffect, useMemo, useState} from "react";
 import {useNavigate, useParams, useLocation} from "react-router-dom";
 import {
   AlertCircle,
@@ -7,7 +7,7 @@ import {
   Calendar,
   Database,
   Package,
-  DollarSign,
+  History,
 } from "lucide-react";
 import Banner from "../../partials/containers/Banner";
 import ModalBlank from "../../components/ModalBlank";
@@ -118,13 +118,14 @@ function SubscriptionFormContainer() {
 
   const isNew = !id || id === "new";
 
+  const [accountHistory, setAccountHistory] = useState([]);
+
   // Fetch subscription, products, and users
   useEffect(() => {
     async function fetchData() {
       try {
         dispatch({type: "SET_LOADING", payload: true});
 
-        // Fetch products and users in parallel
         const [products, users] = await Promise.all([
           AppApi.getAllSubscriptionProducts().catch(() => []),
           AppApi.getAllUsers().catch(() => []),
@@ -136,8 +137,29 @@ function SubscriptionFormContainer() {
         if (!isNew) {
           const subscription = await AppApi.getSubscription(Number(id));
           dispatch({type: "SET_SUBSCRIPTION", payload: subscription});
+
+          if (subscription?.accountId) {
+            try {
+              const history = await AppApi.getSubscriptionsByAccountId(
+                subscription.accountId,
+              );
+              setAccountHistory(history || []);
+            } catch {
+              try {
+                const all = await AppApi.getAllSubscriptions();
+                setAccountHistory(
+                  (all || []).filter(
+                    (s) => s.accountId === subscription.accountId,
+                  ),
+                );
+              } catch {
+                setAccountHistory([]);
+              }
+            }
+          }
         } else {
           dispatch({type: "SET_SUBSCRIPTION", payload: null});
+          setAccountHistory([]);
           const basicProduct = (products || []).find(
             (p) => (p.name || "").toLowerCase() === "basic",
           );
@@ -1006,6 +1028,112 @@ function SubscriptionFormContainer() {
             </div>
           </form>
         </div>
+
+        {/* Subscription History for this account */}
+        {!isNew && accountHistory.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mt-6">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+                <History className="h-5 w-5 text-[#6E8276]" />
+                {t("subscriptions.subscriptionHistory", {defaultValue: "Subscription History"})}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                {accountHistory.length} record{accountHistory.length === 1 ? "" : "s"}{" "}
+                {t("subscriptions.forThisAccount", {defaultValue: "for this account"})}
+              </p>
+              <div className="overflow-x-auto">
+                <table className="table-auto w-full">
+                  <thead className="text-xs uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-t border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 whitespace-nowrap text-left font-semibold">
+                        {t("subscriptions.subscription")}
+                      </th>
+                      <th className="px-4 py-3 whitespace-nowrap text-left font-semibold">
+                        {t("subscriptions.billingInterval")}
+                      </th>
+                      <th className="px-4 py-3 whitespace-nowrap text-left font-semibold">
+                        {t("subscriptions.startDate")}
+                      </th>
+                      <th className="px-4 py-3 whitespace-nowrap text-left font-semibold">
+                        {t("subscriptions.endDate")}
+                      </th>
+                      <th className="px-4 py-3 whitespace-nowrap text-left font-semibold">
+                        {t("subscriptions.status")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm divide-y divide-gray-200 dark:divide-gray-700">
+                    {[...accountHistory]
+                      .sort((a, b) => {
+                        const aTime = new Date(a.currentPeriodEnd || a.current_period_end || a.updatedAt || a.updated_at || 0).getTime();
+                        const bTime = new Date(b.currentPeriodEnd || b.current_period_end || b.updatedAt || b.updated_at || 0).getTime();
+                        return bTime - aTime;
+                      })
+                      .map((sub) => {
+                        const subId = sub.id;
+                        const isCurrent = subId === Number(id);
+                        const status = (sub.status || sub.subscriptionStatus || "").toLowerCase();
+                        const statusColors = {
+                          active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+                          inactive: "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
+                          cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                          expired: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+                          trial: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+                          trialing: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+                        };
+                        const badgeColor = statusColors[status] || statusColors.inactive;
+                        const productName = sub.productName || sub.subscriptionProductName || "—";
+                        const interval = sub.billingInterval || sub.billing_interval || "";
+                        const startDate = sub.currentPeriodStart || sub.current_period_start;
+                        const endDate = sub.currentPeriodEnd || sub.current_period_end;
+                        const fmtDate = (d) =>
+                          d ? new Date(d).toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"}) : "—";
+
+                        return (
+                          <tr
+                            key={subId}
+                            className={`${isCurrent ? "bg-violet-50/50 dark:bg-violet-900/10" : "hover:bg-gray-50 dark:hover:bg-gray-700/30"} ${!isCurrent ? "cursor-pointer" : ""} transition-colors`}
+                            onClick={() => {
+                              if (!isCurrent) {
+                                navigate(`/${accountUrl}/subscriptions/${subId}`);
+                              }
+                            }}
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <span className={isCurrent ? "font-semibold text-violet-700 dark:text-violet-400" : "text-gray-800 dark:text-gray-200"}>
+                                  {productName}
+                                </span>
+                                {isCurrent && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
+                                    {t("subscriptions.current", {defaultValue: "Current"})}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap capitalize text-gray-600 dark:text-gray-400">
+                              {interval === "year" ? t("subscriptionProducts.yearly") : interval === "month" ? t("subscriptionProducts.monthly") : interval || "—"}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
+                              {fmtDate(startDate)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
+                              {fmtDate(endDate)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${badgeColor}`}>
+                                {status || "—"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

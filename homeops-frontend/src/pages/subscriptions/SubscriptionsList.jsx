@@ -374,7 +374,7 @@ function SubscriptionsList() {
     };
   }, [state.subscriptions, t]);
 
-  // Filtered and sorted subscriptions (Odoo-style: OR within same type, AND across types)
+  // Filtered subscriptions (Odoo-style: OR within same type, AND across types)
   const filteredSubscriptions = useMemo(() => {
     const filtersByType = {};
     state.activeFilters.forEach((f) => {
@@ -416,8 +416,40 @@ function SubscriptionsList() {
       return true;
     });
 
+    return items;
+  }, [state.subscriptions, state.searchTerm, state.activeFilters]);
+
+  // One row per account: pick the current/best subscription per account
+  const accountRows = useMemo(() => {
+    const accountsMap = new Map();
+
+    for (const sub of filteredSubscriptions) {
+      const accountId = sub.accountId ?? "unknown";
+      if (!accountsMap.has(accountId)) {
+        accountsMap.set(accountId, []);
+      }
+      accountsMap.get(accountId).push(sub);
+    }
+
+    const rows = [];
+    for (const [, subs] of accountsMap) {
+      const sorted = [...subs].sort((a, b) => {
+        const rank = (s) =>
+          ["active", "trialing"].includes((s.subscriptionStatus || "").toLowerCase()) ? 0 : 1;
+        const statusDiff = rank(a) - rank(b);
+        if (statusDiff !== 0) return statusDiff;
+        const aTime = new Date(a.currentPeriodEnd || a.updatedAt || a.createdAt || 0).getTime();
+        const bTime = new Date(b.currentPeriodEnd || b.updatedAt || b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+      const current = sorted[0];
+      if (current) {
+        rows.push({...current, _historyCount: subs.length});
+      }
+    }
+
     if (sortConfig.key && sortConfig.direction) {
-      items = [...items].sort((a, b) => {
+      return [...rows].sort((a, b) => {
         const aVal = (a[sortConfig.key] || "").toString().toLowerCase();
         const bVal = (b[sortConfig.key] || "").toString().toLowerCase();
         if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
@@ -425,27 +457,28 @@ function SubscriptionsList() {
         return 0;
       });
     }
-    return items;
-  }, [state.subscriptions, state.searchTerm, state.activeFilters, sortConfig]);
+
+    return rows.sort((a, b) =>
+      (a.databaseName || "").localeCompare(b.databaseName || ""),
+    );
+  }, [filteredSubscriptions, sortConfig]);
 
   // Current page items
-  const currentSubscriptions = useMemo(() => {
+  const currentAccountRows = useMemo(() => {
     const start = (state.currentPage - 1) * state.itemsPerPage;
     const end = start + state.itemsPerPage;
-    return filteredSubscriptions.slice(start, end);
-  }, [filteredSubscriptions, state.currentPage, state.itemsPerPage]);
+    return accountRows.slice(start, end);
+  }, [accountRows, state.currentPage, state.itemsPerPage]);
 
   // Reset page if needed
   useEffect(() => {
-    if (filteredSubscriptions.length > 0) {
-      const maxPage = Math.ceil(
-        filteredSubscriptions.length / state.itemsPerPage,
-      );
+    if (accountRows.length > 0) {
+      const maxPage = Math.ceil(accountRows.length / state.itemsPerPage);
       if (state.currentPage > maxPage) {
         dispatch({type: "SET_CURRENT_PAGE", payload: 1});
       }
     }
-  }, [filteredSubscriptions.length, state.itemsPerPage, state.currentPage]);
+  }, [accountRows.length, state.itemsPerPage, state.currentPage]);
 
   // Selection handlers
   function handleToggleSelection(idOrIds, forceState) {
@@ -479,14 +512,14 @@ function SubscriptionsList() {
 
   const allSelected = useMemo(() => {
     return (
-      currentSubscriptions.length > 0 &&
-      currentSubscriptions.every((sub) => state.selectedItems.includes(sub.id))
+      currentAccountRows.length > 0 &&
+      currentAccountRows.every((sub) => state.selectedItems.includes(sub.id))
     );
-  }, [currentSubscriptions, state.selectedItems]);
+  }, [currentAccountRows, state.selectedItems]);
 
   // Navigate to subscription detail (pass nav state for prev/next in form)
   function handleSubscriptionClick(subscription) {
-    const visibleIds = filteredSubscriptions.map((s) => s.id);
+    const visibleIds = accountRows.map((s) => s.id);
     const currentIndex = visibleIds.indexOf(subscription.id) + 1;
     navigate(`/${accountUrl}/subscriptions/${subscription.id}`, {
       state: {
@@ -495,6 +528,12 @@ function SubscriptionsList() {
         visibleSubscriptionIds: visibleIds,
       },
     });
+  }
+
+  function handleSelectVisibleRows() {
+    const ids = currentAccountRows.map((sub) => sub.id);
+    if (ids.length === 0) return;
+    handleToggleSelection(ids);
   }
 
   // Delete handlers
@@ -1019,27 +1058,33 @@ function SubscriptionsList() {
             ) : (
               <>
                 {/* Table */}
+                <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                  {accountRows.length} account{accountRows.length === 1 ? "" : "s"}
+                  {filteredSubscriptions.length !== accountRows.length &&
+                    ` (${filteredSubscriptions.length} total subscription record${filteredSubscriptions.length === 1 ? "" : "s"})`}
+                </div>
                 <DataTable
-                  items={currentSubscriptions}
+                  items={currentAccountRows}
                   columns={columns}
                   onItemClick={handleSubscriptionClick}
                   onSelect={handleToggleSelection}
                   selectedItems={state.selectedItems}
-                  totalItems={filteredSubscriptions.length}
+                  totalItems={accountRows.length}
                   title="subscriptions.allSubscriptions"
                   sortConfig={sortConfig}
                   onSort={handleSort}
                   emptyMessage="subscriptions.noSubscriptionsFound"
                   renderItem={renderItem}
                   allSelected={allSelected}
+                  onSelectAll={handleSelectVisibleRows}
                 />
 
                 {/* Pagination */}
-                {filteredSubscriptions.length > 0 && (
+                {accountRows.length > 0 && (
                   <div className="mt-8">
                     <PaginationClassic
                       currentPage={state.currentPage}
-                      totalItems={filteredSubscriptions.length}
+                      totalItems={accountRows.length}
                       itemsPerPage={state.itemsPerPage}
                       onPageChange={(page) =>
                         dispatch({type: "SET_CURRENT_PAGE", payload: page})

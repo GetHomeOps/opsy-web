@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import {useNavigate, useParams, useLocation, Link} from "react-router-dom";
-import {AlertCircle, Mail, User, UserCircle} from "lucide-react";
+import {AlertCircle, CreditCard, Mail, User, UserCircle} from "lucide-react";
 import Banner from "../../partials/containers/Banner";
 import ModalBlank from "../../components/ModalBlank";
 import {useTranslation} from "react-i18next";
@@ -678,6 +678,7 @@ function UsersFormContainer() {
 
   // Track if contact has been selected by user
   const [contactSelectedByUser, setContactSelectedByUser] = useState(false);
+  const [subscriptionNavigating, setSubscriptionNavigating] = useState(false);
 
   // Handler for contact change
   function handleContactChange(value) {
@@ -729,6 +730,89 @@ function UsersFormContainer() {
   const handleNavigateToSavedContact = () => {
     if (savedContact) {
       navigate(`/${accountUrl}/contacts/${savedContact.id}`);
+    }
+  };
+
+  const handleNavigateToSubscription = async () => {
+    if (!state.user?.id || subscriptionNavigating) return;
+
+    setSubscriptionNavigating(true);
+    try {
+      const accountId = state.user.latestSubscriptionAccountId;
+      const userEmail = (state.user.email || "").toLowerCase();
+      let subscriptions = [];
+
+      if (accountId) {
+        subscriptions = await AppApi.getSubscriptionsByAccountId(accountId);
+      }
+
+      if (!subscriptions.length) {
+        const allSubscriptions = await AppApi.getAllSubscriptions();
+        subscriptions = (allSubscriptions || []).filter((sub) => {
+          const matchesAccount =
+            accountId && Number(sub.accountId) === Number(accountId);
+          const matchesEmail =
+            userEmail &&
+            (sub.userEmail || "").toLowerCase() === userEmail;
+          return matchesAccount || matchesEmail;
+        });
+      }
+
+      if (!subscriptions.length) {
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "warning",
+            message: "No subscription record found for this user.",
+          },
+        });
+        return;
+      }
+
+      const ordered = [...subscriptions].sort((a, b) => {
+        const rank = (status) =>
+          ["active", "trialing"].includes((status || "").toLowerCase()) ? 0 : 1;
+        const statusDiff = rank(a.status) - rank(b.status);
+        if (statusDiff !== 0) return statusDiff;
+
+        const aTime = new Date(
+          a.currentPeriodEnd || a.updatedAt || a.createdAt || 0,
+        ).getTime();
+        const bTime = new Date(
+          b.currentPeriodEnd || b.updatedAt || b.createdAt || 0,
+        ).getTime();
+        return bTime - aTime;
+      });
+
+      const target = ordered[0];
+      if (!target?.id) {
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "warning",
+            message: "Unable to determine a subscription to open.",
+          },
+        });
+        return;
+      }
+
+      navigate(`/${accountUrl}/subscriptions/${target.id}`);
+    } catch (error) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: getApiErrorMessage(
+            error,
+            "Could not open subscription. Please try again.",
+          ),
+        },
+      });
+    } finally {
+      setSubscriptionNavigating(false);
     }
   };
 
@@ -882,6 +966,24 @@ function UsersFormContainer() {
                 </span>
               </div>
             )}
+
+            {state.user ? (
+              <button
+                type="button"
+                onClick={handleNavigateToSubscription}
+                disabled={subscriptionNavigating}
+                className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-all duration-200 ${
+                  subscriptionNavigating
+                    ? "bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                    : "bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                }`}
+              >
+                <CreditCard className="w-4 h-4 flex-shrink-0" />
+                <span className="text-sm font-semibold">
+                  {subscriptionNavigating ? "Loading..." : "Subscription"}
+                </span>
+              </button>
+            ) : null}
 
             {/* Activated/Pending Status - Informational only */}
             {state.user &&
