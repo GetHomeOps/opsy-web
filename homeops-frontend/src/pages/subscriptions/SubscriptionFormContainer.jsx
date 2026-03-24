@@ -673,7 +673,9 @@ function SubscriptionFormContainer() {
               <div className="flex-1 min-w-0">
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {state.subscription
-                    ? t("subscriptions.subscriptionDetailsTitle")
+                    ? (state.subscription.databaseName ??
+                        state.subscription.accountName ??
+                        t("subscriptions.subscriptionDetailsTitle"))
                     : getPageTitle()}
                 </h1>
                 {state.subscription && (
@@ -877,9 +879,7 @@ function SubscriptionFormContainer() {
                   <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                     <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                       <CreditCard className="h-5 w-5 text-[#6E8276]" />
-                      {state.subscription?.databaseName ??
-                        state.subscription?.accountName ??
-                        t("subscriptions.subscriptionDetailsTitle")}
+                      {t("subscriptions.subscriptionDetailsTitle")}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
