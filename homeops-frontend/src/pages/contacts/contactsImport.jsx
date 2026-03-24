@@ -350,9 +350,8 @@ function ContactsImport() {
   }, [allRows]);
 
   const handleConfirmImport = useCallback(async () => {
-    if (validRows.length < 1 || isSubmitting) return;
+    if (validRows.length < 1 || isSubmitting || importSuccessCount != null) return;
     setImportError(null);
-    setImportSuccessCount(null);
     setIsSubmitting(true);
     const accountId = currentAccount?.id ?? null;
     const payloads = validRows.map((row) => rowToContactPayload(row, accountId));
@@ -369,7 +368,7 @@ function ContactsImport() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [validRows, currentAccount?.id, isSubmitting, refreshContacts]);
+  }, [validRows, currentAccount?.id, isSubmitting, importSuccessCount, refreshContacts]);
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
@@ -733,24 +732,34 @@ function ContactsImport() {
                     )}
 
                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={handleConfirmImport}
-                        disabled={validCount < 1 || isSubmitting}
-                        className="btn bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white inline-flex items-center gap-2"
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                            Creating {validCount} contact{validCount !== 1 ? "s" : ""}…
-                          </>
-                        ) : (
-                          <>
-                            Confirm import
-                            {validCount > 0 && ` (${validCount} contact${validCount !== 1 ? "s" : ""})`}
-                          </>
-                        )}
-                      </button>
+                      {importSuccessCount != null ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(accountUrl ? `/${accountUrl}/contacts` : "/contacts")}
+                          className="btn bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white inline-flex items-center gap-2"
+                        >
+                          Finish
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleConfirmImport}
+                          disabled={validCount < 1 || isSubmitting}
+                          className="btn bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white inline-flex items-center gap-2"
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                              Creating {validCount} contact{validCount !== 1 ? "s" : ""}…
+                            </>
+                          ) : (
+                            <>
+                              Confirm import
+                              {validCount > 0 && ` (${validCount} contact${validCount !== 1 ? "s" : ""})`}
+                            </>
+                          )}
+                        </button>
+                      )}
                       {validCount < 1 && totalRows > 0 && (
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                           Fix or remove invalid rows to enable import.

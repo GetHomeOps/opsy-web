@@ -94,12 +94,15 @@ function reducer(state, action) {
 
 /** Maps backend subscription object to form fields */
 function mapSubscriptionToForm(subscription) {
-  const startRaw = subscription.subscriptionStartDate ?? subscription.currentPeriodStart;
-  const endRaw = subscription.subscriptionEndDate ?? subscription.currentPeriodEnd;
+  const startRaw =
+    subscription.subscriptionStartDate ?? subscription.currentPeriodStart;
+  const endRaw =
+    subscription.subscriptionEndDate ?? subscription.currentPeriodEnd;
   return {
     userId: subscription.userId || "",
     subscriptionProductId: subscription.subscriptionProductId || "",
-    subscriptionStatus: subscription.subscriptionStatus ?? subscription.status ?? "active",
+    subscriptionStatus:
+      subscription.subscriptionStatus ?? subscription.status ?? "active",
     subscriptionStartDate: startRaw ? String(startRaw).split("T")[0] : "",
     subscriptionEndDate: endRaw ? String(endRaw).split("T")[0] : "",
   };
@@ -213,7 +216,8 @@ function SubscriptionFormContainer() {
   // Admin users (filter to admin/super_admin roles for the user dropdown)
   const adminUsers = useMemo(() => {
     return state.users.filter(
-      (u) => u.role === "admin" || u.role === "super_admin" || u.role === "agent",
+      (u) =>
+        u.role === "admin" || u.role === "super_admin" || u.role === "agent",
     );
   }, [state.users]);
 
@@ -379,8 +383,7 @@ function SubscriptionFormContainer() {
   function getPageTitle() {
     if (state.subscription) {
       const userName = state.subscription.userName || "";
-      const productName =
-        state.subscription.subscriptionProductName || "";
+      const productName = state.subscription.subscriptionProductName || "";
       return `${userName}${userName && productName ? " — " : ""}${productName}`;
     }
     return t("subscriptions.newSubscription");
@@ -553,8 +556,7 @@ function SubscriptionFormContainer() {
                 expired:
                   "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
               };
-              const badgeClass =
-                styles[currentStatus] || styles.inactive;
+              const badgeClass = styles[currentStatus] || styles.inactive;
               const label =
                 statusOptions.find(
                   (o) => o.value.toLowerCase() === currentStatus,
@@ -875,7 +877,9 @@ function SubscriptionFormContainer() {
                   <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                     <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                       <CreditCard className="h-5 w-5 text-[#6E8276]" />
-                      {t("subscriptions.subscriptionDetailsTitle")}
+                      {state.subscription?.databaseName ??
+                        state.subscription?.accountName ??
+                        t("subscriptions.subscriptionDetailsTitle")}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
@@ -942,8 +946,12 @@ function SubscriptionFormContainer() {
                             {statusOptions.find(
                               (o) =>
                                 o.value.toLowerCase() ===
-                                (state.formData.subscriptionStatus || "").toLowerCase()
-                            )?.label || state.formData.subscriptionStatus || "—"}
+                                (
+                                  state.formData.subscriptionStatus || ""
+                                ).toLowerCase(),
+                            )?.label ||
+                              state.formData.subscriptionStatus ||
+                              "—"}
                           </div>
                         )}
                       </div>
@@ -1035,11 +1043,16 @@ function SubscriptionFormContainer() {
             <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
                 <History className="h-5 w-5 text-[#6E8276]" />
-                {t("subscriptions.subscriptionHistory", {defaultValue: "Subscription History"})}
+                {t("subscriptions.subscriptionHistory", {
+                  defaultValue: "Subscription History",
+                })}
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                {accountHistory.length} record{accountHistory.length === 1 ? "" : "s"}{" "}
-                {t("subscriptions.forThisAccount", {defaultValue: "for this account"})}
+                {accountHistory.length} record
+                {accountHistory.length === 1 ? "" : "s"}{" "}
+                {t("subscriptions.forThisAccount", {
+                  defaultValue: "for this account",
+                })}
               </p>
               <div className="overflow-x-auto">
                 <table className="table-auto w-full">
@@ -1065,29 +1078,62 @@ function SubscriptionFormContainer() {
                   <tbody className="text-sm divide-y divide-gray-200 dark:divide-gray-700">
                     {[...accountHistory]
                       .sort((a, b) => {
-                        const aTime = new Date(a.currentPeriodEnd || a.current_period_end || a.updatedAt || a.updated_at || 0).getTime();
-                        const bTime = new Date(b.currentPeriodEnd || b.current_period_end || b.updatedAt || b.updated_at || 0).getTime();
+                        const aTime = new Date(
+                          a.currentPeriodEnd ||
+                            a.current_period_end ||
+                            a.updatedAt ||
+                            a.updated_at ||
+                            0,
+                        ).getTime();
+                        const bTime = new Date(
+                          b.currentPeriodEnd ||
+                            b.current_period_end ||
+                            b.updatedAt ||
+                            b.updated_at ||
+                            0,
+                        ).getTime();
                         return bTime - aTime;
                       })
                       .map((sub) => {
                         const subId = sub.id;
                         const isCurrent = subId === Number(id);
-                        const status = (sub.status || sub.subscriptionStatus || "").toLowerCase();
+                        const status = (
+                          sub.status ||
+                          sub.subscriptionStatus ||
+                          ""
+                        ).toLowerCase();
                         const statusColors = {
-                          active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-                          inactive: "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
-                          cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-                          expired: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-                          trial: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-                          trialing: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+                          active:
+                            "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+                          inactive:
+                            "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
+                          cancelled:
+                            "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                          expired:
+                            "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+                          trial:
+                            "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+                          trialing:
+                            "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
                         };
-                        const badgeColor = statusColors[status] || statusColors.inactive;
-                        const productName = sub.productName || sub.subscriptionProductName || "—";
-                        const interval = sub.billingInterval || sub.billing_interval || "";
-                        const startDate = sub.currentPeriodStart || sub.current_period_start;
-                        const endDate = sub.currentPeriodEnd || sub.current_period_end;
+                        const badgeColor =
+                          statusColors[status] || statusColors.inactive;
+                        const productName =
+                          sub.productName || sub.subscriptionProductName || "—";
+                        const interval =
+                          sub.billingInterval || sub.billing_interval || "";
+                        const startDate =
+                          sub.currentPeriodStart || sub.current_period_start;
+                        const endDate =
+                          sub.currentPeriodEnd || sub.current_period_end;
                         const fmtDate = (d) =>
-                          d ? new Date(d).toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"}) : "—";
+                          d
+                            ? new Date(d).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })
+                            : "—";
 
                         return (
                           <tr
@@ -1095,24 +1141,38 @@ function SubscriptionFormContainer() {
                             className={`${isCurrent ? "bg-violet-50/50 dark:bg-violet-900/10" : "hover:bg-gray-50 dark:hover:bg-gray-700/30"} ${!isCurrent ? "cursor-pointer" : ""} transition-colors`}
                             onClick={() => {
                               if (!isCurrent) {
-                                navigate(`/${accountUrl}/subscriptions/${subId}`);
+                                navigate(
+                                  `/${accountUrl}/subscriptions/${subId}`,
+                                );
                               }
                             }}
                           >
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center gap-2">
-                                <span className={isCurrent ? "font-semibold text-violet-700 dark:text-violet-400" : "text-gray-800 dark:text-gray-200"}>
+                                <span
+                                  className={
+                                    isCurrent
+                                      ? "font-semibold text-violet-700 dark:text-violet-400"
+                                      : "text-gray-800 dark:text-gray-200"
+                                  }
+                                >
                                   {productName}
                                 </span>
                                 {isCurrent && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
-                                    {t("subscriptions.current", {defaultValue: "Current"})}
+                                    {t("subscriptions.current", {
+                                      defaultValue: "Current",
+                                    })}
                                   </span>
                                 )}
                               </div>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap capitalize text-gray-600 dark:text-gray-400">
-                              {interval === "year" ? t("subscriptionProducts.yearly") : interval === "month" ? t("subscriptionProducts.monthly") : interval || "—"}
+                              {interval === "year"
+                                ? t("subscriptionProducts.yearly")
+                                : interval === "month"
+                                  ? t("subscriptionProducts.monthly")
+                                  : interval || "—"}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
                               {fmtDate(startDate)}
@@ -1121,7 +1181,9 @@ function SubscriptionFormContainer() {
                               {fmtDate(endDate)}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${badgeColor}`}>
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${badgeColor}`}
+                              >
                                 {status || "—"}
                               </span>
                             </td>
