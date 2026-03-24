@@ -5,7 +5,6 @@ import {
   CreditCard,
   User,
   Calendar,
-  Database,
   Package,
   History,
 } from "lucide-react";
@@ -680,12 +679,6 @@ function SubscriptionFormContainer() {
                 </h1>
                 {state.subscription && (
                   <div className="mt-2 space-y-1">
-                    {state.subscription.databaseName && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                        <Database className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
-                        <span>{state.subscription.databaseName}</span>
-                      </div>
-                    )}
                     {state.subscription.userEmail && (
                       <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
                         <User className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />

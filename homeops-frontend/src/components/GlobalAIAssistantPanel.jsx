@@ -1,6 +1,7 @@
-import React, {useState, useEffect, useContext} from "react";
+import React, {useState, useEffect, useContext, useMemo} from "react";
 import {useNavigate} from "react-router-dom";
-import {X, Sparkles, ArrowUpCircle, Loader2} from "lucide-react";
+import {X, ArrowUpCircle, Loader2, Search} from "lucide-react";
+import opsyAiIcon from "../images/opsy_ai.png";
 import Transition from "../utils/Transition";
 import PropertyContext from "../context/PropertyContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -21,6 +22,23 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
   const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [systemContext, setSystemContext] = useState(null);
   const [propertySystems, setPropertySystems] = useState([]);
+  const [propertySearch, setPropertySearch] = useState("");
+
+  const filteredProperties = useMemo(() => {
+    const list = properties || [];
+    const q = propertySearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((p) => {
+      const label = (
+        p.nickname ||
+        p.address ||
+        p.street_address ||
+        ""
+      ).toLowerCase();
+      const idStr = String(p.property_uid ?? p.uid ?? p.id ?? "").toLowerCase();
+      return label.includes(q) || idStr.includes(q);
+    });
+  }, [properties, propertySearch]);
 
   useEffect(() => {
     if (isOpen && properties?.length === 0) {
@@ -32,6 +50,7 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
     if (!isOpen) {
       setSelectedPropertyId(null);
       setSystemContext(null);
+      setPropertySearch("");
     }
   }, [isOpen]);
 
@@ -65,7 +84,11 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
           <>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-[#456564]" />
+                <img
+                  src={opsyAiIcon}
+                  alt=""
+                  className="w-5 h-5 object-contain shrink-0"
+                />
                 <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
                   AI Assistant
                 </h2>
@@ -116,12 +139,26 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
                 </div>
               ) : (
                 <>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     Select a property to chat with the AI assistant about maintenance
                     and systems.
                   </p>
+                  <div className="relative mb-3">
+                    <Search
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                      aria-hidden
+                    />
+                    <input
+                      type="search"
+                      value={propertySearch}
+                      onChange={(e) => setPropertySearch(e.target.value)}
+                      placeholder="Search properties..."
+                      className="w-full pl-9 pr-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/80 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564]"
+                      aria-label="Search properties"
+                    />
+                  </div>
                   <div className="space-y-1">
-                    {(properties || []).map((p) => (
+                    {filteredProperties.map((p) => (
                       <button
                         key={p.property_uid ?? p.id ?? p.uid}
                         onClick={() => setSelectedPropertyId(p.property_uid ?? p.uid ?? p.id)}
@@ -133,6 +170,11 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
                     {(!properties || properties.length === 0) && (
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         No properties found. Add a property first.
+                      </p>
+                    )}
+                    {properties?.length > 0 && filteredProperties.length === 0 && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No properties match your search.
                       </p>
                     )}
                   </div>

@@ -1,9 +1,9 @@
 import React, {useState, useRef, useEffect, useCallback} from "react";
 import {useNavigate, useParams} from "react-router-dom";
 import UpgradePrompt from "../../../components/UpgradePrompt";
+import opsyAiIcon from "../../../images/opsy_ai.png";
 import {
   X,
-  Sparkles,
   Send,
   Loader2,
   Calendar,
@@ -467,7 +467,11 @@ function AIAssistantSidebar({
                 <ChevronLeft className="w-4 h-4" />
               </button>
             )}
-            <Sparkles className="w-5 h-5 text-[#456564]" />
+            <img
+              src={opsyAiIcon}
+              alt=""
+              className="w-5 h-5 object-contain shrink-0"
+            />
             <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
               AI Assistant
             </h3>
@@ -599,7 +603,11 @@ function AIAssistantSidebar({
 
           {!loadingHistory && messages.length === 0 && (
             <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 p-6 text-center">
-              <Sparkles className="w-10 h-10 text-[#456564] mx-auto mb-3" />
+              <img
+                src={opsyAiIcon}
+                alt=""
+                className="w-20 h-20 object-contain mx-auto mb-1.5"
+              />
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 Ask anything about your property.
               </p>

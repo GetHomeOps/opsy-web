@@ -51,16 +51,20 @@ function filterReanalysisForSystem(aiSummary, systemType) {
 
 /**
  * Build system context string from frontend-provided systemContext.
+ * Returns { text, hasData } so callers can tell if real data was present.
  */
 function buildSystemContextString(systemContext) {
-  if (!systemContext || typeof systemContext !== "object") return "No system details available.";
+  if (!systemContext || typeof systemContext !== "object")
+    return { text: "No system details available.", hasData: false };
   const lines = [];
   for (const [key, val] of Object.entries(systemContext)) {
     if (val == null || val === "") continue;
     const label = key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
     lines.push(`${label}: ${val}`);
   }
-  return lines.length ? lines.join("\n") : "No system details available.";
+  return lines.length
+    ? { text: lines.join("\n"), hasData: true }
+    : { text: "No system details available.", hasData: false };
 }
 
 /**
@@ -105,22 +109,29 @@ async function getMaintenanceAdvice({
   );
   const reanalysisMaint = filterReanalysisForSystem(aiSummary, systemType);
 
-  const systemContextStr = buildSystemContextString(systemContext);
+  const { text: systemContextStr, hasData: hasSystemContext } =
+    buildSystemContextString(systemContext);
 
-  const inspectionBlock =
-    needsAttention.length > 0 || maintenanceSuggestions.length > 0
-      ? `
+  const hasInspectionData =
+    needsAttention.length > 0 || maintenanceSuggestions.length > 0;
+  const hasReanalysisData = reanalysisMaint.length > 0;
+
+  if (!hasSystemContext && !hasInspectionData && !hasReanalysisData) {
+    return getNoDataResponse(systemName);
+  }
+
+  const inspectionBlock = hasInspectionData
+    ? `
 INSPECTION REPORT FINDINGS (for ${systemName}):
 ${needsAttention.length > 0 ? `Needs attention:\n${JSON.stringify(needsAttention, null, 2)}` : ""}
 ${maintenanceSuggestions.length > 0 ? `Maintenance suggestions:\n${JSON.stringify(maintenanceSuggestions, null, 2)}` : ""}`
-      : "";
+    : "";
 
-  const reanalysisBlock =
-    reanalysisMaint.length > 0
-      ? `
+  const reanalysisBlock = hasReanalysisData
+    ? `
 REANALYSIS MAINTENANCE RECOMMENDATIONS:
 ${JSON.stringify(reanalysisMaint, null, 2)}`
-      : "";
+    : "";
 
   const prompt = `You are an expert home maintenance advisor. Analyze the following information about the "${systemName}" system for a property and provide practical advice.
 
@@ -137,7 +148,7 @@ Provide a JSON response with exactly these keys:
   - For items that need REPLACEMENT: "Replace [component]" with brief reason (e.g. "Replace roof shingles due to age (15+ years)")
   - For items that need MAINTENANCE: "Maintain [or have maintained] [task]" (e.g. "Have gutters cleaned annually", "Replace HVAC filters every 90 days")
   - Base suggestions on inspection findings, maintenance suggestions, condition, last service date, warranty, and age
-  - If data is sparse, include general best-practice suggestions for this system type
+  - IMPORTANT: Only provide suggestions that are grounded in the actual data above. Do NOT invent generic recommendations.
   - Use clear, concise language. No preamble or filler.
 
 Output ONLY valid JSON, no markdown.`;
@@ -187,7 +198,20 @@ Output ONLY valid JSON, no markdown.`;
   }
 }
 
+function getNoDataResponse(systemName) {
+  return {
+    noData: true,
+    recommendedFrequency: null,
+    riskWarning: null,
+    suggestedQuestions: [],
+    suggestions: [],
+  };
+}
+
 function getFallbackAdvice(systemName, systemContext) {
+  const { hasData } = buildSystemContextString(systemContext);
+  if (!hasData) return getNoDataResponse(systemName);
+
   const lastDate = systemContext?.lastInspection || systemContext?.lastMaintenance;
   const isOverdue =
     lastDate &&

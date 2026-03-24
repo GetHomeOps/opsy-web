@@ -1,7 +1,8 @@
 import React, {useState, useRef} from "react";
 import {Link, useSearchParams} from "react-router-dom";
-import {HelpCircle, Sparkles} from "lucide-react";
+import {HelpCircle} from "lucide-react";
 
+import opsyAiIcon from "../images/opsy_ai.png";
 import NavbarSearch from "../components/NavbarSearch";
 import Notifications from "../components/DropdownNotifications";
 import Reminders from "../components/DropdownReminders";
@@ -91,11 +92,18 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
             <button
               ref={aiAssistantButtonRef}
               onClick={handleAiAssistantClick}
-              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              className="group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-[1.03]"
               aria-label="AI Assistant"
               title="AI Assistant"
             >
-              <Sparkles className="w-5 h-5" />
+              <span className="absolute inset-0 rounded-full ai-glow" />
+              <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ai-orbit-ring" />
+              <span className="absolute inset-[2px] rounded-full bg-white dark:bg-gray-800" />
+              <img
+                src={opsyAiIcon}
+                alt=""
+                className="relative z-10 w-7 h-7 object-contain rounded-full ai-icon-halo"
+              />
             </button>
             <Link
               to={supportPath}

@@ -231,3 +231,84 @@ button {
 .dark .places-autocomplete-item-active {
   background: var(--color-gray-700);
 }
+
+/* AI Assistant orbiting light beam */
+@keyframes orbit-light {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ai-orbit-ring {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 70%,
+    rgba(59, 130, 246, 0.15) 78%,
+    rgba(96, 165, 250, 0.6) 85%,
+    rgba(147, 197, 253, 0.9) 89%,
+    #fff 91%,
+    rgba(147, 197, 253, 0.9) 93%,
+    rgba(96, 165, 250, 0.6) 95%,
+    rgba(59, 130, 246, 0.15) 98%,
+    transparent 100%
+  );
+  animation: orbit-light 2s linear infinite;
+  filter: blur(0.5px);
+}
+
+.ai-glow {
+  opacity: 0;
+  box-shadow:
+    0 0 2px 0 rgba(224, 242, 254, 0.9),
+    0 0 6px 2px rgba(125, 211, 252, 0.55),
+    0 0 12px 4px rgba(56, 189, 248, 0.28);
+  transition: opacity 0.35s ease;
+}
+
+.group:hover .ai-glow {
+  opacity: 1;
+}
+
+/* Light blue aura hugging the mascot (follows opaque pixels) */
+.ai-icon-halo {
+  transition: filter 0.35s ease;
+}
+
+.group:hover .ai-icon-halo {
+  filter: drop-shadow(0 0 2px rgb(224, 242, 254))
+    drop-shadow(0 0 5px rgb(125, 211, 252))
+    drop-shadow(0 0 9px rgba(56, 189, 248, 0.65));
+}
+
+.dark .ai-orbit-ring {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 70%,
+    rgba(59, 130, 246, 0.1) 78%,
+    rgba(59, 130, 246, 0.5) 85%,
+    rgba(147, 197, 253, 0.85) 89%,
+    #e0f2fe 91%,
+    rgba(147, 197, 253, 0.85) 93%,
+    rgba(59, 130, 246, 0.5) 95%,
+    rgba(59, 130, 246, 0.1) 98%,
+    transparent 100%
+  );
+}
+
+.dark .ai-glow {
+  box-shadow:
+    0 0 2px 0 rgba(186, 230, 253, 0.8),
+    0 0 8px 3px rgba(56, 189, 248, 0.45),
+    0 0 14px 5px rgba(14, 165, 233, 0.22);
+}
+
+.dark .group:hover .ai-icon-halo {
+  filter: drop-shadow(0 0 2px rgb(186, 230, 253))
+    drop-shadow(0 0 6px rgb(56, 189, 248))
+    drop-shadow(0 0 10px rgba(14, 165, 233, 0.55));
+}

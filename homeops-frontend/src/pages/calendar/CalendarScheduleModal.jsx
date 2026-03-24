@@ -88,7 +88,7 @@ function CalendarScheduleModal({
   }, [selectedPropertyId]); // getPropertyById, getSystemsByPropertyId omitted - stable from context
 
   const handleContinue = () => {
-    if (selectedPropertyId && selectedSystem && propertyData) {
+    if (selectedPropertyId && propertyData) {
       setShowScheduleModal(true);
     }
   };
@@ -102,7 +102,7 @@ function CalendarScheduleModal({
   };
 
   const canContinue =
-    selectedPropertyId && selectedSystem && propertyData && !loadingProperty;
+    selectedPropertyId && propertyData && !loadingProperty;
 
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
@@ -115,12 +115,12 @@ function CalendarScheduleModal({
       setModalOpen={onClose}
       contentClassName={showScheduleModal ? "max-w-2xl" : "max-w-md"}
     >
-      {showScheduleModal && selectedSystem && propertyData ? (
+      {showScheduleModal && propertyData ? (
         <MaintenanceScheduleModal
           isOpen={true}
           onClose={handleScheduleClose}
-          systemType={selectedSystem.id}
-          systemLabel={selectedSystem.name}
+          systemType={selectedSystem?.id || null}
+          systemLabel={selectedSystem?.name || "General"}
           propertyData={propertyData}
           propertyIdFallback={selectedPropertyId}
           contacts={contacts}
@@ -141,7 +141,7 @@ function CalendarScheduleModal({
                   Schedule Event
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Select property and system
+                  Select property and optionally a system
                 </p>
               </div>
             </div>
@@ -232,12 +232,17 @@ function CalendarScheduleModal({
                 <span className="flex items-center gap-1.5">
                   <Zap className="w-4 h-4 text-[#456564]" />
                   System
+                  <span className="text-xs font-normal text-gray-400">(optional)</span>
                 </span>
               </label>
               <select
                 value={selectedSystem?.id ?? ""}
                 onChange={(e) => {
                   const id = e.target.value;
+                  if (!id) {
+                    setSelectedSystem(null);
+                    return;
+                  }
                   const sys = PROPERTY_SYSTEMS.find((s) => s.id === id);
                   setSelectedSystem(sys || null);
                 }}
@@ -249,9 +254,7 @@ function CalendarScheduleModal({
                     ? "Select a property first"
                     : loadingProperty
                       ? "Loading systems..."
-                      : propertySystems.length === 0
-                        ? "No systems configured for this property"
-                        : "Select a system"}
+                      : "General (no specific system)"}
                 </option>
                 {(() => {
                   const systemKeys = propertySystems
@@ -270,6 +273,11 @@ function CalendarScheduleModal({
                   ));
                 })()}
               </select>
+              {selectedPropertyId && !loadingProperty && !selectedSystem && (
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  You can continue without selecting a system for a general event.
+                </p>
+              )}
             </div>
           </div>
 

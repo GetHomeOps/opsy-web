@@ -19,6 +19,7 @@ import {
   Repeat,
   Star,
   MapPin,
+  Info,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
@@ -56,9 +57,13 @@ function generateMessageTemplate(propertyName, systemName, date, requestType) {
     requestType === "inspection"
       ? "schedule an inspection"
       : "schedule maintenance";
+  const target =
+    systemName && systemName !== "General"
+      ? `for the ${systemName} system at ${propertyName || "my property"}`
+      : `at ${propertyName || "my property"}`;
   return `Hi,
 
-I'd like to ${action} for the ${systemName} system at ${propertyName || "my property"}.
+I'd like to ${action} ${target}.
 
 Proposed date: ${formattedDate}
 
@@ -67,14 +72,11 @@ Please let me know if this works for you, or suggest an alternative time.
 Thank you!`;
 }
 
-const MOCK_AI_RESPONSE = {
-  recommendedFrequency: "Annual inspection recommended",
+const NO_DATA_AI_RESPONSE = {
+  noData: true,
+  recommendedFrequency: null,
   riskWarning: null,
-  suggestedQuestions: [
-    "What is included in a standard maintenance visit?",
-    "Do you offer a maintenance plan or service contract?",
-    "Are there any signs of wear I should monitor between visits?",
-  ],
+  suggestedQuestions: [],
   suggestions: [],
 };
 
@@ -590,6 +592,7 @@ function ScheduleStep({
   setSelectedChecklistItemId,
   sendEmail,
   setSendEmail,
+  hasSelectedContractor,
 }) {
   return (
     <div className="space-y-6">
@@ -602,30 +605,31 @@ function ScheduleStep({
         </p>
       </div>
 
-      {/* Send email toggle */}
-      <div className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Send email to contractor when scheduling
-          </span>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={sendEmail}
-          onClick={() => setSendEmail(!sendEmail)}
-          className={`relative w-11 h-6 rounded-full transition-colors ${
-            sendEmail ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
-          }`}
-        >
-          <span
-            className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-              sendEmail ? "left-6" : "left-1"
+      {hasSelectedContractor && (
+        <div className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Send email to contractor when scheduling
+            </span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={sendEmail}
+            onClick={() => setSendEmail(!sendEmail)}
+            className={`relative w-11 h-6 rounded-full transition-colors ${
+              sendEmail ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
             }`}
-          />
-        </button>
-      </div>
+          >
+            <span
+              className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                sendEmail ? "left-6" : "left-1"
+              }`}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Date & Time */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -663,7 +667,7 @@ function ScheduleStep({
       {/* Link to ToDo (checklist item) */}
       {(() => {
         const pendingItems = checklistItems.filter(
-          (item) => (item.status || "").toLowerCase() !== "completed"
+          (item) => (item.status || "").toLowerCase() !== "completed",
         );
         return pendingItems.length > 0;
       })() && (
@@ -681,16 +685,16 @@ function ScheduleStep({
             <option value="">None — general maintenance</option>
             {checklistItems
               .filter(
-                (item) => (item.status || "").toLowerCase() !== "completed"
+                (item) => (item.status || "").toLowerCase() !== "completed",
               )
               .map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-                {item.priority && item.priority !== "medium"
-                  ? ` (${item.priority})`
-                  : ""}
-              </option>
-            ))}
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                  {item.priority && item.priority !== "medium"
+                    ? ` (${item.priority})`
+                    : ""}
+                </option>
+              ))}
           </select>
         </div>
       )}
@@ -909,6 +913,22 @@ function MessageStep({
                   Analyzing system data...
                 </span>
               </div>
+            ) : aiAdvice?.noData ? (
+              <div className="flex items-start gap-3 py-2">
+                <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Info className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    No system data available
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Add system details to your property (e.g. inspection reports, system
+                    condition, install dates) to receive personalized AI maintenance
+                    recommendations.
+                  </p>
+                </div>
+              </div>
             ) : aiAdvice ? (
               <>
                 {/* Recommended frequency */}
@@ -1094,6 +1114,11 @@ function MaintenanceScheduleModal({
     propertyData.name ||
     propertyData.identity?.propertyName ||
     "";
+  const propertyId =
+    propertyData?.id ??
+    propertyData?.property_uid ??
+    propertyData?.identity?.id ??
+    propertyIdFallback;
   const propertyLocation =
     propertyData.address || propertyData.identity?.address || "";
   const professionalsPath = accountUrl
@@ -1117,12 +1142,13 @@ function MaintenanceScheduleModal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !propertyId || !systemType) {
+    if (!isOpen || !propertyId) {
       setChecklistItems([]);
       return;
     }
     let cancelled = false;
-    AppApi.getInspectionChecklist(propertyId, {systemKey: systemType})
+    const params = systemType ? {systemKey: systemType} : {};
+    AppApi.getInspectionChecklist(propertyId, params)
       .then((items) => {
         if (!cancelled) setChecklistItems(items || []);
       })
@@ -1180,32 +1206,33 @@ function MaintenanceScheduleModal({
     }
   }, [selectedContractor, scheduledDate, currentStep, requestType]);
 
-  const propertyId =
-    propertyData?.id ??
-    propertyData?.property_uid ??
-    propertyData?.identity?.id ??
-    propertyIdFallback;
-
   const requestAIAdvice = useCallback(async () => {
     if (!propertyId) {
-      setAiAdvice(MOCK_AI_RESPONSE);
+      setAiAdvice(NO_DATA_AI_RESPONSE);
       return;
     }
     setAiLoading(true);
     try {
-      const systemContext = buildSystemContext(propertyData, systemType);
+      const systemContext = systemType
+        ? buildSystemContext(propertyData, systemType)
+        : {};
       const advice = await AppApi.getAIMaintenanceAdvice(propertyId, {
-        systemType,
-        systemName: systemLabel,
+        systemType: systemType || "general",
+        systemName: systemLabel || "General",
         systemContext,
       });
-      setAiAdvice({
-        ...MOCK_AI_RESPONSE,
-        ...advice,
-        suggestions: advice.suggestions ?? [],
-      });
+      if (advice.noData) {
+        setAiAdvice(NO_DATA_AI_RESPONSE);
+      } else {
+        setAiAdvice({
+          recommendedFrequency: advice.recommendedFrequency || "Annual inspection recommended",
+          riskWarning: advice.riskWarning || null,
+          suggestedQuestions: advice.suggestedQuestions ?? [],
+          suggestions: advice.suggestions ?? [],
+        });
+      }
     } catch {
-      setAiAdvice(MOCK_AI_RESPONSE);
+      setAiAdvice(NO_DATA_AI_RESPONSE);
     } finally {
       setAiLoading(false);
     }
@@ -1235,9 +1262,15 @@ function MaintenanceScheduleModal({
       onSchedule(scheduledDate);
     }
 
+    const systemKeyStr =
+      systemType != null && String(systemType).trim() !== ""
+        ? String(systemType).trim()
+        : "general";
+
     const eventPayload = {
-      system_key: systemType,
-      system_name: systemLabel,
+      system_key: systemKeyStr,
+      system_name:
+        systemLabel && systemLabel !== "General" ? systemLabel : null,
       contractor_id: selectedContractor?.sourceId ?? null,
       contractor_source: selectedContractor?.source ?? null,
       contractor_name: selectedContractor?.name ?? null,
@@ -1265,8 +1298,7 @@ function MaintenanceScheduleModal({
         sendEmail && selectedContractor?.email
           ? selectedContractor.email
           : null,
-      reply_email:
-        currentUser?.data?.email || currentUser?.email || null,
+      reply_email: currentUser?.data?.email || currentUser?.email || null,
       send_email_now: sendEmail && !!selectedContractor?.email,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
@@ -1370,6 +1402,7 @@ function MaintenanceScheduleModal({
             setSelectedChecklistItemId={setSelectedChecklistItemId}
             sendEmail={sendEmail}
             setSendEmail={setSendEmail}
+            hasSelectedContractor={!!selectedContractor}
           />
         )}
         {currentStep === 3 && (
@@ -1440,11 +1473,11 @@ function MaintenanceScheduleModal({
                 disabled={
                   !scheduledDate ||
                   saving ||
-                  (sendEmail && !selectedContractor?.email)
+                  (sendEmail && messageEnabled && !selectedContractor?.email)
                 }
                 className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 title={
-                  sendEmail && !selectedContractor?.email
+                  sendEmail && messageEnabled && !selectedContractor?.email
                     ? "Select a contractor with an email to send"
                     : undefined
                 }
@@ -1454,7 +1487,7 @@ function MaintenanceScheduleModal({
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Saving...
                   </span>
-                ) : sendEmail && selectedContractor?.email ? (
+                ) : sendEmail && messageEnabled && selectedContractor?.email ? (
                   <>
                     <Mail className="w-4 h-4" />
                     Send email and schedule
