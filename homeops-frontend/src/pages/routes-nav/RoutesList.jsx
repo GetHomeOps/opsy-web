@@ -39,6 +39,7 @@ import User from "../users/User";
 import UsersImport from "../users/usersImport";
 import Contact from "../contacts/Contact";
 import PropertiesList from "../properties/PropertiesList";
+import PropertiesImport from "../properties/propertiesImport";
 import Property from "../properties/Property";
 import UserConfirmationEmail from "../users/UserConfirmationEmail";
 import MaintenanceRecordPage from "../properties/MaintenanceRecordPage";
@@ -434,6 +435,14 @@ function RoutesList() {
         element={
           <ProtectedRoute>
             <PropertiesList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/properties/import"
+        element={
+          <ProtectedRoute>
+            <PropertiesImport />
           </ProtectedRoute>
         }
       />

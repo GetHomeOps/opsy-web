@@ -29,8 +29,8 @@ import AppApi from "../../../api/api";
 import AIFindingsPanel from "./AIFindingsPanel";
 import UpgradePrompt from "../../../components/UpgradePrompt";
 import OpsyMascot from "../../../images/opsy1.png";
-import HouseIcon from "../../../images/house_icon.png";
-import GlassIcon from "../../../images/glass.png";
+import HouseIcon from "../../../images/house_icon.webp";
+import GlassIcon from "../../../images/glass_icon.webp";
 import {
   normalizeAiSystemToken,
   toDisplaySystemName,

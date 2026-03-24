@@ -1,6 +1,7 @@
 /**
  * Schema for user bulk import.
  * Non-relational fields only (name, email, phone, role). Password is generated on import.
+ * No image or avatar column on the template.
  * Used for template generation, header normalization, and validation.
  */
 export const USER_IMPORT_FIELDS = [

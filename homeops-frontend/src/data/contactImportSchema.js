@@ -1,6 +1,7 @@
 /**
  * Centralized schema for contact bulk import.
  * Matches non-relational fields from contacts table (pos-schema.sql).
+ * The downloadable template omits image/photo fields; add avatars in the app after import.
  * Used for template generation, header normalization, and validation.
  */
 export const CONTACT_IMPORT_FIELDS = [

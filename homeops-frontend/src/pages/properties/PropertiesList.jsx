@@ -943,6 +943,9 @@ function PropertiesList() {
                 <ListDropdown
                   align="right"
                   hasSelection={selectedProperties.length > 0}
+                  onImport={() =>
+                    navigate(`/${accountUrl}/properties/import`)
+                  }
                   onDelete={handleDeleteClick}
                   onDuplicate={handleDuplicate}
                 />

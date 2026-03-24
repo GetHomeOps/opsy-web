@@ -1,6 +1,6 @@
 /**
  * Schema for professional bulk import.
- * Non-relational fields from professionals table. Images (profile_photo) cannot be imported via template.
+ * Non-relational fields from professionals table. Profile photos and gallery images are not in the template.
  * Used for template generation, header normalization, and validation.
  */
 export const PROFESSIONAL_IMPORT_FIELDS = [
