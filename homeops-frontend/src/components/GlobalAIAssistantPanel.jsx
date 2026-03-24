@@ -7,6 +7,7 @@ import PropertyContext from "../context/PropertyContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
 import AIAssistantSidebar from "../pages/properties/partials/AIAssistantSidebar";
+import {getPropertyAssistantHeaderLines} from "../pages/properties/helpers/propertyAssistantHeader";
 
 const FREE_PLAN_CODES = ["homeowner_free", "agent_free"];
 
@@ -39,6 +40,18 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
       return label.includes(q) || idStr.includes(q);
     });
   }, [properties, propertySearch]);
+
+  const selectedPropertyHeader = useMemo(() => {
+    if (!selectedPropertyId || !properties?.length) {
+      return {propertyDisplayName: null, propertyAddressLine: null};
+    }
+    const p = properties.find(
+      (x) =>
+        String(x.property_uid ?? x.uid ?? x.id ?? "") ===
+        String(selectedPropertyId ?? ""),
+    );
+    return getPropertyAssistantHeaderLines(p);
+  }, [properties, selectedPropertyId]);
 
   useEffect(() => {
     if (isOpen && properties?.length === 0) {
@@ -187,6 +200,8 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
             isOpen={true}
             onClose={onClose}
             propertyId={selectedPropertyId}
+            propertyDisplayName={selectedPropertyHeader.propertyDisplayName}
+            propertyAddressLine={selectedPropertyHeader.propertyAddressLine}
             systemContext={systemContext}
             propertySystems={propertySystems}
             contacts={[]}

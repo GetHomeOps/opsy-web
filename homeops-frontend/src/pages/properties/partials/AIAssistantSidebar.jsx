@@ -36,6 +36,8 @@ function AIAssistantSidebar({
   systemLabel,
   systemContext,
   propertyId,
+  propertyDisplayName,
+  propertyAddressLine,
   propertySystems,
   contacts = [],
   initialPrompt,
@@ -517,8 +519,33 @@ function AIAssistantSidebar({
         )}
 
         {propertyId && (
-            <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 space-y-2">
+              {(propertyDisplayName || propertyAddressLine) && (
+                <div className="space-y-0.5 min-w-0 pr-1">
+                  {propertyDisplayName ? (
+                    <p
+                      className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate"
+                      title={propertyDisplayName}
+                    >
+                      {propertyDisplayName}
+                    </p>
+                  ) : null}
+                  {propertyAddressLine ? (
+                    <p
+                      className={`truncate ${
+                        propertyDisplayName
+                          ? "text-[11px] text-gray-500 dark:text-gray-400"
+                          : "text-xs font-semibold text-gray-800 dark:text-gray-200"
+                      }`}
+                      title={propertyAddressLine}
+                    >
+                      {propertyAddressLine}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 min-w-0">
                 Discussing:{" "}
                 <span className="font-medium text-gray-700 dark:text-gray-300">
                   {activeContextType === "property"
@@ -528,7 +555,7 @@ function AIAssistantSidebar({
                       : `${activeSystemName || systemLabel || systemContext?.systemName || ""} System`}
                 </span>
               </p>
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   type="button"
                   onClick={() => setChangeSystemOpen((o) => !o)}
@@ -590,6 +617,7 @@ function AIAssistantSidebar({
                     </div>
                   </>
                 )}
+              </div>
               </div>
             </div>
           )}

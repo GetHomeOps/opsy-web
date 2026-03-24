@@ -35,6 +35,7 @@ import {parseDateInput} from "../../lib/dateOffset";
 import InstallerSelect from "./partials/InstallerSelect";
 import Tooltip from "../../utils/Tooltip";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
+import {getPropertyAssistantHeaderLines} from "./helpers/propertyAssistantHeader";
 import AIReanalysisAuditModal from "./partials/AIReanalysisAuditModal";
 
 function SystemsTab({
@@ -112,6 +113,14 @@ function SystemsTab({
   const [aiSidebarSystemContextLocal, setAiSidebarSystemContextLocal] = useState(null);
   const aiSidebarSystemLabel = aiSidebarSystemLabelProp ?? aiSidebarSystemLabelLocal;
   const aiSidebarSystemContext = aiSidebarSystemContextProp ?? aiSidebarSystemContextLocal;
+
+  const aiAssistantPropertyHeader = useMemo(
+    () =>
+      getPropertyAssistantHeaderLines(
+        propertyData?.identity ?? propertyData ?? null,
+      ),
+    [propertyData],
+  );
 
   const propertyId =
     propertyIdProp ??
@@ -2448,6 +2457,8 @@ function SystemsTab({
         propertyId={
           propertyData?.identity?.id ?? propertyData?.id ?? propertyIdFallback
         }
+        propertyDisplayName={aiAssistantPropertyHeader.propertyDisplayName}
+        propertyAddressLine={aiAssistantPropertyHeader.propertyAddressLine}
         propertySystems={systemsToShow
           .filter((s) => s.id !== "general")
           .map((s) => ({id: s.id, name: s.label}))}

@@ -3,7 +3,7 @@ import {createPortal} from "react-dom";
 import {NavLink, useLocation} from "react-router-dom";
 import {ChevronDown, ChevronLeft, ChevronRight} from "lucide-react";
 
-import OpsyIcon from "../images/opsy4.png";
+import OpsyIcon from "../images/opsy_new_logo.webp";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import {useAuth} from "../context/AuthContext";
 import Transition from "../utils/Transition";
@@ -610,12 +610,12 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
         <div
           id="sidebar"
           ref={sidebar}
-          className={`flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-20 lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-[#456564] p-4 transition-all duration-200 ease-in-out relative ${
+          className={`flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-20 lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-[#456564] px-4 pb-4 pt-1 transition-all duration-200 ease-in-out relative ${
             sidebarOpen ? "translate-x-0" : "-translate-x-64"
           } ${variant === "v2" ? "border-r border-white/10" : "shadow-xs"}`}
         >
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex justify-between lg:justify-center lg:sidebar-expanded:justify-center mb-4 pr-3 sm:px-2 lg:px-0">
+            <div className="flex justify-between lg:justify-center lg:sidebar-expanded:justify-center mb-0 pr-3 sm:px-2 lg:px-0">
               <button
                 ref={trigger}
                 className="lg:hidden text-white hover:text-white/80"
@@ -632,14 +632,14 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                   <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z" />
                 </svg>
               </button>
-              <NavLink end to={toPath("home")} className="block">
+              <NavLink end to={toPath("home")} className="block leading-none">
                 <img
                   src={OpsyIcon}
                   alt="Opsy"
-                  className={`object-contain flex-shrink-0 ${
+                  className={`block object-contain flex-shrink-0 ${
                     isCollapsed
-                      ? "w-[41px] h-[41px]"
-                      : "w-[80px] h-[80px] 2xl:w-[88px] 2xl:h-[88px] mx-auto"
+                      ? "w-[83px] h-[83px]"
+                      : "w-[161px] h-[161px] 2xl:w-[177px] 2xl:h-[177px] mx-auto"
                   }`}
                 />
               </NavLink>
@@ -648,7 +648,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
             <div className="flex flex-col flex-1 min-h-0">
               <div className="flex-1">
                 <ul
-                  className={`mt-1 flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}
+                  className={`-mt-1.5 flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}
                 >
                   {/* Home (standalone) */}
                   {SIDEBAR_CONFIG.filter((s) => s.type === "link").map(

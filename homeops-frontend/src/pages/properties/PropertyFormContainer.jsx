@@ -122,6 +122,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
+import {getPropertyAssistantHeaderLines} from "./helpers/propertyAssistantHeader";
 import InspectionReportModal from "./partials/InspectionReportModal";
 import InviteAgentBenefitsModal from "./partials/InviteAgentBenefitsModal";
 import ModalBlank from "../../components/ModalBlank";
@@ -564,6 +565,11 @@ function PropertyFormContainer() {
     }
     setAiSidebarOpen(true);
   }, [isPaidUser]);
+
+  const aiAssistantPropertyHeader = useMemo(
+    () => getPropertyAssistantHeaderLines(state.formData.identity),
+    [state.formData.identity],
+  );
 
   const openInspectionAnalysisWithPlanCheck = useCallback(() => {
     setBlankModalOpen(true);
@@ -3878,6 +3884,8 @@ function PropertyFormContainer() {
           systemLabel={aiSidebarSystemLabel}
           systemContext={aiSidebarSystemContext}
           propertyId={state.property?.identity?.id ?? state.property?.id ?? uid}
+          propertyDisplayName={aiAssistantPropertyHeader.propertyDisplayName}
+          propertyAddressLine={aiAssistantPropertyHeader.propertyAddressLine}
           propertySystems={[
             ...PROPERTY_SYSTEMS.filter((s) =>
               (state.formData.systems?.selectedSystemIds?.length
