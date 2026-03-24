@@ -91,6 +91,30 @@ function propertyMatchesSearch(prop, qLower) {
   );
 }
 
+function propertyActivityTotals(prop) {
+  const members = Array.isArray(prop.members) ? prop.members : [];
+  return {
+    documents: Number(prop.documentsCount) || 0,
+    visits: members.reduce((s, m) => s + (Number(m.pageViews) || 0), 0),
+    maintenance: members.reduce(
+      (s, m) => s + (Number(m.maintenanceEvents) || 0),
+      0,
+    ),
+  };
+}
+
+function comparePropertyAnalyticsDefault(a, b) {
+  const acct = String(a.accountName || "").localeCompare(
+    String(b.accountName || ""),
+    undefined,
+    {sensitivity: "base"},
+  );
+  if (acct !== 0) return acct;
+  const na = String(a.propertyName || a.address || a.propertyId || "");
+  const nb = String(b.propertyName || b.address || b.propertyId || "");
+  return na.localeCompare(nb, undefined, {sensitivity: "base"});
+}
+
 function PropertyAnalytics() {
   const {t} = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -103,6 +127,7 @@ function PropertyAnalytics() {
   const [searchTerm, setSearchTerm] = useState("");
   const [accountFilter, setAccountFilter] = useState("");
   const [activeFilters, setActiveFilters] = useState([]);
+  const [sortOption, setSortOption] = useState("default");
 
   const accountOptions = useMemo(() => {
     const byId = new Map();
@@ -169,10 +194,62 @@ function PropertyAnalytics() {
     });
   }, [properties, searchTerm, accountFilter, activeFilters]);
 
+  const sortedFilteredProperties = useMemo(() => {
+    const list = [...filteredProperties];
+    const tie = comparePropertyAnalyticsDefault;
+    switch (sortOption) {
+      case "documents_desc":
+        list.sort(
+          (a, b) =>
+            propertyActivityTotals(b).documents -
+              propertyActivityTotals(a).documents || tie(a, b),
+        );
+        break;
+      case "documents_asc":
+        list.sort(
+          (a, b) =>
+            propertyActivityTotals(a).documents -
+              propertyActivityTotals(b).documents || tie(a, b),
+        );
+        break;
+      case "visits_desc":
+        list.sort(
+          (a, b) =>
+            propertyActivityTotals(b).visits -
+              propertyActivityTotals(a).visits || tie(a, b),
+        );
+        break;
+      case "visits_asc":
+        list.sort(
+          (a, b) =>
+            propertyActivityTotals(a).visits -
+              propertyActivityTotals(b).visits || tie(a, b),
+        );
+        break;
+      case "maintenance_desc":
+        list.sort(
+          (a, b) =>
+            propertyActivityTotals(b).maintenance -
+              propertyActivityTotals(a).maintenance || tie(a, b),
+        );
+        break;
+      case "maintenance_asc":
+        list.sort(
+          (a, b) =>
+            propertyActivityTotals(a).maintenance -
+              propertyActivityTotals(b).maintenance || tie(a, b),
+        );
+        break;
+      default:
+        list.sort(tie);
+    }
+    return list;
+  }, [filteredProperties, sortOption]);
+
   const paginatedProperties = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
-    return filteredProperties.slice(start, start + itemsPerPage);
-  }, [filteredProperties, currentPage, itemsPerPage]);
+    return sortedFilteredProperties.slice(start, start + itemsPerPage);
+  }, [sortedFilteredProperties, currentPage, itemsPerPage]);
 
   const hasActiveFilters =
     Boolean(searchTerm.trim()) ||
@@ -195,14 +272,14 @@ function PropertyAnalytics() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, accountFilter, activeFilters]);
+  }, [searchTerm, accountFilter, activeFilters, sortOption]);
 
   useEffect(() => {
-    const totalPages = Math.ceil(filteredProperties.length / itemsPerPage);
+    const totalPages = Math.ceil(sortedFilteredProperties.length / itemsPerPage);
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(1);
     }
-  }, [filteredProperties.length, itemsPerPage, currentPage]);
+  }, [sortedFilteredProperties.length, itemsPerPage, currentPage]);
 
   useEffect(() => {
     if (
@@ -342,15 +419,64 @@ function PropertyAnalytics() {
                         </select>
                       </div>
                     )}
+                    <div className="min-w-0 sm:min-w-[13rem] flex flex-col">
+                      <label
+                        htmlFor="dashboard-properties-sort"
+                        className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                      >
+                        {t("sortBy", {defaultValue: "Sort by"})}
+                      </label>
+                      <select
+                        id="dashboard-properties-sort"
+                        value={sortOption}
+                        onChange={(e) => setSortOption(e.target.value)}
+                        className={selectClass}
+                        aria-label={t("sortBy", {defaultValue: "Sort by"})}
+                      >
+                        <option value="default">
+                          {t("analyticsSortAccountName", {
+                            defaultValue: "Account & name",
+                          })}
+                        </option>
+                        <option value="documents_desc">
+                          {t("analyticsSortDocumentsMost", {
+                            defaultValue: "Documents (most first)",
+                          })}
+                        </option>
+                        <option value="documents_asc">
+                          {t("analyticsSortDocumentsLeast", {
+                            defaultValue: "Documents (least first)",
+                          })}
+                        </option>
+                        <option value="visits_desc">
+                          {t("analyticsSortVisitsMost", {
+                            defaultValue: "Visits (most first)",
+                          })}
+                        </option>
+                        <option value="visits_asc">
+                          {t("analyticsSortVisitsLeast", {
+                            defaultValue: "Visits (least first)",
+                          })}
+                        </option>
+                        <option value="maintenance_desc">
+                          {t("analyticsSortMaintenanceMost", {
+                            defaultValue: "Maintenance (most first)",
+                          })}
+                        </option>
+                        <option value="maintenance_asc">
+                          {t("analyticsSortMaintenanceLeast", {
+                            defaultValue: "Maintenance (least first)",
+                          })}
+                        </option>
+                      </select>
+                    </div>
                     <div className="flex flex-col">
-                      {accountOptions.length > 1 && (
-                        <span
-                          className="block text-xs font-medium mb-1 invisible select-none pointer-events-none"
-                          aria-hidden
-                        >
-                          Account
-                        </span>
-                      )}
+                      <span
+                        className="block text-xs font-medium mb-1 invisible select-none pointer-events-none"
+                        aria-hidden
+                      >
+                        Account
+                      </span>
                       <FilterDropdown
                         filterCategories={DASHBOARD_PROPERTY_FILTER_CATEGORIES}
                         filterOptions={filterOptions}
@@ -362,14 +488,12 @@ function PropertyAnalytics() {
                     </div>
                     {hasActiveFilters && (
                       <div className="flex flex-col">
-                        {accountOptions.length > 1 && (
-                          <span
-                            className="block text-xs font-medium mb-1 invisible select-none pointer-events-none"
-                            aria-hidden
-                          >
-                            Account
-                          </span>
-                        )}
+                        <span
+                          className="block text-xs font-medium mb-1 invisible select-none pointer-events-none"
+                          aria-hidden
+                        >
+                          Account
+                        </span>
                         <button
                           type="button"
                           onClick={clearSearchAndFilters}

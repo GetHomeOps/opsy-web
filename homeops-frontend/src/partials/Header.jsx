@@ -50,7 +50,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
     >
       <div className="px-0 sm:px-4 lg:px-5 xxl:px-12">
         <div
-          className={`grid h-16 min-w-0 grid-cols-[auto_minmax(2.25rem,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-4 ${
+          className={`grid h-16 min-w-0 overflow-hidden grid-cols-[auto_minmax(2.25rem,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-4 ${
             variant === "v2" || variant === "v3"
               ? ""
               : aiPanelOpen
@@ -88,36 +88,47 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
           </div>
 
           {/* Header: Right side — AI Assistant, Help, Reminders, Notifications, User */}
-          <div className="flex items-center justify-self-end gap-1 sm:gap-2 lg:gap-3 shrink-0 min-w-0">
-            <button
-              ref={aiAssistantButtonRef}
-              onClick={handleAiAssistantClick}
-              className="group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-[1.03]"
-              aria-label="AI Assistant"
-              title="AI Assistant"
+          <div className="flex min-w-0 justify-self-end">
+            <div
+              className="flex items-center gap-1 sm:gap-2 lg:gap-3 shrink-0 min-w-0 max-w-[58vw] sm:max-w-none max-lg:overflow-x-auto max-lg:pr-1 max-lg:[&::-webkit-scrollbar]:hidden"
+              style={{scrollbarWidth: "none", msOverflowStyle: "none"}}
             >
-              <span className="absolute inset-0 rounded-full ai-glow" />
-              <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ai-orbit-ring" />
-              <span className="absolute inset-[2px] rounded-full bg-white dark:bg-gray-800" />
-              <img
-                src={opsyAiIcon}
-                alt=""
-                className="relative z-10 w-7 h-7 object-contain rounded-full ai-icon-halo"
-              />
-            </button>
-            <Link
-              to={supportPath}
-              className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-              aria-label="Support"
-              title="Support"
-            >
-              <HelpCircle className="w-5 h-5" />
-            </Link>
-            <hr className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none shrink-0" />
-            <Reminders align="right" />
-            <Notifications align="right" />
-            <hr className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none shrink-0" />
-            <UserMenu align="right" />
+              <button
+                ref={aiAssistantButtonRef}
+                onClick={handleAiAssistantClick}
+                className="group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-[1.03] shrink-0"
+                aria-label="AI Assistant"
+                title="AI Assistant"
+              >
+                <span className="absolute inset-0 rounded-full ai-glow" />
+                <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ai-orbit-ring" />
+                <span className="absolute inset-[2px] rounded-full bg-white dark:bg-gray-800" />
+                <img
+                  src={opsyAiIcon}
+                  alt=""
+                  className="relative z-10 w-7 h-7 object-contain rounded-full ai-icon-halo"
+                />
+              </button>
+              <Link
+                to={supportPath}
+                className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 shrink-0"
+                aria-label="Support"
+                title="Support"
+              >
+                <HelpCircle className="w-5 h-5" />
+              </Link>
+              <hr className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none shrink-0" />
+              <div className="shrink-0">
+                <Reminders align="right" />
+              </div>
+              <div className="shrink-0">
+                <Notifications align="right" />
+              </div>
+              <hr className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none shrink-0" />
+              <div className="shrink-0">
+                <UserMenu align="right" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
