@@ -185,6 +185,31 @@ class Property {
     return result.rows;
   }
 
+  /* Get properties where the user has a pending invitation (not yet in property_users) */
+  static async getPropertiesWithPendingInvitations(userEmail) {
+    const result = await db.query(
+      `SELECT DISTINCT ON (p.id)
+        p.*,
+        i.id AS _invitation_id,
+        i.intended_role AS _invitation_role,
+        i.expires_at AS _invitation_expires_at,
+        (SELECT u.name FROM property_users pu_owner
+         JOIN users u ON u.id = pu_owner.user_id
+         WHERE pu_owner.property_id = p.id
+         ORDER BY CASE WHEN pu_owner.role = 'owner' THEN 0 ELSE 1 END, pu_owner.created_at
+         LIMIT 1) AS owner_user_name
+       FROM properties p
+       JOIN invitations i ON i.property_id = p.id
+       WHERE LOWER(i.invitee_email) = LOWER($1)
+         AND i.type = 'property'
+         AND i.status = 'pending'
+         AND i.expires_at > NOW()
+       ORDER BY p.id, i.created_at DESC`,
+      [userEmail]
+    );
+    return result.rows;
+  }
+
   /* Get team for property: returns actual user records with their role on this property */
   static async getPropertyTeam(propertyId) {
     const result = await db.query(

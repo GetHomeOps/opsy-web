@@ -3,6 +3,8 @@
 const express = require("express");
 const { ensureLoggedIn, ensureAdminOrSuperAdmin } = require("../middleware/auth");
 const HomeownerAgentInquiry = require("../models/homeownerAgentInquiry");
+const Conversation = require("../models/conversation");
+const ConversationMessage = require("../models/conversationMessage");
 const Property = require("../models/property");
 const User = require("../models/user");
 const Notification = require("../models/notification");
@@ -42,6 +44,27 @@ router.post("/", ensureLoggedIn, async (req, res, next) => {
       kind,
       payload,
     });
+
+    // Dual-write: also insert into the new conversations system
+    try {
+      const conv = await Conversation.findOrCreate({
+        accountId: property.account_id,
+        propertyId: property.id,
+        homeownerUserId: senderUserId,
+        agentUserId,
+      });
+      const convKind = kind === "message" ? "text" : kind;
+      await ConversationMessage.create({
+        conversationId: conv.id,
+        senderUserId,
+        kind: convKind,
+        payload,
+      });
+      await Conversation.updateLastMessageAt(conv.id);
+    } catch (dualWriteErr) {
+      console.error("[dual-write] conversation write failed:", dualWriteErr.message);
+    }
+
     const sender = await User.getById(senderUserId);
     const senderName = sender?.name || sender?.email || "Homeowner";
     await Notification.create({

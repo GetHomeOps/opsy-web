@@ -218,11 +218,9 @@ function MessagePanel({agentName, agentUserId, propertyUid, accountId}) {
     if (!message.trim() || !canSubmit) return;
     setStatus("sending");
     try {
-      await AppApi.submitHomeownerAgentInquiry({
-        accountId,
-        propertyUid,
-        agentUserId,
-        kind: "message",
+      const conv = await AppApi.createConversation({accountId, propertyUid, agentUserId});
+      await AppApi.sendConversationMessage(conv.id, {
+        kind: "text",
         message: message.trim(),
       });
       setStatus("sent");
@@ -324,10 +322,8 @@ function RequestReferralPanel({agentName, agentUserId, propertyUid, accountId}) 
     if (!referralType || !canSubmit) return;
     setStatus("sending");
     try {
-      await AppApi.submitHomeownerAgentInquiry({
-        accountId,
-        propertyUid,
-        agentUserId,
+      const conv = await AppApi.createConversation({accountId, propertyUid, agentUserId});
+      await AppApi.sendConversationMessage(conv.id, {
         kind: "referral_request",
         referralType,
         notes: notes.trim(),
@@ -451,10 +447,8 @@ function ReferAgentPanel({agentName, agentUserId, propertyUid, accountId}) {
     if (!validate() || !canSubmit) return;
     setStatus("sending");
     try {
-      await AppApi.submitHomeownerAgentInquiry({
-        accountId,
-        propertyUid,
-        agentUserId,
+      const conv = await AppApi.createConversation({accountId, propertyUid, agentUserId});
+      await AppApi.sendConversationMessage(conv.id, {
         kind: "refer_agent",
         referName: name.trim(),
         referContact: contact.trim(),

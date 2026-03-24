@@ -158,10 +158,10 @@ export const SIDEBAR_CONFIG = [
       },
       {
         id: "homeowner-messages",
-        label: "Client messages",
+        label: "Messages",
         path: "homeowner-messages",
         icon: icon(Inbox),
-        roles: "adminOrAgent",
+        roles: "all",
       },
     ],
   },

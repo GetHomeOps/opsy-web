@@ -15,11 +15,12 @@ class Notification {
       invitationId,
       maintenanceRecordId,
       homeownerInquiryId,
+      conversationMessageId,
     } = data;
     const result = await db.query(
-      `INSERT INTO notifications (user_id, type, resource_id, communication_id, title, invitation_id, maintenance_record_id, homeowner_inquiry_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, user_id AS "userId", type, resource_id AS "resourceId", communication_id AS "communicationId", title, invitation_id AS "invitationId", maintenance_record_id AS "maintenanceRecordId", homeowner_inquiry_id AS "homeownerInquiryId", read_at AS "readAt", created_at AS "createdAt"`,
+      `INSERT INTO notifications (user_id, type, resource_id, communication_id, title, invitation_id, maintenance_record_id, homeowner_inquiry_id, conversation_message_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, user_id AS "userId", type, resource_id AS "resourceId", communication_id AS "communicationId", title, invitation_id AS "invitationId", maintenance_record_id AS "maintenanceRecordId", homeowner_inquiry_id AS "homeownerInquiryId", conversation_message_id AS "conversationMessageId", read_at AS "readAt", created_at AS "createdAt"`,
       [
         userId,
         type,
@@ -29,6 +30,7 @@ class Notification {
         invitationId || null,
         maintenanceRecordId || null,
         homeownerInquiryId || null,
+        conversationMessageId || null,
       ]
     );
     return result.rows[0];

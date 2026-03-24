@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import AppApi from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
+import ModalBlank from "../../components/ModalBlank";
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
@@ -33,6 +34,7 @@ function InvitationsList() {
   const [error, setError] = useState(null);
   const [acceptingId, setAcceptingId] = useState(null);
   const [decliningId, setDecliningId] = useState(null);
+  const [acceptedPropertyInvite, setAcceptedPropertyInvite] = useState(null);
 
   const accountUrl = currentAccount?.url || "";
 
@@ -73,9 +75,9 @@ function InvitationsList() {
         (inv.propertyUid || inv.propertyId) &&
         accountUrl
       ) {
-        navigate(
-          `/${accountUrl}/properties/${inv.propertyUid || inv.propertyId}`,
-        );
+        setAcceptedPropertyInvite({
+          uid: inv.propertyUid || inv.propertyId,
+        });
       } else {
         navigate(accountUrl ? `/${accountUrl}/home` : "/");
       }
@@ -213,6 +215,48 @@ function InvitationsList() {
           )}
         </section>
       </div>
+
+      <ModalBlank
+        modalOpen={Boolean(acceptedPropertyInvite)}
+        setModalOpen={(open) => {
+          if (open) return;
+          setAcceptedPropertyInvite((prev) => {
+            if (prev && accountUrl) {
+              navigate(`/${accountUrl}/properties/${prev.uid}`);
+            }
+            return null;
+          });
+        }}
+        closeOnClickOutside={false}
+        closeOnBackdropClick={false}
+        contentClassName="w-full max-w-md"
+      >
+        <div className="p-6 sm:p-8 w-full text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+            <Check className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            {t("invitations.acceptedTitle") || "Invitation accepted"}
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+            {t("invitations.acceptedPropertyBody") ||
+              "You're now on this property's team and can access it from your account."}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              if (!acceptedPropertyInvite) return;
+              navigate(
+                `/${accountUrl}/properties/${acceptedPropertyInvite.uid}`,
+              );
+              setAcceptedPropertyInvite(null);
+            }}
+            className="btn w-full bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white"
+          >
+            {t("invitations.continueToProperty") || "Continue to property"}
+          </button>
+        </div>
+      </ModalBlank>
     </div>
   );
 }

@@ -16,7 +16,18 @@ import ComposeSection from "./partials/ComposeSection";
 import AudienceSection from "./partials/AudienceSection";
 import DeliverySection from "./partials/DeliverySection";
 import LivePreview from "./partials/LivePreview";
-import {ArrowLeft, Send, Clock, Save, Loader2, Eye, Copy} from "lucide-react";
+import Transition from "../../utils/Transition";
+import {
+  ArrowLeft,
+  Send,
+  Clock,
+  Save,
+  Loader2,
+  Eye,
+  Copy,
+  Plus,
+  Settings,
+} from "lucide-react";
 
 const INITIAL_FORM = {
   subject: "",
@@ -55,8 +66,11 @@ function CommunicationComposer() {
   const [template, setTemplate] = useState(null);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [actionsDropdownOpen, setActionsDropdownOpen] = useState(false);
   const lastSavedRef = useRef(null);
   const sendButtonRef = useRef(null);
+  const actionsTriggerRef = useRef(null);
+  const actionsDropdownRef = useRef(null);
 
   const showBanner = (type, msg) => {
     setBannerType(type);
@@ -65,6 +79,29 @@ function CommunicationComposer() {
   };
 
   useAutoCloseBanner(bannerOpen, bannerMessage, () => setBannerOpen(false));
+
+  useEffect(() => {
+    const clickHandler = ({target}) => {
+      if (
+        !actionsDropdownOpen ||
+        actionsDropdownRef.current?.contains(target) ||
+        actionsTriggerRef.current?.contains(target)
+      )
+        return;
+      setActionsDropdownOpen(false);
+    };
+    document.addEventListener("click", clickHandler);
+    return () => document.removeEventListener("click", clickHandler);
+  }, [actionsDropdownOpen]);
+
+  useEffect(() => {
+    const keyHandler = ({keyCode}) => {
+      if (!actionsDropdownOpen || keyCode !== 27) return;
+      setActionsDropdownOpen(false);
+    };
+    document.addEventListener("keydown", keyHandler);
+    return () => document.removeEventListener("keydown", keyHandler);
+  }, [actionsDropdownOpen]);
 
   const isSent = form.status === "sent";
   const isScheduled = form.status === "scheduled";
@@ -284,15 +321,73 @@ function CommunicationComposer() {
               </button>
               <div className="flex items-center gap-2">
                 {!isNew && (
-                  <button
-                    type="button"
-                    onClick={handleDuplicate}
-                    disabled={submitting}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm transition-colors disabled:opacity-50"
-                  >
-                    <Copy className="w-4 h-4" />
-                    Duplicate
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/${accountUrl}/communications/new`)
+                      }
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      New
+                    </button>
+                    <div className="relative inline-flex">
+                      <button
+                        ref={actionsTriggerRef}
+                        type="button"
+                        className="inline-flex items-center justify-center px-2.5 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                        aria-haspopup="true"
+                        aria-expanded={actionsDropdownOpen}
+                        onClick={() =>
+                          setActionsDropdownOpen(!actionsDropdownOpen)
+                        }
+                      >
+                        <span className="sr-only">Actions</span>
+                        <Settings className="w-4 h-4 shrink-0" />
+                      </button>
+                      <Transition
+                        show={actionsDropdownOpen}
+                        tag="div"
+                        className="origin-top-right z-10 absolute top-full left-0 right-auto min-w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 pt-1.5 rounded-xl overflow-hidden mt-1 md:left-auto md:right-0"
+                        style={{
+                          boxShadow:
+                            "0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+                        }}
+                        enter="transition ease-out duration-200 transform"
+                        enterStart="opacity-0 -translate-y-2"
+                        enterEnd="opacity-100 translate-y-0"
+                        leave="transition ease-out duration-200"
+                        leaveStart="opacity-100"
+                        leaveEnd="opacity-0"
+                      >
+                        <div ref={actionsDropdownRef}>
+                          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider pt-1.5 pb-2 px-3">
+                            Actions
+                          </div>
+                          <ul className="mb-1">
+                            <li>
+                              <button
+                                type="button"
+                                className="w-full flex items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/80 px-3 py-2 disabled:opacity-50"
+                                disabled={submitting}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActionsDropdownOpen(false);
+                                  handleDuplicate();
+                                }}
+                              >
+                                <Copy className="w-5 h-5 shrink-0 text-gray-500 dark:text-gray-400" />
+                                <span className="text-sm font-medium ml-2 text-gray-800 dark:text-gray-200">
+                                  Duplicate
+                                </span>
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      </Transition>
+                    </div>
+                  </>
                 )}
                 <button
                   type="button"

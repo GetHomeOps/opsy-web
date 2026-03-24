@@ -916,6 +916,41 @@ CREATE INDEX idx_hai_agent_account ON homeowner_agent_inquiries(agent_user_id, a
 CREATE INDEX idx_hai_account_created ON homeowner_agent_inquiries(account_id, created_at DESC);
 
 -- ============================================================
+-- Conversations (bidirectional messaging between homeowner and agent)
+-- One conversation per homeowner/agent/property triple.
+-- ============================================================
+
+CREATE TABLE conversations (
+    id SERIAL PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    homeowner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    agent_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    homeowner_last_read_at TIMESTAMPTZ,
+    agent_last_read_at TIMESTAMPTZ,
+    last_message_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (property_id, homeowner_user_id, agent_user_id)
+);
+
+CREATE INDEX idx_conversations_account ON conversations(account_id);
+CREATE INDEX idx_conversations_agent ON conversations(agent_user_id, account_id);
+CREATE INDEX idx_conversations_homeowner ON conversations(homeowner_user_id);
+CREATE INDEX idx_conversations_last_msg ON conversations(account_id, last_message_at DESC);
+
+CREATE TABLE conversation_messages (
+    id SERIAL PRIMARY KEY,
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    sender_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind VARCHAR(30) NOT NULL CHECK (kind IN ('text', 'referral_request', 'refer_agent', 'share_contact', 'share_professional')),
+    payload JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_conv_messages_conversation ON conversation_messages(conversation_id, created_at);
+CREATE INDEX idx_conv_messages_conversation_desc ON conversation_messages(conversation_id, created_at DESC);
+
+-- ============================================================
 -- Notifications (when resources are sent, recipients get notified)
 -- Homeowners and agents see these in the bell dropdown and home page
 -- ============================================================
@@ -929,6 +964,7 @@ CREATE TABLE notifications (
     invitation_id UUID REFERENCES invitations(id) ON DELETE SET NULL,
     maintenance_record_id INTEGER REFERENCES property_maintenance(id) ON DELETE SET NULL,
     homeowner_inquiry_id INTEGER REFERENCES homeowner_agent_inquiries(id) ON DELETE SET NULL,
+    conversation_message_id INTEGER REFERENCES conversation_messages(id) ON DELETE SET NULL,
     title VARCHAR(500),
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

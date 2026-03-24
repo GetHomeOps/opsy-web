@@ -1504,6 +1504,37 @@ class AppApi {
   static async markHomeownerAgentInquiryRead(id) {
     return this.request(`homeowner-agent-inquiries/${id}/read`, {}, "POST");
   }
+
+  // ─── Conversations ──────────────────────────────────────────────────────────
+
+  static async getConversations(accountId, params = {}) {
+    const res = await this.request("conversations", { accountId, ...params });
+    return res.conversations ?? [];
+  }
+
+  static async getMyConversations(params = {}) {
+    const res = await this.request("conversations/mine", params);
+    return res.conversations ?? [];
+  }
+
+  static async createConversation({ accountId, propertyUid, agentUserId }) {
+    const res = await this.request("conversations", { accountId, propertyUid, agentUserId }, "POST");
+    return res.conversation;
+  }
+
+  static async getConversationMessages(conversationId, params = {}) {
+    const res = await this.request(`conversations/${conversationId}/messages`, params);
+    return res.messages ?? [];
+  }
+
+  static async sendConversationMessage(conversationId, data) {
+    const res = await this.request(`conversations/${conversationId}/messages`, data, "POST");
+    return res.message;
+  }
+
+  static async markConversationRead(conversationId) {
+    return this.request(`conversations/${conversationId}/read`, {}, "POST");
+  }
 }
 
 export default AppApi;

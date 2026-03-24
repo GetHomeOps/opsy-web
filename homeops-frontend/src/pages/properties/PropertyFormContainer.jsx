@@ -480,6 +480,7 @@ function PropertyFormContainer() {
     createMaintenanceRecords,
     updateMaintenanceRecord,
     deleteMaintenanceRecord,
+    refreshProperties,
   } = useContext(PropertyContext);
 
   const {users} = useContext(UserContext);
@@ -526,6 +527,8 @@ function PropertyFormContainer() {
   const [invitationError, setInvitationError] = useState(null);
   const invitationMainCardRef = useRef(null);
   const invitationActionInProgressRef = useRef(false);
+  const [invitationAcceptedModalOpen, setInvitationAcceptedModalOpen] =
+    useState(false);
   const [showInviteAgentCta, setShowInviteAgentCta] = useState(false);
   const [inviteAgentBenefitsOpen, setInviteAgentBenefitsOpen] = useState(false);
   const [mainPhotoMenuOpen, setMainPhotoMenuOpen] = useState(false);
@@ -860,6 +863,47 @@ function PropertyFormContainer() {
       setInvitationReviewMode(false);
     }
   }, [isInvitationView, state.property, invitationIdFromUrl]);
+
+  const enrichPropertyTeamMembers = useCallback(
+    (raw) =>
+      (raw ?? []).map((m) => {
+        const u = users?.find(
+          (us) => us && m?.id != null && Number(us.id) === Number(m.id),
+        );
+        return {
+          ...m,
+          role: m.role,
+          property_role: m.property_role ?? "editor",
+          image_url:
+            m.image_url ??
+            m.avatar_url ??
+            u?.image_url ??
+            u?.avatarUrl,
+          image:
+            m.image ??
+            u?.image ??
+            u?.avatarUrl ??
+            u?.avatar_url ??
+            u?.avatar,
+        };
+      }),
+    [users],
+  );
+
+  const afterPropertyInvitationAcceptedInApp = useCallback(async () => {
+    setInvitationModalOpen(false);
+    setInvitationReviewMode(false);
+    const team = await getPropertyTeam(uid);
+    const raw = team?.property_users ?? [];
+    setHomeopsTeam(enrichPropertyTeamMembers(raw));
+    setInvitationAcceptedModalOpen(true);
+    refreshProperties?.();
+  }, [uid, getPropertyTeam, enrichPropertyTeamMembers, refreshProperties]);
+
+  const dismissInvitationAcceptedModal = useCallback(() => {
+    setInvitationAcceptedModalOpen(false);
+    navigate(`/${accountUrl}/properties/${uid}`, {replace: true});
+  }, [accountUrl, uid, navigate]);
 
   /* Fetch inspection analysis for hero card pill and report context */
   const propertyIdForApi =
@@ -2515,6 +2559,112 @@ function PropertyFormContainer() {
         )}
       </div>
 
+      {/* Persistent pending invitation banner */}
+      {isInvitationView && invitationIdFromUrl && (
+        <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              {t("pendingInvitationBanner", {
+                defaultValue:
+                  "You have a pending invitation for this property. Accept to gain full access.",
+              })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={async () => {
+                if (invitationActionInProgressRef.current) return;
+                invitationActionInProgressRef.current = true;
+                setInvitationError(null);
+                setInvitationAcceptingId(invitationIdFromUrl);
+                try {
+                  await AppApi.acceptInvitationInApp(invitationIdFromUrl);
+                  await afterPropertyInvitationAcceptedInApp();
+                } catch (err) {
+                  console.error("Failed to accept invitation:", err);
+                  const errMsg = err?.messages?.[0] ?? err?.message ?? "";
+                  if (
+                    typeof errMsg === "string" &&
+                    errMsg.toLowerCase().includes("no longer pending")
+                  ) {
+                    navigate(`/${accountUrl}/properties/${uid}`, {
+                      replace: true,
+                    });
+                  } else {
+                    setInvitationError(
+                      typeof errMsg === "string"
+                        ? errMsg
+                        : "Failed to accept invitation.",
+                    );
+                  }
+                } finally {
+                  invitationActionInProgressRef.current = false;
+                  setInvitationAcceptingId(null);
+                }
+              }}
+              disabled={!!invitationAcceptingId || !!invitationDecliningId}
+              className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-1.5 px-3"
+            >
+              {invitationAcceptingId ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Check className="w-3.5 h-3.5" />
+              )}
+              {t("accept", {defaultValue: "Accept"})}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (invitationActionInProgressRef.current) return;
+                invitationActionInProgressRef.current = true;
+                setInvitationError(null);
+                setInvitationDecliningId(invitationIdFromUrl);
+                try {
+                  await AppApi.declineInvitation(invitationIdFromUrl);
+                  navigate(`/${accountUrl}/properties`);
+                } catch (err) {
+                  console.error("Failed to decline invitation:", err);
+                  const errMsg = err?.messages?.[0] ?? err?.message ?? "";
+                  if (
+                    typeof errMsg === "string" &&
+                    errMsg.toLowerCase().includes("no longer pending")
+                  ) {
+                    navigate(`/${accountUrl}/properties`);
+                  } else {
+                    setInvitationError(
+                      typeof errMsg === "string"
+                        ? errMsg
+                        : "Failed to decline invitation.",
+                    );
+                  }
+                } finally {
+                  invitationActionInProgressRef.current = false;
+                  setInvitationDecliningId(null);
+                }
+              }}
+              disabled={!!invitationAcceptingId || !!invitationDecliningId}
+              className="btn-sm border border-amber-300 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-500/20 inline-flex items-center gap-1.5 px-3"
+            >
+              {invitationDecliningId ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <X className="w-3.5 h-3.5" />
+              )}
+              {t("decline", {defaultValue: "Decline"})}
+            </button>
+          </div>
+          {invitationError && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1 w-full" role="alert">
+              {invitationError}
+            </p>
+          )}
+        </div>
+      )}
+
       {!isInvitationView && (
         <div className="flex items-center mb-2">
           {/* Passport Opsymization button - Left aligned, premium gold pill */}
@@ -3373,36 +3523,7 @@ function PropertyFormContainer() {
                   setInvitationAcceptingId(invitationIdFromUrl);
                   try {
                     await AppApi.acceptInvitationInApp(invitationIdFromUrl);
-                    setInvitationModalOpen(false);
-                    setInvitationReviewMode(false);
-                    const team = await getPropertyTeam(uid);
-                    const raw = team?.property_users ?? [];
-                    const enriched = raw.map((m) => {
-                      const u = users?.find(
-                        (us) =>
-                          us && m?.id != null && Number(us.id) === Number(m.id),
-                      );
-                      return {
-                        ...m,
-                        role: m.role,
-                        property_role: m.property_role ?? "editor",
-                        image_url:
-                          m.image_url ??
-                          m.avatar_url ??
-                          u?.image_url ??
-                          u?.avatarUrl,
-                        image:
-                          m.image ??
-                          u?.image ??
-                          u?.avatarUrl ??
-                          u?.avatar_url ??
-                          u?.avatar,
-                      };
-                    });
-                    setHomeopsTeam(enriched);
-                    navigate(`/${accountUrl}/properties/${uid}`, {
-                      replace: true,
-                    });
+                    await afterPropertyInvitationAcceptedInApp();
                   } catch (err) {
                     console.error("Failed to accept invitation:", err);
                     const errMsg = err?.messages?.[0] ?? err?.message ?? "";
@@ -3498,35 +3619,7 @@ function PropertyFormContainer() {
               setInvitationAcceptingId(invitationIdFromUrl);
               try {
                 await AppApi.acceptInvitationInApp(invitationIdFromUrl);
-                setInvitationReviewMode(false);
-                const team = await getPropertyTeam(uid);
-                const raw = team?.property_users ?? [];
-                const enriched = raw.map((m) => {
-                  const u = users?.find(
-                    (us) =>
-                      us && m?.id != null && Number(us.id) === Number(m.id),
-                  );
-                  return {
-                    ...m,
-                    role: m.role,
-                    property_role: m.property_role ?? "editor",
-                    image_url:
-                      m.image_url ??
-                      m.avatar_url ??
-                      u?.image_url ??
-                      u?.avatarUrl,
-                    image:
-                      m.image ??
-                      u?.image ??
-                      u?.avatarUrl ??
-                      u?.avatar_url ??
-                      u?.avatar,
-                  };
-                });
-                setHomeopsTeam(enriched);
-                navigate(`/${accountUrl}/properties/${uid}`, {
-                  replace: true,
-                });
+                await afterPropertyInvitationAcceptedInApp();
               } catch (err) {
                 console.error("Failed to accept invitation:", err);
                 const errMsg = err?.messages?.[0] ?? err?.message ?? "";
@@ -3610,6 +3703,36 @@ function PropertyFormContainer() {
           </button>
         </div>
       )}
+
+      <ModalBlank
+        modalOpen={invitationAcceptedModalOpen}
+        setModalOpen={(open) => {
+          if (!open) dismissInvitationAcceptedModal();
+        }}
+        closeOnClickOutside={false}
+        closeOnBackdropClick={false}
+        contentClassName="w-full max-w-md"
+      >
+        <div className="p-6 sm:p-8 w-full text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+            <Check className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-neutral-900 dark:text-white mb-2">
+            {t("invitations.acceptedTitle") || "Invitation accepted"}
+          </h3>
+          <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-6">
+            {t("invitations.acceptedPropertyBody") ||
+              "You're now on this property's team and can access it from your account."}
+          </p>
+          <button
+            type="button"
+            onClick={dismissInvitationAcceptedModal}
+            className="btn w-full bg-[#456564] hover:bg-[#34514f] text-white"
+          >
+            {t("invitations.continueToProperty") || "Continue to property"}
+          </button>
+        </div>
+      </ModalBlank>
 
       {/* Inspection Report modal (legacy - for Systems/Documents tabs) */}
       {uid !== "new" && (

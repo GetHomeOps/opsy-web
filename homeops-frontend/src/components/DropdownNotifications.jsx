@@ -1,6 +1,6 @@
 import React, {useState, useRef, useEffect} from "react";
 import {Link} from "react-router-dom";
-import {Bell, ChevronRight, BookOpen, UserPlus, Wrench, MessageSquare} from "lucide-react";
+import {Bell, BookOpen, UserPlus, Wrench, MessageSquare} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -153,10 +153,13 @@ function DropdownNotifications({align = "right"}) {
                   const isInvitation = n.type === "property_invitation";
                   const isContractorReport = n.type === "contractor_report_submitted";
                   const isHomeownerInquiry = n.type === "homeowner_inquiry";
+                  const isConversationMessage = n.type === "conversation_message";
                   const isCommunication = n.type === "communication_sent" && (n.communicationId ?? n.resourceId);
                   const isResource = n.type === "resource_sent" && n.resourceId;
                   const basePath =
-                    isHomeownerInquiry
+                    isConversationMessage
+                      ? clientMessagesPath
+                      : isHomeownerInquiry
                       ? `${clientMessagesPath}${n.homeownerInquiryId ? `?highlight=${n.homeownerInquiryId}` : ""}`
                       : isInvitation && n.propertyUid && n.accountUrl
                         ? `/${n.accountUrl}/properties/${n.propertyUid}`
@@ -222,37 +225,23 @@ function DropdownNotifications({align = "right"}) {
             )}
           </div>
 
-          <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/50 flex gap-2">
-              {unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await AppApi.markAllNotificationsRead();
-                      setUnreadCount(0);
-                      fetchData();
-                    } catch {}
-                  }}
-                  className="flex-1 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-[#456564] dark:hover:text-teal-400"
-                >
-                  Mark all read
-                </button>
-              )}
-              <Link
-                to={homePath}
-                onClick={() => setDropdownOpen(false)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium text-[#456564] dark:text-teal-400 hover:text-[#3a5554] dark:hover:text-teal-300"
+          {unreadCount > 0 && (
+            <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/50">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await AppApi.markAllNotificationsRead();
+                    setUnreadCount(0);
+                    fetchData();
+                  } catch {}
+                }}
+                className="w-full py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-[#456564] dark:hover:text-teal-400"
               >
-                View home <ChevronRight className="w-4 h-4" />
-              </Link>
-              <Link
-                to={invitationsPath}
-                onClick={() => setDropdownOpen(false)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium text-[#456564] dark:text-teal-400 hover:text-[#3a5554] dark:hover:text-teal-300"
-              >
-                Invitations <ChevronRight className="w-4 h-4" />
-              </Link>
+                Mark all read
+              </button>
             </div>
+          )}
         </div>
       </Transition>
     </div>
