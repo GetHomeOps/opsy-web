@@ -532,6 +532,9 @@ function PropertyFormContainer() {
   const [invitationAcceptedModalOpen, setInvitationAcceptedModalOpen] =
     useState(false);
   const [showInviteAgentCta, setShowInviteAgentCta] = useState(false);
+  const [hasResolvedTeamForCta, setHasResolvedTeamForCta] = useState(
+    uid === "new",
+  );
   const [inviteAgentBenefitsOpen, setInviteAgentBenefitsOpen] = useState(false);
   const [mainPhotoMenuOpen, setMainPhotoMenuOpen] = useState(false);
   const {handleAddProperty, isChecking: addPropertyChecking} =
@@ -858,6 +861,7 @@ function PropertyFormContainer() {
   useEffect(() => {
     if (
       uid === "new" ||
+      !hasResolvedTeamForCta ||
       hasAgent ||
       isCurrentUserAgent ||
       isInviteAgentCtaDismissed(uid)
@@ -866,7 +870,7 @@ function PropertyFormContainer() {
       return;
     }
     setShowInviteAgentCta(true);
-  }, [uid, hasAgent, isCurrentUserAgent]);
+  }, [uid, hasResolvedTeamForCta, hasAgent, isCurrentUserAgent]);
 
   /* Open invitation modal when viewing property from invitation notification */
   useEffect(() => {
@@ -1157,6 +1161,7 @@ function PropertyFormContainer() {
   const prevUidRef = useRef(null);
   useEffect(() => {
     if (uid === "new") {
+      setHasResolvedTeamForCta(true);
       const cameFromOtherProperty =
         prevUidRef.current != null && prevUidRef.current !== "new";
       if (cameFromOtherProperty) {
@@ -1167,6 +1172,7 @@ function PropertyFormContainer() {
         setHomeopsTeam([]);
       }
     } else if (prevUidRef.current !== uid) {
+      setHasResolvedTeamForCta(false);
       dispatch({type: "SET_PROPERTY_ACCESS_DENIED", payload: false});
       dispatch({type: "SET_PROPERTY_NOT_FOUND", payload: false});
     }
@@ -1221,29 +1227,41 @@ function PropertyFormContainer() {
 
   /* Sets default HomeOps Team (only for existing properties; new form keeps team [] from reset effect). Enrich with property_role as role and user image from context so photos and roles display after save/refetch. */
   useEffect(() => {
+    let cancelled = false;
     async function setDefaultHomeopsTeam() {
-      if (uid === "new") return;
-      const team = await getPropertyTeam(uid);
-      const raw = team?.property_users ?? [];
-      const enriched = raw.map((m) => {
-        const u = users?.find(
-          (us) => us && m?.id != null && Number(us.id) === Number(m.id),
-        );
-        return {
-          ...m,
-          /* Preserve role (user type: agent, homeowner) for tab categorization; property_role for access (owner, editor, viewer) */
-          role: m.role,
-          property_role: m.property_role ?? "editor",
-          image_url:
-            m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
-          image:
-            m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
-        };
-      });
-      setHomeopsTeam(enriched);
-      originalTeamRef.current = prepareTeamForProperty(enriched);
+      if (uid === "new") {
+        setHasResolvedTeamForCta(true);
+        return;
+      }
+      try {
+        const team = await getPropertyTeam(uid);
+        const raw = team?.property_users ?? [];
+        const enriched = raw.map((m) => {
+          const u = users?.find(
+            (us) => us && m?.id != null && Number(us.id) === Number(m.id),
+          );
+          return {
+            ...m,
+            /* Preserve role (user type: agent, homeowner) for tab categorization; property_role for access (owner, editor, viewer) */
+            role: m.role,
+            property_role: m.property_role ?? "editor",
+            image_url:
+              m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
+            image:
+              m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
+          };
+        });
+        if (cancelled) return;
+        setHomeopsTeam(enriched);
+        originalTeamRef.current = prepareTeamForProperty(enriched);
+      } finally {
+        if (!cancelled) setHasResolvedTeamForCta(true);
+      }
     }
     setDefaultHomeopsTeam();
+    return () => {
+      cancelled = true;
+    };
   }, [uid, currentUser?.id, state.property]);
 
   /* Handles the change of the property */
