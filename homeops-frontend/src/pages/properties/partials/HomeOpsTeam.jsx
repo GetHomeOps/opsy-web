@@ -1,5 +1,5 @@
 import React, {useContext, useMemo} from "react";
-import {Plus, Mail} from "lucide-react";
+import {Plus, Mail, Loader2} from "lucide-react";
 import UserContext from "../../../context/UserContext";
 import {useAuth} from "../../../context/AuthContext";
 
@@ -8,6 +8,7 @@ function HomeOpsTeam({
   onOpenShareModal,
   onMemberClick,
   hideAddButton,
+  isLoadingTeam = false,
 }) {
   const {users = []} = useContext(UserContext);
   const {currentUser} = useAuth();
@@ -72,8 +73,24 @@ function HomeOpsTeam({
             Team members
           </span>
         </div>
-        <div className="flex items-center gap-4 flex-wrap">
-        {sortedMembers?.map((member) => {
+        <div
+          className="flex items-center gap-4 flex-wrap min-h-[4.5rem]"
+          aria-busy={isLoadingTeam}
+        >
+        {isLoadingTeam ? (
+          <div
+            className="flex items-center gap-3 py-4 text-neutral-500 dark:text-neutral-400"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2
+              className="w-5 h-5 shrink-0 animate-spin text-[#456564] dark:text-[#5a7a78]"
+              aria-hidden
+            />
+            <span className="text-sm">Loading team members…</span>
+          </div>
+        ) : (
+          sortedMembers?.map((member) => {
             const isOwner = member === owner;
             const isPending = member._pending === true;
             const initials = member.name
@@ -191,9 +208,10 @@ function HomeOpsTeam({
                 </div>
               </div>
             );
-          })}
+          })
+        )}
 
-        {!hideAddButton && (
+        {!isLoadingTeam && !hideAddButton && (
         <button
           type="button"
           onClick={(e) => {

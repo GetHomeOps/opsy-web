@@ -41,9 +41,18 @@ function mapToAccountRole(intendedRole, invitationType) {
   return "member";
 }
 
-async function createPropertyInvitation({ inviterUserId, inviteeEmail, accountId, propertyId, intendedRole, inviterUserRole }) {
+async function createPropertyInvitation({
+  inviterUserId,
+  inviteeEmail,
+  inviteeName,
+  accountId,
+  propertyId,
+  intendedRole,
+  inviterUserRole,
+}) {
   const emailLower = (inviteeEmail || "").trim().toLowerCase();
   if (!emailLower) throw new BadRequestError("inviteeEmail is required");
+  const trimmedInviteeName = (inviteeName || "").trim();
 
   // Prevent duplicate: user already in property team
   const existingMember = await db.query(
@@ -78,8 +87,9 @@ async function createPropertyInvitation({ inviterUserId, inviteeEmail, accountId
     const tierCheck = await canAddContact(accountId, inviterUserRole);
     if (tierCheck.allowed) {
       try {
+        const localPart = (inviteeEmail || "").trim().split("@")[0];
         const contactName =
-          inviteeEmail.split("@")[0] || inviteeEmail;
+          trimmedInviteeName || localPart || (inviteeEmail || "").trim();
         const contact = await Contact.create({
           name: contactName,
           email: inviteeEmail.trim(),
@@ -386,6 +396,38 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
           "[invitationService] Failed to remove invitation notification:",
           notifErr.message
         );
+      }
+
+      const inviterId = invitation.inviterUserId;
+      if (
+        inviterId &&
+        inviterId !== user.id &&
+        accepted.propertyId
+      ) {
+        try {
+          const propRes = await db.query(
+            `SELECT address FROM properties WHERE id = $1`,
+            [accepted.propertyId]
+          );
+          const address = propRes.rows[0]?.address;
+          const placeLabel =
+            address && String(address).trim() ? String(address).trim() : "the property";
+          const acceptorName =
+            (user.name && String(user.name).trim()) ||
+            invitation.inviteeEmail ||
+            "Someone";
+          await Notification.create({
+            userId: inviterId,
+            type: "property_invitation_accepted",
+            title: `${acceptorName} accepted your invitation to join ${placeLabel}`,
+            invitationId: invitation.id,
+          });
+        } catch (inviterNotifErr) {
+          console.error(
+            "[invitationService] Failed to notify inviter of acceptance:",
+            inviterNotifErr.message
+          );
+        }
       }
     }
 

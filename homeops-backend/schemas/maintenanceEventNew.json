@@ -34,7 +34,11 @@
     "reply_email": {"type": ["string", "null"], "maxLength": 255},
     "send_email_now": {"type": "boolean"},
     "timezone": {"type": ["string", "null"], "maxLength": 50},
-    "checklist_item_id": {"type": ["integer", "null"]}
+    "checklist_item_id": {"type": ["integer", "null"]},
+    "event_type": {
+      "type": "string",
+      "enum": ["maintenance", "inspection"]
+    }
   },
   "required": ["system_key", "scheduled_date"],
   "additionalProperties": false

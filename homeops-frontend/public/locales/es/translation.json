@@ -310,6 +310,7 @@
   "homeownerHome.uploadDocument": "Subir Documento",
   "homeownerHome.searchProfessionals": "Buscar profesionales",
   "homeownerHome.findProfessional": "Buscar Profesional",
+  "homeownerHome.loadingAgent": "Cargando agente",
   "homeownerHome.getSupport": "Obtener Ayuda",
   "homeownerHome.uploadRequiresProperty": "Crea una propiedad primero",
   "homeownerHome.uploadRequiresPropertyDesc": "Añade tu propiedad para subir documentos, garantías y recibos.",
@@ -857,5 +858,18 @@
   "onboarding.successMessage": "Explora la plataforma.",
   "onboarding.explore": "Empezar a explorar",
   "onboarding.skip": "Omitir por ahora",
-  "onboarding.doNotShowAgain": "No volver a mostrar"
+  "onboarding.doNotShowAgain": "No volver a mostrar",
+  "widget.title": "¿Cómo podemos ayudarte?",
+  "widget.label": "Errores y comentarios",
+  "widget.feedbackToggle": "Enviar comentarios o reportar un error",
+  "widget.dragHint": "Arrastra para mover",
+  "widget.feedback": "Comentarios",
+  "widget.bug": "Reportar error",
+  "widget.subjectPlaceholder": "Resumen breve",
+  "widget.feedbackPlaceholder": "Comparte tus ideas o sugerencias...",
+  "widget.bugPlaceholder": "¿Qué pasó? Pasos para reproducir...",
+  "widget.attach": "Adjuntar archivo",
+  "widget.submit": "Enviar",
+  "widget.submitting": "Enviando...",
+  "widget.success": "¡Gracias! Recibimos tu envío."
 }

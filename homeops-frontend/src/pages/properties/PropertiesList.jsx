@@ -23,6 +23,7 @@ import FilterDropdown from "../../components/FilterDropdown";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import propertyContext from "../../context/PropertyContext";
+import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import UpgradePrompt from "../../components/UpgradePrompt";
 
@@ -290,8 +291,12 @@ const PropertyCard = ({
 function PropertiesList() {
   const navigate = useNavigate();
   const {t} = useTranslation();
+  const {currentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
+  const canImportProperties = ["super_admin", "admin"].includes(
+    currentUser?.role,
+  );
   const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] =
     useState(false);
   const {handleAddProperty, isChecking: addPropertyChecking} =
@@ -940,15 +945,20 @@ function PropertiesList() {
                 {t("properties")}
               </h1>
               <div className="flex items-center gap-2">
-                <ListDropdown
-                  align="right"
-                  hasSelection={selectedProperties.length > 0}
-                  onImport={() =>
-                    navigate(`/${accountUrl}/properties/import`)
-                  }
-                  onDelete={handleDeleteClick}
-                  onDuplicate={handleDuplicate}
-                />
+                {(canImportProperties || selectedProperties.length > 0) && (
+                  <ListDropdown
+                    align="right"
+                    hasSelection={selectedProperties.length > 0}
+                    onImport={
+                      canImportProperties
+                        ? () =>
+                            navigate(`/${accountUrl}/properties/import`)
+                        : undefined
+                    }
+                    onDelete={handleDeleteClick}
+                    onDuplicate={handleDuplicate}
+                  />
+                )}
                 <button
                   className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white disabled:opacity-70"
                   onClick={handleNewProperty}

@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useMemo} from "react";
+import React, {useState, useEffect, useCallback, useMemo, useRef} from "react";
 import {createPortal} from "react-dom";
 import {addYears, format, subYears} from "date-fns";
 import Sidebar from "../../partials/Sidebar";
@@ -100,6 +100,10 @@ function Calendar() {
   const [jumpPopoverOpen, setJumpPopoverOpen] = useState(false);
   const [calendarSettingsOpen, setCalendarSettingsOpen] = useState(false);
 
+  /** Stale-while-revalidate cache: key = "start|end", value = normalized events. */
+  const eventsCacheRef = useRef(new Map());
+  const EVENTS_CACHE_MAX = 12;
+
   const getDays = useCallback(() => {
     const days = new Date(year, month + 1, 0).getDate();
     const startingDayOfWeek = new Date(year, month).getDay();
@@ -171,12 +175,27 @@ function Calendar() {
 
   useEffect(() => {
     let cancelled = false;
+    const cacheKey = `${startDate}|${endDate}`;
+    const cached = eventsCacheRef.current.get(cacheKey);
+
+    if (cached) {
+      setEvents(cached);
+      setLoading(false);
+      setLoadError(null);
+      return;
+    }
+
     setLoading(true);
     setLoadError(null);
     AppApi.getCalendarEvents(startDate, endDate)
       .then((rawEvents) => {
         if (cancelled) return;
         const normalized = rawEvents.map(normalizeEvent);
+        if (eventsCacheRef.current.size >= EVENTS_CACHE_MAX) {
+          const oldest = eventsCacheRef.current.keys().next().value;
+          eventsCacheRef.current.delete(oldest);
+        }
+        eventsCacheRef.current.set(cacheKey, normalized);
         setEvents(normalized);
       })
       .catch((err) => {
@@ -319,11 +338,14 @@ function Calendar() {
   };
 
   const refreshEvents = useCallback(() => {
+    const cacheKey = `${startDate}|${endDate}`;
+    eventsCacheRef.current.delete(cacheKey);
     setLoading(true);
     setLoadError(null);
     AppApi.getCalendarEvents(startDate, endDate)
       .then((rawEvents) => {
         const normalized = rawEvents.map(normalizeEvent);
+        eventsCacheRef.current.set(cacheKey, normalized);
         setEvents(normalized);
       })
       .catch((err) => {

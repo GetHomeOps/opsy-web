@@ -9,12 +9,10 @@ import {
   Users,
   Search,
   ExternalLink,
-  Sparkles,
   Loader2,
   ChevronRight,
   Bell,
   Mail,
-  MessageSquare,
   Clock,
   Repeat,
   Star,
@@ -28,7 +26,8 @@ import {
   RECURRENCE_UNITS,
   ALERT_TIMING_OPTIONS,
 } from "../constants/maintenanceSchedule";
-import AppApi from "../../../api/api";
+import AppApi, {getApiErrorMessage} from "../../../api/api";
+import opsyAi2Icon from "../../../images/opsy_ai2.webp";
 
 const STEPS = [
   {id: "type", label: "Request Type"},
@@ -36,6 +35,13 @@ const STEPS = [
   {id: "schedule", label: "Schedule"},
   {id: "message", label: "Message & AI"},
 ];
+
+function coerceContractorId(sourceId) {
+  if (sourceId == null || sourceId === "") return null;
+  if (typeof sourceId === "number" && Number.isInteger(sourceId)) return sourceId;
+  const n = parseInt(String(sourceId), 10);
+  return Number.isFinite(n) ? n : null;
+}
 
 /** Build URL for external links (e.g. window.open) - BrowserRouter. */
 function toShareUrl(path) {
@@ -590,9 +596,6 @@ function ScheduleStep({
   checklistItems = [],
   selectedChecklistItemId,
   setSelectedChecklistItemId,
-  sendEmail,
-  setSendEmail,
-  hasSelectedContractor,
 }) {
   return (
     <div className="space-y-6">
@@ -601,35 +604,10 @@ function ScheduleStep({
           Schedule Details
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Pick a date and configure recurrence and reminders.
+          Choose a date to continue (required). Then set recurrence and
+          reminders below.
         </p>
       </div>
-
-      {hasSelectedContractor && (
-        <div className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
-          <div className="flex items-center gap-2">
-            <Mail className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Send email to contractor when scheduling
-            </span>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={sendEmail}
-            onClick={() => setSendEmail(!sendEmail)}
-            className={`relative w-11 h-6 rounded-full transition-colors ${
-              sendEmail ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                sendEmail ? "left-6" : "left-1"
-              }`}
-            />
-          </button>
-        </div>
-      )}
 
       {/* Date & Time */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -638,6 +616,10 @@ function ScheduleStep({
             <span className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-[#456564]" />
               Maintenance Date
+              <span className="text-red-500 dark:text-red-400 font-normal" aria-hidden>
+                *
+              </span>
+              <span className="sr-only">(required)</span>
             </span>
           </label>
           <DatePickerInput
@@ -646,7 +628,13 @@ function ScheduleStep({
             onChange={(e) => setScheduledDate(e.target.value)}
             popoverClassName="z-[250]"
             showOffsetControl
+            required
           />
+          {!scheduledDate?.trim() && (
+            <p className="mt-1.5 text-xs text-amber-800/90 dark:text-amber-200/90">
+              Select a date to enable Next.
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -826,8 +814,8 @@ function ScheduleStep({
 
 function MessageStep({
   selectedContractor,
-  messageEnabled,
-  setMessageEnabled,
+  sendEmail,
+  setSendEmail,
   messageBody,
   setMessageBody,
   aiAdvice,
@@ -844,42 +832,45 @@ function MessageStep({
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           {selectedContractor
-            ? "Optionally send a message to your contractor and get AI recommendations."
+            ? "Choose whether to email your contractor, edit the message below, and get AI recommendations."
             : "Get AI-powered maintenance recommendations for this system."}
         </p>
       </div>
 
-      {/* Messaging */}
+      {/* Email to contractor */}
       {selectedContractor && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <MessageSquare className="w-4 h-4 text-[#456564]" />
+          <div className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Send message to {selectedContractor.name}
+                Send email to contractor when scheduling
               </span>
             </div>
             <button
               type="button"
-              onClick={() => setMessageEnabled(!messageEnabled)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
-                messageEnabled ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
+              role="switch"
+              aria-checked={sendEmail}
+              onClick={() => setSendEmail(!sendEmail)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                sendEmail ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
-                  messageEnabled ? "translate-x-6" : "translate-x-1"
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                  sendEmail ? "left-6" : "left-1"
                 }`}
               />
             </button>
           </div>
 
-          {messageEnabled && (
+          {sendEmail && (
             <textarea
               value={messageBody}
               onChange={(e) => setMessageBody(e.target.value)}
               rows={6}
               className="form-input w-full text-sm leading-relaxed"
+              aria-label={`Email message to ${selectedContractor.name}`}
             />
           )}
         </div>
@@ -895,8 +886,12 @@ function MessageStep({
           }}
           className="flex items-center gap-2.5 text-sm font-medium text-[#456564] dark:text-[#7aa3a2] hover:underline"
         >
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#456564]/15 to-[#456564]/5 dark:from-[#456564]/25 dark:to-[#456564]/10 flex items-center justify-center">
-            <Sparkles className="w-4 h-4" />
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#456564]/15 to-[#456564]/5 dark:from-[#456564]/25 dark:to-[#456564]/10 flex items-center justify-center overflow-hidden p-0.5">
+            <img
+              src={opsyAi2Icon}
+              alt=""
+              className="h-full w-full object-contain"
+            />
           </div>
           AI Maintenance Advisor
           <ChevronRight
@@ -1025,7 +1020,7 @@ function MessageStep({
 
 /* ───────────────── Success Overlay (reuses SchedulePopover pattern) ───────────────── */
 
-function SuccessOverlay() {
+function SuccessOverlay({requestType}) {
   return (
     <>
       <style>{`
@@ -1047,7 +1042,7 @@ function SuccessOverlay() {
             <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
           </div>
           <p className="text-base font-semibold text-gray-900 dark:text-white">
-            Maintenance scheduled!
+            {requestType === "inspection" ? "Inspection scheduled!" : "Maintenance scheduled!"}
           </p>
         </div>
       </div>
@@ -1077,6 +1072,7 @@ function MaintenanceScheduleModal({
   const [currentStep, setCurrentStep] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // Step 0 state
   const [requestType, setRequestType] = useState(null);
@@ -1100,8 +1096,7 @@ function MaintenanceScheduleModal({
   const [alertCustomDays, setAlertCustomDays] = useState(5);
   const [emailReminder, setEmailReminder] = useState(false);
 
-  // Step 3 state
-  const [messageEnabled, setMessageEnabled] = useState(false);
+  // Step 3 state (sendEmail also controls contractor email on final step)
   const [messageBody, setMessageBody] = useState("");
   const [showAI, setShowAI] = useState(false);
   const [aiAdvice, setAiAdvice] = useState(null);
@@ -1160,31 +1155,42 @@ function MaintenanceScheduleModal({
     };
   }, [isOpen, propertyId, systemType]);
 
+  /** Full reset only when the modal opens — not when initial date/time props change while open (that was clearing requestType before save). */
+  const scheduleModalWasOpenRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
-      setCurrentStep(0);
-      setShowSuccess(false);
-      setSaving(false);
-      setRequestType(null);
-      setHasContractor(null);
-      setSelectedContractor(null);
-      setContractorSearch("");
-      setScheduledDate(initialScheduledDate || "");
-      setScheduledTime(initialScheduledTime || "");
-      setSelectedChecklistItemId(initialChecklistItemId ?? null);
-      setRecurrenceType("one-time");
-      setCustomIntervalValue(3);
-      setCustomIntervalUnit("months");
-      setAlertTiming("3d");
-      setAlertCustomDays(5);
-      setEmailReminder(false);
-      setMessageEnabled(false);
-      setMessageBody("");
-      setShowAI(false);
-      setAiAdvice(null);
-      setAiLoading(false);
-      setSendEmail(true);
+    if (!isOpen) {
+      scheduleModalWasOpenRef.current = false;
+      return;
     }
+
+    const justOpened = !scheduleModalWasOpenRef.current;
+    scheduleModalWasOpenRef.current = true;
+
+    if (!justOpened) return;
+
+    setCurrentStep(0);
+    setShowSuccess(false);
+    setSaving(false);
+    setRequestType(null);
+    setHasContractor(null);
+    setSelectedContractor(null);
+    setContractorSearch("");
+    setScheduledDate(initialScheduledDate || "");
+    setScheduledTime(initialScheduledTime || "");
+    setSelectedChecklistItemId(initialChecklistItemId ?? null);
+    setRecurrenceType("one-time");
+    setCustomIntervalValue(3);
+    setCustomIntervalUnit("months");
+    setAlertTiming("3d");
+    setAlertCustomDays(5);
+    setEmailReminder(false);
+    setMessageBody("");
+    setShowAI(false);
+    setAiAdvice(null);
+    setAiLoading(false);
+    setSendEmail(true);
+    setSaveError("");
   }, [
     isOpen,
     initialScheduledDate,
@@ -1192,19 +1198,32 @@ function MaintenanceScheduleModal({
     initialChecklistItemId,
   ]);
 
-  // Update message template when dependencies change
+  /** Apply calendar pre-fill while still on step 0 (does not reset request type). */
   useEffect(() => {
-    if (messageEnabled || currentStep === 3) {
-      setMessageBody(
-        generateMessageTemplate(
-          propertyName,
-          systemLabel,
-          scheduledDate,
-          requestType,
-        ),
-      );
-    }
-  }, [selectedContractor, scheduledDate, currentStep, requestType]);
+    if (!isOpen || currentStep !== 0) return;
+    setScheduledDate(initialScheduledDate || "");
+    setScheduledTime(initialScheduledTime || "");
+  }, [isOpen, currentStep, initialScheduledDate, initialScheduledTime]);
+
+  // Update message template when dependencies change (on Message step)
+  useEffect(() => {
+    if (currentStep !== 3) return;
+    setMessageBody(
+      generateMessageTemplate(
+        propertyName,
+        systemLabel,
+        scheduledDate,
+        requestType,
+      ),
+    );
+  }, [
+    selectedContractor,
+    scheduledDate,
+    currentStep,
+    requestType,
+    propertyName,
+    systemLabel,
+  ]);
 
   const requestAIAdvice = useCallback(async () => {
     if (!propertyId) {
@@ -1257,7 +1276,16 @@ function MaintenanceScheduleModal({
     return true;
   };
 
+  const nextDisabledTitle = () => {
+    if (canAdvance()) return undefined;
+    if (currentStep === 0) return "Select a request type to continue";
+    if (currentStep === 1) return "Choose whether you have a contractor to continue";
+    if (currentStep === 2) return "Select a date to continue";
+    return undefined;
+  };
+
   const handleSave = async () => {
+    setSaveError("");
     if (scheduledDate && onSchedule) {
       onSchedule(scheduledDate);
     }
@@ -1271,7 +1299,8 @@ function MaintenanceScheduleModal({
       system_key: systemKeyStr,
       system_name:
         systemLabel && systemLabel !== "General" ? systemLabel : null,
-      contractor_id: selectedContractor?.sourceId ?? null,
+      event_type: requestType === "inspection" ? "inspection" : "maintenance",
+      contractor_id: coerceContractorId(selectedContractor?.sourceId),
       contractor_source: selectedContractor?.source ?? null,
       contractor_name: selectedContractor?.name ?? null,
       checklist_item_id: selectedChecklistItemId
@@ -1292,8 +1321,8 @@ function MaintenanceScheduleModal({
       alert_timing: alertTiming,
       alert_custom_days: alertTiming === "custom" ? alertCustomDays : null,
       email_reminder: emailReminder,
-      message_enabled: messageEnabled && !!selectedContractor,
-      message_body: messageEnabled ? messageBody : null,
+      message_enabled: sendEmail && !!selectedContractor,
+      message_body: sendEmail ? messageBody : null,
       contractor_email:
         sendEmail && selectedContractor?.email
           ? selectedContractor.email
@@ -1313,6 +1342,9 @@ function MaintenanceScheduleModal({
       }, 1400);
     } catch (err) {
       console.error("Failed to create maintenance event:", err);
+      setSaveError(
+        getApiErrorMessage(err, "Failed to save. Please try again."),
+      );
     } finally {
       setSaving(false);
     }
@@ -1320,7 +1352,7 @@ function MaintenanceScheduleModal({
 
   const content = (
     <div className="relative p-6">
-      {showSuccess && <SuccessOverlay />}
+      {showSuccess && <SuccessOverlay requestType={requestType} />}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
@@ -1400,16 +1432,13 @@ function MaintenanceScheduleModal({
             checklistItems={checklistItems}
             selectedChecklistItemId={selectedChecklistItemId}
             setSelectedChecklistItemId={setSelectedChecklistItemId}
-            sendEmail={sendEmail}
-            setSendEmail={setSendEmail}
-            hasSelectedContractor={!!selectedContractor}
           />
         )}
         {currentStep === 3 && (
           <MessageStep
             selectedContractor={selectedContractor}
-            messageEnabled={messageEnabled}
-            setMessageEnabled={setMessageEnabled}
+            sendEmail={sendEmail}
+            setSendEmail={setSendEmail}
             messageBody={messageBody}
             setMessageBody={setMessageBody}
             aiAdvice={aiAdvice}
@@ -1423,6 +1452,11 @@ function MaintenanceScheduleModal({
 
       {/* Footer */}
       <div className="flex flex-col gap-2 mt-6 pt-5 border-t border-gray-200 dark:border-gray-700">
+        {saveError ? (
+          <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+            {saveError}
+          </p>
+        ) : null}
         {currentStep === STEPS.length - 1 &&
           calendarIntegrations.length > 0 && (
             <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
@@ -1462,6 +1496,7 @@ function MaintenanceScheduleModal({
                 type="button"
                 onClick={handleNext}
                 disabled={!canAdvance()}
+                title={nextDisabledTitle()}
                 className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Next
@@ -1470,16 +1505,10 @@ function MaintenanceScheduleModal({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={
-                  !scheduledDate ||
-                  saving ||
-                  (sendEmail && messageEnabled && !selectedContractor?.email)
-                }
+                disabled={!scheduledDate || saving}
                 className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 title={
-                  sendEmail && messageEnabled && !selectedContractor?.email
-                    ? "Select a contractor with an email to send"
-                    : undefined
+                  !scheduledDate ? "Select a date to continue" : undefined
                 }
               >
                 {saving ? (
@@ -1487,7 +1516,7 @@ function MaintenanceScheduleModal({
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Saving...
                   </span>
-                ) : sendEmail && messageEnabled && selectedContractor?.email ? (
+                ) : sendEmail && selectedContractor?.email ? (
                   <>
                     <Mail className="w-4 h-4" />
                     Send email and schedule

@@ -51,6 +51,7 @@ import {
   Search,
   Upload,
   Plus,
+  Loader2,
 } from "lucide-react";
 import OpsyMascot from "../../images/opsy2.png";
 import AgentCard from "./components/AgentCard";
@@ -286,6 +287,7 @@ function HomeownerHome() {
           setPropertyTeams((prev) => ({...prev, [uid]: members}));
         })
         .catch(() => {
+          setPropertyTeams((prev) => ({...prev, [uid]: []}));
           fetchedTeamUidsRef.current.delete(uid);
         });
     });
@@ -457,6 +459,15 @@ function HomeownerHome() {
 
   // ─── Computed values for active property ─────────────────────────────────────
   const currentPhotoUrl = getMainPhotoUrl(activeProperty);
+  const activePropertyUid = activeProperty
+    ? activeProperty.property_uid ?? activeProperty.id
+    : null;
+  const agentTeamReady =
+    activePropertyUid == null ||
+    Object.prototype.hasOwnProperty.call(
+      propertyTeams,
+      activePropertyUid,
+    );
   const currentAgent = getAgent(activeProperty);
   const currentScore = getHpsScore(activeProperty);
   const currentScoreLabel = getScoreLabel(currentScore);
@@ -590,15 +601,32 @@ function HomeownerHome() {
         {/* Hero Content Overlay - only when we have properties */}
         {hasProperties && (
           <div className="absolute inset-0 flex flex-col">
-            {/* Top Section - Agent Card (only if agent exists) */}
+            {/* Top Section - Agent card (spinner while team loads) */}
             <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 pt-5 flex justify-start">
-              <AgentCard
-                agent={currentAgent}
-                onOpenModal={(tab) => {
-                  setAgentModalTab(tab);
-                  setAgentModalOpen(true);
-                }}
-              />
+              {!agentTeamReady ? (
+                <div
+                  className="flex items-center gap-2.5 lg:gap-3 rounded-full lg:rounded-2xl pl-3 pr-4 lg:px-5 lg:py-4 py-2 bg-gradient-to-br from-white/20 via-white/[.13] to-white/[.08] backdrop-blur-2xl border border-white/20 shadow-[0_4px_20px_rgba(0,0,0,.15)] lg:shadow-[0_8px_32px_rgba(0,0,0,.18)] lg:min-w-[280px]"
+                  role="status"
+                  aria-live="polite"
+                  aria-busy="true"
+                >
+                  <Loader2
+                    className="w-5 h-5 lg:w-6 lg:h-6 text-white/85 animate-spin flex-shrink-0"
+                    aria-hidden
+                  />
+                  <span className="text-sm lg:text-base font-medium text-white/90">
+                    {t("homeownerHome.loadingAgent") || "Loading Agent"}
+                  </span>
+                </div>
+              ) : (
+                <AgentCard
+                  agent={currentAgent}
+                  onOpenModal={(tab) => {
+                    setAgentModalTab(tab);
+                    setAgentModalOpen(true);
+                  }}
+                />
+              )}
             </div>
 
             {/* Middle Section - Spacer */}

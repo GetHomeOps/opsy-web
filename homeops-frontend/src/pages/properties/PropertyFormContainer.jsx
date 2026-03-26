@@ -309,6 +309,15 @@ function reducer(state, action) {
         formDataChanged: true,
         isInitialLoad: false,
       };
+    case "SET_MAINTENANCE_FORM_DATA_SILENT":
+      return {
+        ...state,
+        formData: {
+          ...state.formData,
+          maintenanceRecords: action.payload ?? [],
+        },
+        isInitialLoad: false,
+      };
     case "SET_ERRORS":
       return {...state, errors: action.payload};
     case "SET_VALIDATION_FAILED":
@@ -907,6 +916,7 @@ function PropertyFormContainer() {
   );
 
   const afterPropertyInvitationAcceptedInApp = useCallback(async () => {
+    window.dispatchEvent(new CustomEvent("opsy:notifications-refresh"));
     setInvitationModalOpen(false);
     setInvitationReviewMode(false);
     const team = await getPropertyTeam(uid);
@@ -2154,6 +2164,7 @@ function PropertyFormContainer() {
         }}
         onInvite={async ({
           email: inviteEmail,
+          name: inviteDisplayName,
           role,
           homeownerInviteType,
           permissions,
@@ -2175,9 +2186,13 @@ function PropertyFormContainer() {
             mortgage: "Mortgage Partner",
           };
           const displayRole = displayRoleMap[role] ?? "Homeowner";
+          const nameForDisplay =
+            (inviteDisplayName || "").trim() ||
+            (inviteEmail || "").split("@")[0] ||
+            inviteEmail;
           const pendingMember = {
             email: inviteEmail,
-            name: inviteEmail,
+            name: nameForDisplay,
             role: displayRole,
             property_role: intendedRole,
             permissions: permissions ?? {},
@@ -2191,6 +2206,7 @@ function PropertyFormContainer() {
             const res = await AppApi.createInvitation({
               type: "property",
               inviteeEmail: inviteEmail,
+              inviteeName: (inviteDisplayName || "").trim() || undefined,
               accountId: currentAccount.id,
               propertyId,
               intendedRole,
@@ -2323,15 +2339,12 @@ function PropertyFormContainer() {
           const predefinedOnly = (selectedIds ?? []).filter(
             (id) => !String(id).startsWith("custom-"),
           );
-          dispatch({
-            type: "SET_SYSTEMS_FORM_DATA",
-            payload: {
-              selectedSystemIds: predefinedOnly,
-              customSystemNames: names,
-              customSystemsData: nextData,
-            },
-          });
-          dispatch({type: "SET_FORM_CHANGED", payload: true});
+          const nextSystemsFormData = {
+            selectedSystemIds: predefinedOnly,
+            customSystemNames: names,
+            customSystemsData: nextData,
+          };
+          let persistedImmediately = false;
 
           if (createdPropertyFromModal?.id) {
             const systemsPayloads = prepareSystemsForApi(
@@ -2346,6 +2359,7 @@ function PropertyFormContainer() {
               createdPropertyFromModal.id,
               systemsPayloads,
             );
+            persistedImmediately = true;
             const newUid = createdPropertyFromModal.property_uid;
             setCreatedPropertyFromModal(null);
             navigate(`/${accountUrl}/properties/${newUid}`, {
@@ -2398,6 +2412,7 @@ function PropertyFormContainer() {
                   payload: systemsRes.aiSummaryUpdatedAt,
                 });
               }
+              persistedImmediately = true;
               dispatch({
                 type: "SET_BANNER",
                 payload: {
@@ -2407,6 +2422,16 @@ function PropertyFormContainer() {
                 },
               });
             }
+          }
+
+          dispatch({
+            type: persistedImmediately
+              ? "SET_SYSTEMS_FORM_DATA_SILENT"
+              : "SET_SYSTEMS_FORM_DATA",
+            payload: nextSystemsFormData,
+          });
+          if (!persistedImmediately) {
+            dispatch({type: "SET_FORM_CHANGED", payload: true});
           }
         }}
       />
@@ -3200,6 +3225,7 @@ function PropertyFormContainer() {
         {/* HomeOps Team */}
         <HomeOpsTeam
           teamMembers={homeopsTeam}
+          isLoadingTeam={uid !== "new" && !hasResolvedTeamForCta}
           onOpenShareModal={
             isInvitationView
               ? undefined
@@ -3370,9 +3396,11 @@ function PropertyFormContainer() {
                     savedMaintenanceRecords={
                       state.savedMaintenanceRecords ?? []
                     }
-                    onMaintenanceRecordsChange={(records) =>
+                    onMaintenanceRecordsChange={(records, options = {}) =>
                       dispatch({
-                        type: "SET_MAINTENANCE_FORM_DATA",
+                        type: options.silent
+                          ? "SET_MAINTENANCE_FORM_DATA_SILENT"
+                          : "SET_MAINTENANCE_FORM_DATA",
                         payload: records,
                       })
                     }

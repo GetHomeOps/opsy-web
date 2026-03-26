@@ -1,5 +1,6 @@
 import React, {useRef, useEffect} from "react";
 import Transition from "../utils/Transition";
+import {cn} from "../lib/utils";
 
 function ModalBlank({
   children,
@@ -14,6 +15,8 @@ function ModalBlank({
   ignoreClickRefs = [],
   /** Ignore outside clicks for this many ms after opening (prevents opening click from immediately closing) */
   ignoreOutsideClickForMs = 100,
+  /** When false, Escape does not close the modal (e.g. stacked confirmation over another dialog) */
+  closeOnEscape = true,
   /** Tailwind z-index class for the dimmed backdrop (default above app chrome at z-[100]) */
   backdropZClassName = "z-[200]",
   /** Tailwind z-index class for the dialog shell; raise above confetti etc. while backdrop stays lower */
@@ -48,13 +51,14 @@ function ModalBlank({
 
   // close if the esc key is pressed
   useEffect(() => {
+    if (!closeOnEscape) return;
     const keyHandler = ({keyCode}) => {
       if (!isOpen || keyCode !== 27) return;
       setModalOpen(false);
     };
     document.addEventListener("keydown", keyHandler);
     return () => document.removeEventListener("keydown", keyHandler);
-  }, [isOpen, setModalOpen]);
+  }, [isOpen, setModalOpen, closeOnEscape]);
 
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget && closeOnBackdropClick)
@@ -100,7 +104,10 @@ function ModalBlank({
         <div
           ref={modalContent}
           onClick={(e) => e.stopPropagation()}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-auto w-full max-h-full ${contentClassName ?? "max-w-2xl"}`}
+          className={cn(
+            "bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-h-full overflow-auto",
+            contentClassName ?? "max-w-2xl",
+          )}
         >
           {children}
         </div>

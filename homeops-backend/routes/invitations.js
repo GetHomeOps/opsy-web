@@ -10,10 +10,10 @@ const { canInviteViewer, canAddTeamMember } = require("../services/tierService")
 
 const router = express.Router();
 
-/** POST / - Create account or property invitation. Body: type, inviteeEmail, accountId, propertyId?, intendedRole. */
+/** POST / - Create account or property invitation. Body: type, inviteeEmail, accountId, propertyId?, intendedRole, inviteeName? (property: saved on auto-created contact). */
 router.post("/", ensureLoggedIn, async function (req, res, next) {
   try {
-    const { type, inviteeEmail, accountId, propertyId, intendedRole } = req.body;
+    const { type, inviteeEmail, inviteeName, accountId, propertyId, intendedRole } = req.body;
     if (!inviteeEmail || !accountId) {
       throw new BadRequestError("inviteeEmail and accountId are required");
     }
@@ -40,7 +40,15 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
       result = await createAccountInvitation({ inviterUserId, inviteeEmail, accountId, intendedRole });
     } else {
       if (!propertyId) throw new BadRequestError("propertyId is required for property invitations");
-      result = await createPropertyInvitation({ inviterUserId, inviteeEmail, accountId, propertyId, intendedRole, inviterUserRole: userRole });
+      result = await createPropertyInvitation({
+        inviterUserId,
+        inviteeEmail,
+        inviteeName,
+        accountId,
+        propertyId,
+        intendedRole,
+        inviterUserRole: userRole,
+      });
     }
 
     return res.status(201).json({ invitation: result.invitation, token: result.token });

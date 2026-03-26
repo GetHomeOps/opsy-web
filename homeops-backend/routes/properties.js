@@ -100,24 +100,30 @@ router.get("/", ensurePlatformAdmin, async function (req, res, next) {
  *  Also includes properties with pending invitations (marked with _pendingInvitation). */
 router.get("/user/:userId", ensureLoggedIn, ensurePropertyAccess({ scope: "user", param: "userId" }), async function (req, res, next) {
   try {
-    const properties = await Property.getPropertiesByUserId(req.params.userId);
-    const propertiesWithUrls = await addPresignedUrlsToItems(properties, "main_photo", "main_photo_url");
-
     const userEmail = res.locals.user?.email;
-    let pendingProperties = [];
-    if (userEmail) {
-      const rawPending = await Property.getPropertiesWithPendingInvitations(userEmail);
-      const ownedIds = new Set(properties.map(p => p.id));
-      const filtered = rawPending.filter(p => !ownedIds.has(p.id));
-      const pendingWithUrls = await addPresignedUrlsToItems(filtered, "main_photo", "main_photo_url");
-      pendingProperties = pendingWithUrls.map(p => ({
-        ...p,
-        _pendingInvitation: true,
-        _invitationId: p._invitation_id,
-        _invitationRole: p._invitation_role,
-        _invitationExpiresAt: p._invitation_expires_at,
-      }));
-    }
+
+    const [properties, rawPending] = await Promise.all([
+      Property.getPropertiesByUserId(req.params.userId),
+      userEmail
+        ? Property.getPropertiesWithPendingInvitations(userEmail)
+        : Promise.resolve([]),
+    ]);
+
+    const ownedIds = new Set(properties.map(p => p.id));
+    const filtered = rawPending.filter(p => !ownedIds.has(p.id));
+
+    const [propertiesWithUrls, pendingWithUrls] = await Promise.all([
+      addPresignedUrlsToItems(properties, "main_photo", "main_photo_url"),
+      addPresignedUrlsToItems(filtered, "main_photo", "main_photo_url"),
+    ]);
+
+    const pendingProperties = pendingWithUrls.map(p => ({
+      ...p,
+      _pendingInvitation: true,
+      _invitationId: p._invitation_id,
+      _invitationRole: p._invitation_role,
+      _invitationExpiresAt: p._invitation_expires_at,
+    }));
 
     return res.json({ properties: [...propertiesWithUrls, ...pendingProperties] });
   } catch (err) {

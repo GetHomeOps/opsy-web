@@ -6,10 +6,36 @@
  * Adds temporary S3 presigned URLs to objects (single or array) for a given
  * key field. Used to enrich API responses with preview URLs for images/docs.
  *
+ * Includes an in-memory TTL cache so repeated requests for the same S3 key
+ * (e.g. property list refreshes) reuse a warm URL instead of hitting S3 each time.
+ *
  * Exports: addPresignedUrlToItem, addPresignedUrlsToItems, isSafeS3Key
  */
 
 const { getPresignedUrl } = require("../services/s3Service");
+
+/** Cache: S3 key → { url, expiresAt }. TTL = 4 min (URLs expire at 5 min). */
+const _urlCache = new Map();
+const CACHE_TTL_MS = 4 * 60 * 1000;
+const CACHE_MAX_SIZE = 500;
+
+function getCachedUrl(s3Key) {
+  const entry = _urlCache.get(s3Key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    _urlCache.delete(s3Key);
+    return null;
+  }
+  return entry.url;
+}
+
+function setCachedUrl(s3Key, url) {
+  if (_urlCache.size >= CACHE_MAX_SIZE) {
+    const oldest = _urlCache.keys().next().value;
+    _urlCache.delete(oldest);
+  }
+  _urlCache.set(s3Key, { url, expiresAt: Date.now() + CACHE_TTL_MS });
+}
 
 /**
  * Check if an S3 key is safe to use (basic path traversal prevention).
@@ -41,8 +67,15 @@ async function addPresignedUrlToItem(item, keyField, urlField = null) {
     return { ...item, [urlFieldName]: null };
   }
 
+  const trimmedKey = key.trim();
+  const cached = getCachedUrl(trimmedKey);
+  if (cached) {
+    return { ...item, [urlFieldName]: cached };
+  }
+
   try {
-    const url = await getPresignedUrl(key.trim());
+    const url = await getPresignedUrl(trimmedKey);
+    setCachedUrl(trimmedKey, url);
     return { ...item, [urlFieldName]: url };
   } catch (err) {
     return { ...item, [urlFieldName]: null };

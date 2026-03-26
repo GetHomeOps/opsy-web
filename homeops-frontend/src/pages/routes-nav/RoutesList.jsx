@@ -441,9 +441,9 @@ function RoutesList() {
       <Route
         path="/:accountUrl/properties/import"
         element={
-          <ProtectedRoute>
+          <AdminRoute>
             <PropertiesImport />
-          </ProtectedRoute>
+          </AdminRoute>
         }
       />
       <Route

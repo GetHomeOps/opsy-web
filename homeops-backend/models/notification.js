@@ -62,7 +62,7 @@ class Notification {
               p_maint.property_uid AS "maintenancePropertyUid", a_maint.url AS "maintenanceAccountUrl"
        FROM notifications n
        LEFT JOIN resources r ON r.id = n.resource_id
-       LEFT JOIN invitations i ON i.id = n.invitation_id AND n.type = 'property_invitation'
+       LEFT JOIN invitations i ON i.id = n.invitation_id AND n.type IN ('property_invitation', 'property_invitation_accepted')
        LEFT JOIN properties p ON p.id = i.property_id
        LEFT JOIN accounts a ON a.id = i.account_id
        LEFT JOIN property_maintenance pm ON pm.id = n.maintenance_record_id

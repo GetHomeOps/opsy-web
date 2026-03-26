@@ -319,6 +319,7 @@ CREATE TABLE property_users (
 );
 
 CREATE INDEX idx_property_users_user_id ON property_users(user_id);
+CREATE INDEX idx_property_users_property_role ON property_users(property_id, role, created_at);
 
 -- ============================================================
 -- Property Systems, Maintenance, Documents
@@ -335,6 +336,10 @@ CREATE TABLE property_systems (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(property_id, system_key)
 );
+
+CREATE INDEX idx_property_systems_property_service
+  ON property_systems(property_id, next_service_date)
+  WHERE next_service_date IS NOT NULL;
 
 CREATE TABLE property_maintenance (
     id SERIAL PRIMARY KEY,
@@ -729,6 +734,7 @@ CREATE TABLE maintenance_events (
     message_enabled BOOLEAN DEFAULT false,
     message_body TEXT,
     status VARCHAR(30) DEFAULT 'scheduled',
+    event_type VARCHAR(20) NOT NULL DEFAULT 'maintenance' CHECK (event_type IN ('maintenance', 'inspection')),
     timezone VARCHAR(50),
     checklist_item_id INTEGER,
     created_by INTEGER REFERENCES users(id),
@@ -739,6 +745,7 @@ CREATE TABLE maintenance_events (
 CREATE INDEX idx_maintenance_events_property ON maintenance_events(property_id);
 CREATE INDEX idx_maintenance_events_date ON maintenance_events(scheduled_date);
 CREATE INDEX idx_maintenance_events_status ON maintenance_events(status);
+CREATE INDEX idx_maintenance_events_property_date ON maintenance_events(property_id, scheduled_date);
 
 -- ============================================================
 -- Calendar Integrations (OAuth connections for Google/Outlook)

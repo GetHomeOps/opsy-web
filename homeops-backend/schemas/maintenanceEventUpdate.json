@@ -19,7 +19,8 @@
     "message_enabled":           { "type": "boolean" },
     "message_body":              { "type": ["string", "null"] },
     "status":                    { "type": "string", "enum": ["scheduled", "completed", "cancelled"] },
-    "timezone":                  { "type": ["string", "null"], "maxLength": 50 }
+    "timezone":                  { "type": ["string", "null"], "maxLength": 50 },
+    "event_type":                { "type": "string", "enum": ["maintenance", "inspection"] }
   },
   "additionalProperties": false
 }

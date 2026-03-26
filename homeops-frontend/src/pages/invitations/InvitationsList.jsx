@@ -69,6 +69,7 @@ function InvitationsList() {
     setAcceptingId(inv.id);
     try {
       await AppApi.acceptInvitationInApp(inv.id);
+      window.dispatchEvent(new CustomEvent("opsy:notifications-refresh"));
       setReceived((prev) => prev.filter((i) => i.id !== inv.id));
       if (
         inv.type === "property" &&
@@ -92,6 +93,7 @@ function InvitationsList() {
     setDecliningId(inv.id);
     try {
       await AppApi.declineInvitation(inv.id);
+      window.dispatchEvent(new CustomEvent("opsy:notifications-refresh"));
       setReceived((prev) => prev.filter((i) => i.id !== inv.id));
     } catch (err) {
       setError(err?.message || "Failed to decline invitation");

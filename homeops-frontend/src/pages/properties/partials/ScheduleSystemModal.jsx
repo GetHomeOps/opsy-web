@@ -28,6 +28,13 @@ const STEPS = [
   {id: "message", label: "Message"},
 ];
 
+function coerceContractorId(sourceId) {
+  if (sourceId == null || sourceId === "") return null;
+  if (typeof sourceId === "number" && Number.isInteger(sourceId)) return sourceId;
+  const n = parseInt(String(sourceId), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Build URL for opening in new tab (BrowserRouter). */
 function toShareUrl(path) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -474,8 +481,6 @@ function DetailsStep({
   checklistItems = [],
   selectedChecklistItemId,
   setSelectedChecklistItemId,
-  sendEmail,
-  setSendEmail,
 }) {
   const hasRecommendations =
     scheduleType === "inspection" &&
@@ -489,7 +494,8 @@ function DetailsStep({
           Scheduling Details
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Pick a date and time and set a reminder.
+          Choose a date to continue (required). Time is optional; reminder options
+          are on the next step.
         </p>
       </div>
 
@@ -560,36 +566,16 @@ function DetailsStep({
         </div>
       )}
 
-      <div className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Send email to contractor when scheduling
-          </span>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={sendEmail}
-          onClick={() => setSendEmail(!sendEmail)}
-          className={`relative w-11 h-6 rounded-full transition-colors ${
-            sendEmail ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
-          }`}
-        >
-          <span
-            className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-              sendEmail ? "left-6" : "left-1"
-            }`}
-          />
-        </button>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             <span className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-[#456564]" />
               Date
+              <span className="text-red-500 dark:text-red-400 font-normal" aria-hidden>
+                *
+              </span>
+              <span className="sr-only">(required)</span>
             </span>
           </label>
           <DatePickerInput
@@ -598,7 +584,13 @@ function DetailsStep({
             onChange={(e) => setScheduledDate(e.target.value)}
             popoverClassName="z-[250]"
             showOffsetControl
+            required
           />
+          {!scheduledDate?.trim() && (
+            <p className="mt-1.5 text-xs text-amber-800/90 dark:text-amber-200/90">
+              Select a date to enable Next.
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -645,11 +637,27 @@ function EmailPreview({
   systemName,
   scheduledDate,
   scheduledTime,
+  scheduleType,
   messageBody,
   setMessageBody,
   senderName,
   replyEmail,
 }) {
+  const defaultWording = useMemo(
+    () =>
+      generateMessageTemplate(
+        propertyAddress,
+        systemName,
+        scheduledDate,
+        scheduleType,
+      ),
+    [propertyAddress, systemName, scheduledDate, scheduleType],
+  );
+  const displayBody =
+    messageBody != null && String(messageBody).trim() !== ""
+      ? messageBody
+      : defaultWording;
+
   const formattedDate = scheduledDate
     ? new Date(scheduledDate + "T00:00:00").toLocaleDateString("en-US", {
         weekday: "long",
@@ -661,15 +669,15 @@ function EmailPreview({
   const formattedTime = formatTimeForPreview(scheduledTime);
 
   return (
-    <div className="flex flex-col h-full min-h-[320px] rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+    <div className="flex flex-col rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600 shrink-0">
         <Mail className="w-4 h-4 text-[#456564] flex-shrink-0" />
         <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
           Email Preview
         </span>
       </div>
-      <div className="flex-1 overflow-auto p-4 text-sm space-y-3">
-        <div className="space-y-1 text-gray-600 dark:text-gray-400">
+      <div className="p-4 text-sm flex flex-col gap-3 overflow-hidden">
+        <div className="space-y-1 text-gray-600 dark:text-gray-400 shrink-0">
           <p>
             <span className="font-medium text-gray-500 dark:text-gray-500">To:</span>{" "}
             {contractorEmail ? (
@@ -693,16 +701,16 @@ function EmailPreview({
             {propertyAddress ? ` at ${propertyAddress}` : ""}
           </p>
         </div>
-        <div className="border-t border-gray-200 dark:border-gray-600 pt-3 mt-3">
+        <div className="border-t border-gray-200 dark:border-gray-600 pt-3 flex flex-col gap-4 shrink-0">
           <textarea
-            value={messageBody || ""}
+            value={displayBody}
             onChange={(e) => setMessageBody(e.target.value)}
             placeholder="Hi, I'd like to schedule..."
-            rows={8}
-            className="form-input w-full resize-y text-sm leading-relaxed min-h-[120px] border-gray-200 dark:border-gray-600"
+            rows={10}
+            className="form-input w-full resize-y text-sm leading-relaxed min-h-[200px] max-h-96 overflow-y-auto border-gray-200 dark:border-gray-600"
           />
           {(propertyAddress || systemName || formattedDate) && (
-            <div className="mt-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 text-xs space-y-1">
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 text-xs space-y-1">
               {propertyAddress && <p><span className="font-medium">Property:</span> {propertyAddress}</p>}
               {systemName && <p><span className="font-medium">System:</span> {systemName}</p>}
               <p><span className="font-medium">Date:</span> {formattedDate}{formattedTime ? ` at ${formattedTime}` : ""}</p>
@@ -737,6 +745,8 @@ function MessageStep({
   senderName,
   maintenanceRecommendations = [],
   maintenanceLoading = false,
+  sendEmail,
+  setSendEmail,
 }) {
   const propertyAddress = propertyName; // Could be expanded with full address
   const hasRecommendations =
@@ -745,137 +755,179 @@ function MessageStep({
     maintenanceRecommendations.length > 0;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="space-y-5">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            <span className="flex items-center gap-1.5">
-              <Mail className="w-4 h-4 text-[#456564]" />
-              Reply-to email
+    <div className="space-y-5">
+      {/* ── Email toggle ── */}
+      <div className="flex items-center justify-between py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[#456564]/10 dark:bg-[#7aa3a2]/10 flex items-center justify-center flex-shrink-0">
+            <Mail className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block leading-snug">
+              Email contractor
             </span>
-          </label>
-          <input
-            type="email"
-            value={replyEmail}
-            onChange={(e) => setReplyEmail(e.target.value)}
-            placeholder="your@email.com"
-            className="form-input w-full text-sm"
-          />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Contractors will reply to this address instead of no-reply.
-          </p>
+            <span className="text-xs text-gray-500 dark:text-gray-400 leading-snug">
+              Notify when scheduling
+            </span>
+          </div>
         </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={sendEmail}
+          onClick={() => setSendEmail(!sendEmail)}
+          className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors ${
+            sendEmail ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
+          }`}
+        >
+          <span
+            className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+              sendEmail ? "left-6" : "left-1"
+            }`}
+          />
+        </button>
+      </div>
 
-        {scheduleType === "inspection" && (hasRecommendations || maintenanceLoading) && (
-          <div className="rounded-lg border border-[#456564]/20 dark:border-[#7aa3a2]/30 bg-[#456564]/5 dark:bg-[#456564]/10 p-4">
-            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1.5">
-              <Wrench className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
-              Suggested inspection scope
-            </h4>
-            {maintenanceLoading ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Loading recommendations...
-              </p>
-            ) : hasRecommendations ? (
-              <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1.5">
-                {maintenanceRecommendations.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2] flex-shrink-0 mt-0.5" />
-                    <span>
-                      {typeof item === "string" ? item : item.task || item}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        )}
-
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-[#456564]" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Set up alert/reminder
-              </span>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={alertEnabled}
-              onClick={() => setAlertEnabled(!alertEnabled)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
-                alertEnabled ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
-              }`}
-            >
-              <span
-                className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                  alertEnabled ? "left-6" : "left-1"
-                }`}
+      {/* ── Collapsible email content ── */}
+      <div
+        className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+        style={{gridTemplateRows: sendEmail ? "1fr" : "0fr"}}
+      >
+        <div className="overflow-hidden min-h-0">
+          <div
+            className={`grid grid-cols-1 lg:grid-cols-12 gap-6 pb-1 transition-opacity duration-300 ${
+              sendEmail ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <div className="lg:col-span-4 min-w-0">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Reply-to email
+              </label>
+              <input
+                type="email"
+                value={replyEmail}
+                onChange={(e) => setReplyEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="form-input w-full text-sm"
               />
-            </button>
-          </div>
-          {alertEnabled && (
-            <div className="space-y-3 mt-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Remind me
-                </label>
-                <select
-                  value={alertTiming}
-                  onChange={(e) => setAlertTiming(e.target.value)}
-                  className="form-select w-full text-sm"
-                >
-                  {ALERT_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                    Or pick specific date
-                  </label>
-                  <DatePickerInput
-                    name="alertDate"
-                    value={alertDate}
-                    onChange={(e) => setAlertDate(e.target.value)}
-                    popoverClassName="z-[250]"
-                    showOffsetControl
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                    Time
-                  </label>
-                  <input
-                    type="time"
-                    value={alertTime}
-                    onChange={(e) => setAlertTime(e.target.value)}
-                    className="form-input w-full text-sm"
-                  />
-                </div>
-              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Contractors will reply to this address instead of no-reply.
+              </p>
             </div>
-          )}
+            <div className="lg:col-span-8 min-w-0 flex flex-col">
+              <EmailPreview
+                contractorName={selectedProfessional?.name}
+                contractorEmail={selectedProfessional?.email}
+                propertyAddress={propertyName}
+                systemName={systemLabel}
+                scheduledDate={scheduledDate}
+                scheduledTime={scheduledTime}
+                scheduleType={scheduleType}
+                messageBody={messageBody}
+                setMessageBody={setMessageBody}
+                senderName={senderName}
+                replyEmail={replyEmail?.trim() || null}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="lg:min-h-[320px]">
-        <EmailPreview
-          contractorName={selectedProfessional?.name}
-          contractorEmail={selectedProfessional?.email}
-          propertyAddress={propertyName}
-          systemName={systemLabel}
-          scheduledDate={scheduledDate}
-          scheduledTime={scheduledTime}
-          messageBody={messageBody}
-          setMessageBody={setMessageBody}
-          senderName={senderName}
-          replyEmail={replyEmail?.trim() || null}
-        />
+      {scheduleType === "inspection" &&
+        (hasRecommendations || maintenanceLoading) && (
+        <div className="rounded-lg border border-[#456564]/20 dark:border-[#7aa3a2]/30 bg-[#456564]/5 dark:bg-[#456564]/10 p-4">
+          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1.5">
+            <Wrench className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
+            Suggested inspection scope
+          </h4>
+          {maintenanceLoading ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Loading recommendations...
+            </p>
+          ) : hasRecommendations ? (
+            <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1.5">
+              {maintenanceRecommendations.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2] flex-shrink-0 mt-0.5" />
+                  <span>
+                    {typeof item === "string" ? item : item.task || item}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      )}
+
+      {/* ── Alert / reminder ── */}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Bell className="w-4 h-4 text-[#456564]" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Set up alert/reminder
+            </span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={alertEnabled}
+            onClick={() => setAlertEnabled(!alertEnabled)}
+            className={`relative w-11 h-6 rounded-full transition-colors ${
+              alertEnabled ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
+            }`}
+          >
+            <span
+              className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                alertEnabled ? "left-6" : "left-1"
+              }`}
+            />
+          </button>
+        </div>
+        {alertEnabled && (
+          <div className="space-y-3 mt-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Remind me
+              </label>
+              <select
+                value={alertTiming}
+                onChange={(e) => setAlertTiming(e.target.value)}
+                className="form-select w-full text-sm"
+              >
+                {ALERT_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <label className="col-span-1 text-xs font-medium text-gray-500 dark:text-gray-400 min-h-[2.5rem] flex items-end leading-snug">
+                Or pick specific date
+              </label>
+              <label className="col-span-1 text-xs font-medium text-gray-500 dark:text-gray-400 min-h-[2.5rem] flex items-end leading-snug">
+                Time
+              </label>
+              <div className="min-w-0">
+                <DatePickerInput
+                  name="alertDate"
+                  value={alertDate}
+                  onChange={(e) => setAlertDate(e.target.value)}
+                  popoverClassName="z-[250]"
+                  showOffsetControl
+                  className="form-input w-full h-10 py-0 leading-10 text-sm"
+                />
+              </div>
+              <input
+                type="time"
+                value={alertTime}
+                onChange={(e) => setAlertTime(e.target.value)}
+                className="form-input w-full h-10 py-0 text-sm min-w-0"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1037,7 +1089,16 @@ function ScheduleSystemModal({
 
   const messageTemplateSetRef = useRef(false);
   useEffect(() => {
-    if (currentStep === 3 && !messageTemplateSetRef.current) {
+    if (currentStep !== 3) {
+      messageTemplateSetRef.current = false;
+      return;
+    }
+    if (!sendEmail) {
+      setMessageBody("");
+      messageTemplateSetRef.current = false;
+      return;
+    }
+    if (!messageTemplateSetRef.current) {
       setMessageBody(
         generateMessageTemplate(
           propertyName,
@@ -1048,8 +1109,14 @@ function ScheduleSystemModal({
       );
       messageTemplateSetRef.current = true;
     }
-    if (currentStep !== 3) messageTemplateSetRef.current = false;
-  }, [currentStep, scheduledDate, scheduleType, systemLabel, propertyName]);
+  }, [
+    currentStep,
+    sendEmail,
+    scheduledDate,
+    scheduleType,
+    systemLabel,
+    propertyName,
+  ]);
 
   const handleBrowseDirectory = useCallback(() => {
     window.open(toShareUrl(professionalsPath), "_blank");
@@ -1072,6 +1139,14 @@ function ScheduleSystemModal({
     if (currentStep === 1) return hasProfessional !== null;
     if (currentStep === 2) return !!scheduledDate;
     return true;
+  };
+
+  const nextDisabledTitle = () => {
+    if (canAdvance()) return undefined;
+    if (currentStep === 0) return "Select a type to continue";
+    if (currentStep === 1) return "Choose whether you have a professional to continue";
+    if (currentStep === 2) return "Select a date to continue";
+    return undefined;
   };
 
   const handleSubmit = async (sendEmailNow = false) => {
@@ -1119,10 +1194,21 @@ function ScheduleSystemModal({
       }
     }
 
+    const resolvedMessageBody = sendEmail
+      ? (messageBody?.trim() ||
+          generateMessageTemplate(
+            propertyName,
+            systemLabel,
+            scheduledDate,
+            scheduleType,
+          )).trim()
+      : "";
+
     const eventPayload = {
       system_key: systemType || "general",
       system_name: systemLabel,
-      contractor_id: selectedProfessional?.sourceId ?? null,
+      event_type: scheduleType === "inspection" ? "inspection" : "maintenance",
+      contractor_id: coerceContractorId(selectedProfessional?.sourceId),
       contractor_source: selectedProfessional?.source ?? null,
       contractor_name: selectedProfessional?.name ?? null,
       contractor_email:
@@ -1135,9 +1221,10 @@ function ScheduleSystemModal({
       alert_timing: alertEnabled ? alertTimingVal : "3d",
       alert_custom_days: alertCustomDaysVal,
       email_reminder: alertEnabled,
-      message_enabled: !!messageBody?.trim(),
-      message_body: messageBody?.trim() || null,
-      reply_email: replyEmail?.trim() || null,
+      message_enabled: sendEmail && !!resolvedMessageBody,
+      message_body: sendEmail && resolvedMessageBody ? resolvedMessageBody : null,
+      reply_email:
+        sendEmail && replyEmail?.trim() ? replyEmail.trim() : null,
       send_email_now: sendEmailNow,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       checklist_item_id: selectedChecklistItemId
@@ -1176,9 +1263,9 @@ function ScheduleSystemModal({
         modalOpen={isOpen}
         setModalOpen={onClose}
         closeOnClickOutside={false}
-        contentClassName="max-w-4xl"
+        contentClassName="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden p-0"
       >
-        <div className="relative p-8 flex flex-col items-center justify-center min-h-[200px]">
+        <div className="relative p-8 flex flex-col flex-1 min-h-0 items-center justify-center min-h-[200px]">
           <div className="flex flex-col items-center gap-3">
             <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
               <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
@@ -1202,10 +1289,10 @@ function ScheduleSystemModal({
       modalOpen={isOpen}
       setModalOpen={onClose}
       closeOnClickOutside={false}
-      contentClassName="max-w-4xl"
+      contentClassName="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden p-0"
     >
-      <div className="relative p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="relative flex flex-col flex-1 min-h-0 p-6">
+        <div className="flex items-center justify-between mb-4 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-emerald-200 dark:bg-emerald-700/60 flex items-center justify-center">
               <Calendar className="w-5 h-5 text-emerald-800 dark:text-emerald-100" />
@@ -1227,11 +1314,13 @@ function ScheduleSystemModal({
           </button>
         </div>
 
-        <StepIndicator currentStep={currentStep} steps={STEPS} />
+        <div className="shrink-0">
+          <StepIndicator currentStep={currentStep} steps={STEPS} />
+        </div>
 
         <div
           key={currentStep}
-          className="min-h-[220px]"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 -mr-1"
           style={{
             animation: "scheduleStepFadeIn 0.2s ease-out forwards",
           }}
@@ -1274,8 +1363,6 @@ function ScheduleSystemModal({
               checklistItems={checklistItems}
               selectedChecklistItemId={selectedChecklistItemId}
               setSelectedChecklistItemId={setSelectedChecklistItemId}
-              sendEmail={sendEmail}
-              setSendEmail={setSendEmail}
             />
           )}
           {currentStep === 3 && (
@@ -1303,17 +1390,19 @@ function ScheduleSystemModal({
               }
               maintenanceRecommendations={maintenanceRecommendations}
               maintenanceLoading={maintenanceLoading}
+              sendEmail={sendEmail}
+              setSendEmail={setSendEmail}
             />
           )}
         </div>
 
         {submitError && (
-          <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
+          <div className="shrink-0 mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
             {submitError}
           </div>
         )}
 
-        <div className="flex flex-col gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="shrink-0 flex flex-col gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
           <div className="flex justify-center">
             <button
               type="button"
@@ -1336,6 +1425,7 @@ function ScheduleSystemModal({
                 type="button"
                 onClick={handleNext}
                 disabled={!canAdvance()}
+                title={nextDisabledTitle()}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Next
@@ -1355,7 +1445,9 @@ function ScheduleSystemModal({
                 title={
                   sendEmail && !selectedProfessional?.email
                     ? "Select a contractor with an email to send"
-                    : undefined
+                    : !scheduledDate
+                      ? "Select a date to continue"
+                      : undefined
                 }
               >
                 {saving ? (

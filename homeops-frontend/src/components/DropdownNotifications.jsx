@@ -1,6 +1,6 @@
-import React, {useState, useRef, useEffect} from "react";
+import React, {useState, useRef, useEffect, useCallback} from "react";
 import {Link} from "react-router-dom";
-import {Bell, BookOpen, UserPlus, Wrench, MessageSquare} from "lucide-react";
+import {Bell, BookOpen, UserPlus, UserCheck, Wrench, MessageSquare} from "lucide-react";
 import Transition from "../utils/Transition";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -37,7 +37,7 @@ function DropdownNotifications({align = "right"}) {
     ? `/${accountUrl}/homeowner-messages`
     : "/";
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     setLoading(true);
     AppApi.getNotifications({limit: 10})
       .then((res) => {
@@ -49,17 +49,23 @@ function DropdownNotifications({align = "right"}) {
         setUnreadCount(0);
       })
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     if (dropdownOpen) {
       fetchData();
     }
-  }, [dropdownOpen]);
+  }, [dropdownOpen, fetchData]);
+
+  useEffect(() => {
+    const onRefresh = () => fetchData();
+    window.addEventListener("opsy:notifications-refresh", onRefresh);
+    return () => window.removeEventListener("opsy:notifications-refresh", onRefresh);
+  }, [fetchData]);
 
   useEffect(() => {
     const clickHandler = ({target}) => {
@@ -151,18 +157,26 @@ function DropdownNotifications({align = "right"}) {
               <ul className="py-2">
                 {notifications.map((n) => {
                   const isInvitation = n.type === "property_invitation";
+                  const isInvitationAccepted =
+                    n.type === "property_invitation_accepted";
                   const isContractorReport = n.type === "contractor_report_submitted";
                   const isHomeownerInquiry = n.type === "homeowner_inquiry";
                   const isConversationMessage = n.type === "conversation_message";
                   const isCommunication = n.type === "communication_sent" && (n.communicationId ?? n.resourceId);
                   const isResource = n.type === "resource_sent" && n.resourceId;
+                  const propertyInvitePath =
+                    (isInvitation || isInvitationAccepted) &&
+                    n.propertyUid &&
+                    n.accountUrl
+                      ? `/${n.accountUrl}/properties/${n.propertyUid}`
+                      : null;
                   const basePath =
                     isConversationMessage
                       ? clientMessagesPath
                       : isHomeownerInquiry
                       ? `${clientMessagesPath}${n.homeownerInquiryId ? `?highlight=${n.homeownerInquiryId}` : ""}`
-                      : isInvitation && n.propertyUid && n.accountUrl
-                        ? `/${n.accountUrl}/properties/${n.propertyUid}`
+                      : propertyInvitePath
+                        ? propertyInvitePath
                         : isContractorReport && n.maintenancePropertyUid && n.maintenanceAccountUrl
                           ? `/${n.maintenanceAccountUrl}/properties/${n.maintenancePropertyUid}?tab=maintenance`
                           : isCommunication
@@ -199,6 +213,8 @@ function DropdownNotifications({align = "right"}) {
                         <div className="w-9 h-9 rounded-lg bg-[#456564]/15 dark:bg-[#456564]/20 flex items-center justify-center shrink-0">
                           {isInvitation ? (
                             <UserPlus className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isInvitationAccepted ? (
+                            <UserCheck className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isContractorReport ? (
                             <Wrench className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isHomeownerInquiry ? (

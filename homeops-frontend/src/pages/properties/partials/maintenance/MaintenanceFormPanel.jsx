@@ -191,11 +191,16 @@ function MaintenanceFormPanel({
   );
 
   const notifyRecordChange = useCallback(
-    (formFields = formData, files = uploadedFiles, overrides = {}) => {
+    (
+      formFields = formData,
+      files = uploadedFiles,
+      overrides = {},
+      options = {},
+    ) => {
       if (!formFields.date?.trim()) return;
       const data = buildRecordData(formFields, files, overrides);
       if (persistOnChange) {
-        onRecordChange?.(data);
+        onRecordChange?.(data, options);
       }
     },
     [buildRecordData, onRecordChange, formData, uploadedFiles, persistOnChange],
@@ -525,11 +530,17 @@ function MaintenanceFormPanel({
         contractorName: formData.contractor,
       });
       setRecordStatus(RECORD_STATUS.CONTRACTOR_PENDING);
+      if (initialSnapshotRef.current) {
+        initialSnapshotRef.current = {
+          ...initialSnapshotRef.current,
+          recordStatus: RECORD_STATUS.CONTRACTOR_PENDING,
+        };
+      }
       if (persistOnChange) {
         queueMicrotask(() =>
           notifyRecordChange(formData, uploadedFiles, {
             record_status: RECORD_STATUS.CONTRACTOR_PENDING,
-          }),
+          }, {silent: true}),
         );
       }
       setSendModalOpen(false);

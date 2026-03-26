@@ -11,8 +11,13 @@ const COLUMNS = `
   recurrence_type, recurrence_interval_value, recurrence_interval_unit,
   alert_timing, alert_custom_days, email_reminder,
   message_enabled, message_body,
-  status, timezone, checklist_item_id, created_by,
+  status, event_type, timezone, checklist_item_id, created_by,
   created_at, updated_at`;
+
+/** Map stored event_type to calendar API type (synthetic due-dates use inspection without a row). */
+function calendarTypeFromEventType(eventType) {
+  return eventType === "inspection" ? "inspection" : "maintenance";
+}
 
 class MaintenanceEvent {
 
@@ -24,7 +29,7 @@ class MaintenanceEvent {
       recurrence_type = "one-time", recurrence_interval_value = null, recurrence_interval_unit = null,
       alert_timing = "3d", alert_custom_days = null, email_reminder = false,
       message_enabled = false, message_body = null,
-      status = "scheduled", timezone = null, checklist_item_id = null, created_by = null,
+      status = "scheduled", event_type = "maintenance", timezone = null, checklist_item_id = null, created_by = null,
     } = data;
 
     const result = await db.query(
@@ -35,8 +40,8 @@ class MaintenanceEvent {
           recurrence_type, recurrence_interval_value, recurrence_interval_unit,
           alert_timing, alert_custom_days, email_reminder,
           message_enabled, message_body,
-          status, timezone, checklist_item_id, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+          status, event_type, timezone, checklist_item_id, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
        RETURNING ${COLUMNS}`,
       [
         property_id, system_key, system_name || null,
@@ -45,7 +50,7 @@ class MaintenanceEvent {
         recurrence_type, recurrence_interval_value, recurrence_interval_unit,
         alert_timing, alert_custom_days, email_reminder,
         message_enabled, message_body,
-        status, timezone, checklist_item_id, created_by,
+        status, event_type, timezone, checklist_item_id, created_by,
       ],
     );
     return result.rows[0];
@@ -59,7 +64,7 @@ class MaintenanceEvent {
          me.recurrence_type, me.recurrence_interval_value, me.recurrence_interval_unit,
          me.alert_timing, me.alert_custom_days, me.email_reminder,
          me.message_enabled, me.message_body,
-         me.status, me.timezone, me.checklist_item_id, me.created_by,
+         me.status, me.event_type, me.timezone, me.checklist_item_id, me.created_by,
          me.created_at, me.updated_at,
          ici.title AS checklist_item_title
        FROM maintenance_events me
@@ -103,6 +108,7 @@ class MaintenanceEvent {
       message_enabled: "message_enabled",
       message_body: "message_body",
       status: "status",
+      event_type: "event_type",
       timezone: "timezone",
     };
 
@@ -136,32 +142,33 @@ class MaintenanceEvent {
   static async getUpcomingForUser(userId) {
     const today = new Date().toISOString().slice(0, 10);
 
-    const eventsResult = await db.query(
-      `SELECT me.id, me.property_id, me.system_key, me.system_name,
-              me.scheduled_date, me.scheduled_time, me.status,
-              p.property_uid, p.property_name, p.address, p.city, p.state
-       FROM maintenance_events me
-       JOIN properties p ON p.id = me.property_id
-       JOIN property_users pu ON pu.property_id = me.property_id
-       WHERE pu.user_id = $1
-         AND me.scheduled_date >= $2
-         AND me.status = 'scheduled'
-       ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
-      [userId, today],
-    );
-
-    const systemsResult = await db.query(
-      `SELECT ps.id, ps.property_id, ps.system_key, ps.next_service_date,
-              p.property_uid, p.property_name, p.address, p.city, p.state
-       FROM property_systems ps
-       JOIN properties p ON p.id = ps.property_id
-       JOIN property_users pu ON pu.property_id = ps.property_id
-       WHERE pu.user_id = $1
-         AND ps.next_service_date >= $2
-         AND ps.next_service_date IS NOT NULL
-       ORDER BY ps.next_service_date ASC`,
-      [userId, today],
-    );
+    const [eventsResult, systemsResult] = await Promise.all([
+      db.query(
+        `SELECT me.id, me.property_id, me.system_key, me.system_name,
+                me.scheduled_date, me.scheduled_time, me.status, me.event_type,
+                p.property_uid, p.property_name, p.address, p.city, p.state
+         FROM maintenance_events me
+         JOIN properties p ON p.id = me.property_id
+         JOIN property_users pu ON pu.property_id = me.property_id
+         WHERE pu.user_id = $1
+           AND me.scheduled_date >= $2
+           AND me.status = 'scheduled'
+         ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
+        [userId, today],
+      ),
+      db.query(
+        `SELECT ps.id, ps.property_id, ps.system_key, ps.next_service_date,
+                p.property_uid, p.property_name, p.address, p.city, p.state
+         FROM property_systems ps
+         JOIN properties p ON p.id = ps.property_id
+         JOIN property_users pu ON pu.property_id = ps.property_id
+         WHERE pu.user_id = $1
+           AND ps.next_service_date >= $2
+           AND ps.next_service_date IS NOT NULL
+         ORDER BY ps.next_service_date ASC`,
+        [userId, today],
+      ),
+    ]);
 
     const SYSTEM_LABELS = {
       roof: "Roof",
@@ -185,7 +192,7 @@ class MaintenanceEvent {
     };
 
     const maintenanceEvents = eventsResult.rows.map((r) => ({
-      type: "maintenance",
+      type: calendarTypeFromEventType(r.event_type),
       id: r.id,
       propertyId: r.property_id,
       propertyUid: r.property_uid,
@@ -233,30 +240,41 @@ class MaintenanceEvent {
    */
   static async getUnifiedEventsForUser(userId) {
     const today = new Date().toISOString().slice(0, 10);
+    const pastCutoff = new Date();
+    pastCutoff.setFullYear(pastCutoff.getFullYear() - 1);
+    const pastDate = pastCutoff.toISOString().slice(0, 10);
+    const futureCutoff = new Date();
+    futureCutoff.setFullYear(futureCutoff.getFullYear() + 1);
+    const futureDate = futureCutoff.toISOString().slice(0, 10);
 
-    const eventsResult = await db.query(
-      `SELECT me.id, me.property_id, me.system_key, me.system_name,
-              me.contractor_id, me.contractor_name, me.scheduled_date, me.scheduled_time, me.status,
-              p.property_uid, p.property_name, p.address, p.city, p.state
-       FROM maintenance_events me
-       JOIN properties p ON p.id = me.property_id
-       JOIN property_users pu ON pu.property_id = me.property_id
-       WHERE pu.user_id = $1
-       ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
-      [userId],
-    );
-
-    const systemsResult = await db.query(
-      `SELECT ps.id, ps.property_id, ps.system_key, ps.next_service_date,
-              p.property_uid, p.property_name, p.address, p.city, p.state
-       FROM property_systems ps
-       JOIN properties p ON p.id = ps.property_id
-       JOIN property_users pu ON pu.property_id = ps.property_id
-       WHERE pu.user_id = $1
-         AND ps.next_service_date IS NOT NULL
-       ORDER BY ps.next_service_date ASC`,
-      [userId],
-    );
+    const [eventsResult, systemsResult] = await Promise.all([
+      db.query(
+        `SELECT me.id, me.property_id, me.system_key, me.system_name,
+                me.contractor_id, me.contractor_name, me.scheduled_date, me.scheduled_time, me.status, me.event_type,
+                p.property_uid, p.property_name, p.address, p.city, p.state
+         FROM maintenance_events me
+         JOIN properties p ON p.id = me.property_id
+         JOIN property_users pu ON pu.property_id = me.property_id
+         WHERE pu.user_id = $1
+           AND me.scheduled_date >= $2
+           AND me.scheduled_date <= $3
+         ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
+        [userId, pastDate, futureDate],
+      ),
+      db.query(
+        `SELECT ps.id, ps.property_id, ps.system_key, ps.next_service_date,
+                p.property_uid, p.property_name, p.address, p.city, p.state
+         FROM property_systems ps
+         JOIN properties p ON p.id = ps.property_id
+         JOIN property_users pu ON pu.property_id = ps.property_id
+         WHERE pu.user_id = $1
+           AND ps.next_service_date IS NOT NULL
+           AND ps.next_service_date >= $2
+           AND ps.next_service_date <= $3
+         ORDER BY ps.next_service_date ASC`,
+        [userId, pastDate, futureDate],
+      ),
+    ]);
 
     const SYSTEM_LABELS = {
       roof: "Roof",
@@ -286,13 +304,18 @@ class MaintenanceEvent {
       const isOverdue = daysUntilDue < 0;
       const status = r.status === "completed" ? "completed" : isOverdue ? "overdue" : "upcoming";
       const systemName = r.system_name || SYSTEM_LABELS[r.system_key] || r.system_key;
+      const isInspection = r.event_type === "inspection";
+      const cat = isInspection ? "inspection" : "maintenance";
+      const title = isInspection
+        ? `${systemName} inspection${r.contractor_name ? ` – ${r.contractor_name}` : ""}`
+        : systemName + (r.contractor_name ? ` – ${r.contractor_name}` : "");
       return {
         id: String(r.id),
         propertyId: r.property_id,
         propertyUid: r.property_uid,
-        systemType: "maintenance",
-        title: systemName + (r.contractor_name ? ` – ${r.contractor_name}` : ""),
-        category: "maintenance",
+        systemType: cat,
+        title,
+        category: cat,
         status,
         scheduledAt: dateKey,
         dueAt: dateKey,
@@ -354,34 +377,35 @@ class MaintenanceEvent {
    * Used by the Calendar page to display all scheduled events in a month.
    */
   static async getCalendarEventsForUser(userId, startDate, endDate) {
-    const eventsResult = await db.query(
-      `SELECT me.id, me.property_id, me.system_key, me.system_name,
-              me.contractor_name, me.message_body, me.recurrence_type,
-              me.scheduled_date, me.scheduled_time, me.status,
-              p.property_uid, p.property_name, p.address, p.city, p.state
-       FROM maintenance_events me
-       JOIN properties p ON p.id = me.property_id
-       JOIN property_users pu ON pu.property_id = me.property_id
-       WHERE pu.user_id = $1
-         AND me.scheduled_date >= $2
-         AND me.scheduled_date <= $3
-       ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
-      [userId, startDate, endDate],
-    );
-
-    const systemsResult = await db.query(
-      `SELECT ps.id, ps.property_id, ps.system_key, ps.next_service_date,
-              p.property_uid, p.property_name, p.address, p.city, p.state
-       FROM property_systems ps
-       JOIN properties p ON p.id = ps.property_id
-       JOIN property_users pu ON pu.property_id = ps.property_id
-       WHERE pu.user_id = $1
-         AND ps.next_service_date >= $2
-         AND ps.next_service_date <= $3
-         AND ps.next_service_date IS NOT NULL
-       ORDER BY ps.next_service_date ASC`,
-      [userId, startDate, endDate],
-    );
+    const [eventsResult, systemsResult] = await Promise.all([
+      db.query(
+        `SELECT me.id, me.property_id, me.system_key, me.system_name,
+                me.contractor_name, me.message_body, me.recurrence_type,
+                me.scheduled_date, me.scheduled_time, me.status, me.event_type,
+                p.property_uid, p.property_name, p.address, p.city, p.state
+         FROM maintenance_events me
+         JOIN properties p ON p.id = me.property_id
+         JOIN property_users pu ON pu.property_id = me.property_id
+         WHERE pu.user_id = $1
+           AND me.scheduled_date >= $2
+           AND me.scheduled_date <= $3
+         ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
+        [userId, startDate, endDate],
+      ),
+      db.query(
+        `SELECT ps.id, ps.property_id, ps.system_key, ps.next_service_date,
+                p.property_uid, p.property_name, p.address, p.city, p.state
+         FROM property_systems ps
+         JOIN properties p ON p.id = ps.property_id
+         JOIN property_users pu ON pu.property_id = ps.property_id
+         WHERE pu.user_id = $1
+           AND ps.next_service_date >= $2
+           AND ps.next_service_date <= $3
+           AND ps.next_service_date IS NOT NULL
+         ORDER BY ps.next_service_date ASC`,
+        [userId, startDate, endDate],
+      ),
+    ]);
 
     const SYSTEM_LABELS = {
       roof: "Roof",
@@ -413,7 +437,7 @@ class MaintenanceEvent {
     };
 
     const maintenanceEvents = eventsResult.rows.map((r) => ({
-      type: "maintenance",
+      type: calendarTypeFromEventType(r.event_type),
       id: r.id,
       propertyId: r.property_id,
       propertyUid: r.property_uid,

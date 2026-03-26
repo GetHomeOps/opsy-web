@@ -174,7 +174,7 @@ function MaintenanceTab({
   }, [savedMaintenanceRecordsArray, selectedRecord]);
 
   const handleRecordChange = useCallback(
-    (recordData) => {
+    (recordData, options = {}) => {
       if (!recordData) return;
       if (!(recordData.date != null && String(recordData.date).trim())) return;
       const sysId = recordData.systemId || "roof";
@@ -202,7 +202,7 @@ function MaintenanceTab({
         updated[sysId] = [...targetRecords, recordData];
       }
       const recordsArray = recordsToArray(updated);
-      onMaintenanceRecordsChange?.(recordsArray);
+      onMaintenanceRecordsChange?.(recordsArray, options);
       setMaintenanceRecords(recordsArray);
       setSelectedRecord(recordData);
       setIsNewRecord(false);

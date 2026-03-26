@@ -121,6 +121,7 @@ function SearchableEmailField({
   value,
   onChange,
   onBlur,
+  onInviteeMeta,
   placeholder = "Type to search contacts or enter email…",
   disabled = false,
   error,
@@ -269,16 +270,22 @@ function SearchableEmailField({
       const email = contact.email?.trim() || contact.email;
       setInputValue(email);
       onChange(email);
+      let resolvedName = null;
+      if (!contact?.isCustom && !contact?.isSearchMore && email) {
+        resolvedName = (contact.name || "").trim() || null;
+      }
+      onInviteeMeta?.({ email, name: resolvedName });
       setIsOpen(false);
       setHighlightIndex(-1);
     },
-    [onChange, onSearchMore],
+    [onChange, onInviteeMeta, onSearchMore],
   );
 
   const handleInputChange = (e) => {
     const v = e.target.value;
     setInputValue(v);
     onChange(v);
+    onInviteeMeta?.({ email: v, name: null });
     setIsOpen(true);
     setHighlightIndex(-1);
   };
@@ -759,6 +766,7 @@ function SharePropertyModal({
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [email, setEmail] = useState("");
+  const [inviteeName, setInviteeName] = useState("");
   const [role, setRole] = useState("homeowner");
   const [homeownerInviteType, setHomeownerInviteType] = useState("co_owner");
   const [permissions, setPermissions] = useState({});
@@ -821,6 +829,7 @@ function SharePropertyModal({
     if (modalOpen) {
       setActiveTab(initialTab ?? "owner");
       setEmail("");
+      setInviteeName("");
       setRole("homeowner");
       setHomeownerInviteType("co_owner");
       setPermissions({});
@@ -1032,6 +1041,7 @@ function SharePropertyModal({
       }
       await onInvite?.({
         email: effectiveEmail,
+        name: inviteeName.trim() || undefined,
         role,
         homeownerInviteType:
           activeTab === "homeowner" ? homeownerInviteType : undefined,
@@ -1512,6 +1522,30 @@ function SharePropertyModal({
 
                       <div>
                         <label
+                          htmlFor="invite-name"
+                          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                        >
+                          Name{" "}
+                          <span className="font-normal text-gray-500 dark:text-gray-400">
+                            (optional)
+                          </span>
+                        </label>
+                        <input
+                          id="invite-name"
+                          type="text"
+                          value={inviteeName}
+                          onChange={(e) => setInviteeName(e.target.value)}
+                          placeholder="e.g. Jane Smith"
+                          autoComplete="name"
+                          disabled={
+                            activeTab === "homeowner" && atHomeownerLimit
+                          }
+                          className="form-input w-full"
+                        />
+                      </div>
+
+                      <div>
+                        <label
                           htmlFor="invite-email"
                           className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
                         >
@@ -1525,6 +1559,9 @@ function SharePropertyModal({
                           value={email}
                           onChange={setEmail}
                           onBlur={handleBlur}
+                          onInviteeMeta={({ name }) =>
+                            setInviteeName(name ? name : "")
+                          }
                           placeholder={
                             activeTab === "agent"
                               ? "Search agents, contacts, or enter email…"
@@ -1722,9 +1759,10 @@ function SharePropertyModal({
       setModalOpen={setSearchMoreModalOpen}
       contacts={effectiveContacts}
       agents={activeTab === "agent" ? platformAgents : []}
-      onSelect={(selectedEmail) => {
-        setEmail(selectedEmail);
-        setSearchMoreModalOpen(false);
+      onSelectContact={(item) => {
+        const em = item.email?.trim() || "";
+        setEmail(em);
+        setInviteeName((item.name || "").trim());
       }}
     />
     </>

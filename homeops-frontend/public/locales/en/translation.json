@@ -310,6 +310,7 @@
   "homeownerHome.uploadDocument": "Upload Document",
   "homeownerHome.searchProfessionals": "Search Professionals",
   "homeownerHome.findProfessional": "Find a Professional",
+  "homeownerHome.loadingAgent": "Loading Agent",
   "homeownerHome.getSupport": "Get Support",
   "homeownerHome.uploadRequiresProperty": "Create a property first",
   "homeownerHome.uploadRequiresPropertyDesc": "Add your property to upload documents, warranties, and receipts.",
@@ -871,5 +872,18 @@
   "onboarding.successMessage": "Start exploring the platform.",
   "onboarding.explore": "Start exploring",
   "onboarding.skip": "Skip for now",
-  "onboarding.doNotShowAgain": "Do not show again"
+  "onboarding.doNotShowAgain": "Do not show again",
+  "widget.title": "How can we help?",
+  "widget.label": "Bugs & Feedback",
+  "widget.feedbackToggle": "Submit feedback or report a bug",
+  "widget.dragHint": "Drag to move",
+  "widget.feedback": "Feedback",
+  "widget.bug": "Bug Report",
+  "widget.subjectPlaceholder": "Brief summary",
+  "widget.feedbackPlaceholder": "Share your thoughts or suggestions...",
+  "widget.bugPlaceholder": "What happened? Steps to reproduce...",
+  "widget.attach": "Attach file",
+  "widget.submit": "Send",
+  "widget.submitting": "Sending...",
+  "widget.success": "Thank you! We received your submission."
 }

@@ -35,6 +35,7 @@ function HomeOpsTeamModal({
   const [additionalMembers, setAdditionalMembers] = useState([]);
 
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState("editor");
   const [inviteSending, setInviteSending] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(null);
@@ -174,6 +175,7 @@ function HomeOpsTeamModal({
   useEffect(() => {
     if (!modalOpen) return;
     setInviteEmail("");
+    setInviteName("");
     setInviteSuccess(null);
     setInviteError(null);
     if (propertyId) {
@@ -205,12 +207,14 @@ function HomeOpsTeamModal({
       await AppApi.createInvitation({
         type: "property",
         inviteeEmail: inviteEmail,
+        inviteeName: inviteName.trim() || undefined,
         accountId: currentAccount.id,
         propertyId,
         intendedRole: inviteRole,
       });
       setInviteSuccess(inviteEmail);
       setInviteEmail("");
+      setInviteName("");
       const invs = await AppApi.getPropertyInvitations(propertyId);
       setPendingInvitations((invs || []).filter((i) => i.status === "pending"));
     } catch (err) {
@@ -436,6 +440,15 @@ function HomeOpsTeamModal({
               <Mail className="w-4 h-4 text-[#456654]" />
               Invite new member
             </label>
+            <div className="flex flex-col gap-2 w-full">
+              <input
+                type="text"
+                value={inviteName}
+                onChange={(e) => setInviteName(e.target.value)}
+                placeholder="Name (optional)"
+                autoComplete="name"
+                className="form-input w-full text-sm max-w-md"
+              />
             <div className="flex gap-2 items-start flex-wrap">
               <div className="flex-1 min-w-[200px]">
                 <input
@@ -465,6 +478,7 @@ function HomeOpsTeamModal({
                 <Send className="w-4 h-4" />
                 {inviteSending ? "Sending..." : "Invite"}
               </button>
+            </div>
             </div>
             {inviteSuccess && (
               <div className="flex items-center gap-1.5 mt-2 text-xs text-emerald-600 dark:text-emerald-400">

@@ -1,4 +1,4 @@
-import React, {useState} from "react";
+import React, {useState, useEffect} from "react";
 import {X, MapPin, User, FileText, Calendar, Clock, Trash2, Loader2} from "lucide-react";
 import ModalBlank from "../../components/ModalBlank";
 import AppApi from "../../api/api";
@@ -24,17 +24,25 @@ import {parseDateInput} from "../../lib/dateOffset";
 
 function EventDetailModal({event, isOpen, onClose, onDeleted}) {
   const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const canDelete =
-    event?.type === "maintenance" &&
-    event?.id != null &&
-    !String(event.id).startsWith("system-");
+    event?.id != null && !String(event.id).startsWith("system-");
 
-  const handleDelete = async () => {
+  useEffect(() => {
+    if (!isOpen) setDeleteConfirmOpen(false);
+  }, [isOpen]);
+
+  const openDeleteConfirm = () => {
     if (!canDelete || deleting) return;
-    if (!window.confirm("Are you sure you want to delete this event?")) return;
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteEvent = async () => {
+    if (!canDelete || deleting || !event?.id) return;
     setDeleting(true);
     try {
       await AppApi.deleteMaintenanceEvent(event.id);
+      setDeleteConfirmOpen(false);
       onDeleted?.();
       onClose(false);
     } catch (err) {
@@ -94,11 +102,15 @@ function EventDetailModal({event, isOpen, onClose, onDeleted}) {
     : null;
 
   return (
+    <>
     <ModalBlank
       id="event-detail-modal"
       modalOpen={isOpen}
       setModalOpen={onClose}
       contentClassName="max-w-md"
+      closeOnEscape={!deleteConfirmOpen}
+      closeOnClickOutside={!deleteConfirmOpen}
+      closeOnBackdropClick={!deleteConfirmOpen}
     >
       {event && (
         <div className="p-6">
@@ -238,7 +250,7 @@ function EventDetailModal({event, isOpen, onClose, onDeleted}) {
               {canDelete && (
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={openDeleteConfirm}
                   disabled={deleting}
                   className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
                 >
@@ -255,6 +267,59 @@ function EventDetailModal({event, isOpen, onClose, onDeleted}) {
         </div>
       )}
     </ModalBlank>
+
+    <ModalBlank
+      id="event-delete-confirm-modal"
+      modalOpen={deleteConfirmOpen}
+      setModalOpen={setDeleteConfirmOpen}
+      backdropZClassName="z-[300]"
+      dialogZClassName="z-[300]"
+      contentClassName="max-w-lg"
+    >
+      <div className="p-5 flex space-x-4">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-gray-100 dark:bg-gray-700">
+          <svg
+            className="shrink-0 fill-current text-red-500"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            aria-hidden
+          >
+            <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 12c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm1-3H7V4h2v5z" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="mb-2">
+            <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+              Delete this event?
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+            Are you sure you want to delete this event? This action cannot be
+            undone.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-sm bg-red-500 hover:bg-red-600 text-white"
+              onClick={confirmDeleteEvent}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalBlank>
+    </>
   );
 }
 

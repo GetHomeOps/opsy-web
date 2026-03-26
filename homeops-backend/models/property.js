@@ -23,6 +23,34 @@ const { BadRequestError, NotFoundError } = require("../expressError");
 const { generatePassportId } = require("../helpers/properties");
 const { sqlForPartialUpdate } = require("../helpers/sql");
 
+/**
+ * Columns returned by list endpoints (getAll, getPropertiesByUserId, etc.).
+ * Omits heavy/unused-for-lists columns: effective_year_built_source, sq_ft_unfinished,
+ * sq_ft_source, lot_size_source, lot_dim, price_per_sq_ft, total_price_per_sq_ft,
+ * phone_to_show, roof_type, school_district_websites, list_date, expire_date,
+ * identity_data_source, identity_lookup_populated_keys, address_line_2,
+ * created_at, updated_at.
+ * Includes identity fields needed by the frontend computeHpsScore fallback.
+ */
+const PROPERTY_LIST_COLUMNS = `
+  p.id, p.property_uid, p.account_id,
+  p.passport_id, p.property_name, p.main_photo, p.hps_score,
+  p.tax_id, p.county,
+  p.address, p.address_line_1, p.city, p.state, p.zip,
+  p.owner_name, p.owner_name_2, p.owner_city,
+  p.occupant_name, p.occupant_type, p.owner_phone,
+  p.property_type, p.sub_type, p.year_built, p.effective_year_built,
+  p.sq_ft_total, p.sq_ft_finished, p.garage_sq_ft,
+  p.total_dwelling_sq_ft, p.lot_size,
+  p.bed_count, p.bath_count, p.full_baths,
+  p.three_quarter_baths, p.half_baths,
+  p.number_of_showers, p.number_of_bathtubs,
+  p.fireplaces, p.fireplace_types,
+  p.basement, p.parking_type,
+  p.total_covered_parking, p.total_uncovered_parking,
+  p.school_district, p.elementary_school,
+  p.junior_high_school, p.senior_high_school`;
+
 /** Insertable columns for properties (matches opsy-schema.sql; excludes id, created_at, updated_at) */
 const PROPERTY_INSERT_COLUMNS = [
   "property_uid",
@@ -57,8 +85,33 @@ const PROPERTY_NUMBER_COLUMNS = new Set([
 
 const DEFAULT_YEAR = 0;  // use 0 for unknown year; set to e.g. new Date().getFullYear() for "current year"
 
+/**
+ * node-pg encodes JavaScript arrays as Postgres array literals (e.g. {a,b}), which are invalid for JSONB.
+ * Bind a JSON text value so PostgreSQL accepts the column assignment.
+ */
+function normalizeIdentityLookupPopulatedKeys(val) {
+  if (val === undefined || val === null || val === "") return null;
+  let arr = val;
+  if (typeof val === "string") {
+    try {
+      arr = JSON.parse(val);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(arr)) return null;
+  const strings = arr
+    .map((x) => (typeof x === "string" ? x : x == null ? "" : String(x)))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return JSON.stringify(strings);
+}
+
 function coerceValue(key, val) {
   if (val === undefined || val === null || val === "") return null;
+  if (key === "identity_lookup_populated_keys") {
+    return normalizeIdentityLookupPopulatedKeys(val);
+  }
   if (PROPERTY_INTEGER_COLUMNS.has(key)) {
     const n = Number(val);
     return Number.isNaN(n) ? DEFAULT_YEAR : Math.floor(n);
@@ -74,13 +127,17 @@ class Property {
   /* Get all properties */
   static async getAll() {
     const result = await db.query(
-      `SELECT p.*,
-        (SELECT u.name FROM property_users pu
+      `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name
+       FROM properties p
+       LEFT JOIN (
+         SELECT DISTINCT ON (pu.property_id)
+           pu.property_id, u.name
+         FROM property_users pu
          JOIN users u ON u.id = pu.user_id
-         WHERE pu.property_id = p.id
-         ORDER BY CASE WHEN pu.role = 'owner' THEN 0 ELSE 1 END, pu.created_at
-         LIMIT 1) AS owner_user_name
-       FROM properties p`
+         ORDER BY pu.property_id,
+           CASE WHEN pu.role = 'owner' THEN 0 ELSE 1 END,
+           pu.created_at
+       ) owner_sub ON owner_sub.property_id = p.id`
     );
     return result.rows;
   }
@@ -157,13 +214,18 @@ class Property {
   /* Get properties by account id */
   static async getPropertiesByAccountId(accountId) {
     const result = await db.query(
-      `SELECT p.*,
-        (SELECT u.name FROM property_users pu
+      `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name
+       FROM properties p
+       LEFT JOIN (
+         SELECT DISTINCT ON (pu.property_id)
+           pu.property_id, u.name
+         FROM property_users pu
          JOIN users u ON u.id = pu.user_id
-         WHERE pu.property_id = p.id
-         ORDER BY CASE WHEN pu.role = 'owner' THEN 0 ELSE 1 END, pu.created_at
-         LIMIT 1) AS owner_user_name
-       FROM properties p WHERE p.account_id = $1`,
+         ORDER BY pu.property_id,
+           CASE WHEN pu.role = 'owner' THEN 0 ELSE 1 END,
+           pu.created_at
+       ) owner_sub ON owner_sub.property_id = p.id
+       WHERE p.account_id = $1`,
       [accountId]
     );
     return result.rows;
@@ -172,14 +234,18 @@ class Property {
   /* Get properties by users's id */
   static async getPropertiesByUserId(userId) {
     const result = await db.query(
-      `SELECT p.*,
-        (SELECT u.name FROM property_users pu_owner
-         JOIN users u ON u.id = pu_owner.user_id
-         WHERE pu_owner.property_id = p.id
-         ORDER BY CASE WHEN pu_owner.role = 'owner' THEN 0 ELSE 1 END, pu_owner.created_at
-         LIMIT 1) AS owner_user_name
+      `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name
        FROM properties p
        JOIN property_users pu ON p.id = pu.property_id
+       LEFT JOIN (
+         SELECT DISTINCT ON (pu2.property_id)
+           pu2.property_id, u.name
+         FROM property_users pu2
+         JOIN users u ON u.id = pu2.user_id
+         ORDER BY pu2.property_id,
+           CASE WHEN pu2.role = 'owner' THEN 0 ELSE 1 END,
+           pu2.created_at
+       ) owner_sub ON owner_sub.property_id = p.id
        WHERE pu.user_id = $1`,
       [userId]
     );
@@ -190,17 +256,22 @@ class Property {
   static async getPropertiesWithPendingInvitations(userEmail) {
     const result = await db.query(
       `SELECT DISTINCT ON (p.id)
-        p.*,
+        ${PROPERTY_LIST_COLUMNS},
         i.id AS _invitation_id,
         i.intended_role AS _invitation_role,
         i.expires_at AS _invitation_expires_at,
-        (SELECT u.name FROM property_users pu_owner
-         JOIN users u ON u.id = pu_owner.user_id
-         WHERE pu_owner.property_id = p.id
-         ORDER BY CASE WHEN pu_owner.role = 'owner' THEN 0 ELSE 1 END, pu_owner.created_at
-         LIMIT 1) AS owner_user_name
+        owner_sub.name AS owner_user_name
        FROM properties p
        JOIN invitations i ON i.property_id = p.id
+       LEFT JOIN (
+         SELECT DISTINCT ON (pu.property_id)
+           pu.property_id, u.name
+         FROM property_users pu
+         JOIN users u ON u.id = pu.user_id
+         ORDER BY pu.property_id,
+           CASE WHEN pu.role = 'owner' THEN 0 ELSE 1 END,
+           pu.created_at
+       ) owner_sub ON owner_sub.property_id = p.id
        WHERE LOWER(i.invitee_email) = LOWER($1)
          AND i.type = 'property'
          AND i.status = 'pending'
@@ -227,7 +298,13 @@ class Property {
 
   /* Update property */
   static async updateProperty(id, data) {
-    const { setCols, values } = sqlForPartialUpdate(data, {
+    const payload = { ...data };
+    if (Object.prototype.hasOwnProperty.call(payload, "identity_lookup_populated_keys")) {
+      payload.identity_lookup_populated_keys = normalizeIdentityLookupPopulatedKeys(
+        payload.identity_lookup_populated_keys
+      );
+    }
+    const { setCols, values } = sqlForPartialUpdate(payload, {
       passport_id: "passport_id",
       property_name: "property_name",
       main_photo: "main_photo",
