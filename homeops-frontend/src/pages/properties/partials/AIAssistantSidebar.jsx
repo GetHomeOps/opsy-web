@@ -1,7 +1,7 @@
 import React, {useState, useRef, useEffect, useCallback} from "react";
 import {useNavigate, useParams} from "react-router-dom";
 import UpgradePrompt from "../../../components/UpgradePrompt";
-import opsyAiIcon from "../../../images/opsy_ai.png";
+import opsyAiIcon from "../../../images/opsy_ai2.webp";
 import {
   X,
   Send,

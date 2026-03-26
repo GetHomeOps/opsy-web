@@ -1,8 +1,9 @@
 /**
- * Property fields sourced from RentCast. When a property has identity_data_source === 'rentcast',
- * these fields are read-only and require a Data Adjustment Request to change.
+ * Vendor-eligible identity fields (ATTOM / RentCast). Which ones are actually locked on the
+ * Identity tab is driven by `identity_lookup_populated_keys` from the API — only keys returned
+ * by the lookup are read-only; see IdentityTab `isVendorLookupLocked`.
  *
- * Matches mapRentCastToFields in backend routes/propertyPredict.js
+ * Backend mapping: routes/propertyPredict.js (mapAttomToFields).
  */
 /** Address fields from autocomplete (Places) — also support Data Adjustment requests */
 export const ADDRESS_FIELD_KEYS = new Set([
@@ -26,6 +27,7 @@ export const RENTCAST_FIELD_KEYS = new Set([
   "yearBuilt",
   "sqFtTotal",
   "sqFtFinished",
+  "garageSqFt",
   "totalDwellingSqFt",
   "lotSize",
   "bedCount",
@@ -62,6 +64,7 @@ export const ADJUSTABLE_FIELD_KEYS = new Set([
   "yearBuilt",
   "sqFtTotal",
   "sqFtFinished",
+  "garageSqFt",
   "totalDwellingSqFt",
   "lotSize",
   "bedCount",
@@ -102,6 +105,7 @@ export const RENTCAST_FIELD_LABELS = {
   yearBuilt: "Year Built",
   sqFtTotal: "Total ft²",
   sqFtFinished: "Finished ft²",
+  garageSqFt: "Garage ft²",
   totalDwellingSqFt: "Total Dwelling ft²",
   lotSize: "Lot Size",
   bedCount: "Bedrooms",

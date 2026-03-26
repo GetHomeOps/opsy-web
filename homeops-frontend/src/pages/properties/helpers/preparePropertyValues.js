@@ -10,6 +10,7 @@ import { IDENTITY_SECTIONS } from "../constants/identitySections";
 const IDENTITY_FORM_KEYS = new Set([
   ...IDENTITY_SECTIONS.flatMap((s) => s.fields ?? []),
   "mainPhoto", // Set via image upload on property card; not in form sections
+  "identityLookupPopulatedKeys", // camelCase keys last filled by ATTOM/RentCast lookup (persisted JSON array)
 ]);
 
 /** Identity/string fields the backend expects as strings (send "" instead of null). */
@@ -164,6 +165,7 @@ const SNAKE_MAP = {
   hpsScore: "hps_score",
   mainPhoto: "main_photo",
   identityDataSource: "identity_data_source",
+  identityLookupPopulatedKeys: "identity_lookup_populated_keys",
   homeownerIds: "homeowner_ids",
   teamMembers: "team_members",
   healthMetrics: "health_metrics",
@@ -287,6 +289,13 @@ export function preparePropertyValues(propertyData) {
 
   for (const [key, value] of Object.entries(propertyData)) {
     const snakeKey = toSnakeCase(key);
+
+    if (key === "identityLookupPopulatedKeys") {
+      if (!Array.isArray(value)) continue;
+      const sanitized = value.filter((x) => typeof x === "string" && x.trim());
+      out[snakeKey] = sanitized;
+      continue;
+    }
 
     if (key === "healthMetrics") {
       out[snakeKey] = transformHealthMetrics(value);

@@ -401,6 +401,8 @@ function SystemsSetupModal({
   const [savingProperty, setSavingProperty] = useState(false);
   const [propertyTypePreset, setPropertyTypePreset] = useState(null);
   const [lookupSource, setLookupSource] = useState(null);
+  /** Field keys returned by ATTOM/RentCast on this flow (for persisting identity_lookup_populated_keys) */
+  const [lookupPopulatedFieldKeys, setLookupPopulatedFieldKeys] = useState([]);
 
   const {currentUser} = useAuth();
   const firstName =
@@ -490,6 +492,11 @@ function SystemsSetupModal({
     setSavePropertyError(null);
     setPropertyTypePreset(null);
     setLookupSource(null);
+    setLookupPopulatedFieldKeys(
+      Array.isArray(formData?.identityLookupPopulatedKeys)
+        ? [...formData.identityLookupPopulatedKeys]
+        : [],
+    );
     hasAppliedSuggestedRef.current = false;
     hasAutoSelectedSuggestedRef.current = false;
     if (pollIntervalRef.current) {
@@ -566,6 +573,11 @@ function SystemsSetupModal({
     }
     if (hasPredicted) {
       payload.identityDataSource = lookupSource ?? "attom";
+      payload.identityLookupPopulatedKeys = [...lookupPopulatedFieldKeys];
+    } else if (Array.isArray(formData?.identityLookupPopulatedKeys)) {
+      payload.identityLookupPopulatedKeys = [
+        ...formData.identityLookupPopulatedKeys,
+      ];
     }
     onIdentityFieldsChange?.(payload);
 
@@ -616,6 +628,7 @@ function SystemsSetupModal({
           }
         }
         setAiFields(newFields);
+        setLookupPopulatedFieldKeys(Object.keys(newFields));
         setRetrievedFieldCount(Object.keys(newFields).length);
         setHasPredicted(true);
       } else {

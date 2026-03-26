@@ -21,7 +21,6 @@ import {
 import {
   RENTCAST_FIELD_KEYS,
   RENTCAST_VERIFIED_TOOLTIP,
-  AUTCOMPLETE_LOCK_TOOLTIP,
 } from "./constants/rentcastFields";
 import Tooltip from "../../utils/Tooltip";
 
@@ -570,6 +569,7 @@ function getFieldValue(propertyData, fieldName) {
 
 function IdentityTab({
   propertyData,
+  savedPropertyData = {},
   handleInputChange,
   errors = {},
   addressInputRef,
@@ -579,12 +579,25 @@ function IdentityTab({
   identityDataSource,
   supportDataAdjustmentUrl,
 }) {
-  /** Lock only when field is API-sourced (RentCast or ATTOM) AND has a non-empty API value */
-  const isRentCastLocked = (fieldName) => {
+  const lookupKeysRaw = savedPropertyData?.identityLookupPopulatedKeys;
+  const explicitLookupKeys = Array.isArray(lookupKeysRaw) ? lookupKeysRaw : null;
+
+  /**
+   * Lock only fields the ATTOM/RentCast lookup actually returned (persisted in
+   * identity_lookup_populated_keys). Address / Places fields are never locked unless
+   * included in that list (e.g. county, taxId from lookup).
+   *
+   * When explicitLookupKeys is null (legacy rows), fall back to locking any
+   * non-empty saved value in the vendor-eligible field set.
+   */
+  const isVendorLookupLocked = (fieldName) => {
     const isApiSourced = identityDataSource === "rentcast" || identityDataSource === "attom";
-    if (!isApiSourced || !RENTCAST_FIELD_KEYS.has(fieldName))
-      return false;
-    const val = getFieldValue(propertyData, fieldName);
+    if (!isApiSourced) return false;
+    if (explicitLookupKeys !== null) {
+      return explicitLookupKeys.includes(fieldName);
+    }
+    if (!RENTCAST_FIELD_KEYS.has(fieldName)) return false;
+    const val = getFieldValue(savedPropertyData, fieldName);
     return val !== undefined && val !== null && String(val).trim() !== "";
   };
 
@@ -632,10 +645,6 @@ function IdentityTab({
                   placeholder="Start typing an address to search..."
                   required
                   error={errors.address || placesError}
-                  readOnly={!!propertyData.addressLine1}
-                  lockTooltip={
-                    propertyData.addressLine1 ? AUTCOMPLETE_LOCK_TOOLTIP : undefined
-                  }
                   supportDataAdjustmentUrl={supportDataAdjustmentUrl}
                 />
               </AutocompleteWrapper>
@@ -661,10 +670,6 @@ function IdentityTab({
                 placeholder="Start typing an address to search..."
                 required
                 error={errors.address || placesError}
-                readOnly={!!propertyData.addressLine1}
-                lockTooltip={
-                  propertyData.addressLine1 ? AUTCOMPLETE_LOCK_TOOLTIP : undefined
-                }
                 supportDataAdjustmentUrl={supportDataAdjustmentUrl}
               />
             )}
@@ -673,29 +678,22 @@ function IdentityTab({
           <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2">
               <Field
-                onChange={handleInputChange}
                 label="Street"
                 name="addressLine1"
                 value={propertyData.addressLine1}
                 placeholder="e.g. 123 Main St"
                 readOnly
-                lockTooltip={AUTCOMPLETE_LOCK_TOOLTIP}
-                supportDataAdjustmentUrl={supportDataAdjustmentUrl}
               />
             </div>
             <Field
-              onChange={handleInputChange}
               label="City"
               name="city"
               value={propertyData.city}
               required
               error={errors.city}
               readOnly
-              lockTooltip={AUTCOMPLETE_LOCK_TOOLTIP}
-              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
             />
             <SelectField
-              onChange={handleInputChange}
               label="State"
               name="state"
               value={propertyData.state}
@@ -703,19 +701,14 @@ function IdentityTab({
               required
               error={errors.state}
               readOnly
-              lockTooltip={AUTCOMPLETE_LOCK_TOOLTIP}
-              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
             />
             <Field
-              onChange={handleInputChange}
               label="ZIP"
               name="zip"
               value={propertyData.zip}
               required
               error={errors.zip}
               readOnly
-              lockTooltip={AUTCOMPLETE_LOCK_TOOLTIP}
-              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
             />
             <Field
               onChange={handleInputChange}
@@ -723,16 +716,11 @@ function IdentityTab({
               name="county"
               value={propertyData.county}
               placeholder="e.g. King"
-              readOnly={isRentCastLocked("county") || !!propertyData.addressLine1}
+              readOnly={isVendorLookupLocked("county")}
               verifiedLockTooltip={
-                isRentCastLocked("county") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+                isVendorLookupLocked("county") ? RENTCAST_VERIFIED_TOOLTIP : undefined
               }
               supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-              lockTooltip={
-                !isRentCastLocked("county") && propertyData.addressLine1
-                  ? AUTCOMPLETE_LOCK_TOOLTIP
-                  : undefined
-              }
             />
             <Field
               onChange={handleInputChange}
@@ -740,9 +728,9 @@ function IdentityTab({
               name="taxId"
               value={propertyData.taxId || propertyData.parcelTaxId}
               placeholder="e.g. 9278300025"
-              readOnly={isRentCastLocked("taxId")}
+              readOnly={isVendorLookupLocked("taxId")}
               verifiedLockTooltip={
-                isRentCastLocked("taxId") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+                isVendorLookupLocked("taxId") ? RENTCAST_VERIFIED_TOOLTIP : undefined
               }
               supportDataAdjustmentUrl={supportDataAdjustmentUrl}
             />
@@ -763,9 +751,9 @@ function IdentityTab({
             label="Owner Name"
             name="ownerName"
             value={propertyData.ownerName}
-            readOnly={isRentCastLocked("ownerName")}
+            readOnly={isVendorLookupLocked("ownerName")}
             verifiedLockTooltip={
-              isRentCastLocked("ownerName") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("ownerName") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -774,9 +762,9 @@ function IdentityTab({
             label="Owner Name 2"
             name="ownerName2"
             value={propertyData.ownerName2}
-            readOnly={isRentCastLocked("ownerName2")}
+            readOnly={isVendorLookupLocked("ownerName2")}
             verifiedLockTooltip={
-              isRentCastLocked("ownerName2") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("ownerName2") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -786,9 +774,9 @@ function IdentityTab({
             name="ownerCity"
             value={propertyData.ownerCity}
             placeholder="e.g. Seattle WA"
-            readOnly={isRentCastLocked("ownerCity")}
+            readOnly={isVendorLookupLocked("ownerCity")}
             verifiedLockTooltip={
-              isRentCastLocked("ownerCity") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("ownerCity") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -837,9 +825,9 @@ function IdentityTab({
               "Land",
               "Other",
             ]}
-            readOnly={isRentCastLocked("propertyType")}
+            readOnly={isVendorLookupLocked("propertyType")}
             verifiedLockTooltip={
-              isRentCastLocked("propertyType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("propertyType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -849,9 +837,9 @@ function IdentityTab({
             name="subType"
             value={propertyData.subType}
             placeholder="e.g. Residential"
-            readOnly={isRentCastLocked("subType")}
+            readOnly={isVendorLookupLocked("subType")}
             verifiedLockTooltip={
-              isRentCastLocked("subType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("subType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -861,9 +849,9 @@ function IdentityTab({
             name="yearBuilt"
             type="number"
             value={propertyData.yearBuilt}
-            readOnly={isRentCastLocked("yearBuilt")}
+            readOnly={isVendorLookupLocked("yearBuilt")}
             verifiedLockTooltip={
-              isRentCastLocked("yearBuilt") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("yearBuilt") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -884,9 +872,9 @@ function IdentityTab({
             name="sqFtTotal"
             type="number"
             value={propertyData.sqFtTotal || propertyData.squareFeet}
-            readOnly={isRentCastLocked("sqFtTotal")}
+            readOnly={isVendorLookupLocked("sqFtTotal")}
             verifiedLockTooltip={
-              isRentCastLocked("sqFtTotal") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("sqFtTotal") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -896,9 +884,9 @@ function IdentityTab({
             name="sqFtFinished"
             type="number"
             value={propertyData.sqFtFinished}
-            readOnly={isRentCastLocked("sqFtFinished")}
+            readOnly={isVendorLookupLocked("sqFtFinished")}
             verifiedLockTooltip={
-              isRentCastLocked("sqFtFinished") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("sqFtFinished") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -908,6 +896,13 @@ function IdentityTab({
             name="garageSqFt"
             type="number"
             value={propertyData.garageSqFt}
+            readOnly={isVendorLookupLocked("garageSqFt")}
+            verifiedLockTooltip={
+              isVendorLookupLocked("garageSqFt")
+                ? RENTCAST_VERIFIED_TOOLTIP
+                : undefined
+            }
+            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
           <Field
             onChange={handleInputChange}
@@ -915,9 +910,9 @@ function IdentityTab({
             name="totalDwellingSqFt"
             type="number"
             value={propertyData.totalDwellingSqFt}
-            readOnly={isRentCastLocked("totalDwellingSqFt")}
+            readOnly={isVendorLookupLocked("totalDwellingSqFt")}
             verifiedLockTooltip={
-              isRentCastLocked("totalDwellingSqFt") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("totalDwellingSqFt") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -927,9 +922,9 @@ function IdentityTab({
             name="lotSize"
             value={propertyData.lotSize}
             placeholder="e.g. .200 ac / 8,700 sf"
-            readOnly={isRentCastLocked("lotSize")}
+            readOnly={isVendorLookupLocked("lotSize")}
             verifiedLockTooltip={
-              isRentCastLocked("lotSize") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("lotSize") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -950,9 +945,9 @@ function IdentityTab({
             name="bedCount"
             type="number"
             value={propertyData.bedCount || propertyData.rooms}
-            readOnly={isRentCastLocked("bedCount")}
+            readOnly={isVendorLookupLocked("bedCount")}
             verifiedLockTooltip={
-              isRentCastLocked("bedCount") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("bedCount") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -962,9 +957,9 @@ function IdentityTab({
             name="bathCount"
             type="number"
             value={propertyData.bathCount || propertyData.bathrooms}
-            readOnly={isRentCastLocked("bathCount")}
+            readOnly={isVendorLookupLocked("bathCount")}
             verifiedLockTooltip={
-              isRentCastLocked("bathCount") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("bathCount") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -974,9 +969,9 @@ function IdentityTab({
             name="fullBaths"
             type="number"
             value={propertyData.fullBaths}
-            readOnly={isRentCastLocked("fullBaths")}
+            readOnly={isVendorLookupLocked("fullBaths")}
             verifiedLockTooltip={
-              isRentCastLocked("fullBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("fullBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -986,9 +981,9 @@ function IdentityTab({
             name="threeQuarterBaths"
             type="number"
             value={propertyData.threeQuarterBaths}
-            readOnly={isRentCastLocked("threeQuarterBaths")}
+            readOnly={isVendorLookupLocked("threeQuarterBaths")}
             verifiedLockTooltip={
-              isRentCastLocked("threeQuarterBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("threeQuarterBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -998,9 +993,9 @@ function IdentityTab({
             name="halfBaths"
             type="number"
             value={propertyData.halfBaths}
-            readOnly={isRentCastLocked("halfBaths")}
+            readOnly={isVendorLookupLocked("halfBaths")}
             verifiedLockTooltip={
-              isRentCastLocked("halfBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("halfBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1011,9 +1006,9 @@ function IdentityTab({
             name="numberOfShowers"
             type="number"
             value={propertyData.numberOfShowers}
-            readOnly={isRentCastLocked("numberOfShowers")}
+            readOnly={isVendorLookupLocked("numberOfShowers")}
             verifiedLockTooltip={
-              isRentCastLocked("numberOfShowers") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("numberOfShowers") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1023,9 +1018,9 @@ function IdentityTab({
             name="numberOfBathtubs"
             type="number"
             value={propertyData.numberOfBathtubs}
-            readOnly={isRentCastLocked("numberOfBathtubs")}
+            readOnly={isVendorLookupLocked("numberOfBathtubs")}
             verifiedLockTooltip={
-              isRentCastLocked("numberOfBathtubs") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("numberOfBathtubs") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1046,9 +1041,9 @@ function IdentityTab({
             name="fireplaces"
             type="number"
             value={propertyData.fireplaces}
-            readOnly={isRentCastLocked("fireplaces")}
+            readOnly={isVendorLookupLocked("fireplaces")}
             verifiedLockTooltip={
-              isRentCastLocked("fireplaces") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("fireplaces") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1058,9 +1053,9 @@ function IdentityTab({
             name="fireplaceTypes"
             value={propertyData.fireplaceTypes}
             options={["Gas", "Wood", "Other"]}
-            readOnly={isRentCastLocked("fireplaceTypes")}
+            readOnly={isVendorLookupLocked("fireplaceTypes")}
             verifiedLockTooltip={
-              isRentCastLocked("fireplaceTypes") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("fireplaceTypes") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1077,9 +1072,9 @@ function IdentityTab({
               "Unfinished",
               "None",
             ]}
-            readOnly={isRentCastLocked("basement")}
+            readOnly={isVendorLookupLocked("basement")}
             verifiedLockTooltip={
-              isRentCastLocked("basement") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("basement") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1090,9 +1085,9 @@ function IdentityTab({
             name="parkingType"
             value={propertyData.parkingType}
             placeholder="e.g. Driveway Parking"
-            readOnly={isRentCastLocked("parkingType")}
+            readOnly={isVendorLookupLocked("parkingType")}
             verifiedLockTooltip={
-              isRentCastLocked("parkingType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("parkingType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1102,9 +1097,9 @@ function IdentityTab({
             name="totalCoveredParking"
             type="number"
             value={propertyData.totalCoveredParking}
-            readOnly={isRentCastLocked("totalCoveredParking")}
+            readOnly={isVendorLookupLocked("totalCoveredParking")}
             verifiedLockTooltip={
-              isRentCastLocked("totalCoveredParking") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("totalCoveredParking") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1114,9 +1109,9 @@ function IdentityTab({
             name="totalUncoveredParking"
             type="number"
             value={propertyData.totalUncoveredParking}
-            readOnly={isRentCastLocked("totalUncoveredParking")}
+            readOnly={isVendorLookupLocked("totalUncoveredParking")}
             verifiedLockTooltip={
-              isRentCastLocked("totalUncoveredParking") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("totalUncoveredParking") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1137,9 +1132,9 @@ function IdentityTab({
             name="schoolDistrict"
             value={propertyData.schoolDistrict}
             placeholder="e.g. Seattle"
-            readOnly={isRentCastLocked("schoolDistrict")}
+            readOnly={isVendorLookupLocked("schoolDistrict")}
             verifiedLockTooltip={
-              isRentCastLocked("schoolDistrict") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("schoolDistrict") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1148,9 +1143,9 @@ function IdentityTab({
             label="Elementary"
             name="elementarySchool"
             value={propertyData.elementarySchool}
-            readOnly={isRentCastLocked("elementarySchool")}
+            readOnly={isVendorLookupLocked("elementarySchool")}
             verifiedLockTooltip={
-              isRentCastLocked("elementarySchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("elementarySchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1159,9 +1154,9 @@ function IdentityTab({
             label="Junior High"
             name="juniorHighSchool"
             value={propertyData.juniorHighSchool}
-            readOnly={isRentCastLocked("juniorHighSchool")}
+            readOnly={isVendorLookupLocked("juniorHighSchool")}
             verifiedLockTooltip={
-              isRentCastLocked("juniorHighSchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("juniorHighSchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />
@@ -1170,9 +1165,9 @@ function IdentityTab({
             label="Senior High"
             name="seniorHighSchool"
             value={propertyData.seniorHighSchool}
-            readOnly={isRentCastLocked("seniorHighSchool")}
+            readOnly={isVendorLookupLocked("seniorHighSchool")}
             verifiedLockTooltip={
-              isRentCastLocked("seniorHighSchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
+              isVendorLookupLocked("seniorHighSchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
             }
             supportDataAdjustmentUrl={supportDataAdjustmentUrl}
           />

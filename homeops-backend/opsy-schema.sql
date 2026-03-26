@@ -300,6 +300,8 @@ CREATE TABLE properties (
 
     -- RentCast: when 'rentcast', identity fields from RentCast are read-only
     identity_data_source VARCHAR(50) DEFAULT NULL,
+    -- JSON array of camelCase keys populated from ATTOM/RentCast lookup; NULL = legacy lock behavior
+    identity_lookup_populated_keys JSONB DEFAULT NULL,
 
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

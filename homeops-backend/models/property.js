@@ -41,6 +41,7 @@ const PROPERTY_INSERT_COLUMNS = [
   "school_district", "elementary_school", "junior_high_school", "senior_high_school",
   "school_district_websites", "list_date", "expire_date",
   "identity_data_source",
+  "identity_lookup_populated_keys",
 ];
 
 /** Integer columns – coerce string to int; default 0 when missing/invalid */
@@ -282,6 +283,7 @@ class Property {
       school_district_websites: "school_district_websites",
       list_date: "list_date",
       expire_date: "expire_date",
+      identity_lookup_populated_keys: "identity_lookup_populated_keys",
     });
     const idVarIdx = "$" + (values.length + 1);
 

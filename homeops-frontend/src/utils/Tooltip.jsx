@@ -5,7 +5,16 @@ import {useDynamicPosition} from "../hooks/useDynamicPosition";
 
 const TOOLTIP_GAP = 8;
 
-function Tooltip({children, className, bg, size, position, content}) {
+function Tooltip({
+  children,
+  className,
+  bg,
+  size,
+  position,
+  content,
+  gap: gapProp,
+  panelClassName,
+}) {
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const triggerRef = useRef(null);
   const tooltipRef = useRef(null);
@@ -17,7 +26,7 @@ function Tooltip({children, className, bg, size, position, content}) {
     floatingRef: tooltipRef,
     isVisible: tooltipOpen && !!content,
     preferredPosition: position || "bottom",
-    gap: TOOLTIP_GAP,
+    gap: gapProp ?? TOOLTIP_GAP,
   });
 
   const handleEnter = () => {
@@ -60,12 +69,13 @@ function Tooltip({children, className, bg, size, position, content}) {
     }
   };
 
+  /** Horizontal placement uses `gap` from useDynamicPosition only — margin here was not
+   * included in width measurement and caused the tooltip to overlap the trigger. */
   const positionInnerClasses = (pos) => {
     switch (pos) {
       case "right":
-        return "ml-2";
       case "left":
-        return "mr-2";
+        return "";
       case "top":
         return "mb-2";
       case "bottom":
@@ -80,7 +90,9 @@ function Tooltip({children, className, bg, size, position, content}) {
       tag="div"
       className={`rounded-lg border overflow-hidden shadow-lg ${sizeClasses(
         size,
-      )} ${colorClasses(bg)} ${positionInnerClasses(effectivePosition)}`}
+      )} ${colorClasses(bg)} ${positionInnerClasses(effectivePosition)} ${
+        panelClassName || ""
+      }`.trim()}
       enter="transition ease-out duration-200 transform"
       enterStart="opacity-0 -translate-y-2"
       enterEnd="opacity-100 translate-y-0"

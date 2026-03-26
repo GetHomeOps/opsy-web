@@ -2,7 +2,7 @@ import React, {useState, useRef} from "react";
 import {Link, useSearchParams} from "react-router-dom";
 import {HelpCircle} from "lucide-react";
 
-import opsyAiIcon from "../images/opsy_ai.png";
+import opsyAiIcon from "../images/opsy_ai2.webp";
 import NavbarSearch from "../components/NavbarSearch";
 import Notifications from "../components/DropdownNotifications";
 import Reminders from "../components/DropdownReminders";

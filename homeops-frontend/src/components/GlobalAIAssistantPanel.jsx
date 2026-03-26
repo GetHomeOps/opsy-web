@@ -1,7 +1,7 @@
 import React, {useState, useEffect, useContext, useMemo} from "react";
 import {useNavigate} from "react-router-dom";
 import {X, ArrowUpCircle, Loader2, Search} from "lucide-react";
-import opsyAiIcon from "../images/opsy_ai.png";
+import opsyAiIcon from "../images/opsy_ai2.webp";
 import Transition from "../utils/Transition";
 import PropertyContext from "../context/PropertyContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";

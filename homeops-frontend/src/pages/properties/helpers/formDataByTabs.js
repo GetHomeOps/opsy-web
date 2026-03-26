@@ -41,6 +41,8 @@ const initialIdentity = {
   documents: [],
   fullAddress: "",
   county: "",
+  /** camelCase field keys last populated from ATTOM/RentCast; null/undefined = not set */
+  identityLookupPopulatedKeys: null,
 };
 
 const initialSystems = {

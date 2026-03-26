@@ -24,6 +24,7 @@ import MaintenanceTab from "./MaintenanceTab";
 import IdentityTab from "./IdentityTab";
 import DocumentsTab from "./DocumentsTab";
 import OpsyHead from "../../images/opsy_head.png";
+import Tooltip from "../../utils/Tooltip";
 import ScoreCard from "./ScoreCard";
 import HomeOpsTeam from "./partials/HomeOpsTeam";
 import SystemsSetupModal from "./partials/SystemsSetupModal";
@@ -577,6 +578,11 @@ function PropertyFormContainer() {
 
   // Merged formData – declared early so callbacks can reference it
   const mergedFormData = mergeFormDataFromTabs(state.formData);
+  /** Last persisted property (load/save); used for read-only locks — not live form edits */
+  const savedMergedPropertyData = useMemo(
+    () => (state.property ? mergeFormDataFromTabs(state.property) : {}),
+    [state.property],
+  );
   const identityDataSource =
     mergedFormData?.identityDataSource ??
     state.property?.identity?.identityDataSource;
@@ -2957,11 +2963,20 @@ function PropertyFormContainer() {
                 )}
               </div>
               <div className="flex items-center justify-end">
-                <img
-                  src={OpsyHead}
-                  alt="Opsy"
-                  className="w-24 h-24 object-contain"
-                />
+                <Tooltip
+                  className="pl-0 inline-flex shrink-0"
+                  position="left"
+                  size="xl"
+                  gap={16}
+                  panelClassName="!min-w-0 !w-fit !max-w-sm !px-2.5"
+                  content="Your property is currently in Opsymization. This critical phase is building your comprehensive HomeOps Passport Score—your key to smarter, proactive home management. Available soon."
+                >
+                  <img
+                    src={OpsyHead}
+                    alt="Opsy — Opsymizing your property"
+                    className="w-24 h-24 object-contain"
+                  />
+                </Tooltip>
               </div>
             </div>
 
@@ -3269,6 +3284,7 @@ function PropertyFormContainer() {
                 {state.activeTab === "identity" && (
                   <IdentityTab
                     propertyData={mergedFormData}
+                    savedPropertyData={savedMergedPropertyData}
                     handleInputChange={handleChange}
                     errors={state.errors}
                     addressInputRef={identityAddressRef}

@@ -7,7 +7,11 @@ import OpsyIcon from "../images/opsy_new_logo.webp";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import {useAuth} from "../context/AuthContext";
 import Transition from "../utils/Transition";
-import {SIDEBAR_CONFIG, PROFESSIONALS_SAMPLE, COMING_SOON} from "./sidebarConfig";
+import {
+  SIDEBAR_CONFIG,
+  PROFESSIONALS_SAMPLE,
+  COMING_SOON,
+} from "./sidebarConfig";
 
 /**
  * Stripe-style submenu flyout — when sidebar is collapsed, hovering over an expandable
@@ -230,10 +234,9 @@ function SidebarTooltip({show, label, children, layoutShiftKey}) {
   );
 }
 
-// Shared link/collapsed classes for Stripe-style nav
-// Collapsed: py-1.5 for tighter icon spacing; expanded: py-2
+// Shared link classes — lg uses py-2 in both collapsed and expanded so rows align when toggling width
 const linkBase =
-  "flex items-center pl-4 pr-3 py-2 rounded-lg transition-all duration-200 lg:justify-center lg:px-3 lg:py-1.5 lg:sidebar-expanded:pl-4 lg:sidebar-expanded:pr-3 lg:sidebar-expanded:py-2 lg:sidebar-expanded:justify-start 2xl:justify-start 2xl:pl-4 2xl:pr-3 2xl:py-2";
+  "flex items-center pl-4 pr-3 py-2 rounded-lg transition-all duration-200 lg:justify-center lg:px-3 lg:py-2 lg:sidebar-expanded:pl-4 lg:sidebar-expanded:pr-3 lg:sidebar-expanded:py-2 lg:sidebar-expanded:justify-start 2xl:justify-start 2xl:pl-4 2xl:pr-3 2xl:py-2";
 const linkActive = "bg-white/15 text-white [&_svg]:text-white";
 const linkInactive =
   "text-white/90 hover:bg-white/[0.08] hover:text-white [&_svg]:text-white/70";
@@ -251,7 +254,10 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const isSuperAdmin = currentUser?.role === "super_admin";
   const isAdmin = currentUser?.role === "admin";
   const isAgent = currentUser?.role === "agent";
+  const isHomeowner = currentUser?.role === "homeowner";
   const canManageUsers = isSuperAdmin || isAdmin;
+  /** Agent/homeowner: show Professionals as a section link; admin/super_admin: keep Directory collapsible. */
+  const usesFlatProfessionalsNav = !canManageUsers && (isAgent || isHomeowner);
 
   const trigger = useRef(null);
   const sidebar = useRef(null);
@@ -266,8 +272,10 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     if (
       /\/professionals(\/|$)/.test(path) ||
       /\/my-professionals(\/|$)/.test(path)
-    )
+    ) {
+      if (usesFlatProfessionalsNav) return null;
       return "directory";
+    }
     if (/\/helpdesk(\/|$)/.test(path)) return "helpdesk";
     if (
       /\/subscriptions(\/|$)/.test(path) ||
@@ -324,9 +332,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     (path, activePaths, excludeFromActive) => {
       if (
         excludeFromActive?.some((excl) =>
-          new RegExp(`\\/${excl.replace(/\//g, "\\/")}(\\/|$)`).test(
-            pathname,
-          ),
+          new RegExp(`\\/${excl.replace(/\//g, "\\/")}(\\/|$)`).test(pathname),
         )
       )
         return false;
@@ -456,7 +462,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
           setOpen(!open);
         }}
         aria-label={group.label}
-        className={`flex items-center w-full pl-4 pr-3 py-2 rounded-lg transition-all duration-200 lg:justify-center lg:px-3 lg:py-1.5 lg:sidebar-expanded:pl-4 lg:sidebar-expanded:pr-3 lg:sidebar-expanded:py-2 lg:sidebar-expanded:justify-start 2xl:justify-start 2xl:pl-4 2xl:pr-3 2xl:py-2 ${
+        className={`flex items-center w-full pl-4 pr-3 py-2 rounded-lg transition-all duration-200 lg:justify-center lg:px-3 lg:py-2 lg:sidebar-expanded:pl-4 lg:sidebar-expanded:pr-3 lg:sidebar-expanded:py-2 lg:sidebar-expanded:justify-start 2xl:justify-start 2xl:pl-4 2xl:pr-3 2xl:py-2 ${
           isGroupActive
             ? "text-white [&_svg]:text-white"
             : "text-white/90 hover:text-white [&_svg]:text-white/70"
@@ -519,10 +525,22 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     );
   };
 
-  const renderSection = (section) => {
+  const flattenNetworkDirectoryForAgentHomeowner = (items) =>
+    items.flatMap((item) => {
+      if (item.id === "directory" && item.type === "collapsible") {
+        const prof = item.children?.find((c) => c.id === "professionals");
+        return prof ? [prof] : [];
+      }
+      return [item];
+    });
+
+  const renderSection = (section, sectionIndex = 0) => {
     if (section.roles === "adminOnly" && !canManageUsers) return null;
 
-    const items = section.items || [];
+    const items =
+      section.id === "network" && usesFlatProfessionalsNav
+        ? flattenNetworkDirectoryForAgentHomeowner(section.items || [])
+        : section.items || [];
     const visibleItems = items.filter((item) => {
       if (item.type === "collapsible") {
         const children = (item.children || []).filter(visible);
@@ -535,7 +553,11 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     return (
       <div
         key={section.id}
-        className={`${isCollapsed ? "mt-5" : "mt-4 first:mt-2"}`}
+        className={
+          sectionIndex > 0
+            ? "mt-4 pt-3 border-t border-white/10"
+            : "mt-1"
+        }
       >
         {!isCollapsed && (
           <div className="px-4 py-1 mb-0.5">
@@ -544,7 +566,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
             </span>
           </div>
         )}
-        <ul className={`flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}>
+        <ul className="flex flex-col gap-0.5">
           {visibleItems.map((item) => {
             if (item.type === "collapsible") {
               const open = openCollapsible === item.id;
@@ -574,9 +596,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
               return (
                 <li
                   key={item.id}
-                  className={
-                    isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"
-                  }
+                  className="mb-0.5 last:mb-0"
                 >
                   {renderCollapsible(item, open, setOpen, flyoutContent)}
                 </li>
@@ -585,7 +605,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
             return (
               <li
                 key={item.id}
-                className={isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"}
+                className="mb-0.5 last:mb-0"
               >
                 {renderNavLink(item)}
               </li>
@@ -632,7 +652,11 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                   <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z" />
                 </svg>
               </button>
-              <NavLink end to={toPath("home")} className="block leading-none">
+              <NavLink
+                end
+                to={toPath("home")}
+                className="block leading-none -mt-1 -mb-2"
+              >
                 <img
                   src={OpsyIcon}
                   alt="Opsy"
@@ -647,17 +671,13 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
             <div className="flex flex-col flex-1 min-h-0">
               <div className="flex-1">
-                <ul
-                  className={`-mt-1.5 flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}
-                >
+                <ul className="mt-1 flex flex-col gap-0.5">
                   {/* Home (standalone) */}
                   {SIDEBAR_CONFIG.filter((s) => s.type === "link").map(
                     (item) => (
                       <li
                         key={item.id}
-                        className={
-                          isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"
-                        }
+                        className="mb-0.5 last:mb-0"
                       >
                         {renderNavLink(item)}
                       </li>
@@ -665,30 +685,23 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                   )}
                 </ul>
 
+                <div
+                  className="mx-1 mt-3 mb-1 border-t border-white/10"
+                  aria-hidden
+                />
+
                 {/* Sections: PROPERTY, NETWORK, ADMIN */}
                 {SIDEBAR_CONFIG.filter((s) => s.type === "section").map(
-                  renderSection,
+                  (section, idx) => renderSection(section, idx),
                 )}
 
-                {/* Coming Soon & Professionals (Sample) — spacing when collapsed, divider when expanded */}
-                <div
-                  className={`${isCollapsed ? "mt-5" : "mt-4 pt-3 border-t border-white/10"}`}
-                >
-                  <ul
-                    className={`flex flex-col ${isCollapsed ? "gap-0" : "gap-0.5"}`}
-                  >
-                    <li
-                      className={
-                        isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"
-                      }
-                    >
+                {/* Coming Soon & Professionals (Sample) */}
+                <div className="mt-4 pt-3 border-t border-white/10">
+                  <ul className="flex flex-col gap-0.5">
+                    <li className="mb-0.5 last:mb-0">
                       {renderNavLink(COMING_SOON)}
                     </li>
-                    <li
-                      className={
-                        isCollapsed ? "mb-0 last:mb-0" : "mb-0.5 last:mb-0"
-                      }
-                    >
+                    <li className="mb-0.5 last:mb-0">
                       {renderNavLink(PROFESSIONALS_SAMPLE)}
                     </li>
                   </ul>
