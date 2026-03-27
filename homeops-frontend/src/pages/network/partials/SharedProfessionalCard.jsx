@@ -1,6 +1,10 @@
 import React, {useState, useEffect} from "react";
 import {Briefcase, Phone, Mail, Star, MapPin} from "lucide-react";
 import AppApi from "../../../api/api";
+import {
+  formatUSPhoneInput,
+  telUriFromUSPhone,
+} from "../../../utils/formatUSPhone";
 
 function SharedProfessionalCard({professionalId, isOwn}) {
   const [professional, setProfessional] = useState(null);
@@ -19,7 +23,9 @@ function SharedProfessionalCard({professionalId, isOwn}) {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [professionalId]);
 
   if (loading) {
@@ -38,10 +44,18 @@ function SharedProfessionalCard({professionalId, isOwn}) {
     );
   }
 
-  const name = professional.company_name || professional.companyName || professional.contact_name || professional.contactName || "Unnamed";
+  const name =
+    professional.company_name ||
+    professional.companyName ||
+    professional.contact_name ||
+    professional.contactName ||
+    "Unnamed";
   const category = professional.category_name || professional.categoryName;
   const city = professional.city;
-  const phone = professional.phone;
+  const phoneRaw = professional.phone;
+  const phone =
+    formatUSPhoneInput(phoneRaw || "") || (phoneRaw || "").trim() || "";
+  const phoneTel = telUriFromUSPhone(phoneRaw || "");
   const email = professional.email;
   const rating = professional.avg_rating || professional.avgRating;
 
@@ -52,7 +66,9 @@ function SharedProfessionalCard({professionalId, isOwn}) {
           <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{name}</p>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+            {name}
+          </p>
           {category && (
             <p className="text-[11px] text-gray-500 truncate">{category}</p>
           )}
@@ -73,14 +89,21 @@ function SharedProfessionalCard({professionalId, isOwn}) {
           </div>
         )}
         {phone && (
-          <a
-            href={`tel:${phone}`}
-            className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-[#456564] dark:hover:text-[#6fb5b4]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Phone className="w-3 h-3 shrink-0" />
-            <span className="truncate">{phone}</span>
-          </a>
+          phoneTel ? (
+            <a
+              href={phoneTel}
+              className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-[#456564] dark:hover:text-[#6fb5b4]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Phone className="w-3 h-3 shrink-0" />
+              <span className="truncate">{phone}</span>
+            </a>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+              <Phone className="w-3 h-3 shrink-0" />
+              <span className="truncate">{phone}</span>
+            </div>
+          )
         )}
         {email && (
           <a

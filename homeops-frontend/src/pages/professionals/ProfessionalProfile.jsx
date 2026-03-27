@@ -37,6 +37,7 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import {normalizeProfessional} from "./utils/normalizeProfessional";
+import {telUriFromUSPhone} from "../../utils/formatUSPhone";
 
 const TABS = [
   {id: "about", label: "About"},
@@ -191,10 +192,7 @@ function ProfessionalProfile() {
     el.style.height = "auto";
     const scrollH = el.scrollHeight;
     const minH = 140;
-    const maxH = Math.min(
-      Math.round(window.innerHeight * 0.42),
-      360,
-    );
+    const maxH = Math.min(Math.round(window.innerHeight * 0.42), 360);
     const nextH = Math.min(Math.max(scrollH, minH), maxH);
     el.style.height = `${nextH}px`;
     el.style.overflowY = scrollH > maxH ? "auto" : "hidden";
@@ -611,8 +609,8 @@ function ProfessionalProfile() {
                     </h3>
                   </div>
                   <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-4">
-                    Describe your project — typical response within 24 hrs. You can
-                    set your message and reply email before sending.
+                    Describe your project — typical response within 24 hrs. You
+                    can set your message and reply email before sending.
                   </p>
                   <button
                     type="button"
@@ -640,8 +638,8 @@ function ProfessionalProfile() {
                     </h3>
                   </div>
                   <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-4">
-                    Describe your project — typical response within 24 hrs. You can
-                    set your message and reply email before sending.
+                    Describe your project — typical response within 24 hrs. You
+                    can set your message and reply email before sending.
                   </p>
                   <button
                     type="button"
@@ -802,7 +800,7 @@ function ProfessionalProfile() {
                         icon: Phone,
                         label: "Phone",
                         value: professional.phone,
-                        href: `tel:${professional.phone}`,
+                        href: telUriFromUSPhone(professional.phone),
                       },
                       {
                         icon: Mail,
@@ -1150,9 +1148,7 @@ function ProfessionalProfile() {
                 type="button"
                 onClick={handleSendMessage}
                 disabled={
-                  !messageText.trim() ||
-                  messageSending ||
-                  !replyEmail.trim()
+                  !messageText.trim() || messageSending || !replyEmail.trim()
                 }
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >

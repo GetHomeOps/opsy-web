@@ -33,6 +33,10 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
 import useImageUpload from "../../hooks/useImageUpload";
 import AppApi from "../../api/api";
 import ImageUploadField from "../../components/ImageUploadField";
+import {
+  formatUSPhoneInput,
+  stripUSPhoneDigits,
+} from "../../utils/formatUSPhone";
 
 const BUDGET_OPTIONS = [
   {value: "$", label: "$", description: "Budget-friendly"},
@@ -215,8 +219,7 @@ function professionalFormBaselineDiffers(baseline, curr) {
   const keys = new Set([...Object.keys(baseline), ...Object.keys(curr)]);
   for (const key of keys) {
     if (key === "languages") {
-      const norm = (arr) =>
-        JSON.stringify([...(arr || [])].map(String).sort());
+      const norm = (arr) => JSON.stringify([...(arr || [])].map(String).sort());
       if (norm(baseline.languages) !== norm(curr.languages)) return true;
       continue;
     }
@@ -264,6 +267,13 @@ function ProfessionalFormContainer() {
     dispatch({type: "SET_FORM_DATA", payload: {[field]: value}});
     dispatch({type: "SET_ERRORS", payload: {}});
   }, []);
+
+  const handlePhoneChange = useCallback(
+    (e) => {
+      handleFieldChange("phone", formatUSPhoneInput(e.target.value));
+    },
+    [handleFieldChange],
+  );
 
   const {
     uploadImage: uploadProfilePhoto,
@@ -409,7 +419,12 @@ function ProfessionalFormContainer() {
 
   useEffect(() => {
     if (isNew) {
-      dispatch({type: "SET_IS_NEW", payload: true});
+      initialFormDataRef.current = null;
+      setProjectPhotoUrls({});
+      clearProfilePreview();
+      clearProfileUploadedUrl();
+      setProfileUploadError(null);
+      dispatch({type: "RESET_FORM"});
       return;
     }
 
@@ -424,7 +439,7 @@ function ProfessionalFormContainer() {
           category_id: pro.category_id ? String(pro.category_id) : "",
           subcategory_id: pro.subcategory_id ? String(pro.subcategory_id) : "",
           description: pro.description || "",
-          phone: pro.phone || "",
+          phone: formatUSPhoneInput(pro.phone || ""),
           email: pro.email || "",
           website: pro.website || "",
           street1: pro.street1 || "",
@@ -469,7 +484,13 @@ function ProfessionalFormContainer() {
     return () => {
       cancelled = true;
     };
-  }, [professionalId, isNew]);
+  }, [
+    professionalId,
+    isNew,
+    clearProfilePreview,
+    clearProfileUploadedUrl,
+    setProfileUploadError,
+  ]);
 
   /* ─── Banner auto-close ────────────────────────────────────── */
 
@@ -496,6 +517,8 @@ function ProfessionalFormContainer() {
     if (!state.formData.company_name.trim())
       errs.company_name = "Company name is required";
     if (!state.formData.phone.trim()) errs.phone = "Phone is required";
+    else if (stripUSPhoneDigits(state.formData.phone).length !== 10)
+      errs.phone = "Enter a valid 10-digit US phone number";
     if (!state.formData.website.trim()) errs.website = "Website is required";
     if (!state.formData.city.trim()) errs.city = "City is required";
     if (!state.formData.state.trim()) errs.state = "State is required";
@@ -848,8 +871,7 @@ function ProfessionalFormContainer() {
                             }
                           }}
                           disabled={
-                            !navState.currentIndex ||
-                            navState.currentIndex <= 1
+                            !navState.currentIndex || navState.currentIndex <= 1
                           }
                         >
                           <svg
@@ -1068,9 +1090,9 @@ function ProfessionalFormContainer() {
                           className={inputClass("phone")}
                           placeholder="(305) 555-1234"
                           value={fd.phone}
-                          onChange={(e) =>
-                            handleFieldChange("phone", e.target.value)
-                          }
+                          onChange={handlePhoneChange}
+                          inputMode="numeric"
+                          autoComplete="tel"
                         />
                         {err.phone && (
                           <div className="mt-1 flex items-center text-sm text-red-500">

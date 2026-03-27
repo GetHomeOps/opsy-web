@@ -1,3 +1,5 @@
+import {formatUSPhoneInput} from "../../../utils/formatUSPhone";
+
 /** 1x1 transparent pixel - avoids empty src warning, no network request */
 const PLACEHOLDER_IMG = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
@@ -35,7 +37,7 @@ export function normalizeProfessional(apiPro) {
     yearsInBusiness: Number(apiPro.years_in_business) || 0,
     description: apiPro.description || "",
     languages: Array.isArray(apiPro.languages) ? apiPro.languages : [],
-    phone: apiPro.phone || "",
+    phone: formatUSPhoneInput(apiPro.phone || "") || apiPro.phone || "",
     email: apiPro.email || "",
     photoUrl: profileUrl,
     website: apiPro.website || "",
