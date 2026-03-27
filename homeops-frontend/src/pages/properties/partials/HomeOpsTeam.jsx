@@ -114,15 +114,39 @@ function HomeOpsTeam({
               userFromContext?.avatarUrl ??
               userFromContext?.avatar;
 
-            const roleLower = (member.role ?? member.property_role ?? "").toLowerCase();
-            const memberTab =
-              ["agent", "admin", "super_admin"].includes(roleLower)
-                ? "agent"
-                : ["insurer", "insurance", "insurance agent"].includes(roleLower)
-                  ? "insurance"
-                  : ["mortgage partner", "mortgage", "mortgage agent"].includes(roleLower)
-                    ? "mortgage"
-                    : "homeowner";
+            /* Platform role (agent, homeowner) — do not use property_role (owner/editor/viewer) here */
+            const platformLower = (
+              member.role ??
+              userFromContext?.role ??
+              ""
+            ).toLowerCase();
+            const propLower = (member.property_role ?? "").toLowerCase();
+            const memberTab = (() => {
+              const platform = platformLower;
+              const prop = propLower;
+              if (["agent", "admin", "super_admin"].includes(platform))
+                return "agent";
+              if (platform === "homeowner" || platform === "owner")
+                return "homeowner";
+              if (
+                ["insurer", "insurance", "insurance agent"].includes(platform)
+              )
+                return "insurance";
+              if (
+                ["mortgage partner", "mortgage", "mortgage agent"].includes(
+                  platform,
+                )
+              )
+                return "mortgage";
+              if (prop === "owner") return "homeowner";
+              if (["insurer", "insurance", "insurance agent"].includes(prop))
+                return "insurance";
+              if (
+                ["mortgage partner", "mortgage", "mortgage agent"].includes(prop)
+              )
+                return "mortgage";
+              return "homeowner";
+            })();
 
             const handleMemberClick =
               onMemberClick && !isPending
@@ -193,15 +217,29 @@ function HomeOpsTeam({
                       </span>
                     )}
                   </div>
-                  {!isPending && !isOwner && (
+                  {!isPending && (
                     <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate leading-tight">
                       {(() => {
-                        const r = roleLower;
-                        if (["agent", "admin", "super_admin"].includes(r)) return "Agent";
-                        if (r === "homeowner") return "Homeowner";
-                        if (["insurer", "insurance", "insurance agent"].includes(r)) return "Insurance";
-                        if (["mortgage partner", "mortgage", "mortgage agent"].includes(r)) return "Mortgage";
-                        return (member.property_role ?? member.role ?? "editor") === "viewer" ? "Viewer" : "Editor";
+                        const r = platformLower;
+                        if (["agent", "admin", "super_admin"].includes(r))
+                          return "Agent";
+                        if (r === "homeowner" || r === "owner")
+                          return "Homeowner";
+                        if (
+                          ["insurer", "insurance", "insurance agent"].includes(r)
+                        )
+                          return "Insurance";
+                        if (
+                          [
+                            "mortgage partner",
+                            "mortgage",
+                            "mortgage agent",
+                          ].includes(r)
+                        )
+                          return "Mortgage";
+                        if (propLower === "viewer") return "Viewer";
+                        if (propLower === "owner") return "Homeowner";
+                        return "Editor";
                       })()}
                     </p>
                   )}

@@ -504,6 +504,7 @@ CREATE TABLE plan_limits (
     ai_token_monthly_value_usd DECIMAL(10, 4) DEFAULT NULL,
     ai_token_price_usd DECIMAL(12, 8) DEFAULT NULL,
     max_documents_per_system INTEGER DEFAULT 5,
+    ai_features_enabled BOOLEAN NOT NULL DEFAULT true,
     other_limits JSONB DEFAULT '{}',
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

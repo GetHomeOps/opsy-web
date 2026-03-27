@@ -9,7 +9,7 @@ const propertyNewSchema = require("../schemas/propertyNew.json");
 const propertyUpdateSchema = require("../schemas/propertyUpdate.json");
 const { generatePassportId } = require("../helpers/properties");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
-const { canCreateProperty, checkAiTokenQuota } = require("../services/tierService");
+const { canCreateProperty, checkAiTokenQuota, checkAiFeaturesAllowed } = require("../services/tierService");
 const { onPropertyCreated } = require("../services/resourceAutoSend");
 const { syncPropertyMissingAgentAdminNotifications } = require("../services/propertyMissingAgentNotifications");
 const InspectionAnalysisJob = require("../models/inspectionAnalysisJob");
@@ -232,6 +232,10 @@ router.post(
       const { s3Key, fileName, mimeType } = req.body || {};
 
       if (userRole !== "super_admin" && userRole !== "admin") {
+        const aiAllowed = await checkAiFeaturesAllowed(userId, userRole);
+        if (!aiAllowed.allowed) {
+          throw new ForbiddenError(aiAllowed.message || "AI inspection analysis is not available on your plan.");
+        }
         const quotaCheck = await checkAiTokenQuota(userId, userRole);
         if (!quotaCheck.allowed) {
           throw new ForbiddenError(

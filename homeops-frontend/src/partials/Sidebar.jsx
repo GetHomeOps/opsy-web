@@ -10,6 +10,7 @@ import Transition from "../utils/Transition";
 import {
   SIDEBAR_CONFIG,
   PROFESSIONALS_SAMPLE,
+  SHOW_PROFESSIONALS_SAMPLE_NAV,
   COMING_SOON,
 } from "./sidebarConfig";
 
@@ -701,9 +702,11 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                     <li className="mb-0.5 last:mb-0">
                       {renderNavLink(COMING_SOON)}
                     </li>
-                    <li className="mb-0.5 last:mb-0">
-                      {renderNavLink(PROFESSIONALS_SAMPLE)}
-                    </li>
+                    {SHOW_PROFESSIONALS_SAMPLE_NAV ? (
+                      <li className="mb-0.5 last:mb-0">
+                        {renderNavLink(PROFESSIONALS_SAMPLE)}
+                      </li>
+                    ) : null}
                   </ul>
                 </div>
               </div>

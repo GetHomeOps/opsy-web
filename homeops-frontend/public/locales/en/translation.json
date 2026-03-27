@@ -672,6 +672,8 @@
   "subscriptionProducts.tierLimits.tokenBudgetUsd": "Token budget ($/month)",
   "subscriptionProducts.tierLimits.tokenPriceUsd": "Token price ($ per token)",
   "subscriptionProducts.tierLimits.maxDocsPerSystem": "Max documents per system",
+  "subscriptionProducts.tierLimits.aiFeaturesEnabled": "Include AI features",
+  "subscriptionProducts.tierLimits.aiFeaturesEnabledHint": "When enabled, subscribers can use AI inspection report analysis and the AI assistant (subject to token limits). When disabled, those actions are blocked at the API.",
   "subscriptionProducts.features.addFeature": "Add Feature",
   "subscriptionProducts.features.loadDefaults": "Load Default Features",
   "subscriptions.account": "Account",

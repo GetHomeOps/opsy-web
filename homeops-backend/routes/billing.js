@@ -176,7 +176,8 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
         `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
                 pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
                 pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
-                pl.max_documents_per_system AS "maxDocumentsPerSystem"
+                pl.max_documents_per_system AS "maxDocumentsPerSystem",
+                COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
          FROM plan_limits pl
          JOIN subscription_products sp ON sp.id = pl.subscription_product_id
          WHERE sp.code = $1`,

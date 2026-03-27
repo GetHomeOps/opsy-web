@@ -270,11 +270,10 @@ function SearchableEmailField({
       const email = contact.email?.trim() || contact.email;
       setInputValue(email);
       onChange(email);
-      let resolvedName = null;
       if (!contact?.isCustom && !contact?.isSearchMore && email) {
-        resolvedName = (contact.name || "").trim() || null;
+        const resolvedName = (contact.name || "").trim();
+        onInviteeMeta?.({ name: resolvedName });
       }
-      onInviteeMeta?.({ email, name: resolvedName });
       setIsOpen(false);
       setHighlightIndex(-1);
     },
@@ -285,7 +284,6 @@ function SearchableEmailField({
     const v = e.target.value;
     setInputValue(v);
     onChange(v);
-    onInviteeMeta?.({ email: v, name: null });
     setIsOpen(true);
     setHighlightIndex(-1);
   };
@@ -1075,10 +1073,16 @@ function SharePropertyModal({
     [teamMembers],
   );
 
-  const propertyOwnerPlatformLabel = useMemo(
-    () => getPlatformTeamRoleLabel(propertyOwner),
-    [propertyOwner],
-  );
+  const propertyOwnerPlatformLabel = useMemo(() => {
+    if (!propertyOwner) return null;
+    const u = (users ?? []).find(
+      (x) => x && String(x.id) === String(propertyOwner.id),
+    );
+    return getPlatformTeamRoleLabel({
+      ...propertyOwner,
+      role: propertyOwner.role ?? u?.role,
+    });
+  }, [propertyOwner, users]);
 
   /* Team members excluding the owner (to avoid duplicate display in "All" tab) */
   const teamMembersExcludingOwner = useMemo(() => {

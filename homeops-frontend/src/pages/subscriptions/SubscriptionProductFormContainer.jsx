@@ -112,6 +112,7 @@ const initialFormData = {
   aiTokenMonthlyValueUsd: "",
   aiTokenPriceUsd: "",
   maxDocumentsPerSystem: 5,
+  aiFeaturesEnabled: true,
   stripePriceIdMonth: "",
   stripePriceIdYear: "",
   features: [],
@@ -203,6 +204,7 @@ function mapProductToForm(product) {
     aiTokenMonthlyValueUsd: lim.aiTokenMonthlyValueUsd != null ? String(lim.aiTokenMonthlyValueUsd) : "",
     aiTokenPriceUsd: lim.aiTokenPriceUsd != null ? String(lim.aiTokenPriceUsd) : "",
     maxDocumentsPerSystem: lim.maxDocumentsPerSystem ?? 5,
+    aiFeaturesEnabled: lim.aiFeaturesEnabled !== false,
     stripePriceIdMonth: priceMonth?.stripePriceId || priceMonth?.stripe_price_id || "",
     stripePriceIdYear: priceYear?.stripePriceId || priceYear?.stripe_price_id || "",
     features: Array.isArray(product.features) ? product.features.map((f) => ({
@@ -403,6 +405,7 @@ function SubscriptionProductFormContainer() {
         aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd ? Number(state.formData.aiTokenMonthlyValueUsd) : null,
         aiTokenPriceUsd: state.formData.aiTokenPriceUsd ? Number(state.formData.aiTokenPriceUsd) : null,
         maxDocumentsPerSystem: Number(state.formData.maxDocumentsPerSystem) ?? 5,
+        aiFeaturesEnabled: !!state.formData.aiFeaturesEnabled,
         stripePriceIdMonth: state.formData.stripePriceIdMonth?.trim() || null,
         stripePriceIdYear: state.formData.stripePriceIdYear?.trim() || null,
         stripePriceId: state.formData.stripePriceIdMonth?.trim() || state.formData.stripePriceIdYear?.trim() || null,
@@ -471,6 +474,7 @@ function SubscriptionProductFormContainer() {
           aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd ? Number(state.formData.aiTokenMonthlyValueUsd) : null,
           aiTokenPriceUsd: state.formData.aiTokenPriceUsd ? Number(state.formData.aiTokenPriceUsd) : null,
           maxDocumentsPerSystem: Number(state.formData.maxDocumentsPerSystem) ?? 5,
+          aiFeaturesEnabled: !!state.formData.aiFeaturesEnabled,
         },
         prices: {
           month: state.formData.stripePriceIdMonth?.trim() || null,
@@ -994,6 +998,26 @@ function SubscriptionProductFormContainer() {
                         When both budget and price are set, AI tokens/month = budget ÷ price. Otherwise uses fallback or AI_TOKEN_COST_USD env.
                       </p>
                     </div>
+                  </div>
+                  <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                    <label className="flex items-start gap-3 cursor-pointer max-w-2xl">
+                      <input
+                        id="aiFeaturesEnabled"
+                        type="checkbox"
+                        checked={!!state.formData.aiFeaturesEnabled}
+                        onChange={handleChange}
+                        className="mt-1 rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500 shrink-0"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
+                          {t("subscriptionProducts.tierLimits.aiFeaturesEnabled") || "Include AI features"}
+                        </span>
+                        <span className="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                          {t("subscriptionProducts.tierLimits.aiFeaturesEnabledHint") ||
+                            "When enabled, subscribers can use AI inspection report analysis and the AI assistant (subject to token limits). When disabled, those actions are blocked at the API."}
+                        </span>
+                      </span>
+                    </label>
                   </div>
                 </div>
                 )}

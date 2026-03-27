@@ -681,8 +681,14 @@ function HomeownerHome() {
             {/* Middle Section - Spacer */}
             <div className="flex-1" />
 
-            {/* Bottom Section - Welcome, Name & Address */}
-            <div className="pl-5 pr-3 sm:px-4 lg:px-5 xxl:px-12 pt-4 sm:pt-0 pb-28 sm:pb-40 lg:pb-36 text-left flex flex-col items-start">
+            {/* Bottom Section - Welcome, Name & Address — extra left inset when carousel arrows are shown */}
+            <div
+              className={`pr-3 pt-4 sm:pt-0 pb-28 sm:pb-40 lg:pb-36 text-left flex flex-col items-start ${
+                totalProperties > 1
+                  ? "pl-16 sm:pl-20 sm:pr-4 lg:pr-5 xxl:pr-12"
+                  : "pl-5 sm:px-4 lg:px-5 xxl:px-12"
+              }`}
+            >
               <p className="text-white/70 text-sm leading-tight">Welcome,</p>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 leading-tight">
                 {homeownerName}

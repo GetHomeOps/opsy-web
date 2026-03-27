@@ -5,7 +5,7 @@ const db = require("../db");
 const OpenAI = require("openai");
 const { ensureLoggedIn, ensurePropertyAccess } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
-const { checkAiTokenQuota } = require("../services/tierService");
+const { checkAiTokenQuota, checkAiFeaturesAllowed } = require("../services/tierService");
 const MaintenanceEvent = require("../models/maintenanceEvent");
 const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const documentRagService = require("../services/documentRagService");
@@ -424,6 +424,11 @@ router.post(
       if (!resolvedId) throw new BadRequestError("Invalid property");
 
       await ensurePropertyAccessForUser(resolvedId, userId, res.locals.user.role);
+
+      const aiAllowed = await checkAiFeaturesAllowed(userId, res.locals.user?.role);
+      if (!aiAllowed.allowed) {
+        throw new ForbiddenError(aiAllowed.message || "AI assistant is not available on your plan.");
+      }
 
       const quotaCheck = await checkAiTokenQuota(userId, res.locals.user?.role);
       if (!quotaCheck.allowed) {

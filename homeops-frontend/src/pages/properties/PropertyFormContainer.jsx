@@ -502,6 +502,7 @@ function PropertyFormContainer() {
     accountUrlParam || currentAccount?.url || currentAccount?.name || "";
   const isPaidUser =
     isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
+  const aiFeaturesEnabled = limits?.aiFeaturesEnabled ?? true;
   const [homeopsTeam, setHomeopsTeam] = useState([]);
   const [systemsSetupModalOpen, setSystemsSetupModalOpen] = useState(false);
   const [systemsSetupInitialStep, setSystemsSetupInitialStep] = useState(null);
@@ -568,6 +569,14 @@ function PropertyFormContainer() {
   const [expandSectionId, setExpandSectionId] = useState(null);
 
   const openAiAssistantWithPlanCheck = useCallback(() => {
+    if (!isAdmin && !aiFeaturesEnabled) {
+      setUpgradePromptTitle("AI not included on this plan");
+      setUpgradePromptMsg(
+        "Your subscription does not include AI inspection analysis or the assistant. Upgrade to a plan that includes AI features.",
+      );
+      setUpgradePromptOpen(true);
+      return;
+    }
     if (!isPaidUser) {
       setUpgradePromptTitle("AI Assistant not included");
       setUpgradePromptMsg(
@@ -577,7 +586,7 @@ function PropertyFormContainer() {
       return;
     }
     setAiSidebarOpen(true);
-  }, [isPaidUser]);
+  }, [isAdmin, aiFeaturesEnabled, isPaidUser]);
 
   const aiAssistantPropertyHeader = useMemo(
     () => getPropertyAssistantHeaderLines(state.formData.identity),
@@ -585,8 +594,16 @@ function PropertyFormContainer() {
   );
 
   const openInspectionAnalysisWithPlanCheck = useCallback(() => {
+    if (!isAdmin && !aiFeaturesEnabled) {
+      setUpgradePromptTitle("AI inspection analysis not included");
+      setUpgradePromptMsg(
+        "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features.",
+      );
+      setUpgradePromptOpen(true);
+      return;
+    }
     setBlankModalOpen(true);
-  }, []);
+  }, [isAdmin, aiFeaturesEnabled]);
 
   // Merged formData – declared early so callbacks can reference it
   const mergedFormData = mergeFormDataFromTabs(state.formData);
@@ -2214,7 +2231,8 @@ function PropertyFormContainer() {
             if (res?.invitation?.id) {
               pendingMember.invitationId = res.invitation.id;
             }
-            handleTeamChange([...homeopsTeam, pendingMember]);
+            /* Invitation is already persisted — only refresh local list; do not mark property form dirty. */
+            setHomeopsTeam((prev) => [...prev, pendingMember]);
           } else {
             handleTeamChange([...homeopsTeam, pendingMember]);
           }
@@ -2571,34 +2589,36 @@ function PropertyFormContainer() {
                         </button>
                       </li>
                     )}
-                    <li>
-                      <button
-                        type="button"
-                        className="w-full flex items-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActionsDropdownOpen(false);
-                          if (!isPaidUser) {
-                            setUpgradePromptTitle(
-                              "Inspection Analysis not included",
-                            );
-                            setUpgradePromptMsg(
-                              "Your plan doesn't support AI inspection report analysis. Upgrade to analyze inspection reports with AI.",
-                            );
-                            setUpgradePromptOpen(true);
-                          } else {
-                            setSystemsSetupOnlyStep("inspection");
-                            setSystemsSetupInitialStep("inspection");
-                            setSystemsSetupModalOpen(true);
-                          }
-                        }}
-                      >
-                        <FileBarChart className="w-5 h-5 shrink-0 text-neutral-500 dark:text-neutral-400" />
-                        <span className="text-sm font-medium ml-2">
-                          Analyze report
-                        </span>
-                      </button>
-                    </li>
+                    {!inspectionAnalysis && (
+                      <li>
+                        <button
+                          type="button"
+                          className="w-full flex items-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActionsDropdownOpen(false);
+                            if (!isPaidUser) {
+                              setUpgradePromptTitle(
+                                "Inspection Analysis not included",
+                              );
+                              setUpgradePromptMsg(
+                                "Your plan doesn't support AI inspection report analysis. Upgrade to analyze inspection reports with AI.",
+                              );
+                              setUpgradePromptOpen(true);
+                            } else {
+                              setSystemsSetupOnlyStep("inspection");
+                              setSystemsSetupInitialStep("inspection");
+                              setSystemsSetupModalOpen(true);
+                            }
+                          }}
+                        >
+                          <FileBarChart className="w-5 h-5 shrink-0 text-neutral-500 dark:text-neutral-400" />
+                          <span className="text-sm font-medium ml-2">
+                            Analyze report
+                          </span>
+                        </button>
+                      </li>
+                    )}
                   </ul>
                 </div>
               </Transition>
@@ -2724,7 +2744,7 @@ function PropertyFormContainer() {
         <div className="flex items-center mb-2">
           {/* Passport Opsymization button - Left aligned, premium gold pill */}
           <div className="flex items-center ml-4">
-            {uid !== "new" && (
+            {uid !== "new" && (isAdmin || aiFeaturesEnabled) && (
               <>
                 <style>{`
                   .passport-opsymization-container {
@@ -3905,6 +3925,15 @@ function PropertyFormContainer() {
           onUploadReport={
             uid !== "new"
               ? () => {
+                  if (!isAdmin && !aiFeaturesEnabled) {
+                    setUpgradePromptTitle("AI inspection analysis not included");
+                    setUpgradePromptMsg(
+                      "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features.",
+                    );
+                    setUpgradePromptOpen(true);
+                    setBlankModalOpen(false);
+                    return;
+                  }
                   if (!isPaidUser) {
                     setUpgradePromptTitle("Inspection Analysis not included");
                     setUpgradePromptMsg(

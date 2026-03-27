@@ -239,3 +239,6 @@ export const PROFESSIONALS_SAMPLE = {
   icon: icon(Users),
   roles: "all",
 };
+
+/** Sidebar visibility only; routes and PROFESSIONALS_SAMPLE stay in the codebase. */
+export const SHOW_PROFESSIONALS_SAMPLE_NAV = false;

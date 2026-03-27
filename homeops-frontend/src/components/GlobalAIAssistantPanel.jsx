@@ -15,11 +15,13 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
   const navigate = useNavigate();
   const {properties, refreshProperties, getSystemsByPropertyId} = useContext(PropertyContext);
   const {currentAccount} = useCurrentAccount();
-  const {plan, loading: billingLoading, isAdmin} = useBillingStatus();
+  const {plan, limits, loading: billingLoading, isAdmin} = useBillingStatus();
 
   const accountUrl = currentAccount?.url || "";
   const isPaidUser =
     isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
+  const aiFeaturesOnPlan = isAdmin || limits?.aiFeaturesEnabled !== false;
+  const canUseAiAssistant = isPaidUser && aiFeaturesOnPlan;
   const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [systemContext, setSystemContext] = useState(null);
   const [propertySystems, setPropertySystems] = useState([]);
@@ -119,16 +121,20 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 text-[#456564] animate-spin" />
                 </div>
-              ) : !isPaidUser ? (
+              ) : !canUseAiAssistant ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
                     <ArrowUpCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                   </div>
                   <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                    AI Assistant not included
+                    {isPaidUser && !aiFeaturesOnPlan
+                      ? "AI not included on this plan"
+                      : "AI Assistant not included"}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-xs">
-                    Your plan does not include AI assistance. Upgrade to get AI-powered maintenance and property insights.
+                    {isPaidUser && !aiFeaturesOnPlan
+                      ? "Your subscription does not include AI inspection analysis or the assistant. Upgrade to a plan that includes AI features."
+                      : "Your plan does not include AI assistance. Upgrade to get AI-powered maintenance and property insights."}
                   </p>
                   <div className="flex items-center gap-3">
                     <button

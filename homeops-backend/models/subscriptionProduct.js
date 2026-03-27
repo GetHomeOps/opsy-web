@@ -18,12 +18,17 @@ const { sqlForPartialUpdate } = require("../helpers/sql");
 const { loadPlans } = require("../services/planSeedService");
 
 async function upsertPlanLimits(productId, limits) {
-  const { maxProperties, maxContacts, maxViewers, maxTeamMembers, aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem } = limits || {};
+  const {
+    maxProperties, maxContacts, maxViewers, maxTeamMembers,
+    aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem,
+    aiFeaturesEnabled,
+  } = limits || {};
   const valueUsd = aiTokenMonthlyValueUsd != null && aiTokenMonthlyValueUsd !== "" ? Number(aiTokenMonthlyValueUsd) : null;
   const priceUsd = aiTokenPriceUsd != null && aiTokenPriceUsd !== "" ? Number(aiTokenPriceUsd) : null;
+  const aiFeatParam = aiFeaturesEnabled === undefined ? null : !!aiFeaturesEnabled;
   await db.query(
-    `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, ai_token_monthly_value_usd, ai_token_price_usd, max_documents_per_system, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+    `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, ai_token_monthly_value_usd, ai_token_price_usd, max_documents_per_system, ai_features_enabled, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, true), NOW())
      ON CONFLICT (subscription_product_id) DO UPDATE SET
        max_properties = COALESCE(EXCLUDED.max_properties, plan_limits.max_properties),
        max_contacts = COALESCE(EXCLUDED.max_contacts, plan_limits.max_contacts),
@@ -33,8 +38,9 @@ async function upsertPlanLimits(productId, limits) {
        ai_token_monthly_value_usd = COALESCE(EXCLUDED.ai_token_monthly_value_usd, plan_limits.ai_token_monthly_value_usd),
        ai_token_price_usd = COALESCE(EXCLUDED.ai_token_price_usd, plan_limits.ai_token_price_usd),
        max_documents_per_system = COALESCE(EXCLUDED.max_documents_per_system, plan_limits.max_documents_per_system),
+       ai_features_enabled = COALESCE(EXCLUDED.ai_features_enabled, plan_limits.ai_features_enabled),
        updated_at = NOW()`,
-    [productId, maxProperties ?? 1, maxContacts ?? 25, maxViewers ?? 2, maxTeamMembers ?? 5, aiTokenMonthlyQuota ?? 50000, valueUsd, priceUsd, maxDocumentsPerSystem ?? 5]
+    [productId, maxProperties ?? 1, maxContacts ?? 25, maxViewers ?? 2, maxTeamMembers ?? 5, aiTokenMonthlyQuota ?? 50000, valueUsd, priceUsd, maxDocumentsPerSystem ?? 5, aiFeatParam]
   );
 }
 
@@ -81,6 +87,7 @@ class SubscriptionProduct {
     maxProperties, maxContacts, maxViewers, maxTeamMembers,
     stripeProductId, stripePriceId, code, sortOrder, trialDays,
     aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem,
+    aiFeaturesEnabled,
     stripePriceIdMonth, stripePriceIdYear, prices, features }) {
     if (!name) throw new BadRequestError("Name is required.");
     if (!targetRole) throw new BadRequestError("Target role is required.");
@@ -129,7 +136,11 @@ class SubscriptionProduct {
     }
     const product = result.rows[0];
     try {
-      await upsertPlanLimits(product.id, { maxProperties, maxContacts, maxViewers, maxTeamMembers, aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem });
+      await upsertPlanLimits(product.id, {
+        maxProperties, maxContacts, maxViewers, maxTeamMembers,
+        aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem,
+        aiFeaturesEnabled,
+      });
       if (monthPriceId) await upsertPlanPrice(product.id, 'month', monthPriceId);
       if (yearPriceId) await upsertPlanPrice(product.id, 'year', yearPriceId);
       if (Array.isArray(features) && hasBilling) {
@@ -157,7 +168,8 @@ class SubscriptionProduct {
                   max_team_members AS "maxTeamMembers", ai_token_monthly_quota AS "aiTokenMonthlyQuota",
                   ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
                   ai_token_price_usd AS "aiTokenPriceUsd",
-                  max_documents_per_system AS "maxDocumentsPerSystem"
+                  max_documents_per_system AS "maxDocumentsPerSystem",
+                  COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled"
                   FROM plan_limits WHERE subscription_product_id = $1`, [id]),
         db.query(`SELECT billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId"
                   FROM plan_prices WHERE subscription_product_id = $1`, [id]),

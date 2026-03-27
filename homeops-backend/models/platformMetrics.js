@@ -400,7 +400,10 @@ class PlatformMetrics {
       const propsRes = await db.query(
         `SELECT p.id AS "propertyId", p.property_name AS "propertyName",
                 p.address, p.city, p.state,
-                (SELECT COUNT(*)::int FROM property_users pu WHERE pu.property_id = p.id) AS "homeownersCount"
+                (SELECT COUNT(*)::int
+                 FROM property_users pu
+                 JOIN users u ON u.id = pu.user_id
+                 WHERE pu.property_id = p.id AND u.role::text = 'homeowner') AS "homeownersCount"
          FROM properties p
          JOIN account_users au ON au.account_id = p.account_id
          WHERE au.user_id = $1

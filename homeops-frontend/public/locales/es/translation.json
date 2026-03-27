@@ -672,6 +672,8 @@
   "subscriptionProducts.tierLimits.tokenBudgetUsd": "Presupuesto de tokens ($/mes)",
   "subscriptionProducts.tierLimits.tokenPriceUsd": "Precio por token ($)",
   "subscriptionProducts.tierLimits.maxDocsPerSystem": "Máx. documentos por sistema",
+  "subscriptionProducts.tierLimits.aiFeaturesEnabled": "Incluir funciones de IA",
+  "subscriptionProducts.tierLimits.aiFeaturesEnabledHint": "Si está activado, los suscriptores pueden usar el análisis de informes de inspección con IA y el asistente de IA (según los límites de tokens). Si está desactivado, esas acciones se bloquean en la API.",
   "subscriptionProducts.features.addFeature": "Añadir característica",
   "subscriptionProducts.features.loadDefaults": "Cargar características por defecto",
   "subscriptions.account": "Cuenta",

@@ -1,4 +1,10 @@
-import React, {useState, useEffect, useRef, useCallback} from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import {useParams, useNavigate} from "react-router-dom";
 import {
   ChevronLeft,
@@ -177,6 +183,36 @@ function ProfessionalProfile() {
   const tabBarRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const isScrollingFromClick = useRef(false);
+  const contactMessageTextareaRef = useRef(null);
+
+  const syncContactMessageTextareaHeight = useCallback(() => {
+    const el = contactMessageTextareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const scrollH = el.scrollHeight;
+    const minH = 140;
+    const maxH = Math.min(
+      Math.round(window.innerHeight * 0.42),
+      360,
+    );
+    const nextH = Math.min(Math.max(scrollH, minH), maxH);
+    el.style.height = `${nextH}px`;
+    el.style.overflowY = scrollH > maxH ? "auto" : "hidden";
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!contactModalOpen) return;
+    syncContactMessageTextareaHeight();
+  }, [contactModalOpen, messageText, syncContactMessageTextareaHeight]);
+
+  // Second pass after open: dialog was `display:none`, first measure can be wrong.
+  useLayoutEffect(() => {
+    if (!contactModalOpen) return;
+    const id = window.requestAnimationFrame(() => {
+      syncContactMessageTextareaHeight();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [contactModalOpen, syncContactMessageTextareaHeight]);
 
   const registerRef = useCallback(
     (id) => (el) => {
@@ -1087,13 +1123,14 @@ function ProfessionalProfile() {
               Message
             </label>
             <textarea
+              ref={contactMessageTextareaRef}
               id="pro-contact-message"
               value={messageText}
               onChange={onContactMessageChange}
-              rows={8}
+              rows={1}
               disabled={messageSending}
               placeholder="Hi, I'm looking for help with a project..."
-              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] dark:focus:border-[#7aa3a2] focus:bg-white dark:focus:bg-gray-800 transition-all resize-y min-h-[140px] disabled:opacity-60"
+              className="w-full px-3 py-2 text-sm leading-relaxed rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] dark:focus:border-[#7aa3a2] focus:bg-white dark:focus:bg-gray-800 resize-none disabled:opacity-60"
             />
             {messageError && (
               <p className="text-xs text-red-600 dark:text-red-400 mt-2">

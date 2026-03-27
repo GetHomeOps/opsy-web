@@ -7,7 +7,8 @@
  * or subscription_products. Checks usage before allowing actions.
  *
  * Exports: getAccountLimits, getEffectiveLimits, canCreateProperty, canAddContact,
- *          canInviteViewer, canAddTeamMember, checkAiTokenQuota, canUploadDocumentToSystem
+ *          canInviteViewer, canAddTeamMember, checkAiTokenQuota, checkAiFeaturesAllowed,
+ *          canUploadDocumentToSystem
  */
 
 const db = require("../db");
@@ -15,7 +16,7 @@ const { BILLING_MOCK_MODE, AI_TOKEN_COST_USD } = require("../config");
 
 const DEFAULT_LIMITS = {
   maxProperties: 3, maxContacts: 50, maxViewers: 5, maxTeamMembers: 10,
-  aiTokenMonthlyQuota: 50000, maxDocumentsPerSystem: 5,
+  aiTokenMonthlyQuota: 50000, maxDocumentsPerSystem: 5, aiFeaturesEnabled: true,
 };
 
 function isAdminRole(role) {
@@ -40,7 +41,8 @@ async function getAccountLimits(accountId) {
               pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
               pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
               pl.ai_token_price_usd AS "aiTokenPriceUsd",
-              pl.max_documents_per_system AS "maxDocumentsPerSystem"
+              pl.max_documents_per_system AS "maxDocumentsPerSystem",
+              COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
        FROM plan_limits pl WHERE pl.subscription_product_id = $1`,
       [productId]
     );
@@ -71,7 +73,8 @@ async function getAccountLimits(accountId) {
             pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
             pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
             pl.ai_token_price_usd AS "aiTokenPriceUsd",
-            pl.max_documents_per_system AS "maxDocumentsPerSystem"
+            pl.max_documents_per_system AS "maxDocumentsPerSystem",
+            COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
      FROM plan_limits pl
      JOIN subscription_products sp ON sp.id = pl.subscription_product_id
      WHERE sp.code = 'homeowner_free' LIMIT 1`
@@ -130,6 +133,27 @@ async function checkAiTokenQuota(userId, userRole) {
   );
   const used = Number(usedRes.rows[0]?.used || 0);
   return { allowed: used < quota, used, quota };
+}
+
+/** Whether inspection analysis + AI chat are allowed for this user’s plan (admins / mock bypass). */
+async function checkAiFeaturesAllowed(userId, userRole) {
+  if (isAdminRole(userRole)) return { allowed: true };
+  if (BILLING_MOCK_MODE) return { allowed: true };
+
+  const accRes = await db.query(
+    `SELECT account_id FROM account_users WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  if (!accRes.rows[0]) return { allowed: false };
+
+  const limits = await getAccountLimits(accRes.rows[0].account_id);
+  const enabled = limits.aiFeaturesEnabled !== false;
+  return {
+    allowed: enabled,
+    message: enabled
+      ? undefined
+      : "AI features (inspection analysis and assistant) are not included in your current plan. Upgrade to a plan that includes AI.",
+  };
 }
 
 async function canCreateProperty(accountId, userRole) {
@@ -198,6 +222,7 @@ module.exports = {
   canInviteViewer,
   canAddTeamMember,
   checkAiTokenQuota,
+  checkAiFeaturesAllowed,
   canUploadDocumentToSystem,
   isAdminRole,
 };

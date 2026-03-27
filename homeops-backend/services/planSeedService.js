@@ -115,10 +115,11 @@ async function ensureStripePlans() {
       productId = ins.rows[0].id;
     }
 
+    const aiFeatSeed = limits?.aiFeaturesEnabled === undefined ? null : !!limits.aiFeaturesEnabled;
     await db.query(
       `INSERT INTO plan_limits
-        (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, max_documents_per_system, other_limits, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, max_documents_per_system, ai_features_enabled, other_limits, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true), $9, NOW())
        ON CONFLICT (subscription_product_id) DO UPDATE SET
          max_properties = EXCLUDED.max_properties,
          max_contacts = EXCLUDED.max_contacts,
@@ -126,6 +127,7 @@ async function ensureStripePlans() {
          max_team_members = EXCLUDED.max_team_members,
          ai_token_monthly_quota = EXCLUDED.ai_token_monthly_quota,
          max_documents_per_system = EXCLUDED.max_documents_per_system,
+         ai_features_enabled = COALESCE(EXCLUDED.ai_features_enabled, plan_limits.ai_features_enabled),
          other_limits = EXCLUDED.other_limits,
          updated_at = NOW()`,
       [
@@ -136,6 +138,7 @@ async function ensureStripePlans() {
         limits?.maxTeamMembers ?? 5,
         limits?.aiTokenMonthlyQuota ?? 50000,
         limits?.maxDocumentsPerSystem ?? 5,
+        aiFeatSeed,
         limits?.otherLimits ? JSON.stringify(limits.otherLimits) : "{}",
       ]
     );
