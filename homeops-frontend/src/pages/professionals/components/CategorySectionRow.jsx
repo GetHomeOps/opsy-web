@@ -92,32 +92,26 @@ function CategorySectionRow({ title, categories, location, searchBasePath = "pro
         </div>
         {categories.length > 4 && (
           <>
-            <button
-              type="button"
-              onClick={() => canScrollLeft && scroll(-1)}
-              aria-label="Scroll left"
-              aria-disabled={!canScrollLeft}
-              className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-md flex items-center justify-center transition-opacity opacity-0 ${
-                canScrollLeft
-                  ? "text-gray-600 dark:text-gray-400 hover:text-[#456564] hover:border-[#456564]/40 group-hover/row:opacity-100"
-                  : "text-gray-400 dark:text-gray-500 pointer-events-none group-hover/row:opacity-40"
-              }`}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => canScrollRight && scroll(1)}
-              aria-label="Scroll right"
-              aria-disabled={!canScrollRight}
-              className={`absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-md flex items-center justify-center transition-opacity opacity-0 ${
-                canScrollRight
-                  ? "text-gray-600 dark:text-gray-400 hover:text-[#456564] hover:border-[#456564]/40 group-hover/row:opacity-100"
-                  : "text-gray-400 dark:text-gray-500 pointer-events-none group-hover/row:opacity-40"
-              }`}
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+            {canScrollLeft && (
+              <button
+                type="button"
+                onClick={() => scroll(-1)}
+                aria-label="Scroll left"
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-md flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-[#456564] hover:border-[#456564]/40 transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            {canScrollRight && (
+              <button
+                type="button"
+                onClick={() => scroll(1)}
+                aria-label="Scroll right"
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-md flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-[#456564] hover:border-[#456564]/40 transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
           </>
         )}
       </div>
