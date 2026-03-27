@@ -572,58 +572,67 @@ function HomeownerHome() {
       <div className="relative">
         {/* Background Image / Fallback Gradient */}
         <div className="relative h-[340px] sm:h-[420px] lg:h-[480px] overflow-hidden">
-          {hasProperties ? (
-            <img
-              key={`${activeProperty?.property_uid ?? activeProperty?.id ?? activeIndex}-${propertyHeroPhotoUrl ?? "stock"}`}
-              src={heroDisplaySrc}
-              alt=""
-              className="w-full h-full object-cover transition-opacity duration-500"
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-teal-800 via-teal-900 to-slate-900 flex flex-col items-center justify-center gap-4">
-              {!hasProperties && (
-                <div className="text-center px-4 max-w-md flex flex-col items-center gap-4">
-                  <img
-                    src={OpsyMascot}
-                    alt="Opsy"
-                    className="w-28 h-28 object-contain"
-                  />
-                  <h2 className="text-2xl font-bold text-white">
-                    {t("welcome")} {homeownerName}
-                  </h2>
-                  <p className="text-white/70 text-sm">
-                    {t("homeownerHome.emptyStateSubtext")}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      accountUrl ? handleAddProperty() : navigate("/")
-                    }
-                    disabled={addPropertyChecking}
-                    className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#d49b5b] hover:bg-[#c18a4a] border border-[#c18a4a] text-white text-base font-semibold transition-colors shadow-lg hover:shadow-xl disabled:opacity-70"
-                  >
-                    {addPropertyChecking
-                      ? "…"
-                      : t("homeownerHome.getOpsymized")}
-                  </button>
-                  <div className="relative inline-flex items-center justify-center w-10 h-10 mt-1 text-[#d49b5b]">
-                    <Shield className="w-8 h-8 absolute" />
-                    <Lock className="w-4 h-4 relative z-10" />
-                  </div>
-                </div>
-              )}
+          <img
+            key={
+              hasProperties
+                ? `${activeProperty?.property_uid ?? activeProperty?.id ?? activeIndex}-${propertyHeroPhotoUrl ?? "stock"}`
+                : `no-property-${currentUser?.id ?? "guest"}-${heroBackdropSrc}`
+            }
+            src={heroDisplaySrc}
+            alt=""
+            className="w-full h-full object-cover transition-opacity duration-500"
+          />
+          {/*
+          Previous empty-state hero (teal gradient) — kept for possible reuse.
+          <div className="w-full h-full bg-gradient-to-br from-teal-800 via-teal-900 to-slate-900 flex flex-col items-center justify-center gap-4">
+            <div className="text-center px-4 max-w-md flex flex-col items-center gap-4">
+              ...
             </div>
-          )}
-          {/* Gradient overlays for hero photo readability; skip empty-state (mascot CTA) */}
-          {hasProperties && (
-            <>
-              {/* Bottom-heavy vignette; keep top lighter so agent card reads clearly */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-black/[0.04]" />
-              {/* Softer left fade: weaker at top-left, a bit stronger toward bottom-left for welcome text */}
-              <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(0,0,0,0.08)_0%,rgba(0,0,0,0.14)_42%,transparent_68%)]" />
-            </>
-          )}
+          </div>
+          */}
+          {/* Gradient overlays for hero photo readability (same as when a property exists) */}
+          <>
+            {/* Bottom-heavy vignette; keep top lighter so agent card reads clearly */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-black/[0.04]" />
+            {/* Softer left fade: weaker at top-left, a bit stronger toward bottom-left for welcome text */}
+            <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(0,0,0,0.08)_0%,rgba(0,0,0,0.14)_42%,transparent_68%)]" />
+          </>
         </div>
+
+        {/* Empty state: mascot + CTA over homepage hero imagery */}
+        {!hasProperties && (
+          <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-4 pointer-events-none">
+            <div className="text-center px-4 max-w-md flex flex-col items-center gap-4 pointer-events-auto">
+              <img
+                src={OpsyMascot}
+                alt="Opsy"
+                className="w-28 h-28 object-contain drop-shadow-md"
+              />
+              <h2 className="text-2xl font-bold text-white drop-shadow-sm">
+                {t("welcome")} {homeownerName}
+              </h2>
+              <p className="text-white/80 text-sm drop-shadow-sm">
+                {t("homeownerHome.emptyStateSubtext")}
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  accountUrl ? handleAddProperty() : navigate("/")
+                }
+                disabled={addPropertyChecking}
+                className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#d49b5b] hover:bg-[#c18a4a] border border-[#c18a4a] text-white text-base font-semibold transition-colors shadow-lg hover:shadow-xl disabled:opacity-70"
+              >
+                {addPropertyChecking
+                  ? "…"
+                  : t("homeownerHome.getOpsymized")}
+              </button>
+              <div className="relative inline-flex items-center justify-center w-10 h-10 mt-1 text-[#d49b5b]">
+                <Shield className="w-8 h-8 absolute" />
+                <Lock className="w-4 h-4 relative z-10" />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Property Navigation Arrows */}
         {hasProperties && totalProperties > 1 && (

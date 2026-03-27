@@ -17,6 +17,7 @@ const TIER_TO_PRIORITY = {
   win: 100,
   pro: 50,
   maintain: 50,
+  beta_homeowner: 50,
   free: 10,
   basic: 10,
 };

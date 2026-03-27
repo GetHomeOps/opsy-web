@@ -63,6 +63,8 @@ const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
   homeowner_free: "free",
   homeowner_maintain: "maintain",
   homeowner_win: "win",
+  /** Promotional / catalog plan code; stored as-is on users.subscription_tier */
+  beta_homeowner: "beta_homeowner",
   agent_basic: "basic",
   agent_pro: "pro",
   agent_premium: "premium",
@@ -651,21 +653,18 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     if (!role || !["homeowner", "agent"].includes(role)) {
       throw new BadRequestError("Valid role (homeowner or agent) is required");
     }
-    const HOMEOWNER_TIERS = ["free", "maintain", "win"];
+    const HOMEOWNER_TIERS = ["free", "maintain", "win", "beta_homeowner"];
     const AGENT_TIERS = ["basic", "pro", "premium", "enterprise"];
     const validTiersForRole = role === "agent" ? AGENT_TIERS : HOMEOWNER_TIERS;
     if (!subscriptionTier || !validTiersForRole.includes(subscriptionTier)) {
       throw new BadRequestError(`Invalid subscriptionTier "${subscriptionTier}" for role "${role}"`);
     }
 
-    const FREE_TIERS = ["free"];
+    /** Tiers that can complete onboarding without Stripe. If checkout returns a session_id, we still verify below. */
+    const FREE_TIERS = ["free", "beta_homeowner"];
     const isPaidTier = !FREE_TIERS.includes(subscriptionTier);
 
-    // For paid tiers, verify the Stripe checkout session actually completed with payment
-    if (isPaidTier) {
-      if (!stripeSessionId) {
-        throw new ForbiddenError("Payment verification required for paid plans");
-      }
+    if (stripeSessionId) {
       const verification = await stripeService.verifyCheckoutSession(stripeSessionId, { userId });
       if (!verification.valid) {
         console.warn(`[complete-onboarding] Stripe session verification failed for user ${userId}: ${verification.reason}`);
@@ -676,6 +675,8 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
         console.warn(`[complete-onboarding] Stripe sync failed for user ${userId}: ${syncResult?.reason || "unknown_reason"}`);
         throw new ForbiddenError("Payment was verified but subscription activation is incomplete. Please retry in a moment or contact support.");
       }
+    } else if (isPaidTier) {
+      throw new ForbiddenError("Payment verification required for paid plans");
     }
 
     const existingUser = await User.getById(userId);
@@ -714,7 +715,13 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     const userRole = existingUser?.role || role;
     if (accountResult.rows[0] && !isPaidTier && !SKIP_SUBSCRIPTION_ROLES.includes(userRole)) {
       try {
-        await Subscription.ensureDefaultForAccount(accountResult.rows[0].account_id, role);
+        const defaultOpts =
+          subscriptionTier === "beta_homeowner" ? { planCode: "beta_homeowner" } : {};
+        await Subscription.ensureDefaultForAccount(
+          accountResult.rows[0].account_id,
+          role,
+          defaultOpts
+        );
       } catch (subErr) {
         console.error("Warning: failed to create subscription after onboarding", subErr.message);
       }

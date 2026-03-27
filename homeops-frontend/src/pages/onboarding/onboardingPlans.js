@@ -172,6 +172,7 @@ export const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
   homeowner_free: "free",
   homeowner_maintain: "maintain",
   homeowner_win: "win",
+  beta_homeowner: "beta_homeowner",
   agent_basic: "basic",
   agent_pro: "pro",
   agent_premium: "premium",
@@ -184,6 +185,7 @@ export const PLAN_LIMITS = {
     homeowner_free: { properties: 1, contacts: 20 },
     homeowner_maintain: { properties: 1, contacts: 40 },
     homeowner_win: { properties: "2+", contacts: "Unlimited" },
+    beta_homeowner: { properties: 1, contacts: 40 },
   },
   agent: {
     agent_basic: { properties: 5, contacts: "—" },

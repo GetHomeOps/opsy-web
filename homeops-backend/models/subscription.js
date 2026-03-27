@@ -154,15 +154,18 @@ class Subscription {
     return { deleted: id };
   }
 
-  /** Ensure account has at least one active subscription. Creates free tier if none exists. */
-  static async ensureDefaultForAccount(accountId, userRole = "homeowner") {
+  /** Ensure account has at least one active subscription. Creates free tier if none exists.
+   * @param {{ planCode?: string }} [options] — e.g. { planCode: "beta_homeowner" } for promotional tiers */
+  static async ensureDefaultForAccount(accountId, userRole = "homeowner", options = {}) {
     const existing = await db.query(
       `SELECT id FROM account_subscriptions WHERE account_id = $1 AND status = 'active' LIMIT 1`,
       [accountId]
     );
     if (existing.rows.length > 0) return existing.rows[0].id;
 
-    const planCode = userRole === "agent" ? "agent_basic" : "homeowner_free";
+    const planCode =
+      options.planCode ||
+      (userRole === "agent" ? "agent_basic" : "homeowner_free");
     const productRes = await db.query(
       `SELECT id FROM subscription_products WHERE (code = $1 OR (code IS NULL AND LOWER(name) = 'free')) AND (is_active IS NULL OR is_active = true) LIMIT 1`,
       [planCode]

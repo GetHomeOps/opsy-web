@@ -660,6 +660,7 @@ function formatTimeForPreview(time) {
 function EmailPreview({
   contractorName,
   contractorEmail,
+  contractorSelected,
   propertyAddress,
   systemName,
   scheduledDate,
@@ -712,6 +713,10 @@ function EmailPreview({
                 {contractorName || "Contractor"}
                 <span className="text-gray-400"> &lt;{contractorEmail}&gt;</span>
               </>
+            ) : contractorSelected ? (
+              <span className="text-red-600 dark:text-red-400 font-medium">
+                Selected contractor does not have an email
+              </span>
             ) : (
               <span className="italic">No contractor selected</span>
             )}
@@ -894,6 +899,7 @@ function MessageStep({
               <EmailPreview
                 contractorName={selectedProfessional?.name}
                 contractorEmail={selectedProfessional?.email}
+                contractorSelected={!!selectedProfessional}
                 propertyAddress={propertyName}
                 systemName={systemLabel}
                 scheduledDate={scheduledDate}
