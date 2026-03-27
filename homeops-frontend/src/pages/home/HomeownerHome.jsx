@@ -70,6 +70,9 @@ const HOME_HERO_BACKGROUNDS = [
   heroSeattleSkyline3,
 ];
 
+/** Max items shown in Reminders / Scheduled Work cards; full counts stay in subtitles. */
+const HOME_DASHBOARD_EVENT_PREVIEW = 5;
+
 // ─── Skeleton components for loading states ─────
 function CardSkeleton({lines = 3}) {
   return (
@@ -512,9 +515,14 @@ function HomeownerHome() {
     });
   }, [homeEvents]);
 
-  const displayScheduledWork = useMemo(
-    () => (homeEvents?.scheduledWork ?? []).filter((e) => !e.isOverdue),
-    [homeEvents],
+  const displayScheduledWork = useMemo(() => {
+    const list = (homeEvents?.scheduledWork ?? []).filter((e) => !e.isOverdue);
+    return [...list].sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt));
+  }, [homeEvents]);
+
+  const displayScheduledWorkPreview = useMemo(
+    () => displayScheduledWork.slice(0, HOME_DASHBOARD_EVENT_PREVIEW),
+    [displayScheduledWork],
   );
 
   const {handleAddProperty, isChecking: addPropertyChecking} =
@@ -912,65 +920,67 @@ function HomeownerHome() {
               </div>
             </div>
             {eventsLoading ? (
-              <CardSkeleton lines={3} />
+              <CardSkeleton lines={HOME_DASHBOARD_EVENT_PREVIEW} />
             ) : displayReminders.length > 0 ? (
               <>
                 <div className="space-y-2">
-                  {displayReminders.slice(0, 3).map((item) => {
-                    const isUrgent =
-                      item.daysUntilDue <= 7 && item.daysUntilDue > 0;
-                    const isOverdue = item.isOverdue;
-                    return (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-gray-50/80 dark:bg-gray-700/30 hover:bg-gray-100/80 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                        onClick={() =>
-                          item.propertyUid &&
-                          navigate(
-                            `/${accountUrl}/properties/${item.propertyUid}`,
-                          )
-                        }
-                        onKeyDown={(e) =>
-                          e.key === "Enter" &&
-                          item.propertyUid &&
-                          navigate(
-                            `/${accountUrl}/properties/${item.propertyUid}`,
-                          )
-                        }
-                        role="button"
-                        tabIndex={0}
-                      >
+                  {displayReminders
+                    .slice(0, HOME_DASHBOARD_EVENT_PREVIEW)
+                    .map((item) => {
+                      const isUrgent =
+                        item.daysUntilDue <= 7 && item.daysUntilDue > 0;
+                      const isOverdue = item.isOverdue;
+                      return (
                         <div
-                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                            isOverdue
-                              ? "bg-red-500"
-                              : isUrgent
-                                ? "bg-amber-500"
-                                : "bg-gray-300 dark:bg-gray-600"
-                          }`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                            {item.title}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatDate(item.dueAt)}
-                          </p>
-                        </div>
-                        <span
-                          className={`text-xs font-medium px-2 py-1 rounded-md ${
-                            isOverdue
-                              ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
-                              : isUrgent
-                                ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
-                                : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-                          }`}
+                          key={item.id}
+                          className="flex items-center gap-3 p-3 rounded-lg bg-gray-50/80 dark:bg-gray-700/30 hover:bg-gray-100/80 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                          onClick={() =>
+                            item.propertyUid &&
+                            navigate(
+                              `/${accountUrl}/properties/${item.propertyUid}`,
+                            )
+                          }
+                          onKeyDown={(e) =>
+                            e.key === "Enter" &&
+                            item.propertyUid &&
+                            navigate(
+                              `/${accountUrl}/properties/${item.propertyUid}`,
+                            )
+                          }
+                          role="button"
+                          tabIndex={0}
                         >
-                          {isOverdue ? "Overdue" : `${item.daysUntilDue}d`}
-                        </span>
-                      </div>
-                    );
-                  })}
+                          <div
+                            className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              isOverdue
+                                ? "bg-red-500"
+                                : isUrgent
+                                  ? "bg-amber-500"
+                                  : "bg-gray-300 dark:bg-gray-600"
+                            }`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {item.title}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatDate(item.dueAt)}
+                            </p>
+                          </div>
+                          <span
+                            className={`text-xs font-medium px-2 py-1 rounded-md ${
+                              isOverdue
+                                ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
+                                : isUrgent
+                                  ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
+                                  : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                            }`}
+                          >
+                            {isOverdue ? "Overdue" : `${item.daysUntilDue}d`}
+                          </span>
+                        </div>
+                      );
+                    })}
                 </div>
                 <button
                   type="button"
@@ -1031,11 +1041,11 @@ function HomeownerHome() {
               </div>
             </div>
             {eventsLoading ? (
-              <CardSkeleton lines={3} />
+              <CardSkeleton lines={HOME_DASHBOARD_EVENT_PREVIEW} />
             ) : displayScheduledWork.length > 0 ? (
               <>
                 <div className="space-y-2">
-                  {displayScheduledWork.map((item) => {
+                  {displayScheduledWorkPreview.map((item) => {
                     const dateObj = new Date(item.dueAt);
                     const month = dateObj.toLocaleDateString("en-US", {
                       month: "short",

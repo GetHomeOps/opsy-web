@@ -789,10 +789,10 @@ class AppApi {
    * @param {Object} context - { systemType, systemName, systemContext? }
    * @returns {Promise<{ recommendedFrequency, riskWarning, suggestedQuestions, suggestions }>}
    */
-  static async getAIMaintenanceAdvice(propertyId, { systemType, systemName, systemContext = {} }) {
+  static async getAIMaintenanceAdvice(propertyId, { systemType, systemName, systemContext = {}, scheduleType = null }) {
     const res = await this.request(
       `maintenance-events/${propertyId}/ai-advice`,
-      { systemType, systemName, systemContext },
+      { systemType, systemName, systemContext, scheduleType },
       "POST"
     );
     return res.advice;

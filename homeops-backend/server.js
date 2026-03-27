@@ -18,7 +18,8 @@ const User = require('./models/user');
 const Account = require('./models/account');
 const SubscriptionProduct = require('./models/subscriptionProduct');
 const { ensureStripePlans } = require('./services/planSeedService');
-const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
+// Re-enable to auto-seed professional categories from JSON on startup:
+// const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
 const fs = require('fs');
 
 const app = require('./app.js');
@@ -92,11 +93,13 @@ async function startServer() {
       await SubscriptionProduct.initializeDefaultProducts();
     }
 
-    try {
-      await ensureProfessionalCategories();
-    } catch (catErr) {
-      console.warn('[startup] Professional categories seed failed:', catErr.message);
-    }
+    // Disabled for now: skips seeding professional categories on npm start.
+    // Uncomment the require above and this block to restore.
+    // try {
+    //   await ensureProfessionalCategories();
+    // } catch (catErr) {
+    //   console.warn('[startup] Professional categories seed failed:', catErr.message);
+    // }
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Backend running on port ${PORT}`);

@@ -75,6 +75,7 @@ function buildSystemContextString(systemContext) {
  * @param {string} params.systemType - e.g. "roof", "heating"
  * @param {string} params.systemName - Display name e.g. "Roof"
  * @param {Object} [params.systemContext] - Optional system-specific data from property (lastInspection, condition, issues, etc.)
+ * @param {string} [params.scheduleType] - "inspection" | "maintenance" — tailors contractor questions for the email step
  * @returns {Promise<{ recommendedFrequency, riskWarning, suggestedQuestions, suggestions }>}
  */
 async function getMaintenanceAdvice({
@@ -82,6 +83,7 @@ async function getMaintenanceAdvice({
   systemType,
   systemName,
   systemContext = {},
+  scheduleType = null,
 }) {
   // Resolve property id
   let resolvedId = propertyId;
@@ -117,8 +119,15 @@ async function getMaintenanceAdvice({
   const hasReanalysisData = reanalysisMaint.length > 0;
 
   if (!hasSystemContext && !hasInspectionData && !hasReanalysisData) {
-    return getNoDataResponse(systemName);
+    return getNoDataResponse(systemName, scheduleType);
   }
+
+  const visitKind =
+    scheduleType === "maintenance"
+      ? "maintenance or repair visit"
+      : scheduleType === "inspection"
+        ? "inspection"
+        : "scheduled service visit (inspection or maintenance)";
 
   const inspectionBlock = hasInspectionData
     ? `
@@ -135,6 +144,8 @@ ${JSON.stringify(reanalysisMaint, null, 2)}`
 
   const prompt = `You are an expert home maintenance advisor. Analyze the following information about the "${systemName}" system for a property and provide practical advice.
 
+The homeowner is emailing a contractor to schedule: ${visitKind}. Tailor "suggestedQuestions" to things they can paste into that email—concise, polite, and specific to the data below (findings, risks, system age, overdue items). Avoid generic filler.
+
 PROPERTY/SYSTEM DATA ENTERED BY USER:
 ${systemContextStr}
 ${inspectionBlock}
@@ -143,7 +154,7 @@ ${reanalysisBlock}
 Provide a JSON response with exactly these keys:
 - recommendedFrequency: A brief sentence on recommended inspection/maintenance frequency (e.g. "Annual inspection recommended", "Every 6 months for filter replacement")
 - riskWarning: If there is something urgent (overdue maintenance, poor condition, critical finding), a 1-2 sentence warning. Otherwise null.
-- suggestedQuestions: Array of 2-4 questions the homeowner could ask their contractor (e.g. "What is included in a standard maintenance visit?")
+- suggestedQuestions: Array of 3-5 short questions or request lines the homeowner can add to their scheduling email to the contractor. Each should be a single sentence or question, grounded in the data above (e.g. "Can you assess whether the flashing noted in the report needs repair?"). Not generic marketing questions unless no specific findings exist.
 - suggestions: Array of 2-6 actionable recommendations in second-person, imperative form. Be specific based on the data:
   - For items that need REPLACEMENT: "Replace [component]" with brief reason (e.g. "Replace roof shingles due to age (15+ years)")
   - For items that need MAINTENANCE: "Maintain [or have maintained] [task]" (e.g. "Have gutters cleaned annually", "Replace HVAC filters every 90 days")
@@ -198,12 +209,24 @@ Output ONLY valid JSON, no markdown.`;
   }
 }
 
-function getNoDataResponse(systemName) {
+function getNoDataResponse(systemName, scheduleType = null) {
+  const visit =
+    scheduleType === "maintenance"
+      ? "maintenance visit"
+      : scheduleType === "inspection"
+        ? "inspection"
+        : "visit";
+  const sys = systemName || "this system";
   return {
     noData: true,
     recommendedFrequency: null,
     riskWarning: null,
-    suggestedQuestions: [],
+    suggestedQuestions: [
+      `What is typically included in your ${visit} for ${sys}?`,
+      "What access or preparation do you need from me before you arrive?",
+      "How long should I expect the appointment to take?",
+      "Do you provide a written summary or photos after the visit?",
+    ],
     suggestions: [],
   };
 }

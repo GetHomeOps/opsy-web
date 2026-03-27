@@ -25,7 +25,7 @@ router.post(
   async function (req, res, next) {
     try {
       const { propertyId } = req.params;
-      const { systemType, systemName, systemContext } = req.body || {};
+      const { systemType, systemName, systemContext, scheduleType } = req.body || {};
       if (!systemType || !systemName) {
         throw new BadRequestError("systemType and systemName are required");
       }
@@ -34,6 +34,7 @@ router.post(
         systemType,
         systemName,
         systemContext: systemContext || {},
+        scheduleType: scheduleType === "maintenance" || scheduleType === "inspection" ? scheduleType : null,
       });
       return res.json({ advice });
     } catch (err) {

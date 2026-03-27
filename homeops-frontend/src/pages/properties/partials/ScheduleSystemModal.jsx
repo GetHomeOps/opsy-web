@@ -16,6 +16,7 @@ import {
   Loader2,
   Wrench,
   Mail,
+  Sparkles,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
@@ -64,6 +65,32 @@ Proposed date: ${formattedDate}
 Please let me know if this works for you, or suggest an alternative time.
 
 Thank you!`;
+}
+
+/** Insert a line into the email body before the closing "Thank you" when present. */
+function appendLineToMessageBody(setMessageBody, line) {
+  const text = (line || "").trim();
+  if (!text) return;
+  setMessageBody((prev) => {
+    const base = (prev ?? "").replace(/\s+$/, "");
+    const thankYou = /\n\nThank you[!.,\s]*$/i;
+    const block = `\n\n${text}`;
+    if (thankYou.test(base)) {
+      return base.replace(thankYou, `${block}\n\nThank you!`);
+    }
+    return `${base}${block}`;
+  });
+}
+
+function defaultContractorPrompts(scheduleType, systemLabel) {
+  const sys = systemLabel || "this system";
+  const kind =
+    scheduleType === "maintenance" ? "maintenance visit" : "inspection";
+  return [
+    `Could you confirm what is included in your standard ${kind} for ${sys}?`,
+    "What should I have accessible or prepared before you arrive?",
+    "Roughly how long should I expect the appointment to take?",
+  ];
 }
 
 /* ──────────────────────────── Step Indicator ──────────────────────────── */
@@ -745,6 +772,8 @@ function MessageStep({
   senderName,
   maintenanceRecommendations = [],
   maintenanceLoading = false,
+  contractorSuggestedQuestions = [],
+  contractorQuestionsLoading = false,
   sendEmail,
   setSendEmail,
 }) {
@@ -753,6 +782,19 @@ function MessageStep({
     scheduleType === "inspection" &&
     Array.isArray(maintenanceRecommendations) &&
     maintenanceRecommendations.length > 0;
+
+  const promptsToShow = useMemo(() => {
+    if (contractorQuestionsLoading) return [];
+    if (contractorSuggestedQuestions?.length > 0) {
+      return contractorSuggestedQuestions.map((q) => String(q).trim()).filter(Boolean);
+    }
+    return defaultContractorPrompts(scheduleType, systemLabel);
+  }, [
+    contractorQuestionsLoading,
+    contractorSuggestedQuestions,
+    scheduleType,
+    systemLabel,
+  ]);
 
   return (
     <div className="space-y-5">
@@ -799,20 +841,54 @@ function MessageStep({
               sendEmail ? "opacity-100" : "opacity-0"
             }`}
           >
-            <div className="lg:col-span-4 min-w-0">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Reply-to email
-              </label>
-              <input
-                type="email"
-                value={replyEmail}
-                onChange={(e) => setReplyEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="form-input w-full text-sm"
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Contractors will reply to this address instead of no-reply.
-              </p>
+            <div className="lg:col-span-4 min-w-0 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Reply-to email
+                </label>
+                <input
+                  type="email"
+                  value={replyEmail}
+                  onChange={(e) => setReplyEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="form-input w-full text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Contractors will reply to this address instead of no-reply.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-violet-200/80 dark:border-violet-800/50 bg-violet-50/60 dark:bg-violet-950/20 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400 flex-shrink-0" />
+                  <h4 className="text-xs font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wide">
+                    Ask your contractor
+                  </h4>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2.5 leading-relaxed">
+                  Suggested lines based on your system and schedule type. Tap to add to your email.
+                </p>
+                {contractorQuestionsLoading ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-600" />
+                    Generating suggestions…
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-2">
+                    {promptsToShow.map((prompt, idx) => (
+                      <li key={idx}>
+                        <button
+                          type="button"
+                          onClick={() => appendLineToMessageBody(setMessageBody, prompt)}
+                          className="w-full text-left text-xs leading-snug px-2.5 py-2 rounded-md border border-violet-200/90 dark:border-violet-800/60 bg-white/90 dark:bg-gray-800/80 text-gray-700 dark:text-gray-200 hover:border-violet-400 dark:hover:border-violet-600 hover:bg-violet-50/80 dark:hover:bg-violet-950/40 transition-colors"
+                        >
+                          + {prompt}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
             <div className="lg:col-span-8 min-w-0 flex flex-col">
               <EmailPreview
@@ -978,6 +1054,8 @@ function ScheduleSystemModal({
     [],
   );
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [contractorSuggestedQuestions, setContractorSuggestedQuestions] =
+    useState([]);
   const [alertEnabled, setAlertEnabled] = useState(true);
   const [alertTiming, setAlertTiming] = useState("3d");
   const [alertDate, setAlertDate] = useState("");
@@ -1043,6 +1121,7 @@ function ScheduleSystemModal({
           "",
       );
       setMaintenanceRecommendations([]);
+      setContractorSuggestedQuestions([]);
       setMaintenanceLoading(false);
       setAlertEnabled(true);
       setAlertTiming("3d");
@@ -1052,14 +1131,9 @@ function ScheduleSystemModal({
     }
   }, [isOpen, currentUser?.data?.email, currentUser?.email]);
   useEffect(() => {
-    if (
-      !isOpen ||
-      scheduleType !== "inspection" ||
-      !propId ||
-      !systemType ||
-      !systemLabel
-    ) {
+    if (!isOpen || !scheduleType || !propId || !systemType || !systemLabel) {
       setMaintenanceRecommendations([]);
+      setContractorSuggestedQuestions([]);
       return;
     }
     let cancelled = false;
@@ -1068,16 +1142,23 @@ function ScheduleSystemModal({
       systemType,
       systemName: systemLabel,
       systemContext: {},
+      scheduleType,
     })
       .then((advice) => {
-        if (!cancelled && advice?.suggestions?.length) {
-          setMaintenanceRecommendations(advice.suggestions);
-        } else if (!cancelled) {
-          setMaintenanceRecommendations([]);
-        }
+        if (cancelled) return;
+        setMaintenanceRecommendations(
+          advice?.suggestions?.length ? advice.suggestions : [],
+        );
+        const qs = Array.isArray(advice?.suggestedQuestions)
+          ? advice.suggestedQuestions.map((q) => String(q).trim()).filter(Boolean)
+          : [];
+        setContractorSuggestedQuestions(qs);
       })
       .catch(() => {
-        if (!cancelled) setMaintenanceRecommendations([]);
+        if (!cancelled) {
+          setMaintenanceRecommendations([]);
+          setContractorSuggestedQuestions([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setMaintenanceLoading(false);
@@ -1263,7 +1344,7 @@ function ScheduleSystemModal({
         modalOpen={isOpen}
         setModalOpen={onClose}
         closeOnClickOutside={false}
-        contentClassName="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden p-0"
+        contentClassName="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden p-0"
       >
         <div className="relative p-8 flex flex-col flex-1 min-h-0 items-center justify-center min-h-[200px]">
           <div className="flex flex-col items-center gap-3">
@@ -1289,7 +1370,7 @@ function ScheduleSystemModal({
       modalOpen={isOpen}
       setModalOpen={onClose}
       closeOnClickOutside={false}
-      contentClassName="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden p-0"
+        contentClassName="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden p-0"
     >
       <div className="relative flex flex-col flex-1 min-h-0 p-6">
         <div className="flex items-center justify-between mb-4 shrink-0">
@@ -1390,6 +1471,8 @@ function ScheduleSystemModal({
               }
               maintenanceRecommendations={maintenanceRecommendations}
               maintenanceLoading={maintenanceLoading}
+              contractorSuggestedQuestions={contractorSuggestedQuestions}
+              contractorQuestionsLoading={maintenanceLoading}
               sendEmail={sendEmail}
               setSendEmail={setSendEmail}
             />

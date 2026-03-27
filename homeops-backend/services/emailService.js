@@ -7,13 +7,49 @@
  * Requires: SES_FROM_EMAIL (verified in SES). Credentials: AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY,
  * or AWS_PROFILE, or IAM role / ~/.aws/credentials (default chain). Region: AWS_REGION or AWS_SES_REGION.
  * Optional: SES_FROM_NAME (defaults from config)
+ * Footer image: inline attachment by default (override with EMAIL_FOOTER_IMAGE_URL)
  *
  * When email is not configured, password reset logs the link to console (dev).
  */
 
-const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
-const { EMAIL_BRAND_NAME } = require("../config");
+const fs = require("fs");
+const path = require("path");
+const { SESClient, SendEmailCommand, SendRawEmailCommand } = require("@aws-sdk/client-ses");
+const { EMAIL_BRAND_NAME, APP_BASE_URL } = require("../config");
 const brandName = EMAIL_BRAND_NAME;
+const FOOTER_IMAGE_CID = "opsy-footer-image";
+
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escapeHtmlAttr(s) {
+  if (s == null) return "";
+  return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Linked brand footer image for HTML emails.
+ * Uses an inline image (CID) so email clients can render it reliably.
+ * If EMAIL_FOOTER_IMAGE_URL is set, that URL is used instead.
+ */
+function getEmailFooterHtml() {
+  const linkUrl = "https://heyopsy.com";
+  const imageUrl = process.env.EMAIL_FOOTER_IMAGE_URL || `cid:${FOOTER_IMAGE_CID}`;
+  const alt = brandName;
+  return `
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px; margin-bottom: 0;">— The ${escapeHtml(brandName)} Team</p>
+      <p style="margin-top: 12px; margin-bottom: 0; text-align: center;">
+        <a href="${escapeHtmlAttr(linkUrl)}" style="text-decoration: none; border: 0;">
+          <img src="${escapeHtmlAttr(imageUrl)}" alt="${escapeHtml(alt)}" width="600" style="display: inline-block; border: 0; outline: none; max-width: 100%; width: 100%; height: auto;" />
+        </a>
+      </p>`;
+}
 
 /** Replace legacy product name in "requested by" lines (e.g. account name "HomeOps Team"). */
 function sanitizeSenderLabelForEmail(name) {
@@ -50,7 +86,99 @@ function isSesConfigured() {
   return !!(process.env.SES_FROM_EMAIL && process.env.SES_FROM_EMAIL.trim());
 }
 
+function chunkBase64(value, size = 76) {
+  const chunks = [];
+  for (let i = 0; i < value.length; i += size) chunks.push(value.slice(i, i + size));
+  return chunks.join("\r\n");
+}
+
+function resolveFooterImagePath() {
+  const explicitPath = process.env.EMAIL_FOOTER_IMAGE_PATH;
+  if (explicitPath && fs.existsSync(explicitPath)) return explicitPath;
+  const candidates = [
+    path.resolve(__dirname, "../../homeops-frontend/public/footer.png"),
+    path.resolve(__dirname, "../assets/footer.png"),
+  ];
+  return candidates.find((p) => fs.existsSync(p)) || null;
+}
+
+async function readFooterImageBase64() {
+  const footerPath = resolveFooterImagePath();
+  if (!footerPath) return null;
+  const image = await fs.promises.readFile(footerPath);
+  return image.toString("base64");
+}
+
+async function logUsageIfNeeded(usage) {
+  if (usage?.accountId != null && usage?.userId != null) {
+    const { logEmailUsage } = require("./usageService");
+    logEmailUsage({
+      accountId: usage.accountId,
+      userId: usage.userId,
+      emailType: usage.emailType || "transactional",
+    }).catch((err) => console.error("[emailService] logEmailUsage:", err.message));
+  }
+}
+
+async function sendViaSesRawWithInlineFooter({ to, subject, html, replyTo, usage, footerImageBase64 }) {
+  const boundary = `opsy_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const lines = [
+    `From: ${getFromAddress()}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/related; boundary="${boundary}"`,
+    ...(replyTo && replyTo.trim() ? [`Reply-To: ${replyTo.trim()}`] : []),
+    "",
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    html,
+    "",
+    `--${boundary}`,
+    'Content-Type: image/png; name="footer.png"',
+    "Content-Transfer-Encoding: base64",
+    `Content-ID: <${FOOTER_IMAGE_CID}>`,
+    'Content-Disposition: inline; filename="footer.png"',
+    "",
+    chunkBase64(footerImageBase64),
+    `--${boundary}--`,
+    "",
+  ];
+
+  await sesClient.send(
+    new SendRawEmailCommand({
+      RawMessage: { Data: Buffer.from(lines.join("\r\n"), "utf8") },
+    })
+  );
+  await logUsageIfNeeded(usage);
+  return { success: true };
+}
+
 async function sendViaSes({ to, subject, html, replyTo, usage }) {
+  if (html.includes(`cid:${FOOTER_IMAGE_CID}`)) {
+    try {
+      const footerImageBase64 = await readFooterImageBase64();
+      if (footerImageBase64) {
+        return sendViaSesRawWithInlineFooter({
+          to,
+          subject,
+          html,
+          replyTo,
+          usage,
+          footerImageBase64,
+        });
+      }
+      const fallbackUrl =
+        process.env.EMAIL_FOOTER_IMAGE_URL ||
+        `${(APP_BASE_URL || "https://app.heyopsy.com").replace(/\/$/, "")}/footer.png`;
+      html = html.replace(`cid:${FOOTER_IMAGE_CID}`, escapeHtmlAttr(fallbackUrl));
+    } catch (err) {
+      console.error("[emailService] inline footer image load failed:", err.message);
+    }
+  }
+
   const params = {
     Source: getFromAddress(),
     Destination: { ToAddresses: [to] },
@@ -67,14 +195,7 @@ async function sendViaSes({ to, subject, html, replyTo, usage }) {
   const command = new SendEmailCommand(params);
 
   await sesClient.send(command);
-  if (usage?.accountId != null && usage?.userId != null) {
-    const { logEmailUsage } = require("./usageService");
-    logEmailUsage({
-      accountId: usage.accountId,
-      userId: usage.userId,
-      emailType: usage.emailType || "transactional",
-    }).catch((err) => console.error("[emailService] logEmailUsage:", err.message));
-  }
+  await logUsageIfNeeded(usage);
   return { success: true };
 }
 
@@ -94,7 +215,7 @@ async function sendPasswordResetEmail({ to, resetUrl, userName, usage }) {
         <a href="${resetUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reset Password</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
+      ${getEmailFooterHtml()}
     </div>
   `;
 
@@ -122,7 +243,7 @@ async function sendEmailVerificationEmail({ to, verifyUrl, userName, usage }) {
         <a href="${verifyUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Verify email</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">This link expires in 48 hours. If you didn&apos;t create an account, you can ignore this email.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
+      ${getEmailFooterHtml()}
     </div>
   `;
 
@@ -196,7 +317,7 @@ async function sendInvitationEmail({
         <a href="${inviteUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">${ctaLabel}</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">${footerNote}</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
+      ${getEmailFooterHtml()}
     </div>
   `;
 
@@ -251,7 +372,7 @@ async function sendContractorReportEmail({
         <a href="${reportUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Fill Out Report</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">This link expires in 7 days. If you have questions, please contact the homeowner directly.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
+      ${getEmailFooterHtml()}
     </div>
   `;
 
@@ -328,20 +449,11 @@ async function sendScheduleNotificationEmail({
       ${detailsSection}
       ${messageSection ? `<p style="font-size: 14px; color: #374151;">Message from homeowner:</p>${messageSection}` : ""}
       <p style="color: #6b7280; font-size: 14px;">Please confirm this appointment or reach out to the homeowner to discuss the details.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${brandName} Team</p>
+      ${getEmailFooterHtml()}
     </div>
   `;
 
   return sendViaSes({ to, subject, html, replyTo, usage });
-}
-
-function escapeHtml(s) {
-  if (s == null) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -384,7 +496,7 @@ async function sendProfessionalContactEmail({
         ${safeBody}
       </div>
       <p style="color: #6b7280; font-size: 14px;">You can reply directly to this email to reach the sender.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 24px;">— ${escapeHtml(brandName)}</p>
+      ${getEmailFooterHtml()}
     </div>
   `;
 
@@ -420,7 +532,7 @@ async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl
         <a href="${safeUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View in ${escapeHtml(brandName)}</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">This link opens the message in your browser. Sign in if prompted.</p>
-      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">— The ${escapeHtml(brandName)} Team</p>
+      ${getEmailFooterHtml()}
     </div>
   `;
   return sendViaSes({

@@ -78,6 +78,20 @@ Please let me know if this works for you, or suggest an alternative time.
 Thank you!`;
 }
 
+function appendLineToMessageBody(setMessageBody, line) {
+  const text = (line || "").trim();
+  if (!text) return;
+  setMessageBody((prev) => {
+    const base = (prev ?? "").replace(/\s+$/, "");
+    const thankYou = /\n\nThank you[!.,\s]*$/i;
+    const block = `\n\n${text}`;
+    if (thankYou.test(base)) {
+      return base.replace(thankYou, `${block}\n\nThank you!`);
+    }
+    return `${base}${block}`;
+  });
+}
+
 const NO_DATA_AI_RESPONSE = {
   noData: true,
   recommendedFrequency: null,
@@ -816,6 +830,8 @@ function MessageStep({
   selectedContractor,
   sendEmail,
   setSendEmail,
+  replyEmail,
+  setReplyEmail,
   messageBody,
   setMessageBody,
   aiAdvice,
@@ -865,13 +881,35 @@ function MessageStep({
           </div>
 
           {sendEmail && (
-            <textarea
-              value={messageBody}
-              onChange={(e) => setMessageBody(e.target.value)}
-              rows={6}
-              className="form-input w-full text-sm leading-relaxed"
-              aria-label={`Email message to ${selectedContractor.name}`}
-            />
+            <>
+              <div>
+                <label
+                  htmlFor="maintenance-schedule-reply-email"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                >
+                  Reply-to email
+                </label>
+                <input
+                  id="maintenance-schedule-reply-email"
+                  type="email"
+                  value={replyEmail}
+                  onChange={(e) => setReplyEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="form-input w-full text-sm"
+                  autoComplete="email"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Contractor replies go to this address.
+                </p>
+              </div>
+              <textarea
+                value={messageBody}
+                onChange={(e) => setMessageBody(e.target.value)}
+                rows={6}
+                className="form-input w-full text-sm leading-relaxed min-h-[7.5rem] max-h-[15rem] overflow-y-auto resize-y"
+                aria-label={`Email message to ${selectedContractor.name}`}
+              />
+            </>
           )}
         </div>
       )}
@@ -984,18 +1022,31 @@ function MessageStep({
                 {aiAdvice.suggestedQuestions?.length > 0 && (
                   <div>
                     <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">
-                      Suggested Questions for Your Contractor
+                      Suggested questions for your contractor
                     </p>
-                    <ul className="space-y-1.5">
+                    <ul className="space-y-2">
                       {aiAdvice.suggestedQuestions.map((q, i) => (
                         <li
                           key={i}
-                          className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400"
+                          className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3 rounded-lg border border-gray-200/80 dark:border-gray-600/80 bg-white/60 dark:bg-gray-800/40 p-2.5"
                         >
-                          <span className="text-[#456564] dark:text-[#7aa3a2] mt-0.5">
-                            •
+                          <span className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400 min-w-0">
+                            <span className="text-[#456564] dark:text-[#7aa3a2] mt-0.5 flex-shrink-0">
+                              •
+                            </span>
+                            {q}
                           </span>
-                          {q}
+                          {sendEmail && selectedContractor ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                appendLineToMessageBody(setMessageBody, q)
+                              }
+                              className="flex-shrink-0 text-xs font-medium text-[#456564] dark:text-[#7aa3a2] hover:underline self-start sm:self-center"
+                            >
+                              Add to message
+                            </button>
+                          ) : null}
                         </li>
                       ))}
                     </ul>
@@ -1103,6 +1154,7 @@ function MaintenanceScheduleModal({
   const [aiLoading, setAiLoading] = useState(false);
   const [calendarIntegrations, setCalendarIntegrations] = useState([]);
   const [sendEmail, setSendEmail] = useState(true);
+  const [replyEmail, setReplyEmail] = useState("");
 
   const propertyName =
     propertyData.propertyName ||
@@ -1190,12 +1242,17 @@ function MaintenanceScheduleModal({
     setAiAdvice(null);
     setAiLoading(false);
     setSendEmail(true);
+    setReplyEmail(
+      currentUser?.data?.email || currentUser?.email || "",
+    );
     setSaveError("");
   }, [
     isOpen,
     initialScheduledDate,
     initialScheduledTime,
     initialChecklistItemId,
+    currentUser?.data?.email,
+    currentUser?.email,
   ]);
 
   /** Apply calendar pre-fill while still on step 0 (does not reset request type). */
@@ -1239,9 +1296,18 @@ function MaintenanceScheduleModal({
         systemType: systemType || "general",
         systemName: systemLabel || "General",
         systemContext,
+        scheduleType:
+          requestType === "inspection" || requestType === "maintenance"
+            ? requestType
+            : null,
       });
       if (advice.noData) {
-        setAiAdvice(NO_DATA_AI_RESPONSE);
+        setAiAdvice({
+          ...NO_DATA_AI_RESPONSE,
+          suggestedQuestions: Array.isArray(advice.suggestedQuestions)
+            ? advice.suggestedQuestions
+            : [],
+        });
       } else {
         setAiAdvice({
           recommendedFrequency: advice.recommendedFrequency || "Annual inspection recommended",
@@ -1255,7 +1321,7 @@ function MaintenanceScheduleModal({
     } finally {
       setAiLoading(false);
     }
-  }, [propertyId, systemType, systemLabel, propertyData]);
+  }, [propertyId, systemType, systemLabel, propertyData, requestType]);
 
   const handleNext = () => {
     if (currentStep < STEPS.length - 1) {
@@ -1327,7 +1393,9 @@ function MaintenanceScheduleModal({
         sendEmail && selectedContractor?.email
           ? selectedContractor.email
           : null,
-      reply_email: currentUser?.data?.email || currentUser?.email || null,
+      reply_email: replyEmail?.trim()
+        ? replyEmail.trim()
+        : currentUser?.data?.email || currentUser?.email || null,
       send_email_now: sendEmail && !!selectedContractor?.email,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
@@ -1439,6 +1507,8 @@ function MaintenanceScheduleModal({
             selectedContractor={selectedContractor}
             sendEmail={sendEmail}
             setSendEmail={setSendEmail}
+            replyEmail={replyEmail}
+            setReplyEmail={setReplyEmail}
             messageBody={messageBody}
             setMessageBody={setMessageBody}
             aiAdvice={aiAdvice}
