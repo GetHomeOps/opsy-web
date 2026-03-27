@@ -405,6 +405,16 @@ function SubscriptionProductFormContainer() {
         maxDocumentsPerSystem: Number(state.formData.maxDocumentsPerSystem) ?? 5,
         stripePriceIdMonth: state.formData.stripePriceIdMonth?.trim() || null,
         stripePriceIdYear: state.formData.stripePriceIdYear?.trim() || null,
+        stripePriceId: state.formData.stripePriceIdMonth?.trim() || state.formData.stripePriceIdYear?.trim() || null,
+        prices: {
+          month: state.formData.stripePriceIdMonth?.trim() || null,
+          year: state.formData.stripePriceIdYear?.trim() || null,
+        },
+        features: (state.formData.features || []).filter((f) => f.label?.trim()).map((f) => ({
+          id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
+          label: f.label.trim(),
+          included: !!f.included,
+        })),
       };
 
       const res = await AppApi.createSubscriptionProduct(data);
@@ -466,6 +476,7 @@ function SubscriptionProductFormContainer() {
           month: state.formData.stripePriceIdMonth?.trim() || null,
           year: state.formData.stripePriceIdYear?.trim() || null,
         },
+        stripePriceId: state.formData.stripePriceIdMonth?.trim() || state.formData.stripePriceIdYear?.trim() || null,
         features: (state.formData.features || []).filter((f) => f.label?.trim()).map((f) => ({
           id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
           label: f.label.trim(),

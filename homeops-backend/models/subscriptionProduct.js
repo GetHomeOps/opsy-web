@@ -80,7 +80,8 @@ class SubscriptionProduct {
   static async create({ name, description, targetRole, price, billingInterval,
     maxProperties, maxContacts, maxViewers, maxTeamMembers,
     stripeProductId, stripePriceId, code, sortOrder, trialDays,
-    aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem, stripePriceIdMonth, stripePriceIdYear }) {
+    aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem,
+    stripePriceIdMonth, stripePriceIdYear, prices, features }) {
     if (!name) throw new BadRequestError("Name is required.");
     if (!targetRole) throw new BadRequestError("Target role is required.");
 
@@ -96,6 +97,9 @@ class SubscriptionProduct {
     }
 
     const cols = await getProductColumns();
+    const monthPriceId = prices?.month || stripePriceIdMonth || null;
+    const yearPriceId = prices?.year || stripePriceIdYear || null;
+    const legacyStripePriceId = stripePriceId || monthPriceId || yearPriceId || null;
     let result;
     if (hasBilling) {
       result = await db.query(
@@ -107,7 +111,7 @@ class SubscriptionProduct {
          RETURNING ${cols}`,
         [name, description || null, targetRole, price ?? 0, billingInterval || 'month',
          maxProperties ?? 1, maxContacts ?? 25, maxViewers ?? 2, maxTeamMembers ?? 5,
-         stripeProductId || null, stripePriceId || null,
+         stripeProductId || null, legacyStripePriceId,
          code || null, sortOrder ?? 0, trialDays ?? null]
       );
     } else {
@@ -120,14 +124,20 @@ class SubscriptionProduct {
          RETURNING ${cols}`,
         [name, description || null, targetRole, price ?? 0, billingInterval || 'month',
          maxProperties ?? 1, maxContacts ?? 25, maxViewers ?? 2, maxTeamMembers ?? 5,
-         stripeProductId || null, stripePriceId || null]
+         stripeProductId || null, legacyStripePriceId]
       );
     }
     const product = result.rows[0];
     try {
       await upsertPlanLimits(product.id, { maxProperties, maxContacts, maxViewers, maxTeamMembers, aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem });
-      if (stripePriceIdMonth) await upsertPlanPrice(product.id, 'month', stripePriceIdMonth);
-      if (stripePriceIdYear) await upsertPlanPrice(product.id, 'year', stripePriceIdYear);
+      if (monthPriceId) await upsertPlanPrice(product.id, 'month', monthPriceId);
+      if (yearPriceId) await upsertPlanPrice(product.id, 'year', yearPriceId);
+      if (Array.isArray(features) && hasBilling) {
+        await db.query(
+          `UPDATE subscription_products SET features = $1, updated_at = NOW() WHERE id = $2`,
+          [JSON.stringify(features), product.id]
+        );
+      }
     } catch (e) { /* plan_limits/plan_prices may not exist */ }
     return SubscriptionProduct.get(product.id);
   }
