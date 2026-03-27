@@ -917,16 +917,9 @@ function PropertyFormContainer() {
           role: m.role,
           property_role: m.property_role ?? "editor",
           image_url:
-            m.image_url ??
-            m.avatar_url ??
-            u?.image_url ??
-            u?.avatarUrl,
+            m.image_url ?? m.avatar_url ?? u?.image_url ?? u?.avatarUrl,
           image:
-            m.image ??
-            u?.image ??
-            u?.avatarUrl ??
-            u?.avatar_url ??
-            u?.avatar,
+            m.image ?? u?.image ?? u?.avatarUrl ?? u?.avatar_url ?? u?.avatar,
         };
       }),
     [users],
@@ -2638,8 +2631,18 @@ function PropertyFormContainer() {
       {isInvitationView && invitationIdFromUrl && (
         <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
               {t("pendingInvitationBanner", {
@@ -2733,7 +2736,10 @@ function PropertyFormContainer() {
             </button>
           </div>
           {invitationError && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1 w-full" role="alert">
+            <p
+              className="text-xs text-red-600 dark:text-red-400 mt-1 w-full"
+              role="alert"
+            >
               {invitationError}
             </p>
           )}
@@ -3926,7 +3932,9 @@ function PropertyFormContainer() {
             uid !== "new"
               ? () => {
                   if (!isAdmin && !aiFeaturesEnabled) {
-                    setUpgradePromptTitle("AI inspection analysis not included");
+                    setUpgradePromptTitle(
+                      "AI inspection analysis not included",
+                    );
                     setUpgradePromptMsg(
                       "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features.",
                     );

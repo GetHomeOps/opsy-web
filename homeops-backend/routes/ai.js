@@ -291,7 +291,7 @@ router.get(
         throw new BadRequestError("propertyId and systemId are required");
       }
       req.params = { propertyId: rawPropId };
-      await resolvePropertyId(req, res, () => {});
+      await resolvePropertyId(req, res, () => { });
       const resolvedId = req.resolvedPropertyId;
       if (!resolvedId) throw new BadRequestError("Invalid property");
 
@@ -317,7 +317,7 @@ router.get(
       if (!rawPropId) throw new BadRequestError("propertyId is required");
 
       req.params = { propertyId: rawPropId };
-      await resolvePropertyId(req, res, () => {});
+      await resolvePropertyId(req, res, () => { });
       const resolvedId = req.resolvedPropertyId;
       if (!resolvedId) throw new BadRequestError("Invalid property");
 
@@ -419,7 +419,7 @@ router.post(
       }
 
       req.params = { propertyId };
-      await resolvePropertyId(req, res, () => {});
+      await resolvePropertyId(req, res, () => { });
       const resolvedId = req.resolvedPropertyId;
       if (!resolvedId) throw new BadRequestError("Invalid property");
 
@@ -562,7 +562,7 @@ router.post(
           model: chatModel,
           promptTokens: usage.prompt_tokens,
           completionTokens: usage.completion_tokens,
-        }).catch(() => {});
+        }).catch(() => { });
 
         const acctRes = await db.query(
           `SELECT account_id FROM properties WHERE id = $1`,
@@ -577,7 +577,7 @@ router.post(
             promptTokens: usage.prompt_tokens,
             completionTokens: usage.completion_tokens,
             endpoint: "ai/chat",
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
 
@@ -670,7 +670,7 @@ router.post(
       if (!propertyId) throw new BadRequestError("propertyId is required");
 
       req.params = { propertyId };
-      await resolvePropertyId(req, res, () => {});
+      await resolvePropertyId(req, res, () => { });
       const resolvedId = req.resolvedPropertyId;
       if (!resolvedId) throw new BadRequestError("Invalid property");
 
@@ -836,7 +836,7 @@ router.get(
       const raw = req.params.propertyId;
       if (!raw) throw new BadRequestError("propertyId required");
       req.params = { propertyId: raw };
-      await resolvePropertyId(req, res, () => {});
+      await resolvePropertyId(req, res, () => { });
       const resolvedId = req.resolvedPropertyId;
       if (!resolvedId) throw new BadRequestError("Invalid property");
 
@@ -860,7 +860,7 @@ router.get(
       const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
       if (!raw) throw new BadRequestError("propertyId required");
       req.params = { propertyId: raw };
-      await resolvePropertyId(req, res, () => {});
+      await resolvePropertyId(req, res, () => { });
       const resolvedId = req.resolvedPropertyId;
       if (!resolvedId) throw new BadRequestError("Invalid property");
 

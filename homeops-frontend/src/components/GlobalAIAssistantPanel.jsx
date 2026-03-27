@@ -13,7 +13,8 @@ const FREE_PLAN_CODES = ["homeowner_free", "agent_free"];
 
 function GlobalAIAssistantPanel({isOpen, onClose}) {
   const navigate = useNavigate();
-  const {properties, refreshProperties, getSystemsByPropertyId} = useContext(PropertyContext);
+  const {properties, refreshProperties, getSystemsByPropertyId} =
+    useContext(PropertyContext);
   const {currentAccount} = useCurrentAccount();
   const {plan, limits, loading: billingLoading, isAdmin} = useBillingStatus();
 
@@ -77,7 +78,8 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
     }
     getSystemsByPropertyId?.(selectedPropertyId)
       .then((systemsRes) => {
-        const systemsArr = systemsRes?.systems ?? (Array.isArray(systemsRes) ? systemsRes : []);
+        const systemsArr =
+          systemsRes?.systems ?? (Array.isArray(systemsRes) ? systemsRes : []);
         setPropertySystems(systemsArr);
       })
       .catch(() => setPropertySystems([]));
@@ -148,7 +150,11 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
                       type="button"
                       onClick={() => {
                         onClose();
-                        navigate(accountUrl ? `/${accountUrl}/settings/upgrade` : "/settings/upgrade");
+                        navigate(
+                          accountUrl
+                            ? `/${accountUrl}/settings/upgrade`
+                            : "/settings/upgrade",
+                        );
                       }}
                       className="rounded-full px-4 py-2 text-sm font-medium bg-[#456564] text-white hover:bg-[#3a5554] dark:bg-teal-600 dark:hover:bg-teal-500"
                     >
@@ -159,8 +165,8 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
               ) : (
                 <>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    Select a property to chat with the AI assistant about maintenance
-                    and systems.
+                    Select a property to chat with the AI assistant about
+                    maintenance and systems.
                   </p>
                   <div className="relative mb-3">
                     <Search
@@ -180,10 +186,15 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
                     {filteredProperties.map((p) => (
                       <button
                         key={p.property_uid ?? p.id ?? p.uid}
-                        onClick={() => setSelectedPropertyId(p.property_uid ?? p.uid ?? p.id)}
+                        onClick={() =>
+                          setSelectedPropertyId(p.property_uid ?? p.uid ?? p.id)
+                        }
                         className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 border border-gray-200 dark:border-gray-600"
                       >
-                        {p.nickname || p.address || p.street_address || `Property ${p.id}`}
+                        {p.nickname ||
+                          p.address ||
+                          p.street_address ||
+                          `Property ${p.id}`}
                       </button>
                     ))}
                     {(!properties || properties.length === 0) && (
@@ -191,11 +202,12 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
                         No properties found. Add a property first.
                       </p>
                     )}
-                    {properties?.length > 0 && filteredProperties.length === 0 && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        No properties match your search.
-                      </p>
-                    )}
+                    {properties?.length > 0 &&
+                      filteredProperties.length === 0 && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          No properties match your search.
+                        </p>
+                      )}
                   </div>
                 </>
               )}

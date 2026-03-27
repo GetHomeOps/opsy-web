@@ -104,7 +104,7 @@ async function getAccountLimits(accountId) {
 async function getEffectiveLimits(userId) {
   const accRes = await db.query(
     `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
-    [userId, userId]
+    [userId]
   );
   if (!accRes.rows[0]) return DEFAULT_LIMITS;
   return getAccountLimits(accRes.rows[0].account_id);
@@ -115,13 +115,7 @@ async function checkAiTokenQuota(userId, userRole) {
   if (isAdminRole(userRole)) return { allowed: true, used: 0, quota: 999999 };
   if (BILLING_MOCK_MODE) return { allowed: true, used: 0, quota: 999999 };
 
-  const accRes = await db.query(
-    `SELECT account_id FROM account_users WHERE user_id = $1 LIMIT 1`,
-    [userId]
-  );
-  if (!accRes.rows[0]) return { allowed: false, used: 0, quota: 0 };
-
-  const limits = await getAccountLimits(accRes.rows[0].account_id);
+  const limits = await getEffectiveLimits(userId);
   const quota = limits.aiTokenMonthlyQuota;
   if (quota === 0) return { allowed: false, used: 0, quota: 0 };
   if (quota == null || quota < 0) return { allowed: true, used: 0, quota: 999999 };
@@ -140,13 +134,7 @@ async function checkAiFeaturesAllowed(userId, userRole) {
   if (isAdminRole(userRole)) return { allowed: true };
   if (BILLING_MOCK_MODE) return { allowed: true };
 
-  const accRes = await db.query(
-    `SELECT account_id FROM account_users WHERE user_id = $1 LIMIT 1`,
-    [userId]
-  );
-  if (!accRes.rows[0]) return { allowed: false };
-
-  const limits = await getAccountLimits(accRes.rows[0].account_id);
+  const limits = await getEffectiveLimits(userId);
   const enabled = limits.aiFeaturesEnabled !== false;
   return {
     allowed: enabled,
