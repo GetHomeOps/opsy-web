@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {useNavigate, useParams} from "react-router-dom";
+import {useNavigate, useParams, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {
   X,
@@ -55,12 +55,67 @@ const LANGUAGE_OPTIONS = [
 ];
 
 const US_STATES = [
-  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
-  "HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
-  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
-  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
-  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
+  "AL",
+  "AK",
+  "AZ",
+  "AR",
+  "CA",
+  "CO",
+  "CT",
+  "DE",
+  "FL",
+  "GA",
+  "HI",
+  "ID",
+  "IL",
+  "IN",
+  "IA",
+  "KS",
+  "KY",
+  "LA",
+  "ME",
+  "MD",
+  "MA",
+  "MI",
+  "MN",
+  "MS",
+  "MO",
+  "MT",
+  "NE",
+  "NV",
+  "NH",
+  "NJ",
+  "NM",
+  "NY",
+  "NC",
+  "ND",
+  "OH",
+  "OK",
+  "OR",
+  "PA",
+  "RI",
+  "SC",
+  "SD",
+  "TN",
+  "TX",
+  "UT",
+  "VT",
+  "VA",
+  "WA",
+  "WV",
+  "WI",
+  "WY",
 ];
+
+/** Safe http(s) URL for target=_blank, or "" if empty or disallowed scheme. */
+function websiteHrefForExternalLink(raw) {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return "";
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith("javascript:") || lower.startsWith("data:")) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
 
 const initialFormData = {
   company_name: "",
@@ -154,10 +209,35 @@ function reducer(state, action) {
   }
 }
 
+/** True when the edit form differs from the saved baseline (used instead of useMemo on formData only — ref updates do not invalidate that memo). */
+function professionalFormBaselineDiffers(baseline, curr) {
+  if (!baseline || !curr) return false;
+  const keys = new Set([...Object.keys(baseline), ...Object.keys(curr)]);
+  for (const key of keys) {
+    if (key === "languages") {
+      const norm = (arr) =>
+        JSON.stringify([...(arr || [])].map(String).sort());
+      if (norm(baseline.languages) !== norm(curr.languages)) return true;
+      continue;
+    }
+    if (key === "is_verified") {
+      if (!!baseline.is_verified !== !!curr.is_verified) return true;
+      continue;
+    }
+    const b = baseline[key];
+    const c = curr[key];
+    const bStr = Array.isArray(b) ? JSON.stringify(b) : String(b ?? "");
+    const cStr = Array.isArray(c) ? JSON.stringify(c) : String(c ?? "");
+    if (bStr !== cStr) return true;
+  }
+  return false;
+}
+
 /* ─── Main Component ─────────────────────────────────────────── */
 
 function ProfessionalFormContainer() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {professionalId} = useParams();
   const {t} = useTranslation();
   const {currentAccount} = useCurrentAccount();
@@ -166,20 +246,17 @@ function ProfessionalFormContainer() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const projectPhotoInputRef = useRef(null);
   const initialFormDataRef = useRef(null);
+  const [allProfessionals, setAllProfessionals] = useState([]);
 
   const isNew = professionalId === "new" || !professionalId;
 
-  const hasChanges = useMemo(() => {
-    if (isNew) return true;
-    if (!initialFormDataRef.current) return false;
-    const init = initialFormDataRef.current;
-    const curr = state.formData;
-    return Object.keys(init).some((key) => {
-      const initVal = Array.isArray(init[key]) ? JSON.stringify(init[key]) : String(init[key] ?? "");
-      const currVal = Array.isArray(curr[key]) ? JSON.stringify(curr[key]) : String(curr[key] ?? "");
-      return initVal !== currVal;
-    });
-  }, [isNew, state.formData]);
+  const hasChanges =
+    isNew ||
+    (!!initialFormDataRef.current &&
+      professionalFormBaselineDiffers(
+        initialFormDataRef.current,
+        state.formData,
+      ));
 
   /* ─── Profile Photo Upload ─────────────────────────────────── */
 
@@ -219,51 +296,47 @@ function ProfessionalFormContainer() {
 
   /* ─── Project Photos Upload ────────────────────────────────── */
 
-  const handleProjectPhotoUpload = useCallback(
-    async (file) => {
-      if (!file || !file.type.startsWith("image/")) return;
-      dispatch({type: "SET_UPLOADING_PHOTOS", payload: true});
-      try {
-        const {compressImageForUpload} = await import(
-          "../../utils/compressImage"
-        );
-        const toUpload = await compressImageForUpload(file);
-        const doc = await AppApi.uploadDocument(toUpload);
-        const key = doc?.key ?? doc?.s3Key ?? doc?.url;
-        let displayUrl = doc?.url ?? doc?.presignedUrl;
-        if (key) {
-          try {
-            displayUrl = await AppApi.getPresignedPreviewUrl(key);
-          } catch {
-            displayUrl = displayUrl || URL.createObjectURL(file);
-          }
+  const handleProjectPhotoUpload = useCallback(async (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    dispatch({type: "SET_UPLOADING_PHOTOS", payload: true});
+    try {
+      const {compressImageForUpload} =
+        await import("../../utils/compressImage");
+      const toUpload = await compressImageForUpload(file);
+      const doc = await AppApi.uploadDocument(toUpload);
+      const key = doc?.key ?? doc?.s3Key ?? doc?.url;
+      let displayUrl = doc?.url ?? doc?.presignedUrl;
+      if (key) {
+        try {
+          displayUrl = await AppApi.getPresignedPreviewUrl(key);
+        } catch {
+          displayUrl = displayUrl || URL.createObjectURL(file);
         }
-        if (key) {
-          dispatch({
-            type: "ADD_PROJECT_PHOTO",
-            payload: {
-              id: `temp-${Date.now()}`,
-              photo_key: key,
-              photo_url: displayUrl || URL.createObjectURL(file),
-              caption: "",
-            },
-          });
-        }
-      } catch (err) {
+      }
+      if (key) {
         dispatch({
-          type: "SET_BANNER",
+          type: "ADD_PROJECT_PHOTO",
           payload: {
-            open: true,
-            type: "error",
-            message: "Failed to upload photo",
+            id: `temp-${Date.now()}`,
+            photo_key: key,
+            photo_url: displayUrl || URL.createObjectURL(file),
+            caption: "",
           },
         });
-      } finally {
-        dispatch({type: "SET_UPLOADING_PHOTOS", payload: false});
       }
-    },
-    [],
-  );
+    } catch (err) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: "Failed to upload photo",
+        },
+      });
+    } finally {
+      dispatch({type: "SET_UPLOADING_PHOTOS", payload: false});
+    }
+  }, []);
 
   const handleProjectPhotoInputChange = (e) => {
     const file = e.target.files?.[0];
@@ -296,7 +369,9 @@ function ProfessionalFormContainer() {
         })
         .catch(() => {});
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [state.projectPhotos, projectPhotoUrls]);
 
   useEffect(() => {
@@ -309,7 +384,9 @@ function ProfessionalFormContainer() {
         // Categories might not be seeded yet
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const parentCategories = useMemo(
@@ -322,7 +399,10 @@ function ProfessionalFormContainer() {
     const parent = categoryHierarchy.find(
       (p) => String(p.id) === String(state.formData.category_id),
     );
-    return (parent?.children ?? []).map((c) => ({id: String(c.id), name: c.name}));
+    return (parent?.children ?? []).map((c) => ({
+      id: String(c.id),
+      name: c.name,
+    }));
   }, [state.formData.category_id, categoryHierarchy]);
 
   /* ─── Load existing professional ───────────────────────────── */
@@ -342,9 +422,7 @@ function ProfessionalFormContainer() {
           company_name: pro.company_name || "",
           contact_name: pro.contact_name || "",
           category_id: pro.category_id ? String(pro.category_id) : "",
-          subcategory_id: pro.subcategory_id
-            ? String(pro.subcategory_id)
-            : "",
+          subcategory_id: pro.subcategory_id ? String(pro.subcategory_id) : "",
           description: pro.description || "",
           phone: pro.phone || "",
           email: pro.email || "",
@@ -445,7 +523,10 @@ function ProfessionalFormContainer() {
         payload: {
           open: true,
           type: "error",
-          message: msg || (t("settings.pleaseFixErrors") || "Please fix the following errors."),
+          message:
+            msg ||
+            t("settings.pleaseFixErrors") ||
+            "Please fix the following errors.",
         },
       });
       return;
@@ -471,14 +552,29 @@ function ProfessionalFormContainer() {
         pro = await AppApi.updateProfessional(professionalId, payload);
       }
 
-      // Save project photos if any new ones
-      for (const photo of state.projectPhotos) {
-        if (String(photo.id).startsWith("temp-")) {
-          await AppApi.addProfessionalPhoto(pro.id, {
-            photo_key: photo.photo_key,
-            caption: photo.caption,
-          });
+      const hadTempProjectPhotos = state.projectPhotos.some((p) =>
+        String(p.id).startsWith("temp-"),
+      );
+      let nextProjectPhotos = state.projectPhotos;
+      if (hadTempProjectPhotos) {
+        nextProjectPhotos = [];
+        for (const photo of state.projectPhotos) {
+          if (String(photo.id).startsWith("temp-")) {
+            const saved = await AppApi.addProfessionalPhoto(pro.id, {
+              photo_key: photo.photo_key,
+              caption: photo.caption,
+            });
+            nextProjectPhotos.push({
+              id: saved.id,
+              photo_key: saved.photo_key,
+              caption: saved.caption || "",
+              photo_url: saved.photo_url || photo.photo_url,
+            });
+          } else {
+            nextProjectPhotos.push(photo);
+          }
         }
+        dispatch({type: "SET_PROJECT_PHOTOS", payload: nextProjectPhotos});
       }
 
       dispatch({
@@ -524,7 +620,63 @@ function ProfessionalFormContainer() {
     currentAccount,
     accountUrl,
     navigate,
+    t,
   ]);
+
+  useEffect(() => {
+    if (isNew) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const pros = await AppApi.getAllProfessionals();
+        if (!cancelled) setAllProfessionals(pros || []);
+      } catch {
+        if (!cancelled) setAllProfessionals([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isNew]);
+
+  const buildNavigationState = useCallback(
+    (proId) => {
+      const fromList = location.state?.visibleProfessionalIds;
+      if (Array.isArray(fromList) && fromList.length > 0) {
+        const idx = fromList.findIndex((id) => String(id) === String(proId));
+        if (idx !== -1) {
+          return {
+            currentIndex: idx + 1,
+            totalItems: fromList.length,
+            visibleProfessionalIds: fromList,
+          };
+        }
+      }
+      if (allProfessionals.length > 0) {
+        const sorted = [...allProfessionals].sort((a, b) =>
+          (a.company_name || "").localeCompare(b.company_name || ""),
+        );
+        const ids = sorted.map((p) => p.id);
+        const idx = ids.findIndex((id) => String(id) === String(proId));
+        if (idx !== -1) {
+          return {
+            currentIndex: idx + 1,
+            totalItems: ids.length,
+            visibleProfessionalIds: ids,
+          };
+        }
+      }
+      if (proId && proId !== "new") {
+        return {
+          currentIndex: 1,
+          totalItems: 1,
+          visibleProfessionalIds: [proId],
+        };
+      }
+      return null;
+    },
+    [location.state, allProfessionals],
+  );
 
   const handleBack = useCallback(() => {
     navigate(`/${accountUrl}/professionals/manage`);
@@ -547,6 +699,7 @@ function ProfessionalFormContainer() {
 
   const fd = state.formData;
   const err = state.errors;
+  const websiteHeroHref = websiteHrefForExternalLink(fd.website);
 
   const inputClass = (field) =>
     `form-input w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#456564] dark:focus:border-[#456564] rounded-lg shadow-sm text-sm ${
@@ -613,8 +766,8 @@ function ProfessionalFormContainer() {
 
         <main className="grow">
           <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-5xl mx-auto">
-            {/* ─── Navigation and Actions ───── */}
-            <div className="flex justify-between items-center mb-4">
+            {/* ─── Navigation and Actions (matches contacts / users layout) ───── */}
+            <div className="flex justify-between items-center mb-2">
               <button
                 type="button"
                 className="btn text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-600 mb-2 pl-0 focus:outline-none shadow-none"
@@ -656,6 +809,116 @@ function ProfessionalFormContainer() {
               </div>
             </div>
 
+            <div className="flex justify-end mb-2">
+              <div className="flex items-center">
+                {!isNew &&
+                  (() => {
+                    const navState = buildNavigationState(professionalId);
+                    if (!navState) return null;
+                    return (
+                      <>
+                        <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
+                          {navState.currentIndex || 1} /{" "}
+                          {navState.totalItems || 1}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn shadow-none p-1"
+                          title="Previous"
+                          onClick={() => {
+                            if (
+                              navState.visibleProfessionalIds &&
+                              navState.currentIndex > 1
+                            ) {
+                              const prevId =
+                                navState.visibleProfessionalIds[
+                                  navState.currentIndex - 2
+                                ];
+                              navigate(
+                                `/${accountUrl}/professionals/manage/${prevId}`,
+                                {
+                                  state: {
+                                    visibleProfessionalIds:
+                                      navState.visibleProfessionalIds,
+                                    currentIndex: navState.currentIndex - 1,
+                                    totalItems: navState.totalItems,
+                                  },
+                                },
+                              );
+                            }
+                          }}
+                          disabled={
+                            !navState.currentIndex ||
+                            navState.currentIndex <= 1
+                          }
+                        >
+                          <svg
+                            className={`fill-current shrink-0 ${
+                              !navState.currentIndex ||
+                              navState.currentIndex <= 1
+                                ? "text-gray-200 dark:text-gray-700"
+                                : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
+                            }`}
+                            width="24"
+                            height="24"
+                            viewBox="0 0 18 18"
+                          >
+                            <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn shadow-none p-1"
+                          title="Next"
+                          onClick={() => {
+                            if (
+                              navState.visibleProfessionalIds &&
+                              navState.currentIndex < navState.totalItems
+                            ) {
+                              const nextId =
+                                navState.visibleProfessionalIds[
+                                  navState.currentIndex
+                                ];
+                              navigate(
+                                `/${accountUrl}/professionals/manage/${nextId}`,
+                                {
+                                  state: {
+                                    visibleProfessionalIds:
+                                      navState.visibleProfessionalIds,
+                                    currentIndex: navState.currentIndex + 1,
+                                    totalItems: navState.totalItems,
+                                  },
+                                },
+                              );
+                            }
+                          }}
+                          disabled={
+                            !navState.currentIndex ||
+                            !navState.totalItems ||
+                            navState.currentIndex >= navState.totalItems
+                          }
+                        >
+                          <svg
+                            className={`fill-current shrink-0 ${
+                              !navState.currentIndex ||
+                              !navState.totalItems ||
+                              navState.currentIndex >= navState.totalItems
+                                ? "text-gray-200 dark:text-gray-700"
+                                : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
+                            }`}
+                            width="24"
+                            height="24"
+                            viewBox="0 0 18 18"
+                          >
+                            <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z" />
+                          </svg>
+                        </button>
+                      </>
+                    );
+                  })()}
+              </div>
+            </div>
+
             {/* ─── Header Card: Photo + Company & Contact ───── */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
               <div className="p-6">
@@ -679,7 +942,8 @@ function ProfessionalFormContainer() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-3">
                       <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                        {fd.company_name || (isNew ? "New Contractor" : "Contractor")}
+                        {fd.company_name ||
+                          (isNew ? "New Contractor" : "Contractor")}
                       </h1>
                     </div>
 
@@ -703,9 +967,20 @@ function ProfessionalFormContainer() {
                         </div>
                       )}
                       {fd.website && (
-                        <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                        <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
                           <Globe className="w-4 h-4 mr-2 text-[#456564] shrink-0" />
-                          <span className="truncate">{fd.website}</span>
+                          {websiteHeroHref ? (
+                            <a
+                              href={websiteHeroHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="truncate text-[#456564] hover:text-[#34514f] dark:text-[#7aa3a2] dark:hover:text-[#8eb5b4] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#456564] focus-visible:ring-offset-2 rounded-sm"
+                            >
+                              {fd.website}
+                            </a>
+                          ) : (
+                            <span className="truncate">{fd.website}</span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -717,7 +992,10 @@ function ProfessionalFormContainer() {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
               <div className="border-b border-gray-200 dark:border-gray-700">
                 <div className="px-6">
-                  <nav className="flex flex-wrap gap-x-8 gap-y-2" aria-label="Tabs">
+                  <nav
+                    className="flex flex-wrap gap-x-8 gap-y-2"
+                    aria-label="Tabs"
+                  >
                     {tabs.map((tab) => (
                       <button
                         key={tab.id}
@@ -741,514 +1019,517 @@ function ProfessionalFormContainer() {
 
               <div className="p-6">
                 {state.activeTab === 1 && (
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-[#456564]" />
-                    Company Information
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Company Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className={inputClass("company_name")}
-                        placeholder="Anderson & Sons Plumbing"
-                        value={fd.company_name}
-                        onChange={(e) =>
-                          handleFieldChange("company_name", e.target.value)
-                        }
-                      />
-                      {err.company_name && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{err.company_name}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Contact Name
-                      </label>
-                      <input
-                        type="text"
-                        className={inputClass("contact_name")}
-                        placeholder="Optional contact person"
-                        value={fd.contact_name}
-                        onChange={(e) =>
-                          handleFieldChange("contact_name", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Phone <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        className={inputClass("phone")}
-                        placeholder="(305) 555-1234"
-                        value={fd.phone}
-                        onChange={(e) =>
-                          handleFieldChange("phone", e.target.value)
-                        }
-                      />
-                      {err.phone && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{err.phone}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        className={inputClass("email")}
-                        placeholder="james@example.com"
-                        value={fd.email}
-                        onChange={(e) =>
-                          handleFieldChange("email", e.target.value)
-                        }
-                      />
-                      {err.email && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{err.email}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Website <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="url"
-                        className={inputClass("website")}
-                        placeholder="https://www.example.com"
-                        value={fd.website}
-                        onChange={(e) =>
-                          handleFieldChange("website", e.target.value)
-                        }
-                      />
-                      {err.website && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{err.website}</span>
-                        </div>
-                      )}
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-[#456564]" />
+                      Company Information
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Company Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass("company_name")}
+                          placeholder="Anderson & Sons Plumbing"
+                          value={fd.company_name}
+                          onChange={(e) =>
+                            handleFieldChange("company_name", e.target.value)
+                          }
+                        />
+                        {err.company_name && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                            <span>{err.company_name}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Contact Name
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass("contact_name")}
+                          placeholder="Optional contact person"
+                          value={fd.contact_name}
+                          onChange={(e) =>
+                            handleFieldChange("contact_name", e.target.value)
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Phone <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          className={inputClass("phone")}
+                          placeholder="(305) 555-1234"
+                          value={fd.phone}
+                          onChange={(e) =>
+                            handleFieldChange("phone", e.target.value)
+                          }
+                        />
+                        {err.phone && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                            <span>{err.phone}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          className={inputClass("email")}
+                          placeholder="james@example.com"
+                          value={fd.email}
+                          onChange={(e) =>
+                            handleFieldChange("email", e.target.value)
+                          }
+                        />
+                        {err.email && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                            <span>{err.email}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Website <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          className={inputClass("website")}
+                          placeholder="https://www.example.com"
+                          value={fd.website}
+                          onChange={(e) =>
+                            handleFieldChange("website", e.target.value)
+                          }
+                        />
+                        {err.website && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                            <span>{err.website}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
                 )}
 
                 {state.activeTab === 2 && (
-                /* ─── Address ─────────────────────────────────── */
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-[#456564]" />
-                    Address
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Street Address
-                      </label>
-                      <input
-                        type="text"
-                        className={inputClass("street1")}
-                        placeholder="123 Main Street"
-                        value={fd.street1}
-                        onChange={(e) =>
-                          handleFieldChange("street1", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Street Address 2
-                      </label>
-                      <input
-                        type="text"
-                        className={inputClass("street2")}
-                        placeholder="Suite 200"
-                        value={fd.street2}
-                        onChange={(e) =>
-                          handleFieldChange("street2", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        City <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className={inputClass("city")}
-                        placeholder="Miami"
-                        value={fd.city}
-                        onChange={(e) =>
-                          handleFieldChange("city", e.target.value)
-                        }
-                      />
-                      {err.city && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{err.city}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        State <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        className={selectClass("state")}
-                        value={fd.state}
-                        onChange={(e) =>
-                          handleFieldChange("state", e.target.value)
-                        }
-                      >
-                        <option value="">State</option>
-                        {US_STATES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                      {err.state && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{err.state}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        ZIP Code
-                      </label>
-                      <input
-                        type="text"
-                        className={inputClass("zip_code")}
-                        placeholder="33101"
-                        value={fd.zip_code}
-                        onChange={(e) =>
-                          handleFieldChange("zip_code", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Service Area
-                      </label>
-                      <input
-                        type="text"
-                        className={inputClass("service_area")}
-                        placeholder="Greater Miami area, Broward County"
-                        value={fd.service_area}
-                        onChange={(e) =>
-                          handleFieldChange("service_area", e.target.value)
-                        }
-                      />
-                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                        Describe the areas this contractor serves
-                      </p>
+                  /* ─── Address ─────────────────────────────────── */
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                      <MapPin className="h-5 w-5 text-[#456564]" />
+                      Address
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Street Address
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass("street1")}
+                          placeholder="123 Main Street"
+                          value={fd.street1}
+                          onChange={(e) =>
+                            handleFieldChange("street1", e.target.value)
+                          }
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Street Address 2
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass("street2")}
+                          placeholder="Suite 200"
+                          value={fd.street2}
+                          onChange={(e) =>
+                            handleFieldChange("street2", e.target.value)
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          City <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass("city")}
+                          placeholder="Miami"
+                          value={fd.city}
+                          onChange={(e) =>
+                            handleFieldChange("city", e.target.value)
+                          }
+                        />
+                        {err.city && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                            <span>{err.city}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          State <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          className={selectClass("state")}
+                          value={fd.state}
+                          onChange={(e) =>
+                            handleFieldChange("state", e.target.value)
+                          }
+                        >
+                          <option value="">State</option>
+                          {US_STATES.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                        {err.state && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                            <span>{err.state}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          ZIP Code
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass("zip_code")}
+                          placeholder="33101"
+                          value={fd.zip_code}
+                          onChange={(e) =>
+                            handleFieldChange("zip_code", e.target.value)
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Service Area
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass("service_area")}
+                          placeholder="Greater Miami area, Broward County"
+                          value={fd.service_area}
+                          onChange={(e) =>
+                            handleFieldChange("service_area", e.target.value)
+                          }
+                        />
+                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                          Describe the areas this contractor serves
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
                 )}
 
                 {state.activeTab === 3 && (
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                    <Briefcase className="h-5 w-5 text-[#456564]" />
-                    Category & Services
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Category <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        className={selectClass("category_id")}
-                        value={fd.category_id}
-                        onChange={(e) => {
-                          handleFieldChange("category_id", e.target.value);
-                          handleFieldChange("subcategory_id", "");
-                        }}
-                      >
-                        <option value="">Select a category...</option>
-                        {parentCategories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                      {err.category_id && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{err.category_id}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Subcategory <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        className={selectClass("subcategory_id")}
-                        value={fd.subcategory_id}
-                        onChange={(e) =>
-                          handleFieldChange("subcategory_id", e.target.value)
-                        }
-                        disabled={!fd.category_id}
-                      >
-                        <option value="">
-                          {fd.category_id
-                            ? "Select a subcategory..."
-                            : "Choose a category first"}
-                        </option>
-                        {subcategories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                      {err.subcategory_id && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{err.subcategory_id}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Years in Business
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        className={inputClass("years_in_business")}
-                        placeholder="10"
-                        value={fd.years_in_business}
-                        onChange={(e) =>
-                          handleFieldChange("years_in_business", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        License Number
-                      </label>
-                      <input
-                        type="text"
-                        className={inputClass("license_number")}
-                        placeholder="LIC-12345"
-                        value={fd.license_number}
-                        onChange={(e) =>
-                          handleFieldChange("license_number", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <label className="flex items-center gap-2.5 cursor-pointer group h-[38px]">
-                        <input
-                          type="checkbox"
-                          checked={fd.is_verified}
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                      <Briefcase className="h-5 w-5 text-[#456564]" />
+                      Category & Services
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Category <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          className={selectClass("category_id")}
+                          value={fd.category_id}
+                          onChange={(e) => {
+                            handleFieldChange("category_id", e.target.value);
+                            handleFieldChange("subcategory_id", "");
+                          }}
+                        >
+                          <option value="">Select a category...</option>
+                          {parentCategories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        {err.category_id && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                            <span>{err.category_id}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Subcategory <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          className={selectClass("subcategory_id")}
+                          value={fd.subcategory_id}
                           onChange={(e) =>
-                            handleFieldChange("is_verified", e.target.checked)
+                            handleFieldChange("subcategory_id", e.target.value)
                           }
-                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#456564] focus:ring-[#456564]/30 focus:ring-offset-0"
+                          disabled={!fd.category_id}
+                        >
+                          <option value="">
+                            {fd.category_id
+                              ? "Select a subcategory..."
+                              : "Choose a category first"}
+                          </option>
+                          {subcategories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        {err.subcategory_id && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                            <span>{err.subcategory_id}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Years in Business
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          className={inputClass("years_in_business")}
+                          placeholder="10"
+                          value={fd.years_in_business}
+                          onChange={(e) =>
+                            handleFieldChange(
+                              "years_in_business",
+                              e.target.value,
+                            )
+                          }
                         />
-                        <span className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors">
-                          <Shield className="w-4 h-4 text-emerald-500" />
-                          Licensed & Verified
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="mt-5">
-                    <label className="block text-sm font-medium mb-2 text-gray-500 dark:text-gray-400">
-                      Budget Level
-                    </label>
-                    <div className="flex gap-2">
-                      {BUDGET_OPTIONS.map((opt) => {
-                        const active = fd.budget_level === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() =>
-                              handleFieldChange(
-                                "budget_level",
-                                active ? "" : opt.value,
-                              )
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          License Number
+                        </label>
+                        <input
+                          type="text"
+                          className={inputClass("license_number")}
+                          placeholder="LIC-12345"
+                          value={fd.license_number}
+                          onChange={(e) =>
+                            handleFieldChange("license_number", e.target.value)
+                          }
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <label className="flex items-center gap-2.5 cursor-pointer group h-[38px]">
+                          <input
+                            type="checkbox"
+                            checked={fd.is_verified}
+                            onChange={(e) =>
+                              handleFieldChange("is_verified", e.target.checked)
                             }
-                            className={`flex-1 py-2.5 px-3 rounded-lg border-2 text-center transition-all ${
-                              active
-                                ? "border-[#456564] bg-[#456564]/5 dark:bg-[#456564]/15"
-                                : "border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600"
-                            }`}
-                          >
-                            <div
-                              className={`text-base font-bold ${active ? "text-[#456564] dark:text-[#7aa3a2]" : "text-gray-700 dark:text-gray-300"}`}
-                            >
-                              {opt.label}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                              {opt.description}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                )}
-
-                {state.activeTab === 4 && (
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-[#456564]" />
-                    About
-                  </h3>
-                  <div className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
-                        Description
-                      </label>
-                      <textarea
-                        className="form-textarea w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#456564] dark:focus:border-[#456564] rounded-lg shadow-sm text-sm"
-                        rows={5}
-                        placeholder="Award-winning contractor with over 15 years of experience..."
-                        value={fd.description}
-                        onChange={(e) =>
-                          handleFieldChange("description", e.target.value)
-                        }
-                      />
+                            className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-[#456564] focus:ring-[#456564]/30 focus:ring-offset-0"
+                          />
+                          <span className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors">
+                            <Shield className="w-4 h-4 text-emerald-500" />
+                            Licensed & Verified
+                          </span>
+                        </label>
+                      </div>
                     </div>
 
-                    <div>
+                    <div className="mt-5">
                       <label className="block text-sm font-medium mb-2 text-gray-500 dark:text-gray-400">
-                        Languages Spoken
+                        Budget Level
                       </label>
-                      <div className="flex flex-wrap gap-2">
-                        {LANGUAGE_OPTIONS.map((lang) => {
-                          const active = (fd.languages || []).includes(lang);
+                      <div className="flex gap-2">
+                        {BUDGET_OPTIONS.map((opt) => {
+                          const active = fd.budget_level === opt.value;
                           return (
                             <button
-                              key={lang}
+                              key={opt.value}
                               type="button"
-                              onClick={() => toggleLanguage(lang)}
-                              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                              onClick={() =>
+                                handleFieldChange(
+                                  "budget_level",
+                                  active ? "" : opt.value,
+                                )
+                              }
+                              className={`flex-1 py-2.5 px-3 rounded-lg border-2 text-center transition-all ${
                                 active
-                                  ? "bg-[#456564] border-[#456564] text-white"
-                                  : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600"
+                                  ? "border-[#456564] bg-[#456564]/5 dark:bg-[#456564]/15"
+                                  : "border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600"
                               }`}
                             >
-                              {lang}
+                              <div
+                                className={`text-base font-bold ${active ? "text-[#456564] dark:text-[#7aa3a2]" : "text-gray-700 dark:text-gray-300"}`}
+                              >
+                                {opt.label}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                {opt.description}
+                              </div>
                             </button>
                           );
                         })}
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
+
+                {state.activeTab === 4 && (
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-[#456564]" />
+                      About
+                    </h3>
+                    <div className="space-y-5">
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+                          Description
+                        </label>
+                        <textarea
+                          className="form-textarea w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#456564] dark:focus:border-[#456564] rounded-lg shadow-sm text-sm"
+                          rows={5}
+                          placeholder="Award-winning contractor with over 15 years of experience..."
+                          value={fd.description}
+                          onChange={(e) =>
+                            handleFieldChange("description", e.target.value)
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2 text-gray-500 dark:text-gray-400">
+                          Languages Spoken
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {LANGUAGE_OPTIONS.map((lang) => {
+                            const active = (fd.languages || []).includes(lang);
+                            return (
+                              <button
+                                key={lang}
+                                type="button"
+                                onClick={() => toggleLanguage(lang)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                  active
+                                    ? "bg-[#456564] border-[#456564] text-white"
+                                    : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600"
+                                }`}
+                              >
+                                {lang}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {state.activeTab === 5 && (
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                    <Camera className="h-5 w-5 text-[#456564]" />
-                    Project Gallery
-                  </h3>
-                  <input
-                    ref={projectPhotoInputRef}
-                    type="file"
-                    className="hidden"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    onChange={handleProjectPhotoInputChange}
-                  />
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                      <Camera className="h-5 w-5 text-[#456564]" />
+                      Project Gallery
+                    </h3>
+                    <input
+                      ref={projectPhotoInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={handleProjectPhotoInputChange}
+                    />
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {state.projectPhotos.map((photo) => {
-                      const imgSrc =
-                        projectPhotoUrls[photo.photo_key] ||
-                        photo.photo_url ||
-                        (photo.photo_key?.startsWith("http")
-                          ? photo.photo_key
-                          : null);
-                      return (
-                      <div
-                        key={photo.id}
-                        className="relative group rounded-xl overflow-hidden aspect-[4/3] bg-gray-100 dark:bg-gray-700"
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {state.projectPhotos.map((photo) => {
+                        const imgSrc =
+                          projectPhotoUrls[photo.photo_key] ||
+                          photo.photo_url ||
+                          (photo.photo_key?.startsWith("http")
+                            ? photo.photo_key
+                            : null);
+                        return (
+                          <div
+                            key={photo.id}
+                            className="relative group rounded-xl overflow-hidden aspect-[4/3] bg-gray-100 dark:bg-gray-700"
+                          >
+                            {imgSrc ? (
+                              <img
+                                src={imgSrc}
+                                alt={photo.caption || "Project photo"}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                dispatch({
+                                  type: "REMOVE_PROJECT_PHOTO",
+                                  payload: photo.id,
+                                })
+                              }
+                              className="absolute top-2 right-2 p-1 rounded-full bg-black/50 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                            {photo.caption && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
+                                <p className="text-xs text-white truncate">
+                                  {photo.caption}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => projectPhotoInputRef.current?.click()}
+                        disabled={state.uploadingPhotos}
+                        className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 aspect-[4/3] hover:border-[#456564] dark:hover:border-[#456564] hover:bg-[#456564]/5 transition-all cursor-pointer group"
                       >
-                        {imgSrc ? (
-                          <img
-                            src={imgSrc}
-                            alt={photo.caption || "Project photo"}
-                            className="w-full h-full object-cover"
-                          />
+                        {state.uploadingPhotos ? (
+                          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                          </div>
+                          <>
+                            <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:bg-[#456564]/10 transition-colors">
+                              <Plus className="w-5 h-5 text-gray-400 group-hover:text-[#456564]" />
+                            </div>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-[#456564]">
+                              Add Photo
+                            </span>
+                          </>
                         )}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            dispatch({
-                              type: "REMOVE_PROJECT_PHOTO",
-                              payload: photo.id,
-                            })
-                          }
-                          className="absolute top-2 right-2 p-1 rounded-full bg-black/50 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                        {photo.caption && (
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
-                            <p className="text-xs text-white truncate">
-                              {photo.caption}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                    })}
+                      </button>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => projectPhotoInputRef.current?.click()}
-                      disabled={state.uploadingPhotos}
-                      className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 aspect-[4/3] hover:border-[#456564] dark:hover:border-[#456564] hover:bg-[#456564]/5 transition-all cursor-pointer group"
-                    >
-                      {state.uploadingPhotos ? (
-                        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                      ) : (
-                        <>
-                          <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center group-hover:bg-[#456564]/10 transition-colors">
-                            <Plus className="w-5 h-5 text-gray-400 group-hover:text-[#456564]" />
-                          </div>
-                          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 group-hover:text-[#456564]">
-                            Add Photo
-                          </span>
-                        </>
-                      )}
-                    </button>
+                    {state.projectPhotos.length === 0 && (
+                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-3 text-center">
+                        Showcase completed projects to attract clients. Add up
+                        to 20 photos.
+                      </p>
+                    )}
                   </div>
-
-                  {state.projectPhotos.length === 0 && (
-                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-3 text-center">
-                      Showcase completed projects to attract clients. Add up to 20
-                      photos.
-                    </p>
-                  )}
-                </div>
                 )}
               </div>
 

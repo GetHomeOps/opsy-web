@@ -3487,11 +3487,6 @@ function PropertyFormContainer() {
                         propertyData={mergedFormData}
                         accountUrl={accountUrl}
                         propertyUid={uid}
-                        onOpenAIAssistant={
-                          uid !== "new"
-                            ? openAiAssistantWithPlanCheck
-                            : undefined
-                        }
                         onOpenAIReport={
                           uid !== "new"
                             ? openInspectionAnalysisWithPlanCheck

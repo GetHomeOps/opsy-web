@@ -474,9 +474,17 @@ function ProfessionalsList() {
 
   const handleProfessionalClick = useCallback(
     (pro) => {
-      navigate(`/${accountUrl}/professionals/manage/${pro.id}`);
+      const visibleProfessionalIds = sortedProfessionals.map((p) => p.id);
+      const idx = visibleProfessionalIds.indexOf(pro.id);
+      navigate(`/${accountUrl}/professionals/manage/${pro.id}`, {
+        state: {
+          visibleProfessionalIds,
+          currentIndex: idx + 1,
+          totalItems: visibleProfessionalIds.length,
+        },
+      });
     },
-    [navigate, accountUrl],
+    [navigate, accountUrl, sortedProfessionals],
   );
 
   const handleSort = (columnKey) => {

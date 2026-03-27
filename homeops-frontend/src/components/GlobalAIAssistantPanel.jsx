@@ -33,14 +33,17 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
     const q = propertySearch.trim().toLowerCase();
     if (!q) return list;
     return list.filter((p) => {
-      const label = (
-        p.nickname ||
-        p.address ||
-        p.street_address ||
-        ""
-      ).toLowerCase();
-      const idStr = String(p.property_uid ?? p.uid ?? p.id ?? "").toLowerCase();
-      return label.includes(q) || idStr.includes(q);
+      const {propertyDisplayName, propertyAddressLine} =
+        getPropertyAssistantHeaderLines(p);
+      const haystack = [
+        propertyDisplayName,
+        propertyAddressLine,
+        String(p.property_uid ?? p.uid ?? p.id ?? ""),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
     });
   }, [properties, propertySearch]);
 
@@ -183,20 +186,42 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
                     />
                   </div>
                   <div className="space-y-1">
-                    {filteredProperties.map((p) => (
-                      <button
-                        key={p.property_uid ?? p.id ?? p.uid}
-                        onClick={() =>
-                          setSelectedPropertyId(p.property_uid ?? p.uid ?? p.id)
-                        }
-                        className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 border border-gray-200 dark:border-gray-600"
-                      >
-                        {p.nickname ||
-                          p.address ||
-                          p.street_address ||
-                          `Property ${p.id}`}
-                      </button>
-                    ))}
+                    {filteredProperties.map((p) => {
+                      const {propertyDisplayName, propertyAddressLine} =
+                        getPropertyAssistantHeaderLines(p);
+                      const primary =
+                        propertyDisplayName ||
+                        propertyAddressLine ||
+                        `Property ${p.property_uid ?? p.uid ?? p.id ?? ""}`;
+                      const secondary =
+                        propertyDisplayName && propertyAddressLine
+                          ? propertyAddressLine
+                          : null;
+                      return (
+                        <button
+                          key={p.property_uid ?? p.id ?? p.uid}
+                          type="button"
+                          onClick={() =>
+                            setSelectedPropertyId(
+                              p.property_uid ?? p.uid ?? p.id,
+                            )
+                          }
+                          className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/50 border border-gray-200 dark:border-gray-600"
+                          aria-label={
+                            secondary
+                              ? `${primary}, ${secondary}`
+                              : String(primary)
+                          }
+                        >
+                          <span className="block font-medium">{primary}</span>
+                          {secondary ? (
+                            <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-normal">
+                              {secondary}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
                     {(!properties || properties.length === 0) && (
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         No properties found. Add a property first.

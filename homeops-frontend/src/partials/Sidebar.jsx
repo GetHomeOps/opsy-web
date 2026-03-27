@@ -555,9 +555,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
       <div
         key={section.id}
         className={
-          sectionIndex > 0
-            ? "mt-4 pt-3 border-t border-white/10"
-            : "mt-1"
+          sectionIndex > 0 ? "mt-4 pt-3 border-t border-white/10" : "mt-1"
         }
       >
         {!isCollapsed && (
@@ -595,19 +593,13 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                 </ul>
               );
               return (
-                <li
-                  key={item.id}
-                  className="mb-0.5 last:mb-0"
-                >
+                <li key={item.id} className="mb-0.5 last:mb-0">
                   {renderCollapsible(item, open, setOpen, flyoutContent)}
                 </li>
               );
             }
             return (
-              <li
-                key={item.id}
-                className="mb-0.5 last:mb-0"
-              >
+              <li key={item.id} className="mb-0.5 last:mb-0">
                 {renderNavLink(item)}
               </li>
             );
@@ -676,10 +668,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                   {/* Home (standalone) */}
                   {SIDEBAR_CONFIG.filter((s) => s.type === "link").map(
                     (item) => (
-                      <li
-                        key={item.id}
-                        className="mb-0.5 last:mb-0"
-                      >
+                      <li key={item.id} className="mb-0.5 last:mb-0">
                         {renderNavLink(item)}
                       </li>
                     ),
