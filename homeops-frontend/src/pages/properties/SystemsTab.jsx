@@ -209,14 +209,35 @@ function SystemsTab({
     }
   };
 
+  /** Sync next-inspection date after Schedule modal without dirtying the property form.
+   * The event is already persisted via createMaintenanceEvent; this only mirrors the date in the Systems UI. */
   const handleScheduleInspection =
     (systemType, nextInspectionField) => (date) => {
-      handleInputChange({
-        target: {
-          name: nextInspectionField,
-          value: date,
-        },
-      });
+      if (!onSilentSystemsUpdate) {
+        handleInputChange({
+          target: {name: nextInspectionField, value: date},
+        });
+        return;
+      }
+      if (nextInspectionField.startsWith("customSystem_")) {
+        const rest = nextInspectionField.slice("customSystem_".length);
+        const sep = "::";
+        const idx = rest.lastIndexOf(sep);
+        const customName = idx >= 0 ? rest.slice(0, idx) : rest;
+        const fieldKey = idx >= 0 ? rest.slice(idx + sep.length) : "";
+        if (customName && fieldKey) {
+          const prev = customSystemsData ?? {};
+          const prevSystem = prev[customName] ?? {};
+          onSilentSystemsUpdate({
+            customSystemsData: {
+              ...prev,
+              [customName]: {...prevSystem, [fieldKey]: date},
+            },
+          });
+        }
+        return;
+      }
+      onSilentSystemsUpdate({[nextInspectionField]: date});
     };
 
   // Calculate progress for each visible system

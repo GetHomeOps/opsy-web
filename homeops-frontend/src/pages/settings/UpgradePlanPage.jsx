@@ -94,7 +94,25 @@ function UpgradePlanPage() {
     if (plan.code === currentPlanCode) return;
 
     if (isZeroCostPlan(plan)) {
-      navigate(`/${accountUrl}/settings/billing`);
+      setCheckoutLoading(plan.code);
+      setError(null);
+      try {
+        await AppApi.downgradeToPlan({
+          planCode: plan.code,
+          accountId: accountId ?? undefined,
+        });
+        window.dispatchEvent(new Event("plans-updated"));
+        navigate(`/${accountUrl}/settings/billing`, {
+          state: { planChanged: plan.name || plan.code },
+        });
+      } catch (err) {
+        setError(
+          err?.message ||
+            "Could not change plan. Try again or use Manage billing in settings.",
+        );
+      } finally {
+        setCheckoutLoading(null);
+      }
       return;
     }
 

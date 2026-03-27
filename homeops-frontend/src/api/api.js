@@ -445,6 +445,13 @@ class AppApi {
     return res;
   }
 
+  /** Switch account to a free / zero-cost plan (cancels Stripe sub when applicable). */
+  static async downgradeToPlan({ planCode, accountId }) {
+    const body = { planCode };
+    if (accountId != null) body.accountId = accountId;
+    return this.request(`billing/downgrade-to-plan`, body, "POST");
+  }
+
   static async createPortalSession({ accountId, returnUrl }) {
     const res = await this.request(`billing/portal-session`, { accountId, returnUrl }, "POST");
     return res;

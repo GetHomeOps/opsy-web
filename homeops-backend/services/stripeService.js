@@ -9,6 +9,7 @@
 
 const Stripe = require("stripe");
 const db = require("../db");
+const { BadRequestError } = require("../expressError");
 const {
   STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET,
@@ -564,6 +565,97 @@ async function listCustomerInvoices(stripeCustomerId, limit = 12) {
  * - payment_status is "paid", OR
  * - checkout created a subscription whose current status is active/trialing.
  */
+/**
+ * Move an account to a zero-cost plan: cancel any Stripe subscription(s), end active DB rows, insert new active row.
+ * Validates target plan has no paid Stripe prices (unit_amount > 0) and matches expectedAudience (homeowner | agent).
+ */
+async function downgradeToZeroCostPlan({ accountId, userId, planCode, expectedAudience }) {
+  const planRes = await db.query(
+    `SELECT sp.id, sp.code, sp.target_role, sp.price::float AS price
+     FROM subscription_products sp
+     WHERE sp.code = $1 AND (sp.is_active IS NULL OR sp.is_active = true)`,
+    [planCode]
+  );
+  const plan = planRes.rows[0];
+  if (!plan) throw new BadRequestError(`Plan not found: ${planCode}`);
+
+  if (plan.target_role !== expectedAudience) {
+    throw new BadRequestError("This plan is not available for your account type.");
+  }
+
+  const pricesRes = await db.query(
+    `SELECT COALESCE(unit_amount, 0)::int AS unit_amount
+     FROM plan_prices WHERE subscription_product_id = $1`,
+    [plan.id]
+  );
+  for (const pr of pricesRes.rows) {
+    if (pr.unit_amount > 0) {
+      throw new BadRequestError("You can only self-serve downgrades to free-tier plans.");
+    }
+  }
+  const nominal = plan.price != null ? Number(plan.price) : 0;
+  if (pricesRes.rows.length === 0 && Number.isFinite(nominal) && nominal > 0) {
+    throw new BadRequestError("You can only self-serve downgrades to free-tier plans.");
+  }
+
+  const access = await db.query(
+    `SELECT 1 FROM account_users WHERE account_id = $1 AND user_id = $2`,
+    [accountId, userId]
+  );
+  if (!access.rows[0]) throw new BadRequestError("Access denied to this account.");
+
+  const currentRes = await db.query(
+    `SELECT asub.id, asub.stripe_subscription_id, sp.code AS plan_code
+     FROM account_subscriptions asub
+     JOIN subscription_products sp ON sp.id = asub.subscription_product_id
+     WHERE asub.account_id = $1 AND asub.status IN ('active', 'trialing')`,
+    [accountId]
+  );
+  const currentRows = currentRes.rows;
+
+  if (currentRows.some((r) => r.plan_code === planCode)) {
+    return { alreadyOnPlan: true, planCode };
+  }
+
+  const now = new Date();
+  const end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  if (BILLING_MOCK_MODE || !stripe) {
+    await db.query(
+      `UPDATE account_subscriptions SET status = 'canceled', updated_at = NOW()
+       WHERE account_id = $1 AND status IN ('active', 'trialing')`,
+      [accountId]
+    );
+    await db.query(
+      `INSERT INTO account_subscriptions
+       (account_id, subscription_product_id, status, current_period_start, current_period_end, cancel_at_period_end)
+       VALUES ($1, $2, 'active', $3, $4, false)`,
+      [accountId, plan.id, now, end]
+    );
+    return { success: true, planCode, mock: true };
+  }
+
+  const stripeSubs = currentRows.filter((r) => r.stripe_subscription_id);
+  for (const row of stripeSubs) {
+    await stripe.subscriptions.cancel(row.stripe_subscription_id);
+  }
+
+  await db.query(
+    `UPDATE account_subscriptions SET status = 'canceled', updated_at = NOW()
+     WHERE account_id = $1 AND status IN ('active', 'trialing')`,
+    [accountId]
+  );
+
+  await db.query(
+    `INSERT INTO account_subscriptions
+     (account_id, subscription_product_id, status, current_period_start, current_period_end, cancel_at_period_end)
+     VALUES ($1, $2, 'active', $3, $4, false)`,
+    [accountId, plan.id, now, end]
+  );
+
+  return { success: true, planCode };
+}
+
 async function verifyCheckoutSession(sessionId, { userId } = {}) {
   if (!sessionId) return { valid: false, reason: "missing_session_id" };
   if (BILLING_MOCK_MODE || !stripe) return { valid: true, session: { id: sessionId, mock: true } };
@@ -619,4 +711,5 @@ module.exports = {
   listCustomerInvoices,
   verifyCheckoutSession,
   syncCheckoutSessionSubscription,
+  downgradeToZeroCostPlan,
 };

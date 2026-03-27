@@ -71,6 +71,49 @@ router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function
   }
 }));
 
+/** POST /billing/downgrade-to-plan
+ *  Switch to a free / zero-cost plan: cancels Stripe subscription when present, updates account_subscriptions.
+ *  Body: { planCode, accountId? }
+ */
+router.post("/downgrade-to-plan", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
+  try {
+    const userId = res.locals.user?.id;
+    if (!userId) throw new ForbiddenError("Authentication required");
+
+    const { planCode, accountId } = req.body || {};
+    if (!planCode) throw new BadRequestError("planCode is required");
+
+    let accountIdToUse = accountId;
+    if (!accountIdToUse) {
+      const acc = await db.query(
+        `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
+        [userId]
+      );
+      if (!acc.rows[0]) throw new BadRequestError("No account found. Complete signup first.");
+      accountIdToUse = acc.rows[0].account_id;
+    }
+
+    const hasAccess = await db.query(
+      `SELECT 1 FROM account_users WHERE account_id = $1 AND user_id = $2`,
+      [accountIdToUse, userId]
+    );
+    if (!hasAccess.rows[0]) throw new ForbiddenError("Access denied to this account");
+
+    const userRole = (res.locals.user?.role || "homeowner").toLowerCase();
+    const expectedAudience = ["agent", "admin"].includes(userRole) ? "agent" : "homeowner";
+
+    const result = await stripeService.downgradeToZeroCostPlan({
+      accountId: accountIdToUse,
+      userId,
+      planCode,
+      expectedAudience,
+    });
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+}));
+
 /** POST /billing/portal-session
  *  Body: { accountId?, returnUrl? }
  *  Returns: { url }

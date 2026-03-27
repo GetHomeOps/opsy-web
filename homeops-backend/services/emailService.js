@@ -33,6 +33,15 @@ function escapeHtmlAttr(s) {
   return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
+/** YYYY-MM-DD for email/calendar display (node-pg may return Date objects for DATE columns). */
+function toDateOnlyString(value) {
+  if (value == null || value === "") return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
 /**
  * Linked brand footer image for HTML emails.
  * Uses an inline image (CID) so email clients can render it reliably.
@@ -406,14 +415,17 @@ async function sendScheduleNotificationEmail({
   const propertyText = propertyAddress ? ` at <strong>${propertyAddress}</strong>` : "";
   const systemText = systemName ? ` for <strong>${systemName}</strong>` : "";
 
-  const formattedDate = scheduledDate
-    ? new Date(scheduledDate + "T00:00:00").toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-    : null;
+  const dateKey = toDateOnlyString(scheduledDate);
+  const dateForLocale = dateKey ? new Date(`${dateKey}T12:00:00`) : null;
+  const formattedDate =
+    dateForLocale && !Number.isNaN(dateForLocale.getTime())
+      ? dateForLocale.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : dateKey || null;
 
   const formattedTime = scheduledTime
     ? (() => {
