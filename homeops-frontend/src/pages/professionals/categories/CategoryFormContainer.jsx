@@ -20,6 +20,7 @@ import usePresignedPreview from "../../../hooks/usePresignedPreview";
 import ImageUploadField from "../../../components/ImageUploadField";
 import AppApi from "../../../api/api";
 
+import CategoryActionsMenu from "./CategoryActionsMenu";
 import CategoryForm from "./CategoryForm";
 import ModalBlank from "../../../components/ModalBlank";
 
@@ -591,6 +592,12 @@ function CategoryFormContainer() {
               </button>
 
               <div className="flex items-center gap-3">
+                {!isNew && state.existingCategory && (
+                  <CategoryActionsMenu
+                    key={categoryId}
+                    onRequestDelete={handleRequestDelete}
+                  />
+                )}
                 <button
                   type="button"
                   className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
@@ -769,7 +776,9 @@ function CategoryFormContainer() {
                   existingCategory={state.existingCategory}
                   onChange={handleFieldChange}
                   onRequestDelete={
-                    !isNew && state.existingCategory ? handleRequestDelete : undefined
+                    !isNew && state.existingCategory
+                      ? handleRequestDelete
+                      : undefined
                   }
                 />
               </div>

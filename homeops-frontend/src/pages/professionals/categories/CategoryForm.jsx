@@ -1,7 +1,8 @@
 import React from "react";
 import {useNavigate} from "react-router-dom";
-import {Layers, Tag, ArrowRight, Trash2} from "lucide-react";
+import {Layers, Tag, ArrowRight} from "lucide-react";
 import useCurrentAccount from "../../../hooks/useCurrentAccount";
+import CategoryActionsMenu from "./CategoryActionsMenu";
 
 const ICON_OPTIONS = [
   {value: "leaf", label: "Leaf"},
@@ -160,9 +161,14 @@ function CategoryForm({
 
       {/* ─── General Information ──────────────────────────────── */}
       <div>
-        <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
-          General Information
-        </h2>
+        <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+          <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            General Information
+          </h2>
+          {!isNew && (
+            <CategoryActionsMenu onRequestDelete={onRequestDelete} />
+          )}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
           <div className="sm:col-span-2">
             <label
@@ -322,19 +328,6 @@ function CategoryForm({
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {!isNew && typeof onRequestDelete === "function" && (
-        <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            className="btn-sm inline-flex items-center gap-2 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-            onClick={onRequestDelete}
-          >
-            <Trash2 className="w-4 h-4 shrink-0" />
-            Delete category
-          </button>
         </div>
       )}
 

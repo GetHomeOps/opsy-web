@@ -22,21 +22,33 @@ function imageSeed(id) {
 
 function mapHierarchyToSections(hierarchy) {
   if (!hierarchy?.length) return [];
-  return hierarchy.map((parent) => ({
-    id: parent.id,
-    title: parent.name,
-    categories: (parent.children || []).map((child) => {
-      const raw =
-        child.image_url ||
-        `https://picsum.photos/seed/${imageSeed(child.id)}/400/280`;
-      return {
-        id: child.id,
-        name: child.name,
-        imageUrl: raw && raw.trim() ? raw : PLACEHOLDER_IMG,
-        proCount: child.professional_count ?? 0,
-      };
-    }),
-  }));
+  const collator = new Intl.Collator(undefined, {
+    sensitivity: "base",
+    numeric: true,
+  });
+  const parents = [...hierarchy].sort((a, b) =>
+    collator.compare(a.name || "", b.name || ""),
+  );
+  return parents.map((parent) => {
+    const children = [...(parent.children || [])].sort((a, b) =>
+      collator.compare(a.name || "", b.name || ""),
+    );
+    return {
+      id: parent.id,
+      title: parent.name,
+      categories: children.map((child) => {
+        const raw =
+          child.image_url ||
+          `https://picsum.photos/seed/${imageSeed(child.id)}/400/280`;
+        return {
+          id: child.id,
+          name: child.name,
+          imageUrl: raw && raw.trim() ? raw : PLACEHOLDER_IMG,
+          proCount: child.professional_count ?? 0,
+        };
+      }),
+    };
+  });
 }
 
 function ProfessionalDirectory() {
