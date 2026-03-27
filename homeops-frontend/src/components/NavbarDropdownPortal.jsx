@@ -5,6 +5,8 @@ import Transition from "../utils/Transition";
 const VIEWPORT_PAD = 8;
 const GAP = 4;
 const DEFAULT_PANEL_MAX = 360;
+/** Above sticky header / hero controls; below ModalBlank (z-[200]) and tooltips (z-[9999]). */
+const DEFAULT_Z = "z-[180]";
 
 /**
  * Renders a header dropdown in a portal with fixed positioning so it is not
@@ -15,7 +17,7 @@ function NavbarDropdownPortal({
   triggerRef,
   panelRef,
   children,
-  zClass = "z-[100]",
+  zClass = DEFAULT_Z,
   panelClassName = "",
   panelMaxWidth = DEFAULT_PANEL_MAX,
 }) {
@@ -57,7 +59,7 @@ function NavbarDropdownPortal({
       show={open}
       unmountOnExit
       tag="div"
-      className={zClass}
+      className={`${zClass} relative`}
       enter="transition ease-out duration-200"
       enterStart="opacity-0"
       enterEnd="opacity-100"

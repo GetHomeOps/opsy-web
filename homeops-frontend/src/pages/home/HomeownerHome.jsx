@@ -631,7 +631,7 @@ function HomeownerHome() {
             <button
               onClick={goToPrev}
               disabled={activeIndex === 0}
-              className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 disabled:opacity-20 disabled:cursor-not-allowed transition-all z-10"
+              className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 disabled:opacity-20 disabled:cursor-not-allowed transition-all z-[1]"
               aria-label="Previous property"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -639,7 +639,7 @@ function HomeownerHome() {
             <button
               onClick={goToNext}
               disabled={activeIndex === totalProperties - 1}
-              className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 disabled:opacity-20 disabled:cursor-not-allowed transition-all z-10"
+              className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/50 disabled:opacity-20 disabled:cursor-not-allowed transition-all z-[1]"
               aria-label="Next property"
             >
               <ChevronRight className="w-5 h-5" />

@@ -3,7 +3,8 @@
  *
  * Starts the Express app. Initializes i18next for translations, mounts the app,
  * and runs startup tasks: ensure super admin exists, create default account if
- * needed, seed subscription products. Listens on PORT (default 3000).
+ * needed, seed subscription products, seed professional categories from JSON when
+ * the table is empty. Listens on PORT (default 3000).
  */
 const express = require('express');
 const i18next = require('i18next');
@@ -18,8 +19,7 @@ const User = require('./models/user');
 const Account = require('./models/account');
 const SubscriptionProduct = require('./models/subscriptionProduct');
 const { ensureStripePlans } = require('./services/planSeedService');
-// Re-enable to auto-seed professional categories from JSON on startup:
-// const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
+const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
 const fs = require('fs');
 
 const app = require('./app.js');
@@ -93,13 +93,11 @@ async function startServer() {
       await SubscriptionProduct.initializeDefaultProducts();
     }
 
-    // Disabled for now: skips seeding professional categories on npm start.
-    // Uncomment the require above and this block to restore.
-    // try {
-    //   await ensureProfessionalCategories();
-    // } catch (catErr) {
-    //   console.warn('[startup] Professional categories seed failed:', catErr.message);
-    // }
+    try {
+      await ensureProfessionalCategories();
+    } catch (catErr) {
+      console.warn('[startup] Professional categories seed failed:', catErr.message);
+    }
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Backend running on port ${PORT}`);
