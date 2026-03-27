@@ -33,6 +33,9 @@ DROP TABLE IF EXISTS saved_professionals CASCADE;
 DROP TABLE IF EXISTS professional_photos CASCADE;
 DROP TABLE IF EXISTS professionals CASCADE;
 DROP TABLE IF EXISTS professional_categories CASCADE;
+-- Calendar sync (refs maintenance_events, calendar_integrations, users)
+DROP TABLE IF EXISTS event_calendar_syncs CASCADE;
+DROP TABLE IF EXISTS calendar_integrations CASCADE;
 DROP TABLE IF EXISTS maintenance_events CASCADE;
 DROP TABLE IF EXISTS usage_counters CASCADE;
 DROP TABLE IF EXISTS account_usage_events CASCADE;
@@ -48,6 +51,11 @@ DROP TABLE IF EXISTS contractor_report_tokens CASCADE;
 DROP TABLE IF EXISTS property_maintenance CASCADE;
 DROP TABLE IF EXISTS property_systems CASCADE;
 DROP TABLE IF EXISTS property_users CASCADE;
+-- Messaging / inquiries (refs accounts, properties, users; notifications refs these)
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS conversation_messages CASCADE;
+DROP TABLE IF EXISTS conversations CASCADE;
+DROP TABLE IF EXISTS homeowner_agent_inquiries CASCADE;
 DROP TABLE IF EXISTS properties CASCADE;
 DROP TABLE IF EXISTS contact_tags CASCADE;
 DROP TABLE IF EXISTS account_contacts CASCADE;
@@ -61,7 +69,6 @@ DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS email_verification_tokens CASCADE;
 DROP TABLE IF EXISTS password_reset_tokens CASCADE;
 DROP TABLE IF EXISTS refresh_tokens CASCADE;
-DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS resources CASCADE;
 DROP TABLE IF EXISTS user_api_usage CASCADE;
 
