@@ -14,7 +14,11 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import {PAGE_LAYOUT} from "../../constants/layout";
-import {HOMEOWNER_PLANS, AGENT_PLANS} from "../onboarding/onboardingPlans";
+import {
+  HOMEOWNER_PLANS,
+  AGENT_PLANS,
+  PLAN_CODE_TO_SUBSCRIPTION_TIER,
+} from "../onboarding/onboardingPlans";
 
 function UpgradePlanPage() {
   const navigate = useNavigate();
@@ -98,7 +102,9 @@ function UpgradePlanPage() {
     try {
       const origin =
         typeof window !== "undefined" ? window.location.origin : "";
-      const successUrl = `${origin}/billing/success?role=${encodeURIComponent(userRole)}&plan=${encodeURIComponent(plan.code)}&session_id={CHECKOUT_SESSION_ID}`;
+      const subscriptionTier =
+        PLAN_CODE_TO_SUBSCRIPTION_TIER[plan.code] || plan.code;
+      const successUrl = `${origin}/billing/success?role=${encodeURIComponent(userRole)}&plan=${encodeURIComponent(subscriptionTier)}&session_id={CHECKOUT_SESSION_ID}`;
       const cancelUrl = `${origin}/${accountUrl}/settings/upgrade`;
       const {url} = await AppApi.createCheckoutSession({
         planCode: plan.code,

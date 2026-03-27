@@ -164,6 +164,20 @@ export const AGENT_PLANS = [
   },
 ];
 
+/**
+ * Marketing / Stripe plan `code` → `users.subscription_tier` (API + DB).
+ * Used by onboarding, billing success, and upgrade checkout return URLs.
+ */
+export const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
+  homeowner_free: "free",
+  homeowner_maintain: "maintain",
+  homeowner_win: "win",
+  agent_basic: "basic",
+  agent_pro: "pro",
+  agent_premium: "premium",
+  agent_enterprise: "enterprise",
+};
+
 /** Plan limits for confirmation summary (fallback when API not loaded). Editable in Super Admin. */
 export const PLAN_LIMITS = {
   homeowner: {

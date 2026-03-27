@@ -13,17 +13,12 @@ import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import opsyImg from "../../images/opsy1.png";
 import OpsyHeader from "../../images/OpsyHeader.png";
-import {HOMEOWNER_PLANS, AGENT_PLANS, PLAN_LIMITS} from "./onboardingPlans";
-
-const PLAN_CODE_TO_TIER = {
-  homeowner_free: "free",
-  homeowner_maintain: "maintain",
-  homeowner_win: "win",
-  agent_basic: "basic",
-  agent_pro: "pro",
-  agent_premium: "premium",
-  agent_enterprise: "enterprise",
-};
+import {
+  HOMEOWNER_PLANS,
+  AGENT_PLANS,
+  PLAN_LIMITS,
+  PLAN_CODE_TO_SUBSCRIPTION_TIER,
+} from "./onboardingPlans";
 
 const ROLE_OPTIONS = [
   {
@@ -583,7 +578,7 @@ export default function OnboardingWizard() {
     setIsSubmitting(true);
     try {
       if (isFreePlan) {
-        const tier = PLAN_CODE_TO_TIER[plan] || plan;
+        const tier = PLAN_CODE_TO_SUBSCRIPTION_TIER[plan] || plan;
         await AppApi.completeOnboarding({role, subscriptionTier: tier});
         await refreshCurrentUser();
         const accounts = await AppApi.getUserAccounts(currentUser?.id);
@@ -597,7 +592,7 @@ export default function OnboardingWizard() {
       } else {
         const origin =
           typeof window !== "undefined" ? window.location.origin : "";
-        const tier = PLAN_CODE_TO_TIER[plan] || plan;
+        const tier = PLAN_CODE_TO_SUBSCRIPTION_TIER[plan] || plan;
         const successUrl = `${origin}/billing/success?role=${encodeURIComponent(role)}&plan=${encodeURIComponent(tier)}&session_id={CHECKOUT_SESSION_ID}`;
         const cancelUrl = `${origin}/onboarding`;
         const {url} = await AppApi.createCheckoutSession({

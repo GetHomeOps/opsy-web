@@ -3,6 +3,7 @@ import {useNavigate, useSearchParams} from "react-router-dom";
 import {Loader2, CheckCircle, AlertCircle} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
+import {PLAN_CODE_TO_SUBSCRIPTION_TIER} from "../onboarding/onboardingPlans";
 
 const INITIAL_DELAY_MS = 3000;  // Let Stripe webhooks process before polling
 const POLL_INTERVAL_MS = 3500;  // Avoid rate limits (429) during activation
@@ -30,8 +31,10 @@ export default function BillingSuccess() {
         return;
       }
 
+      const subscriptionTier =
+        PLAN_CODE_TO_SUBSCRIPTION_TIER[plan] || plan;
       const FREE_TIERS = ["free"];
-      const isPaidTier = !FREE_TIERS.includes(plan);
+      const isPaidTier = !FREE_TIERS.includes(subscriptionTier);
 
       if (isPaidTier && !stripeSessionId) {
         setError("Payment session not found. Please complete checkout again.");
@@ -42,7 +45,7 @@ export default function BillingSuccess() {
       let accountId = null;
       let primaryAccount = null;
       try {
-        const onboardingData = {role, subscriptionTier: plan};
+        const onboardingData = {role, subscriptionTier};
         if (stripeSessionId) onboardingData.stripeSessionId = stripeSessionId;
 
         // Retry on 429 (rate limit) - common when returning from Stripe; exponential backoff
@@ -72,7 +75,7 @@ export default function BillingSuccess() {
           const msg = err?.message || "Failed to complete setup.";
           const isAuthError = /refresh token|session expired|unauthorized|invalid token/i.test(msg);
           if (isAuthError) {
-            const returnTo = `/billing/success?role=${encodeURIComponent(role || "")}&plan=${encodeURIComponent(plan || "")}${stripeSessionId ? `&session_id=${encodeURIComponent(stripeSessionId)}` : ""}`;
+            const returnTo = `/billing/success?role=${encodeURIComponent(role || "")}&plan=${encodeURIComponent(subscriptionTier || "")}${stripeSessionId ? `&session_id=${encodeURIComponent(stripeSessionId)}` : ""}`;
             window.location.href = `/signin?returnTo=${encodeURIComponent(returnTo)}`;
             return;
           }

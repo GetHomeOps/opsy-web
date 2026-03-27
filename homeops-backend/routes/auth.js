@@ -58,6 +58,17 @@ const db = require("../db");
 
 const OAUTH_STATE_MAX_AGE = 10 * 60; // 10 minutes
 
+/** Catalog / Stripe success URL may send plan `code`; DB stores short tier slug. */
+const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
+  homeowner_free: "free",
+  homeowner_maintain: "maintain",
+  homeowner_win: "win",
+  agent_basic: "basic",
+  agent_pro: "pro",
+  agent_premium: "premium",
+  agent_enterprise: "enterprise",
+};
+
 /** Strict auth: JWT only when email is verified and user may use the app (active or onboarding). */
 function userMayReceiveAuthTokens(user) {
   const verified = user?.emailVerified === true || user?.role === "super_admin";
@@ -631,12 +642,17 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     const userId = res.locals.user?.id;
     if (!userId) throw new BadRequestError("User authentication required");
 
-    const { role, subscriptionTier, stripeSessionId } = req.body;
+    const { role, subscriptionTier: rawSubscriptionTier, stripeSessionId } = req.body;
+    let subscriptionTier = rawSubscriptionTier;
+    if (typeof subscriptionTier === "string") {
+      subscriptionTier =
+        PLAN_CODE_TO_SUBSCRIPTION_TIER[subscriptionTier] ?? subscriptionTier;
+    }
     if (!role || !["homeowner", "agent"].includes(role)) {
       throw new BadRequestError("Valid role (homeowner or agent) is required");
     }
     const HOMEOWNER_TIERS = ["free", "maintain", "win"];
-    const AGENT_TIERS = ["basic", "pro", "premium"];
+    const AGENT_TIERS = ["basic", "pro", "premium", "enterprise"];
     const validTiersForRole = role === "agent" ? AGENT_TIERS : HOMEOWNER_TIERS;
     if (!subscriptionTier || !validTiersForRole.includes(subscriptionTier)) {
       throw new BadRequestError(`Invalid subscriptionTier "${subscriptionTier}" for role "${role}"`);
