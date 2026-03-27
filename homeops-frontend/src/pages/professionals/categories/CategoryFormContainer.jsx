@@ -99,7 +99,7 @@ function CategoryFormContainer() {
     return Object.keys(init).some((key) => {
       return String(init[key] ?? "") !== String(curr[key] ?? "");
     });
-  }, [isNew, state.formData]);
+  }, [isNew, state.formData, state.isSubmitting]);
 
   /* ─── Image Upload ─────────────────────────────────────── */
 
@@ -325,6 +325,18 @@ function CategoryFormContainer() {
             message: "Category updated successfully",
           },
         });
+        // Reset dirty baseline so the Update bar hides (matches post-load shape).
+        initialFormDataRef.current = {
+          name: state.formData.name.trim(),
+          description: state.formData.description || "",
+          type: state.formData.type,
+          parentId: state.formData.parentId
+            ? String(state.formData.parentId)
+            : "",
+          icon: state.formData.icon || "",
+          imageKey: state.formData.imageKey || "",
+          is_active: state.formData.is_active,
+        };
       }
     } catch (err) {
       const msg = err?.messages?.[0] || err?.message || "Failed to save category";
