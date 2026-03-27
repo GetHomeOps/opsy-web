@@ -256,6 +256,10 @@ function ProfessionalFormContainer() {
 
   const isNew = professionalId === "new" || !professionalId;
 
+  const [professionalLoading, setProfessionalLoading] = useState(
+    () => !isNew,
+  );
+
   const hasChanges =
     isNew ||
     (!!initialFormDataRef.current &&
@@ -474,6 +478,7 @@ function ProfessionalFormContainer() {
 
   useEffect(() => {
     if (isNew) {
+      setProfessionalLoading(false);
       loadedProfessionalIdRef.current = null;
       initialFormDataRef.current = null;
       setProjectPhotoUrls({});
@@ -485,6 +490,7 @@ function ProfessionalFormContainer() {
       return;
     }
 
+    setProfessionalLoading(true);
     loadedProfessionalIdRef.current = null;
     clearProfilePresignedUrl();
 
@@ -532,15 +538,19 @@ function ProfessionalFormContainer() {
           },
         });
       } catch {
-        loadedProfessionalIdRef.current = null;
-        dispatch({
-          type: "SET_BANNER",
-          payload: {
-            open: true,
-            type: "error",
-            message: "Failed to load professional",
-          },
-        });
+        if (!cancelled) {
+          loadedProfessionalIdRef.current = null;
+          dispatch({
+            type: "SET_BANNER",
+            payload: {
+              open: true,
+              type: "error",
+              message: "Failed to load professional",
+            },
+          });
+        }
+      } finally {
+        if (!cancelled) setProfessionalLoading(false);
       }
     })();
     return () => {
@@ -1003,6 +1013,26 @@ function ProfessionalFormContainer() {
                   })()}
               </div>
             </div>
+
+            <div
+              className="relative"
+              aria-busy={professionalLoading}
+            >
+              {professionalLoading && (
+                <div
+                  className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-[2px]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <Loader2
+                    className="w-10 h-10 text-[#456564] animate-spin"
+                    aria-hidden
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Loading professional…
+                  </span>
+                </div>
+              )}
 
             {/* ─── Header Card: Photo + Company & Contact ───── */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
@@ -1651,6 +1681,7 @@ function ProfessionalFormContainer() {
                   </button>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </main>

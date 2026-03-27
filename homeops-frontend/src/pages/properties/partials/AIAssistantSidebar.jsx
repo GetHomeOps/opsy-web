@@ -110,6 +110,13 @@ function AIAssistantSidebar({
   }, [isOpen, propertyId]);
 
   useEffect(() => {
+    const el = inputRef.current;
+    if (!el || input !== "") return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
+  }, [input]);
+
+  useEffect(() => {
     if (systemContext?.systemId) {
       setActiveSystemId(systemContext.systemId);
       setActiveSystemName(systemContext.systemName ?? systemLabel ?? null);
@@ -1036,24 +1043,34 @@ function AIAssistantSidebar({
 
         {propertyId && (
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
-            <div className="flex gap-2">
-              <input
+            <div className="flex gap-2 items-end">
+              <textarea
                 ref={inputRef}
-                type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && !e.shiftKey && handleSend()
-                }
+                onInput={(e) => {
+                  e.target.style.height = "auto";
+                  e.target.style.height =
+                    Math.min(e.target.scrollHeight, 128) + "px";
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
                 placeholder="Ask about your property..."
-                className="form-input flex-1 rounded-lg text-sm py-2"
+                rows={1}
+                className="form-input form-textarea flex-1 min-w-0 resize-none rounded-lg text-sm py-2 leading-snug max-h-32 overflow-y-auto disabled:opacity-60"
+                style={{minHeight: "40px"}}
                 disabled={loading}
+                aria-label="Message to AI assistant"
               />
               <button
                 type="button"
                 onClick={handleSend}
                 disabled={!input.trim() || loading}
-                className="p-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 transition-colors"
+                className="p-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 transition-colors shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>

@@ -880,14 +880,16 @@ function AgentHome() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Create Newsletter */}
+          {/* Create Newsletter — coming soon: muted via opacity so accent hues stay visible */}
           <button
             type="button"
-            className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm hover:shadow-md hover:border-[#456564]/40 dark:hover:border-emerald-500/30 transition-all text-left"
+            aria-disabled="true"
+            tabIndex={-1}
+            className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm text-left opacity-[0.78] pointer-events-none cursor-default transition-opacity"
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-100/30 to-indigo-100/30 dark:from-blue-900/10 dark:to-indigo-900/10 blur-2xl rounded-bl-3xl" />
             <div className="relative">
-              <div className="w-11 h-11 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 dark:group-hover:bg-blue-500/30 transition-colors">
+              <div className="w-11 h-11 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center mb-4">
                 <Newspaper className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
@@ -897,7 +899,7 @@ function AgentHome() {
                 {t("agentHome.newsletterDescription") ||
                   "Share updates, tips, and market insights with your homeowners."}
               </p>
-              <div className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 group-hover:gap-2 transition-all">
+              <div className="flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400">
                 <span>{t("agentHome.getStarted") || "Get started"}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </div>
@@ -907,11 +909,13 @@ function AgentHome() {
           {/* Create Post */}
           <button
             type="button"
-            className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm hover:shadow-md hover:border-[#456564]/40 dark:hover:border-emerald-500/30 transition-all text-left"
+            aria-disabled="true"
+            tabIndex={-1}
+            className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm text-left opacity-[0.78] pointer-events-none cursor-default transition-opacity"
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-purple-100/30 to-pink-100/30 dark:from-purple-900/10 dark:to-pink-900/10 blur-2xl rounded-bl-3xl" />
             <div className="relative">
-              <div className="w-11 h-11 rounded-xl bg-purple-500/10 dark:bg-purple-500/20 flex items-center justify-center mb-4 group-hover:bg-purple-500/20 dark:group-hover:bg-purple-500/30 transition-colors">
+              <div className="w-11 h-11 rounded-xl bg-purple-500/10 dark:bg-purple-500/20 flex items-center justify-center mb-4">
                 <MessageSquarePlus className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
@@ -921,7 +925,7 @@ function AgentHome() {
                 {t("agentHome.postDescription") ||
                   "Publish content about home maintenance, seasonal tips, or community news."}
               </p>
-              <div className="flex items-center gap-1 text-xs font-medium text-purple-600 dark:text-purple-400 group-hover:gap-2 transition-all">
+              <div className="flex items-center gap-1 text-xs font-medium text-purple-600 dark:text-purple-400">
                 <span>{t("agentHome.getStarted") || "Get started"}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </div>
@@ -931,11 +935,13 @@ function AgentHome() {
           {/* Send Notification */}
           <button
             type="button"
-            className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm hover:shadow-md hover:border-[#456564]/40 dark:hover:border-emerald-500/30 transition-all text-left"
+            aria-disabled="true"
+            tabIndex={-1}
+            className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm text-left opacity-[0.78] pointer-events-none cursor-default transition-opacity"
           >
             <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-100/30 to-orange-100/30 dark:from-amber-900/10 dark:to-orange-900/10 blur-2xl rounded-bl-3xl" />
             <div className="relative">
-              <div className="w-11 h-11 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 dark:group-hover:bg-amber-500/30 transition-colors">
+              <div className="w-11 h-11 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center mb-4">
                 <BellRing className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               </div>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
@@ -945,7 +951,7 @@ function AgentHome() {
                 {t("agentHome.notificationDescription") ||
                   "Send maintenance reminders, updates, or alerts to specific homeowners."}
               </p>
-              <div className="flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 group-hover:gap-2 transition-all">
+              <div className="flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
                 <span>{t("agentHome.getStarted") || "Get started"}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </div>
