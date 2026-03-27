@@ -4,6 +4,7 @@ import {Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
+import FloatingFeedbackWidget from "../../components/FloatingFeedbackWidget";
 
 /**
  * Wraps content that requires authentication.
@@ -107,7 +108,12 @@ function ProtectedRoute({children}) {
     }
   }
 
-  return children;
+  return (
+    <>
+      {children}
+      <FloatingFeedbackWidget />
+    </>
+  );
 }
 
 export default ProtectedRoute;

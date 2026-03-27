@@ -2,6 +2,7 @@ import React from "react";
 import {Navigate, useLocation} from "react-router-dom";
 import {Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
+import FloatingFeedbackWidget from "../../components/FloatingFeedbackWidget";
 
 const DEFAULT_ALLOWED_ROLES = ["super_admin", "admin"];
 
@@ -40,7 +41,12 @@ function AdminRoute({children, allowedRoles = DEFAULT_ALLOWED_ROLES}) {
     return <Navigate to="/" replace />;
   }
 
-  return children;
+  return (
+    <>
+      {children}
+      <FloatingFeedbackWidget />
+    </>
+  );
 }
 
 export default AdminRoute;

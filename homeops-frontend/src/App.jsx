@@ -6,7 +6,6 @@ import {ContactProvider} from "./context/ContactContext";
 import {UserProvider} from "./context/UserContext";
 import {PropertyProvider} from "./context/PropertyContext";
 import TierLimitBanner from "./components/TierLimitBanner";
-import FloatingFeedbackWidget from "./components/FloatingFeedbackWidget";
 
 import "./css/style.css";
 
@@ -26,7 +25,6 @@ function App() {
           <PropertyProvider>
             <TierLimitBanner />
             <RoutesList />
-            <FloatingFeedbackWidget />
           </PropertyProvider>
         </UserProvider>
       </ContactProvider>
