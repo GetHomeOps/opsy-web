@@ -286,7 +286,8 @@ function FloatingFeedbackWidget() {
     };
   }, [currentUser]);
 
-  if (!currentUser) return null;
+  // Hide until onboarding/activation is complete (same gate as app shell access).
+  if (!currentUser || currentUser.onboardingCompleted === false) return null;
 
   return (
     <>

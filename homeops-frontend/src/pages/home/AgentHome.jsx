@@ -27,11 +27,9 @@ import {
   Newspaper,
   MessageSquarePlus,
   BellRing,
-  BookOpen,
   Plus,
 } from "lucide-react";
 import {
-  getResourceThumbnailUrl,
   RESOURCE_THUMBNAIL_PLACEHOLDER,
   DEFAULT_HEADER_IMAGE,
 } from "../../utils/resourceThumbnail";
@@ -114,9 +112,9 @@ function AgentHome() {
   const [engagementTrend, setEngagementTrend] = useState([]);
   const [engagementLoading, setEngagementLoading] = useState(true);
 
-  // ─── Resources (sent/published) for engagement section ─────────────
-  const [resources, setResources] = useState([]);
-  const [resourcesLoading, setResourcesLoading] = useState(true);
+  // ─── Communications (draft / scheduled / sent) ───────────────────
+  const [communications, setCommunications] = useState([]);
+  const [communicationsLoading, setCommunicationsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,34 +144,41 @@ function AgentHome() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser?.id) return;
-    setResourcesLoading(true);
-    AppApi.getResources()
-      .then((list) => setResources(list || []))
-      .catch(() => setResources([]))
-      .finally(() => setResourcesLoading(false));
-  }, [currentUser?.id]);
+    if (!currentAccount?.id) return;
+    setCommunicationsLoading(true);
+    AppApi.getCommunications(currentAccount.id)
+      .then((list) => {
+        const sorted = [...(list || [])].sort((a, b) => {
+          const aAt = a.sentAt || a.scheduledAt || a.createdAt || 0;
+          const bAt = b.sentAt || b.scheduledAt || b.createdAt || 0;
+          return new Date(bAt) - new Date(aAt);
+        });
+        setCommunications(sorted);
+      })
+      .catch(() => setCommunications([]))
+      .finally(() => setCommunicationsLoading(false));
+  }, [currentAccount?.id]);
 
-  const [resourcePresignedUrls, setResourcePresignedUrls] = useState({});
-  const fetchedResourceKeysRef = useRef(new Set());
+  const [commPresignedUrls, setCommPresignedUrls] = useState({});
+  const fetchedCommImageKeysRef = useRef(new Set());
   useEffect(() => {
-    if (!resources?.length) return;
-    resources.forEach((r) => {
-      const key = r.imageKey;
+    if (!communications?.length) return;
+    communications.forEach((c) => {
+      const key = c.imageKey;
       if (
         !key ||
         key.startsWith("http") ||
-        fetchedResourceKeysRef.current.has(key)
+        fetchedCommImageKeysRef.current.has(key)
       )
         return;
-      fetchedResourceKeysRef.current.add(key);
+      fetchedCommImageKeysRef.current.add(key);
       AppApi.getPresignedPreviewUrl(key)
         .then((url) =>
-          setResourcePresignedUrls((prev) => ({...prev, [key]: url})),
+          setCommPresignedUrls((prev) => ({...prev, [key]: url})),
         )
-        .catch(() => fetchedResourceKeysRef.current.delete(key));
+        .catch(() => fetchedCommImageKeysRef.current.delete(key));
     });
-  }, [resources]);
+  }, [communications]);
 
   // ─── Engagement chart data ────────────────────────────────────
   const engagementLineOptions = useMemo(
@@ -711,26 +716,26 @@ function AgentHome() {
         isLoadingTeams={isLoadingTeams}
       />
 
-      {/* RESOURCES (sent/published) + Create your own ───────────────── */}
+      {/* COMMUNICATIONS — list + link to composer ────────────────────── */}
       <section className="pb-8">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+            <MessageSquarePlus className="w-5 h-5 text-gray-700 dark:text-gray-300" />
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Resources
+              {t("agentHome.communications") || "Communications"}
             </h2>
           </div>
           <button
             type="button"
-            onClick={() => navigate(`/${accountUrl}/resources/new`)}
+            onClick={() => navigate(`/${accountUrl}/communications/new`)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#456564] hover:bg-[#34514f] text-white rounded-lg text-sm font-medium transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Create your own resource
+            {t("agentHome.newCommunication") || "New communication"}
           </button>
         </div>
 
-        {resourcesLoading ? (
+        {communicationsLoading ? (
           <div className="flex gap-4 overflow-x-auto pb-4">
             {[1, 2, 3].map((i) => (
               <div
@@ -745,30 +750,34 @@ function AgentHome() {
               </div>
             ))}
           </div>
-        ) : (resources?.length ?? 0) > 0 ? (
+        ) : (communications?.length ?? 0) > 0 ? (
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide">
-            {resources.map((post) => {
-              const title = post.subject || post.title || "Resource";
-              const shortDesc = (
-                post.bodyText ||
-                post.shortDescription ||
-                ""
-              ).slice(0, 120);
-              const thumbnailUrl = getResourceThumbnailUrl(post);
+            {communications.map((comm) => {
+              const title = comm.subject || t("agentHome.untitledCommunication") || "Communication";
+              const rawText =
+                typeof comm.content === "string"
+                  ? comm.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+                  : "";
+              const shortDesc = rawText.slice(0, 120);
               const imageUrl =
-                post.imageUrl ||
-                resourcePresignedUrls[post.imageKey] ||
-                thumbnailUrl ||
+                comm.imageUrl ||
+                commPresignedUrls[comm.imageKey] ||
                 DEFAULT_HEADER_IMAGE;
+              const statusLabel =
+                comm.status === "sent"
+                  ? t("agentHome.commStatusSent") || "Sent"
+                  : comm.status === "scheduled"
+                    ? t("agentHome.commStatusScheduled") || "Scheduled"
+                    : t("agentHome.commStatusDraft") || "Draft";
               return (
                 <article
-                  key={post.id}
+                  key={comm.id}
                   onClick={() =>
-                    navigate(`/${accountUrl}/resources/${post.id}/view`)
+                    navigate(`/${accountUrl}/communications/${comm.id}`)
                   }
                   onKeyDown={(e) =>
                     e.key === "Enter" &&
-                    navigate(`/${accountUrl}/resources/${post.id}/view`)
+                    navigate(`/${accountUrl}/communications/${comm.id}`)
                   }
                   role="button"
                   tabIndex={0}
@@ -789,7 +798,7 @@ function AgentHome() {
                   <div className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                        {post.type?.replace("_", " ") || "Post"}
+                        {statusLabel}
                       </span>
                     </div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -804,12 +813,11 @@ function AgentHome() {
                 </article>
               );
             })}
-            {/* Create your own resource card */}
             <div
               className="flex-shrink-0 w-72 sm:w-80 bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden snap-start flex flex-col items-center justify-center min-h-[200px] cursor-pointer hover:border-[#456564]/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-              onClick={() => navigate(`/${accountUrl}/resources/new`)}
+              onClick={() => navigate(`/${accountUrl}/communications/new`)}
               onKeyDown={(e) =>
-                e.key === "Enter" && navigate(`/${accountUrl}/resources/new`)
+                e.key === "Enter" && navigate(`/${accountUrl}/communications/new`)
               }
               role="button"
               tabIndex={0}
@@ -818,10 +826,11 @@ function AgentHome() {
                 <Plus className="w-6 h-6 text-[#456564] dark:text-[#5a7a78]" />
               </div>
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Create your own resource
+                {t("agentHome.createCommunication") || "Create a communication"}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Share tips, links, or content with homeowners
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 text-center px-3">
+                {t("agentHome.communicationCardHint") ||
+                  "Compose a message for homeowners and agents."}
               </p>
             </div>
           </div>
@@ -829,9 +838,9 @@ function AgentHome() {
           <div className="flex flex-col sm:flex-row gap-4">
             <div
               className="flex-1 min-w-0 bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 flex flex-col items-center justify-center min-h-[180px] cursor-pointer hover:border-[#456564]/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-              onClick={() => navigate(`/${accountUrl}/resources/new`)}
+              onClick={() => navigate(`/${accountUrl}/communications/new`)}
               onKeyDown={(e) =>
-                e.key === "Enter" && navigate(`/${accountUrl}/resources/new`)
+                e.key === "Enter" && navigate(`/${accountUrl}/communications/new`)
               }
               role="button"
               tabIndex={0}
@@ -840,14 +849,15 @@ function AgentHome() {
                 <Plus className="w-7 h-7 text-[#456564] dark:text-[#5a7a78]" />
               </div>
               <p className="text-base font-semibold text-gray-900 dark:text-white">
-                Create your own resource
+                {t("agentHome.createCommunication") || "Create a communication"}
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 text-center max-w-xs">
-                Share tips, links, or content with homeowners. Sent resources
-                appear here and in their Discover feed.
+                {t("agentHome.communicationsEmpty") ||
+                  "Sent and scheduled items appear here. Homeowners see published messages in Discover."}
               </p>
               <span className="mt-4 text-sm font-medium text-[#456564] dark:text-[#5a7a78] flex items-center gap-1">
-                Get started <ArrowRight className="w-4 h-4" />
+                {t("agentHome.getStarted") || "Get started"}{" "}
+                <ArrowRight className="w-4 h-4" />
               </span>
             </div>
           </div>
@@ -857,11 +867,16 @@ function AgentHome() {
       {/* ENGAGEMENT ACTIONS                           */}
       {/* ============================================ */}
       <section className="pb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {t("agentHome.engagementActions") || "Engagement Actions"}
-          </h2>
+        <div className="flex items-start gap-2 mb-4">
+          <Sparkles className="w-5 h-5 text-gray-700 dark:text-gray-300 shrink-0 mt-0.5" />
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {t("agentHome.engagementActions") || "Engagement Actions"}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              {t("agentHome.engagementActionsComingSoon") || "Coming soon"}
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

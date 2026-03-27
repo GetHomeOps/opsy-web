@@ -233,7 +233,9 @@ function getDisplayFeatures(plan) {
   }
 
   const coveredKeys = new Set(limitFeatures.map((l) => l._limitKey));
-  const filtered = features.filter((f) => {
+  // Only list features marked included in Super Admin > Billing Plans (omit unchecked rows).
+  const productFeatures = features.filter((f) => f.included !== false);
+  const filtered = productFeatures.filter((f) => {
     const lower = (f.label || "").toLowerCase();
     for (const [key, re] of Object.entries(LIMIT_KEYWORDS)) {
       if (coveredKeys.has(key) && re.test(lower)) return false;

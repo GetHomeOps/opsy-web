@@ -338,7 +338,8 @@ function ensureAdminOrSuperAdmin(req, res, next) {
   if (userRole === 'super_admin' || userRole === 'admin' || userRole === 'agent') {
     return next();
   }
-  throw new UnauthorizedError("Not authorized.");
+  // After ensureLoggedIn, 403 distinguishes “signed in, not allowed” from 401 “no valid session”.
+  throw new ForbiddenError("This action requires an agent or administrator account.");
 }
 
 /**

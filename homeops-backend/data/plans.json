@@ -127,13 +127,13 @@
       },
       "features": [
         { "id": "properties", "label": "Up to 5 properties", "included": true },
-        { "id": "users", "label": "1 user + TC", "included": true },
-        { "id": "branding", "label": "Opsy branding", "included": true },
+        { "id": "users", "label": "1 user + TC", "included": false },
+        { "id": "branding", "label": "Opsy branding", "included": false },
         { "id": "onboarding", "label": "30 min consult", "included": true },
         { "id": "ai_assistant", "label": "AI assistant", "included": false },
-        { "id": "data_ingestion", "label": "Manual data ingestion", "included": true },
-        { "id": "export", "label": "PDF, DHP export only", "included": true },
-        { "id": "support", "label": "FAQs, Bot, Videos, email (DIY)", "included": true },
+        { "id": "data_ingestion", "label": "Manual data ingestion", "included": false },
+        { "id": "export", "label": "PDF, DHP export only", "included": false },
+        { "id": "support", "label": "FAQs, Bot, Videos, email (DIY)", "included": false },
         { "id": "integrations", "label": "CRM integrations", "included": false },
         { "id": "leads", "label": "Lead generation", "included": false }
       ]
@@ -159,15 +159,15 @@
       },
       "features": [
         { "id": "properties", "label": "Up to 25 properties", "included": true },
-        { "id": "users", "label": "2 users + TC", "included": true },
-        { "id": "branding", "label": "Co-branded", "included": true },
-        { "id": "onboarding", "label": "Dedicated specialist", "included": true },
+        { "id": "users", "label": "2 users + TC", "included": false },
+        { "id": "branding", "label": "Co-branded", "included": false },
+        { "id": "onboarding", "label": "Dedicated specialist", "included": false },
         { "id": "ai_assistant", "label": "AI assistant", "included": true },
-        { "id": "data_ingestion", "label": "Assisted data ingestion", "included": true },
-        { "id": "export", "label": "CSV, Excel, PDF export", "included": true },
+        { "id": "data_ingestion", "label": "Assisted data ingestion", "included": false },
+        { "id": "export", "label": "CSV, Excel, PDF export", "included": false },
         { "id": "support", "label": "24/7 support", "included": true },
-        { "id": "integrations", "label": "SELECT CRM integration", "included": true },
-        { "id": "leads", "label": "Zip code specific leads", "included": true }
+        { "id": "integrations", "label": "SELECT CRM integration", "included": false },
+        { "id": "leads", "label": "Zip code specific leads", "included": false }
       ]
     },
     {
@@ -192,14 +192,14 @@
       "features": [
         { "id": "properties", "label": "Up to 999 properties", "included": true },
         { "id": "users", "label": "Up to 5 total users", "included": true },
-        { "id": "branding", "label": "Fully white-labeled", "included": true },
+        { "id": "branding", "label": "Fully white-labeled", "included": false },
         { "id": "onboarding", "label": "Dedicated account manager", "included": true },
         { "id": "ai_assistant", "label": "Full AI assistant", "included": true },
-        { "id": "data_ingestion", "label": "Automated data ingestion", "included": true },
-        { "id": "export", "label": "Custom reports", "included": true },
+        { "id": "data_ingestion", "label": "Automated data ingestion", "included": false },
+        { "id": "export", "label": "Custom reports", "included": false },
         { "id": "support", "label": "Priority support", "included": true },
-        { "id": "integrations", "label": "Full API access", "included": true },
-        { "id": "leads", "label": "City-wide lead expansion", "included": true }
+        { "id": "integrations", "label": "Full API access", "included": false },
+        { "id": "leads", "label": "City-wide lead expansion", "included": false }
       ]
     },
     {
@@ -224,16 +224,16 @@
       "features": [
         { "id": "properties", "label": "Unlimited properties", "included": true },
         { "id": "users", "label": "Unlimited users", "included": true },
-        { "id": "branding", "label": "Fully white-labeled", "included": true },
-        { "id": "onboarding", "label": "Custom onboarding program", "included": true },
+        { "id": "branding", "label": "Fully white-labeled", "included": false },
+        { "id": "onboarding", "label": "Custom onboarding program", "included": false },
         { "id": "ai_assistant", "label": "Full AI assistant", "included": true },
-        { "id": "data_ingestion", "label": "Automated + custom pipelines", "included": true },
-        { "id": "export", "label": "Custom reports + API", "included": true },
-        { "id": "support", "label": "SLA-backed priority support", "included": true },
-        { "id": "integrations", "label": "Custom integrations + API", "included": true },
-        { "id": "leads", "label": "National lead network", "included": true },
-        { "id": "dedicated_infra", "label": "Dedicated infrastructure", "included": true },
-        { "id": "sla", "label": "Custom SLA", "included": true }
+        { "id": "data_ingestion", "label": "Automated + custom pipelines", "included": false },
+        { "id": "export", "label": "Custom reports + API", "included": false },
+        { "id": "support", "label": "SLA-backed priority support", "included": false },
+        { "id": "integrations", "label": "Custom integrations + API", "included": false },
+        { "id": "leads", "label": "National lead network", "included": false },
+        { "id": "dedicated_infra", "label": "Dedicated infrastructure", "included": false },
+        { "id": "sla", "label": "Custom SLA", "included": false }
       ]
     }
   ]
