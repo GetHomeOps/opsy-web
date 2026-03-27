@@ -32,6 +32,15 @@ class ProfessionalCategory {
     const parents = all.filter((c) => c.type === "parent");
     const children = all.filter((c) => c.type === "child");
 
+    const byNameAsc = (a, b) => {
+      const cmp = (a.name || "").localeCompare(b.name || "", undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      return cmp !== 0 ? cmp : String(a.id).localeCompare(String(b.id));
+    };
+    parents.sort(byNameAsc);
+
     const countsResult = await db.query(
       `SELECT category_id AS id, COUNT(*)::int AS cnt FROM professionals
        WHERE is_active = true AND category_id IS NOT NULL
@@ -51,7 +60,8 @@ class ProfessionalCategory {
       professional_count: counts[p.id] || 0,
       children: children
         .filter((c) => c.parent_id === p.id)
-        .map((c) => ({ ...c, professional_count: counts[c.id] || 0 })),
+        .map((c) => ({ ...c, professional_count: counts[c.id] || 0 }))
+        .sort(byNameAsc),
     }));
   }
 

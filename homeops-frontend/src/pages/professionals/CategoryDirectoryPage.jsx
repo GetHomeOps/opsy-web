@@ -29,6 +29,13 @@ function flattenCategories(hierarchy) {
       flat.push({id: child.id, name: child.name});
     }
   }
+  flat.sort((a, b) => {
+    const cmp = (a.name || "").localeCompare(b.name || "", undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    return cmp !== 0 ? cmp : String(a.id).localeCompare(String(b.id));
+  });
   return flat;
 }
 

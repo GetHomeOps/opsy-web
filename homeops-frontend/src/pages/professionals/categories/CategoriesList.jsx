@@ -1,5 +1,5 @@
 import React, {useCallback, useMemo, useReducer, useState, useEffect, useRef} from "react";
-import {useNavigate} from "react-router-dom";
+import {useNavigate, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {ChevronRight, ChevronDown, Layers, Tag, Users, FolderTree} from "lucide-react";
 
@@ -229,6 +229,7 @@ const TypeBadge = ({type}) => {
 
 function CategoriesList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {t} = useTranslation();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
@@ -244,6 +245,23 @@ function CategoriesList() {
     currentPage:
       Number(localStorage.getItem(PAGE_STORAGE_KEY)) || base.currentPage,
   }));
+
+  useEffect(() => {
+    const msg = location.state?.categoriesFlashMessage;
+    if (!msg) return;
+    dispatch({
+      type: "SET_BANNER",
+      payload: {
+        open: true,
+        type: location.state?.categoriesFlashType || "success",
+        message: msg,
+      },
+    });
+    navigate(
+      {pathname: location.pathname, search: location.search, hash: location.hash},
+      {replace: true, state: {}},
+    );
+  }, [location.state, location.pathname, location.search, location.hash, navigate]);
 
   /* ─── Load Categories from API ──────────────────────────────── */
 

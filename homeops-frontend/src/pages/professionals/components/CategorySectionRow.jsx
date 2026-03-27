@@ -1,15 +1,40 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const PLACEHOLDER_IMG = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 import useCurrentAccount from "../../../hooks/useCurrentAccount";
 
 function CategorySectionRow({ title, categories, location, searchBasePath = "professionals/search" }) {
   const scrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const navigate = useNavigate();
   const { currentAccount } = useCurrentAccount();
   const accountUrl = currentAccount?.url || "";
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const max = scrollWidth - clientWidth;
+    const eps = 2;
+    setCanScrollLeft(scrollLeft > eps);
+    setCanScrollRight(max > eps && scrollLeft < max - eps);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    updateScrollState();
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateScrollState);
+      ro.disconnect();
+    };
+  }, [categories, updateScrollState]);
 
   const scroll = (dir) => {
     if (!scrollRef.current) return;
@@ -66,14 +91,34 @@ function CategorySectionRow({ title, categories, location, searchBasePath = "pro
           ))}
         </div>
         {categories.length > 4 && (
-          <button
-            type="button"
-            onClick={() => scroll(1)}
-            className="absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-md flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-[#456564] hover:border-[#456564]/40 opacity-0 group-hover/row:opacity-100 transition-opacity"
-            aria-label="Scroll right"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => canScrollLeft && scroll(-1)}
+              aria-label="Scroll left"
+              aria-disabled={!canScrollLeft}
+              className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-md flex items-center justify-center transition-opacity opacity-0 ${
+                canScrollLeft
+                  ? "text-gray-600 dark:text-gray-400 hover:text-[#456564] hover:border-[#456564]/40 group-hover/row:opacity-100"
+                  : "text-gray-400 dark:text-gray-500 pointer-events-none group-hover/row:opacity-40"
+              }`}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => canScrollRight && scroll(1)}
+              aria-label="Scroll right"
+              aria-disabled={!canScrollRight}
+              className={`absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-md flex items-center justify-center transition-opacity opacity-0 ${
+                canScrollRight
+                  ? "text-gray-600 dark:text-gray-400 hover:text-[#456564] hover:border-[#456564]/40 group-hover/row:opacity-100"
+                  : "text-gray-400 dark:text-gray-500 pointer-events-none group-hover/row:opacity-40"
+              }`}
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </>
         )}
       </div>
     </section>

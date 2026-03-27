@@ -1,4 +1,12 @@
-import React, {useReducer, useMemo, useCallback, useEffect, useState} from "react";
+import React, {
+  useReducer,
+  useMemo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {useNavigate, useParams, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {Layers, Tag, Users} from "lucide-react";
@@ -13,6 +21,7 @@ import ImageUploadField from "../../../components/ImageUploadField";
 import AppApi from "../../../api/api";
 
 import CategoryForm from "./CategoryForm";
+import ModalBlank from "../../../components/ModalBlank";
 
 const emptyFormData = {
   name: "",
@@ -85,7 +94,7 @@ function reducer(state, action) {
     case "RESET_CATEGORY":
       return {
         ...state,
-        formData: emptyFormData,
+        formData: {...emptyFormData},
         existingCategory: null,
         childCategories: [],
         errors: {},
@@ -109,6 +118,9 @@ function CategoryFormContainer() {
 
   const [state, dispatch] = useReducer(reducer, initialState);
   const [allCategoryIds, setAllCategoryIds] = useState([]);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const categoryLoadGenerationRef = useRef(0);
 
   const isNew = categoryId === "new" || !categoryId;
 
@@ -151,11 +163,16 @@ function CategoryFormContainer() {
     (state.existingCategory &&
       String(state.existingCategory.id) === String(categoryId));
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     dispatch({type: "RESET_CATEGORY"});
+  }, [categoryId]);
+
+  useEffect(() => {
     clearPreview();
     clearUploadedUrl();
     clearPresignedUrl();
+    setDeleteModalOpen(false);
+    setIsDeleting(false);
   }, [categoryId, clearPreview, clearUploadedUrl, clearPresignedUrl]);
 
   useEffect(() => {
@@ -206,11 +223,16 @@ function CategoryFormContainer() {
   /* ─── Load data from API ─────────────────────────────────── */
 
   useEffect(() => {
+    const loadGeneration = ++categoryLoadGenerationRef.current;
     let cancelled = false;
+
+    const isStale = () =>
+      cancelled || loadGeneration !== categoryLoadGenerationRef.current;
+
     (async () => {
       try {
         const hierarchy = await AppApi.getProfessionalCategoryHierarchy();
-        if (cancelled) return;
+        if (isStale()) return;
         dispatch({
           type: "SET_PARENT_CATEGORIES",
           payload: (hierarchy || []).map((p) => ({id: p.id, name: p.name})),
@@ -226,14 +248,20 @@ function CategoryFormContainer() {
         setAllCategoryIds(flatIds);
 
         if (isNew) {
+          if (isStale()) return;
           dispatch({type: "SET_IS_NEW", payload: true});
+          dispatch({
+            type: "SET_FORM_DATA",
+            payload: {...emptyFormData},
+          });
           return;
         }
 
+        if (isStale()) return;
         dispatch({type: "SET_IS_NEW", payload: false});
 
         const cat = await AppApi.getProfessionalCategory(categoryId);
-        if (cancelled) return;
+        if (isStale()) return;
 
         dispatch({type: "SET_EXISTING_CATEGORY", payload: cat});
         dispatch({
@@ -251,14 +279,14 @@ function CategoryFormContainer() {
 
         if (cat.type === "parent") {
           const allCats = await AppApi.getAllProfessionalCategories();
-          if (cancelled) return;
+          if (isStale()) return;
           const children = (allCats || []).filter(
             (c) => c.parent_id === cat.id,
           );
           dispatch({type: "SET_CHILD_CATEGORIES", payload: children});
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!isStale()) {
           dispatch({
             type: "SET_BANNER",
             payload: {
@@ -364,6 +392,38 @@ function CategoryFormContainer() {
     navigate(`/${accountUrl}/professionals/categories`);
   }, [navigate, accountUrl]);
 
+  const handleRequestDelete = useCallback(() => {
+    setDeleteModalOpen(true);
+  }, []);
+
+  const confirmDeleteCategory = useCallback(async () => {
+    if (isNew || !categoryId) return;
+    setIsDeleting(true);
+    try {
+      await AppApi.deleteProfessionalCategory(categoryId);
+      setDeleteModalOpen(false);
+      navigate(`/${accountUrl}/professionals/categories`, {
+        state: {
+          categoriesFlashMessage: t("categoryDeletedSuccessfully", {
+            defaultValue: "Category deleted successfully",
+          }),
+          categoriesFlashType: "success",
+        },
+      });
+    } catch (err) {
+      const msg =
+        err?.messages?.[0] ||
+        err?.message ||
+        t("categoryDeleteFailed", {defaultValue: "Could not delete category."});
+      dispatch({
+        type: "SET_BANNER",
+        payload: {open: true, type: "error", message: msg},
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [isNew, categoryId, accountUrl, navigate, t]);
+
   /* ─── Navigation (< >) ──────────────────────────────────────── */
 
   const navState = useMemo(() => {
@@ -414,6 +474,79 @@ function CategoryFormContainer() {
             dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
           }
         />
+
+        <div className="m-1.5">
+          <ModalBlank
+            id="category-delete-modal"
+            modalOpen={deleteModalOpen}
+            setModalOpen={setDeleteModalOpen}
+          >
+            <div className="p-5 flex space-x-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-gray-100 dark:bg-gray-700">
+                <svg
+                  className="shrink-0 fill-current text-red-500"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                >
+                  <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 12c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm1-3H7V4h2v5z" />
+                </svg>
+              </div>
+              <div>
+                <div className="mb-2">
+                  <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                    {state.formData.name?.trim()
+                      ? t("confirmDeleteCategoryNamed", {
+                          name: state.formData.name.trim(),
+                          defaultValue: `Delete “{{name}}”?`,
+                        })
+                      : t("deleteCategory", {defaultValue: "Delete category?"})}
+                  </div>
+                </div>
+                <div className="text-sm mb-10 text-gray-600 dark:text-gray-400 space-y-2">
+                  <p>
+                    {t("categoryDeleteConfirmation", {
+                      defaultValue:
+                        "This permanently removes the category. Professionals still assigned to it must be updated first, or the delete will fail.",
+                    })}
+                  </p>
+                  {isParent && state.childCategories.length > 0 ? (
+                    <p className="text-amber-700 dark:text-amber-400">
+                      {t("categoryDeleteSubcategoriesNote", {
+                        count: state.childCategories.length,
+                        defaultValue:
+                          "This parent has {{count}} subcategories; deleting it removes those subcategories too.",
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap justify-end space-x-2">
+                  <button
+                    type="button"
+                    className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+                    disabled={isDeleting}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteModalOpen(false);
+                    }}
+                  >
+                    {t("cancel")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-sm bg-red-500 hover:bg-red-600 text-white disabled:opacity-60"
+                    disabled={isDeleting}
+                    onClick={confirmDeleteCategory}
+                  >
+                    {isDeleting
+                      ? t("deleting", {defaultValue: "Deleting…"})
+                      : t("delete", {defaultValue: "Delete"})}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ModalBlank>
+        </div>
 
         <div className="fixed right-0 w-auto sm:w-full z-50">
           <Banner
@@ -627,6 +760,7 @@ function CategoryFormContainer() {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
               <div className="p-6 sm:p-8">
                 <CategoryForm
+                  key={categoryId ?? "new"}
                   formData={state.formData}
                   errors={state.errors}
                   isNew={isNew}
@@ -634,6 +768,9 @@ function CategoryFormContainer() {
                   childCategories={state.childCategories}
                   existingCategory={state.existingCategory}
                   onChange={handleFieldChange}
+                  onRequestDelete={
+                    !isNew && state.existingCategory ? handleRequestDelete : undefined
+                  }
                 />
               </div>
 
