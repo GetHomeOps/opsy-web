@@ -1,7 +1,6 @@
 import React, {useCallback, useMemo, useReducer, useState, useEffect, useRef} from "react";
 import {useNavigate} from "react-router-dom";
-import {useTranslation} from "react-i18next";
-import {Building2, Loader2, MapPin, Shield} from "lucide-react";
+import {Loader2} from "lucide-react";
 
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
@@ -276,97 +275,13 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove}) {
   );
 }
 
-/* ─── Professional Grid Card ─────────────────────────────────── */
-
-const ProfessionalCard = ({professional, onClick, isSelected, onSelect}) => {
-  const pro = professional;
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onClick(pro)}
-      onKeyDown={(e) => e.key === "Enter" && onClick(pro)}
-      className="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700/60 overflow-hidden hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all cursor-pointer"
-    >
-      <div className="relative h-20 bg-gradient-to-br from-[#456564] via-[#3a5857] to-[#2d4443]">
-        <div
-          className="absolute top-2.5 left-2.5"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <label className="inline-flex">
-            <span className="sr-only">Select</span>
-            <input
-              type="checkbox"
-              className="form-checkbox rounded"
-              checked={isSelected}
-              onChange={() => onSelect(pro.id)}
-            />
-          </label>
-        </div>
-        {pro.is_verified && (
-          <div className="absolute top-2.5 right-2.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/90 text-white">
-              <Shield className="w-3 h-3" />
-              Verified
-            </span>
-          </div>
-        )}
-      </div>
-      <div className="relative px-4 -mt-8">
-        {pro.profile_photo_url ? (
-          <img
-            src={pro.profile_photo_url}
-            alt=""
-            className="w-14 h-14 rounded-xl object-cover border-2 border-white dark:border-gray-800 shadow-sm"
-          />
-        ) : (
-          <div className="w-14 h-14 rounded-xl bg-white dark:bg-gray-700 flex items-center justify-center border-2 border-white dark:border-gray-800 shadow-sm">
-            <span className="text-sm font-bold text-[#456564] dark:text-[#7aa3a2]">
-              {(pro.first_name?.[0] || "").toUpperCase()}
-              {(pro.last_name?.[0] || "").toUpperCase()}
-            </span>
-          </div>
-        )}
-      </div>
-      <div className="p-4 pt-2">
-        <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
-          {pro.first_name} {pro.last_name}
-        </div>
-        {pro.company_name && (
-          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-            <Building2 className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">{pro.company_name}</span>
-          </div>
-        )}
-        {pro.category_name && (
-          <div className="mt-2">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-              {pro.category_name}
-            </span>
-          </div>
-        )}
-        {(pro.city || pro.state) && (
-          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-2 truncate">
-            <MapPin className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">
-              {[pro.city, pro.state].filter(Boolean).join(", ")}
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
 /* ─── Main Component ─────────────────────────────────────────── */
 
 function ProfessionalsList() {
   const navigate = useNavigate();
-  const {t} = useTranslation();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const [selectedItems, setSelectedItems] = useState([]);
-  const [viewMode, setViewMode] = useState("list");
   const [sortConfig, setSortConfig] = useState({
     key: "company_name",
     direction: "asc",
@@ -527,11 +442,6 @@ function ProfessionalsList() {
 
   const totalItems = sortedProfessionals.length;
 
-  const paginatedProfessionals = useMemo(() => {
-    const start = (state.currentPage - 1) * state.itemsPerPage;
-    return sortedProfessionals.slice(start, start + state.itemsPerPage);
-  }, [sortedProfessionals, state.currentPage, state.itemsPerPage]);
-
   useEffect(() => {
     if (sortedProfessionals.length === 0) return;
     const lastValidPage = Math.max(
@@ -644,8 +554,6 @@ function ProfessionalsList() {
       dispatch({type: "SET_SUBMITTING", payload: false});
     }
   };
-
-  const hasActiveSearch = state.searchTerm || state.activeFilters.length > 0;
 
   /* ─── Render ───────────────────────────────────────────────── */
 
@@ -787,7 +695,7 @@ function ProfessionalsList() {
               </div>
             </div>
 
-            {/* ─── Search + Filter + View toggle ──────────────── */}
+            {/* ─── Search + Filter ────────────────────────────── */}
             <div className="mb-5 space-y-3">
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative flex-1 min-w-0">
@@ -820,58 +728,6 @@ function ProfessionalsList() {
                       dispatch({type: "REMOVE_FILTER", payload: f})
                     }
                   />
-                  <div className="flex rounded-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("grid")}
-                      className={`px-2.5 py-2 ${
-                        viewMode === "grid"
-                          ? "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                          : "bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                      } transition-colors`}
-                      title="Grid view"
-                      aria-label="Grid view"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("list")}
-                      className={`px-2.5 py-2 ${
-                        viewMode === "list"
-                          ? "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                          : "bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                      } transition-colors`}
-                      title="List view"
-                      aria-label="List view"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 6h16M4 10h16M4 14h16M4 18h16"
-                        />
-                      </svg>
-                    </button>
-                  </div>
                 </div>
               </div>
 
@@ -923,12 +779,12 @@ function ProfessionalsList() {
               )}
             </div>
 
-            {/* ─── Content: Loading / Table / Grid ────────────── */}
+            {/* ─── Content: Loading / Table ───────────────────── */}
             {state.loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
               </div>
-            ) : viewMode === "list" ? (
+            ) : (
               <>
                 <ProfessionalsTable
                   professionals={sortedProfessionals}
@@ -941,57 +797,6 @@ function ProfessionalsList() {
                   sortConfig={sortConfig}
                   onSort={handleSort}
                 />
-                {totalItems > 0 && (
-                  <div className="mt-8">
-                    <PaginationClassic
-                      currentPage={state.currentPage}
-                      totalItems={totalItems}
-                      itemsPerPage={state.itemsPerPage}
-                      onPageChange={handlePageChange}
-                      onItemsPerPageChange={handleItemsPerPageChange}
-                    />
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {paginatedProfessionals.length === 0 ? (
-                  <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700/60">
-                    <div className="text-center py-16">
-                      <Building2 className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        {hasActiveSearch
-                          ? "No professionals found"
-                          : "No professionals yet"}
-                      </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-                        {hasActiveSearch
-                          ? "Try adjusting your search or filters"
-                          : "Add your first professional to get started"}
-                      </p>
-                      {!hasActiveSearch && (
-                        <button
-                          className="btn bg-[#456564] hover:bg-[#34514f] text-white shadow-sm"
-                          onClick={handleNewProfessional}
-                        >
-                          Add Professional
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                    {paginatedProfessionals.map((pro) => (
-                      <ProfessionalCard
-                        key={pro.id}
-                        professional={pro}
-                        onClick={handleProfessionalClick}
-                        isSelected={selectedItems.includes(pro.id)}
-                        onSelect={handleToggleSelect}
-                      />
-                    ))}
-                  </div>
-                )}
                 {totalItems > 0 && (
                   <div className="mt-8">
                     <PaginationClassic

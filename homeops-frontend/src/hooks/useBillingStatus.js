@@ -1,6 +1,7 @@
 import {useState, useEffect, useCallback} from "react";
 import AppApi from "../api/api";
 import {useAuth} from "../context/AuthContext";
+import useCurrentAccount from "./useCurrentAccount";
 
 const ADMIN_ROLES = ["super_admin", "admin"];
 
@@ -10,6 +11,7 @@ const ADMIN_ROLES = ["super_admin", "admin"];
  */
 export default function useBillingStatus() {
   const {currentUser} = useAuth();
+  const {currentAccount} = useCurrentAccount();
   const [state, setState] = useState({
     plan: null,
     limits: null,
@@ -19,6 +21,7 @@ export default function useBillingStatus() {
   });
 
   const isAdmin = ADMIN_ROLES.includes(currentUser?.role);
+  const accountId = currentAccount?.id;
 
   const refresh = useCallback(async () => {
     if (isAdmin) {
@@ -27,7 +30,7 @@ export default function useBillingStatus() {
     }
     try {
       setState((s) => ({...s, loading: true, error: null}));
-      const res = await AppApi.getBillingStatus();
+      const res = await AppApi.getBillingStatus(accountId);
       setState({
         plan: res.plan || null,
         limits: res.limits || null,
@@ -38,7 +41,7 @@ export default function useBillingStatus() {
     } catch (err) {
       setState((s) => ({...s, loading: false, error: err?.message || "Failed to load billing status"}));
     }
-  }, [isAdmin]);
+  }, [isAdmin, accountId]);
 
   useEffect(() => {
     refresh();

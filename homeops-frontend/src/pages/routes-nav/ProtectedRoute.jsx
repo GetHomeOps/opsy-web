@@ -3,6 +3,7 @@ import {Navigate, useLocation} from "react-router-dom";
 import {Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
+import useCurrentAccount from "../../hooks/useCurrentAccount";
 
 /**
  * Wraps content that requires authentication.
@@ -12,8 +13,10 @@ import AppApi from "../../api/api";
  */
 function ProtectedRoute({children}) {
   const {currentUser, isLoading} = useAuth();
+  const {currentAccount} = useCurrentAccount();
   const location = useLocation();
   const [billingGate, setBillingGate] = useState({checking: false, checked: false, active: true});
+  const accountId = currentAccount?.id || currentUser?.accounts?.[0]?.id || null;
 
   const path = location.pathname || "";
   const isBillingExceptionPath =
@@ -47,7 +50,7 @@ function ProtectedRoute({children}) {
       }
 
       try {
-        const res = await AppApi.getBillingStatus();
+        const res = await AppApi.getBillingStatus(accountId);
         const status = res?.subscription?.status;
         const active = status === "active" || status === "trialing";
         if (!cancelled) {
@@ -64,7 +67,7 @@ function ProtectedRoute({children}) {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, requiresPaidSubscription, isBillingExceptionPath]);
+  }, [currentUser, requiresPaidSubscription, isBillingExceptionPath, accountId]);
 
   if (isLoading) {
     return (

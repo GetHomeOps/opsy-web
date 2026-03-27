@@ -3,6 +3,7 @@ import {Navigate} from "react-router-dom";
 import {Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
+import useCurrentAccount from "../../hooks/useCurrentAccount";
 
 /**
  * Wraps the onboarding wizard. Requires authentication.
@@ -12,7 +13,9 @@ import AppApi from "../../api/api";
  */
 function OnboardingRoute({children}) {
   const {currentUser, isLoading} = useAuth();
+  const {currentAccount} = useCurrentAccount();
   const [billingGate, setBillingGate] = useState({checking: false, checked: false, active: true});
+  const accountId = currentAccount?.id || currentUser?.accounts?.[0]?.id || null;
 
   const requiresPaidSubscription =
     !!currentUser &&
@@ -36,7 +39,7 @@ function OnboardingRoute({children}) {
         setBillingGate({checking: true, checked: false, active: false});
       }
       try {
-        const res = await AppApi.getBillingStatus();
+        const res = await AppApi.getBillingStatus(accountId);
         const status = res?.subscription?.status;
         const active = status === "active" || status === "trialing";
         if (!cancelled) {
@@ -52,7 +55,7 @@ function OnboardingRoute({children}) {
     return () => {
       cancelled = true;
     };
-  }, [requiresPaidSubscription]);
+  }, [requiresPaidSubscription, accountId]);
 
   if (isLoading) {
     return (

@@ -9,7 +9,7 @@ import useBillingStatus from "../hooks/useBillingStatus";
 import AIAssistantSidebar from "../pages/properties/partials/AIAssistantSidebar";
 import {getPropertyAssistantHeaderLines} from "../pages/properties/helpers/propertyAssistantHeader";
 
-const FREE_PLAN_CODES = ["homeowner_free", "agent_free"];
+const FREE_PLAN_CODES = ["homeowner_free", "agent_free", "free"];
 
 function GlobalAIAssistantPanel({isOpen, onClose}) {
   const navigate = useNavigate();

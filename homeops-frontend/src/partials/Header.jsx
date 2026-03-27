@@ -33,6 +33,9 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
     isAdmin || !limits || limits.aiFeaturesEnabled !== false;
 
   const handleAiAssistantClick = () => {
+    if (billingLoading) {
+      return;
+    }
     // Free users: show upgrade modal instead of opening the AI panel
     if (!isPaidUser) {
       requestAnimationFrame(() => setAiUpgradeModalOpen(true));

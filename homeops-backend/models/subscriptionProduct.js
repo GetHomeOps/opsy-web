@@ -70,19 +70,43 @@ async function upsertPlanLimits(productId, limits) {
 }
 
 async function upsertPlanPrice(productId, billingInterval, stripePriceId) {
-  if (!stripePriceId) {
+  const normalizedPriceId = typeof stripePriceId === "string" ? stripePriceId.trim() : stripePriceId;
+
+  if (!normalizedPriceId) {
     await db.query(
       `DELETE FROM plan_prices WHERE subscription_product_id = $1 AND billing_interval = $2`,
       [productId, billingInterval]
     );
     return;
   }
-  await db.query(
-    `INSERT INTO plan_prices (subscription_product_id, stripe_price_id, billing_interval)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (subscription_product_id, billing_interval) DO UPDATE SET stripe_price_id = EXCLUDED.stripe_price_id`,
-    [productId, stripePriceId, billingInterval]
-  );
+
+  try {
+    await db.query(
+      `INSERT INTO plan_prices (subscription_product_id, stripe_price_id, billing_interval)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (subscription_product_id, billing_interval) DO UPDATE SET stripe_price_id = EXCLUDED.stripe_price_id`,
+      [productId, normalizedPriceId, billingInterval]
+    );
+  } catch (err) {
+    if (err.code === "23505" && String(err.message || "").toLowerCase().includes("stripe_price_id")) {
+      const existing = await db.query(
+        `SELECT sp.id, sp.name, pp.billing_interval AS "billingInterval"
+         FROM plan_prices pp
+         JOIN subscription_products sp ON sp.id = pp.subscription_product_id
+         WHERE pp.stripe_price_id = $1
+         LIMIT 1`,
+        [normalizedPriceId]
+      );
+      const conflict = existing.rows[0];
+      if (conflict) {
+        throw new BadRequestError(
+          `Stripe price ${normalizedPriceId} is already linked to "${conflict.name}" (${conflict.billingInterval}).`
+        );
+      }
+      throw new BadRequestError(`Stripe price ${normalizedPriceId} is already linked to another plan.`);
+    }
+    throw err;
+  }
 }
 
 async function getLimitsForProduct(productId) {
@@ -204,12 +228,8 @@ class SubscriptionProduct {
     } catch (e) {
       console.warn("[SubscriptionProduct.create] Could not upsert plan limits:", e.message);
     }
-    try {
-      await upsertPlanPrice(product.id, 'month', monthPriceId);
-      await upsertPlanPrice(product.id, 'year', yearPriceId);
-    } catch (e) {
-      console.warn("[SubscriptionProduct.create] Could not upsert plan prices:", e.message);
-    }
+    await upsertPlanPrice(product.id, "month", monthPriceId);
+    await upsertPlanPrice(product.id, "year", yearPriceId);
     if (Array.isArray(features) && hasBilling) {
       try {
         await db.query(
@@ -381,6 +401,8 @@ class SubscriptionProduct {
   static async update(id, data) {
     const { limits, prices, features, ...productData } = data;
     const hasBilling = await hasBillingColumns();
+    const monthPriceFromBody = prices?.month ?? data?.stripePriceIdMonth;
+    const yearPriceFromBody = prices?.year ?? data?.stripePriceIdYear;
 
     if (productData.code != null && productData.code !== "") {
       const codeCheck = await db.query(
@@ -429,17 +451,16 @@ class SubscriptionProduct {
         console.warn("[SubscriptionProduct.update] Could not upsert plan limits:", e.message);
       }
     }
-    if (prices) {
-      try {
-        if (Object.prototype.hasOwnProperty.call(prices, "month")) {
-          await upsertPlanPrice(id, "month", prices.month ?? null);
-        }
-        if (Object.prototype.hasOwnProperty.call(prices, "year")) {
-          await upsertPlanPrice(id, "year", prices.year ?? null);
-        }
-      } catch (e) {
-        console.warn("[SubscriptionProduct.update] Could not upsert plan prices:", e.message);
-      }
+    const shouldUpdateMonthPrice = Object.prototype.hasOwnProperty.call(prices || {}, "month")
+      || Object.prototype.hasOwnProperty.call(data || {}, "stripePriceIdMonth");
+    const shouldUpdateYearPrice = Object.prototype.hasOwnProperty.call(prices || {}, "year")
+      || Object.prototype.hasOwnProperty.call(data || {}, "stripePriceIdYear");
+
+    if (shouldUpdateMonthPrice) {
+      await upsertPlanPrice(id, "month", monthPriceFromBody ?? null);
+    }
+    if (shouldUpdateYearPrice) {
+      await upsertPlanPrice(id, "year", yearPriceFromBody ?? null);
     }
     if (Array.isArray(features) && hasBilling) {
       try {
