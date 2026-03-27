@@ -18,6 +18,7 @@ const SIZES = {
  * @param {string|null} props.imageSrc - URL to display (from preview, uploaded, or API)
  * @param {boolean} props.hasImage - Whether an image is set (for styling)
  * @param {boolean} props.imageUploading - Upload in progress
+ * @param {boolean} [props.imageLoading=false] - Remote image loading in progress
  * @param {Function} props.onUpload - (file: File) => void
  * @param {Function} props.onRemove - () => void
  * @param {Function} [props.onPasteUrl] - () => void, shows Paste URL option when provided
@@ -39,6 +40,7 @@ function ImageUploadField({
   imageSrc,
   hasImage,
   imageUploading,
+  imageLoading = false,
   onUpload,
   onRemove,
   onPasteUrl,
@@ -62,11 +64,12 @@ function ImageUploadField({
   const internalInputRef = useRef(null);
   const inputRef = fileInputRef ?? internalInputRef;
 
-  const isEmpty = !imageSrc && !imageUploading;
+  const isBusy = imageUploading || imageLoading;
+  const isEmpty = !imageSrc && !isBusy;
   const isXl = size === "xl";
 
   const handleAreaClick = () => {
-    if (imageUploading) return;
+    if (isBusy) return;
     inputRef?.current?.click();
   };
 
@@ -102,10 +105,12 @@ function ImageUploadField({
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={handleFileChange}
         />
-        {imageUploading ? (
+        {isBusy ? (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
             <Loader2 className="w-10 h-10 animate-spin" />
-            <span className="text-xs font-medium">Uploading…</span>
+            <span className="text-xs font-medium">
+              {imageUploading ? "Uploading..." : "Loading..."}
+            </span>
           </div>
         ) : imageSrc ? (
           <>

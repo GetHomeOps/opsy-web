@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
@@ -27,6 +27,37 @@ import {
 
 const PREVIEW_PAGE_SIZE = 50;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Match a subcategory by name (case-insensitive, trimmed). */
+function matchSubcategoryName(name, hierarchy) {
+  const n = String(name || "").trim().toLowerCase();
+  if (!n) return { id: null, categoryId: null, ambiguous: false };
+  const matches = [];
+  for (const p of hierarchy || []) {
+    for (const c of p.children || []) {
+      if (String(c.name || "").trim().toLowerCase() === n) {
+        matches.push({ id: c.id, categoryId: p.id });
+      }
+    }
+  }
+  if (matches.length === 1) return { ...matches[0], ambiguous: false };
+  if (matches.length > 1) return { id: null, categoryId: null, ambiguous: true };
+  return { id: null, categoryId: null, ambiguous: false };
+}
+
+function enrichRowSubcategoryFromName(row, hierarchy) {
+  const sn = (row.subcategory_name || "").trim();
+  if (!sn || row.subcategory_id) return row;
+  const m = matchSubcategoryName(sn, hierarchy);
+  if (m.id && !m.ambiguous) {
+    return {
+      ...row,
+      subcategory_id: String(m.id),
+      category_id: String(m.categoryId),
+    };
+  }
+  return row;
+}
 
 /** Build API payload for POST /professionals from an import row. */
 function rowToProfessionalPayload(row, accountId) {
@@ -88,7 +119,7 @@ function normalizeRow(rawRow, headerMap) {
   }, {});
 }
 
-function validateRow(row) {
+function validateRow(row, hierarchy) {
   const errors = [];
   const requiredKeys = PROFESSIONAL_IMPORT_FIELDS.filter((f) => f.required).map(
     (f) => f.key
@@ -101,7 +132,32 @@ function validateRow(row) {
   if (email && !EMAIL_REGEX.test(email)) {
     errors.push("Invalid email format");
   }
+  const subName = (row.subcategory_name || "").trim();
+  if (subName && !row.subcategory_id) {
+    const m = matchSubcategoryName(subName, hierarchy);
+    if (m.ambiguous) {
+      errors.push("Subcategory name matches more than one option; choose from the list.");
+    } else {
+      errors.push("Unknown subcategory name");
+    }
+  }
   return errors;
+}
+
+function partitionRowsByValidation(rows, hierarchy) {
+  const valid = [];
+  const invalid = [];
+  const errorsByIndex = {};
+  rows.forEach((row, i) => {
+    const errs = validateRow(row, hierarchy);
+    if (errs.length) {
+      invalid.push(row);
+      errorsByIndex[i] = errs;
+    } else {
+      valid.push(row);
+    }
+  });
+  return { valid, invalid, errorsByIndex };
 }
 
 function parseFile(file) {
@@ -187,6 +243,51 @@ function ProfessionalsImport() {
   const [previewFilter, setPreviewFilter] = useState("all");
   const [showAllRows, setShowAllRows] = useState(false);
   const previewSectionRef = useRef(null);
+  const [categoryHierarchy, setCategoryHierarchy] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    AppApi.getProfessionalCategoryHierarchy()
+      .then((h) => {
+        if (!cancelled) setCategoryHierarchy(h || []);
+      })
+      .catch(() => {
+        if (!cancelled) setCategoryHierarchy([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const flatSubcategories = useMemo(() => {
+    const list = [];
+    for (const p of categoryHierarchy) {
+      for (const c of p.children || []) {
+        list.push({ id: c.id, name: c.name, parentId: p.id });
+      }
+    }
+    return list.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }, [categoryHierarchy]);
+
+  /** When hierarchy loads after a file was parsed, resolve subcategory names to IDs. */
+  useEffect(() => {
+    if (!categoryHierarchy.length || allRows.length === 0) return;
+    setAllRows((prev) => {
+      const next = prev.map((r) => enrichRowSubcategoryFromName(r, categoryHierarchy));
+      const changed = next.some((row, i) => row !== prev[i]);
+      return changed ? next : prev;
+    });
+  }, [categoryHierarchy]);
+
+  useEffect(() => {
+    const { valid, invalid, errorsByIndex } = partitionRowsByValidation(
+      allRows,
+      categoryHierarchy
+    );
+    setValidRows(valid);
+    setInvalidRows(invalid);
+    setRowErrors(errorsByIndex);
+  }, [allRows, categoryHierarchy]);
 
   const currentStep = allRows.length > 0 ? 3 : pendingFile ? 2 : 1;
 
@@ -232,27 +333,15 @@ function ProfessionalsImport() {
       .then(({ rows }) => {
         if (rows.length === 0) {
           setParseError(
-            "No data rows found. Your file needs a header row (e.g. First Name, Last Name) and at least one data row."
+            "No data rows found. Your file needs a header row (e.g. Company Name) and at least one data row."
           );
           setIsParsing(false);
           return;
         }
-        const valid = [];
-        const invalid = [];
-        const errorsByIndex = {};
-        rows.forEach((row, i) => {
-          const errs = validateRow(row);
-          if (errs.length) {
-            invalid.push(row);
-            errorsByIndex[i] = errs;
-          } else {
-            valid.push(row);
-          }
-        });
-        setAllRows(rows);
-        setValidRows(valid);
-        setInvalidRows(invalid);
-        setRowErrors(errorsByIndex);
+        const enriched = rows.map((r) =>
+          enrichRowSubcategoryFromName(r, categoryHierarchy)
+        );
+        setAllRows(enriched);
         setPendingFile(null);
         setIsParsing(false);
         requestAnimationFrame(() => {
@@ -267,7 +356,7 @@ function ProfessionalsImport() {
         setRowErrors({});
         setIsParsing(false);
       });
-  }, [pendingFile]);
+  }, [pendingFile, categoryHierarchy]);
 
   const handleFileSelect = useCallback((fileObj) => {
     if (!fileObj) return;
@@ -330,22 +419,26 @@ function ProfessionalsImport() {
       setRowErrors({});
       return;
     }
-    const valid = [];
-    const invalid = [];
-    const errorsByIndex = {};
-    nextRows.forEach((row, i) => {
-      const errs = validateRow(row);
-      if (errs.length) {
-        invalid.push(row);
-        errorsByIndex[i] = errs;
-      } else {
-        valid.push(row);
-      }
-    });
-    setValidRows(valid);
-    setInvalidRows(invalid);
-    setRowErrors(errorsByIndex);
   }, [allRows]);
+
+  const handleSubcategorySelect = useCallback((rowIndex, subcategoryIdStr) => {
+    setAllRows((prev) =>
+      prev.map((r, i) => {
+        if (i !== rowIndex) return r;
+        if (!subcategoryIdStr) {
+          return { ...r, subcategory_id: "", category_id: "", subcategory_name: "" };
+        }
+        const sub = flatSubcategories.find((s) => String(s.id) === subcategoryIdStr);
+        if (!sub) return r;
+        return {
+          ...r,
+          subcategory_id: String(sub.id),
+          category_id: String(sub.parentId),
+          subcategory_name: sub.name,
+        };
+      })
+    );
+  }, [flatSubcategories]);
 
   const handleConfirmImport = useCallback(async () => {
     if (validRows.length < 1 || isSubmitting || importSuccessCount != null) return;
@@ -440,7 +533,7 @@ function ProfessionalsImport() {
                     1. Get the template
                   </h2>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Use our template so column names match. Required: First Name, Last Name.
+                    Use our template so column names match. Required: Company Name.
                   </p>
                 </div>
                 <div className="p-4 flex flex-wrap gap-3">
@@ -662,15 +755,34 @@ function ProfessionalsImport() {
                               }`}
                             >
                               <td className="py-2 px-3 text-gray-500 font-medium text-xs">{index + 1}</td>
-                              {PROFESSIONAL_IMPORT_FIELDS.slice(0, 6).map((f) => (
-                                <td
-                                  key={f.key}
-                                  className="py-2 px-3 text-gray-800 dark:text-gray-200 max-w-[160px] truncate text-xs"
-                                  title={row[f.key]}
-                                >
-                                  {row[f.key] || "—"}
-                                </td>
-                              ))}
+                              {PROFESSIONAL_IMPORT_FIELDS.slice(0, 6).map((f) =>
+                                f.key === "subcategory_name" ? (
+                                  <td key={f.key} className="py-2 px-3 min-w-[180px]">
+                                    <select
+                                      value={row.subcategory_id ? String(row.subcategory_id) : ""}
+                                      onChange={(e) =>
+                                        handleSubcategorySelect(index, e.target.value)
+                                      }
+                                      className="w-full max-w-[220px] rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-xs py-1.5 px-2"
+                                    >
+                                      <option value="">— None —</option>
+                                      {flatSubcategories.map((s) => (
+                                        <option key={s.id} value={String(s.id)}>
+                                          {s.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                ) : (
+                                  <td
+                                    key={f.key}
+                                    className="py-2 px-3 text-gray-800 dark:text-gray-200 max-w-[160px] truncate text-xs"
+                                    title={row[f.key]}
+                                  >
+                                    {row[f.key] || "—"}
+                                  </td>
+                                )
+                              )}
                               <td className="py-2 px-3">
                                 {valid ? (
                                   <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-medium">

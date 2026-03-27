@@ -123,12 +123,13 @@ function CategoryFormContainer() {
     },
   });
 
-  const imageKey = state.existingCategory?.image_key ?? state.formData.imageKey ?? "";
+  const imageKey = state.formData.imageKey ?? "";
   const imageKeyNeedsPresigned =
     imageKey && !imageKey.startsWith("blob:") && !imageKey.startsWith("http");
 
   const {
     url: presignedUrl,
+    isLoading: presignedLoading,
     fetchPreview: fetchPresigned,
     clearUrl: clearPresignedUrl,
     currentKey: presignedKey,
@@ -141,6 +142,10 @@ function CategoryFormContainer() {
       String(state.existingCategory.id) === String(categoryId));
 
   useEffect(() => {
+    // Prevent previous category data/images from leaking while route data loads.
+    initialFormDataRef.current = null;
+    dispatch({type: "SET_EXISTING_CATEGORY", payload: null});
+    dispatch({type: "SET_CHILD_CATEGORIES", payload: []});
     clearPreview();
     clearUploadedUrl();
     clearPresignedUrl();
@@ -170,6 +175,18 @@ function CategoryFormContainer() {
     categoryDataReady,
     isNew,
     state.existingCategory,
+  ]);
+
+  const imageLoading = useMemo(() => {
+    if (isNew) return false;
+    if (!categoryDataReady) return true;
+    return Boolean(imageKeyNeedsPresigned && imageKey && presignedLoading);
+  }, [
+    isNew,
+    categoryDataReady,
+    imageKeyNeedsPresigned,
+    imageKey,
+    presignedLoading,
   ]);
 
   const handleImageRemove = useCallback(() => {
@@ -317,16 +334,7 @@ function CategoryFormContainer() {
         navigate(`/${accountUrl}/professionals/categories/${created.id}`);
       } else {
         await AppApi.updateProfessionalCategory(categoryId, payload);
-        dispatch({
-          type: "SET_BANNER",
-          payload: {
-            open: true,
-            type: "success",
-            message: "Category updated successfully",
-          },
-        });
-        // Reset dirty baseline so the Update bar hides (matches post-load shape).
-        initialFormDataRef.current = {
+        const normalizedFormData = {
           name: state.formData.name.trim(),
           description: state.formData.description || "",
           type: state.formData.type,
@@ -337,6 +345,31 @@ function CategoryFormContainer() {
           imageKey: state.formData.imageKey || "",
           is_active: state.formData.is_active,
         };
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "success",
+            message: "Category updated successfully",
+          },
+        });
+        // Keep UI state aligned with what was saved, so dirty-check resets.
+        initialFormDataRef.current = normalizedFormData;
+        dispatch({type: "SET_FORM_DATA", payload: normalizedFormData});
+        dispatch({
+          type: "SET_EXISTING_CATEGORY",
+          payload: {
+            ...(state.existingCategory || {}),
+            id: state.existingCategory?.id ?? categoryId,
+            name: normalizedFormData.name,
+            description: normalizedFormData.description || null,
+            type: normalizedFormData.type,
+            parent_id: normalizedFormData.parentId || null,
+            icon: normalizedFormData.icon || null,
+            image_key: normalizedFormData.imageKey || null,
+            is_active: normalizedFormData.is_active,
+          },
+        });
       }
     } catch (err) {
       const msg = err?.messages?.[0] || err?.message || "Failed to save category";
@@ -555,6 +588,7 @@ function CategoryFormContainer() {
                       key={categoryId ?? "new"}
                       imageSrc={imageSrc}
                       hasImage={categoryDataReady && !!state.formData.imageKey}
+                      imageLoading={imageLoading}
                       imageUploading={imageUploading}
                       onUpload={uploadImage}
                       onRemove={handleImageRemove}

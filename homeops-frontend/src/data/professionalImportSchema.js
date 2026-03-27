@@ -6,8 +6,7 @@
 export const PROFESSIONAL_IMPORT_FIELDS = [
   { key: "company_name", label: "Company Name", required: true, type: "string" },
   { key: "contact_name", label: "Contact Name", required: false, type: "string" },
-  { key: "category_id", label: "Category ID", required: false, type: "integer" },
-  { key: "subcategory_id", label: "Subcategory ID", required: false, type: "integer" },
+  { key: "subcategory_name", label: "Subcategory Name", required: false, type: "string" },
   { key: "description", label: "Description", required: false, type: "string" },
   { key: "phone", label: "Phone", required: false, type: "string" },
   { key: "email", label: "Email", required: false, type: "email" },
@@ -41,6 +40,16 @@ PROFESSIONAL_IMPORT_FIELDS.forEach(({ key, label }) => {
   variants.forEach((v) => {
     if (v && !LABEL_TO_KEY.has(v)) LABEL_TO_KEY.set(v, key);
   });
+});
+
+/** Legacy / alternate spreadsheet headers → canonical key */
+[
+  ["subcategory", "subcategory_name"],
+  ["sub category", "subcategory_name"],
+  ["sub-category", "subcategory_name"],
+  ["service subcategory", "subcategory_name"],
+].forEach(([alias, key]) => {
+  if (!LABEL_TO_KEY.has(alias)) LABEL_TO_KEY.set(alias, key);
 });
 
 export function normalizeHeader(header) {
