@@ -21,11 +21,14 @@ import {
   CheckCircle2,
   Send,
   ShieldCheck,
+  X,
 } from "lucide-react";
 
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
+import ModalBlank from "../../components/ModalBlank";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
+import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import {normalizeProfessional} from "./utils/normalizeProfessional";
 
@@ -44,9 +47,17 @@ Please reply to this email when you can. I'll receive your message directly.
 
 Thanks`;
 
+function isValidEmailForContact(s) {
+  const t = String(s || "").trim();
+  if (t.length < 3 || t.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
+}
+
 function ProfessionalProfile() {
   const {proId} = useParams();
   const navigate = useNavigate();
+  const {currentUser} = useAuth();
+  const userEmail = currentUser?.email || "";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("about");
   const {currentAccount} = useCurrentAccount();
@@ -58,6 +69,8 @@ function ProfessionalProfile() {
   const [messageSent, setMessageSent] = useState(false);
   const [messageSending, setMessageSending] = useState(false);
   const [messageError, setMessageError] = useState(null);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [replyEmail, setReplyEmail] = useState("");
 
   useEffect(() => {
     if (!proId) {
@@ -92,6 +105,7 @@ function ProfessionalProfile() {
     setMessageText(DEFAULT_CONTACT_MESSAGE);
     setMessageError(null);
     setMessageSent(false);
+    setContactModalOpen(false);
   }, [proId]);
 
   const fetchReviewsAndEligibility = useCallback(() => {
@@ -234,16 +248,31 @@ function ProfessionalProfile() {
     }
   };
 
+  const openContactModal = () => {
+    setMessageError(null);
+    setReplyEmail(userEmail);
+    setContactModalOpen(true);
+  };
+
   const handleSendMessage = async () => {
     const text = messageText.trim();
+    const reply = replyEmail.trim();
     if (!text || !proId || messageSending) return;
+    if (!isValidEmailForContact(reply)) {
+      setMessageError("Enter a valid reply email address.");
+      return;
+    }
     setMessageError(null);
     setMessageSending(true);
     try {
-      await AppApi.contactProfessional(proId, { message: text });
+      await AppApi.contactProfessional(proId, {
+        message: text,
+        replyToEmail: reply,
+      });
       setMessageSent(true);
       setTimeout(() => setMessageSent(false), 4000);
       setMessageText(DEFAULT_CONTACT_MESSAGE);
+      setContactModalOpen(false);
     } catch (err) {
       setMessageError(
         err?.message || err?.messages?.[0] || "Could not send message",
@@ -256,6 +285,11 @@ function ProfessionalProfile() {
   const onContactMessageChange = (e) => {
     setMessageError(null);
     setMessageText(e.target.value);
+  };
+
+  const onReplyEmailChange = (e) => {
+    setMessageError(null);
+    setReplyEmail(e.target.value);
   };
 
   if (loading) {
@@ -540,37 +574,21 @@ function ProfessionalProfile() {
                       Contact {professional.companyName}
                     </h3>
                   </div>
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-3">
-                    Describe your project — typical response within 24 hrs
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-4">
+                    Describe your project — typical response within 24 hrs. You can
+                    set your message and reply email before sending.
                   </p>
-                  <textarea
-                    value={messageText}
-                    onChange={onContactMessageChange}
-                    rows={4}
-                    disabled={messageSending}
-                    placeholder="Hi, I'm looking for help with a project..."
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] focus:bg-white dark:focus:bg-gray-800 transition-all resize-none disabled:opacity-60"
-                  />
-                  {messageError && (
-                    <p className="text-[11px] text-red-600 dark:text-red-400 mt-2">
-                      {messageError}
-                    </p>
-                  )}
                   <button
                     type="button"
-                    onClick={handleSendMessage}
-                    disabled={!messageText.trim() || messageSending}
-                    className="w-full mt-2.5 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                    onClick={openContactModal}
+                    disabled={messageSending}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    {messageSending ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    )}
-                    {messageSending ? "Sending…" : "Send Message"}
+                    <Send className="w-3.5 h-3.5" />
+                    Send Message
                   </button>
                   {messageSent && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 mt-2">
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 mt-3">
                       <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                       Sent! You'll hear back soon.
                     </div>
@@ -585,43 +603,25 @@ function ProfessionalProfile() {
                       Contact {professional.companyName}
                     </h3>
                   </div>
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-3">
-                    Describe your project — typical response within 24 hrs
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-4">
+                    Describe your project — typical response within 24 hrs. You can
+                    set your message and reply email before sending.
                   </p>
-                  <textarea
-                    value={messageText}
-                    onChange={onContactMessageChange}
-                    rows={4}
+                  <button
+                    type="button"
+                    onClick={openContactModal}
                     disabled={messageSending}
-                    placeholder="Hi, I'm looking for help with a project..."
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] focus:bg-white dark:focus:bg-gray-800 transition-all resize-none disabled:opacity-60"
-                  />
-                  {messageError && (
-                    <p className="text-[11px] text-red-600 dark:text-red-400 mt-2">
-                      {messageError}
-                    </p>
+                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    Send Message
+                  </button>
+                  {messageSent && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 mt-3 justify-center">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      Sent! You'll hear back soon.
+                    </div>
                   )}
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-2.5">
-                    <button
-                      type="button"
-                      onClick={handleSendMessage}
-                      disabled={!messageText.trim() || messageSending}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto"
-                    >
-                      {messageSending ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
-                      {messageSending ? "Sending…" : "Send Message"}
-                    </button>
-                    {messageSent && (
-                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 justify-center sm:justify-start">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Sent!
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
@@ -1035,6 +1035,100 @@ function ProfessionalProfile() {
             </div>
           </div>
         </main>
+
+        <ModalBlank
+          id="professional-contact-modal"
+          modalOpen={contactModalOpen}
+          setModalOpen={setContactModalOpen}
+          contentClassName="max-w-lg"
+        >
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="min-w-0 pr-2">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Message {professional.companyName}
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  They receive this by email. Replies go to the address below.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setContactModalOpen(false)}
+                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 shrink-0"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <label
+              htmlFor="pro-contact-reply-email"
+              className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5"
+            >
+              Reply-to email
+            </label>
+            <div className="relative mb-4">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <input
+                id="pro-contact-reply-email"
+                type="email"
+                value={replyEmail}
+                onChange={onReplyEmailChange}
+                autoComplete="email"
+                disabled={messageSending}
+                placeholder="you@example.com"
+                className="w-full pl-10 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] dark:focus:border-[#7aa3a2] focus:bg-white dark:focus:bg-gray-800 disabled:opacity-60"
+              />
+            </div>
+            <label
+              htmlFor="pro-contact-message"
+              className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5"
+            >
+              Message
+            </label>
+            <textarea
+              id="pro-contact-message"
+              value={messageText}
+              onChange={onContactMessageChange}
+              rows={8}
+              disabled={messageSending}
+              placeholder="Hi, I'm looking for help with a project..."
+              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] dark:focus:border-[#7aa3a2] focus:bg-white dark:focus:bg-gray-800 transition-all resize-y min-h-[140px] disabled:opacity-60"
+            />
+            {messageError && (
+              <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                {messageError}
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setContactModalOpen(false)}
+                disabled={messageSending}
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/80 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendMessage}
+                disabled={
+                  !messageText.trim() ||
+                  messageSending ||
+                  !replyEmail.trim()
+                }
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {messageSending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+                {messageSending ? "Sending…" : "Send"}
+              </button>
+            </div>
+          </div>
+        </ModalBlank>
 
         {/* Save Confirmation Toast */}
         <div

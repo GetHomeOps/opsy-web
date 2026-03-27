@@ -111,6 +111,14 @@ router.post("/:id/reviews", ensureLoggedIn, async function (req, res, next) {
 
 const CONTACT_MESSAGE_MAX = 8000;
 
+function isValidContactReplyEmail(s) {
+  if (s == null || typeof s !== "string") return false;
+  const t = s.trim();
+  if (t.length < 3 || t.length > 254) return false;
+  // Practical RFC 5322–ish check for SES Reply-To
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
+}
+
 /** POST /:id/contact - Send a message to the professional via AWS SES (logged-in users). */
 router.post("/:id/contact", ensureLoggedIn, async function (req, res, next) {
   try {
@@ -129,6 +137,17 @@ router.post("/:id/contact", ensureLoggedIn, async function (req, res, next) {
       throw new BadRequestError(`message must be at most ${CONTACT_MESSAGE_MAX} characters`);
     }
 
+    const senderEmail = res.locals.user.email;
+    let replyToEmail = senderEmail;
+    const rawReply = req.body?.replyToEmail;
+    if (rawReply != null && String(rawReply).trim()) {
+      const candidate = String(rawReply).trim();
+      if (!isValidContactReplyEmail(candidate)) {
+        throw new BadRequestError("replyToEmail must be a valid email address");
+      }
+      replyToEmail = candidate;
+    }
+
     const pro = await Professional.get(String(professionalId), userId);
     const toEmail = pro.email && String(pro.email).trim();
     if (!toEmail) {
@@ -137,7 +156,6 @@ router.post("/:id/contact", ensureLoggedIn, async function (req, res, next) {
 
     const user = await User.getById(userId);
     const senderName = user?.name || null;
-    const senderEmail = res.locals.user.email;
 
     let proContactUsage;
     try {
@@ -160,6 +178,7 @@ router.post("/:id/contact", ensureLoggedIn, async function (req, res, next) {
         message,
         senderName,
         senderEmail,
+        replyToEmail,
         usage: proContactUsage,
       });
     } catch (e) {

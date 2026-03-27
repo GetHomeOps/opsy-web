@@ -466,6 +466,8 @@ async function sendProfessionalContactEmail({
   message,
   senderName,
   senderEmail,
+  /** Reply-To header (and shown in body); defaults to senderEmail */
+  replyToEmail,
   usage,
 }) {
   if (!isSesConfigured()) {
@@ -481,11 +483,15 @@ async function sendProfessionalContactEmail({
   const safeBody = escapeHtml(message)
     .replace(/\r\n/g, "\n")
     .replace(/\n/g, "<br/>");
-  const senderLabel = escapeHtml(senderName || senderEmail || "A homeowner");
+  const replyEmail =
+    replyToEmail && String(replyToEmail).trim()
+      ? String(replyToEmail).trim()
+      : senderEmail;
+  const senderLabel = escapeHtml(senderName || replyEmail || "A homeowner");
   const senderLine =
-    senderName && senderEmail
-      ? `${escapeHtml(senderName)} &lt;${escapeHtml(senderEmail)}&gt;`
-      : escapeHtml(senderEmail || "");
+    senderName && replyEmail
+      ? `${escapeHtml(senderName)} &lt;${escapeHtml(replyEmail)}&gt;`
+      : escapeHtml(replyEmail || "");
 
   const html = `
     <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
@@ -507,7 +513,7 @@ async function sendProfessionalContactEmail({
     to: String(to).trim(),
     subject,
     html,
-    replyTo: senderEmail,
+    replyTo: replyEmail,
     usage,
   });
 }

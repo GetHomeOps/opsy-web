@@ -1256,8 +1256,12 @@ class AppApi {
   }
 
   /** Send a contact message to a professional (backend delivers via AWS SES). */
-  static async contactProfessional(professionalId, { message }) {
-    return this.request(`professionals/${professionalId}/contact`, { message }, "POST");
+  static async contactProfessional(professionalId, { message, replyToEmail }) {
+    const body = { message };
+    if (replyToEmail != null && String(replyToEmail).trim()) {
+      body.replyToEmail = String(replyToEmail).trim();
+    }
+    return this.request(`professionals/${professionalId}/contact`, body, "POST");
   }
 
   static async createProfessional(data) {
