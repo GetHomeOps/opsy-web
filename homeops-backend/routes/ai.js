@@ -732,7 +732,7 @@ router.post(
     try {
       const draftId = req.params.actionDraftId;
       const userId = res.locals.user.id;
-      const { scheduledFor, scheduledTime, eventType, notes } = req.body || {};
+      const { scheduledFor, scheduledTime, eventType, notes, systemKey: overrideSystemKey } = req.body || {};
 
       if (!scheduledFor) throw new BadRequestError("scheduledFor (YYYY-MM-DD) is required");
 
@@ -749,7 +749,7 @@ router.post(
 
       const tasks = draft.tasks || [];
       const firstTask = tasks[0] || {};
-      const systemKey = firstTask.systemType || "general";
+      const systemKey = overrideSystemKey || firstTask.systemType || "general";
       const baseName = firstTask.task || systemKey;
       const systemNameForEvent =
         eventType === "inspection"

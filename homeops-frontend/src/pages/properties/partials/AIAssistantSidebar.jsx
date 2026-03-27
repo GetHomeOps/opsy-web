@@ -30,6 +30,8 @@ import {
 } from "../constants/propertySystems";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function AIAssistantSidebar({
   isOpen,
   onClose,
@@ -78,6 +80,7 @@ function AIAssistantSidebar({
   const [scheduleNotes, setScheduleNotes] = useState("");
   const [scheduling, setScheduling] = useState(false);
   const [scheduleSuccess, setScheduleSuccess] = useState(null);
+  const [scheduleSystem, setScheduleSystem] = useState(null);
   const [contextLoaded, setContextLoaded] = useState(false);
   const [inspectionDate, setInspectionDate] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -275,6 +278,8 @@ function AIAssistantSidebar({
           setScheduledFor("");
           setScheduledTime("");
           setScheduleNotes("");
+          const firstTask = (res.uiDirectives.tasks || [])[0];
+          setScheduleSystem(firstTask?.systemType || activeSystemId || "general");
         }
       })
       .catch((err) => {
@@ -348,6 +353,8 @@ function AIAssistantSidebar({
         setScheduledFor("");
         setScheduledTime("");
         setScheduleNotes("");
+        const firstTask = (res.uiDirectives.tasks || [])[0];
+        setScheduleSystem(firstTask?.systemType || activeSystemId || "general");
       }
     } catch (err) {
       if (
@@ -393,11 +400,16 @@ function AIAssistantSidebar({
   const handleSelectContractor = async (contractor) => {
     if (!scheduleDraft?.actionDraftId) return;
     setSelectedContractor(contractor);
+    setContractorSearch(contractor.email || contractor.name || "");
     try {
       await AppApi.aiSelectContractor(scheduleDraft.actionDraftId, {
-        contractorId: contractor.id,
-        contractorSource: contractor.source,
-        contractorName: contractor.name,
+        contractorId: contractor.isTypedEmail
+          ? contractor.email
+          : contractor.id,
+        contractorSource: contractor.isTypedEmail
+          ? "contact"
+          : contractor.source,
+        contractorName: contractor.email || contractor.name,
       });
     } catch (err) {
       console.error("Failed to select contractor:", err);
@@ -419,6 +431,7 @@ function AIAssistantSidebar({
         scheduledTime: scheduledTime?.trim() || undefined,
         eventType,
         notes: scheduleNotes || undefined,
+        systemKey: scheduleSystem || undefined,
       });
       setScheduleSuccess(res);
       setScheduleDraft(null);
@@ -438,6 +451,30 @@ function AIAssistantSidebar({
           c.email?.toLowerCase().includes(contractorSearch.toLowerCase()),
       )
     : contractors;
+  const normalizedContractorSearch = contractorSearch.trim().toLowerCase();
+  const typedEmailOption =
+    contractorSearch.trim() && EMAIL_REGEX.test(contractorSearch.trim())
+      ? {
+          id: `typed-email-${contractorSearch.trim().toLowerCase()}`,
+          name: contractorSearch.trim(),
+          email: contractorSearch.trim(),
+          source: "contact",
+          isTypedEmail: true,
+        }
+      : null;
+  const hasExactEmailMatch = !!typedEmailOption
+    && filteredContractors.some(
+      (c) => (c.email || "").toLowerCase() === normalizedContractorSearch,
+    );
+  const showTypedEmailOption = !!typedEmailOption
+    && (
+      !hasExactEmailMatch
+      || selectedContractor?.id === typedEmailOption.id
+    );
+  const professionals = filteredContractors.filter(
+    (c) => c.source === "professional",
+  );
+  const contactsOnly = filteredContractors.filter((c) => c.source === "contact");
 
   const formatInspectionDate = (dateStr) => {
     if (!dateStr) return null;
@@ -750,6 +787,7 @@ function AIAssistantSidebar({
                     setScheduledFor("");
                     setScheduledTime("");
                     setScheduleNotes("");
+                    setScheduleSystem(null);
                   }}
                   className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                 >
@@ -763,6 +801,25 @@ function AIAssistantSidebar({
                   </li>
                 ))}
               </ul>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                  <Home className="w-3.5 h-3.5 inline mr-1" />
+                  System
+                </label>
+                <select
+                  value={scheduleSystem || "general"}
+                  onChange={(e) => setScheduleSystem(e.target.value)}
+                  className="form-select w-full text-sm py-1.5"
+                >
+                  <option value="general">General</option>
+                  {changeSystemOptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
@@ -805,29 +862,87 @@ function AIAssistantSidebar({
                     type="text"
                     value={contractorSearch}
                     onChange={(e) => setContractorSearch(e.target.value)}
-                    placeholder="Search contacts & professionals..."
-                    className="form-input w-full pl-8 text-sm py-1.5"
+                    placeholder="Search professionals, contacts, or type email..."
+                    className="form-input w-full pl-8 text-sm py-1.5 bg-white dark:bg-gray-800"
                   />
                 </div>
-                <div className="mt-1.5 max-h-32 overflow-y-auto space-y-0.5">
-                  {filteredContractors.slice(0, 6).map((c) => (
+                <div className="mt-1.5 max-h-44 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+                  {showTypedEmailOption && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectContractor(typedEmailOption)}
+                      className={`w-full text-left px-2 py-2 text-xs border-b border-gray-100 dark:border-gray-700 ${
+                        selectedContractor?.id === typedEmailOption.id
+                          ? "bg-[#456564]/15 text-[#456564] dark:text-[#7aa3a2]"
+                          : "hover:bg-gray-50 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      <span className="block font-medium">
+                        Use email: {typedEmailOption.email}
+                      </span>
+                      <span className="block text-[11px] text-gray-500 dark:text-gray-400">
+                        Typed email
+                      </span>
+                    </button>
+                  )}
+
+                  {professionals.length > 0 && (
+                    <div className="px-2 py-1 text-[11px] font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                      Professionals
+                    </div>
+                  )}
+                  {professionals.slice(0, 6).map((c) => (
                     <button
                       key={c.id}
                       type="button"
                       onClick={() => handleSelectContractor(c)}
-                      className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 ${
+                      className={`w-full text-left px-2 py-2 text-xs flex items-start gap-2 ${
                         selectedContractor?.id === c.id
-                          ? "bg-[#456564]/20 text-[#456564] dark:text-[#7aa3a2]"
-                          : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                          ? "bg-[#456564]/15 text-[#456564] dark:text-[#7aa3a2]"
+                          : "hover:bg-gray-50 dark:hover:bg-gray-700"
                       }`}
                     >
                       {selectedContractor?.id === c.id && (
-                        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       )}
-                      {c.name}
+                      <div className="min-w-0">
+                        <span className="block font-medium truncate">{c.name}</span>
+                        <span className="block text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                          Professional{c.categoryName ? ` - ${c.categoryName}` : ""}
+                        </span>
+                      </div>
                     </button>
                   ))}
-                  {filteredContractors.length === 0 && (
+
+                  {contactsOnly.length > 0 && (
+                    <div className="px-2 py-1 text-[11px] font-semibold text-gray-500 dark:text-gray-400 border-y border-gray-100 dark:border-gray-700">
+                      Contacts
+                    </div>
+                  )}
+                  {contactsOnly.slice(0, 6).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => handleSelectContractor(c)}
+                      className={`w-full text-left px-2 py-2 text-xs flex items-start gap-2 ${
+                        selectedContractor?.id === c.id
+                          ? "bg-[#456564]/15 text-[#456564] dark:text-[#7aa3a2]"
+                          : "hover:bg-gray-50 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {selectedContractor?.id === c.id && (
+                        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div className="min-w-0">
+                        <span className="block font-medium truncate">{c.name}</span>
+                        <span className="block text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                          Contact{c.email ? ` - ${c.email}` : ""}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+
+                  {filteredContractors.length === 0 && !showTypedEmailOption && (
                     <p className="px-2 py-1.5 text-xs text-gray-500">
                       No contractors found.{" "}
                       <button

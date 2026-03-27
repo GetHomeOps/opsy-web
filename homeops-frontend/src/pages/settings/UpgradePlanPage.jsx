@@ -74,11 +74,22 @@ function UpgradePlanPage() {
 
   const currentPlanCode = billing?.plan?.code;
 
+  function isZeroCostPlan(plan) {
+    const intervalPrice = plan?.stripePrices?.[billingInterval];
+    if (typeof intervalPrice?.unitAmount === "number") {
+      return intervalPrice.unitAmount <= 0;
+    }
+    const normalizedPrice =
+      plan?.price != null && plan?.price !== ""
+        ? Number(plan.price)
+        : Number.NaN;
+    return Number.isFinite(normalizedPrice) && normalizedPrice <= 0;
+  }
+
   async function handleSelectPlan(plan) {
     if (plan.code === currentPlanCode) return;
 
-    const freeCodes = ["homeowner_free", "agent_free"];
-    if (freeCodes.includes(plan.code)) {
+    if (isZeroCostPlan(plan)) {
       navigate(`/${accountUrl}/settings/billing`);
       return;
     }

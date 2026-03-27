@@ -1075,12 +1075,13 @@ class AppApi {
     return res;
   }
 
-  static async aiConfirmSchedule(actionDraftId, { scheduledFor, scheduledTime, eventType, notes }) {
+  static async aiConfirmSchedule(actionDraftId, { scheduledFor, scheduledTime, eventType, notes, systemKey }) {
     const res = await this.request(`ai/actions/${actionDraftId}/confirm-schedule`, {
       scheduledFor,
       scheduledTime: scheduledTime || undefined,
       eventType: eventType || undefined,
       notes,
+      systemKey: systemKey || undefined,
     }, "POST");
     return res;
   }

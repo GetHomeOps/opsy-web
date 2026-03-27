@@ -246,6 +246,17 @@ function getDisplayFeatures(plan) {
   return [...limitFeatures, ...filtered];
 }
 
+function isZeroCostPlan(plan, billingInterval = "month") {
+  if (!plan) return false;
+  const intervalPrice = plan?.stripePrices?.[billingInterval];
+  if (typeof intervalPrice?.unitAmount === "number") {
+    return intervalPrice.unitAmount <= 0;
+  }
+  const normalizedPrice =
+    plan?.price != null && plan?.price !== "" ? Number(plan.price) : Number.NaN;
+  return Number.isFinite(normalizedPrice) && normalizedPrice <= 0;
+}
+
 function Step2Plan({
   role,
   plan,
@@ -513,8 +524,6 @@ function Step3Confirmation({role, plan, apiPlans}) {
   );
 }
 
-const FREE_PLANS = ["homeowner_free"];
-
 export default function OnboardingWizard() {
   const navigate = useNavigate();
   const {currentUser, refreshCurrentUser, logout} = useAuth();
@@ -557,12 +566,14 @@ export default function OnboardingWizard() {
     return () => window.removeEventListener("plans-updated", onPlansUpdated);
   }, [role, loadPlans]);
 
-  const selectedPlan = apiPlans.find((p) => p.code === plan);
-  const isFreePlan =
-    plan &&
-    (selectedPlan?.price === 0 ||
-      selectedPlan?.price === "0" ||
-      FREE_PLANS.includes(plan));
+  const availablePlans =
+    apiPlans && apiPlans.length > 0
+      ? apiPlans
+      : role
+        ? buildFallbackPlans(role, subscriptionProducts)
+        : [];
+  const selectedPlan = availablePlans.find((p) => (p.code || p.id) === plan);
+  const isFreePlan = Boolean(plan) && isZeroCostPlan(selectedPlan, billingInterval);
 
   const canContinue =
     (step === 1 && role) || (step === 2 && plan) || step === 3;

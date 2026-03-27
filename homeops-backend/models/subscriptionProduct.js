@@ -80,33 +80,32 @@ async function upsertPlanPrice(productId, billingInterval, stripePriceId) {
     return;
   }
 
-  try {
-    await db.query(
-      `INSERT INTO plan_prices (subscription_product_id, stripe_price_id, billing_interval)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (subscription_product_id, billing_interval) DO UPDATE SET stripe_price_id = EXCLUDED.stripe_price_id`,
-      [productId, normalizedPriceId, billingInterval]
-    );
-  } catch (err) {
-    if (err.code === "23505" && String(err.message || "").toLowerCase().includes("stripe_price_id")) {
-      const existing = await db.query(
-        `SELECT sp.id, sp.name, pp.billing_interval AS "billingInterval"
-         FROM plan_prices pp
-         JOIN subscription_products sp ON sp.id = pp.subscription_product_id
-         WHERE pp.stripe_price_id = $1
-         LIMIT 1`,
-        [normalizedPriceId]
-      );
-      const conflict = existing.rows[0];
-      if (conflict) {
-        throw new BadRequestError(
-          `Stripe price ${normalizedPriceId} is already linked to "${conflict.name}" (${conflict.billingInterval}).`
-        );
-      }
-      throw new BadRequestError(`Stripe price ${normalizedPriceId} is already linked to another plan.`);
+  const existing = await db.query(
+    `SELECT subscription_product_id AS "productId", billing_interval AS "billingInterval"
+     FROM plan_prices WHERE stripe_price_id = $1`,
+    [normalizedPriceId]
+  );
+
+  if (existing.rows.length > 0) {
+    const row = existing.rows[0];
+    if (row.productId === productId && row.billingInterval === billingInterval) {
+      return;
     }
-    throw err;
+    const conflictInfo = await db.query(
+      `SELECT sp.name FROM subscription_products sp WHERE sp.id = $1`, [row.productId]
+    );
+    const planName = conflictInfo.rows[0]?.name || `plan #${row.productId}`;
+    throw new BadRequestError(
+      `Stripe price ${normalizedPriceId} is already linked to "${planName}" (${row.billingInterval}).`
+    );
   }
+
+  await db.query(
+    `INSERT INTO plan_prices (subscription_product_id, stripe_price_id, billing_interval)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (subscription_product_id, billing_interval) DO UPDATE SET stripe_price_id = EXCLUDED.stripe_price_id`,
+    [productId, normalizedPriceId, billingInterval]
+  );
 }
 
 async function getLimitsForProduct(productId) {
