@@ -1,4 +1,4 @@
-import React, {useReducer, useMemo, useCallback, useEffect, useState, useRef} from "react";
+import React, {useReducer, useMemo, useCallback, useEffect, useState} from "react";
 import {useNavigate, useParams, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {Layers, Tag, Users} from "lucide-react";
@@ -14,17 +14,20 @@ import AppApi from "../../../api/api";
 
 import CategoryForm from "./CategoryForm";
 
+const emptyFormData = {
+  name: "",
+  description: "",
+  type: "child",
+  parentId: "",
+  icon: "",
+  imageKey: "",
+  is_active: true,
+};
+
 const initialState = {
-  formData: {
-    name: "",
-    description: "",
-    type: "child",
-    parentId: "",
-    icon: "",
-    imageKey: "",
-    is_active: true,
-  },
+  formData: emptyFormData,
   errors: {},
+  dirty: false,
   isSubmitting: false,
   isNew: true,
   sidebarOpen: false,
@@ -45,6 +48,15 @@ function reducer(state, action) {
         ...state,
         formData: {...state.formData, ...action.payload},
       };
+    case "SET_FIELD":
+      return {
+        ...state,
+        formData: {...state.formData, ...action.payload},
+        errors: {},
+        dirty: true,
+      };
+    case "SET_DIRTY":
+      return {...state, dirty: action.payload};
     case "SET_ERRORS":
       return {...state, errors: action.payload};
     case "SET_SUBMITTING":
@@ -70,6 +82,16 @@ function reducer(state, action) {
       return {...state, professionalCount: action.payload};
     case "SET_IMAGE_MENU_OPEN":
       return {...state, imageMenuOpen: action.payload};
+    case "RESET_CATEGORY":
+      return {
+        ...state,
+        formData: emptyFormData,
+        existingCategory: null,
+        childCategories: [],
+        errors: {},
+        dirty: false,
+        imageMenuOpen: false,
+      };
     case "RESET_FORM":
       return {...initialState, sidebarOpen: state.sidebarOpen};
     default:
@@ -86,26 +108,14 @@ function CategoryFormContainer() {
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
   const [state, dispatch] = useReducer(reducer, initialState);
-  const initialFormDataRef = useRef(null);
   const [allCategoryIds, setAllCategoryIds] = useState([]);
 
   const isNew = categoryId === "new" || !categoryId;
 
-  const hasChanges = useMemo(() => {
-    if (isNew) return true;
-    if (!initialFormDataRef.current) return false;
-    const init = initialFormDataRef.current;
-    const curr = state.formData;
-    return Object.keys(init).some((key) => {
-      return String(init[key] ?? "") !== String(curr[key] ?? "");
-    });
-  }, [isNew, state.formData, state.isSubmitting]);
-
   /* ─── Image Upload ─────────────────────────────────────── */
 
   const handleFieldChange = useCallback((field, value) => {
-    dispatch({type: "SET_FORM_DATA", payload: {[field]: value}});
-    dispatch({type: "SET_ERRORS", payload: {}});
+    dispatch({type: "SET_FIELD", payload: {[field]: value}});
   }, []);
 
   const {
@@ -142,10 +152,7 @@ function CategoryFormContainer() {
       String(state.existingCategory.id) === String(categoryId));
 
   useEffect(() => {
-    // Prevent previous category data/images from leaking while route data loads.
-    initialFormDataRef.current = null;
-    dispatch({type: "SET_EXISTING_CATEGORY", payload: null});
-    dispatch({type: "SET_CHILD_CATEGORIES", payload: []});
+    dispatch({type: "RESET_CATEGORY"});
     clearPreview();
     clearUploadedUrl();
     clearPresignedUrl();
@@ -229,19 +236,17 @@ function CategoryFormContainer() {
         if (cancelled) return;
 
         dispatch({type: "SET_EXISTING_CATEGORY", payload: cat});
-        const loadedData = {
-          name: cat.name || "",
-          description: cat.description || "",
-          type: cat.type || "child",
-          parentId: cat.parent_id ? String(cat.parent_id) : "",
-          icon: cat.icon || "",
-          imageKey: cat.image_key || "",
-          is_active: cat.is_active !== false,
-        };
-        initialFormDataRef.current = {...loadedData};
         dispatch({
           type: "SET_FORM_DATA",
-          payload: loadedData,
+          payload: {
+            name: cat.name || "",
+            description: cat.description || "",
+            type: cat.type || "child",
+            parentId: cat.parent_id ? String(cat.parent_id) : "",
+            icon: cat.icon || "",
+            imageKey: cat.image_key || "",
+            is_active: cat.is_active !== false,
+          },
         });
 
         if (cat.type === "parent") {
@@ -334,17 +339,6 @@ function CategoryFormContainer() {
         navigate(`/${accountUrl}/professionals/categories/${created.id}`);
       } else {
         await AppApi.updateProfessionalCategory(categoryId, payload);
-        const normalizedFormData = {
-          name: state.formData.name.trim(),
-          description: state.formData.description || "",
-          type: state.formData.type,
-          parentId: state.formData.parentId
-            ? String(state.formData.parentId)
-            : "",
-          icon: state.formData.icon || "",
-          imageKey: state.formData.imageKey || "",
-          is_active: state.formData.is_active,
-        };
         dispatch({
           type: "SET_BANNER",
           payload: {
@@ -353,23 +347,7 @@ function CategoryFormContainer() {
             message: "Category updated successfully",
           },
         });
-        // Keep UI state aligned with what was saved, so dirty-check resets.
-        initialFormDataRef.current = normalizedFormData;
-        dispatch({type: "SET_FORM_DATA", payload: normalizedFormData});
-        dispatch({
-          type: "SET_EXISTING_CATEGORY",
-          payload: {
-            ...(state.existingCategory || {}),
-            id: state.existingCategory?.id ?? categoryId,
-            name: normalizedFormData.name,
-            description: normalizedFormData.description || null,
-            type: normalizedFormData.type,
-            parent_id: normalizedFormData.parentId || null,
-            icon: normalizedFormData.icon || null,
-            image_key: normalizedFormData.imageKey || null,
-            is_active: normalizedFormData.is_active,
-          },
-        });
+        dispatch({type: "SET_DIRTY", payload: false});
       }
     } catch (err) {
       const msg = err?.messages?.[0] || err?.message || "Failed to save category";
@@ -662,7 +640,7 @@ function CategoryFormContainer() {
               {/* Footer with Save/Update buttons */}
               <div
                 className={`${
-                  isNew || hasChanges ? "sticky" : "hidden"
+                  isNew || state.dirty ? "sticky" : "hidden"
                 } bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-6 sm:px-8 py-4 rounded-b-xl transition-all duration-200`}
               >
                 <div className="flex justify-end gap-3">
