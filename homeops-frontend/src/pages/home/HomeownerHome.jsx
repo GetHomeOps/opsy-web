@@ -4,6 +4,7 @@ import React, {
   useContext,
   useRef,
   useCallback,
+  useMemo,
 } from "react";
 import {createPortal} from "react-dom";
 import {useTranslation} from "react-i18next";
@@ -40,7 +41,6 @@ import {
   Lock,
   FileText,
   Star,
-  AlertTriangle,
   MapPin,
   BookOpen,
   Hammer,
@@ -54,8 +54,21 @@ import {
   Loader2,
 } from "lucide-react";
 import OpsyMascot from "../../images/opsy2.png";
+import heroMountBaker from "../../images/homepage/Mount Baker.webp";
+import heroOlympics from "../../images/homepage/Olymoics 1.webp";
+import heroSeattleSpring from "../../images/homepage/Seattle Spring.webp";
+import heroSeattleSkyline2 from "../../images/homepage/Seattle skyline 2.webp";
+import heroSeattleSkyline3 from "../../images/homepage/Seattle skyline 3.webp";
 import AgentCard from "./components/AgentCard";
 import AgentModal from "./components/AgentModal";
+
+const HOME_HERO_BACKGROUNDS = [
+  heroMountBaker,
+  heroOlympics,
+  heroSeattleSpring,
+  heroSeattleSkyline2,
+  heroSeattleSkyline3,
+];
 
 // ─── Skeleton components for loading states ─────
 function CardSkeleton({lines = 3}) {
@@ -116,9 +129,7 @@ function HomeownerHome() {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [propertyTeams, setPropertyTeams] = useState({});
-  const [presignedUrls, setPresignedUrls] = useState({});
   const [scoreBreakdown, setScoreBreakdown] = useState(null);
-  const fetchedKeysRef = useRef(new Set());
   const fetchedTeamUidsRef = useRef(new Set());
 
   const [activeTab, setActiveTab] = useState("all");
@@ -150,8 +161,60 @@ function HomeownerHome() {
     ? rawFirstName.charAt(0).toUpperCase() + rawFirstName.slice(1).toLowerCase()
     : rawFirstName;
 
+  const heroBackdropSrc = useMemo(() => {
+    const list = HOME_HERO_BACKGROUNDS;
+    const idx = Math.floor(Math.random() * list.length);
+    return list[idx] ?? list[0];
+  }, [currentUser?.id]);
+
   const totalProperties = properties?.length || 0;
   const activeProperty = totalProperties > 0 ? properties[activeIndex] : null;
+
+  const [propertyPhotoPresignedUrls, setPropertyPhotoPresignedUrls] =
+    useState({});
+  const fetchedPropertyPhotoKeysRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!properties?.length) return;
+    properties.forEach((prop) => {
+      const backendUrl = prop.main_photo_url || prop.mainPhotoUrl;
+      if (backendUrl) return;
+      const key = prop.main_photo || prop.mainPhoto;
+      if (
+        !key ||
+        key.startsWith("http") ||
+        key.startsWith("blob:") ||
+        fetchedPropertyPhotoKeysRef.current.has(key)
+      )
+        return;
+      fetchedPropertyPhotoKeysRef.current.add(key);
+      AppApi.getPresignedPreviewUrl(key)
+        .then((url) =>
+          setPropertyPhotoPresignedUrls((prev) => ({...prev, [key]: url})),
+        )
+        .catch(() => {
+          fetchedPropertyPhotoKeysRef.current.delete(key);
+        });
+    });
+  }, [properties]);
+
+  const getMainPhotoUrl = useCallback(
+    (property) => {
+      if (!property) return null;
+      const backendUrl = property.main_photo_url || property.mainPhotoUrl;
+      if (backendUrl) return backendUrl;
+      const key = property.main_photo || property.mainPhoto;
+      if (!key) return null;
+      if (key.startsWith("http") || key.startsWith("blob:")) return key;
+      return propertyPhotoPresignedUrls[key] ?? null;
+    },
+    [propertyPhotoPresignedUrls],
+  );
+
+  const propertyHeroPhotoUrl = activeProperty
+    ? getMainPhotoUrl(activeProperty)
+    : null;
+  const heroDisplaySrc = propertyHeroPhotoUrl ?? heroBackdropSrc;
 
   // Close overlays on user switch
   useEffect(() => {
@@ -159,7 +222,7 @@ function HomeownerHome() {
     setReminderFilter("all");
   }, [currentUser?.id]);
 
-  // ─── Fetch home events (reminders, scheduled work, next alert) ───
+  // ─── Fetch home events (reminders, scheduled work) ───
   useEffect(() => {
     if (!currentUser?.id) return;
     setEventsLoading(true);
@@ -293,31 +356,6 @@ function HomeownerHome() {
     });
   }, [properties, getPropertyTeam]);
 
-  // ─── Fetch presigned URLs for property main photos (only when backend didn't provide one) ──
-  useEffect(() => {
-    if (!properties?.length) return;
-    properties.forEach((prop) => {
-      const backendUrl = prop.main_photo_url || prop.mainPhotoUrl;
-      if (backendUrl) return;
-      const key = prop.main_photo || prop.mainPhoto;
-      if (
-        !key ||
-        key.startsWith("http") ||
-        key.startsWith("blob:") ||
-        fetchedKeysRef.current.has(key)
-      )
-        return;
-      fetchedKeysRef.current.add(key);
-      AppApi.getPresignedPreviewUrl(key)
-        .then((url) => {
-          setPresignedUrls((prev) => ({...prev, [key]: url}));
-        })
-        .catch(() => {
-          fetchedKeysRef.current.delete(key);
-        });
-    });
-  }, [properties]);
-
   // ─── Fetch full property data for score breakdown (Identity, Systems, Maintenance) ───
   useEffect(() => {
     if (
@@ -370,19 +408,6 @@ function HomeownerHome() {
   ]);
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
-  const getMainPhotoUrl = useCallback(
-    (property) => {
-      if (!property) return null;
-      const backendUrl = property.main_photo_url || property.mainPhotoUrl;
-      if (backendUrl) return backendUrl;
-      const key = property.main_photo || property.mainPhoto;
-      if (!key) return null;
-      if (key.startsWith("http") || key.startsWith("blob:")) return key;
-      return presignedUrls[key] || null;
-    },
-    [presignedUrls],
-  );
-
   const getAgent = useCallback(
     (property) => {
       if (!property) return null;
@@ -458,7 +483,6 @@ function HomeownerHome() {
   };
 
   // ─── Computed values for active property ─────────────────────────────────────
-  const currentPhotoUrl = getMainPhotoUrl(activeProperty);
   const activePropertyUid = activeProperty
     ? activeProperty.property_uid ?? activeProperty.id
     : null;
@@ -475,6 +499,23 @@ function HomeownerHome() {
   const currentAddress = activeProperty?.address ?? "";
 
   const hasProperties = properties && totalProperties > 0;
+
+  /** Overdue booked events surface under Reminders; non-overdue booked stay in Scheduled Work only. */
+  const displayReminders = useMemo(() => {
+    const raw = homeEvents?.reminders ?? [];
+    const overdueBooked = (homeEvents?.scheduledWork ?? []).filter(
+      (e) => e.isOverdue,
+    );
+    return [...raw, ...overdueBooked].sort((a, b) => {
+      if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+      return new Date(a.dueAt) - new Date(b.dueAt);
+    });
+  }, [homeEvents]);
+
+  const displayScheduledWork = useMemo(
+    () => (homeEvents?.scheduledWork ?? []).filter((e) => !e.isOverdue),
+    [homeEvents],
+  );
 
   const {handleAddProperty, isChecking: addPropertyChecking} =
     useAddPropertyWithLimitCheck({
@@ -523,11 +564,11 @@ function HomeownerHome() {
       <div className="relative">
         {/* Background Image / Fallback Gradient */}
         <div className="relative h-[340px] sm:h-[420px] lg:h-[480px] overflow-hidden">
-          {hasProperties && currentPhotoUrl ? (
+          {hasProperties ? (
             <img
-              key={activeProperty?.property_uid ?? activeProperty?.id}
-              src={currentPhotoUrl}
-              alt={currentAddress || "Your home"}
+              key={`${activeProperty?.property_uid ?? activeProperty?.id ?? activeIndex}-${propertyHeroPhotoUrl ?? "stock"}`}
+              src={heroDisplaySrc}
+              alt=""
               className="w-full h-full object-cover transition-opacity duration-500"
             />
           ) : (
@@ -565,8 +606,8 @@ function HomeownerHome() {
               )}
             </div>
           )}
-          {/* Gradient overlays - only when we have a property image; avoid blocking empty-state button */}
-          {hasProperties && currentPhotoUrl && (
+          {/* Gradient overlays for hero photo readability; skip empty-state (mascot CTA) */}
+          {hasProperties && (
             <>
               {/* Bottom-heavy vignette; keep top lighter so agent card reads clearly */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-black/[0.04]" />
@@ -847,42 +888,6 @@ function HomeownerHome() {
       </div>
 
       {/* ============================================ */}
-      {/* NEXT UP - Urgent Action Banner (real data) */}
-      {/* ============================================ */}
-      {!eventsLoading && homeEvents?.nextAlert && (
-        <div className="px-4 sm:px-0">
-          <div className="bg-white dark:bg-gray-800/60 border border-gray-200/60 dark:border-gray-700/50 rounded-xl p-4 flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-amber-500/10 dark:bg-amber-500/20 rounded-lg flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {homeEvents.nextAlert.title}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {homeEvents.nextAlert.isOverdue
-                    ? "Overdue"
-                    : `Due in ${homeEvents.nextAlert.daysUntilDue} days`}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const uid = homeEvents.nextAlert.propertyUid;
-                if (uid) navigate(`/${accountUrl}/properties/${uid}`);
-              }}
-              className="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
-            >
-              Take Action
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================ */}
       {/* YOUR PROPERTY - Tasks & Maintenance */}
       {/* ============================================ */}
       <section className="px-4 sm:px-0">
@@ -901,17 +906,17 @@ function HomeownerHome() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {eventsLoading
                       ? "…"
-                      : `${homeEvents?.reminders?.length ?? 0} pending`}
+                      : `${displayReminders.length} pending`}
                   </p>
                 </div>
               </div>
             </div>
             {eventsLoading ? (
               <CardSkeleton lines={3} />
-            ) : (homeEvents?.reminders?.length ?? 0) > 0 ? (
+            ) : displayReminders.length > 0 ? (
               <>
                 <div className="space-y-2">
-                  {(homeEvents.reminders || []).slice(0, 3).map((item) => {
+                  {displayReminders.slice(0, 3).map((item) => {
                     const isUrgent =
                       item.daysUntilDue <= 7 && item.daysUntilDue > 0;
                     const isOverdue = item.isOverdue;
@@ -1020,17 +1025,17 @@ function HomeownerHome() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {eventsLoading
                       ? "…"
-                      : `${homeEvents?.scheduledWork?.length ?? 0} upcoming`}
+                      : `${displayScheduledWork.length} upcoming`}
                   </p>
                 </div>
               </div>
             </div>
             {eventsLoading ? (
               <CardSkeleton lines={3} />
-            ) : (homeEvents?.scheduledWork?.length ?? 0) > 0 ? (
+            ) : displayScheduledWork.length > 0 ? (
               <>
                 <div className="space-y-2">
-                  {(homeEvents.scheduledWork || []).map((item) => {
+                  {displayScheduledWork.map((item) => {
                     const dateObj = new Date(item.dueAt);
                     const month = dateObj.toLocaleDateString("en-US", {
                       month: "short",
@@ -1375,9 +1380,7 @@ function HomeownerHome() {
                 All Reminders
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                {(homeEvents?.reminders?.length ?? 0) +
-                  (homeEvents?.scheduledWork?.length ?? 0)}{" "}
-                total
+                {displayReminders.length + displayScheduledWork.length} total
               </p>
             </div>
             <button
@@ -1396,29 +1399,25 @@ function HomeownerHome() {
                 {
                   id: "all",
                   label: "All",
-                  count: homeEvents?.reminders?.length ?? 0,
+                  count: displayReminders.length,
                 },
                 {
                   id: "overdue",
                   label: "Overdue",
-                  count:
-                    homeEvents?.reminders?.filter((r) => r.isOverdue)?.length ??
-                    0,
+                  count: displayReminders.filter((r) => r.isOverdue).length,
                 },
                 {
                   id: "urgent",
                   label: "Urgent",
-                  count:
-                    homeEvents?.reminders?.filter(
-                      (r) => !r.isOverdue && r.daysUntilDue <= 7,
-                    )?.length ?? 0,
+                  count: displayReminders.filter(
+                    (r) => !r.isOverdue && r.daysUntilDue <= 7,
+                  ).length,
                 },
                 {
                   id: "upcoming",
                   label: "Upcoming",
-                  count:
-                    homeEvents?.reminders?.filter((r) => r.daysUntilDue > 7)
-                      ?.length ?? 0,
+                  count: displayReminders.filter((r) => r.daysUntilDue > 7)
+                    .length,
                 },
               ].map((filter) => (
                 <button
@@ -1448,7 +1447,7 @@ function HomeownerHome() {
           {/* Reminders List */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-3">
-              {(homeEvents?.reminders ?? [])
+              {displayReminders
                 .filter((item) => {
                   if (reminderFilter === "all") return true;
                   if (reminderFilter === "overdue") return item.isOverdue;
@@ -1536,7 +1535,7 @@ function HomeownerHome() {
                 })}
             </div>
 
-            {(homeEvents?.reminders ?? []).filter((item) => {
+            {displayReminders.filter((item) => {
               if (reminderFilter === "all") return true;
               if (reminderFilter === "overdue") return item.isOverdue;
               if (reminderFilter === "urgent")

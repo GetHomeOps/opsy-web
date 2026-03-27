@@ -34,6 +34,49 @@ function flattenNavItems(config, parentRoles) {
 
 const ALL_PAGES = flattenNavItems(SIDEBAR_CONFIG);
 
+/** Profile / settings routes not in the main sidebar — same visibility as DropdownProfile */
+const EXTRA_NAV_SEARCH_PAGES = [
+  {
+    label: "Pricing",
+    path: "settings/upgrade",
+    roles: "all",
+    requiresAccountUrl: true,
+    searchAliases: ["plans", "plan", "upgrade", "subscription", "subscriptions"],
+  },
+  {
+    label: "Profile & Preferences",
+    path: "settings/configuration",
+    pathWithoutAccount: "settings/account",
+    roles: "all",
+    searchAliases: [
+      "profile",
+      "preferences",
+      "configuration",
+      "account",
+      "my account",
+    ],
+  },
+  {
+    label: "Account & Billing",
+    path: "settings/billing",
+    roles: "all",
+    requiresAccountUrl: true,
+    searchAliases: [
+      "billing",
+      "account & billing",
+      "invoices",
+      "invoice",
+      "payments",
+      "payment",
+    ],
+  },
+];
+
+function pageSearchHaystack(p) {
+  const parts = [p.label, ...(p.searchAliases || [])];
+  return parts.join(" ").toLowerCase();
+}
+
 function NavbarSearch({disabled = false}) {
   const navigate = useNavigate();
   const {currentAccount} = useCurrentAccount();
@@ -56,14 +99,20 @@ function NavbarSearch({disabled = false}) {
   const canManageUsers = isSuperAdmin || isAdmin;
 
   const visiblePages = useMemo(() => {
-    return ALL_PAGES.filter((p) => {
+    const baseFilter = (p) => {
       if (p.roles === "superAdminOnly" && !isSuperAdmin) return false;
       if (p.roles === "adminOnly" && !canManageUsers) return false;
       if (p.roles === "adminOrAgent" && !(canManageUsers || isAgent)) return false;
       if (p.hideForPlatformAdmins && canManageUsers) return false;
       return true;
+    };
+    const fromSidebar = ALL_PAGES.filter(baseFilter);
+    const extra = EXTRA_NAV_SEARCH_PAGES.filter((p) => {
+      if (p.requiresAccountUrl && !accountUrl) return false;
+      return baseFilter(p);
     });
-  }, [isSuperAdmin, canManageUsers, isAgent]);
+    return [...fromSidebar, ...extra];
+  }, [isSuperAdmin, canManageUsers, isAgent, accountUrl]);
 
   useEffect(() => {
     if (open && currentUser && !["super_admin"].includes(role)) {
@@ -101,7 +150,7 @@ function NavbarSearch({disabled = false}) {
       return name.includes(q) || email.includes(q) || company.includes(q);
     });
 
-    const pageMatches = visiblePages.filter((p) => p.label.toLowerCase().includes(q));
+    const pageMatches = visiblePages.filter((p) => pageSearchHaystack(p).includes(q));
 
     setResults({
       properties: propMatches.slice(0, 6),
@@ -147,7 +196,11 @@ function NavbarSearch({disabled = false}) {
   };
 
   const handleSelectPage = (page) => {
-    const fullPath = accountUrl ? `/${accountUrl}/${page.path}` : `/${page.path}`;
+    const fullPath = accountUrl
+      ? `/${accountUrl}/${page.path}`
+      : page.pathWithoutAccount
+        ? `/${page.pathWithoutAccount}`
+        : `/${page.path}`;
     navigate(fullPath);
     setOpen(false);
     setQuery("");
@@ -177,7 +230,7 @@ function NavbarSearch({disabled = false}) {
       value={query}
       onChange={(e) => setQuery(e.target.value)}
       onFocus={() => !disabled && setOpen(true)}
-      placeholder="Search properties, contacts & pages…"
+      placeholder="Search properties, contacts, pages, billing & pricing…"
       disabled={disabled}
       className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
       aria-label="Search"
@@ -260,7 +313,7 @@ function NavbarSearch({disabled = false}) {
       )}
       {!query.trim() && (
         <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
-          Search properties, contacts by name or email, or find pages
+          Search properties, contacts, pages, or go to billing and pricing
         </div>
       )}
     </>
@@ -321,7 +374,7 @@ function NavbarSearch({disabled = false}) {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onFocus={() => !disabled && setOpen(true)}
-                placeholder="Search properties, contacts & pages…"
+                placeholder="Search properties, contacts, pages, billing & pricing…"
                 disabled={disabled}
                 className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
                 aria-label="Search"

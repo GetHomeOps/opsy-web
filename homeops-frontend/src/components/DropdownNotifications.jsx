@@ -1,7 +1,7 @@
 import React, {useState, useRef, useEffect, useCallback} from "react";
 import {Link} from "react-router-dom";
-import {Bell, BookOpen, UserPlus, UserCheck, Wrench, MessageSquare} from "lucide-react";
-import Transition from "../utils/Transition";
+import {Bell, BookOpen, UserPlus, UserCheck, Wrench, MessageSquare, Users} from "lucide-react";
+import NavbarDropdownPortal from "./NavbarDropdownPortal";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 
@@ -19,7 +19,7 @@ function formatNotificationTime(dateStr) {
   return d.toLocaleDateString("en-US", {month: "short", day: "numeric"});
 }
 
-function DropdownNotifications({align = "right"}) {
+function DropdownNotifications() {
   const {currentAccount} = useCurrentAccount();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -114,20 +114,13 @@ function DropdownNotifications({align = "right"}) {
         )}
       </button>
 
-      <Transition
-        className={`origin-top-right z-50 absolute top-full mt-1 min-w-[320px] max-w-[360px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-lg overflow-hidden ${
-          align === "right" ? "right-0" : "left-0"
-        }`}
-        show={dropdownOpen}
-        enter="transition ease-out duration-200 transform"
-        enterStart="opacity-0 -translate-y-2"
-        enterEnd="opacity-100 translate-y-0"
-        leave="transition ease-out duration-200"
-        leaveStart="opacity-100"
-        leaveEnd="opacity-0"
+      <NavbarDropdownPortal
+        open={dropdownOpen}
+        triggerRef={trigger}
+        panelRef={dropdown}
+        panelClassName="origin-top-right min-w-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-lg overflow-hidden"
       >
         <div
-          ref={dropdown}
           onFocus={() => setDropdownOpen(true)}
           onBlur={() => setDropdownOpen(false)}
         >
@@ -161,6 +154,7 @@ function DropdownNotifications({align = "right"}) {
                     n.type === "property_invitation_accepted";
                   const isContractorReport = n.type === "contractor_report_submitted";
                   const isHomeownerInquiry = n.type === "homeowner_inquiry";
+                  const isPropertyMissingAgent = n.type === "property_missing_agent";
                   const isConversationMessage = n.type === "conversation_message";
                   const isCommunication = n.type === "communication_sent" && (n.communicationId ?? n.resourceId);
                   const isResource = n.type === "resource_sent" && n.resourceId;
@@ -179,7 +173,11 @@ function DropdownNotifications({align = "right"}) {
                         ? propertyInvitePath
                         : isContractorReport && n.maintenancePropertyUid && n.maintenanceAccountUrl
                           ? `/${n.maintenanceAccountUrl}/properties/${n.maintenancePropertyUid}?tab=maintenance`
-                          : isCommunication
+                          : isPropertyMissingAgent &&
+                              n.missingAgentPropertyUid &&
+                              n.missingAgentAccountUrl
+                            ? `/${n.missingAgentAccountUrl}/properties/${n.missingAgentPropertyUid}`
+                            : isCommunication
                             ? `/${accountUrl}/communications/${n.communicationId ?? n.resourceId}/view`
                             : isResource
                               ? `/${accountUrl}/resources/${n.resourceId}/view`
@@ -219,6 +217,8 @@ function DropdownNotifications({align = "right"}) {
                             <Wrench className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isHomeownerInquiry ? (
                             <MessageSquare className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isPropertyMissingAgent ? (
+                            <Users className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : (
                             <BookOpen className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           )}
@@ -259,7 +259,7 @@ function DropdownNotifications({align = "right"}) {
             </div>
           )}
         </div>
-      </Transition>
+      </NavbarDropdownPortal>
     </div>
   );
 }

@@ -12,7 +12,7 @@
  * - getActionPath: (context) => string | null - path to navigate, or null for custom action
  */
 
-import {User, Home, Calendar} from "lucide-react";
+import {User, Home, Calendar, UserPlus, Search} from "lucide-react";
 
 /**
  * Check if user has completed their profile.
@@ -43,6 +43,16 @@ export function hasFirstProperty(properties) {
  */
 export function hasCalendarIntegration(calendarIntegrations) {
   return Array.isArray(calendarIntegrations) && calendarIntegrations.length > 0;
+}
+
+/** At least one contact in the account (from ContactContext). */
+export function hasFirstContact(contacts) {
+  return Array.isArray(contacts) && contacts.length > 0;
+}
+
+/** User saved at least one professional from the directory (from API). */
+export function hasSavedProfessional(savedProfessionals) {
+  return Array.isArray(savedProfessionals) && savedProfessionals.length > 0;
 }
 
 /** Alias for backward compatibility (fixes "hasConnectedCalendar is not defined"). */
@@ -86,5 +96,27 @@ export const DEFAULT_ONBOARDING_STEPS = [
       ctx.accountUrl ? `/${ctx.accountUrl}/properties/new` : null,
     /** Use custom handler in modal (e.g. add property with limit check) instead of direct navigate */
     customActionId: "addProperty",
+  },
+  {
+    id: "add-first-contact",
+    titleKey: "onboarding.stepAddContactTitle",
+    descriptionKey: "onboarding.stepAddContactDescription",
+    actionLabelKey: "onboarding.stepAddContactAction",
+    icon: UserPlus,
+    navigateSameWindow: true,
+    checkComplete: (ctx) => hasFirstContact(ctx.contacts),
+    getActionPath: (ctx) =>
+      ctx.accountUrl ? `/${ctx.accountUrl}/contacts/new` : null,
+  },
+  {
+    id: "search-professionals",
+    titleKey: "onboarding.stepSearchProfessionalsTitle",
+    descriptionKey: "onboarding.stepSearchProfessionalsDescription",
+    actionLabelKey: "onboarding.stepSearchProfessionalsAction",
+    icon: Search,
+    navigateSameWindow: true,
+    checkComplete: (ctx) => hasSavedProfessional(ctx.savedProfessionals),
+    getActionPath: (ctx) =>
+      ctx.accountUrl ? `/${ctx.accountUrl}/professionals` : null,
   },
 ];

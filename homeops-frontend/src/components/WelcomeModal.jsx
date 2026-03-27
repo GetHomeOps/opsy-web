@@ -1,5 +1,6 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useTranslation} from "react-i18next";
+import {useNavigate, useLocation} from "react-router-dom";
 import confetti from "canvas-confetti";
 import {Sparkles, Check, ChevronRight} from "lucide-react";
 import ModalBlank from "./ModalBlank";
@@ -7,6 +8,7 @@ import {useAuth} from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useOnboardingProgress from "../hooks/useOnboardingProgress";
 import AppApi from "../api/api";
+import {POST_LOGIN_WELCOME_GREETING_KEY} from "../utils/authNavigation";
 import OpsyMascot from "../images/opsy2.png";
 
 /**
@@ -31,8 +33,8 @@ const WELCOME_CONFETTI_Z_INDEX = 210;
 /** Roles that should see the welcome modal (agents and homeowners only). */
 const WELCOME_MODAL_ROLES = new Set(["agent", "homeowner"]);
 
-/** Custom action handlers keyed by customActionId. Opens URLs in a new tab. */
-function useCustomActionHandlers({onClose, accountUrl}) {
+/** Custom action handlers keyed by customActionId. Most links open in a new tab; steps with `navigateSameWindow` use in-app navigation. */
+function useCustomActionHandlers({onClose, accountUrl, navigate}) {
   return useCallback(
     (step) => {
       if (step.customActionId === "addProperty") {
@@ -46,19 +48,27 @@ function useCustomActionHandlers({onClose, accountUrl}) {
           : "/settings/configuration#calendar-integrations";
         window.open(url, "_blank", "noopener,noreferrer");
       } else if (step.actionPath) {
-        window.open(step.actionPath, "_blank", "noopener,noreferrer");
+        if (step.navigateSameWindow) {
+          navigate(step.actionPath);
+        } else {
+          window.open(step.actionPath, "_blank", "noopener,noreferrer");
+        }
       }
       onClose();
     },
-    [onClose, accountUrl],
+    [onClose, accountUrl, navigate],
   );
 }
 
 function WelcomeModal() {
   const {currentUser, refreshCurrentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
+  const navigate = useNavigate();
+  const location = useLocation();
   const {t} = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
+  /** True when this open was triggered right after sign-in (sessionStorage flag). */
+  const [useWelcomeHeadline, setUseWelcomeHeadline] = useState(false);
   /** Hide for this session only (Skip for now); modal can show again after reload or next visit. */
   const [sessionSkipped, setSessionSkipped] = useState(false);
 
@@ -103,9 +113,20 @@ function WelcomeModal() {
       .finally(() => setCalendarIntegrationsLoaded(true));
   }, [currentUser?.id, showForRole]);
 
+  const [savedProfessionals, setSavedProfessionals] = useState([]);
+  const [savedProfessionalsLoaded, setSavedProfessionalsLoaded] = useState(false);
+  useEffect(() => {
+    if (!currentUser?.id || !showForRole) return;
+    setSavedProfessionalsLoaded(false);
+    AppApi.getSavedProfessionals()
+      .then((data) => setSavedProfessionals(data || []))
+      .catch(() => setSavedProfessionals([]))
+      .finally(() => setSavedProfessionalsLoaded(true));
+  }, [currentUser?.id, showForRole, location.pathname]);
+
   const extraContext = useMemo(
-    () => ({calendarIntegrations}),
-    [calendarIntegrations],
+    () => ({calendarIntegrations, savedProfessionals}),
+    [calendarIntegrations, savedProfessionals],
   );
   const {steps, completedCount, allComplete} = useOnboardingProgress({
     extraContext,
@@ -116,11 +137,12 @@ function WelcomeModal() {
   const runCustomAction = useCustomActionHandlers({
     onClose: handleClose,
     accountUrl,
+    navigate,
   });
 
   useEffect(() => {
     if (!userId || !showForRole) return;
-    if (!calendarIntegrationsLoaded) return;
+    if (!calendarIntegrationsLoaded || !savedProfessionalsLoaded) return;
     if (welcomeDismissedPermanently || sessionSkipped) {
       setModalOpen(false);
       return;
@@ -129,12 +151,26 @@ function WelcomeModal() {
       setModalOpen(false);
       return;
     }
+    let freshWelcome = false;
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        freshWelcome =
+          sessionStorage.getItem(POST_LOGIN_WELCOME_GREETING_KEY) === "1";
+        if (freshWelcome) {
+          sessionStorage.removeItem(POST_LOGIN_WELCOME_GREETING_KEY);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    setUseWelcomeHeadline(freshWelcome);
     setModalOpen(true);
   }, [
     userId,
     showForRole,
     allComplete,
     calendarIntegrationsLoaded,
+    savedProfessionalsLoaded,
     welcomeDismissedPermanently,
     sessionSkipped,
   ]);
@@ -145,7 +181,7 @@ function WelcomeModal() {
   // Confetti when modal opens — only once per user (localStorage).
   // Persist only after firing so a failed/invisible run can retry; delay survives Strict Mode cleanup.
   useEffect(() => {
-    if (!modalOpen || !userId || !confettiShownKey) return;
+    if (!modalOpen || !userId || !confettiShownKey || !useWelcomeHeadline) return;
     if (typeof localStorage !== "undefined" && localStorage.getItem(confettiShownKey)) return;
     const timeout = setTimeout(() => {
       const fireConfetti = getWelcomeConfettiFire();
@@ -177,7 +213,7 @@ function WelcomeModal() {
       }
     }, 320);
     return () => clearTimeout(timeout);
-  }, [modalOpen, userId, confettiShownKey]);
+  }, [modalOpen, userId, confettiShownKey, useWelcomeHeadline]);
 
   const firstName =
     currentUser?.fullName?.split(" ")[0] || currentUser?.name?.split(" ")[0] || "";
@@ -220,12 +256,18 @@ function WelcomeModal() {
                 <Sparkles className="w-4 h-4 text-amber-500" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                {firstName
-                  ? t("onboarding.titleWithName", {name: firstName})
-                  : t("onboarding.title")}
+                {useWelcomeHeadline
+                  ? firstName
+                    ? t("onboarding.titleWithName", {name: firstName})
+                    : t("onboarding.title")
+                  : firstName
+                    ? t("onboarding.titleReturningWithName", {name: firstName})
+                    : t("onboarding.titleReturning")}
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
-                {t("onboarding.subtitle")}
+                {useWelcomeHeadline
+                  ? t("onboarding.subtitle")
+                  : t("onboarding.subtitleReturning")}
               </p>
             </div>
 

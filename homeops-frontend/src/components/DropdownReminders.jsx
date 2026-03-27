@@ -3,7 +3,7 @@ import {Link} from "react-router-dom";
 import {parseISO, format, isValid, isToday, isTomorrow} from "date-fns";
 import {parseDateInput} from "../lib/dateOffset";
 import {Clock3, Calendar, AlertCircle, ChevronRight, Loader2} from "lucide-react";
-import Transition from "../utils/Transition";
+import NavbarDropdownPortal from "./NavbarDropdownPortal";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 
@@ -33,7 +33,7 @@ function formatEventTime(timeStr) {
   return `${h - 12}:${String(m).padStart(2, "0")} PM`;
 }
 
-function DropdownReminders({align = "right"}) {
+function DropdownReminders() {
   const {currentAccount} = useCurrentAccount();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [events, setEvents] = useState([]);
@@ -128,20 +128,13 @@ function DropdownReminders({align = "right"}) {
         )}
       </button>
 
-      <Transition
-        className={`origin-top-right z-50 absolute top-full mt-1 min-w-[320px] max-w-[360px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-lg overflow-hidden ${
-          align === "right" ? "right-0" : "left-0"
-        }`}
-        show={dropdownOpen}
-        enter="transition ease-out duration-200 transform"
-        enterStart="opacity-0 -translate-y-2"
-        enterEnd="opacity-100 translate-y-0"
-        leave="transition ease-out duration-200"
-        leaveStart="opacity-100"
-        leaveEnd="opacity-0"
+      <NavbarDropdownPortal
+        open={dropdownOpen}
+        triggerRef={trigger}
+        panelRef={dropdown}
+        panelClassName="origin-top-right min-w-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-lg overflow-hidden"
       >
-        <div ref={dropdown}>
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700/60">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700/60">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
               Events
             </h3>
@@ -270,8 +263,7 @@ function DropdownReminders({align = "right"}) {
               Connect your Calendar
             </Link>
           </div>
-        </div>
-      </Transition>
+      </NavbarDropdownPortal>
     </div>
   );
 }

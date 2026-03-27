@@ -1,6 +1,7 @@
 import {useMemo, useContext} from "react";
 import {useAuth} from "../context/AuthContext";
 import PropertyContext from "../context/PropertyContext";
+import ContactContext from "../context/ContactContext";
 import {DEFAULT_ONBOARDING_STEPS} from "../config/onboardingSteps";
 
 /**
@@ -15,16 +16,18 @@ import {DEFAULT_ONBOARDING_STEPS} from "../config/onboardingSteps";
 export default function useOnboardingProgress({steps = DEFAULT_ONBOARDING_STEPS, extraContext = {}} = {}) {
   const {currentUser} = useAuth();
   const {currentAccount, properties = []} = useContext(PropertyContext) ?? {};
+  const {contacts = []} = useContext(ContactContext) ?? {};
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
   const context = useMemo(
     () => ({
       currentUser,
       properties,
+      contacts,
       accountUrl,
       ...extraContext,
     }),
-    [currentUser, properties, accountUrl, extraContext],
+    [currentUser, properties, contacts, accountUrl, extraContext],
   );
 
   const stepsWithStatus = useMemo(() => {

@@ -13,6 +13,7 @@ import {
   Mail,
   Phone,
   Send,
+  ListTodo,
 } from "lucide-react";
 import ModalBlank from "../../../../components/ModalBlank";
 import DatePickerInput from "../../../../components/DatePickerInput";
@@ -42,6 +43,7 @@ function MaintenanceRecordForm({
     cost: "",
     workOrderNumber: "",
     nextServiceDate: "",
+    nextStepsRecommendation: "",
     materialsUsed: "",
     notes: "",
     files: [],
@@ -64,6 +66,7 @@ function MaintenanceRecordForm({
           cost: record.cost || "",
           workOrderNumber: record.workOrderNumber || "",
           nextServiceDate: record.nextServiceDate || "",
+          nextStepsRecommendation: record.nextStepsRecommendation || "",
           materialsUsed: formatMaterialsUsedForDisplay(record.materialsUsed) || "",
           notes: record.notes || "",
           files: record.files || [],
@@ -82,6 +85,7 @@ function MaintenanceRecordForm({
           cost: "",
           workOrderNumber: "",
           nextServiceDate: "",
+          nextStepsRecommendation: "",
           materialsUsed: "",
           notes: "",
           files: [],
@@ -157,6 +161,7 @@ function MaintenanceRecordForm({
       cost: "",
       workOrderNumber: "",
       nextServiceDate: "",
+      nextStepsRecommendation: "",
       materialsUsed: "",
       notes: "",
       files: [],
@@ -202,6 +207,7 @@ function MaintenanceRecordForm({
             cost: "",
             workOrderNumber: "",
             nextServiceDate: "",
+            nextStepsRecommendation: "",
             materialsUsed: "",
             notes: "",
             files: [],
@@ -355,6 +361,25 @@ function MaintenanceRecordForm({
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               When is the next maintenance service scheduled?
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <ListTodo className="w-4 h-4 inline mr-2" />
+              Recommended next steps
+            </label>
+            <textarea
+              name="nextStepsRecommendation"
+              value={formData.nextStepsRecommendation}
+              onChange={handleInputChange}
+              rows={3}
+              placeholder="e.g. monitor for leaks, replace filters before next visit, schedule a specialist…"
+              className="form-input w-full"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Optional. Follow-ups, repairs to plan, or things to watch for
+              before the next service.
             </p>
           </div>
 

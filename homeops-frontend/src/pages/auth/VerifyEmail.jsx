@@ -6,6 +6,7 @@ import {useAuth} from "../../context/AuthContext";
 import {
   canRedirectToPathForUser,
   consumePostLogoutRedirectReset,
+  markPostLoginWelcomeGreeting,
 } from "../../utils/authNavigation";
 import Logo from "../../images/logo-no-bg.png";
 import MountRainier from "../../images/MountRainier.webp";
@@ -49,6 +50,7 @@ function VerifyEmail() {
           navigate("/onboarding", {replace: true});
           return;
         }
+        markPostLoginWelcomeGreeting();
         if (canRedirectToPathForUser(userWithAccounts, from)) {
           navigate(from, {replace: true});
         } else if (userWithAccounts?.accounts?.length > 0) {

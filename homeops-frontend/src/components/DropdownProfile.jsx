@@ -1,6 +1,6 @@
 import React, {useState, useRef, useEffect} from "react";
 import {Link} from "react-router-dom";
-import Transition from "../utils/Transition";
+import NavbarDropdownPortal from "./NavbarDropdownPortal";
 import {useAuth} from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
@@ -24,7 +24,7 @@ function formatRole(role) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function DropdownProfile({align}) {
+function DropdownProfile() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const {currentUser, logout} = useAuth();
   const {currentAccount} = useCurrentAccount();
@@ -112,20 +112,14 @@ function DropdownProfile({align}) {
         </div>
       </button>
 
-      <Transition
-        className={`origin-top-right z-10 absolute top-full w-52 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 py-1.5 rounded-lg shadow-lg overflow-hidden mt-1 ${
-          align === "right" ? "right-0" : "left-0"
-        }`}
-        show={dropdownOpen}
-        enter="transition ease-out duration-200 transform"
-        enterStart="opacity-0 -translate-y-2"
-        enterEnd="opacity-100 translate-y-0"
-        leave="transition ease-out duration-200"
-        leaveStart="opacity-100"
-        leaveEnd="opacity-0"
+      <NavbarDropdownPortal
+        open={dropdownOpen}
+        triggerRef={trigger}
+        panelRef={dropdown}
+        panelMaxWidth={208}
+        panelClassName="origin-top-right bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 py-1.5 rounded-lg shadow-lg overflow-hidden"
       >
         <div
-          ref={dropdown}
           onFocus={() => setDropdownOpen(true)}
           onBlur={() => setDropdownOpen(false)}
         >
@@ -242,7 +236,7 @@ function DropdownProfile({align}) {
             </Link>
           </div>
         </div>
-      </Transition>
+      </NavbarDropdownPortal>
     </div>
   );
 }

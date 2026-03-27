@@ -19,6 +19,7 @@ import {
   Calendar,
   UserPlus,
   Search,
+  Clock,
 } from "lucide-react";
 
 const DEFAULT_ITEMS_PER_PAGE = 10;
@@ -101,6 +102,43 @@ function propertyActivityTotals(prop) {
       0,
     ),
   };
+}
+
+function formatAnalyticsDateTime(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+/** Human-readable duration from a number of seconds (e.g. invite acceptance latency). */
+function formatDurationSeconds(totalSeconds) {
+  if (totalSeconds == null || Number.isNaN(Number(totalSeconds))) return null;
+  let s = Math.round(Math.max(0, Number(totalSeconds)));
+  if (s < 60) return `${s}s`;
+  const minutes = Math.floor(s / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(s / 3600);
+  const remM = Math.floor((s % 3600) / 60);
+  if (hours < 48) {
+    return remM > 0 ? `${hours}h ${remM}m` : `${hours}h`;
+  }
+  const days = Math.floor(s / 86400);
+  const remH = Math.floor((s % 86400) / 3600);
+  return remH > 0 ? `${days}d ${remH}h` : `${days}d`;
+}
+
+function inviteAcceptanceLine(prop) {
+  const n = Number(prop.invitesAccepted) || 0;
+  const avg = prop.avgInviteAcceptSeconds;
+  if (!n || avg == null) {
+    return "No accepted property invitations yet.";
+  }
+  const dur = formatDurationSeconds(avg);
+  return `Avg. time to accept: ${dur} (${n} accepted)`;
 }
 
 function comparePropertyAnalyticsDefault(a, b) {
@@ -585,6 +623,17 @@ function PropertyAnalytics() {
               </div>
             ) : (
               <>
+                <div className="mb-4">
+                  <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Team &amp; activity
+                  </h2>
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 max-w-3xl">
+                    Expand a property to see each member&apos;s visits (page views under that
+                    property&apos;s URL), AI report analyses, scheduled maintenance events, and
+                    invitations sent for that property. Document counts are for the whole
+                    property (uploads are not stored per user).
+                  </p>
+                </div>
                 <div className="space-y-4">
                   {paginatedProperties.map((prop) => {
                     const isExpanded = expandedIds.has(prop.propertyId);
@@ -629,6 +678,27 @@ function PropertyAnalytics() {
                                 Owner: {prop.ownerDisplay}
                               </p>
                             ) : null}
+                            <div className="mt-2 flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
+                              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                <Calendar className="w-3.5 h-3.5 shrink-0 text-gray-400 dark:text-gray-500" />
+                                <span>
+                                  Created{" "}
+                                  {formatAnalyticsDateTime(prop.createdAt) || "—"}
+                                  {prop.createdByDisplay ? (
+                                    <>
+                                      {" "}
+                                      · by {prop.createdByDisplay}
+                                    </>
+                                  ) : (
+                                    ""
+                                  )}
+                                </span>
+                              </p>
+                              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                                <Clock className="w-3.5 h-3.5 shrink-0 text-gray-400 dark:text-gray-500" />
+                                <span>{inviteAcceptanceLine(prop)}</span>
+                              </p>
+                            </div>
                           </div>
                           <div className="flex flex-wrap gap-2 shrink-0">
                             <div className="flex items-center gap-1.5 rounded-lg bg-gray-100 dark:bg-gray-700/60 px-2.5 py-1">
@@ -654,14 +724,6 @@ function PropertyAnalytics() {
 
                         {isExpanded && members.length > 0 && (
                           <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 px-5 py-4">
-                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                              Team & activity
-                            </h4>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                              Visits count page views under this property&apos;s
-                              URL. Document total is for the whole property
-                              (uploads are not stored per user).
-                            </p>
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
                                 <thead>

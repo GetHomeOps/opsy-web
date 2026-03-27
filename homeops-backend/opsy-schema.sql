@@ -974,6 +974,7 @@ CREATE TABLE notifications (
     maintenance_record_id INTEGER REFERENCES property_maintenance(id) ON DELETE SET NULL,
     homeowner_inquiry_id INTEGER REFERENCES homeowner_agent_inquiries(id) ON DELETE SET NULL,
     conversation_message_id INTEGER REFERENCES conversation_messages(id) ON DELETE SET NULL,
+    property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
     title VARCHAR(500),
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -982,6 +983,7 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
 CREATE INDEX idx_notifications_read_at ON notifications(read_at) WHERE read_at IS NULL;
+CREATE INDEX idx_notifications_property_id ON notifications(property_id) WHERE property_id IS NOT NULL;
 
 CREATE TABLE comm_attachments (
     id SERIAL PRIMARY KEY,

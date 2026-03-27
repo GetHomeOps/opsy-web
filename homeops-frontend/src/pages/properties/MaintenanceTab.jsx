@@ -398,6 +398,7 @@ function MaintenanceTab({
             maintenanceRecords={maintenanceRecordsForTree}
             selectedRecordId={selectedRecord?.id}
             selectedSystemId={isNewRecord ? selectedSystemId : null}
+            expandSystemId={isNewRecord ? selectedSystemId : null}
             onSelectRecord={handleRecordSelect}
             onSelectSystem={handleSystemSelect}
             onAddRecord={handleAddRecordMobile}

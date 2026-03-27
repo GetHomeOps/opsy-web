@@ -11,6 +11,7 @@ const { generatePassportId } = require("../helpers/properties");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
 const { canCreateProperty, checkAiTokenQuota } = require("../services/tierService");
 const { onPropertyCreated } = require("../services/resourceAutoSend");
+const { syncPropertyMissingAgentAdminNotifications } = require("../services/propertyMissingAgentNotifications");
 const InspectionAnalysisJob = require("../models/inspectionAnalysisJob");
 const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const { enqueue } = require("../services/inspectionAnalysisQueue");
@@ -73,6 +74,12 @@ router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async fun
       });
     } catch (autoErr) {
       console.error("[resourceAutoSend] property created:", autoErr.message);
+    }
+
+    try {
+      await syncPropertyMissingAgentAdminNotifications(property.id);
+    } catch (missingAgentErr) {
+      console.error("[propertyMissingAgent] property created:", missingAgentErr.message);
     }
 
     const propertyWithUrl = await addPresignedUrlToItem(property, "main_photo", "main_photo_url");
@@ -399,6 +406,11 @@ router.post("/:propertyId/users", ensureLoggedIn, ensurePropertyAccess({ param: 
       });
       property_users.push(row);
     }
+    try {
+      await syncPropertyMissingAgentAdminNotifications(propertyId);
+    } catch (missingAgentErr) {
+      console.error("[propertyMissingAgent] POST users:", missingAgentErr.message);
+    }
     return res.status(201).json({ property: { added: property_users.length, property_users } });
   } catch (err) {
     return next(err);
@@ -426,6 +438,11 @@ router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: 
   try {
     const property_users = await Property.updatePropertyUsers(req.params.propertyId, req.body);
     clearPropertyAccessCache(req.params.propertyId);
+    try {
+      await syncPropertyMissingAgentAdminNotifications(req.params.propertyId);
+    } catch (missingAgentErr) {
+      console.error("[propertyMissingAgent] PATCH team:", missingAgentErr.message);
+    }
     return res.status(201).json({ property_users });
   } catch (err) {
     return next(err);

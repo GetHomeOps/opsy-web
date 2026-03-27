@@ -16,11 +16,12 @@ class Notification {
       maintenanceRecordId,
       homeownerInquiryId,
       conversationMessageId,
+      propertyId,
     } = data;
     const result = await db.query(
-      `INSERT INTO notifications (user_id, type, resource_id, communication_id, title, invitation_id, maintenance_record_id, homeowner_inquiry_id, conversation_message_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, user_id AS "userId", type, resource_id AS "resourceId", communication_id AS "communicationId", title, invitation_id AS "invitationId", maintenance_record_id AS "maintenanceRecordId", homeowner_inquiry_id AS "homeownerInquiryId", conversation_message_id AS "conversationMessageId", read_at AS "readAt", created_at AS "createdAt"`,
+      `INSERT INTO notifications (user_id, type, resource_id, communication_id, title, invitation_id, maintenance_record_id, homeowner_inquiry_id, conversation_message_id, property_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, user_id AS "userId", type, resource_id AS "resourceId", communication_id AS "communicationId", title, invitation_id AS "invitationId", maintenance_record_id AS "maintenanceRecordId", homeowner_inquiry_id AS "homeownerInquiryId", conversation_message_id AS "conversationMessageId", property_id AS "propertyId", read_at AS "readAt", created_at AS "createdAt"`,
       [
         userId,
         type,
@@ -31,6 +32,7 @@ class Notification {
         maintenanceRecordId || null,
         homeownerInquiryId || null,
         conversationMessageId || null,
+        propertyId || null,
       ]
     );
     return result.rows[0];
@@ -56,10 +58,11 @@ class Notification {
   /** List notifications for a user (unread first, then by date) */
   static async listForUser(userId, { limit = 20 } = {}) {
     const result = await db.query(
-      `SELECT n.id, n.user_id AS "userId", n.type, n.resource_id AS "resourceId", n.communication_id AS "communicationId", n.title, n.invitation_id AS "invitationId", n.maintenance_record_id AS "maintenanceRecordId", n.homeowner_inquiry_id AS "homeownerInquiryId", n.read_at AS "readAt", n.created_at AS "createdAt",
+      `SELECT n.id, n.user_id AS "userId", n.type, n.resource_id AS "resourceId", n.communication_id AS "communicationId", n.title, n.invitation_id AS "invitationId", n.maintenance_record_id AS "maintenanceRecordId", n.homeowner_inquiry_id AS "homeownerInquiryId", n.property_id AS "propertyId", n.read_at AS "readAt", n.created_at AS "createdAt",
               r.subject AS "resourceSubject", r.type AS "resourceType",
               p.property_uid AS "propertyUid", a.url AS "accountUrl",
-              p_maint.property_uid AS "maintenancePropertyUid", a_maint.url AS "maintenanceAccountUrl"
+              p_maint.property_uid AS "maintenancePropertyUid", a_maint.url AS "maintenanceAccountUrl",
+              p_miss.property_uid AS "missingAgentPropertyUid", a_miss.url AS "missingAgentAccountUrl"
        FROM notifications n
        LEFT JOIN resources r ON r.id = n.resource_id
        LEFT JOIN invitations i ON i.id = n.invitation_id AND n.type IN ('property_invitation', 'property_invitation_accepted')
@@ -68,6 +71,8 @@ class Notification {
        LEFT JOIN property_maintenance pm ON pm.id = n.maintenance_record_id
        LEFT JOIN properties p_maint ON p_maint.id = pm.property_id
        LEFT JOIN accounts a_maint ON a_maint.id = p_maint.account_id
+       LEFT JOIN properties p_miss ON p_miss.id = n.property_id
+       LEFT JOIN accounts a_miss ON a_miss.id = p_miss.account_id
        WHERE n.user_id = $1
        ORDER BY n.read_at IS NULL DESC, n.created_at DESC
        LIMIT $2`,

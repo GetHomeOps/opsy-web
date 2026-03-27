@@ -4,6 +4,7 @@ import {useAuth} from "../../context/AuthContext";
 import {
   canRedirectToPathForUser,
   consumePostLogoutRedirectReset,
+  markPostLoginWelcomeGreeting,
 } from "../../utils/authNavigation";
 import OpsyMascot from "../../images/opsy3.png";
 
@@ -47,6 +48,7 @@ function AuthCallback() {
             navigate("/onboarding", {replace: true});
             return;
           }
+          markPostLoginWelcomeGreeting();
           const ignoreReturnTo = consumePostLogoutRedirectReset();
           const from = ignoreReturnTo
             ? null

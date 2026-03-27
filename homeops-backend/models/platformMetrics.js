@@ -462,13 +462,48 @@ class PlatformMetrics {
               p.city,
               p.state,
               p.owner_name AS "recordOwnerName",
+              p.created_at AS "createdAt",
+              fu.user_id AS "createdByUserId",
+              fu.user_name AS "createdByName",
+              fu.user_email AS "createdByEmail",
               a.id AS "accountId",
               a.name AS "accountName",
               (SELECT COUNT(*)::int FROM property_documents pd WHERE pd.property_id = p.id) AS "documentsCount"
        FROM properties p
        JOIN accounts a ON a.id = p.account_id
+       LEFT JOIN LATERAL (
+         SELECT pu.user_id,
+                u.name AS user_name,
+                u.email AS user_email
+         FROM property_users pu
+         JOIN users u ON u.id = pu.user_id
+         WHERE pu.property_id = p.id
+         ORDER BY pu.created_at ASC NULLS LAST, pu.user_id ASC
+         LIMIT 1
+       ) fu ON true
        ORDER BY a.name NULLS LAST, p.property_name NULLS LAST, p.id`
     );
+
+    const inviteAcceptRes = await db.query(
+      `SELECT property_id AS "propertyId",
+              COUNT(*) FILTER (WHERE status = 'accepted' AND accepted_at IS NOT NULL)::int AS "invitesAccepted",
+              AVG(EXTRACT(EPOCH FROM (accepted_at - created_at))) FILTER (
+                WHERE status = 'accepted' AND accepted_at IS NOT NULL
+              ) AS "avgInviteAcceptSeconds"
+       FROM invitations
+       WHERE property_id IS NOT NULL
+       GROUP BY property_id`
+    );
+
+    const inviteStatsByProperty = new Map();
+    for (const row of inviteAcceptRes.rows) {
+      const avg = row.avgInviteAcceptSeconds;
+      inviteStatsByProperty.set(row.propertyId, {
+        invitesAccepted: row.invitesAccepted ?? 0,
+        avgInviteAcceptSeconds:
+          avg != null && !Number.isNaN(Number(avg)) ? Number(avg) : null,
+      });
+    }
 
     const teamRes = await db.query(
       `SELECT pu.property_id AS "propertyId",
@@ -573,10 +608,29 @@ class PlatformMetrics {
         ownerMembers.map((o) => o.userName || o.userEmail).filter(Boolean).join(", ") || null;
       if (!ownerDisplay) ownerDisplay = p.recordOwnerName || null;
 
-      const { recordOwnerName, ...rest } = p;
+      const createdByDisplay =
+        p.createdByName ||
+        p.createdByEmail ||
+        (p.createdByUserId != null ? `User #${p.createdByUserId}` : null);
+
+      const invStats = inviteStatsByProperty.get(p.propertyId) || {
+        invitesAccepted: 0,
+        avgInviteAcceptSeconds: null,
+      };
+
+      const {
+        recordOwnerName,
+        createdByUserId,
+        createdByName,
+        createdByEmail,
+        ...rest
+      } = p;
       return {
         ...rest,
         ownerDisplay,
+        createdByDisplay,
+        invitesAccepted: invStats.invitesAccepted,
+        avgInviteAcceptSeconds: invStats.avgInviteAcceptSeconds,
         teamCount: members.length,
         members,
       };

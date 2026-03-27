@@ -89,44 +89,46 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
           {/* Header: Right side — AI Assistant, Help, Reminders, Notifications, User */}
           <div className="flex min-w-0 justify-self-end">
-            <div
-              className="flex items-center gap-1 sm:gap-2 lg:gap-3 shrink-0 min-w-0 max-w-[58vw] sm:max-w-none max-lg:overflow-x-auto max-lg:pr-1 max-lg:[&::-webkit-scrollbar]:hidden"
-              style={{scrollbarWidth: "none", msOverflowStyle: "none"}}
-            >
-              <button
-                ref={aiAssistantButtonRef}
-                onClick={handleAiAssistantClick}
-                className="group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-[1.03] shrink-0"
-                aria-label="AI Assistant"
-                title="AI Assistant"
+            <div className="flex items-center gap-1 sm:gap-2 lg:gap-3 min-w-0 max-w-[58vw] sm:max-w-none shrink-0">
+              <div
+                className="flex items-center gap-1 sm:gap-2 lg:gap-3 min-w-0 flex-1 max-lg:overflow-x-auto max-lg:pr-1 max-lg:[&::-webkit-scrollbar]:hidden"
+                style={{scrollbarWidth: "none", msOverflowStyle: "none"}}
               >
-                <span className="absolute inset-0 rounded-full ai-glow" />
-                <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ai-orbit-ring" />
-                <span className="absolute inset-[2px] rounded-full bg-white dark:bg-gray-800" />
-                <img
-                  src={opsyAiIcon}
-                  alt=""
-                  className="relative z-10 w-7 h-7 object-contain rounded-full ai-icon-halo"
-                />
-              </button>
-              <Link
-                to={supportPath}
-                className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 shrink-0"
-                aria-label="Support"
-                title="Support"
-              >
-                <HelpCircle className="w-5 h-5" />
-              </Link>
-              <hr className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none shrink-0" />
-              <div className="shrink-0">
-                <Reminders align="right" />
-              </div>
-              <div className="shrink-0">
-                <Notifications align="right" />
+                <button
+                  ref={aiAssistantButtonRef}
+                  onClick={handleAiAssistantClick}
+                  className="group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-[1.03] shrink-0"
+                  aria-label="AI Assistant"
+                  title="AI Assistant"
+                >
+                  <span className="absolute inset-0 rounded-full ai-glow" />
+                  <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ai-orbit-ring" />
+                  <span className="absolute inset-[2px] rounded-full bg-white dark:bg-gray-800" />
+                  <img
+                    src={opsyAiIcon}
+                    alt=""
+                    className="relative z-10 w-7 h-7 object-contain rounded-full ai-icon-halo"
+                  />
+                </button>
+                <Link
+                  to={supportPath}
+                  className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 shrink-0"
+                  aria-label="Support"
+                  title="Support"
+                >
+                  <HelpCircle className="w-5 h-5" />
+                </Link>
               </div>
               <hr className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none shrink-0" />
               <div className="shrink-0">
-                <UserMenu align="right" />
+                <Reminders />
+              </div>
+              <div className="shrink-0">
+                <Notifications />
+              </div>
+              <hr className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700/60 border-none shrink-0" />
+              <div className="shrink-0">
+                <UserMenu />
               </div>
             </div>
           </div>

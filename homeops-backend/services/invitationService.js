@@ -24,6 +24,7 @@ const { BCRYPT_WORK_FACTOR } = require("../config");
 const Subscription = require("../models/subscription");
 const { onUserCreated } = require("./resourceAutoSend");
 const Notification = require("../models/notification");
+const { syncPropertyMissingAgentAdminNotifications } = require("./propertyMissingAgentNotifications");
 const { sendInvitationEmail } = require("./emailService");
 const { APP_BASE_URL } = require("../config");
 const { canAddContact } = require("./tierService");
@@ -427,6 +428,14 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
             "[invitationService] Failed to notify inviter of acceptance:",
             inviterNotifErr.message
           );
+        }
+      }
+
+      if (accepted.propertyId) {
+        try {
+          await syncPropertyMissingAgentAdminNotifications(accepted.propertyId);
+        } catch (syncErr) {
+          console.error("[invitationService] propertyMissingAgent sync:", syncErr.message);
         }
       }
     }

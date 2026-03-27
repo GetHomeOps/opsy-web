@@ -1,4 +1,4 @@
-import React, {useState, useMemo} from "react";
+import React, {useState, useMemo, useEffect} from "react";
 import {format, parse, isValid} from "date-fns";
 import {
   ChevronDown,
@@ -24,6 +24,8 @@ function MaintenanceTreeView({
   maintenanceRecords = {},
   selectedRecordId,
   selectedSystemId,
+  /** When set (e.g. user clicked +), keep this system expanded so the new row context is visible */
+  expandSystemId,
   onSelectRecord,
   onSelectSystem,
   onAddRecord,
@@ -43,6 +45,11 @@ function MaintenanceTreeView({
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    if (!expandSystemId) return;
+    setExpandedSystems((prev) => ({...prev, [expandSystemId]: true}));
+  }, [expandSystemId]);
 
   const statusOptions = [
     {value: "all", label: "All Status"},
@@ -87,6 +94,7 @@ function MaintenanceTreeView({
             record.description,
             record.contractor,
             record.notes,
+            record.nextStepsRecommendation,
             record.workOrderNumber,
           ]
             .filter(Boolean)

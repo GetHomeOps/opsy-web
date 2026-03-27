@@ -18,6 +18,7 @@ import {
   Plus,
   ClipboardCheck,
   Loader2,
+  ListTodo,
 } from "lucide-react";
 import DatePickerInput from "../../../../components/DatePickerInput";
 import ContractorDropdown from "./ContractorDropdown";
@@ -73,6 +74,7 @@ function MaintenanceFormPanel({
     cost: "",
     workOrderNumber: "",
     nextServiceDate: "",
+    nextStepsRecommendation: "",
     materialsUsed: [],
     notes: "",
     files: [],
@@ -92,6 +94,7 @@ function MaintenanceFormPanel({
   });
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [newRecordPanelAnimate, setNewRecordPanelAnimate] = useState(false);
   const buildHideBannerStorageKey = useCallback(
     (recordId) => `maintenance.hideSendToContractorBanner.${recordId}`,
     [],
@@ -168,6 +171,14 @@ function MaintenanceFormPanel({
       newRecordIdRef.current = null;
     }
   }, [record]);
+
+  // Brief highlight when opening a blank record via the tree + control
+  useEffect(() => {
+    if (!isNewRecord || record || !systemId) return;
+    setNewRecordPanelAnimate(true);
+    const t = window.setTimeout(() => setNewRecordPanelAnimate(false), 400);
+    return () => window.clearTimeout(t);
+  }, [isNewRecord, record, systemId]);
 
   const buildRecordData = useCallback(
     (formFields = formData, files = uploadedFiles, overrides = {}) => {
@@ -297,6 +308,7 @@ function MaintenanceFormPanel({
         cost: record.cost || "",
         workOrderNumber: record.workOrderNumber || "",
         nextServiceDate: record.nextServiceDate || "",
+        nextStepsRecommendation: record.nextStepsRecommendation || "",
         materialsUsed: mats,
         notes: record.notes || "",
         files: record.files || [],
@@ -334,6 +346,7 @@ function MaintenanceFormPanel({
         cost: "",
         workOrderNumber: "",
         nextServiceDate: "",
+        nextStepsRecommendation: "",
         materialsUsed: [],
         notes: "",
         files: [],
@@ -601,7 +614,11 @@ function MaintenanceFormPanel({
   }
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-800">
+    <div
+      className={`flex flex-col h-full bg-white dark:bg-gray-800 ${
+        newRecordPanelAnimate ? "maintenance-new-record-panel-animate" : ""
+      }`}
+    >
       {/* Header with actions */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
         <div>
@@ -924,6 +941,25 @@ function MaintenanceFormPanel({
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               When is the next maintenance service scheduled?
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <ListTodo className="w-4 h-4 inline mr-2" />
+              Recommended next steps
+            </label>
+            <textarea
+              name="nextStepsRecommendation"
+              value={formData.nextStepsRecommendation}
+              onChange={handleInputChange}
+              rows={3}
+              placeholder="e.g. monitor for leaks, replace filters before next visit, schedule a specialist…"
+              className="form-input w-full"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Optional. Follow-ups, repairs to plan, or things to watch for
+              before the next service.
             </p>
           </div>
 

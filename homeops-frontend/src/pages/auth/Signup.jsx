@@ -8,6 +8,7 @@ import {
   Mail,
 } from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
+import {markPostLoginWelcomeGreeting} from "../../utils/authNavigation";
 import {useTranslation} from "react-i18next";
 import AppApi, {API_BASE_URL} from "../../api/api";
 import "../../i18n";
@@ -73,6 +74,7 @@ function Signup() {
   useEffect(() => {
     if (justSignedUp.current && currentUser) {
       if (currentUser.accounts && currentUser.accounts.length > 0) {
+        markPostLoginWelcomeGreeting();
         const accountUrl =
           currentUser.accounts[0].url?.replace(/^\/+/, "") ||
           currentUser.accounts[0].name;

@@ -1,5 +1,5 @@
 import React from "react";
-import {MessageSquare, Share2, Mail} from "lucide-react";
+import {MessageSquare, Share2, Mail, UserPlus} from "lucide-react";
 
 function AgentAvatar({agent, size = "md"}) {
   const sizeClasses = {
@@ -42,31 +42,48 @@ function AgentAvatar({agent, size = "md"}) {
 /**
  * @param {object} props
  * @param {object} props.agent
- * @param {(tab: 'message' | 'refer') => void} props.onOpenModal
+ * @param {(tab: 'message' | 'refer' | 'request') => void} props.onOpenModal
  */
 function AgentCard({agent, onOpenModal}) {
   if (!agent) return null;
 
   return (
     <>
-      {/* ── Mobile: compact pill ── */}
-      <button
-        type="button"
-        onClick={() => onOpenModal("message")}
-        className="lg:hidden relative flex items-center gap-2.5 bg-gradient-to-br from-white/20 via-white/[.13] to-white/[.08] backdrop-blur-2xl rounded-full pl-1.5 pr-4 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,.15)] border border-white/20 hover:border-white/30 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-        aria-label={`Contact ${agent.name}, your agent`}
-      >
-        <AgentAvatar agent={agent} size="sm" />
-        <div className="min-w-0 text-left">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/45 leading-none mb-0.5">
-            Your Agent
-          </p>
-          <p className="text-sm font-semibold text-white truncate leading-tight max-w-[140px]">
-            {agent.name}
-          </p>
-        </div>
-        <MessageSquare className="w-4 h-4 text-white/70 flex-shrink-0 ml-1" />
-      </button>
+      {/* ── Mobile: compact pill (no nested buttons) ── */}
+      <div className="lg:hidden relative flex items-center gap-0.5 bg-gradient-to-br from-white/20 via-white/[.13] to-white/[.08] backdrop-blur-2xl rounded-full pl-1.5 pr-1.5 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,.15)] border border-white/20">
+        <button
+          type="button"
+          onClick={() => onOpenModal("message")}
+          className="flex flex-1 min-w-0 items-center gap-2.5 rounded-l-full py-0 pr-1 pl-0 text-left transition-colors hover:bg-white/[.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+          aria-label={`Contact ${agent.name}, your agent`}
+        >
+          <AgentAvatar agent={agent} size="sm" />
+          <div className="min-w-0 text-left">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/45 leading-none mb-0.5">
+              Your Agent
+            </p>
+            <p className="text-sm font-semibold text-white truncate leading-tight max-w-[120px]">
+              {agent.name}
+            </p>
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenModal("refer")}
+          className="flex-shrink-0 p-2 rounded-full text-white/65 hover:text-white/95 hover:bg-white/[.08] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+          aria-label="Refer agent"
+        >
+          <Share2 className="w-4 h-4" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenModal("message")}
+          className="flex-shrink-0 p-2 rounded-full text-white/70 hover:text-white/95 hover:bg-white/[.08] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+          aria-label={`Message ${agent.name}`}
+        >
+          <MessageSquare className="w-4 h-4" aria-hidden />
+        </button>
+      </div>
 
       {/* ── Desktop: full card ── */}
       <div
@@ -75,34 +92,51 @@ function AgentCard({agent, onOpenModal}) {
         <div className="absolute -top-6 -right-6 w-28 h-28 bg-white/[.06] rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-white/[.04] rounded-full blur-xl pointer-events-none" />
 
-        <button
-          type="button"
-          onClick={() => onOpenModal("message")}
-          className="relative w-full flex items-center gap-4 text-left rounded-xl -m-1 p-1 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-          aria-label={`Message ${agent.name}, your agent`}
-        >
-          <AgentAvatar agent={agent} size="md" />
+        <div className="relative w-full flex items-start gap-4">
+          <button
+            type="button"
+            onClick={() => onOpenModal("message")}
+            className="flex-shrink-0 rounded-xl -m-1 p-1 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+            aria-label={`Message ${agent.name}, your agent`}
+          >
+            <AgentAvatar agent={agent} size="md" />
+          </button>
 
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/45 mb-0.5">
-              Your Agent
-            </p>
-            <p className="text-base font-semibold text-white truncate leading-snug">
-              {agent.name}
-            </p>
-            {agent.company && (
-              <p className="text-[11px] text-white/50 truncate mt-0.5 leading-tight">
-                {agent.company}
+          <div className="min-w-0 flex-1 relative">
+            <button
+              type="button"
+              onClick={() => onOpenModal("message")}
+              className="w-full text-left rounded-xl -m-1 p-1 pr-11 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+              aria-label={`Message ${agent.name}, your agent`}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/45 mb-0.5">
+                Your Agent
               </p>
-            )}
-            {agent.email && (
-              <p className="flex items-center gap-1 text-[11px] text-white/40 truncate mt-1 leading-tight">
-                <Mail className="w-3 h-3 flex-shrink-0 opacity-70" />
-                <span className="truncate">{agent.email}</span>
+              <p className="text-base font-semibold text-white truncate leading-snug">
+                {agent.name}
               </p>
-            )}
+              {agent.company && (
+                <p className="text-[11px] text-white/50 truncate mt-0.5 leading-tight">
+                  {agent.company}
+                </p>
+              )}
+              {agent.email && (
+                <p className="flex items-center gap-1 text-[11px] text-white/40 truncate mt-1 leading-tight">
+                  <Mail className="w-3 h-3 flex-shrink-0 opacity-70" />
+                  <span className="truncate">{agent.email}</span>
+                </p>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenModal("refer")}
+              className="absolute top-0 right-0 p-1.5 rounded-lg text-white/55 hover:text-white/95 hover:bg-white/[.08] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              aria-label="Refer agent"
+            >
+              <Share2 className="w-4 h-4" aria-hidden />
+            </button>
           </div>
-        </button>
+        </div>
 
         <div className="relative flex items-center gap-2 mt-3.5 pt-3 border-t border-white/[.1]">
           <button
@@ -115,11 +149,11 @@ function AgentCard({agent, onOpenModal}) {
           </button>
           <button
             type="button"
-            onClick={() => onOpenModal("refer")}
+            onClick={() => onOpenModal("request")}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-white/70 bg-white/[.06] hover:bg-white/[.12] rounded-lg px-3.5 py-2 transition-colors flex-1 justify-center border border-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
           >
-            <Share2 className="w-3.5 h-3.5" />
-            Refer
+            <UserPlus className="w-3.5 h-3.5" />
+            Request Referral
           </button>
         </div>
       </div>

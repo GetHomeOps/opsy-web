@@ -1,6 +1,14 @@
 const OAUTH_RETURN_TO_KEY = "oauth_return_to";
 const POST_LOGOUT_IGNORE_RETURN_TO_KEY = "post_logout_ignore_return_to";
 
+/** Session flag: next welcome modal on home should use full “welcome” copy (set on successful login/signup). */
+export const POST_LOGIN_WELCOME_GREETING_KEY = "opsy_post_login_welcome_greeting";
+
+export function markPostLoginWelcomeGreeting() {
+  const storage = getSessionStorage();
+  if (storage) storage.setItem(POST_LOGIN_WELCOME_GREETING_KEY, "1");
+}
+
 const GLOBAL_ROUTE_PREFIXES = new Set([
   "signin",
   "signup",

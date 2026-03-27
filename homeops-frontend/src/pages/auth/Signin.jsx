@@ -13,6 +13,7 @@ import {
   canRedirectToPathForUser,
   consumePostLogoutRedirectReset,
   isPostLogoutRedirectResetPending,
+  markPostLoginWelcomeGreeting,
 } from "../../utils/authNavigation";
 import "../../i18n";
 
@@ -94,8 +95,10 @@ function Signin() {
         ? null
         : location.state?.from || searchParams.get("returnTo");
       if (canRedirectToPathForUser(currentUser, from)) {
+        markPostLoginWelcomeGreeting();
         navigate(from, {replace: true});
       } else if (currentUser.accounts && currentUser.accounts.length > 0) {
+        markPostLoginWelcomeGreeting();
         const accountUrl =
           currentUser.accounts[0].url?.replace(/^\/+/, "") ||
           currentUser.accounts[0].name;
