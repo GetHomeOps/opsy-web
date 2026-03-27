@@ -131,21 +131,46 @@ function CategoryFormContainer() {
     url: presignedUrl,
     fetchPreview: fetchPresigned,
     clearUrl: clearPresignedUrl,
+    currentKey: presignedKey,
   } = usePresignedPreview();
 
+  /** Avoid showing the previous category's image while loading or after presigned/upload state leaks. */
+  const categoryDataReady =
+    isNew ||
+    (state.existingCategory &&
+      String(state.existingCategory.id) === String(categoryId));
+
   useEffect(() => {
-    if (imageKeyNeedsPresigned && imageKey) {
+    clearPreview();
+    clearUploadedUrl();
+    clearPresignedUrl();
+  }, [categoryId, clearPreview, clearUploadedUrl, clearPresignedUrl]);
+
+  useEffect(() => {
+    if (imageKeyNeedsPresigned && imageKey && categoryDataReady) {
       fetchPresigned(imageKey);
     }
-  }, [imageKeyNeedsPresigned, imageKey, fetchPresigned]);
+  }, [imageKeyNeedsPresigned, imageKey, fetchPresigned, categoryDataReady]);
 
   const imageSrc = useMemo(() => {
     if (imagePreviewUrl) return imagePreviewUrl;
     if (uploadedImageUrl) return uploadedImageUrl;
-    if (presignedUrl) return presignedUrl;
-    if (state.existingCategory?.image_url) return state.existingCategory.image_url;
+    if (!categoryDataReady && !isNew) return null;
+    if (presignedUrl && presignedKey === imageKey && imageKey) return presignedUrl;
+    if (state.existingCategory?.image_url && categoryDataReady) {
+      return state.existingCategory.image_url;
+    }
     return null;
-  }, [imagePreviewUrl, uploadedImageUrl, presignedUrl, state.existingCategory]);
+  }, [
+    imagePreviewUrl,
+    uploadedImageUrl,
+    presignedUrl,
+    presignedKey,
+    imageKey,
+    categoryDataReady,
+    isNew,
+    state.existingCategory,
+  ]);
 
   const handleImageRemove = useCallback(() => {
     clearPreview();
@@ -515,12 +540,13 @@ function CategoryFormContainer() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div className="flex items-start gap-4">
                     <ImageUploadField
+                      key={categoryId ?? "new"}
                       imageSrc={imageSrc}
-                      hasImage={!!state.formData.imageKey}
+                      hasImage={categoryDataReady && !!state.formData.imageKey}
                       imageUploading={imageUploading}
                       onUpload={uploadImage}
                       onRemove={handleImageRemove}
-                      showRemove={!!state.formData.imageKey}
+                      showRemove={categoryDataReady && !!state.formData.imageKey}
                       imageUploadError={imageUploadError}
                       onDismissError={() => setImageUploadError(null)}
                       size="md"
