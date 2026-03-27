@@ -389,7 +389,7 @@ function SubscriptionProductFormContainer() {
     try {
       const data = {
         name: state.formData.name.trim(),
-        description: state.formData.description.trim() || null,
+        description: state.formData.description.trim(),
         targetRole: state.formData.targetRole || "homeowner",
         price: 0,
         code: state.formData.code?.trim() || null,
@@ -447,7 +447,7 @@ function SubscriptionProductFormContainer() {
     try {
       const data = {
         name: state.formData.name.trim(),
-        description: state.formData.description.trim() || null,
+        description: state.formData.description.trim(),
         targetRole: state.formData.targetRole || "homeowner",
         code: state.formData.code?.trim() || null,
         sortOrder: Number(state.formData.sortOrder) || 0,
