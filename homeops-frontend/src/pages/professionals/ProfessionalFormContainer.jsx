@@ -31,6 +31,7 @@ import Header from "../../partials/Header";
 import Banner from "../../partials/containers/Banner";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import useImageUpload from "../../hooks/useImageUpload";
+import usePresignedPreview from "../../hooks/usePresignedPreview";
 import AppApi from "../../api/api";
 import ImageUploadField from "../../components/ImageUploadField";
 import {
@@ -249,6 +250,8 @@ function ProfessionalFormContainer() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const projectPhotoInputRef = useRef(null);
   const initialFormDataRef = useRef(null);
+  /** Set when form data matches `professionalId` (avoids showing prior record's photo while loading). */
+  const loadedProfessionalIdRef = useRef(null);
   const [allProfessionals, setAllProfessionals] = useState([]);
 
   const isNew = professionalId === "new" || !professionalId;
@@ -290,19 +293,71 @@ function ProfessionalFormContainer() {
     },
   });
 
+  const {
+    url: profilePresignedUrl,
+    fetchPreview: fetchProfilePresigned,
+    clearUrl: clearProfilePresignedUrl,
+    currentKey: profilePresignedKey,
+  } = usePresignedPreview();
+
+  const profilePhotoKey = state.formData.profile_photo || "";
+  const profilePhotoNeedsPresigned =
+    profilePhotoKey &&
+    !profilePhotoKey.startsWith("blob:") &&
+    !profilePhotoKey.startsWith("http");
+
+  useEffect(() => {
+    if (!profilePhotoNeedsPresigned) return;
+    if (
+      !isNew &&
+      String(loadedProfessionalIdRef.current) !== String(professionalId)
+    ) {
+      return;
+    }
+    fetchProfilePresigned(profilePhotoKey);
+  }, [
+    profilePhotoNeedsPresigned,
+    profilePhotoKey,
+    fetchProfilePresigned,
+    professionalId,
+    isNew,
+  ]);
+
   const profileSrc = useMemo(() => {
     if (profilePreviewUrl) return profilePreviewUrl;
     if (profileUploadedUrl) return profileUploadedUrl;
     if (state.formData.profile_photo?.startsWith("http"))
       return state.formData.profile_photo;
+    if (
+      profilePresignedKey === state.formData.profile_photo &&
+      profilePresignedUrl &&
+      (isNew ||
+        String(loadedProfessionalIdRef.current) === String(professionalId))
+    ) {
+      return profilePresignedUrl;
+    }
     return null;
-  }, [profilePreviewUrl, profileUploadedUrl, state.formData.profile_photo]);
+  }, [
+    profilePreviewUrl,
+    profileUploadedUrl,
+    state.formData.profile_photo,
+    profilePresignedUrl,
+    profilePresignedKey,
+    professionalId,
+    isNew,
+  ]);
 
   const handleProfileRemove = useCallback(() => {
     clearProfilePreview();
     clearProfileUploadedUrl();
+    clearProfilePresignedUrl();
     handleFieldChange("profile_photo", "");
-  }, [clearProfilePreview, clearProfileUploadedUrl, handleFieldChange]);
+  }, [
+    clearProfilePreview,
+    clearProfileUploadedUrl,
+    clearProfilePresignedUrl,
+    handleFieldChange,
+  ]);
 
   /* ─── Project Photos Upload ────────────────────────────────── */
 
@@ -419,14 +474,19 @@ function ProfessionalFormContainer() {
 
   useEffect(() => {
     if (isNew) {
+      loadedProfessionalIdRef.current = null;
       initialFormDataRef.current = null;
       setProjectPhotoUrls({});
       clearProfilePreview();
       clearProfileUploadedUrl();
+      clearProfilePresignedUrl();
       setProfileUploadError(null);
       dispatch({type: "RESET_FORM"});
       return;
     }
+
+    loadedProfessionalIdRef.current = null;
+    clearProfilePresignedUrl();
 
     let cancelled = false;
     (async () => {
@@ -463,6 +523,7 @@ function ProfessionalFormContainer() {
           languages: [...(loadedData.languages || [])],
         };
         setProjectPhotoUrls({});
+        loadedProfessionalIdRef.current = professionalId;
         dispatch({
           type: "LOAD_PROFESSIONAL",
           payload: {
@@ -471,6 +532,7 @@ function ProfessionalFormContainer() {
           },
         });
       } catch {
+        loadedProfessionalIdRef.current = null;
         dispatch({
           type: "SET_BANNER",
           payload: {
@@ -489,6 +551,7 @@ function ProfessionalFormContainer() {
     isNew,
     clearProfilePreview,
     clearProfileUploadedUrl,
+    clearProfilePresignedUrl,
     setProfileUploadError,
   ]);
 
