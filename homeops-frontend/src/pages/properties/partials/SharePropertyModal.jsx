@@ -1066,19 +1066,15 @@ function SharePropertyModal({
     activeTab === "insurance" ||
     activeTab === "mortgage";
 
-  /* Property owner: explicit owner role on property, else first non-pending homeowner (matches Opsy team card). */
+  /* Property owner is only the explicit owner on this property team. */
   const propertyOwner = useMemo(() => {
     const list = teamMembers ?? [];
-    const explicit = list.find(
-      (m) => m && (m.property_role ?? m.role ?? "").toLowerCase() === "owner",
-    );
-    if (explicit) return explicit;
     return (
       list.find(
         (m) =>
           m &&
           !m._pending &&
-          (m.role ?? "").toLowerCase() === "homeowner",
+          (m.property_role ?? "").toLowerCase() === "owner",
       ) ?? null
     );
   }, [teamMembers]);

@@ -123,7 +123,6 @@ import {
   Briefcase,
 } from "lucide-react";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
-import {PROPERTY_TEAM_REFRESH_EVENT} from "../../constants/propertyEvents";
 import {getPropertyAssistantHeaderLines} from "./helpers/propertyAssistantHeader";
 import InspectionReportModal from "./partials/InspectionReportModal";
 import InviteAgentBenefitsModal from "./partials/InviteAgentBenefitsModal";
@@ -948,6 +947,54 @@ function PropertyFormContainer() {
     navigate(`/${accountUrl}/properties/${uid}`, {replace: true});
   }, [accountUrl, uid, navigate]);
 
+  /* When ownership transfer is accepted from notifications, refresh team in-place so owner badge updates without page reload. */
+  useEffect(() => {
+    if (typeof window === "undefined" || uid === "new") return;
+    let cancelled = false;
+    const handleOwnershipChanged = async (event) => {
+      const detail = event?.detail ?? {};
+      const eventUid = detail.propertyUid;
+      const eventPropertyId = detail.propertyId;
+      const currentPropertyId = state.property?.identity?.id ?? state.property?.id;
+      const matchesUid =
+        eventUid != null && String(eventUid) === String(uid);
+      const matchesId =
+        eventPropertyId != null &&
+        currentPropertyId != null &&
+        String(eventPropertyId) === String(currentPropertyId);
+      if (!matchesUid && !matchesId) return;
+      try {
+        const team = await getPropertyTeam(uid);
+        if (cancelled) return;
+        const raw = team?.property_users ?? [];
+        const enriched = enrichPropertyTeamMembers(raw);
+        setHomeopsTeam(enriched);
+        originalTeamRef.current = prepareTeamForProperty(enriched);
+        refreshProperties?.();
+      } catch (err) {
+        console.error("[PropertyForm] ownership refresh failed:", err);
+      }
+    };
+    window.addEventListener(
+      "opsy:property-ownership-changed",
+      handleOwnershipChanged,
+    );
+    return () => {
+      cancelled = true;
+      window.removeEventListener(
+        "opsy:property-ownership-changed",
+        handleOwnershipChanged,
+      );
+    };
+  }, [
+    uid,
+    state.property?.identity?.id,
+    state.property?.id,
+    getPropertyTeam,
+    enrichPropertyTeamMembers,
+    refreshProperties,
+  ]);
+
   /* Fetch inspection analysis for hero card pill and report context */
   const propertyIdForApi =
     state.property?.identity?.id ??
@@ -985,39 +1032,6 @@ function PropertyFormContainer() {
       );
     };
   }, [propertyIdForApi]);
-
-  /* Refetch team when ownership (or similar) changes elsewhere, e.g. accepting transfer from the bell menu */
-  useEffect(() => {
-    if (typeof window === "undefined" || uid === "new") return;
-    const normalizedUid = String(uid);
-    const handlePropertyTeamRefresh = async (event) => {
-      const pid = event?.detail?.propertyId;
-      if (pid == null) return;
-      if (String(pid) !== normalizedUid) return;
-      try {
-        const team = await getPropertyTeam(uid);
-        const raw = team?.property_users ?? [];
-        const enriched = enrichPropertyTeamMembers(raw);
-        setHomeopsTeam(enriched);
-        originalTeamRef.current = prepareTeamForProperty(enriched);
-        refreshProperties?.();
-      } catch {
-        /* Keep existing team if refresh fails */
-      }
-    };
-    window.addEventListener(PROPERTY_TEAM_REFRESH_EVENT, handlePropertyTeamRefresh);
-    return () => {
-      window.removeEventListener(
-        PROPERTY_TEAM_REFRESH_EVENT,
-        handlePropertyTeamRefresh,
-      );
-    };
-  }, [
-    uid,
-    getPropertyTeam,
-    enrichPropertyTeamMembers,
-    refreshProperties,
-  ]);
 
   /* Get property by ID and its systems */
   useEffect(() => {
@@ -2229,9 +2243,7 @@ function PropertyFormContainer() {
         onTransferOwnership={async (newOwnerIdStr) => {
           const propertyKey =
             uid !== "new"
-              ? (state.property?.identity?.id ??
-                  state.property?.id ??
-                  uid)
+              ? (state.property?.identity?.id ?? state.property?.id ?? uid)
               : null;
           if (!propertyKey) {
             throw new Error("Save the property before transferring ownership.");

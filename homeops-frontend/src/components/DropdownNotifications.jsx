@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import NavbarDropdownPortal from "./NavbarDropdownPortal";
 import AppApi from "../api/api";
-import {PROPERTY_TEAM_REFRESH_EVENT} from "../constants/propertyEvents";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 
 function formatNotificationTime(dateStr) {
@@ -260,26 +259,22 @@ function DropdownNotifications() {
                                 if (!rid) return;
                                 setOwnershipActionKey(`${n.id}-accept`);
                                 try {
-                                  const res =
-                                    await AppApi.acceptOwnershipTransferRequest(
-                                      rid,
-                                    );
+                                  await AppApi.acceptOwnershipTransferRequest(rid);
                                   /* Do not mark this notification read — the server deletes it with the request. */
                                   window.dispatchEvent(
                                     new CustomEvent("opsy:notifications-refresh"),
                                   );
-                                  if (res?.propertyId != null) {
-                                    window.dispatchEvent(
-                                      new CustomEvent(
-                                        PROPERTY_TEAM_REFRESH_EVENT,
-                                        {
-                                          detail: {
-                                            propertyId: res.propertyId,
-                                          },
+                                  window.dispatchEvent(
+                                    new CustomEvent(
+                                      "opsy:property-ownership-changed",
+                                      {
+                                        detail: {
+                                          propertyUid: n.propertyUid ?? null,
+                                          propertyId: n.propertyId ?? null,
                                         },
-                                      ),
-                                    );
-                                  }
+                                      },
+                                    ),
+                                  );
                                   fetchData();
                                 } catch (err) {
                                   console.error(err);

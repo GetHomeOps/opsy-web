@@ -26,9 +26,7 @@ function HomeOpsTeam({
   }, [currentUser]);
 
   const isPropertyOwner = (m) =>
-    ((m.property_role ?? m.role ?? "").toLowerCase() === "owner" ||
-      (m.role ?? "").toLowerCase() === "homeowner") &&
-    !m._pending;
+    !m?._pending && (m.property_role ?? "").toLowerCase() === "owner";
 
   /* Sort so owner(s) appear first, then pending, then others */
   const sortedMembers = useMemo(() => {
