@@ -123,6 +123,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
+import {PROPERTY_TEAM_REFRESH_EVENT} from "../../constants/propertyEvents";
 import {getPropertyAssistantHeaderLines} from "./helpers/propertyAssistantHeader";
 import InspectionReportModal from "./partials/InspectionReportModal";
 import InviteAgentBenefitsModal from "./partials/InviteAgentBenefitsModal";
@@ -984,6 +985,39 @@ function PropertyFormContainer() {
       );
     };
   }, [propertyIdForApi]);
+
+  /* Refetch team when ownership (or similar) changes elsewhere, e.g. accepting transfer from the bell menu */
+  useEffect(() => {
+    if (typeof window === "undefined" || uid === "new") return;
+    const normalizedUid = String(uid);
+    const handlePropertyTeamRefresh = async (event) => {
+      const pid = event?.detail?.propertyId;
+      if (pid == null) return;
+      if (String(pid) !== normalizedUid) return;
+      try {
+        const team = await getPropertyTeam(uid);
+        const raw = team?.property_users ?? [];
+        const enriched = enrichPropertyTeamMembers(raw);
+        setHomeopsTeam(enriched);
+        originalTeamRef.current = prepareTeamForProperty(enriched);
+        refreshProperties?.();
+      } catch {
+        /* Keep existing team if refresh fails */
+      }
+    };
+    window.addEventListener(PROPERTY_TEAM_REFRESH_EVENT, handlePropertyTeamRefresh);
+    return () => {
+      window.removeEventListener(
+        PROPERTY_TEAM_REFRESH_EVENT,
+        handlePropertyTeamRefresh,
+      );
+    };
+  }, [
+    uid,
+    getPropertyTeam,
+    enrichPropertyTeamMembers,
+    refreshProperties,
+  ]);
 
   /* Get property by ID and its systems */
   useEffect(() => {
