@@ -334,8 +334,10 @@ function Step2Plan({
           <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
         </div>
       ) : (
-        <div className={`grid grid-cols-1 ${gridCols} gap-5 mt-10`}>
-          {plans.map((p) => {
+        <div
+          className={`mt-10 flex flex-col gap-5 md:grid md:grid-rows-[auto_auto_1fr_auto_auto] md:gap-5 ${gridCols}`}
+        >
+          {plans.map((p, index) => {
             const planId = p.code || p.id;
             const isSelected = plan === planId;
             const isPopular = p.popular;
@@ -373,7 +375,8 @@ function Step2Plan({
             return (
               <div
                 key={planId}
-                className={`relative rounded-2xl flex flex-col transition-all duration-200 backdrop-blur-sm border bg-white/80 dark:bg-gray-800/80 ${
+                style={{gridColumn: index + 1}}
+                className={`relative rounded-2xl max-md:flex max-md:flex-col md:grid md:grid-rows-subgrid md:row-span-5 md:row-start-1 transition-all duration-200 backdrop-blur-sm border bg-white/80 dark:bg-gray-800/80 ${
                   isPopular
                     ? "border-emerald-400/60 dark:border-emerald-600/40 shadow-md z-10"
                     : isSelected
@@ -389,54 +392,50 @@ function Step2Plan({
                   </div>
                 )}
 
-                <div className="p-6 pb-0 flex flex-col flex-1">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                    {p.name}
-                  </h3>
-                  <div className="mt-3">
-                    <div className="flex items-baseline gap-1">
-                      <span
-                        className={`font-extrabold tracking-tight text-gray-900 dark:text-gray-100 ${isEnterprise ? "text-2xl" : "text-4xl"}`}
-                      >
-                        {displayPrice}
+                <h3 className="px-6 pt-6 text-lg font-bold text-gray-900 dark:text-gray-100">
+                  {p.name}
+                </h3>
+                <div className="px-6 mt-3">
+                  <div className="flex items-baseline gap-1">
+                    <span
+                      className={`font-extrabold tracking-tight text-gray-900 dark:text-gray-100 ${isEnterprise ? "text-2xl" : "text-4xl"}`}
+                    >
+                      {displayPrice}
+                    </span>
+                    {!isEnterprise && p.price != null && p.price > 0 && (
+                      <span className="text-sm font-medium text-gray-400 dark:text-gray-500">
+                        /mo
                       </span>
-                      {!isEnterprise && p.price != null && p.price > 0 && (
-                        <span className="text-sm font-medium text-gray-400 dark:text-gray-500">
-                          /mo
-                        </span>
-                      )}
-                    </div>
-                    {yearlyTotal != null && (
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        ${yearlyTotal}/year billed annually
-                      </p>
                     )}
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-                    {p.description}
-                  </p>
-                  <div className="mt-auto pt-5">
-                    <button
-                      type="button"
-                      onClick={() => onSelect(planId)}
-                      className={`w-full py-3 rounded-xl text-sm font-semibold transition-all ${
-                        isSelected
-                          ? `bg-emerald-600 text-white shadow-sm ${
-                              isPopular ? "border border-transparent" : ""
-                            }`
-                          : isPopular
-                            ? "bg-white dark:bg-gray-800 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 dark:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                            : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
-                      }`}
-                    >
-                      {isSelected ? "Selected" : "Select Plan"}
-                    </button>
-                  </div>
+                  {yearlyTotal != null && (
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      ${yearlyTotal}/year billed annually
+                    </p>
+                  )}
+                </div>
+                <p className="px-6 mt-2 min-h-0 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  {p.description}
+                </p>
+                <div className="px-6 pt-5">
+                  <button
+                    type="button"
+                    onClick={() => onSelect(planId)}
+                    className={`w-full py-3 rounded-xl text-sm font-semibold transition-all ${
+                      isSelected
+                        ? `bg-emerald-600 text-white shadow-sm ${
+                            isPopular ? "border border-transparent" : ""
+                          }`
+                        : isPopular
+                          ? "bg-white dark:bg-gray-800 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 dark:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                          : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                    }`}
+                  >
+                    {isSelected ? "Selected" : "Select Plan"}
+                  </button>
                 </div>
 
-                <div className="mx-6 my-5 border-t border-gray-100 dark:border-gray-700/60" />
-
-                <div className="px-6 pb-6 space-y-2">
+                <div className="mx-6 mt-5 border-t border-gray-100 dark:border-gray-700/60 pt-5 pb-6 space-y-2">
                   {features.map((f) => (
                     <div key={f.id} className="flex items-center gap-2">
                       {f.included ? (
