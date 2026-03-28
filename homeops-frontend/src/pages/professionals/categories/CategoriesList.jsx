@@ -11,6 +11,7 @@ import ModalBlank from "../../../components/ModalBlank";
 import Banner from "../../../partials/containers/Banner";
 import useCurrentAccount from "../../../hooks/useCurrentAccount";
 import AppApi from "../../../api/api";
+import {sortCategoryHierarchy} from "./categoryListOrder";
 
 const PAGE_STORAGE_KEY = "categories_list_page";
 
@@ -273,7 +274,8 @@ function CategoriesList() {
         const hierarchy = await AppApi.getProfessionalCategoryHierarchy();
         if (cancelled) return;
         dispatch({type: "SET_HIERARCHY", payload: hierarchy || []});
-        setExpandedGroups((hierarchy || []).map((g) => String(g.id)));
+        const sortedForExpand = sortCategoryHierarchy(hierarchy || []);
+        setExpandedGroups(sortedForExpand.map((g) => String(g.id)));
       } catch (err) {
         if (!cancelled) {
           dispatch({
@@ -320,7 +322,7 @@ function CategoriesList() {
 
   /* ─── Build grouped data (parent -> children) ──────────────── */
 
-  const {groupedData, flatFiltered} = useMemo(() => {
+  const {groupedData, flatFiltered, orderedGroupIds} = useMemo(() => {
     const term = (state.searchTerm || "").toLowerCase();
     const filtersByType = {};
     state.activeFilters.forEach((f) => {
@@ -329,12 +331,13 @@ function CategoriesList() {
     });
 
     const groups = {};
+    const orderedGroupIds = [];
     const flat = [];
 
     const typeFilterParentOnly = filtersByType.type && filtersByType.type.includes("parent") && !filtersByType.type.includes("child");
     const typeFilterChildOnly = filtersByType.type && filtersByType.type.includes("child") && !filtersByType.type.includes("parent");
 
-    for (const parent of state.hierarchy) {
+    for (const parent of sortCategoryHierarchy(state.hierarchy)) {
       if (filtersByType.parent && !filtersByType.parent.includes(parent.name)) {
         continue;
       }
@@ -392,13 +395,19 @@ function CategoriesList() {
           childCount: children.length,
         };
 
-        groups[String(parent.id)] = children;
+        const gid = String(parent.id);
+        groups[gid] = children;
+        orderedGroupIds.push(gid);
         flat.push(parentRow);
         flat.push(...children);
       }
     }
 
-    return {groupedData: groups, flatFiltered: flat};
+    return {
+      groupedData: groups,
+      flatFiltered: flat,
+      orderedGroupIds,
+    };
   }, [state.searchTerm, state.hierarchy, state.activeFilters]);
 
   const totalItems = flatFiltered.length;
@@ -424,9 +433,12 @@ function CategoriesList() {
 
   const handleCategoryClick = useCallback(
     (item) => {
-      navigate(`/${accountUrl}/professionals/categories/${item.id}`);
+      const visibleCategoryIds = flatFiltered.map((row) => String(row.id));
+      navigate(`/${accountUrl}/professionals/categories/${item.id}`, {
+        state: {visibleCategoryIds},
+      });
     },
-    [navigate, accountUrl],
+    [navigate, accountUrl, flatFiltered],
   );
 
   const handleSort = (columnKey) => {
@@ -702,13 +714,13 @@ function CategoriesList() {
 
   const allChildItems = useMemo(() => {
     const items = [];
-    for (const groupId of Object.keys(groupedData)) {
+    for (const groupId of orderedGroupIds) {
       if (expandedGroups.includes(groupId)) {
         items.push(...groupedData[groupId]);
       }
     }
     return items;
-  }, [groupedData, expandedGroups]);
+  }, [groupedData, expandedGroups, orderedGroupIds]);
 
   const allSelected =
     allChildItems.length > 0 &&
@@ -991,6 +1003,7 @@ function CategoriesList() {
                 onSort={handleSort}
                 isCollapsible
                 groupBy={groupedData}
+                groupOrder={orderedGroupIds}
                 expandedGroups={expandedGroups}
                 onGroupExpand={handleGroupExpand}
                 renderGroupHeader={renderGroupHeader}

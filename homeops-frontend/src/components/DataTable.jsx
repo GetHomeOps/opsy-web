@@ -16,6 +16,8 @@ function DataTable({
   // Optional props
   isCollapsible = false,
   groupBy = null,
+  /** When group keys are numeric strings, Object.entries sorts them by number — pass display order here. */
+  groupOrder = null,
   expandedGroups = [],
   onGroupExpand = null,
   renderGroupHeader = null,
@@ -111,7 +113,14 @@ function DataTable({
     }
 
     if (isCollapsible && groupBy) {
-      return Object.entries(groupBy).map(
+      const groupEntries =
+        Array.isArray(groupOrder) && groupOrder.length > 0
+          ? groupOrder
+              .map((groupId) => [groupId, groupBy[groupId]])
+              .filter(([, groupItems]) => groupItems != null)
+          : Object.entries(groupBy);
+
+      return groupEntries.map(
         ([groupId, groupItems], groupIndex, groupArray) => {
           const isExpanded = expandedGroups.includes(groupId);
           const isLastGroup = groupIndex === groupArray.length - 1;

@@ -23,6 +23,10 @@ import AppApi from "../../../api/api";
 import CategoryActionsMenu from "./CategoryActionsMenu";
 import CategoryForm from "./CategoryForm";
 import ModalBlank from "../../../components/ModalBlank";
+import {
+  flatNavigationIdsFromHierarchy,
+  sortCategoryHierarchy,
+} from "./categoryListOrder";
 
 const emptyFormData = {
   name: "",
@@ -236,17 +240,13 @@ function CategoryFormContainer() {
         if (isStale()) return;
         dispatch({
           type: "SET_PARENT_CATEGORIES",
-          payload: (hierarchy || []).map((p) => ({id: p.id, name: p.name})),
+          payload: sortCategoryHierarchy(hierarchy || []).map((p) => ({
+            id: p.id,
+            name: p.name,
+          })),
         });
 
-        const flatIds = [];
-        for (const parent of hierarchy || []) {
-          flatIds.push(String(parent.id));
-          for (const child of parent.children || []) {
-            flatIds.push(String(child.id));
-          }
-        }
-        setAllCategoryIds(flatIds);
+        setAllCategoryIds(flatNavigationIdsFromHierarchy(hierarchy || []));
 
         if (isNew) {
           if (isStale()) return;

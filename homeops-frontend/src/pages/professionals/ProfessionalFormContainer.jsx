@@ -492,7 +492,10 @@ function ProfessionalFormContainer() {
 
     setProfessionalLoading(true);
     loadedProfessionalIdRef.current = null;
+    clearProfilePreview();
+    clearProfileUploadedUrl();
     clearProfilePresignedUrl();
+    setProfileUploadError(null);
 
     let cancelled = false;
     (async () => {
