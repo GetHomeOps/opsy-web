@@ -20,6 +20,11 @@ import {
   X,
 } from "lucide-react";
 import {API_BASE_URL} from "../../api/api";
+import {
+  MAX_DOCUMENT_UPLOAD_BYTES,
+  documentFileTooLargeMessage,
+  MAX_DOCUMENT_UPLOAD_LABEL,
+} from "../../constants/documentUpload";
 import Logo from "../../images/logo-no-bg.png";
 import Banner from "../../partials/containers/Banner";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
@@ -145,6 +150,9 @@ function ContractorReportPage() {
     setError(null);
     for (const file of files) {
       try {
+        if (file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
+          throw new Error(documentFileTooLargeMessage());
+        }
         const formData = new FormData();
         formData.append("file", file);
         const resp = await fetch(
@@ -564,7 +572,8 @@ function ContractorReportPage() {
                     drag and drop
                   </p>
                   <p className="text-xs text-gray-500">
-                    PDF, DOC, DOCX, JPG, PNG (MAX. 10MB)
+                    PDF, DOC, DOCX, JPG, PNG, WebP, GIF — max{" "}
+                    {MAX_DOCUMENT_UPLOAD_LABEL} per file
                   </p>
                 </div>
                 <input
@@ -573,7 +582,7 @@ function ContractorReportPage() {
                   multiple
                   disabled={uploadingFile}
                   onChange={handleFileUpload}
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.gif"
                 />
               </label>
               {uploadedFiles.length > 0 && (

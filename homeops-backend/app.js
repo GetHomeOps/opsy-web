@@ -20,7 +20,9 @@ const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const multer = require("multer");
 const { NotFoundError } = require("./expressError");
+const { documentFileTooLargeMessage } = require("./constants/documentUpload");
 const { authenticateJWT, ensureLoggedIn } = require("./middleware/auth");
 
 const authRoutes = require("./routes/auth");
@@ -183,8 +185,16 @@ app.use(function (req, res, next) {
 app.use(function (err, req, res, next) {
   if (process.env.NODE_ENV !== "test") console.error(err.stack);
 
-  const status = err.status || 500;
-  const message = err.message;
+  let status = err.status || 500;
+  let message = err.message;
+
+  if (err instanceof multer.MulterError) {
+    status = 400;
+    message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? documentFileTooLargeMessage()
+        : err.message;
+  }
 
   return res.status(status).json({
     error: { message, status },

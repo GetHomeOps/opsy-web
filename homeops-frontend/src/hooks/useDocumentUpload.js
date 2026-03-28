@@ -1,5 +1,9 @@
 import {useState, useCallback} from "react";
 import AppApi, { buildApiUrl } from "../api/api";
+import {
+  MAX_DOCUMENT_UPLOAD_BYTES,
+  documentFileTooLargeMessage,
+} from "../constants/documentUpload";
 
 /**
  * Upload a document with progress reporting.
@@ -23,6 +27,19 @@ export default function useDocumentUpload({onSuccess, onError} = {}) {
         const token = AppApi.token;
         if (!token) {
           const msg = "Authentication required";
+          setError(msg);
+          onError?.(msg);
+          resolve(null);
+          return;
+        }
+
+        if (
+          file &&
+          typeof file.size === "number" &&
+          file.size > MAX_DOCUMENT_UPLOAD_BYTES
+        ) {
+          const msg = documentFileTooLargeMessage();
+          setIsUploading(false);
           setError(msg);
           onError?.(msg);
           resolve(null);

@@ -4,6 +4,7 @@ import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
 import AppApi from "../../../api/api";
 import useDocumentUpload from "../../../hooks/useDocumentUpload";
+import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../../constants/documentUpload";
 import UpgradePrompt from "../../../components/UpgradePrompt";
 
 const documentTypes = [
@@ -330,7 +331,7 @@ function UploadDocumentModal({
               Click to upload or drag and drop
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-500">
-              PDF, JPG, PNG up to 10MB
+              PDF, JPG, PNG, GIF, WebP — up to {MAX_DOCUMENT_UPLOAD_LABEL} each
             </p>
             {uploadFiles.length > 0 && (
               <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 font-medium">

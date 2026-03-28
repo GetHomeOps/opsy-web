@@ -41,6 +41,7 @@ import {
   clearInspectionFlowState,
   getInspectionFlowState,
 } from "../helpers/inspectionFlowSession";
+import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../../constants/documentUpload";
 
 /** Step definitions for the stepper. Order matters. */
 const STEP_IDS = ["identity", "details", "inspection", "systems"];
@@ -1991,8 +1992,9 @@ function SystemsSetupModal({
                             Drag & drop your inspection report here
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                            or click to browse (PDF, images). AI analysis runs
-                            for PDFs.
+                            or click to browse (PDF, images). Maximum file size{" "}
+                            {MAX_DOCUMENT_UPLOAD_LABEL} per file. AI analysis
+                            runs for PDFs.
                           </p>
                         </>
                       )}

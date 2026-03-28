@@ -28,6 +28,7 @@ import usePresignedPreview from "../../hooks/usePresignedPreview";
 import {DocumentsTreeView, DocumentsPreviewPanel} from "./partials/documents";
 import {PROPERTY_SYSTEMS, CUSTOM_SYSTEM_DEFAULT_ICON} from "./constants/propertySystems";
 import UpgradePrompt from "../../components/UpgradePrompt";
+import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../constants/documentUpload";
 
 // System categories with icons – matches API system_key values
 const systemCategories = [
@@ -1059,7 +1060,8 @@ function DocumentsTab({
                     Click to upload or drag and drop
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-500">
-                    PDF, JPG, PNG up to 10MB
+                    PDF, JPG, PNG, GIF, WebP — up to {MAX_DOCUMENT_UPLOAD_LABEL}{" "}
+                    each
                   </p>
                   {uploadFiles.length > 0 && (
                     <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 font-medium">

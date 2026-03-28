@@ -17,6 +17,10 @@ const TOKEN_STORAGE_KEY = "app-token";
 const REFRESH_TOKEN_STORAGE_KEY = "app-refresh-token";
 
 import { emitTierLimit, isTierRestrictionError } from "../utils/tierLimitNotifier";
+import {
+  MAX_DOCUMENT_UPLOAD_BYTES,
+  documentFileTooLargeMessage,
+} from "../constants/documentUpload";
 
 export class ApiError extends Error {
   constructor(messages, status = 500) {
@@ -864,6 +868,13 @@ class AppApi {
   }
 
   static async uploadDocument(file) {
+    if (
+      file &&
+      typeof file.size === "number" &&
+      file.size > MAX_DOCUMENT_UPLOAD_BYTES
+    ) {
+      throw new ApiError([documentFileTooLargeMessage()], 400);
+    }
     const formData = new FormData();
     formData.append("file", file);
     let res = await this.requestFormData("documents/upload", formData);

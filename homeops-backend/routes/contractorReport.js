@@ -22,12 +22,13 @@ const Notification = require("../models/notification");
 const { uploadFile } = require("../services/s3Service");
 const { AWS_S3_BUCKET } = require("../config");
 const { BadRequestError } = require("../expressError");
+const { MAX_DOCUMENT_UPLOAD_BYTES } = require("../constants/documentUpload");
 
 const router = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: MAX_DOCUMENT_UPLOAD_BYTES },
   fileFilter: (req, file, cb) => {
     const allowed = [
       "application/pdf",

@@ -7,6 +7,7 @@ const { BadRequestError } = require("../expressError");
 const { uploadFile, getPresignedUrl, getPresignedUrlForImage } = require("../services/s3Service");
 const { AWS_S3_BUCKET } = require("../config");
 const { ulid } = require("ulid");
+const { MAX_DOCUMENT_UPLOAD_BYTES } = require("../constants/documentUpload");
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ function validateFileKey(key) {
 // Configure multer for memory storage (no disk writes)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: MAX_DOCUMENT_UPLOAD_BYTES },
   fileFilter: (req, file, cb) => {
     // Support ticket attachments: PDF, images, and common document formats
     const allowed = [
@@ -50,7 +51,7 @@ const upload = multer({
   },
 });
 
-/** POST /upload - Upload file to S3. Multipart form-data with "file" field. Returns key and URL. 10MB limit. */
+/** POST /upload - Upload file to S3. Multipart form-data with "file" field. Returns key and URL. */
 router.post("/upload", ensureLoggedIn, upload.single("file"), async (req, res, next) => {
   try {
     if (!AWS_S3_BUCKET) {
