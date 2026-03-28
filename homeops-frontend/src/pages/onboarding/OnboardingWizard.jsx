@@ -154,35 +154,42 @@ function buildFallbackPlans(role, subscriptionProducts = []) {
       maxContacts: limitsFromProduct?.maxContacts ?? planLimits.contacts,
       aiTokenMonthlyQuota: limitsFromProduct?.aiTokenMonthlyQuota,
     };
+    const productFeatures = Array.isArray(product?.features)
+      ? product.features
+          .map((f, i) => ({
+            id: f?.id || `${code}_pf${i}`,
+            label: String(f?.label || "").trim(),
+            included: f?.included !== false,
+          }))
+          .filter((f) => f.label)
+      : [];
+    const fallbackFeatures = p.features
+      ? [...(p.features.core || []), ...(p.features.advanced || [])].map(
+          (f, i) => ({
+            id: `${code}_f${i}`,
+            label: `${f.label}: ${f.value}`,
+            included: f.value !== "None",
+          }),
+        )
+      : [];
     return {
       ...p,
+      name: product?.name || p.name,
+      description: product?.description ?? p.description,
+      popular: typeof product?.popular === "boolean" ? product.popular : p.popular,
       code,
       price: p.price === 0 ? 0 : null,
       stripePrices: stripePricesFromApi,
-      features: p.features
-        ? [...(p.features.core || []), ...(p.features.advanced || [])].map(
-            (f, i) => ({
-              id: `${code}_f${i}`,
-              label: `${f.label}: ${f.value}`,
-              included: f.value !== "None",
-            }),
-          )
-        : [],
+      features: productFeatures.length > 0 ? productFeatures : fallbackFeatures,
       limits,
     };
   });
 }
 
-const LIMIT_KEYWORDS = {
-  properties: /propert/i,
-  contacts: /contact/i,
-  tokens: /token|data ingestion/i,
-};
-
 /**
  * Build the final display features for a plan card.
- * Generates limit items directly from plan_limits, then appends
- * stored features (skipping any that duplicate the limit items).
+ * Prefer features configured on the subscription product.
+ * If none exist, fall back to generated limit-based rows.
  */
 function getDisplayFeatures(plan) {
   const features = plan.features || [];
@@ -190,6 +197,19 @@ function getDisplayFeatures(plan) {
   const maxProps = limits.maxProperties ?? limits.properties;
   const maxContacts = limits.maxContacts ?? limits.contacts;
   const tokens = limits.aiTokenMonthlyQuota;
+
+  const productFeatures = features
+    .filter((f) => f.included !== false)
+    .map((f, i) => ({
+      id: f.id || `feature_${i}`,
+      label: String(f.label || "").trim(),
+      included: true,
+    }))
+    .filter((f) => f.label);
+
+  if (productFeatures.length > 0) {
+    return productFeatures;
+  }
 
   const limitFeatures = [];
   if (maxProps != null) {
@@ -227,18 +247,7 @@ function getDisplayFeatures(plan) {
     });
   }
 
-  const coveredKeys = new Set(limitFeatures.map((l) => l._limitKey));
-  // Only list features marked included in Super Admin > Billing Plans (omit unchecked rows).
-  const productFeatures = features.filter((f) => f.included !== false);
-  const filtered = productFeatures.filter((f) => {
-    const lower = (f.label || "").toLowerCase();
-    for (const [key, re] of Object.entries(LIMIT_KEYWORDS)) {
-      if (coveredKeys.has(key) && re.test(lower)) return false;
-    }
-    return true;
-  });
-
-  return [...limitFeatures, ...filtered];
+  return limitFeatures;
 }
 
 function isZeroCostPlan(plan, billingInterval = "month") {
