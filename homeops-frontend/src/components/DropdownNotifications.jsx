@@ -1,6 +1,17 @@
 import React, {useState, useRef, useEffect, useCallback} from "react";
 import {Link} from "react-router-dom";
-import {Bell, BookOpen, UserPlus, UserCheck, Wrench, MessageSquare, Users} from "lucide-react";
+import {
+  Bell,
+  BookOpen,
+  UserPlus,
+  UserCheck,
+  Wrench,
+  MessageSquare,
+  Users,
+  ArrowRightLeft,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import NavbarDropdownPortal from "./NavbarDropdownPortal";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -25,6 +36,7 @@ function DropdownNotifications() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [ownershipActionKey, setOwnershipActionKey] = useState(null);
   const trigger = useRef(null);
   const dropdown = useRef(null);
 
@@ -152,17 +164,30 @@ function DropdownNotifications() {
                   const isInvitation = n.type === "property_invitation";
                   const isInvitationAccepted =
                     n.type === "property_invitation_accepted";
+                  const isOwnershipTransferRequest =
+                    n.type === "ownership_transfer_request";
+                  const isOwnershipAccepted =
+                    n.type === "ownership_transfer_accepted";
+                  const isOwnershipDeclined =
+                    n.type === "ownership_transfer_declined";
                   const isContractorReport = n.type === "contractor_report_submitted";
                   const isHomeownerInquiry = n.type === "homeowner_inquiry";
                   const isPropertyMissingAgent = n.type === "property_missing_agent";
                   const isConversationMessage = n.type === "conversation_message";
                   const isCommunication = n.type === "communication_sent" && (n.communicationId ?? n.resourceId);
                   const isResource = n.type === "resource_sent" && n.resourceId;
+                  const acctForProperty = n.accountUrl || accountUrl;
                   const propertyInvitePath =
                     (isInvitation || isInvitationAccepted) &&
                     n.propertyUid &&
                     n.accountUrl
                       ? `/${n.accountUrl}/properties/${n.propertyUid}`
+                      : null;
+                  const ownershipInfoPath =
+                    (isOwnershipAccepted || isOwnershipDeclined) &&
+                    n.propertyUid &&
+                    acctForProperty
+                      ? `/${acctForProperty}/properties/${n.propertyUid}`
                       : null;
                   const basePath =
                     isConversationMessage
@@ -171,6 +196,8 @@ function DropdownNotifications() {
                       ? `${clientMessagesPath}${n.homeownerInquiryId ? `?highlight=${n.homeownerInquiryId}` : ""}`
                       : propertyInvitePath
                         ? propertyInvitePath
+                        : ownershipInfoPath
+                          ? ownershipInfoPath
                         : isContractorReport && n.maintenancePropertyUid && n.maintenanceAccountUrl
                           ? `/${n.maintenanceAccountUrl}/properties/${n.maintenancePropertyUid}?tab=maintenance`
                           : isPropertyMissingAgent &&
@@ -190,6 +217,122 @@ function DropdownNotifications() {
                     basePath.includes("/properties/")
                       ? `${basePath}${basePath.includes("?") ? "&" : "?"}invitation=${n.invitationId}`
                       : basePath;
+
+                  if (isOwnershipTransferRequest) {
+                    const rid = n.ownershipTransferRequestId;
+                    const viewPropertyPath =
+                      n.propertyUid && acctForProperty
+                        ? `/${acctForProperty}/properties/${n.propertyUid}`
+                        : null;
+                    return (
+                      <li
+                        key={n.id}
+                        className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+                      >
+                        <div
+                          className={`flex flex-col gap-2 px-4 py-3 ${!n.readAt ? "bg-[#456564]/5 dark:bg-[#456564]/10" : ""}`}
+                        >
+                          <div className="flex gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-[#456564]/15 dark:bg-[#456564]/20 flex items-center justify-center shrink-0">
+                              <ArrowRightLeft className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {n.title || "Ownership transfer request"}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatNotificationTime(n.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 pl-12">
+                            <button
+                              type="button"
+                              disabled={
+                                !rid ||
+                                ownershipActionKey === `${n.id}-accept` ||
+                                ownershipActionKey === `${n.id}-decline`
+                              }
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (!rid) return;
+                                setOwnershipActionKey(`${n.id}-accept`);
+                                try {
+                                  await AppApi.acceptOwnershipTransferRequest(rid);
+                                  if (!n.readAt) {
+                                    try {
+                                      await AppApi.markNotificationRead(n.id);
+                                      setUnreadCount((c) => Math.max(0, c - 1));
+                                    } catch {
+                                      /* ignore */
+                                    }
+                                  }
+                                  window.dispatchEvent(
+                                    new CustomEvent("opsy:notifications-refresh"),
+                                  );
+                                  fetchData();
+                                } catch (err) {
+                                  console.error(err);
+                                } finally {
+                                  setOwnershipActionKey(null);
+                                }
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-md bg-[#456654] text-white hover:bg-[#34514f] disabled:opacity-50"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              disabled={
+                                !rid ||
+                                ownershipActionKey === `${n.id}-accept` ||
+                                ownershipActionKey === `${n.id}-decline`
+                              }
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (!rid) return;
+                                setOwnershipActionKey(`${n.id}-decline`);
+                                try {
+                                  await AppApi.declineOwnershipTransferRequest(rid);
+                                  if (!n.readAt) {
+                                    try {
+                                      await AppApi.markNotificationRead(n.id);
+                                      setUnreadCount((c) => Math.max(0, c - 1));
+                                    } catch {
+                                      /* ignore */
+                                    }
+                                  }
+                                  window.dispatchEvent(
+                                    new CustomEvent("opsy:notifications-refresh"),
+                                  );
+                                  fetchData();
+                                } catch (err) {
+                                  console.error(err);
+                                } finally {
+                                  setOwnershipActionKey(null);
+                                }
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-50"
+                            >
+                              Decline
+                            </button>
+                            {viewPropertyPath && (
+                              <Link
+                                to={viewPropertyPath}
+                                onClick={() => setDropdownOpen(false)}
+                                className="text-xs font-medium text-[#456564] dark:text-[#5a7a78] hover:underline"
+                              >
+                                View property
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  }
+
                   return (
                     <li
                       key={n.id}
@@ -213,6 +356,10 @@ function DropdownNotifications() {
                             <UserPlus className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isInvitationAccepted ? (
                             <UserCheck className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isOwnershipAccepted ? (
+                            <CheckCircle className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isOwnershipDeclined ? (
+                            <XCircle className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isContractorReport ? (
                             <Wrench className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isHomeownerInquiry ? (

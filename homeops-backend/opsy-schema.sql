@@ -321,6 +321,27 @@ CREATE TABLE property_users (
 CREATE INDEX idx_property_users_user_id ON property_users(user_id);
 CREATE INDEX idx_property_users_property_role ON property_users(property_id, role, created_at);
 
+-- Pending property ownership transfers (recipient must accept in-app)
+CREATE TABLE property_ownership_transfer_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    from_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    to_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    responded_at TIMESTAMPTZ,
+    CONSTRAINT chk_otr_distinct_users CHECK (from_user_id <> to_user_id)
+);
+
+CREATE UNIQUE INDEX idx_otr_one_pending_per_property
+    ON property_ownership_transfer_requests (property_id)
+    WHERE status = 'pending';
+
+CREATE INDEX idx_otr_to_user_pending
+    ON property_ownership_transfer_requests (to_user_id)
+    WHERE status = 'pending';
+
 -- ============================================================
 -- Property Systems, Maintenance, Documents
 -- ============================================================
@@ -976,6 +997,7 @@ CREATE TABLE notifications (
     homeowner_inquiry_id INTEGER REFERENCES homeowner_agent_inquiries(id) ON DELETE SET NULL,
     conversation_message_id INTEGER REFERENCES conversation_messages(id) ON DELETE SET NULL,
     property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+    ownership_transfer_request_id UUID REFERENCES property_ownership_transfer_requests(id) ON DELETE CASCADE,
     title VARCHAR(500),
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -985,6 +1007,7 @@ CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
 CREATE INDEX idx_notifications_read_at ON notifications(read_at) WHERE read_at IS NULL;
 CREATE INDEX idx_notifications_property_id ON notifications(property_id) WHERE property_id IS NOT NULL;
+CREATE INDEX idx_notifications_otr_id ON notifications(ownership_transfer_request_id) WHERE ownership_transfer_request_id IS NOT NULL;
 
 CREATE TABLE comm_attachments (
     id SERIAL PRIMARY KEY,

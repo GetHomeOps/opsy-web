@@ -53,6 +53,7 @@ DROP TABLE IF EXISTS property_systems CASCADE;
 DROP TABLE IF EXISTS property_users CASCADE;
 -- Messaging / inquiries (refs accounts, properties, users; notifications refs these)
 DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS property_ownership_transfer_requests CASCADE;
 DROP TABLE IF EXISTS conversation_messages CASCADE;
 DROP TABLE IF EXISTS conversations CASCADE;
 DROP TABLE IF EXISTS homeowner_agent_inquiries CASCADE;

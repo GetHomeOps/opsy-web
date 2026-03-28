@@ -18,6 +18,7 @@ const { enqueue } = require("../services/inspectionAnalysisQueue");
 const Contact = require("../models/contact");
 const SavedProfessional = require("../models/savedProfessional");
 const Invitation = require("../models/invitation");
+const PropertyOwnershipTransferRequest = require("../models/propertyOwnershipTransferRequest");
 const db = require("../db");
 
 const router = new express.Router();
@@ -172,6 +173,66 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
     return next(err);
   }
 });
+
+/** POST /ownership-transfer-requests/:requestId/accept — Proposed new owner accepts; roles update in DB. */
+router.post(
+  "/ownership-transfer-requests/:requestId/accept",
+  ensureLoggedIn,
+  async function (req, res, next) {
+    try {
+      const result = await PropertyOwnershipTransferRequest.accept(
+        req.params.requestId,
+        res.locals.user.id
+      );
+      clearPropertyAccessCache(result.propertyId);
+      return res.json({ ok: true, propertyId: result.propertyId });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** POST /ownership-transfer-requests/:requestId/decline — Proposed new owner declines. */
+router.post(
+  "/ownership-transfer-requests/:requestId/decline",
+  ensureLoggedIn,
+  async function (req, res, next) {
+    try {
+      await PropertyOwnershipTransferRequest.decline(req.params.requestId, res.locals.user.id);
+      return res.json({ ok: true });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** POST /:propertyId/ownership-transfer-request — Current owner requests transfer. Body: { toUserId }. */
+router.post(
+  "/:propertyId/ownership-transfer-request",
+  ensureLoggedIn,
+  ensurePropertyAccess({ param: "propertyId" }),
+  ensurePropertyOwner("propertyId"),
+  async function (req, res, next) {
+    try {
+      const raw = req.body?.toUserId ?? req.body?.to_user_id;
+      if (raw == null || raw === "") {
+        throw new BadRequestError("toUserId is required");
+      }
+      const toUserId = parseInt(String(raw), 10);
+      if (!Number.isFinite(toUserId)) {
+        throw new BadRequestError("toUserId must be a valid user id");
+      }
+      const request = await PropertyOwnershipTransferRequest.create({
+        propertyId: req.params.propertyId,
+        fromUserId: res.locals.user.id,
+        toUserId,
+      });
+      return res.status(201).json({ request });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
 
 /** GET /agent/account/:accountId - Get agents for account. */
 router.get("/agent/account/:accountId", ensureLoggedIn, async function (req, res, next) {

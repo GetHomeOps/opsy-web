@@ -689,6 +689,31 @@ class AppApi {
     return res.property;
   }
 
+  /** Current owner requests transfer; recipient gets a notification to accept or decline. */
+  static async requestPropertyOwnershipTransfer(propertyId, toUserId) {
+    return this.request(
+      `properties/${propertyId}/ownership-transfer-request`,
+      {toUserId},
+      "POST",
+    );
+  }
+
+  static async acceptOwnershipTransferRequest(requestId) {
+    return this.request(
+      `properties/ownership-transfer-requests/${requestId}/accept`,
+      {},
+      "POST",
+    );
+  }
+
+  static async declineOwnershipTransferRequest(requestId) {
+    return this.request(
+      `properties/ownership-transfer-requests/${requestId}/decline`,
+      {},
+      "POST",
+    );
+  }
+
   /* --------- Systems --------- */
 
   static async createSystem(data) {

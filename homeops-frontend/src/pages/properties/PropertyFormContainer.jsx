@@ -2192,21 +2192,22 @@ function PropertyFormContainer() {
           );
           handleTeamChange(next);
         }}
-        onTransferOwnership={(newOwnerId) => {
-          const currentUserId = currentUser?.id;
-          const next = homeopsTeam.map((m) => {
-            if (String(m.id) === String(newOwnerId)) {
-              return {...m, property_role: "owner"};
-            }
-            if (
-              currentUserId != null &&
-              String(m.id) === String(currentUserId)
-            ) {
-              return {...m, property_role: "editor"};
-            }
-            return m;
-          });
-          handleTeamChange(next);
+        onTransferOwnership={async (newOwnerIdStr) => {
+          const propertyKey =
+            uid !== "new"
+              ? (state.property?.identity?.id ??
+                  state.property?.id ??
+                  uid)
+              : null;
+          if (!propertyKey) {
+            throw new Error("Save the property before transferring ownership.");
+          }
+          const toUserId = parseInt(String(newOwnerIdStr), 10);
+          if (!Number.isFinite(toUserId)) {
+            throw new Error("Invalid team member selected.");
+          }
+          await AppApi.requestPropertyOwnershipTransfer(propertyKey, toUserId);
+          window.dispatchEvent(new CustomEvent("opsy:notifications-refresh"));
         }}
         onInvite={async ({
           email: inviteEmail,

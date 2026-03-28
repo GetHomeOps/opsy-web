@@ -774,6 +774,7 @@ function SharePropertyModal({
   const [successType, setSuccessType] = useState(null);
   const [transferOwnershipOpen, setTransferOwnershipOpen] = useState(false);
   const [selectedNewOwnerId, setSelectedNewOwnerId] = useState("");
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [resendingId, setResendingId] = useState(null);
   const [platformAgents, setPlatformAgents] = useState([]);
   const [removeConfirmMember, setRemoveConfirmMember] = useState(null);
@@ -1065,14 +1066,22 @@ function SharePropertyModal({
     activeTab === "insurance" ||
     activeTab === "mortgage";
 
-  /* Property owner: the team member with property_role "owner" */
-  const propertyOwner = useMemo(
-    () =>
-      (teamMembers ?? []).find(
-        (m) => m && (m.property_role ?? m.role ?? "").toLowerCase() === "owner",
-      ) ?? null,
-    [teamMembers],
-  );
+  /* Property owner: explicit owner role on property, else first non-pending homeowner (matches Opsy team card). */
+  const propertyOwner = useMemo(() => {
+    const list = teamMembers ?? [];
+    const explicit = list.find(
+      (m) => m && (m.property_role ?? m.role ?? "").toLowerCase() === "owner",
+    );
+    if (explicit) return explicit;
+    return (
+      list.find(
+        (m) =>
+          m &&
+          !m._pending &&
+          (m.role ?? "").toLowerCase() === "homeowner",
+      ) ?? null
+    );
+  }, [teamMembers]);
 
   const propertyOwnerPlatformLabel = useMemo(() => {
     if (!propertyOwner) return null;
@@ -1104,15 +1113,29 @@ function SharePropertyModal({
     const currentUserId = currentUser?.id;
     return (teamMembers ?? [])
       .filter((m) => m && !m._pending && String(m.id) !== String(currentUserId))
-      .map((m) => ({id: m.id, name: m.name || m.email || "Unknown"}));
+      .map((m) => ({
+        id: String(m.id),
+        name: m.name || m.email || "Unknown",
+      }));
   }, [teamMembers, currentUser?.id]);
 
-  const handleTransferOwnership = useCallback(() => {
+  const handleTransferOwnership = useCallback(async () => {
     if (!selectedNewOwnerId || !onTransferOwnership) return;
-    onTransferOwnership(selectedNewOwnerId);
-    setTransferOwnershipOpen(false);
-    setSelectedNewOwnerId("");
-    setModalOpen(false);
+    setTransferSubmitting(true);
+    setEmailError("");
+    try {
+      await onTransferOwnership(selectedNewOwnerId);
+      setTransferOwnershipOpen(false);
+      setSelectedNewOwnerId("");
+      setSuccessType("ownership_sent");
+      setTimeout(() => setSuccessType(null), 2800);
+    } catch (err) {
+      setEmailError(
+        err?.message || "Could not send transfer request. Please try again.",
+      );
+    } finally {
+      setTransferSubmitting(false);
+    }
   }, [selectedNewOwnerId, onTransferOwnership]);
 
   const handleResendInvitation = useCallback(async (member) => {
@@ -1202,7 +1225,9 @@ function SharePropertyModal({
               <p className="text-base font-semibold text-gray-900 dark:text-white text-center break-words w-full">
                 {successType === "resend"
                   ? "Invitation email resent!"
-                  : "Invite sent successfully!"}
+                  : successType === "ownership_sent"
+                    ? "Transfer request sent. They will be notified to accept or decline."
+                    : "Invite sent successfully!"}
               </p>
             </div>
           </div>
@@ -1300,7 +1325,10 @@ function SharePropertyModal({
                               {!transferOwnershipOpen ? (
                                 <button
                                   type="button"
-                                  onClick={() => setTransferOwnershipOpen(true)}
+                                  onClick={() => {
+                                    setEmailError("");
+                                    setTransferOwnershipOpen(true);
+                                  }}
                                   className="inline-flex items-center gap-1.5 text-sm font-medium text-[#456564] dark:text-[#5a7a78] hover:underline"
                                 >
                                   <ArrowRightLeft className="w-4 h-4" />
@@ -1322,23 +1350,31 @@ function SharePropertyModal({
                                   <div className="flex gap-2">
                                     <button
                                       type="button"
-                                      onClick={handleTransferOwnership}
-                                      disabled={!selectedNewOwnerId}
+                                      onClick={() => void handleTransferOwnership()}
+                                      disabled={
+                                        !selectedNewOwnerId || transferSubmitting
+                                      }
                                       className="btn-sm bg-[#456654] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                      Transfer
+                                      {transferSubmitting ? "Sending…" : "Send request"}
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setTransferOwnershipOpen(false);
                                         setSelectedNewOwnerId("");
+                                        setEmailError("");
                                       }}
                                       className="btn-sm border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
                                     >
                                       Cancel
                                     </button>
                                   </div>
+                                  {emailError && transferOwnershipOpen && (
+                                    <p className="text-xs text-red-600 dark:text-red-400">
+                                      {emailError}
+                                    </p>
+                                  )}
                                 </div>
                               )}
                             </div>
