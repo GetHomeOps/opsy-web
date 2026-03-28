@@ -260,14 +260,7 @@ function DropdownNotifications() {
                                 setOwnershipActionKey(`${n.id}-accept`);
                                 try {
                                   await AppApi.acceptOwnershipTransferRequest(rid);
-                                  if (!n.readAt) {
-                                    try {
-                                      await AppApi.markNotificationRead(n.id);
-                                      setUnreadCount((c) => Math.max(0, c - 1));
-                                    } catch {
-                                      /* ignore */
-                                    }
-                                  }
+                                  /* Do not mark this notification read — the server deletes it with the request. */
                                   window.dispatchEvent(
                                     new CustomEvent("opsy:notifications-refresh"),
                                   );
@@ -296,14 +289,7 @@ function DropdownNotifications() {
                                 setOwnershipActionKey(`${n.id}-decline`);
                                 try {
                                   await AppApi.declineOwnershipTransferRequest(rid);
-                                  if (!n.readAt) {
-                                    try {
-                                      await AppApi.markNotificationRead(n.id);
-                                      setUnreadCount((c) => Math.max(0, c - 1));
-                                    } catch {
-                                      /* ignore */
-                                    }
-                                  }
+                                  /* Same as accept: notification row is removed server-side. */
                                   window.dispatchEvent(
                                     new CustomEvent("opsy:notifications-refresh"),
                                   );
