@@ -207,6 +207,14 @@ function reducer(state, action) {
         projectPhotos: action.payload.photos || [],
         isNew: false,
       };
+    /** Clear displayed data immediately when switching professionals so prior images are not shown while fetching. */
+    case "BEGIN_LOAD_PROFESSIONAL":
+      return {
+        ...state,
+        formData: {...initialFormData},
+        projectPhotos: [],
+        errors: {},
+      };
     case "RESET_FORM":
       return {...initialState, sidebarOpen: state.sidebarOpen};
     default:
@@ -492,10 +500,13 @@ function ProfessionalFormContainer() {
 
     setProfessionalLoading(true);
     loadedProfessionalIdRef.current = null;
+    initialFormDataRef.current = null;
     clearProfilePreview();
     clearProfileUploadedUrl();
     clearProfilePresignedUrl();
     setProfileUploadError(null);
+    setProjectPhotoUrls({});
+    dispatch({type: "BEGIN_LOAD_PROFESSIONAL"});
 
     let cancelled = false;
     (async () => {
@@ -1042,6 +1053,7 @@ function ProfessionalFormContainer() {
               <div className="p-6">
                 <div className="flex items-start gap-4">
                   <ImageUploadField
+                    key={isNew ? "new" : professionalId}
                     imageSrc={profileSrc}
                     hasImage={!!state.formData.profile_photo}
                     imageUploading={profileUploading}
