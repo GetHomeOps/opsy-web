@@ -207,14 +207,6 @@ function reducer(state, action) {
         projectPhotos: action.payload.photos || [],
         isNew: false,
       };
-    /** Clear displayed data immediately when switching professionals so prior images are not shown while fetching. */
-    case "BEGIN_LOAD_PROFESSIONAL":
-      return {
-        ...state,
-        formData: {...initialFormData},
-        projectPhotos: [],
-        errors: {},
-      };
     case "RESET_FORM":
       return {...initialState, sidebarOpen: state.sidebarOpen};
     default:
@@ -317,6 +309,9 @@ function ProfessionalFormContainer() {
     profilePhotoKey &&
     !profilePhotoKey.startsWith("blob:") &&
     !profilePhotoKey.startsWith("http");
+  const canUseTransientProfileImage =
+    isNew ||
+    String(loadedProfessionalIdRef.current) === String(professionalId);
 
   useEffect(() => {
     if (!profilePhotoNeedsPresigned) return;
@@ -336,8 +331,10 @@ function ProfessionalFormContainer() {
   ]);
 
   const profileSrc = useMemo(() => {
-    if (profilePreviewUrl) return profilePreviewUrl;
-    if (profileUploadedUrl) return profileUploadedUrl;
+    // Keep preview/uploaded image scoped to the currently loaded professional.
+    // Prevents showing the previous professional's just-uploaded image while navigating.
+    if (canUseTransientProfileImage && profilePreviewUrl) return profilePreviewUrl;
+    if (canUseTransientProfileImage && profileUploadedUrl) return profileUploadedUrl;
     if (state.formData.profile_photo?.startsWith("http"))
       return state.formData.profile_photo;
     if (
@@ -350,6 +347,7 @@ function ProfessionalFormContainer() {
     }
     return null;
   }, [
+    canUseTransientProfileImage,
     profilePreviewUrl,
     profileUploadedUrl,
     state.formData.profile_photo,
@@ -500,13 +498,10 @@ function ProfessionalFormContainer() {
 
     setProfessionalLoading(true);
     loadedProfessionalIdRef.current = null;
-    initialFormDataRef.current = null;
     clearProfilePreview();
     clearProfileUploadedUrl();
     clearProfilePresignedUrl();
     setProfileUploadError(null);
-    setProjectPhotoUrls({});
-    dispatch({type: "BEGIN_LOAD_PROFESSIONAL"});
 
     let cancelled = false;
     (async () => {
@@ -1053,7 +1048,6 @@ function ProfessionalFormContainer() {
               <div className="p-6">
                 <div className="flex items-start gap-4">
                   <ImageUploadField
-                    key={isNew ? "new" : professionalId}
                     imageSrc={profileSrc}
                     hasImage={!!state.formData.profile_photo}
                     imageUploading={profileUploading}
