@@ -38,12 +38,19 @@ function DropdownReminders() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [hasCalendarConnected, setHasCalendarConnected] = useState(false);
   const trigger = useRef(null);
   const dropdown = useRef(null);
 
   const accountUrl = currentAccount?.url || "";
   const calendarPath = accountUrl ? `/${accountUrl}/calendar` : "/calendar";
   const calendarSettingsPath = accountUrl ? `/${accountUrl}/settings/configuration#calendar-integrations` : "/settings/configuration#calendar-integrations";
+
+  const fetchCalendarConnection = () => {
+    AppApi.getCalendarIntegrations()
+      .then((list) => setHasCalendarConnected((list || []).length > 0))
+      .catch(() => setHasCalendarConnected(false));
+  };
 
   const fetchEvents = () => {
     setLoading(true);
@@ -66,10 +73,14 @@ function DropdownReminders() {
 
   useEffect(() => {
     fetchEvents();
+    fetchCalendarConnection();
   }, []);
 
   useEffect(() => {
-    if (dropdownOpen) fetchEvents();
+    if (dropdownOpen) {
+      fetchEvents();
+      fetchCalendarConnection();
+    }
   }, [dropdownOpen]);
 
   useEffect(() => {
@@ -257,8 +268,11 @@ function DropdownReminders() {
             <Link
               to={calendarSettingsPath}
               onClick={() => setDropdownOpen(false)}
-              className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors hover:opacity-90 no-underline"
-              style={{backgroundColor: "#C76C4B"}}
+              className={`w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors no-underline ${
+                hasCalendarConnected
+                  ? "bg-[#456564] hover:bg-[#34514f] dark:bg-[#456564] dark:hover:bg-[#3a5554]"
+                  : "bg-[#C76C4B] hover:opacity-90"
+              }`}
             >
               Connect your Calendar
             </Link>

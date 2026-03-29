@@ -61,4 +61,15 @@ router.post("/read-all", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
+/** POST /clear-all - Remove all notifications for current user */
+router.post("/clear-all", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const userId = res.locals.user.id;
+    await Notification.deleteAllForUser(userId);
+    return res.json({ ok: true });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 module.exports = router;

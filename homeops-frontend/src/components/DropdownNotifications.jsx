@@ -36,6 +36,7 @@ function DropdownNotifications() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [clearingAll, setClearingAll] = useState(false);
   const [ownershipActionKey, setOwnershipActionKey] = useState(null);
   const trigger = useRef(null);
   const dropdown = useRef(null);
@@ -53,7 +54,8 @@ function DropdownNotifications() {
     setLoading(true);
     AppApi.getNotifications({limit: 10})
       .then((res) => {
-        setNotifications(res.notifications || []);
+        const list = (res.notifications || []).slice(0, 10);
+        setNotifications(list);
         setUnreadCount(res.unreadCount ?? 0);
       })
       .catch(() => {
@@ -385,21 +387,47 @@ function DropdownNotifications() {
             )}
           </div>
 
-          {unreadCount > 0 && (
-            <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/50">
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await AppApi.markAllNotificationsRead();
-                    setUnreadCount(0);
-                    fetchData();
-                  } catch {}
-                }}
-                className="w-full py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-[#456564] dark:hover:text-teal-400"
-              >
-                Mark all read
-              </button>
+          {(unreadCount > 0 || notifications.length > 0) && (
+            <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/50 flex flex-col gap-1">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await AppApi.markAllNotificationsRead();
+                      setUnreadCount(0);
+                      fetchData();
+                    } catch {}
+                  }}
+                  className="w-full py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-[#456564] dark:hover:text-teal-400"
+                >
+                  Mark all read
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  type="button"
+                  disabled={clearingAll}
+                  onClick={async () => {
+                    setClearingAll(true);
+                    try {
+                      await AppApi.clearAllNotifications();
+                      setNotifications([]);
+                      setUnreadCount(0);
+                      window.dispatchEvent(
+                        new CustomEvent("opsy:notifications-refresh"),
+                      );
+                      fetchData();
+                    } catch {
+                    } finally {
+                      setClearingAll(false);
+                    }
+                  }}
+                  className="w-full py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                >
+                  {clearingAll ? "Clearing…" : "Clear all"}
+                </button>
+              )}
             </div>
           )}
         </div>

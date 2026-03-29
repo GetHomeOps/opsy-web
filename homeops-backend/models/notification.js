@@ -112,6 +112,11 @@ class Notification {
     );
   }
 
+  /** Delete all in-app notifications for user */
+  static async deleteAllForUser(userId) {
+    await db.query(`DELETE FROM notifications WHERE user_id = $1`, [userId]);
+  }
+
   /** Remove in-app bell notifications for a property invitation (accept / decline / revoke). */
   static async deletePropertyInvitationNotifications(invitationId) {
     if (!invitationId) return;

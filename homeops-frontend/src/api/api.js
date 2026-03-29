@@ -1543,6 +1543,10 @@ class AppApi {
     return this.request("notifications/read-all", {}, "POST");
   }
 
+  static async clearAllNotifications() {
+    return this.request("notifications/clear-all", {}, "POST");
+  }
+
   /* --------- Homeowner → agent inbox --------- */
 
   static async submitHomeownerAgentInquiry(data) {
