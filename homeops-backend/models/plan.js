@@ -77,15 +77,17 @@ async function getPlansForAudience(audienceType) {
     for (const r of prices.rows) {
       let unitAmount = r.unitAmount;
       let currency = r.currency || "usd";
-      if (unitAmount == null && r.stripePriceId) {
+      if (r.stripePriceId) {
         const resolved = await resolvePriceFromStripe(r.stripePriceId);
         if (resolved) {
-          unitAmount = resolved.unitAmount;
-          currency = resolved.currency;
-          await db.query(
-            `UPDATE plan_prices SET unit_amount = $1, currency = $2 WHERE subscription_product_id = $3 AND billing_interval = $4`,
-            [unitAmount, currency, p.id, r.billingInterval]
-          );
+          if (resolved.unitAmount !== unitAmount || resolved.currency !== currency) {
+            unitAmount = resolved.unitAmount;
+            currency = resolved.currency;
+            await db.query(
+              `UPDATE plan_prices SET unit_amount = $1, currency = $2 WHERE subscription_product_id = $3 AND billing_interval = $4`,
+              [unitAmount, currency, p.id, r.billingInterval]
+            );
+          }
         }
       }
       p.stripePrices[r.billingInterval] = {

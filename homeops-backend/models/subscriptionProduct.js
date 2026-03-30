@@ -100,11 +100,25 @@ async function upsertPlanPrice(productId, billingInterval, stripePriceId) {
     );
   }
 
+  let unitAmount = null;
+  let currency = "usd";
+  try {
+    const stripeService = require("../services/stripeService");
+    if (stripeService.stripe) {
+      const price = await stripeService.stripe.prices.retrieve(normalizedPriceId);
+      unitAmount = price.unit_amount;
+      currency = price.currency || "usd";
+    }
+  } catch (_) { /* Stripe unavailable; store ID only, will resolve on read */ }
+
   await db.query(
-    `INSERT INTO plan_prices (subscription_product_id, stripe_price_id, billing_interval)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (subscription_product_id, billing_interval) DO UPDATE SET stripe_price_id = EXCLUDED.stripe_price_id`,
-    [productId, normalizedPriceId, billingInterval]
+    `INSERT INTO plan_prices (subscription_product_id, stripe_price_id, billing_interval, unit_amount, currency)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (subscription_product_id, billing_interval) DO UPDATE SET
+       stripe_price_id = EXCLUDED.stripe_price_id,
+       unit_amount = EXCLUDED.unit_amount,
+       currency = EXCLUDED.currency`,
+    [productId, normalizedPriceId, billingInterval, unitAmount, currency]
   );
 }
 
@@ -346,15 +360,24 @@ class SubscriptionProduct {
         if (!pricesByProduct[pid]) pricesByProduct[pid] = [];
         let unitAmount = row.unitAmount;
         let currency = row.currency || "usd";
-        if (unitAmount == null && row.stripePriceId) {
+        if (row.stripePriceId) {
           try {
             const stripeService = require("../services/stripeService");
             if (stripeService.stripe) {
               const price = await stripeService.stripe.prices.retrieve(row.stripePriceId);
-              unitAmount = price.unit_amount;
-              currency = price.currency || "usd";
+              const freshAmount = price.unit_amount;
+              const freshCurrency = price.currency || "usd";
+              if (freshAmount !== unitAmount || freshCurrency !== currency) {
+                unitAmount = freshAmount;
+                currency = freshCurrency;
+                await db.query(
+                  `UPDATE plan_prices SET unit_amount = $1, currency = $2
+                   WHERE subscription_product_id = $3 AND billing_interval = $4`,
+                  [unitAmount, currency, pid, row.billingInterval]
+                );
+              }
             }
-          } catch (_) { /* Stripe unavailable */ }
+          } catch (_) { /* Stripe unavailable — use cached value */ }
         }
         pricesByProduct[pid].push({
           billingInterval: row.billingInterval,
