@@ -327,11 +327,7 @@ export function AuthProvider({children}) {
           "Invalid signup response: expected accessToken or verificationRequired.",
         );
       }
-      const {
-        accessToken,
-        refreshToken,
-        user: signupUser,
-      } = extracted;
+      const {accessToken, refreshToken, user: signupUser} = extracted;
 
       const decodedToken = initializeAuthentication(accessToken, refreshToken);
       const {email} = decodedToken;
@@ -404,23 +400,23 @@ export function AuthProvider({children}) {
   }
 
   /** After user clicks email verification link: exchange token for session. */
-  const completeEmailVerification = useCallback(async function completeEmailVerificationInner(
-    verificationToken,
-  ) {
-    const {accessToken, refreshToken} = await AppApi.verifyEmailWithToken(
-      verificationToken,
-    );
-    const decodedToken = initializeAuthentication(accessToken, refreshToken);
-    const {email} = decodedToken;
-    const currentUser = await AppApi.getCurrentUser(email);
-    const userAccounts = await getUserAccounts(currentUser.id);
-    setCurrentUser({
-      isLoading: false,
-      data: {...currentUser, accounts: userAccounts || []},
-    });
-    localStorage.removeItem("current-account");
-    return {...currentUser, accounts: userAccounts || []};
-  }, []);
+  const completeEmailVerification = useCallback(
+    async function completeEmailVerificationInner(verificationToken) {
+      const {accessToken, refreshToken} =
+        await AppApi.verifyEmailWithToken(verificationToken);
+      const decodedToken = initializeAuthentication(accessToken, refreshToken);
+      const {email} = decodedToken;
+      const currentUser = await AppApi.getCurrentUser(email);
+      const userAccounts = await getUserAccounts(currentUser.id);
+      setCurrentUser({
+        isLoading: false,
+        data: {...currentUser, accounts: userAccounts || []},
+      });
+      localStorage.removeItem("current-account");
+      return {...currentUser, accounts: userAccounts || []};
+    },
+    [],
+  );
 
   /** Refresh current user from API (e.g. after onboarding completion). */
   const refreshCurrentUser = useCallback(

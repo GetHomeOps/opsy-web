@@ -10,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
+import {markPostLoginWelcomeGreeting} from "../../utils/authNavigation";
 import AppApi from "../../api/api";
 import opsyImg from "../../images/opsy1.png";
 import OpsyHeader from "../../images/OpsyHeader.png";
@@ -176,7 +177,8 @@ function buildFallbackPlans(role, subscriptionProducts = []) {
       ...p,
       name: product?.name || p.name,
       description: product?.description ?? p.description,
-      popular: typeof product?.popular === "boolean" ? product.popular : p.popular,
+      popular:
+        typeof product?.popular === "boolean" ? product.popular : p.popular,
       code,
       price: p.price === 0 ? 0 : null,
       stripePrices: stripePricesFromApi,
@@ -576,7 +578,8 @@ export default function OnboardingWizard() {
         ? buildFallbackPlans(role, subscriptionProducts)
         : [];
   const selectedPlan = availablePlans.find((p) => (p.code || p.id) === plan);
-  const isFreePlan = Boolean(plan) && isZeroCostPlan(selectedPlan, billingInterval);
+  const isFreePlan =
+    Boolean(plan) && isZeroCostPlan(selectedPlan, billingInterval);
 
   const canContinue =
     (step === 1 && role) || (step === 2 && plan) || step === 3;
@@ -592,6 +595,7 @@ export default function OnboardingWizard() {
         const accounts = await AppApi.getUserAccounts(currentUser?.id);
         const accountUrl =
           accounts?.[0]?.url?.replace(/^\/+/, "") || accounts?.[0]?.name;
+        markPostLoginWelcomeGreeting();
         if (accountUrl) {
           navigate(`/${accountUrl}/home`, {replace: true});
         } else {

@@ -75,7 +75,9 @@ function WelcomeModal() {
   const userId = currentUser?.id ?? currentUser?.userId;
   const role = (currentUser?.role ?? "").toLowerCase();
   const showForRole = WELCOME_MODAL_ROLES.has(role);
-  const welcomeDismissedPermanently = Boolean(currentUser?.welcomeModalDismissed);
+  const welcomeDismissedPermanently = Boolean(
+    currentUser?.welcomeModalDismissed,
+  );
 
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
@@ -103,7 +105,8 @@ function WelcomeModal() {
   }, [userId, refreshCurrentUser]);
 
   const [calendarIntegrations, setCalendarIntegrations] = useState([]);
-  const [calendarIntegrationsLoaded, setCalendarIntegrationsLoaded] = useState(false);
+  const [calendarIntegrationsLoaded, setCalendarIntegrationsLoaded] =
+    useState(false);
   useEffect(() => {
     if (!currentUser?.id || !showForRole) return;
     setCalendarIntegrationsLoaded(false);
@@ -114,7 +117,8 @@ function WelcomeModal() {
   }, [currentUser?.id, showForRole]);
 
   const [savedProfessionals, setSavedProfessionals] = useState([]);
-  const [savedProfessionalsLoaded, setSavedProfessionalsLoaded] = useState(false);
+  const [savedProfessionalsLoaded, setSavedProfessionalsLoaded] =
+    useState(false);
   useEffect(() => {
     if (!currentUser?.id || !showForRole) return;
     setSavedProfessionalsLoaded(false);
@@ -181,8 +185,13 @@ function WelcomeModal() {
   // Confetti when modal opens — only once per user (localStorage).
   // Persist only after firing so a failed/invisible run can retry; delay survives Strict Mode cleanup.
   useEffect(() => {
-    if (!modalOpen || !userId || !confettiShownKey || !useWelcomeHeadline) return;
-    if (typeof localStorage !== "undefined" && localStorage.getItem(confettiShownKey)) return;
+    if (!modalOpen || !userId || !confettiShownKey || !useWelcomeHeadline)
+      return;
+    if (
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem(confettiShownKey)
+    )
+      return;
     const timeout = setTimeout(() => {
       const fireConfetti = getWelcomeConfettiFire();
       if (!fireConfetti) return;
@@ -203,8 +212,18 @@ function WelcomeModal() {
         fire(0.2, {spread: 120});
         fire(0.35, {spread: 180, scalar: 0.9, decay: 0.9});
         fire(0.1, {spread: 220, startVelocity: 45, decay: 0.92, scalar: 1.2});
-        fire(0.1, {origin: {x: 0.2, y: 0.5}, spread: 100, angle: 60, startVelocity: 50});
-        fire(0.1, {origin: {x: 0.8, y: 0.5}, spread: 100, angle: 120, startVelocity: 50});
+        fire(0.1, {
+          origin: {x: 0.2, y: 0.5},
+          spread: 100,
+          angle: 60,
+          startVelocity: 50,
+        });
+        fire(0.1, {
+          origin: {x: 0.8, y: 0.5},
+          spread: 100,
+          angle: 120,
+          startVelocity: 50,
+        });
         if (typeof localStorage !== "undefined") {
           localStorage.setItem(confettiShownKey, "1");
         }
@@ -216,7 +235,9 @@ function WelcomeModal() {
   }, [modalOpen, userId, confettiShownKey, useWelcomeHeadline]);
 
   const firstName =
-    currentUser?.fullName?.split(" ")[0] || currentUser?.name?.split(" ")[0] || "";
+    currentUser?.fullName?.split(" ")[0] ||
+    currentUser?.name?.split(" ")[0] ||
+    "";
 
   if (!modalOpen) {
     return null;
@@ -314,7 +335,8 @@ function WelcomeModal() {
                   {steps.map((step) => {
                     const Icon = step.icon;
                     const completed = step.completed;
-                    const hasAction = !completed && (step.actionPath || step.customActionId);
+                    const hasAction =
+                      !completed && (step.actionPath || step.customActionId);
 
                     return (
                       <div
