@@ -2,29 +2,19 @@ import React from "react";
 
 /**
  * Renders plain text with basic Markdown support: **bold**, *italic*, `code`, newlines.
- * No external dependencies. Escapes HTML for safety.
+ * No external dependencies.
+ *
+ * Do not pre-escape as HTML entities (e.g. &#039;): React text nodes show those literals.
+ * Plain string children are escaped by React when rendered.
  */
-function escapeHtml(str) {
-  if (typeof str !== "string") return "";
-  const map = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
-  };
-  return str.replace(/[&<>"']/g, (c) => map[c]);
-}
-
 /**
  * Parse markdown-like text into React elements.
  * Handles **bold**, *italic*, `code`, and newlines.
  */
 function parseMarkdown(text) {
   if (!text || typeof text !== "string") return null;
-  const escaped = escapeHtml(text);
   const parts = [];
-  let remaining = escaped;
+  let remaining = text;
   let key = 0;
 
   while (remaining.length > 0) {
