@@ -2,6 +2,7 @@ import React, {useRef, useCallback} from "react";
 import {motion} from "framer-motion";
 import {format} from "date-fns";
 import {GripVertical, User, Calendar, UserCircle} from "lucide-react";
+import TicketAttachmentIndicator from "./TicketAttachmentIndicator";
 import {
   supportToColumnStatus,
   feedbackToColumnStatus,
@@ -144,7 +145,7 @@ function TicketCard({
 
       {/* Meta row */}
       <div className="flex flex-col gap-1.5 text-xs text-gray-400 dark:text-gray-500">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <span className="inline-flex items-center gap-1 truncate">
             <User className="w-3 h-3 flex-shrink-0" strokeWidth={2} />
             <span className="truncate">
@@ -155,6 +156,11 @@ function TicketCard({
             <Calendar className="w-3 h-3" strokeWidth={2} />
             {format(new Date(ticket.createdAt), "MMM d")}
           </span>
+          <TicketAttachmentIndicator
+            attachmentKeys={ticket.attachmentKeys}
+            size="sm"
+            className="flex-shrink-0"
+          />
         </div>
         {ticket.assignedTo != null && (
           <span className="inline-flex items-center gap-1 truncate text-gray-500 dark:text-gray-400">

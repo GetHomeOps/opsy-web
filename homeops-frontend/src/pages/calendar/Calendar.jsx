@@ -939,6 +939,7 @@ function Calendar() {
             isOpen={detailModalOpen}
             onClose={setDetailModalOpen}
             onDeleted={refreshEvents}
+            onUpdated={refreshEvents}
           />
           <CalendarScheduleModal
             isOpen={scheduleModalOpen}

@@ -219,6 +219,7 @@ async function listForUser(userId) {
     `SELECT t.id, t.type, t.subject, t.description, t.status,
             t.subscription_tier AS "subscriptionTier",
             t.priority_score AS "priorityScore",
+            t.attachment_keys AS "attachmentKeys",
             t.created_at AS "createdAt",
             t.updated_at AS "updatedAt"
      FROM support_tickets t
@@ -239,6 +240,7 @@ async function listForAdmin() {
             t.assigned_to AS "assignedTo",
             t.account_id AS "accountId",
             t.internal_notes AS "internalNotes",
+            t.attachment_keys AS "attachmentKeys",
             t.created_at AS "createdAt",
             t.updated_at AS "updatedAt",
             u.name AS "createdByName",

@@ -845,6 +845,17 @@ class AppApi {
   }
 
   /**
+   * Update a maintenance event.
+   * @param {string|number} eventId - maintenance event id
+   * @param {Object} payload - fields to update (scheduled_date, scheduled_time, status, etc.)
+   * @returns {Promise<Object>} updated event
+   */
+  static async updateMaintenanceEvent(eventId, payload) {
+    const res = await this.request(`maintenance-events/${eventId}`, payload, "PATCH");
+    return res.event;
+  }
+
+  /**
    * Delete a maintenance event.
    * @param {string|number} eventId - maintenance event id
    */

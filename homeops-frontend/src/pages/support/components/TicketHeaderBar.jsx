@@ -1,6 +1,7 @@
 import React from "react";
 import { format } from "date-fns";
 import { X } from "lucide-react";
+import TicketAttachmentIndicator from "./TicketAttachmentIndicator";
 import StatusBadge from "./StatusBadge";
 import PriorityBadge from "./PriorityBadge";
 
@@ -63,6 +64,10 @@ function TicketHeaderBar({
             <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">
               {ticket?.subject}
             </h2>
+            <TicketAttachmentIndicator
+              attachmentKeys={ticket?.attachmentKeys}
+              className="shrink-0"
+            />
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2 text-sm">
             <StatusBadge status={statusDisplay} labels={labels} />

@@ -5,6 +5,7 @@ import TicketComposer from "./TicketComposer";
 import DataAdjustmentStructured from "../DataAdjustmentStructured";
 import StatusBadge, { SUPPORT_STATUS_LABELS, FEEDBACK_STATUS_LABELS } from "../StatusBadge";
 import PriorityBadge from "../PriorityBadge";
+import TicketAttachmentIndicator from "../TicketAttachmentIndicator";
 
 function extractDataAdjustmentReason(desc) {
   if (!desc || typeof desc !== "string") return null;
@@ -89,11 +90,15 @@ function TicketConversation({
             <h1 className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">
               {ticket?.subject || "Untitled Ticket"}
             </h1>
-            <div className="flex items-center gap-2 mt-1.5">
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <StatusBadge status={ticket?.status} labels={labels} />
               {variant === "support" && ticket?.priority && (
                 <PriorityBadge priority={ticket.priority} />
               )}
+              <TicketAttachmentIndicator
+                attachmentKeys={ticket?.attachmentKeys}
+                className="text-gray-500 dark:text-gray-400"
+              />
               {variant === "feedback" && ticket?.impactEstimate != null && (
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   Impact: {ticket.impactEstimate}

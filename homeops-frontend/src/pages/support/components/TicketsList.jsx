@@ -2,6 +2,7 @@ import React from "react";
 import {format} from "date-fns";
 import {Ticket, Loader2} from "lucide-react";
 import {useTranslation} from "react-i18next";
+import TicketAttachmentIndicator from "./TicketAttachmentIndicator";
 
 /**
  * Reusable tickets list for users to see their submitted tickets.
@@ -101,6 +102,10 @@ function TicketsList({
                     >
                       {label(ticket.status)}
                     </span>
+                    <TicketAttachmentIndicator
+                      attachmentKeys={ticket.attachmentKeys}
+                      className="ml-1 align-middle"
+                    />
                     <p className="mt-1 font-medium text-gray-900 dark:text-white truncate">
                       {ticket.subject}
                     </p>

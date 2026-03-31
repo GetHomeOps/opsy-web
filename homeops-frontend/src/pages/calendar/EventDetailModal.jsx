@@ -1,9 +1,10 @@
 import React, {useState, useEffect} from "react";
-import {X, MapPin, User, FileText, Calendar, Clock, Trash2, Loader2} from "lucide-react";
+import {X, MapPin, User, FileText, Calendar, Clock, Trash2, Loader2, Pencil} from "lucide-react";
 import ModalBlank from "../../components/ModalBlank";
 import AppApi from "../../api/api";
 import {buildGoogleCalendarUrl} from "../../lib/googleCalendarLink";
 import {parseDateInput} from "../../lib/dateOffset";
+import EventEditModal from "./EventEditModal";
 
 /**
  * Normalized calendar event shape (from API).
@@ -22,14 +23,20 @@ import {parseDateInput} from "../../lib/dateOffset";
  * @property {string|null} [nextScheduledDate]
  */
 
-function EventDetailModal({event, isOpen, onClose, onDeleted}) {
+function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const canDelete =
+    event?.id != null && !String(event.id).startsWith("system-");
+  const canEdit =
     event?.id != null && !String(event.id).startsWith("system-");
 
   useEffect(() => {
-    if (!isOpen) setDeleteConfirmOpen(false);
+    if (!isOpen) {
+      setDeleteConfirmOpen(false);
+      setEditModalOpen(false);
+    }
   }, [isOpen]);
 
   const openDeleteConfirm = () => {
@@ -238,6 +245,16 @@ function EventDetailModal({event, isOpen, onClose, onDeleted}) {
             )}
 
             <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-2">
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setEditModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#456564] dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit event
+                </button>
+              )}
               <a
                 href={buildGoogleCalendarUrl(event)}
                 target="_blank"
@@ -319,6 +336,16 @@ function EventDetailModal({event, isOpen, onClose, onDeleted}) {
         </div>
       </div>
     </ModalBlank>
+
+    <EventEditModal
+      event={event}
+      isOpen={editModalOpen}
+      onClose={setEditModalOpen}
+      onUpdated={() => {
+        onUpdated?.();
+        onClose(false);
+      }}
+    />
     </>
   );
 }
