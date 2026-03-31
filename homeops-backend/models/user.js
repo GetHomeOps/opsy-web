@@ -402,7 +402,9 @@ class User {
                CASE
                  WHEN u.onboarding_completed = false THEN false
                  WHEN u.role = 'agent' THEN true
-                 WHEN u.role = 'homeowner' AND u.subscription_tier IS NOT NULL AND u.subscription_tier <> 'free' THEN true
+                WHEN u.role = 'homeowner'
+                  AND u.subscription_tier IS NOT NULL
+                  AND u.subscription_tier NOT IN ('free', 'beta_homeowner') THEN true
                  ELSE false
                END AS "paidRequired",
                (paid_active.has_paid IS NOT NULL) AS "hasActivePaidSubscription",
@@ -413,7 +415,9 @@ class User {
                    CASE
                      WHEN u.onboarding_completed = false THEN false
                      WHEN u.role = 'agent' THEN true
-                     WHEN u.role = 'homeowner' AND u.subscription_tier IS NOT NULL AND u.subscription_tier <> 'free' THEN true
+                    WHEN u.role = 'homeowner'
+                      AND u.subscription_tier IS NOT NULL
+                      AND u.subscription_tier NOT IN ('free', 'beta_homeowner') THEN true
                      ELSE false
                    END
                  ) AND paid_active.has_paid IS NULL THEN 'payment_pending'

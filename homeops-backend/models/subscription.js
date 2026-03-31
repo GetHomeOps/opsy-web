@@ -193,6 +193,75 @@ class Subscription {
     return result.rows[0]?.id;
   }
 
+  /** Ensure account has an active subscription on the exact requested plan code.
+   * Used for onboarding free-tier selections so switching between free plans
+   * (e.g. beta_homeowner -> homeowner_free) updates the active subscription.
+   */
+  static async ensureAccountOnPlanCode(accountId, planCode) {
+    if (!accountId || !planCode) {
+      throw new BadRequestError("accountId and planCode are required.");
+    }
+
+    const productRes = await db.query(
+      `SELECT id, COALESCE(price, 0) AS price
+       FROM subscription_products
+       WHERE code = $1
+         AND (is_active IS NULL OR is_active = true)
+       LIMIT 1`,
+      [planCode]
+    );
+    const product = productRes.rows[0];
+    if (!product) {
+      throw new BadRequestError(`Unknown plan code: ${planCode}`);
+    }
+    if (Number(product.price) > 0) {
+      throw new BadRequestError(
+        `Plan code ${planCode} is not zero-cost and cannot be set via free-tier onboarding.`
+      );
+    }
+
+    const existingRes = await db.query(
+      `SELECT id, subscription_product_id AS "subscriptionProductId"
+       FROM account_subscriptions
+       WHERE account_id = $1
+         AND status IN ('active', 'trialing')
+       ORDER BY updated_at DESC NULLS LAST, id DESC
+       LIMIT 1`,
+      [accountId]
+    );
+    const existing = existingRes.rows[0];
+
+    if (existing) {
+      if (existing.subscriptionProductId === product.id) {
+        return existing.id;
+      }
+      const updatedRes = await db.query(
+        `UPDATE account_subscriptions
+         SET subscription_product_id = $1,
+             stripe_subscription_id = NULL,
+             stripe_price_id = NULL,
+             cancel_at_period_end = false,
+             status = 'active',
+             current_period_start = NOW(),
+             current_period_end = NOW() + INTERVAL '1 month',
+             updated_at = NOW()
+         WHERE id = $2
+         RETURNING id`,
+        [product.id, existing.id]
+      );
+      return updatedRes.rows[0]?.id || existing.id;
+    }
+
+    const result = await db.query(
+      `INSERT INTO account_subscriptions
+              (account_id, subscription_product_id, status, current_period_start, current_period_end)
+       VALUES ($1, $2, 'active', NOW(), NOW() + INTERVAL '1 month')
+       RETURNING id`,
+      [accountId, product.id]
+    );
+    return result.rows[0]?.id || null;
+  }
+
   /** Backfill: create default subscription for every account that has none. Returns count created.
    * Skips accounts whose owner has not completed onboarding (industry practice: subscriptions only after onboarding).
    * Skips super_admin and admin accounts (internal platform accounts). */

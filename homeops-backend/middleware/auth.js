@@ -78,9 +78,16 @@ async function userRequiresPaidSubscription(userId) {
   if (user.onboardingCompleted === false) return false;
   if (user.role === "super_admin" || user.role === "admin") return false;
 
-  // Agents are always paid; homeowners are paid when they selected non-free tiers.
+  // Agents are always paid; homeowners are paid when they selected paid tiers.
+  // beta_homeowner is a zero-cost promotional tier and should not be gated.
   if (user.role === "agent") return true;
-  if (user.role === "homeowner" && user.subscriptionTier && user.subscriptionTier !== "free") return true;
+  if (
+    user.role === "homeowner" &&
+    user.subscriptionTier &&
+    !["free", "beta_homeowner"].includes(user.subscriptionTier)
+  ) {
+    return true;
+  }
 
   return false;
 }

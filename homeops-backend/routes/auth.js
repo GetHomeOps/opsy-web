@@ -715,12 +715,11 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     const userRole = existingUser?.role || role;
     if (accountResult.rows[0] && !isPaidTier && !SKIP_SUBSCRIPTION_ROLES.includes(userRole)) {
       try {
-        const defaultOpts =
-          subscriptionTier === "beta_homeowner" ? { planCode: "beta_homeowner" } : {};
-        await Subscription.ensureDefaultForAccount(
+        const selectedFreePlanCode =
+          subscriptionTier === "beta_homeowner" ? "beta_homeowner" : "homeowner_free";
+        await Subscription.ensureAccountOnPlanCode(
           accountResult.rows[0].account_id,
-          role,
-          defaultOpts
+          selectedFreePlanCode
         );
       } catch (subErr) {
         console.error("Warning: failed to create subscription after onboarding", subErr.message);
