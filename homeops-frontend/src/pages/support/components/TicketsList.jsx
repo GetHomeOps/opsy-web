@@ -87,7 +87,7 @@ function TicketsList({
                 tabIndex={0}
                 onClick={() => onTicketClick?.(ticket)}
                 onKeyDown={(e) => e.key === "Enter" && onTicketClick?.(ticket)}
-                className="rounded-xl border border-gray-200/80 dark:border-gray-600/50 p-4 bg-gray-50/40 dark:bg-gray-800/20 hover:bg-gray-50/80 dark:hover:bg-gray-700/30 hover:border-gray-300 dark:hover:border-gray-600 cursor-default transition-all duration-200"
+                className="rounded-xl border border-gray-200/80 dark:border-gray-600/50 p-4 bg-gray-50/40 dark:bg-gray-800/20 hover:bg-gray-50/80 dark:hover:bg-gray-700/30 hover:border-gray-300 dark:hover:border-gray-600 cursor-pointer transition-all duration-200"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">

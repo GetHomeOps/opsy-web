@@ -98,7 +98,7 @@ function TicketCard({
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
-      className={`group relative rounded-xl border bg-white dark:bg-gray-800/95 p-3.5 transition-all duration-150 select-none cursor-default ${
+      className={`group relative rounded-xl border bg-white dark:bg-gray-800/95 p-3.5 transition-all duration-150 select-none cursor-pointer ${
         isDragging
           ? "opacity-40 scale-[0.97] border-violet-300 dark:border-violet-600 shadow-xl ring-2 ring-violet-400/30 z-50"
           : "border-gray-200/70 dark:border-gray-700/50 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 hover:-translate-y-[1px]"
