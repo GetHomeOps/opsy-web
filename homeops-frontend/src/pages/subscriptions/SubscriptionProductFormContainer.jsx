@@ -102,10 +102,10 @@ function SortableFeatureRow({feature, idx, onFieldChange, onRemove, onDragStart,
  */
 const PLAN_CODE_OPTIONS_BY_ROLE = {
   homeowner: [
-    {value: "homeowner_free", label: "Free"},
     {value: "homeowner_maintain", label: "Maintain"},
+    {value: "homeowner_growth", label: "Growth"},
     {value: "homeowner_win", label: "Win"},
-    {value: "beta_homeowner", label: "Beta / promotional (zero-cost)"},
+    {value: "homeowner_beta", label: "Beta / promotional (zero-cost)"},
   ],
   agent: [
     {value: "agent_basic", label: "Basic"},
@@ -933,7 +933,7 @@ function SubscriptionProductFormContainer() {
                       )}
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Fixed list aligned with signup and Stripe. Display name above can differ (e.g. “Maintain”); this code is what the API uses. Beta comp plans: use{" "}
-                        <code className="text-[11px] bg-gray-100 dark:bg-gray-700 px-1 rounded">beta_homeowner</code>
+                        <code className="text-[11px] bg-gray-100 dark:bg-gray-700 px-1 rounded">homeowner_beta</code>
                         .
                       </p>
                     </div>
