@@ -62,14 +62,47 @@ const OAUTH_STATE_MAX_AGE = 10 * 60; // 10 minutes
 const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
   homeowner_free: "free",
   homeowner_maintain: "maintain",
+  homeowner_growth: "growth",
   homeowner_win: "win",
-  /** Promotional / catalog plan code; stored as-is on users.subscription_tier */
   beta_homeowner: "beta_homeowner",
   agent_basic: "basic",
   agent_pro: "pro",
+  agent_growth: "growth",
   agent_premium: "premium",
   agent_enterprise: "enterprise",
 };
+const SUBSCRIPTION_TIER_TO_DEFAULT_PLAN_CODE = Object.entries(
+  PLAN_CODE_TO_SUBSCRIPTION_TIER
+).reduce((acc, [planCode, tier]) => {
+  if (!acc[tier]) acc[tier] = planCode;
+  return acc;
+}, {});
+
+/** Resolve whether a plan is effectively free for the selected interval. */
+async function isPlanCodeZeroCost(planCode, billingInterval = "month") {
+  if (!planCode) return false;
+  const normalizedInterval = billingInterval === "year" ? "year" : "month";
+  const result = await db.query(
+    `SELECT sp.price::numeric AS "basePrice",
+            pp.unit_amount AS "unitAmount"
+     FROM subscription_products sp
+     LEFT JOIN plan_prices pp
+       ON pp.subscription_product_id = sp.id
+      AND pp.billing_interval = $2
+     WHERE sp.code = $1
+       AND (sp.is_active IS NULL OR sp.is_active = true)
+     LIMIT 1`,
+    [planCode, normalizedInterval]
+  );
+  const row = result.rows[0];
+  if (!row) return false;
+
+  if (typeof row.unitAmount === "number") {
+    return row.unitAmount <= 0;
+  }
+  const basePrice = Number(row.basePrice);
+  return Number.isFinite(basePrice) && basePrice <= 0;
+}
 
 /** Strict auth: JWT only when email is verified and user may use the app (active or onboarding). */
 function userMayReceiveAuthTokens(user) {
@@ -644,25 +677,59 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     const userId = res.locals.user?.id;
     if (!userId) throw new BadRequestError("User authentication required");
 
-    const { role, subscriptionTier: rawSubscriptionTier, stripeSessionId } = req.body;
+    const {
+      role,
+      subscriptionTier: rawSubscriptionTier,
+      planCode: rawPlanCode,
+      billingInterval = "month",
+      stripeSessionId,
+    } = req.body;
     let subscriptionTier = rawSubscriptionTier;
     if (typeof subscriptionTier === "string") {
       subscriptionTier =
-        PLAN_CODE_TO_SUBSCRIPTION_TIER[subscriptionTier] ?? subscriptionTier;
+        PLAN_CODE_TO_SUBSCRIPTION_TIER[subscriptionTier]
+        ?? subscriptionTier.replace(/^(homeowner|agent)_/, "");
     }
+    const planCode = typeof rawPlanCode === "string" && rawPlanCode.trim()
+      ? rawPlanCode.trim()
+      : SUBSCRIPTION_TIER_TO_DEFAULT_PLAN_CODE[subscriptionTier] || null;
     if (!role || !["homeowner", "agent"].includes(role)) {
       throw new BadRequestError("Valid role (homeowner or agent) is required");
     }
-    const HOMEOWNER_TIERS = ["free", "maintain", "win", "beta_homeowner"];
-    const AGENT_TIERS = ["basic", "pro", "premium", "enterprise"];
-    const validTiersForRole = role === "agent" ? AGENT_TIERS : HOMEOWNER_TIERS;
-    if (!subscriptionTier || !validTiersForRole.includes(subscriptionTier)) {
+    if (!subscriptionTier) {
+      throw new BadRequestError("subscriptionTier is required");
+    }
+    // Validate tier against actual subscription products in the database
+    const tierCheckRes = await db.query(
+      `SELECT 1 FROM subscription_products
+       WHERE (code = $1 OR code = $2)
+         AND (is_active IS NULL OR is_active = true)
+       LIMIT 1`,
+      [
+        `${role}_${subscriptionTier}`,
+        subscriptionTier,
+      ]
+    );
+    const ALWAYS_VALID_TIERS = ["free", "beta_homeowner"];
+    if (tierCheckRes.rows.length === 0 && !ALWAYS_VALID_TIERS.includes(subscriptionTier)) {
       throw new BadRequestError(`Invalid subscriptionTier "${subscriptionTier}" for role "${role}"`);
+    }
+    if (planCode) {
+      const expectedTierForPlanCode = PLAN_CODE_TO_SUBSCRIPTION_TIER[planCode];
+      if (expectedTierForPlanCode && expectedTierForPlanCode !== subscriptionTier) {
+        throw new BadRequestError(
+          `planCode "${planCode}" does not match subscriptionTier "${subscriptionTier}"`
+        );
+      }
     }
 
     /** Tiers that can complete onboarding without Stripe. If checkout returns a session_id, we still verify below. */
     const FREE_TIERS = ["free", "beta_homeowner"];
-    const isPaidTier = !FREE_TIERS.includes(subscriptionTier);
+    let isPaidTier = !FREE_TIERS.includes(subscriptionTier);
+    if (isPaidTier && planCode) {
+      const isZeroCost = await isPlanCodeZeroCost(planCode, billingInterval);
+      if (isZeroCost) isPaidTier = false;
+    }
 
     if (stripeSessionId) {
       const verification = await stripeService.verifyCheckoutSession(stripeSessionId, { userId });
@@ -715,8 +782,8 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     const userRole = existingUser?.role || role;
     if (accountResult.rows[0] && !isPaidTier && !SKIP_SUBSCRIPTION_ROLES.includes(userRole)) {
       try {
-        const selectedFreePlanCode =
-          subscriptionTier === "beta_homeowner" ? "beta_homeowner" : "homeowner_free";
+        const selectedFreePlanCode = planCode ||
+          (subscriptionTier === "beta_homeowner" ? "beta_homeowner" : "homeowner_free");
         await Subscription.ensureAccountOnPlanCode(
           accountResult.rows[0].account_id,
           selectedFreePlanCode

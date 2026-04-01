@@ -171,13 +171,22 @@ export const AGENT_PLANS = [
 export const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
   homeowner_free: "free",
   homeowner_maintain: "maintain",
+  homeowner_growth: "growth",
   homeowner_win: "win",
   beta_homeowner: "beta_homeowner",
   agent_basic: "basic",
   agent_pro: "pro",
+  agent_growth: "growth",
   agent_premium: "premium",
   agent_enterprise: "enterprise",
 };
+
+/** Derive a short tier slug from any plan code, even if not in the hardcoded map. */
+export function tierFromPlanCode(planCode) {
+  if (!planCode) return planCode;
+  return PLAN_CODE_TO_SUBSCRIPTION_TIER[planCode]
+    ?? planCode.replace(/^(homeowner|agent)_/, "");
+}
 
 /** Plan limits for confirmation summary (fallback when API not loaded). Editable in Super Admin. */
 export const PLAN_LIMITS = {

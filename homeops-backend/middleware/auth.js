@@ -66,20 +66,21 @@ function shouldSkipSubscriptionGate(req) {
   return false;
 }
 
-async function userRequiresPaidSubscription(userId) {
+async function fetchUserAuthInfo(userId) {
   const userRes = await db.query(
     `SELECT role, subscription_tier AS "subscriptionTier", onboarding_completed AS "onboardingCompleted"
      FROM users
      WHERE id = $1`,
     [userId]
   );
-  const user = userRes.rows[0];
+  return userRes.rows[0] || null;
+}
+
+function userRequiresPaidSubscriptionFromInfo(user) {
   if (!user) return false;
   if (user.onboardingCompleted === false) return false;
   if (user.role === "super_admin" || user.role === "admin") return false;
 
-  // Agents are always paid; homeowners are paid when they selected paid tiers.
-  // beta_homeowner is a zero-cost promotional tier and should not be gated.
   if (user.role === "agent") return true;
   if (
     user.role === "homeowner" &&
@@ -100,7 +101,6 @@ async function hasActivePaidSubscription(userId) {
      JOIN subscription_products sp ON sp.id = asub.subscription_product_id
      WHERE au.user_id = $1
        AND asub.status IN ('active', 'trialing')
-       AND COALESCE(sp.price, 0) > 0
      LIMIT 1`,
     [userId]
   );
@@ -114,9 +114,13 @@ async function ensureLoggedIn(req, res, next) {
     const userId = res.locals.user?.id;
     if (!userId) throw new UnauthorizedError();
 
+    const dbUser = await fetchUserAuthInfo(userId);
+    if (dbUser?.role) {
+      res.locals.user.role = dbUser.role;
+    }
+
     if (!shouldSkipSubscriptionGate(req)) {
-      const needsPaidSubscription = await userRequiresPaidSubscription(userId);
-      if (needsPaidSubscription) {
+      if (userRequiresPaidSubscriptionFromInfo(dbUser)) {
         const hasPaidSubscription = await hasActivePaidSubscription(userId);
         if (!hasPaidSubscription) {
           throw new ForbiddenError("Active paid subscription required.");

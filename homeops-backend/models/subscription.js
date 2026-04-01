@@ -203,10 +203,15 @@ class Subscription {
     }
 
     const productRes = await db.query(
-      `SELECT id, COALESCE(price, 0) AS price
-       FROM subscription_products
-       WHERE code = $1
-         AND (is_active IS NULL OR is_active = true)
+      `SELECT sp.id,
+              COALESCE(sp.price, 0) AS price,
+              pp.unit_amount AS "unitAmount"
+       FROM subscription_products sp
+       LEFT JOIN plan_prices pp
+         ON pp.subscription_product_id = sp.id
+        AND pp.billing_interval = 'month'
+       WHERE sp.code = $1
+         AND (sp.is_active IS NULL OR sp.is_active = true)
        LIMIT 1`,
       [planCode]
     );
@@ -214,7 +219,10 @@ class Subscription {
     if (!product) {
       throw new BadRequestError(`Unknown plan code: ${planCode}`);
     }
-    if (Number(product.price) > 0) {
+    const effectivePrice = typeof product.unitAmount === "number"
+      ? product.unitAmount
+      : Number(product.price);
+    if (effectivePrice > 0) {
       throw new BadRequestError(
         `Plan code ${planCode} is not zero-cost and cannot be set via free-tier onboarding.`
       );

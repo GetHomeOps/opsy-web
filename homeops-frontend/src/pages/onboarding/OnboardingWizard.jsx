@@ -283,7 +283,15 @@ function Step2Plan({
       p.stripePrices?.year?.unitAmount > 0 ||
       (p.price != null && p.price > 0),
   );
-  const gridCols = plans.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3";
+  const colCount = Math.min(Math.max(plans.length, 1), 5);
+  const gridColsMap = {
+    1: "md:grid-cols-1",
+    2: "md:grid-cols-2",
+    3: "md:grid-cols-3",
+    4: "md:grid-cols-4",
+    5: "md:grid-cols-5",
+  };
+  const gridCols = gridColsMap[colCount] || "md:grid-cols-3";
 
   return (
     <div>
@@ -366,27 +374,32 @@ function Step2Plan({
 
             let displayPrice;
             let yearlyTotal = null;
+            const monthUnit = p.stripePrices?.month?.unitAmount;
+            const yearUnit = p.stripePrices?.year?.unitAmount;
             if (isEnterprise) {
               displayPrice = "Contact Sales";
-              yearlyTotal = null;
-            } else if (p.price === 0 && !isPaidPlan) {
-              displayPrice = "Free";
-            } else if (isYearly && p.stripePrices?.year?.unitAmount) {
-              const monthlyEquiv = p.stripePrices.year.unitAmount / 100 / 12;
-              displayPrice = `$${monthlyEquiv.toFixed(2)}`;
-              yearlyTotal = (p.stripePrices.year.unitAmount / 100).toFixed(2);
-            } else if (p.stripePrices?.month?.unitAmount) {
-              displayPrice = `$${(p.stripePrices.month.unitAmount / 100).toFixed(2)}`;
-            } else if (!isPaidPlan) {
+            } else if (isYearly && typeof yearUnit === "number") {
+              if (yearUnit === 0) {
+                displayPrice = "Free";
+              } else {
+                const monthlyEquiv = yearUnit / 100 / 12;
+                displayPrice = `$${monthlyEquiv.toFixed(2)}`;
+                yearlyTotal = (yearUnit / 100).toFixed(2);
+              }
+            } else if (typeof monthUnit === "number") {
+              displayPrice = monthUnit === 0
+                ? "Free"
+                : `$${(monthUnit / 100).toFixed(2)}`;
+            } else if (p.price === 0 || !isPaidPlan) {
               displayPrice = "Free";
             } else {
               displayPrice = "—";
             }
+            const showPerMonth = displayPrice.startsWith("$");
 
             return (
               <div
                 key={planId}
-                style={{gridColumn: index + 1}}
                 className={`relative rounded-2xl max-md:flex max-md:flex-col md:grid md:grid-rows-subgrid md:row-span-5 md:row-start-1 transition-all duration-200 backdrop-blur-sm border bg-white/80 dark:bg-gray-800/80 ${
                   isPopular
                     ? "border-emerald-400/60 dark:border-emerald-600/40 shadow-md z-10"
@@ -413,7 +426,7 @@ function Step2Plan({
                     >
                       {displayPrice}
                     </span>
-                    {!isEnterprise && p.price != null && p.price > 0 && (
+                    {showPerMonth && (
                       <span className="text-sm font-medium text-gray-400 dark:text-gray-500">
                         /mo
                       </span>
@@ -590,7 +603,12 @@ export default function OnboardingWizard() {
     try {
       if (isFreePlan) {
         const tier = PLAN_CODE_TO_SUBSCRIPTION_TIER[plan] || plan;
-        await AppApi.completeOnboarding({role, subscriptionTier: tier});
+        await AppApi.completeOnboarding({
+          role,
+          subscriptionTier: tier,
+          planCode: plan,
+          billingInterval,
+        });
         await refreshCurrentUser();
         const accounts = await AppApi.getUserAccounts(currentUser?.id);
         const accountUrl =
@@ -640,7 +658,7 @@ export default function OnboardingWizard() {
         />
         <StepIndicator currentStep={step} totalSteps={3} />
 
-        <div className={`w-full ${step === 2 ? "max-w-6xl" : "max-w-2xl"}`}>
+        <div className={`w-full ${step === 2 ? "max-w-7xl" : "max-w-2xl"}`}>
           {step === 1 && <Step1Role role={role} onSelect={setRole} />}
           {step === 2 && (
             <Step2Plan
@@ -666,7 +684,7 @@ export default function OnboardingWizard() {
         )}
 
         <div
-          className={`flex items-center justify-between w-full mt-10 ${step === 2 ? "max-w-6xl" : "max-w-2xl"}`}
+          className={`flex items-center justify-between w-full mt-10 ${step === 2 ? "max-w-7xl" : "max-w-2xl"}`}
         >
           <div className="flex items-center gap-4">
             <button

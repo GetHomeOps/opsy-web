@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useReducer, useMemo, useRef} from "react";
 import {useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
+import {AlertTriangle} from "lucide-react";
 
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
@@ -10,6 +11,7 @@ import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
+import ListDropdown from "../../partials/buttons/ListDropdown";
 
 const PAGE_STORAGE_KEY = "subscription_products_list_page";
 
@@ -23,12 +25,14 @@ const initialState = {
   searchTerm: "",
   activeFilters: [],
   isLoading: true,
+  isSubmitting: false,
   bannerOpen: false,
   bannerType: "success",
   bannerMessage: "",
   sidebarOpen: false,
   products: [],
   selectedItems: [],
+  showDeleteModal: false,
 };
 
 function reducer(state, action) {
@@ -79,6 +83,10 @@ function reducer(state, action) {
       return {...state, products: action.payload};
     case "SET_SELECTED_ITEMS":
       return {...state, selectedItems: action.payload};
+    case "SET_SUBMITTING":
+      return {...state, isSubmitting: action.payload};
+    case "SET_DELETE_MODAL":
+      return {...state, showDeleteModal: action.payload};
     default:
       return state;
   }
@@ -472,6 +480,63 @@ function SubscriptionProductsList() {
     });
   }
 
+  function handleDeleteClick() {
+    if (state.selectedItems.length === 0) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {open: true, type: "warning", message: "Select at least one product to delete."},
+      });
+      return;
+    }
+    dispatch({type: "SET_DELETE_MODAL", payload: true});
+  }
+
+  async function handleDelete() {
+    if (state.selectedItems.length === 0) return;
+    dispatch({type: "SET_DELETE_MODAL", payload: false});
+    dispatch({type: "SET_SUBMITTING", payload: true});
+    try {
+      const deletedIds = [];
+      const errors = [];
+      for (const id of state.selectedItems) {
+        try {
+          await AppApi.deleteSubscriptionProduct(id);
+          deletedIds.push(id);
+        } catch (err) {
+          errors.push(`#${id}: ${err.message || err}`);
+        }
+      }
+      if (deletedIds.length > 0) {
+        dispatch({
+          type: "SET_PRODUCTS",
+          payload: state.products.filter((p) => !deletedIds.includes(p.id)),
+        });
+        dispatch({
+          type: "SET_SELECTED_ITEMS",
+          payload: state.selectedItems.filter((id) => !deletedIds.includes(id)),
+        });
+      }
+      if (errors.length > 0) {
+        dispatch({
+          type: "SET_BANNER",
+          payload: {open: true, type: "error", message: `Some products could not be deleted: ${errors.join("; ")}`},
+        });
+      } else {
+        dispatch({
+          type: "SET_BANNER",
+          payload: {open: true, type: "success", message: `${deletedIds.length} product(s) deleted.`},
+        });
+      }
+    } catch (err) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {open: true, type: "error", message: `Delete failed: ${err.message || err}`},
+      });
+    } finally {
+      dispatch({type: "SET_SUBMITTING", payload: false});
+    }
+  }
+
   const DESCRIPTION_MAX_LENGTH = 50;
 
   /** Truncate description with ellipsis */
@@ -674,8 +739,14 @@ function SubscriptionProductsList() {
                 </h1>
               </div>
 
-              <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
-                {/* Add Product button */}
+              <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
+                {state.selectedItems.length > 0 && (
+                  <ListDropdown
+                    align="right"
+                    hasSelection={state.selectedItems.length > 0}
+                    onDelete={handleDeleteClick}
+                  />
+                )}
                 <button
                   className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
                   onClick={() =>
@@ -857,6 +928,43 @@ function SubscriptionProductsList() {
             )}
           </div>
         </main>
+
+        {/* Delete Confirmation Modal */}
+        {state.showDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    Delete {state.selectedItems.length} product{state.selectedItems.length > 1 ? "s" : ""}?
+                  </h3>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                  This will permanently remove the selected product{state.selectedItems.length > 1 ? "s" : ""}.
+                  Products with active subscriptions cannot be deleted.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  className="btn-sm border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300"
+                  onClick={() => dispatch({type: "SET_DELETE_MODAL", payload: false})}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-sm bg-red-500 hover:bg-red-600 text-white"
+                  onClick={handleDelete}
+                  disabled={state.isSubmitting}
+                >
+                  {state.isSubmitting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
