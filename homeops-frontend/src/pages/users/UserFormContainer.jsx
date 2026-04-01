@@ -9,6 +9,7 @@ import React, {
 import {useNavigate, useParams, useLocation, Link} from "react-router-dom";
 import {
   AlertCircle,
+  Briefcase,
   Building2,
   CreditCard,
   Mail,
@@ -235,12 +236,16 @@ function UsersFormContainer() {
       if (!id || id === "new" || !state.user?.id) {
         setOwnerPropertyCount(0);
         setInvitedPropertyCount(0);
+        setAgentPropertyCount(0);
+        setAgentPropertyUids([]);
         setPropertySummaryLoading(false);
         return;
       }
       if (Number(state.user.id) !== Number(id)) {
         setOwnerPropertyCount(0);
         setInvitedPropertyCount(0);
+        setAgentPropertyCount(0);
+        setAgentPropertyUids([]);
         setPropertySummaryLoading(true);
         return;
       }
@@ -255,12 +260,26 @@ function UsersFormContainer() {
             (p.property_role === "owner" || p.propertyRole === "owner"),
         ).length;
         const invited = rows.filter((p) => p._pendingInvitation).length;
+        const agentRows = rows.filter((p) => {
+          if (p._pendingInvitation) return false;
+          const pr = (p.property_role || p.propertyRole || "").toLowerCase();
+          return pr === "editor" || pr === "viewer";
+        });
         setOwnerPropertyCount(owner);
         setInvitedPropertyCount(invited);
+        setAgentPropertyCount(agentRows.length);
+        setAgentPropertyUids(
+          agentRows
+            .map((p) => p.property_uid ?? p.propertyUid)
+            .filter(Boolean)
+            .map(String),
+        );
       } catch {
         if (!cancelled) {
           setOwnerPropertyCount(0);
           setInvitedPropertyCount(0);
+          setAgentPropertyCount(0);
+          setAgentPropertyUids([]);
         }
       } finally {
         if (!cancelled) setPropertySummaryLoading(false);
@@ -756,6 +775,8 @@ function UsersFormContainer() {
   const [propertySummaryLoading, setPropertySummaryLoading] = useState(false);
   const [ownerPropertyCount, setOwnerPropertyCount] = useState(0);
   const [invitedPropertyCount, setInvitedPropertyCount] = useState(0);
+  const [agentPropertyCount, setAgentPropertyCount] = useState(0);
+  const [agentPropertyUids, setAgentPropertyUids] = useState([]);
 
   // Handler for contact change
   function handleContactChange(value) {
@@ -895,6 +916,25 @@ function UsersFormContainer() {
 
   const handleNavigateToProperties = () => {
     navigate(`/${accountUrl}/properties`);
+  };
+
+  const profileUserRoleKey = (
+    state.user?.role === "super_admin" || state.user?.role === "superAdmin"
+      ? "super_admin"
+      : String(state.user?.role || "")
+          .toLowerCase()
+          .replace(/\s+/g, "_")
+  );
+  const isProfileAgentUser = profileUserRoleKey === "agent";
+
+  const handleNavigateToAgentProperties = () => {
+    if (agentPropertyUids.length > 0) {
+      navigate(`/${accountUrl}/properties`, {
+        state: {filterPropertyUids: agentPropertyUids},
+      });
+    } else {
+      navigate(`/${accountUrl}/properties`);
+    }
   };
 
   // Add a helper function for label classes
@@ -1158,6 +1198,32 @@ function UsersFormContainer() {
                       Invited{" "}
                       <span className="font-normal">
                         {propertySummaryLoading ? "…" : invitedPropertyCount}
+                      </span>
+                    </span>
+                  </div>
+                )
+              ) : null}
+
+              {state.user && isProfileAgentUser ? (
+                agentPropertyCount > 0 && !propertySummaryLoading ? (
+                  <button
+                    type="button"
+                    onClick={handleNavigateToAgentProperties}
+                    className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 transition-all duration-200"
+                  >
+                    <Briefcase className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm font-semibold whitespace-nowrap">
+                      Property agent{" "}
+                      <span className="font-normal">{agentPropertyCount}</span>
+                    </span>
+                  </button>
+                ) : (
+                  <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400">
+                    <Briefcase className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm font-medium whitespace-nowrap">
+                      Property agent{" "}
+                      <span className="font-normal">
+                        {propertySummaryLoading ? "…" : agentPropertyCount}
                       </span>
                     </span>
                   </div>

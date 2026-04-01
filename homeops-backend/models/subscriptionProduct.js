@@ -160,7 +160,7 @@ const PRODUCT_COLUMNS_BASE = `id, name, description, target_role AS "targetRole"
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 const PRODUCT_COLUMNS_FULL = `${PRODUCT_COLUMNS_BASE},
-  code, sort_order AS "sortOrder", trial_days AS "trialDays", features`;
+  code, sort_order AS "sortOrder", trial_days AS "trialDays", popular, features`;
 
 let _hasBillingColumns = null;
 async function hasBillingColumns() {

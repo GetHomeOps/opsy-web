@@ -3,9 +3,14 @@
 /**
  * Plan Seed Service
  *
- * Ensures the 6 official plans (from data/plans.json) exist in the database on startup.
- * Price IDs are configurable via STRIPE_PRICE_IDS env (JSON) or Super Admin UI.
- * No hardcoded price IDs in code.
+ * On a completely empty `subscription_products` table, inserts every plan from data/plans.json
+ * (including the free tier `homeowner_free` if present there).
+ *
+ * Once any product exists, startup only **updates** rows whose `code` matches plans.json.
+ * Products you delete in the admin UI are not re-created on restart. To add tiers from JSON
+ * to an existing database, use the admin UI or run the seed script with a one-time empty DB.
+ *
+ * Price IDs: STRIPE_PRICE_IDS env (JSON) or Super Admin UI. No hardcoded price IDs in code.
  */
 
 const fs = require("fs");
@@ -42,6 +47,11 @@ async function ensureStripePlans() {
 
   const priceIds = parsePriceIdsEnv();
 
+  const { rows: countRows } = await db.query(
+    `SELECT COUNT(*)::int AS c FROM subscription_products`
+  );
+  const allowInsertNewCodes = countRows[0].c === 0;
+
   for (const plan of plans) {
     const {
       code,
@@ -67,13 +77,13 @@ async function ensureStripePlans() {
     let productId;
     if (existing.rows.length > 0) {
       productId = existing.rows[0].id;
-      // Update product fields but preserve features (admin-edited features persist; seed only applies to new products)
+      // Update product fields but preserve admin-edited values (features, popular, is_active)
       await db.query(
         `UPDATE subscription_products
          SET name = $1, description = $2, target_role = $3, price = $4, sort_order = $5,
              trial_days = $6, max_properties = $7, max_contacts = $8, max_viewers = $9, max_team_members = $10,
-             popular = $11, is_active = true, updated_at = NOW()
-         WHERE id = $12`,
+             updated_at = NOW()
+         WHERE id = $11`,
         [
           name,
           description || `${name} plan for ${targetRole}s`,
@@ -85,11 +95,10 @@ async function ensureStripePlans() {
           limits?.maxContacts ?? 25,
           limits?.maxViewers ?? 2,
           limits?.maxTeamMembers ?? 5,
-          popular ?? false,
           productId,
         ]
       );
-    } else {
+    } else if (allowInsertNewCodes) {
       const ins = await db.query(
         `INSERT INTO subscription_products
           (name, description, target_role, price, billing_interval, code, sort_order, trial_days,
@@ -113,6 +122,11 @@ async function ensureStripePlans() {
         ]
       );
       productId = ins.rows[0].id;
+    } else {
+      console.log(
+        `[planSeed] Skipping insert for code=${code}: catalog already has products; deleted tiers stay removed. Add via admin or empty subscription_products to bootstrap from plans.json.`
+      );
+      continue;
     }
 
     const aiFeatSeed = limits?.aiFeaturesEnabled === undefined ? null : !!limits.aiFeaturesEnabled;
@@ -168,7 +182,9 @@ async function ensureStripePlans() {
     }
   }
 
-  console.log(`[planSeed] Ensured ${plans.length} plans from plans.json`);
+  console.log(
+    `[planSeed] Synced plans from plans.json (${plans.length} entries; new inserts only when subscription_products was empty)`
+  );
 }
 
 module.exports = { ensureStripePlans, loadPlans };

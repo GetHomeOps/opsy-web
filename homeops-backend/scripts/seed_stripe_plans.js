@@ -4,7 +4,8 @@
 /**
  * Seed Stripe Plans
  *
- * Uses data/plans.json as source of truth. Upserts the 6 tiers with plan_limits and plan_prices.
+ * Uses data/plans.json. Updates existing rows by code; inserts only if subscription_products is empty
+ * (so admin-deleted tiers are not recreated). plan_limits / plan_prices updated for synced rows.
  * Stripe Price IDs: set via env STRIPE_PRICE_IDS (JSON) or leave null for Super Admin to fill via UI.
  *
  * Usage: node scripts/seed_stripe_plans.js

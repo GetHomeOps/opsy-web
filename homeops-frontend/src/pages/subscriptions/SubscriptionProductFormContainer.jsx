@@ -1,4 +1,4 @@
-import React, {useReducer, useEffect, useState} from "react";
+import React, {useReducer, useEffect, useState, useMemo} from "react";
 import {useNavigate, useParams, useLocation} from "react-router-dom";
 import {Reorder, useDragControls} from "framer-motion";
 import {AlertCircle, Package, Layers, FileText, CreditCard, GripVertical, Plus, Trash2} from "lucide-react";
@@ -272,6 +272,65 @@ function SubscriptionProductFormContainer() {
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
   const isNew = !id || id === "new";
+  const [popularLoading, setPopularLoading] = useState(false);
+  const isPopular = !!state.product?.popular;
+
+  const roleForPopular = state.product?.targetRole || state.formData?.targetRole || "homeowner";
+  const roleLabelPopular =
+    t(`subscriptionProducts.${roleForPopular}`) || (roleForPopular === "agent" ? "Agent" : "Homeowner");
+
+  /** Plan marked popular for the same target role (one per role on the backend). */
+  const popularPlanForRole = useMemo(() => {
+    const role = state.product?.targetRole || state.formData?.targetRole;
+    if (!role) return null;
+    if (!products?.length) {
+      return state.product?.popular ? state.product : null;
+    }
+    const peer = products.find((p) => {
+      const tr = p.targetRole || p.target_role;
+      return tr === role && p.popular === true;
+    });
+    if (peer) return peer;
+    return state.product?.popular ? state.product : null;
+  }, [products, state.product]);
+
+  async function handleTogglePopular() {
+    if (!state.product?.id) return;
+    setPopularLoading(true);
+    try {
+      await AppApi.setBillingPlanPopular(state.product.id, !isPopular);
+      const [fullProduct, allProducts] = await Promise.all([
+        AppApi.getSubscriptionProduct(Number(id)),
+        AppApi.getAllSubscriptionProducts(),
+      ]);
+      dispatch({type: "SET_PRODUCT", payload: fullProduct});
+      setProducts(allProducts || []);
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message: !isPopular
+            ? `"${state.product.name}" is now the Most Popular plan for ${state.product.targetRole}s`
+            : `Removed "Most Popular" from "${state.product.name}"`,
+        },
+      });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("plans-updated"));
+      }
+    } catch (err) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: `Failed to update popular status: ${err.message || err}`,
+        },
+      });
+    } finally {
+      setPopularLoading(false);
+    }
+  }
 
   // Fetch product + products list (for nav) + Stripe prices
   useEffect(() => {
@@ -818,6 +877,97 @@ function SubscriptionProductFormContainer() {
                   </div>
                 )}
               </div>
+
+              {/* Most Popular — pill toggle + which plan is popular for this role */}
+              {!isNew && state.product && (
+                <div className="flex flex-col items-end gap-2 shrink-0 max-w-[min(100%,280px)]">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                      Most popular
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isPopular}
+                      aria-busy={popularLoading}
+                      aria-label={
+                        isPopular
+                          ? `Remove most popular for ${roleLabelPopular}`
+                          : `Set as most popular for ${roleLabelPopular}`
+                      }
+                      onClick={handleTogglePopular}
+                      disabled={popularLoading}
+                      title={
+                        isPopular
+                          ? "Turn off — removes the badge for this plan"
+                          : "Turn on — becomes the only popular plan for this user type"
+                      }
+                      className={[
+                        "relative h-7 w-12 shrink-0 rounded-full p-0.5 transition-colors duration-200",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800",
+                        popularLoading
+                          ? "cursor-wait border border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-700"
+                          : isPopular
+                            ? "bg-violet-600 hover:bg-violet-500"
+                            : "bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "pointer-events-none absolute top-0.5 left-0.5 h-6 w-6 rounded-full shadow-sm transition-transform duration-200 ease-out",
+                          popularLoading ? "bg-gray-300 dark:bg-gray-500" : "bg-white",
+                          isPopular ? "translate-x-5" : "translate-x-0",
+                        ].join(" ")}
+                      />
+                    </button>
+                    <span
+                      className={`text-xs italic tabular-nums ${
+                        popularLoading
+                          ? "text-gray-400 dark:text-gray-500"
+                          : isPopular
+                            ? "text-violet-600 dark:text-violet-400"
+                            : "text-gray-500 dark:text-gray-400"
+                      }`}
+                    >
+                      {popularLoading ? "Saving…" : isPopular ? "On" : "Off"}
+                    </span>
+                  </div>
+                  {(products.length > 0 || isPopular) && (
+                    <p className="text-right text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                      {popularPlanForRole ? (
+                        Number(popularPlanForRole.id) === Number(state.product.id) ? (
+                          <>
+                            This plan is the most popular for{" "}
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{roleLabelPopular}</span>
+                            .
+                          </>
+                        ) : (
+                          <>
+                            Most popular for{" "}
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{roleLabelPopular}</span>
+                            :{" "}
+                            <button
+                              type="button"
+                              className="font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 underline-offset-2 hover:underline"
+                              onClick={() =>
+                                navigate(`/${accountUrl}/subscription-products/${popularPlanForRole.id}`)
+                              }
+                            >
+                              {popularPlanForRole.name || popularPlanForRole.code || "Another plan"}
+                            </button>
+                            .
+                          </>
+                        )
+                      ) : (
+                        <>
+                          No plan is marked most popular for{" "}
+                          <span className="font-medium text-gray-700 dark:text-gray-300">{roleLabelPopular}</span> yet.
+                        </>
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

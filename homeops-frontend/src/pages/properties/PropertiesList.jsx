@@ -7,7 +7,7 @@ import React, {
   useState,
   useContext,
 } from "react";
-import {useNavigate} from "react-router-dom";
+import {useNavigate, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {Loader2, Sparkles} from "lucide-react";
 
@@ -290,6 +290,7 @@ const PropertyCard = ({
 
 function PropertiesList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {t} = useTranslation();
   const {currentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
@@ -337,6 +338,12 @@ function PropertiesList() {
     setViewMode,
     deleteProperty,
   } = useContext(propertyContext);
+
+  const profileAgentUidFilter = useMemo(() => {
+    const uids = location.state?.filterPropertyUids;
+    if (!Array.isArray(uids) || uids.length === 0) return null;
+    return new Set(uids.map((u) => String(u)));
+  }, [location.state?.filterPropertyUids]);
 
   useEffect(() => {
     if (transientListState?.viewMode) {
@@ -465,7 +472,20 @@ function PropertiesList() {
       filtersByType[f.type].push(f.value);
     });
 
-    return properties.filter((property) => {
+    const baseList =
+      profileAgentUidFilter && profileAgentUidFilter.size > 0
+        ? properties.filter((property) => {
+            const uid = String(
+              property.property_uid ??
+                property.propertyUid ??
+                property.id ??
+                "",
+            );
+            return profileAgentUidFilter.has(uid);
+          })
+        : properties;
+
+    return baseList.filter((property) => {
       const term = (state.searchTerm || "").toLowerCase();
       if (term) {
         const matchesSearch =
@@ -510,7 +530,12 @@ function PropertiesList() {
 
       return true;
     });
-  }, [properties, state.searchTerm, state.activeFilters]);
+  }, [
+    properties,
+    state.searchTerm,
+    state.activeFilters,
+    profileAgentUidFilter,
+  ]);
 
   const sortedProperties = useMemo(() => {
     const sortable = [...filteredProperties];
@@ -976,6 +1001,27 @@ function PropertiesList() {
                 </button>
               </div>
             </div>
+
+            {profileAgentUidFilter && profileAgentUidFilter.size > 0 && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#456564]/30 bg-[#456564]/5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300">
+                <span>
+                  Showing properties where this user is on the team as agent
+                  (editor or viewer).
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 font-medium text-[#456564] dark:text-[#8fa3a2] hover:underline"
+                  onClick={() =>
+                    navigate(`/${accountUrl}/properties`, {
+                      replace: true,
+                      state: {},
+                    })
+                  }
+                >
+                  Show all properties
+                </button>
+              </div>
+            )}
 
             {/* ─── Search + Filter + View toggle ──────────────── */}
             <div className="mb-5 space-y-3">
