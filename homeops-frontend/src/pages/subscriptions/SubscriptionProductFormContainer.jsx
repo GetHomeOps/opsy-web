@@ -96,6 +96,42 @@ function SortableFeatureRow({feature, idx, onFieldChange, onRemove, onDragStart,
   );
 }
 
+/**
+ * Canonical subscription_product.code values — must match homeops-backend/routes/auth.js
+ * (PLAN_CODE_TO_SUBSCRIPTION_TIER and homeowner/agent tier validation).
+ */
+const PLAN_CODE_OPTIONS_BY_ROLE = {
+  homeowner: [
+    {value: "homeowner_free", label: "Free"},
+    {value: "homeowner_maintain", label: "Maintain"},
+    {value: "homeowner_win", label: "Win"},
+    {value: "beta_homeowner", label: "Beta / promotional (zero-cost)"},
+  ],
+  agent: [
+    {value: "agent_basic", label: "Basic"},
+    {value: "agent_pro", label: "Pro (Growth)"},
+    {value: "agent_premium", label: "Premium (Win)"},
+    {value: "agent_enterprise", label: "Enterprise"},
+  ],
+};
+
+function planCodeSelectOptions(targetRole, currentCode) {
+  const role = targetRole === "agent" ? "agent" : "homeowner";
+  const list = PLAN_CODE_OPTIONS_BY_ROLE[role] || [];
+  const known = new Set(list.map((o) => o.value));
+  const out = list.map((o) => ({
+    value: o.value,
+    label: `${o.label} (${o.value})`,
+  }));
+  if (currentCode && !known.has(currentCode)) {
+    out.unshift({
+      value: currentCode,
+      label: `${currentCode} — legacy code (choose a standard code if you can)`,
+    });
+  }
+  return out;
+}
+
 const initialFormData = {
   name: "",
   description: "",
@@ -292,6 +328,15 @@ function SubscriptionProductFormContainer() {
     } else if (fieldId === "hasTrial" && checked && !state.formData.trialDays) {
       payload.trialDays = "14";
     }
+    if (fieldId === "targetRole" && type !== "checkbox") {
+      const roleKey = value === "agent" ? "agent" : "homeowner";
+      const validCodes = new Set(
+        (PLAN_CODE_OPTIONS_BY_ROLE[roleKey] || []).map((o) => o.value),
+      );
+      if (state.formData.code && !validCodes.has(state.formData.code)) {
+        payload.code = "";
+      }
+    }
     dispatch({type: "SET_FORM_DATA", payload});
     if (state.errors[fieldId]) {
       dispatch({type: "SET_ERRORS", payload: {...state.errors, [fieldId]: null}});
@@ -347,6 +392,9 @@ function SubscriptionProductFormContainer() {
     const newErrors = {};
     if (!state.formData.name || !state.formData.name.trim()) {
       newErrors.name = t("subscriptionProducts.nameRequired");
+    }
+    if (isNew && !state.formData.code?.trim()) {
+      newErrors.code = "Select a plan code so onboarding and billing stay in sync with the app.";
     }
     if (state.formData.hasTrial) {
       const days = Number(state.formData.trialDays);
@@ -849,21 +897,44 @@ function SubscriptionProductFormContainer() {
                       </select>
                     </div>
 
-                    {/* Code — unique identifier; allows same display name for different roles (e.g. maintain-agent, maintain-homeowner) */}
+                    {/* Plan code — must match backend onboarding / Stripe mapping (see auth.js PLAN_CODE_TO_SUBSCRIPTION_TIER). */}
                     <div>
                       <label className={getLabelClasses()} htmlFor="code">
                         Plan Code
                       </label>
-                      <input
+                      <select
                         id="code"
                         className={getInputClasses("code")}
-                        type="text"
-                        value={state.formData.code}
+                        value={state.formData.code || ""}
                         onChange={handleChange}
-                        placeholder="e.g. maintain-agent, maintain-homeowner"
-                      />
+                      >
+                        {isNew && (
+                          <option value="">
+                            — Select plan code —
+                          </option>
+                        )}
+                        {!isNew && !state.formData.code && (
+                          <option value="">— Missing code — set one</option>
+                        )}
+                        {planCodeSelectOptions(
+                          state.formData.targetRole,
+                          state.formData.code,
+                        ).map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      {state.errors.code && (
+                        <div className="mt-1 flex items-center text-sm text-red-500">
+                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                          <span>{state.errors.code}</span>
+                        </div>
+                      )}
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Unique identifier. Use this to differentiate products with the same name (e.g. maintain-agent, maintain-homeowner).
+                        Fixed list aligned with signup and Stripe. Display name above can differ (e.g. “Maintain”); this code is what the API uses. Beta comp plans: use{" "}
+                        <code className="text-[11px] bg-gray-100 dark:bg-gray-700 px-1 rounded">beta_homeowner</code>
+                        .
                       </p>
                     </div>
 

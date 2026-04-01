@@ -23,11 +23,12 @@ import {
 } from "../constants/documentUpload";
 
 export class ApiError extends Error {
-  constructor(messages, status = 500) {
+  constructor(messages, status = 500, code = undefined) {
     const msg = Array.isArray(messages) ? messages[0] : messages;
     super(typeof msg === "string" ? msg : msg?.message ?? "Request failed");
     this.messages = Array.isArray(messages) ? messages : [messages];
     this.status = status;
+    if (code != null && code !== "") this.code = code;
 
     if (
       isTierRestrictionError(status, this.message) &&
@@ -37,6 +38,12 @@ export class ApiError extends Error {
     }
   }
 }
+
+/** Backend `error.code` values the client may branch on (see app.js error handler). */
+export const API_ERROR_CODES = {
+  PROPERTY_OWNER: "PROPERTY_OWNER",
+  SUPER_ADMIN_PROTECTED: "SUPER_ADMIN_PROTECTED",
+};
 
 /** User-facing copy from API errors (ApiError, fetch failures, etc.). */
 export function getApiErrorMessage(err, fallback = "Something went wrong.") {
@@ -181,11 +188,12 @@ class AppApi {
       const errBody = await resp.json().catch(() => ({}));
       const message = errBody?.error?.message ?? resp.statusText;
       const messages = Array.isArray(message) ? message : [message];
+      const code = errBody?.error?.code;
       if (import.meta.env.DEV) {
         console.debug("[API error]", { endpoint, status: resp.status, message });
       }
       console.error("API Error:", resp.statusText, resp.status);
-      throw new ApiError(messages, resp.status);
+      throw new ApiError(messages, resp.status, code);
     }
     const contentType = resp.headers.get("content-type");
     if (resp.status === 204 || !contentType?.includes("application/json")) {
@@ -217,7 +225,8 @@ class AppApi {
       const err = await resp.json().catch(() => ({}));
       const message = err?.error?.message || resp.statusText;
       const messages = Array.isArray(message) ? message : [message];
-      throw new ApiError(messages, resp.status);
+      const code = err?.error?.code;
+      throw new ApiError(messages, resp.status, code);
     }
     return await resp.json();
   }

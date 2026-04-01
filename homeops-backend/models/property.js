@@ -234,7 +234,8 @@ class Property {
   /* Get properties by users's id */
   static async getPropertiesByUserId(userId) {
     const result = await db.query(
-      `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name
+      `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name,
+              pu.role AS property_role
        FROM properties p
        JOIN property_users pu ON p.id = pu.property_id
        LEFT JOIN (

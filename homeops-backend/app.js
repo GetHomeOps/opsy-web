@@ -197,7 +197,11 @@ app.use(function (err, req, res, next) {
   }
 
   return res.status(status).json({
-    error: { message, status },
+    error: {
+      message,
+      status,
+      ...(typeof err.code === "string" && err.code ? { code: err.code } : {}),
+    },
   });
 });
 

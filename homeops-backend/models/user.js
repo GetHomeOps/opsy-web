@@ -19,10 +19,10 @@ const bcrypt = require("bcrypt");
 const {
   NotFoundError,
   BadRequestError,
-  UnauthorizedError
+  UnauthorizedError,
+  ForbiddenError,
 } = require("../expressError");
 const { sqlForPartialUpdate } = require("../helpers/sql");
-const { isAccountOwner } = require("../helpers/accountUsers");
 
 
 const { BCRYPT_WORK_FACTOR } = require("../config.js");
@@ -546,29 +546,137 @@ class User {
    * Throws NotFoundError if user not found.
    **/
   static async remove(id) {
+    const client = await db.connect();
     try {
-      const isOwner = await isAccountOwner(id);
-      if (isOwner) {
-        throw new BadRequestError(
-          "This user is a property owner and cannot be deleted."
+      await client.query("BEGIN");
+
+      const userCheck = await client.query(
+        `SELECT id, role
+         FROM users
+         WHERE id = $1
+         FOR UPDATE`,
+        [id]
+      );
+
+      if (!userCheck.rows[0]) throw new NotFoundError(`No user: ${id}`);
+
+      if (userCheck.rows[0].role === "super_admin") {
+        const err = new ForbiddenError(
+          "Super admin accounts cannot be deleted."
         );
+        err.code = "SUPER_ADMIN_PROTECTED";
+        throw err;
       }
-      else {
-        const result = await db.query(
-          `DELETE
+
+      const ownsAnyProperty = await client.query(
+        `SELECT 1
+         FROM property_users pu
+         JOIN properties p ON p.id = pu.property_id
+         WHERE pu.user_id = $1
+           AND pu.role = 'owner'
+         LIMIT 1`,
+        [id]
+      );
+
+      if (ownsAnyProperty.rows.length > 0) {
+        const err = new BadRequestError(
+          "This user is a property owner. Transfer property ownership before deleting this user."
+        );
+        err.code = "PROPERTY_OWNER";
+        throw err;
+      }
+
+      const ownedAccountsRes = await client.query(
+        `SELECT a.id,
+                EXISTS (
+                  SELECT 1
+                  FROM properties p
+                  WHERE p.account_id = a.id
+                ) AS "hasProperties"
+         FROM accounts a
+         WHERE a.owner_user_id = $1
+         FOR UPDATE`,
+        [id]
+      );
+
+      const ownedAccountsWithProperties = ownedAccountsRes.rows.filter(
+        (row) => row.hasProperties === true
+      );
+      if (ownedAccountsWithProperties.length > 0) {
+        const err = new BadRequestError(
+          "This user is a property owner. Transfer property ownership before deleting this user."
+        );
+        err.code = "PROPERTY_OWNER";
+        throw err;
+      }
+
+      for (const account of ownedAccountsRes.rows) {
+        const nextOwnerRes = await client.query(
+          `SELECT user_id AS "userId"
+           FROM account_users
+           WHERE account_id = $1
+             AND user_id <> $2
+           ORDER BY CASE role
+                    WHEN 'owner' THEN 1
+                    WHEN 'admin' THEN 2
+                    ELSE 3
+                    END,
+                    created_at ASC
+           LIMIT 1`,
+          [account.id, id]
+        );
+
+        const nextOwner = nextOwnerRes.rows[0]?.userId;
+        if (nextOwner) {
+          await client.query(
+            `UPDATE accounts
+             SET owner_user_id = $1,
+                 updated_at = NOW()
+             WHERE id = $2`,
+            [nextOwner, account.id]
+          );
+        } else {
+          await client.query(
+            `DELETE FROM invitations
+             WHERE account_id = $1`,
+            [account.id]
+          );
+          await client.query(
+            `UPDATE professionals
+             SET account_id = NULL
+             WHERE account_id = $1`,
+            [account.id]
+          );
+          await client.query(
+            `DELETE FROM accounts
+             WHERE id = $1`,
+            [account.id]
+          );
+        }
+      }
+
+      const result = await client.query(
+        `DELETE
          FROM users
          WHERE id = $1
          RETURNING id`,
-          [id]
-        );
-        const user = result.rows[0];
+        [id]
+      );
 
-        if (!user) throw new NotFoundError(`No user: ${id}`);
+      const user = result.rows[0];
+      if (!user) throw new NotFoundError(`No user: ${id}`);
 
-        return user;
-      }
+      await client.query("COMMIT");
+      return user;
     } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (_) {
+        // Ignore rollback errors; original error is more relevant.
+      }
       throw err;
+    } finally {
+      client.release();
     }
   }
 

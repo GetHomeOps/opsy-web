@@ -18,6 +18,7 @@ const { enqueue } = require("../services/inspectionAnalysisQueue");
 const Contact = require("../models/contact");
 const SavedProfessional = require("../models/savedProfessional");
 const Invitation = require("../models/invitation");
+const User = require("../models/user");
 const PropertyOwnershipTransferRequest = require("../models/propertyOwnershipTransferRequest");
 const db = require("../db");
 
@@ -108,12 +109,19 @@ router.get("/", ensurePlatformAdmin, async function (req, res, next) {
  *  Also includes properties with pending invitations (marked with _pendingInvitation). */
 router.get("/user/:userId", ensureLoggedIn, ensurePropertyAccess({ scope: "user", param: "userId" }), async function (req, res, next) {
   try {
-    const userEmail = res.locals.user?.email;
+    const viewer = res.locals.user;
+    let inviteeEmail = viewer?.email ?? null;
+    const targetUserId = String(req.params.userId);
+    const isPlatformAdmin = viewer?.role === "super_admin" || viewer?.role === "admin";
+    if (isPlatformAdmin && String(viewer.id) !== targetUserId) {
+      const targetUser = await User.getById(req.params.userId);
+      inviteeEmail = targetUser?.email ?? null;
+    }
 
     const [properties, rawPending] = await Promise.all([
       Property.getPropertiesByUserId(req.params.userId),
-      userEmail
-        ? Property.getPropertiesWithPendingInvitations(userEmail)
+      inviteeEmail
+        ? Property.getPropertiesWithPendingInvitations(inviteeEmail)
         : Promise.resolve([]),
     ]);
 

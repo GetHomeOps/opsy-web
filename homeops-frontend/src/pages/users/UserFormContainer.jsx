@@ -7,7 +7,15 @@ import React, {
   useState,
 } from "react";
 import {useNavigate, useParams, useLocation, Link} from "react-router-dom";
-import {AlertCircle, CreditCard, Mail, User, UserCircle} from "lucide-react";
+import {
+  AlertCircle,
+  Building2,
+  CreditCard,
+  Mail,
+  MailOpen,
+  User,
+  UserCircle,
+} from "lucide-react";
 import Banner from "../../partials/containers/Banner";
 import ModalBlank from "../../components/ModalBlank";
 import {useTranslation} from "react-i18next";
@@ -17,7 +25,10 @@ import contactContext from "../../context/ContactContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
 import {useAuth} from "../../context/AuthContext";
-import AppApi, {getApiErrorMessage} from "../../api/api";
+import AppApi, {
+  API_ERROR_CODES,
+  getApiErrorMessage,
+} from "../../api/api";
 import SelectDropdown from "../contacts/SelectDropdown";
 import useImageUpload from "../../hooks/useImageUpload";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
@@ -45,6 +56,7 @@ const initialState = {
   formDataChanged: false,
   isInitialLoad: true,
   isActive: false,
+  ownershipTransferModalOpen: false,
 };
 
 function reducer(state, action) {
@@ -90,6 +102,8 @@ function reducer(state, action) {
       };
     case "SET_DANGER_MODAL":
       return {...state, dangerModalOpen: action.payload};
+    case "SET_OWNERSHIP_TRANSFER_MODAL":
+      return {...state, ownershipTransferModalOpen: action.payload};
     case "SET_FORM_CHANGED":
       return {
         ...state,
@@ -214,6 +228,49 @@ function UsersFormContainer() {
     clearUserPhotoUploadedUrl,
     clearUserPhotoPresignedUrl,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPropertySummary() {
+      if (!id || id === "new" || !state.user?.id) {
+        setOwnerPropertyCount(0);
+        setInvitedPropertyCount(0);
+        setPropertySummaryLoading(false);
+        return;
+      }
+      if (Number(state.user.id) !== Number(id)) {
+        setOwnerPropertyCount(0);
+        setInvitedPropertyCount(0);
+        setPropertySummaryLoading(true);
+        return;
+      }
+      setPropertySummaryLoading(true);
+      try {
+        const list = await AppApi.getPropertiesByUserId(state.user.id);
+        if (cancelled) return;
+        const rows = list || [];
+        const owner = rows.filter(
+          (p) =>
+            !p._pendingInvitation &&
+            (p.property_role === "owner" || p.propertyRole === "owner"),
+        ).length;
+        const invited = rows.filter((p) => p._pendingInvitation).length;
+        setOwnerPropertyCount(owner);
+        setInvitedPropertyCount(invited);
+      } catch {
+        if (!cancelled) {
+          setOwnerPropertyCount(0);
+          setInvitedPropertyCount(0);
+        }
+      } finally {
+        if (!cancelled) setPropertySummaryLoading(false);
+      }
+    }
+    loadPropertySummary();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, state.user?.id]);
 
   // Banner timeout useEffect with the custom hook
   useAutoCloseBanner(state.bannerOpen, state.bannerMessage, () =>
@@ -511,6 +568,19 @@ function UsersFormContainer() {
 
   /* Handles delete button */
   function handleDelete() {
+    if (state.user?.role === "super_admin") {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message:
+            t("userDeleteSuperAdminBlocked") ||
+            "Super admin accounts cannot be deleted.",
+        },
+      });
+      return;
+    }
     dispatch({type: "SET_DANGER_MODAL", payload: true});
   }
 
@@ -572,6 +642,10 @@ function UsersFormContainer() {
         });
       }, 100);
     } catch (error) {
+      if (error?.code === API_ERROR_CODES.PROPERTY_OWNER) {
+        dispatch({type: "SET_OWNERSHIP_TRANSFER_MODAL", payload: true});
+        return;
+      }
       dispatch({
         type: "SET_BANNER",
         payload: {
@@ -679,6 +753,9 @@ function UsersFormContainer() {
   // Track if contact has been selected by user
   const [contactSelectedByUser, setContactSelectedByUser] = useState(false);
   const [subscriptionNavigating, setSubscriptionNavigating] = useState(false);
+  const [propertySummaryLoading, setPropertySummaryLoading] = useState(false);
+  const [ownerPropertyCount, setOwnerPropertyCount] = useState(0);
+  const [invitedPropertyCount, setInvitedPropertyCount] = useState(0);
 
   // Handler for contact change
   function handleContactChange(value) {
@@ -816,6 +893,10 @@ function UsersFormContainer() {
     }
   };
 
+  const handleNavigateToProperties = () => {
+    navigate(`/${accountUrl}/properties`);
+  };
+
   // Add a helper function for label classes
   const getLabelClasses = () => {
     return "block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400";
@@ -913,6 +994,64 @@ function UsersFormContainer() {
         </ModalBlank>
       </div>
 
+      <div className="m-1.5">
+        <ModalBlank
+          id="ownership-transfer-modal"
+          modalOpen={state.ownershipTransferModalOpen}
+          setModalOpen={(open) =>
+            dispatch({type: "SET_OWNERSHIP_TRANSFER_MODAL", payload: open})
+          }
+        >
+          <div className="p-5 flex space-x-4">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-amber-100 dark:bg-amber-900/30">
+              <svg
+                className="shrink-0 fill-current text-amber-600 dark:text-amber-400"
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                aria-hidden
+              >
+                <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 12c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm1-3H7V4h2v5z" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="mb-2">
+                <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                  {t("userDeleteTransferOwnershipTitle") ||
+                    "Transfer ownership first"}
+                </div>
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-300 mb-6 space-y-3">
+                {state.user?.name && (
+                  <p className="font-medium text-gray-800 dark:text-gray-200">
+                    {state.user.name}
+                  </p>
+                )}
+                <p>
+                  {t("userDeleteTransferOwnershipBody") ||
+                    "This user still owns one or more properties. Transfer property ownership to another team member (Share / Team on the property), then try deleting again."}
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end">
+                <button
+                  type="button"
+                  className="btn-sm bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dispatch({
+                      type: "SET_OWNERSHIP_TRANSFER_MODAL",
+                      payload: false,
+                    });
+                  }}
+                >
+                  {t("ok") || "OK"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalBlank>
+      </div>
+
       <div>
         {/* Navigation and Actions */}
         <div className="flex justify-between items-center mb-2">
@@ -933,7 +1072,12 @@ function UsersFormContainer() {
 
           <div className="flex items-center gap-3">
             {state.user && (
-              <DropdownFilter onDelete={handleDelete} align="right" />
+              <DropdownFilter
+                onDelete={
+                  state.user?.role === "super_admin" ? undefined : handleDelete
+                }
+                align="right"
+              />
             )}
             <button
               className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
@@ -944,71 +1088,125 @@ function UsersFormContainer() {
           </div>
         </div>
 
-        <div className="flex justify-between items-center mb-2">
-          {/* Contact Link Button and Status - Left aligned */}
-          <div className="flex items-center gap-3">
-            {/* Contact Link Button - Only shows saved contact from database */}
-            {savedContact ? (
-              <button
-                onClick={handleNavigateToSavedContact}
-                className="flex items-center gap-2 px-3 py-2 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 transition-all duration-200 ml-4"
-              >
-                <UserCircle className="w-4 h-4 flex-shrink-0" />
-                <span className="text-sm font-semibold">
-                  Contact <span className="font-normal">1</span>
-                </span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 ml-4">
-                <UserCircle className="w-4 h-4 flex-shrink-0" />
-                <span className="text-sm font-medium">
-                  Contact <span className="font-normal">0</span>
-                </span>
-              </div>
-            )}
+        <div className="flex justify-between items-center gap-2 mb-2 min-w-0">
+          {/* Smart buttons + status: horizontal scroll when the row overflows */}
+          <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]">
+            <div className="flex flex-nowrap items-center gap-3 py-1 pl-1 pr-2 sm:pl-0 sm:pr-1">
+              {/* Contact Link Button - Only shows saved contact from database */}
+              {savedContact ? (
+                <button
+                  onClick={handleNavigateToSavedContact}
+                  className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 transition-all duration-200 ml-3 sm:ml-4"
+                >
+                  <UserCircle className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-sm font-semibold whitespace-nowrap">
+                    Contact <span className="font-normal">1</span>
+                  </span>
+                </button>
+              ) : (
+                <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 ml-3 sm:ml-4">
+                  <UserCircle className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-sm font-medium whitespace-nowrap">
+                    Contact <span className="font-normal">0</span>
+                  </span>
+                </div>
+              )}
 
-            {state.user ? (
-              <button
-                type="button"
-                onClick={handleNavigateToSubscription}
-                disabled={subscriptionNavigating}
-                className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-all duration-200 ${
-                  subscriptionNavigating
-                    ? "bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                    : "bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                <CreditCard className="w-4 h-4 flex-shrink-0" />
-                <span className="text-sm font-semibold">
-                  {subscriptionNavigating ? "Loading..." : "Subscription"}
-                </span>
-              </button>
-            ) : null}
-
-            {/* Activated/Pending Status - Informational only */}
-            {state.user &&
-              (!state.user.isActive && !state.user.is_active ? (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437]">
-                    <span>Pending</span>
-                  </div>
+              {state.user ? (
+                ownerPropertyCount > 0 && !propertySummaryLoading ? (
                   <button
                     type="button"
-                    onClick={() => sendUserInvitation(state.user)}
-                    className="text-sm font-medium text-[#456564] dark:text-[#8fa3a2] hover:underline"
+                    onClick={handleNavigateToProperties}
+                    className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 transition-all duration-200"
                   >
-                    {t("resendInvitationEmail") || "Resend invitation email"}
+                    <Building2 className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm font-semibold whitespace-nowrap">
+                      Properties{" "}
+                      <span className="font-normal">{ownerPropertyCount}</span>
+                    </span>
                   </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]">
-                  <span>Active</span>
-                </div>
-              ))}
+                ) : (
+                  <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400">
+                    <Building2 className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm font-medium whitespace-nowrap">
+                      Properties{" "}
+                      <span className="font-normal">
+                        {propertySummaryLoading ? "…" : ownerPropertyCount}
+                      </span>
+                    </span>
+                  </div>
+                )
+              ) : null}
+
+              {state.user ? (
+                invitedPropertyCount > 0 && !propertySummaryLoading ? (
+                  <button
+                    type="button"
+                    onClick={handleNavigateToProperties}
+                    className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 transition-all duration-200"
+                  >
+                    <MailOpen className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm font-semibold whitespace-nowrap">
+                      Invited{" "}
+                      <span className="font-normal">{invitedPropertyCount}</span>
+                    </span>
+                  </button>
+                ) : (
+                  <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400">
+                    <MailOpen className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm font-medium whitespace-nowrap">
+                      Invited{" "}
+                      <span className="font-normal">
+                        {propertySummaryLoading ? "…" : invitedPropertyCount}
+                      </span>
+                    </span>
+                  </div>
+                )
+              ) : null}
+
+              {state.user ? (
+                <button
+                  type="button"
+                  onClick={handleNavigateToSubscription}
+                  disabled={subscriptionNavigating}
+                  className={`shrink-0 flex items-center gap-2 px-3 py-2 border rounded-lg transition-all duration-200 ${
+                    subscriptionNavigating
+                      ? "bg-gray-100 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                      : "bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-sm font-semibold whitespace-nowrap">
+                    {subscriptionNavigating ? "Loading..." : "Subscription"}
+                  </span>
+                </button>
+              ) : null}
+
+              {/* Activated/Pending Status - Informational only */}
+              {state.user &&
+                (!state.user.isActive && !state.user.is_active ? (
+                  <div className="shrink-0 flex items-center gap-3">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437] whitespace-nowrap">
+                      <span>Pending</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => sendUserInvitation(state.user)}
+                      className="text-sm font-medium text-[#456564] dark:text-[#8fa3a2] hover:underline whitespace-nowrap"
+                    >
+                      {t("resendInvitationEmail") || "Resend invitation email"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d] whitespace-nowrap">
+                    <span>Active</span>
+                  </div>
+                ))}
+            </div>
           </div>
 
           {/* User Navigation */}
-          <div className="flex items-center">
+          <div className="flex items-center shrink-0">
             {state.user && location.state && (
               <>
                 <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
