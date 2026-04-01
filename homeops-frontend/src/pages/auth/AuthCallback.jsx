@@ -77,6 +77,17 @@ function AuthCallback() {
         });
         return;
       }
+      if (params.error === "no_account") {
+        navigate("/signup", {
+          replace: true,
+          state: {
+            fromSignin: true,
+            oauthNoAccount: true,
+            oauthNoAccountMessage: ERROR_MESSAGES.no_account,
+          },
+        });
+        return;
+      }
       setStatus("error");
       setErrorMessage(ERROR_MESSAGES[params.error] || params.error);
     } else {

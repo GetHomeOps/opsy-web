@@ -1,5 +1,5 @@
 import React, {useState, useEffect, useRef} from "react";
-import {Link, useNavigate} from "react-router-dom";
+import {Link, useLocation, useNavigate} from "react-router-dom";
 import {
   AlertCircle,
   ChevronLeft,
@@ -29,6 +29,7 @@ function isValidPassword(password) {
 
 function Signup() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {signup, currentUser} = useAuth();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -44,6 +45,10 @@ function Signup() {
   const [pendingVerification, setPendingVerification] = useState(null);
   const justSignedUp = useRef(false);
   const passwordRef = useRef(null);
+  const oauthNoAccountMessage = location.state?.oauthNoAccount
+    ? location.state?.oauthNoAccountMessage ||
+      "No account found with this Google account. Please sign up first."
+    : null;
 
   useEffect(() => {
     if (step === 2 && passwordRef.current) {
@@ -347,6 +352,14 @@ function Signup() {
 
             {!pendingVerification && (
               <>
+                {oauthNoAccountMessage && (
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 mb-4">
+                    <p className="text-sm text-amber-900 dark:text-amber-200">
+                      {oauthNoAccountMessage}
+                    </p>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 mb-6">
                   {step > 1 && (
                     <button
