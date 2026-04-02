@@ -1,4 +1,4 @@
-import {useLayoutEffect, useEffect} from "react";
+import {useLayoutEffect, useEffect, useRef} from "react";
 import {
   readListUiSession,
   writeListUiSession,
@@ -24,7 +24,12 @@ export default function usePersistListUiSession(
     setSortConfig,
   },
 ) {
+  // Guard: skip the first write so the initial empty state doesn't overwrite
+  // saved filters before hydration settles into the reducer.
+  const mountedRef = useRef(false);
+
   useLayoutEffect(() => {
+    mountedRef.current = false;
     if (!scopeId) return;
     const raw = readListUiSession(scopeId);
     if (!raw || typeof raw !== "object") return;
@@ -53,6 +58,10 @@ export default function usePersistListUiSession(
   }, [scopeId, dispatch, setSortConfig]);
 
   useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
     if (!scopeId) return;
     const blob = {
       searchTerm,

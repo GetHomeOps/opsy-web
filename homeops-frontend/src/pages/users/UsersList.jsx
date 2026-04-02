@@ -13,16 +13,16 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import userContext from "../../context/UserContext";
-import AppApi, {
-  API_ERROR_CODES,
-  getApiErrorMessage,
-} from "../../api/api";
+import AppApi, {API_ERROR_CODES, getApiErrorMessage} from "../../api/api";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import FilterDropdown from "../../components/FilterDropdown";
 import UsersTable from "./UsersTable";
 import ListDropdown from "../../partials/buttons/ListDropdown";
 import {useAuth} from "../../context/AuthContext";
+import usePersistListUiSession, {
+  HYDRATE_LIST_UI,
+} from "../../hooks/usePersistListUiSession";
 
 const USER_FILTER_CATEGORIES = [
   {type: "role", labelKey: "role"},
@@ -94,8 +94,7 @@ function reducer(state, action) {
         activeFilters: state.activeFilters.filter(
           (f) =>
             !(
-              f.type === action.payload.type &&
-              f.value === action.payload.value
+              f.type === action.payload.type && f.value === action.payload.value
             ),
         ),
         currentPage: 1,
@@ -126,6 +125,17 @@ function reducer(state, action) {
         ownershipTransferModalOpen: action.payload.open,
         ownershipTransferLabels: action.payload.labels ?? [],
       };
+    case HYDRATE_LIST_UI: {
+      const p = action.payload || {};
+      const next = {...state};
+      if (typeof p.searchTerm === "string") next.searchTerm = p.searchTerm;
+      if (Array.isArray(p.activeFilters)) next.activeFilters = p.activeFilters;
+      if (Number.isFinite(Number(p.itemsPerPage)))
+        next.itemsPerPage = Number(p.itemsPerPage);
+      if (Number.isFinite(Number(p.currentPage)))
+        next.currentPage = Number(p.currentPage);
+      return next;
+    }
     default:
       return state;
   }
@@ -164,11 +174,20 @@ function UsersList() {
   const navigate = useNavigate();
   const {accountUrl} = useParams();
   const {currentUser} = useAuth();
+  const listScopeId = accountUrl ? `users:${accountUrl}` : "";
 
   // Set up component's initial state
   const [state, dispatch] = useReducer(reducer, {
     ...initialState,
     currentPage: Number(localStorage.getItem(PAGE_STORAGE_KEY)) || 1,
+  });
+
+  usePersistListUiSession(listScopeId, {
+    dispatch,
+    searchTerm: state.searchTerm,
+    activeFilters: state.activeFilters,
+    itemsPerPage: state.itemsPerPage,
+    currentPage: state.currentPage,
   });
 
   // Refetch users when navigating to this page to ensure all users are loaded
@@ -414,9 +433,7 @@ function UsersList() {
         } catch (error) {
           if (error?.code === API_ERROR_CODES.PROPERTY_OWNER) {
             const u = filteredUsers.find((x) => x.id === Number(userId));
-            ownershipTransferLabels.push(
-              u?.name || u?.email || `#${userId}`,
-            );
+            ownershipTransferLabels.push(u?.name || u?.email || `#${userId}`);
           } else {
             failureMessages.push(
               getApiErrorMessage(error, "Could not delete user."),
@@ -823,9 +840,8 @@ function UsersList() {
                     >
                       <span className="text-violet-400 dark:text-violet-500 font-normal">
                         {t(
-                          USER_FILTER_CATEGORIES.find(
-                            (c) => c.type === f.type,
-                          )?.labelKey ?? f.type,
+                          USER_FILTER_CATEGORIES.find((c) => c.type === f.type)
+                            ?.labelKey ?? f.type,
                         )}
                         :
                       </span>
