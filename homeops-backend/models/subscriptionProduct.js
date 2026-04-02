@@ -436,6 +436,20 @@ class SubscriptionProduct {
       }
     }
 
+    if (productData.targetRole !== undefined) {
+      const cur = await db.query(
+        `SELECT target_role AS "targetRole", popular FROM subscription_products WHERE id = $1`,
+        [id]
+      );
+      const row = cur.rows[0];
+      if (row && row.targetRole !== productData.targetRole && row.popular) {
+        await db.query(
+          `UPDATE subscription_products SET popular = false, updated_at = NOW() WHERE id = $1`,
+          [id]
+        );
+      }
+    }
+
     const jsToSql = {
       name: "name",
       description: "description",

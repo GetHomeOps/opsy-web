@@ -13,6 +13,9 @@ import DataTableItem from "../../components/DataTableItem";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
 import ListDropdown from "../../partials/buttons/ListDropdown";
+import usePersistListUiSession, {
+  HYDRATE_LIST_UI,
+} from "../../hooks/usePersistListUiSession";
 
 const PAGE_STORAGE_KEY = "subscriptions_list_page";
 
@@ -91,6 +94,17 @@ function reducer(state, action) {
       return {...state, subscriptions: action.payload};
     case "SET_SELECTED_ITEMS":
       return {...state, selectedItems: action.payload};
+    case HYDRATE_LIST_UI: {
+      const p = action.payload || {};
+      const next = {...state};
+      if (typeof p.searchTerm === "string") next.searchTerm = p.searchTerm;
+      if (Array.isArray(p.activeFilters)) next.activeFilters = p.activeFilters;
+      if (Number.isFinite(Number(p.itemsPerPage)))
+        next.itemsPerPage = Number(p.itemsPerPage);
+      if (Number.isFinite(Number(p.currentPage)))
+        next.currentPage = Number(p.currentPage);
+      return next;
+    }
     default:
       return state;
   }
@@ -295,9 +309,21 @@ function SubscriptionsList() {
   const isSuperAdmin = currentUser?.role === "super_admin";
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
+  const listScopeId = accountUrl ? `subscriptions:${accountUrl}` : "";
+
   // Sort state
   const [sortConfig, setSortConfig] = useState({key: null, direction: null});
   const [isBackfilling, setIsBackfilling] = useState(false);
+
+  usePersistListUiSession(listScopeId, {
+    dispatch,
+    searchTerm: state.searchTerm,
+    activeFilters: state.activeFilters,
+    itemsPerPage: state.itemsPerPage,
+    currentPage: state.currentPage,
+    sortConfig,
+    setSortConfig,
+  });
 
   // Fetch subscriptions on mount
   useEffect(() => {

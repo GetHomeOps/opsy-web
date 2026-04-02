@@ -10,6 +10,22 @@
 const db = require("../db");
 const { NotFoundError, BadRequestError } = require("../expressError");
 
+/**
+ * Public plan lists must show at most one "Most popular" badge. Legacy rows may have multiple
+ * popular=true; keep the first by sort order (query ORDER BY already applied).
+ */
+function normalizeSinglePopularInList(plans) {
+  if (!plans?.length) return plans;
+  let kept = false;
+  for (const p of plans) {
+    if (p.popular) {
+      if (kept) p.popular = false;
+      else kept = true;
+    }
+  }
+  return plans;
+}
+
 /** Resolve unit_amount from Stripe when DB has null. Returns { unitAmount, currency } or null. */
 async function resolvePriceFromStripe(stripePriceId) {
   if (!stripePriceId) return null;
@@ -97,7 +113,7 @@ async function getPlansForAudience(audienceType) {
       };
     }
   }
-  return plans;
+  return normalizeSinglePopularInList(plans);
 }
 
 /** Get plan by code. */
@@ -171,21 +187,61 @@ async function updatePlan(productId, data) {
   return getPlanById(productId);
 }
 
+/**
+ * Clear duplicate popular flags so at most one row per target_role has popular = true.
+ * Keeps the row with lowest sort_order, then lowest id. Run before creating the partial unique index.
+ */
+async function dedupePopularPerRole() {
+  await db.query(`
+    WITH ranked AS (
+      SELECT id,
+             ROW_NUMBER() OVER (
+               PARTITION BY target_role
+               ORDER BY sort_order ASC NULLS LAST, id ASC
+             ) AS rn
+      FROM subscription_products
+      WHERE popular = true
+    )
+    UPDATE subscription_products sp
+    SET popular = false, updated_at = NOW()
+    FROM ranked r
+    WHERE sp.id = r.id AND r.rn > 1
+  `);
+}
+
 /** Set a plan as the "most popular" for its target_role. Clears popular from sibling plans. */
 async function setPopular(productId, isPopular) {
-  if (isPopular) {
-    const plan = await db.query(`SELECT target_role FROM subscription_products WHERE id = $1`, [productId]);
-    if (!plan.rows[0]) throw new NotFoundError(`Plan not found: ${productId}`);
-    await db.query(
-      `UPDATE subscription_products SET popular = false, updated_at = NOW()
-       WHERE target_role = $1 AND popular = true`,
-      [plan.rows[0].target_role]
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    if (isPopular) {
+      const plan = await client.query(
+        `SELECT target_role FROM subscription_products WHERE id = $1`,
+        [productId]
+      );
+      if (!plan.rows[0]) {
+        await client.query("ROLLBACK");
+        throw new NotFoundError(`Plan not found: ${productId}`);
+      }
+      await client.query(
+        `UPDATE subscription_products SET popular = false, updated_at = NOW()
+         WHERE target_role = $1 AND popular = true`,
+        [plan.rows[0].target_role]
+      );
+    }
+    await client.query(
+      `UPDATE subscription_products SET popular = $1, updated_at = NOW() WHERE id = $2`,
+      [isPopular, productId]
     );
+    await client.query("COMMIT");
+  } catch (e) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) { /* ignore */ }
+    throw e;
+  } finally {
+    client.release();
   }
-  await db.query(
-    `UPDATE subscription_products SET popular = $1, updated_at = NOW() WHERE id = $2`,
-    [isPopular, productId]
-  );
   return getPlanById(productId);
 }
 
@@ -316,6 +372,7 @@ module.exports = {
   getByCode,
   getAll,
   updatePlan,
+  dedupePopularPerRole,
   setPopular,
   updatePlanLimits,
   updatePlanFeatures,

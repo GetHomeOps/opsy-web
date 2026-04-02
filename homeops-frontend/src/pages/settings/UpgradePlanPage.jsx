@@ -20,6 +20,18 @@ import {
   PLAN_CODE_TO_SUBSCRIPTION_TIER,
 } from "../onboarding/onboardingPlans";
 
+/** At most one "Most popular" badge; list order matches API (sort_order, then price). */
+function withSinglePopularFlag(plans) {
+  if (!Array.isArray(plans) || plans.length === 0) return plans;
+  let seen = false;
+  return plans.map((p) => {
+    if (!p.popular) return p;
+    if (seen) return {...p, popular: false};
+    seen = true;
+    return p;
+  });
+}
+
 function UpgradePlanPage() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -51,7 +63,9 @@ function UpgradePlanPage() {
           .catch(() => []),
       ]);
       setBilling(statusRes);
-      setPlans(plansRes.length > 0 ? plansRes : fallbackPlans);
+      setPlans(
+        withSinglePopularFlag(plansRes.length > 0 ? plansRes : fallbackPlans),
+      );
     } catch (err) {
       setError(err?.message || "Failed to load plans");
     } finally {
@@ -103,7 +117,7 @@ function UpgradePlanPage() {
         });
         window.dispatchEvent(new Event("plans-updated"));
         navigate(`/${accountUrl}/settings/billing`, {
-          state: { planChanged: plan.name || plan.code },
+          state: {planChanged: plan.name || plan.code},
         });
       } catch (err) {
         setError(
@@ -195,7 +209,7 @@ function UpgradePlanPage() {
       <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow">
-          <div className={PAGE_LAYOUT.settings}>
+          <div className={PAGE_LAYOUT.settingsWide}>
             {/* Back button */}
             <button
               type="button"
@@ -277,7 +291,7 @@ function UpgradePlanPage() {
                 <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
               </div>
             ) : (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 items-start">
+              <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-start">
                 {plans.map((plan) => {
                   const isCurrent = plan.code === currentPlanCode;
                   const planIdx = getPlanTierIndex(plan.code);

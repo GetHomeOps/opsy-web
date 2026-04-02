@@ -21,6 +21,18 @@ import {
   PLAN_CODE_TO_SUBSCRIPTION_TIER,
 } from "./onboardingPlans";
 
+/** At most one "Most popular" badge per list (API order). */
+function withSinglePopularFlag(plans) {
+  if (!Array.isArray(plans) || plans.length === 0) return plans;
+  let seen = false;
+  return plans.map((p) => {
+    if (!p.popular) return p;
+    if (seen) return {...p, popular: false};
+    seen = true;
+    return p;
+  });
+}
+
 const ROLE_OPTIONS = [
   {
     id: "homeowner",
@@ -273,10 +285,11 @@ function Step2Plan({
   subscriptionProducts = [],
   apiLoading,
 }) {
-  const plans =
+  const plans = withSinglePopularFlag(
     apiPlans && apiPlans.length > 0
       ? apiPlans
-      : buildFallbackPlans(role, subscriptionProducts);
+      : buildFallbackPlans(role, subscriptionProducts),
+  );
   const hasPaidPlans = plans.some(
     (p) =>
       p.stripePrices?.month?.unitAmount > 0 ||
@@ -565,7 +578,7 @@ export default function OnboardingWizard() {
           .catch(() => []),
         AppApi.getSubscriptionProductsByRole(role).catch(() => []),
       ]);
-      setApiPlans(plans);
+      setApiPlans(withSinglePopularFlag(plans));
       setSubscriptionProducts(Array.isArray(products) ? products : []);
     } finally {
       setApiLoading(false);
@@ -584,12 +597,13 @@ export default function OnboardingWizard() {
     return () => window.removeEventListener("plans-updated", onPlansUpdated);
   }, [role, loadPlans]);
 
-  const availablePlans =
-    apiPlans && apiPlans.length > 0
-      ? apiPlans
-      : role
-        ? buildFallbackPlans(role, subscriptionProducts)
-        : [];
+  const availablePlans = role
+    ? withSinglePopularFlag(
+        apiPlans && apiPlans.length > 0
+          ? apiPlans
+          : buildFallbackPlans(role, subscriptionProducts),
+      )
+    : [];
   const selectedPlan = availablePlans.find((p) => (p.code || p.id) === plan);
   const isFreePlan =
     Boolean(plan) && isZeroCostPlan(selectedPlan, billingInterval);

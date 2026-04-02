@@ -21,6 +21,9 @@ export const PAGE_LAYOUT = {
   formPaddingX: "px-0 sm:px-4 lg:px-5 xxl:px-12",
   /** Settings pages (Configuration, Billing, Support forms): matches form padding & width */
   settings: "px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-5xl mx-auto",
+  /** Settings pages with multi-column layouts (e.g. pricing): tighter gutters, wider max width */
+  settingsWide:
+    "px-0 sm:px-2 lg:px-3 xxl:px-8 py-8 w-full max-w-6xl mx-auto",
 };
 
 /** Shared card styling for Settings pages (Configuration, Support, etc.) */

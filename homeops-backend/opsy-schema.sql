@@ -479,6 +479,11 @@ CREATE TABLE subscription_products (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- At most one "most popular" subscription tier per user role (homeowner / agent)
+CREATE UNIQUE INDEX idx_subscription_products_popular_per_role
+    ON subscription_products (target_role)
+    WHERE (popular = true);
+
 CREATE TABLE account_subscriptions (
     id SERIAL PRIMARY KEY,
     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
