@@ -49,6 +49,16 @@ router.get("/accounts", ensurePlatformAdmin, async function (req, res, next) {
   }
 });
 
+/** GET /accounts/activity - Per-account user activity: logins, sessions, pages, patterns. Platform admin only. */
+router.get("/accounts/activity", ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    const accounts = await PlatformMetrics.getUserActivityByAccount();
+    return res.json({ accounts });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** GET /accounts/:accountId - Single account analytics. Platform admin only. */
 router.get("/accounts/:accountId", ensurePlatformAdmin, async function (req, res, next) {
   try {

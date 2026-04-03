@@ -48,6 +48,7 @@ const {
 } = require("../services/emailVerificationService");
 const { onUserCreated } = require("../services/resourceAutoSend");
 const commAutoSend = require("../services/commAutoSend");
+const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
 const stripeService = require("../services/stripeService");
 const Account = require("../models/account");
 const Contact = require("../models/contact");
@@ -223,6 +224,14 @@ router.post("/register", async function (req, res, next) {
     } catch (commErr) {
       console.error("[commAutoSend] register:", commErr.message);
     }
+
+    notifyNewUserAccount({
+      userId: newUser.id,
+      email: newUser.email,
+      name: newUser.name,
+      role: "homeowner",
+      source: "email_password_signup",
+    }).catch((e) => console.error("[opsTeamNotify] register:", e.message));
 
     let sendFailed = false;
     try {
@@ -626,6 +635,13 @@ async function handleGoogleCallback(req, res, next, intent) {
           user = { ...newUser, contact: contact.id };
           onUserCreated({ userId: user.id, role: user.role || null })
             .catch((autoErr) => console.error("[resourceAutoSend] Google signup:", autoErr.message));
+          notifyNewUserAccount({
+            userId: newUser.id,
+            email: newUser.email,
+            name: newUser.name,
+            role: newUser.role || "homeowner",
+            source: "google_signup",
+          }).catch((e) => console.error("[opsTeamNotify] Google signup:", e.message));
         } catch (err) {
           await db.query("ROLLBACK");
           throw err;

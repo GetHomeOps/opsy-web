@@ -25,6 +25,7 @@ const Subscription = require("../models/subscription");
 const { onUserCreated } = require("./resourceAutoSend");
 const Notification = require("../models/notification");
 const { syncPropertyMissingAgentAdminNotifications } = require("./propertyMissingAgentNotifications");
+const { notifyNewUserAccount } = require("./opsTeamNotifyService");
 const { sendInvitationEmail } = require("./emailService");
 const { APP_BASE_URL } = require("../config");
 const { canAddContact } = require("./tierService");
@@ -388,6 +389,16 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
     await User.setEmailVerified(user.id, true);
 
     await db.query("COMMIT");
+
+    if (createdNewUserViaInvite) {
+      notifyNewUserAccount({
+        userId: user.id,
+        email: user.email || invitation.inviteeEmail,
+        name: user.name || name || invitation.inviteeEmail,
+        role: user.role || "homeowner",
+        source: "invitation_signup",
+      }).catch((e) => console.error("[opsTeamNotify] invitation new user:", e.message));
+    }
 
     if (accepted.type === "property") {
       try {

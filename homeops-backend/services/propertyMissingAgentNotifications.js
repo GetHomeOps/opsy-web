@@ -8,6 +8,7 @@
 
 const db = require("../db");
 const Notification = require("../models/notification");
+const { notifyPropertyMissingAgent } = require("./opsTeamNotifyService");
 
 const OPSY_AGENT_USER_ROLES = ["agent", "admin", "super_admin"];
 
@@ -55,7 +56,10 @@ async function syncPropertyMissingAgentAdminNotifications(propertyId) {
   }
 
   const propRes = await db.query(
-    `SELECT id, address, city, state, property_uid FROM properties WHERE id = $1`,
+    `SELECT p.id, p.address, p.city, p.state, p.property_uid, p.account_id, a.url AS account_url
+     FROM properties p
+     LEFT JOIN accounts a ON a.id = p.account_id
+     WHERE p.id = $1`,
     [pid]
   );
   const prop = propRes.rows[0];
@@ -65,6 +69,7 @@ async function syncPropertyMissingAgentAdminNotifications(propertyId) {
   if (!adminIds.length) return;
 
   const title = buildTitle(prop);
+  let sentOpsEmail = false;
 
   for (const userId of adminIds) {
     const dup = await db.query(
@@ -80,6 +85,12 @@ async function syncPropertyMissingAgentAdminNotifications(propertyId) {
       title,
       propertyId: pid,
     });
+    if (!sentOpsEmail) {
+      sentOpsEmail = true;
+      notifyPropertyMissingAgent(prop).catch((err) =>
+        console.error("[propertyMissingAgent] ops email:", err.message)
+      );
+    }
   }
 }
 

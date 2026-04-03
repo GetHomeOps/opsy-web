@@ -95,6 +95,41 @@ function isSesConfigured() {
   return !!(process.env.SES_FROM_EMAIL && process.env.SES_FROM_EMAIL.trim());
 }
 
+/** Comma- or semicolon-separated list; default HeyOpsy@heyopsy.com */
+function getOpsTeamNotifyRecipients() {
+  const raw = (process.env.OPS_TEAM_NOTIFY_EMAIL || "HeyOpsy@heyopsy.com").trim();
+  if (!raw) return [];
+  return [...new Set(raw.split(/[,;]+/).map((s) => s.trim()).filter(Boolean))];
+}
+
+/**
+ * Internal ops alerts (new accounts, tickets, property coverage). Uses SES when configured.
+ * When SES is off, logs a short line (local dev).
+ */
+async function sendOpsTeamInternalNotification({ subject, innerHtml }) {
+  const recipients = getOpsTeamNotifyRecipients();
+  if (!recipients.length) {
+    console.warn("[emailService] OPS team notify: no recipients (OPS_TEAM_NOTIFY_EMAIL empty)");
+    return { success: false, reason: "no_recipients" };
+  }
+  const safeSubject = subject.length > 200 ? `${subject.slice(0, 197)}...` : subject;
+  const fullSubject = `${brandName} (ops): ${safeSubject}`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+      ${innerHtml}
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+  if (!isSesConfigured()) {
+    console.info(`[emailService] OPS notify (SES not configured): ${fullSubject}`);
+    return { success: false, reason: "ses_not_configured" };
+  }
+  for (const to of recipients) {
+    await sendViaSes({ to, subject: fullSubject, html });
+  }
+  return { success: true };
+}
+
 function chunkBase64(value, size = 76) {
   const chunks = [];
   for (let i = 0; i < value.length; i += size) chunks.push(value.slice(i, i + size));
@@ -569,4 +604,6 @@ module.exports = {
   sendScheduleNotificationEmail,
   sendProfessionalContactEmail,
   sendCommunicationNotifyEmail,
+  getOpsTeamNotifyRecipients,
+  sendOpsTeamInternalNotification,
 };

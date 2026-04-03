@@ -28,6 +28,7 @@ const { BadRequestError, ForbiddenError } = require("../expressError");
 const User = require("../models/user");
 const userUpdateSchema = require("../schemas/userUpdate.json");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
+const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
 
 const router = express.Router();
 
@@ -50,6 +51,14 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
     if (image) {
       await User.update({ id: newUser.id, image });
     }
+
+    notifyNewUserAccount({
+      userId: newUser.id,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role || "homeowner",
+      source: "admin_created_user",
+    }).catch((e) => console.error("[opsTeamNotify] admin create user:", e.message));
 
     const user = await User.getById(newUser.id);
     return res.status(201).json({ user });

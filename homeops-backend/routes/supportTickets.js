@@ -6,6 +6,7 @@ const { BadRequestError, UnauthorizedError, ForbiddenError } = require("../expre
 const SupportTicket = require("../models/supportTicket");
 const User = require("../models/user");
 const Account = require("../models/account");
+const { notifyNewSupportOrFeedbackTicket } = require("../services/opsTeamNotifyService");
 
 const router = express.Router();
 
@@ -47,6 +48,9 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
       currentValue: currentValue ?? undefined,
       requestedValue: requestedValue ?? undefined,
     });
+    notifyNewSupportOrFeedbackTicket(ticket).catch((e) =>
+      console.error("[opsTeamNotify] support ticket:", e.message)
+    );
     return res.status(201).json({ ticket });
   } catch (err) {
     return next(err);

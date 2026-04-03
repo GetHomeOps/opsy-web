@@ -130,6 +130,7 @@ async function create({
     [accountId]
   );
   ticket.createdByName = creator.rows[0]?.name || creator.rows[0]?.email;
+  ticket.createdByEmail = creator.rows[0]?.email;
   ticket.accountName = account.rows[0]?.name;
   ticket.accountUrl = account.rows[0]?.url;
   return ticket;

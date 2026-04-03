@@ -75,6 +75,13 @@ export const SIDEBAR_CONFIG = [
         roles: "adminOnly",
         children: [
           {
+            id: "account-analytics",
+            label: "Account Analytics",
+            path: "dashboard/accounts",
+            icon: icon(UsersRound),
+            roles: "adminOnly",
+          },
+          {
             id: "agent-analytics",
             label: "Agent Analytics",
             path: "dashboard/agent-analytics",
@@ -115,7 +122,7 @@ export const SIDEBAR_CONFIG = [
         children: [
           {
             id: "professionals",
-            label: "Professionals",
+            label: "Professionals (Beta)",
             path: "professionals",
             activePaths: ["professionals", "my-professionals"],
             excludeFromActive: [

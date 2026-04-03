@@ -174,10 +174,16 @@ function ProfessionalDirectory() {
               <div className="relative z-10 px-6 sm:px-10 py-10 sm:py-14">
                 <div className="max-w-2xl mx-auto text-center">
                   <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight mb-3">
-                    Find Home Service Professionals
+                    Find Home Service Professionals (Beta)
                   </h1>
-                  <p className="text-white/80 text-sm sm:text-base lg:text-lg mb-8 max-w-lg mx-auto leading-relaxed">
+                  <p className="text-white/80 text-sm sm:text-base lg:text-lg mb-4 max-w-lg mx-auto leading-relaxed">
                     Browse top-rated local pros for any home project
+                  </p>
+                  <p className="text-white/65 text-xs sm:text-sm max-w-xl mx-auto leading-relaxed mb-8">
+                    We&apos;re actively growing this directory, and some data may
+                    be incomplete—for example, emails may be missing. We suggest
+                    visiting each contractor&apos;s website first for the most
+                    accurate contact information.
                   </p>
                   <div className="flex flex-col gap-4 items-center">
                     <LocationBar

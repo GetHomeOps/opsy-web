@@ -452,6 +452,210 @@ class PlatformMetrics {
   }
 
   /**
+   * Build day×hour cells: page_view counts plus estimated dwell time (ms) from
+   * gaps between consecutive page_views within sessionGapMs (same user).
+   * Dwell for each gap is attributed to the hour bucket of the earlier event.
+   * @param {Array<{user_id: number, created_at: Date|string}>} rows
+   * @param {number} sessionGapMs
+   * @returns {Map<number, Array<{dayOfWeek: number, hour: number, count: number, durationMs: number}>>}
+   */
+  static _buildVisitPatternCells(rows, sessionGapMs) {
+    const key = (userId, dow, hour) => `${userId}:${dow}:${hour}`;
+    const cells = new Map();
+
+    const ensure = (userId, ts) => {
+      const d = new Date(ts);
+      const dow = d.getDay();
+      const h = d.getHours();
+      const k = key(userId, dow, h);
+      if (!cells.has(k)) {
+        cells.set(k, { userId, dayOfWeek: dow, hour: h, count: 0, durationMs: 0 });
+      }
+      return cells.get(k);
+    };
+
+    for (const r of rows) {
+      ensure(r.user_id, r.created_at).count += 1;
+    }
+
+    let curUser = null;
+    let prevTs = null;
+    for (const r of rows) {
+      const ts = new Date(r.created_at);
+      if (r.user_id !== curUser) {
+        curUser = r.user_id;
+        prevTs = ts;
+        continue;
+      }
+      const gap = ts - prevTs;
+      if (gap > 0 && gap <= sessionGapMs) {
+        ensure(curUser, prevTs).durationMs += gap;
+      }
+      prevTs = ts;
+    }
+
+    const byUser = new Map();
+    for (const c of cells.values()) {
+      if (!byUser.has(c.userId)) byUser.set(c.userId, []);
+      byUser.get(c.userId).push({
+        dayOfWeek: c.dayOfWeek,
+        hour: c.hour,
+        count: c.count,
+        durationMs: Math.round(c.durationMs),
+      });
+    }
+    return byUser;
+  }
+
+  /**
+   * Per-account user activity analytics: login frequency, session duration,
+   * pages visited, and historic visit patterns from platform_engagement_events.
+   */
+  static async getUserActivityByAccount() {
+    const [accountUsersRes, loginsRes, pageViewsRes, sessionsRes] = await Promise.all([
+      db.query(
+        `SELECT au.account_id, a.name AS account_name,
+                u.id AS user_id, u.name AS user_name, u.email AS user_email,
+                u.role::text AS user_role
+         FROM account_users au
+         JOIN accounts a ON a.id = au.account_id
+         JOIN users u ON u.id = au.user_id
+         ORDER BY a.name NULLS LAST, u.name NULLS LAST`
+      ),
+      db.query(
+        `SELECT e.user_id,
+                COUNT(*) FILTER (WHERE e.created_at >= NOW() - INTERVAL '24 hours')::int AS logins_24h,
+                COUNT(*) FILTER (WHERE e.created_at >= NOW() - INTERVAL '12 hours')::int AS logins_12h,
+                COUNT(*)::int AS logins_total,
+                MAX(e.created_at) AS last_login
+         FROM platform_engagement_events e
+         WHERE e.event_type = 'login'
+         GROUP BY e.user_id`
+      ),
+      db.query(
+        `SELECT e.user_id,
+                e.event_data->>'path' AS path,
+                COUNT(*)::int AS visit_count,
+                MAX(e.created_at) AS last_visited
+         FROM platform_engagement_events e
+         WHERE e.event_type = 'page_view'
+           AND e.event_data->>'path' IS NOT NULL
+         GROUP BY e.user_id, e.event_data->>'path'
+         ORDER BY visit_count DESC`
+      ),
+      db.query(
+        `SELECT user_id, created_at
+         FROM platform_engagement_events
+         WHERE event_type = 'page_view'
+           AND created_at >= NOW() - INTERVAL '30 days'
+         ORDER BY user_id, created_at`
+      ),
+    ]);
+
+    const loginsByUser = new Map();
+    for (const r of loginsRes.rows) {
+      loginsByUser.set(r.user_id, {
+        logins24h: r.logins_24h,
+        logins12h: r.logins_12h,
+        loginsTotal: r.logins_total,
+        lastLogin: r.last_login,
+      });
+    }
+
+    const pagesByUser = new Map();
+    for (const r of pageViewsRes.rows) {
+      if (!pagesByUser.has(r.user_id)) pagesByUser.set(r.user_id, []);
+      pagesByUser.get(r.user_id).push({
+        path: r.path,
+        visitCount: r.visit_count,
+        lastVisited: r.last_visited,
+      });
+    }
+
+    const SESSION_GAP_MS = 30 * 60 * 1000;
+    const sessionsByUser = new Map();
+    let curUser = null;
+    let sessionStart = null;
+    let sessionEnd = null;
+    let sessions = [];
+
+    const flushSession = () => {
+      if (sessionStart && sessionEnd) {
+        sessions.push({ start: sessionStart, end: sessionEnd });
+      }
+    };
+
+    for (const r of sessionsRes.rows) {
+      const ts = new Date(r.created_at);
+      if (r.user_id !== curUser) {
+        flushSession();
+        if (curUser != null) sessionsByUser.set(curUser, sessions);
+        curUser = r.user_id;
+        sessions = [];
+        sessionStart = ts;
+        sessionEnd = ts;
+      } else if (ts - sessionEnd > SESSION_GAP_MS) {
+        flushSession();
+        sessionStart = ts;
+        sessionEnd = ts;
+      } else {
+        sessionEnd = ts;
+      }
+    }
+    flushSession();
+    if (curUser != null) sessionsByUser.set(curUser, sessions);
+
+    const sessionStatsByUser = new Map();
+    for (const [uid, userSessions] of sessionsByUser) {
+      const durations = userSessions.map((s) => s.end - s.start);
+      const totalMs = durations.reduce((a, b) => a + b, 0);
+      const avgMs = durations.length > 0 ? totalMs / durations.length : 0;
+      sessionStatsByUser.set(uid, {
+        sessionCount: durations.length,
+        avgSessionMs: Math.round(avgMs),
+        totalSessionMs: totalMs,
+      });
+    }
+
+    const patternsByUser = PlatformMetrics._buildVisitPatternCells(
+      sessionsRes.rows,
+      SESSION_GAP_MS
+    );
+
+    const accountMap = new Map();
+    for (const r of accountUsersRes.rows) {
+      if (!accountMap.has(r.account_id)) {
+        accountMap.set(r.account_id, {
+          accountId: r.account_id,
+          accountName: r.account_name,
+          users: [],
+        });
+      }
+      const login = loginsByUser.get(r.user_id) || {
+        logins24h: 0, logins12h: 0, loginsTotal: 0, lastLogin: null,
+      };
+      const sess = sessionStatsByUser.get(r.user_id) || {
+        sessionCount: 0, avgSessionMs: 0, totalSessionMs: 0,
+      };
+      const pages = (pagesByUser.get(r.user_id) || []).slice(0, 20);
+      const patterns = patternsByUser.get(r.user_id) || [];
+
+      accountMap.get(r.account_id).users.push({
+        userId: r.user_id,
+        userName: r.user_name,
+        userEmail: r.user_email,
+        userRole: r.user_role || "",
+        ...login,
+        ...sess,
+        topPages: pages,
+        visitPatterns: patterns,
+      });
+    }
+
+    return [...accountMap.values()];
+  }
+
+  /**
    * Property analytics: each property with account, document count, team (property_users),
    * owner(s), and per-member activity (page views scoped to property URL, inspection AI jobs,
    * maintenance events created, invitations tied to the property).

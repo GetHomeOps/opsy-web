@@ -1198,6 +1198,11 @@ class AppApi {
     return res.analytics;
   }
 
+  static async getAccountsActivity() {
+    let res = await this.request("analytics/accounts/activity");
+    return res.accounts ?? [];
+  }
+
   /* --------- Cost Analytics (Dashboard) --------- */
 
   static async getCostSummary(params = {}) {
