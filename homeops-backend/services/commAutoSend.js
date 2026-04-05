@@ -9,6 +9,7 @@
 
 const db = require("../db");
 const Notification = require("../models/notification");
+const { notifyCommunicationRecipientsByEmail } = require("./communicationEmailNotify");
 
 const ALLOWED_TRIGGER_EVENTS = new Set([
   "user_created",
@@ -22,7 +23,7 @@ async function getRulesForTrigger(triggerEvent, accountId, triggeringUserRole) {
     triggeringUserRole === "agent" ? "agent" : "homeowner";
 
   const result = await db.query(
-    `SELECT cr.id, cr.communication_id, cr.trigger_event, cr.trigger_role,
+    `SELECT cr.id, cr.account_id AS "accountId", cr.communication_id, cr.trigger_event, cr.trigger_role,
             c.subject, c.delivery_channel AS "deliveryChannel"
      FROM comm_rules cr
      JOIN communications c ON c.id = cr.communication_id
@@ -39,7 +40,7 @@ async function getRulesForTrigger(triggerEvent, accountId, triggeringUserRole) {
   return result.rows;
 }
 
-async function sendToUser(communicationId, userId, title) {
+async function sendToUser(communicationId, userId, title, { accountId, subject } = {}) {
   await Notification.create({
     userId,
     type: "communication_sent",
@@ -52,6 +53,23 @@ async function sendToUser(communicationId, userId, title) {
      VALUES ($1, $2, 'in_app', 'delivered', NOW())`,
     [communicationId, userId]
   );
+
+  if (accountId) {
+    const ur = await db.query(
+      `SELECT id, name, email FROM users WHERE id = $1 AND is_active = true`,
+      [userId]
+    );
+    const u = ur.rows[0];
+    if (u) {
+      await notifyCommunicationRecipientsByEmail({
+        communicationId,
+        accountId,
+        subject,
+        users: [u],
+        actorUserId: null,
+      });
+    }
+  }
 }
 
 /**
@@ -67,7 +85,8 @@ async function onUserCreated({ userId, role, accountId }) {
       await sendToUser(
         rule.communication_id,
         userId,
-        `New: ${rule.subject || "Message"}`
+        `New: ${rule.subject || "Message"}`,
+        { accountId: rule.accountId, subject: rule.subject }
       );
     } catch (err) {
       console.error(
@@ -95,7 +114,8 @@ async function onPropertyInvitationAccepted({ userId, accountId, role }) {
       await sendToUser(
         rule.communication_id,
         userId,
-        `New: ${rule.subject || "Message"}`
+        `New: ${rule.subject || "Message"}`,
+        { accountId: rule.accountId, subject: rule.subject }
       );
     } catch (err) {
       console.error(

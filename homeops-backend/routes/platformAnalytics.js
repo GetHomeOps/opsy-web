@@ -52,8 +52,11 @@ router.get("/accounts", ensurePlatformAdmin, async function (req, res, next) {
 /** GET /accounts/activity - Per-account user activity: logins, sessions, pages, patterns. Platform admin only. */
 router.get("/accounts/activity", ensurePlatformAdmin, async function (req, res, next) {
   try {
-    const accounts = await PlatformMetrics.getUserActivityByAccount();
-    return res.json({ accounts });
+    const { accounts, activityHeatmapDays } =
+      await PlatformMetrics.getUserActivityByAccount({
+        timeZone: req.query.timeZone,
+      });
+    return res.json({ accounts, activityHeatmapDays });
   } catch (err) {
     return next(err);
   }

@@ -272,7 +272,8 @@ class SubscriptionProduct {
     }
     try {
       const priceRes = await db.query(
-        `SELECT billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId"
+        `SELECT billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId",
+                COALESCE(is_active, true) AS "isActive"
          FROM plan_prices WHERE subscription_product_id = $1`,
         [id]
       );
@@ -293,13 +294,15 @@ class SubscriptionProduct {
     let limitsByProduct = {};
     try {
       const priceRes = await db.query(
-        `SELECT subscription_product_id AS "subscriptionProductId", billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId", unit_amount AS "unitAmount", currency
+        `SELECT subscription_product_id AS "subscriptionProductId", billing_interval AS "billingInterval",
+                stripe_price_id AS "stripePriceId", unit_amount AS "unitAmount", currency,
+                COALESCE(is_active, true) AS "isActive"
          FROM plan_prices ORDER BY subscription_product_id, billing_interval`
       );
       for (const row of priceRes.rows) {
         const pid = row.subscriptionProductId;
         if (!pricesByProduct[pid]) pricesByProduct[pid] = [];
-        pricesByProduct[pid].push({ billingInterval: row.billingInterval, stripePriceId: row.stripePriceId, unitAmount: row.unitAmount, currency: row.currency });
+        pricesByProduct[pid].push({ billingInterval: row.billingInterval, stripePriceId: row.stripePriceId, unitAmount: row.unitAmount, currency: row.currency, isActive: row.isActive });
       }
     } catch (e) {
       pricesByProduct = {};
@@ -350,12 +353,14 @@ class SubscriptionProduct {
     try {
       const priceRes = await db.query(
         `SELECT subscription_product_id AS "subscriptionProductId", billing_interval AS "billingInterval",
-                stripe_price_id AS "stripePriceId", unit_amount AS "unitAmount", currency
+                stripe_price_id AS "stripePriceId", unit_amount AS "unitAmount", currency,
+                COALESCE(is_active, true) AS "isActive"
          FROM plan_prices WHERE subscription_product_id = ANY($1::int[])`,
         [products.map((p) => p.id)]
       );
       const pricesByProduct = {};
       for (const row of priceRes.rows) {
+        if (row.isActive === false) continue;
         const pid = row.subscriptionProductId;
         if (!pricesByProduct[pid]) pricesByProduct[pid] = [];
         let unitAmount = row.unitAmount;

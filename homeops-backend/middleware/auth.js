@@ -85,7 +85,7 @@ function userRequiresPaidSubscriptionFromInfo(user) {
   if (
     user.role === "homeowner" &&
     user.subscriptionTier &&
-    !["free", "beta_homeowner"].includes(user.subscriptionTier)
+    !["free", "homeowner_beta", "beta_homeowner"].includes(user.subscriptionTier)
   ) {
     return true;
   }

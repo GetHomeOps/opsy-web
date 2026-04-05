@@ -404,7 +404,7 @@ class User {
                  WHEN u.role = 'agent' THEN true
                 WHEN u.role = 'homeowner'
                   AND u.subscription_tier IS NOT NULL
-                  AND u.subscription_tier NOT IN ('free', 'beta_homeowner') THEN true
+                  AND u.subscription_tier NOT IN ('free', 'homeowner_beta', 'beta_homeowner') THEN true
                  ELSE false
                END AS "paidRequired",
                (paid_active.has_paid IS NOT NULL) AS "hasActivePaidSubscription",
@@ -417,7 +417,7 @@ class User {
                      WHEN u.role = 'agent' THEN true
                     WHEN u.role = 'homeowner'
                       AND u.subscription_tier IS NOT NULL
-                      AND u.subscription_tier NOT IN ('free', 'beta_homeowner') THEN true
+                      AND u.subscription_tier NOT IN ('free', 'homeowner_beta', 'beta_homeowner') THEN true
                      ELSE false
                    END
                  ) AND paid_active.has_paid IS NULL THEN 'payment_pending'

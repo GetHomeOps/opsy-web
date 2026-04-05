@@ -42,7 +42,8 @@ async function resolvePriceFromStripe(stripePriceId) {
   return null;
 }
 
-/** Get all active plans for an audience (homeowner | agent), with limits, prices, and features. */
+/** Get all active plans for an audience (homeowner | agent), with limits, prices, and features.
+ *  Only prices where is_active = true are included. Plans with zero active prices are excluded. */
 async function getPlansForAudience(audienceType) {
   const result = await db.query(
     `SELECT sp.id, sp.code, sp.name, sp.description, sp.target_role AS "targetRole",
@@ -54,8 +55,8 @@ async function getPlansForAudience(audienceType) {
     [audienceType]
   );
 
-  const plans = result.rows;
-  for (const p of plans) {
+  const plans = [];
+  for (const p of result.rows) {
     p.features = p.features || [];
 
     const limits = await db.query(
@@ -81,16 +82,20 @@ async function getPlansForAudience(audienceType) {
 
     const prices = await db.query(
       `SELECT billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId",
-              unit_amount AS "unitAmount", currency
+              unit_amount AS "unitAmount", currency,
+              COALESCE(is_active, true) AS "isActive"
        FROM plan_prices WHERE subscription_product_id = $1`,
       [p.id]
     );
-    p.prices = prices.rows.reduce((acc, r) => {
+    const activePrices = prices.rows.filter((r) => r.isActive !== false);
+    if (activePrices.length === 0) continue;
+
+    p.prices = activePrices.reduce((acc, r) => {
       acc[r.billingInterval] = r.stripePriceId;
       return acc;
     }, {});
     p.stripePrices = {};
-    for (const r of prices.rows) {
+    for (const r of activePrices) {
       let unitAmount = r.unitAmount;
       let currency = r.currency || "usd";
       if (r.stripePriceId) {
@@ -112,6 +117,8 @@ async function getPlansForAudience(audienceType) {
         currency,
       };
     }
+    p.activeBillingIntervals = activePrices.map((r) => r.billingInterval);
+    plans.push(p);
   }
   return normalizeSinglePopularInList(plans);
 }
@@ -157,7 +164,7 @@ async function getAll() {
 
     const prices = await db.query(
       `SELECT id, billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId",
-              unit_amount AS "unitAmount", currency
+              unit_amount AS "unitAmount", currency, COALESCE(is_active, true) AS "isActive"
        FROM plan_prices WHERE subscription_product_id = $1 ORDER BY billing_interval`,
       [p.id]
     );
@@ -359,12 +366,39 @@ async function getPlanById(id) {
   plan.limits = limits.rows[0];
   const prices = await db.query(
     `SELECT id, billing_interval AS "billingInterval", stripe_price_id AS "stripePriceId",
-            unit_amount AS "unitAmount", currency
+            unit_amount AS "unitAmount", currency, COALESCE(is_active, true) AS "isActive"
      FROM plan_prices WHERE subscription_product_id = $1`,
     [id]
   );
   plan.prices = prices.rows;
   return plan;
+}
+
+/** Toggle is_active on a specific plan_prices row.
+ *  When both month & year are inactive, also sets the parent subscription_product.is_active = false.
+ *  When at least one becomes active, ensures subscription_product.is_active = true. */
+async function togglePriceActive(productId, billingInterval, isActive) {
+  if (!["month", "year"].includes(billingInterval)) {
+    throw new BadRequestError("billingInterval must be month or year");
+  }
+  await db.query(
+    `UPDATE plan_prices SET is_active = $1
+     WHERE subscription_product_id = $2 AND billing_interval = $3`,
+    [isActive, productId, billingInterval]
+  );
+
+  const remaining = await db.query(
+    `SELECT billing_interval AS "billingInterval", COALESCE(is_active, true) AS "isActive"
+     FROM plan_prices WHERE subscription_product_id = $1`,
+    [productId]
+  );
+  const anyActive = remaining.rows.some((r) => r.isActive === true);
+  await db.query(
+    `UPDATE subscription_products SET is_active = $1, updated_at = NOW() WHERE id = $2`,
+    [anyActive, productId]
+  );
+
+  return getPlanById(productId);
 }
 
 module.exports = {
@@ -377,5 +411,6 @@ module.exports = {
   updatePlanLimits,
   updatePlanFeatures,
   updatePlanPrice,
+  togglePriceActive,
   getPlanById,
 };

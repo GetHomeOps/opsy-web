@@ -26,6 +26,7 @@ import propertyContext from "../../context/PropertyContext";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import UpgradePrompt from "../../components/UpgradePrompt";
+import BulkInviteModal from "./partials/BulkInviteModal";
 import usePersistListUiSession, {
   HYDRATE_LIST_UI,
 } from "../../hooks/usePersistListUiSession";
@@ -320,6 +321,7 @@ function PropertiesList() {
       onLimitReached: () => setPropertyLimitUpgradeOpen(true),
     });
   const [selectedProperties, setSelectedProperties] = useState([]);
+  const [bulkInviteOpen, setBulkInviteOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({
     key: "passport_id",
     direction: "asc",
@@ -759,48 +761,25 @@ function PropertiesList() {
     dispatch({type: "SET_DANGER_MODAL", payload: true});
   }
 
-  async function handleDuplicate() {
-    if (selectedProperties.length === 0) return;
-    dispatch({type: "SET_SUBMITTING", payload: true});
-    try {
-      const timestamp = Date.now();
-      const duplicatedProperties = selectedProperties
-        .map((id, index) => {
-          const original = properties.find((property) => property.id === id);
-          if (!original) return null;
-          return {
-            ...original,
-            id: `${original.id}-COPY-${timestamp + index}`,
-          };
-        })
-        .filter(Boolean);
-      if (duplicatedProperties.length === 0) {
-        throw new Error("No properties duplicated");
-      }
-      setProperties((prev) => [...duplicatedProperties, ...prev]);
-      const n = duplicatedProperties.length;
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "success",
-          message: `${n} ${n === 1 ? "property" : "properties"} duplicated successfully`,
-        },
-      });
-    } catch (error) {
+  function handleBulkInvite() {
+    if (selectedProperties.length === 0) {
       dispatch({
         type: "SET_BANNER",
         payload: {
           open: true,
           type: "error",
-          message:
-            error?.message || "Error duplicating properties. Please try again.",
+          message: "Please select at least one property to invite a user",
         },
       });
-    } finally {
-      dispatch({type: "SET_SUBMITTING", payload: false});
+      return;
     }
+    setBulkInviteOpen(true);
   }
+
+  const bulkInviteProperties = useMemo(
+    () => properties.filter((p) => selectedProperties.includes(p.id)),
+    [properties, selectedProperties],
+  );
 
   async function handleDelete() {
     if (selectedProperties.length === 0) return;
@@ -969,8 +948,10 @@ function PropertiesList() {
                             navigate(`/${accountUrl}/properties/import`)
                         : undefined
                     }
+                    onInviteUser={
+                      canImportProperties ? handleBulkInvite : undefined
+                    }
                     onDelete={handleDeleteClick}
-                    onDuplicate={handleDuplicate}
                   />
                 )}
                 <button
@@ -1270,6 +1251,13 @@ function PropertiesList() {
         title="Property limit reached"
         message="You've used all properties on your current plan. Upgrade to add more."
         upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
+      />
+
+      <BulkInviteModal
+        modalOpen={bulkInviteOpen}
+        setModalOpen={setBulkInviteOpen}
+        selectedProperties={bulkInviteProperties}
+        currentAccount={currentAccount}
       />
     </div>
   );

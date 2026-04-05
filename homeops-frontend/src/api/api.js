@@ -275,8 +275,8 @@ class AppApi {
     const url = buildApiUrl("auth/verify-email");
     const res = await fetch(url.toString(), {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({token}),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
     });
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -287,7 +287,7 @@ class AppApi {
   }
 
   static async resendVerificationEmail(email) {
-    return this.request("auth/resend-verification", {email}, "POST");
+    return this.request("auth/resend-verification", { email }, "POST");
   }
 
   /** Fetch current authenticated user + accounts in one request. */
@@ -528,6 +528,12 @@ class AppApi {
     return res;
   }
 
+  /** Super Admin: toggle a price interval (month/year) active or inactive */
+  static async toggleBillingPlanPriceActive(id, billingInterval, isActive) {
+    const res = await this.request(`billing/plans/${id}/prices/active`, { billingInterval, isActive }, "PATCH");
+    return res;
+  }
+
   /** Super Admin: fetch active Stripe prices for dropdown */
   static async getStripePrices() {
     const res = await this.request(`billing/stripe/prices`);
@@ -706,7 +712,7 @@ class AppApi {
   static async requestPropertyOwnershipTransfer(propertyId, toUserId) {
     return this.request(
       `properties/${propertyId}/ownership-transfer-request`,
-      {toUserId},
+      { toUserId },
       "POST",
     );
   }
@@ -1198,9 +1204,12 @@ class AppApi {
     return res.analytics;
   }
 
-  static async getAccountsActivity() {
-    let res = await this.request("analytics/accounts/activity");
-    return res.accounts ?? [];
+  static async getAccountsActivity(params = {}) {
+    let res = await this.request("analytics/accounts/activity", params);
+    return {
+      accounts: res.accounts ?? [],
+      activityHeatmapDays: res.activityHeatmapDays ?? [],
+    };
   }
 
   /* --------- Cost Analytics (Dashboard) --------- */

@@ -215,7 +215,9 @@ function AIAssistantSidebar({
   };
 
   const effectiveSystemContext =
-    activeContextType === "system" ? (overrideSystemContext || systemContext) : null;
+    activeContextType === "system"
+      ? overrideSystemContext || systemContext
+      : null;
 
   // Systems in the Change dropdown: normalize to { id: systemKey, name } for display & API
   const changeSystemOptions = (() => {
@@ -226,10 +228,8 @@ function AIAssistantSidebar({
     return raw.map((s) => {
       const systemKey = s.system_key ?? s.id;
       const displayName =
-        s.name ??
-        getSystemLabelFromAiType(systemKey) ??
-        systemKey;
-      return { id: systemKey, name: displayName };
+        s.name ?? getSystemLabelFromAiType(systemKey) ?? systemKey;
+      return {id: systemKey, name: displayName};
     });
   })();
 
@@ -256,7 +256,12 @@ function AIAssistantSidebar({
       message: initialPrompt,
       conversationId: conversationId || undefined,
       systemContext: ctx,
-      contextType: activeContextType === "property" ? "property" : activeContextType === "events" ? "events" : undefined,
+      contextType:
+        activeContextType === "property"
+          ? "property"
+          : activeContextType === "events"
+            ? "events"
+            : undefined,
     })
       .then((res) => {
         setConversationId(res.conversationId ?? null);
@@ -286,7 +291,9 @@ function AIAssistantSidebar({
           setScheduledTime("");
           setScheduleNotes("");
           const firstTask = (res.uiDirectives.tasks || [])[0];
-          setScheduleSystem(firstTask?.systemType || activeSystemId || "general");
+          setScheduleSystem(
+            firstTask?.systemType || activeSystemId || "general",
+          );
         }
       })
       .catch((err) => {
@@ -329,7 +336,12 @@ function AIAssistantSidebar({
         message: text,
         conversationId: conversationId || undefined,
         systemContext: effectiveSystemContext,
-        contextType: activeContextType === "property" ? "property" : activeContextType === "events" ? "events" : undefined,
+        contextType:
+          activeContextType === "property"
+            ? "property"
+            : activeContextType === "events"
+              ? "events"
+              : undefined,
       });
 
       setConversationId(res.conversationId ?? null);
@@ -469,19 +481,20 @@ function AIAssistantSidebar({
           isTypedEmail: true,
         }
       : null;
-  const hasExactEmailMatch = !!typedEmailOption
-    && filteredContractors.some(
+  const hasExactEmailMatch =
+    !!typedEmailOption &&
+    filteredContractors.some(
       (c) => (c.email || "").toLowerCase() === normalizedContractorSearch,
     );
-  const showTypedEmailOption = !!typedEmailOption
-    && (
-      !hasExactEmailMatch
-      || selectedContractor?.id === typedEmailOption.id
-    );
+  const showTypedEmailOption =
+    !!typedEmailOption &&
+    (!hasExactEmailMatch || selectedContractor?.id === typedEmailOption.id);
   const professionals = filteredContractors.filter(
     (c) => c.source === "professional",
   );
-  const contactsOnly = filteredContractors.filter((c) => c.source === "contact");
+  const contactsOnly = filteredContractors.filter(
+    (c) => c.source === "contact",
+  );
 
   const formatInspectionDate = (dateStr) => {
     if (!dateStr) return null;
@@ -563,32 +576,32 @@ function AIAssistantSidebar({
         )}
 
         {propertyId && (
-            <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 space-y-2">
-              {(propertyDisplayName || propertyAddressLine) && (
-                <div className="space-y-0.5 min-w-0 pr-1">
-                  {propertyDisplayName ? (
-                    <p
-                      className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate"
-                      title={propertyDisplayName}
-                    >
-                      {propertyDisplayName}
-                    </p>
-                  ) : null}
-                  {propertyAddressLine ? (
-                    <p
-                      className={`truncate ${
-                        propertyDisplayName
-                          ? "text-[11px] text-gray-500 dark:text-gray-400"
-                          : "text-xs font-semibold text-gray-800 dark:text-gray-200"
-                      }`}
-                      title={propertyAddressLine}
-                    >
-                      {propertyAddressLine}
-                    </p>
-                  ) : null}
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-2">
+          <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 space-y-2">
+            {(propertyDisplayName || propertyAddressLine) && (
+              <div className="space-y-0.5 min-w-0 pr-1">
+                {propertyDisplayName ? (
+                  <p
+                    className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate"
+                    title={propertyDisplayName}
+                  >
+                    {propertyDisplayName}
+                  </p>
+                ) : null}
+                {propertyAddressLine ? (
+                  <p
+                    className={`truncate ${
+                      propertyDisplayName
+                        ? "text-[11px] text-gray-500 dark:text-gray-400"
+                        : "text-xs font-semibold text-gray-800 dark:text-gray-200"
+                    }`}
+                    title={propertyAddressLine}
+                  >
+                    {propertyAddressLine}
+                  </p>
+                ) : null}
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-gray-500 dark:text-gray-400 min-w-0">
                 Discussing:{" "}
                 <span className="font-medium text-gray-700 dark:text-gray-300">
@@ -620,7 +633,7 @@ function AIAssistantSidebar({
                     <div className="absolute right-0 top-full mt-1 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto min-w-[180px] text-gray-900 dark:text-gray-100">
                       <button
                         type="button"
-                        onClick={() => handleChangeContext({ type: "property" })}
+                        onClick={() => handleChangeContext({type: "property"})}
                         className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${
                           activeContextType === "property"
                             ? "bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/20 dark:text-[#7aa3a2] font-medium"
@@ -632,7 +645,7 @@ function AIAssistantSidebar({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleChangeContext({ type: "events" })}
+                        onClick={() => handleChangeContext({type: "events"})}
                         className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${
                           activeContextType === "events"
                             ? "bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/20 dark:text-[#7aa3a2] font-medium"
@@ -650,7 +663,8 @@ function AIAssistantSidebar({
                           onClick={() => handleChangeContext(sys)}
                           className={`w-full text-left px-3 py-1.5 text-xs ${
                             activeContextType === "system" &&
-                            sys.id === (activeSystemId || systemContext?.systemId)
+                            sys.id ===
+                              (activeSystemId || systemContext?.systemId)
                               ? "bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/20 dark:text-[#7aa3a2] font-medium"
                               : "text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
                           }`}
@@ -662,9 +676,9 @@ function AIAssistantSidebar({
                   </>
                 )}
               </div>
-              </div>
             </div>
-          )}
+          </div>
+        )}
 
         <div className="flex-1 overflow-auto p-4 space-y-4">
           {loadingHistory && messages.length === 0 && (
@@ -913,9 +927,12 @@ function AIAssistantSidebar({
                         <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       )}
                       <div className="min-w-0">
-                        <span className="block font-medium truncate">{c.name}</span>
+                        <span className="block font-medium truncate">
+                          {c.name}
+                        </span>
                         <span className="block text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                          Professional{c.categoryName ? ` - ${c.categoryName}` : ""}
+                          Professional
+                          {c.categoryName ? ` - ${c.categoryName}` : ""}
                         </span>
                       </div>
                     </button>
@@ -941,7 +958,9 @@ function AIAssistantSidebar({
                         <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       )}
                       <div className="min-w-0">
-                        <span className="block font-medium truncate">{c.name}</span>
+                        <span className="block font-medium truncate">
+                          {c.name}
+                        </span>
                         <span className="block text-[11px] text-gray-500 dark:text-gray-400 truncate">
                           Contact{c.email ? ` - ${c.email}` : ""}
                         </span>
@@ -949,29 +968,30 @@ function AIAssistantSidebar({
                     </button>
                   ))}
 
-                  {filteredContractors.length === 0 && !showTypedEmailOption && (
-                    <p className="px-2 py-1.5 text-xs text-gray-500">
-                      No contractors found.{" "}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const origin =
-                            typeof window !== "undefined"
-                              ? window.location.origin
-                              : "";
-                          const cleanPath = (professionalsPath || "").replace(
-                            /^\//,
-                            "",
-                          );
-                          window.open(`${origin}/${cleanPath}`, "_blank");
-                        }}
-                        className="text-[#456564] hover:underline font-medium inline-flex items-center gap-0.5"
-                      >
-                        Browse professionals directory
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    </p>
-                  )}
+                  {filteredContractors.length === 0 &&
+                    !showTypedEmailOption && (
+                      <p className="px-2 py-1.5 text-xs text-gray-500">
+                        No contractors found.{" "}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const origin =
+                              typeof window !== "undefined"
+                                ? window.location.origin
+                                : "";
+                            const cleanPath = (professionalsPath || "").replace(
+                              /^\//,
+                              "",
+                            );
+                            window.open(`${origin}/${cleanPath}`, "_blank");
+                          }}
+                          className="text-[#456564] hover:underline font-medium inline-flex items-center gap-0.5"
+                        >
+                          Browse professionals directory
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                      </p>
+                    )}
                 </div>
               </div>
 
@@ -1042,7 +1062,7 @@ function AIAssistantSidebar({
         </div>
 
         {propertyId && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+          <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-gray-200 dark:border-gray-700 shrink-0">
             <div className="flex gap-2 items-end">
               <textarea
                 ref={inputRef}
@@ -1108,7 +1128,7 @@ function AIAssistantSidebar({
     <Transition
       show={isOpen}
       tag="div"
-      className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl flex flex-col"
+      className="fixed top-0 right-0 z-50 w-full max-w-sm h-[100dvh] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl flex flex-col"
       enter="transition ease-out duration-200 transform"
       enterStart="translate-x-full"
       enterEnd="translate-x-0"

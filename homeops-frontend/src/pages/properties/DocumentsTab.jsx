@@ -25,7 +25,11 @@ import AppApi from "../../api/api";
 import DatePickerInput from "../../components/DatePickerInput";
 import useDocumentUpload from "../../hooks/useDocumentUpload";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
-import {DocumentsTreeView, DocumentsPreviewPanel} from "./partials/documents";
+import {
+  DocumentsTreeView,
+  DocumentsTreeSkeleton,
+  DocumentsPreviewPanel,
+} from "./partials/documents";
 import {PROPERTY_SYSTEMS, CUSTOM_SYSTEM_DEFAULT_ICON} from "./constants/propertySystems";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../constants/documentUpload";
@@ -733,12 +737,7 @@ function DocumentsTab({
       >
         <div className="w-72 h-full rounded-l-lg overflow-hidden">
           {loading ? (
-            <div className="flex flex-col items-center justify-center h-full bg-white dark:bg-gray-800 p-8">
-              <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Loading documents…
-              </p>
-            </div>
+            <DocumentsTreeSkeleton />
           ) : fetchError ? (
             <div className="flex flex-col items-center justify-center h-full bg-white dark:bg-gray-800 p-6 text-center">
               <AlertCircle className="w-12 h-12 text-amber-500 dark:text-amber-400 mb-3" />

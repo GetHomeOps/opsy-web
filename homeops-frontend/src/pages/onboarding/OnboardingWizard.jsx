@@ -296,6 +296,9 @@ function Step2Plan({
       p.stripePrices?.year?.unitAmount > 0 ||
       (p.price != null && p.price > 0),
   );
+  const hasMonthly = plans.some((p) => p.stripePrices?.month);
+  const hasYearly = plans.some((p) => p.stripePrices?.year || p.stripePrices?.annual);
+  const showIntervalToggle = hasPaidPlans && hasMonthly && hasYearly;
   const colCount = Math.min(Math.max(plans.length, 1), 5);
   const gridColsMap = {
     1: "md:grid-cols-1",
@@ -317,7 +320,7 @@ function Step2Plan({
         </p>
       </div>
 
-      {hasPaidPlans && (
+      {showIntervalToggle && (
         <div className="flex justify-center mt-6">
           <div className="relative inline-flex rounded-full p-1 bg-white/80 dark:bg-gray-800 shadow-sm border border-gray-200/60 dark:border-gray-700">
             <button

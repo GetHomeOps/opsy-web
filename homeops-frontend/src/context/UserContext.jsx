@@ -157,101 +157,6 @@ export function UserProvider({children}) {
     }
   };
 
-  // Generate unique email for duplicate users
-  const generateUniqueEmail = (originalEmail) => {
-    if (!originalEmail) return "";
-    const [localPart, domain] = originalEmail.split("@");
-    if (!domain) return originalEmail;
-
-    let counter = 1;
-    let newEmail = `${localPart}_copy${counter}@${domain}`;
-
-    // Check if email already exists, increment counter if needed
-    while (users.some((user) => user.email === newEmail)) {
-      counter++;
-      newEmail = `${localPart}_copy${counter}@${domain}`;
-    }
-
-    return newEmail;
-  };
-
-  // Generate unique name for duplicate users
-  const generateUniqueName = (originalName) => {
-    if (!originalName) return "";
-
-    let counter = 1;
-    let newName = `${originalName} (Copy ${counter})`;
-
-    // Check if name already exists, increment counter if needed
-    while (users.some((user) => (user.name || user.fullName) === newName)) {
-      counter++;
-      newName = `${originalName} (Copy ${counter})`;
-    }
-
-    return newName;
-  };
-
-  // Duplicate a user
-  const duplicateUser = async (userToDuplicate) => {
-    if (!userToDuplicate) return null;
-
-    try {
-      const uniqueEmail = generateUniqueEmail(userToDuplicate.email);
-      const uniqueName = generateUniqueName(
-        userToDuplicate.name || userToDuplicate.fullName,
-      );
-
-      // Generate a random password for the duplicate
-      const generateRandomPassword = () => {
-        const length = 16;
-        const charset =
-          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-        const values = new Uint32Array(length);
-        crypto.getRandomValues(values);
-        return Array.from(values, (v) => charset[v % charset.length]).join("");
-      };
-
-      const userData = {
-        name: uniqueName,
-        email: uniqueEmail,
-        phone: userToDuplicate.phone || "",
-        role: userToDuplicate.role || "",
-        contact: userToDuplicate.contact || 0,
-        password: generateRandomPassword(),
-        is_active: false,
-      };
-
-      const res = await createUser(userData);
-      return res;
-    } catch (error) {
-      console.error("Error duplicating user:", error);
-      throw error;
-    }
-  };
-
-  // Handles bulk duplication of selected users
-  const bulkDuplicateUsers = async (selectedUserIds) => {
-    if (!selectedUserIds || selectedUserIds.length === 0) return [];
-
-    const results = [];
-
-    try {
-      // Duplicate each selected user
-      for (const userId of selectedUserIds) {
-        const userToDuplicate = users.find((user) => user.id === userId);
-        if (userToDuplicate) {
-          const result = await duplicateUser(userToDuplicate);
-          if (result) {
-            results.push(result);
-          }
-        }
-      }
-      return results;
-    } catch (error) {
-      throw error;
-    }
-  };
-
   const contextValue = useMemo(
     () => ({
       users,
@@ -261,8 +166,6 @@ export function UserProvider({children}) {
       setUsers,
       createUser,
       deleteUser,
-      duplicateUser,
-      bulkDuplicateUsers,
       createUserInvitation,
       confirmInvitation,
       refetchUsers,

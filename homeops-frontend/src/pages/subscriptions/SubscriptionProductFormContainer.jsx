@@ -151,6 +151,8 @@ const initialFormData = {
   aiFeaturesEnabled: true,
   stripePriceIdMonth: "",
   stripePriceIdYear: "",
+  priceActiveMonth: true,
+  priceActiveYear: true,
   features: [],
 };
 
@@ -243,6 +245,8 @@ function mapProductToForm(product) {
     aiFeaturesEnabled: lim.aiFeaturesEnabled !== false,
     stripePriceIdMonth: priceMonth?.stripePriceId || priceMonth?.stripe_price_id || "",
     stripePriceIdYear: priceYear?.stripePriceId || priceYear?.stripe_price_id || "",
+    priceActiveMonth: priceMonth ? priceMonth.isActive !== false : true,
+    priceActiveYear: priceYear ? priceYear.isActive !== false : true,
     features: Array.isArray(product.features) ? product.features.map((f) => ({
       id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
       label: f.label || "",
@@ -329,6 +333,52 @@ function SubscriptionProductFormContainer() {
       });
     } finally {
       setPopularLoading(false);
+    }
+  }
+
+  const [priceActiveLoading, setPriceActiveLoading] = useState(null);
+  const monthActive = !!state.formData.priceActiveMonth;
+  const yearActive = !!state.formData.priceActiveYear;
+  const bothInactive = !monthActive && !yearActive;
+
+  async function handleTogglePriceActive(interval) {
+    if (!state.product?.id) return;
+    const key = interval === "month" ? "priceActiveMonth" : "priceActiveYear";
+    const newValue = !state.formData[key];
+    setPriceActiveLoading(interval);
+    try {
+      await AppApi.toggleBillingPlanPriceActive(state.product.id, interval, newValue);
+      const [fullProduct, allProducts] = await Promise.all([
+        AppApi.getSubscriptionProduct(Number(id)),
+        AppApi.getAllSubscriptionProducts(),
+      ]);
+      dispatch({type: "SET_PRODUCT", payload: fullProduct});
+      setProducts(allProducts || []);
+      const intervalLabel = interval === "month" ? "Monthly" : "Yearly";
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message: newValue
+            ? `${intervalLabel} billing activated for "${state.product.name}"`
+            : `${intervalLabel} billing deactivated for "${state.product.name}"`,
+        },
+      });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("plans-updated"));
+      }
+    } catch (err) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: `Failed to update price status: ${err.message || err}`,
+        },
+      });
+    } finally {
+      setPriceActiveLoading(null);
     }
   }
 
@@ -857,9 +907,16 @@ function SubscriptionProductFormContainer() {
                 <Package className="w-6 h-6 text-[#456564]" />
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 capitalize">
-                  {getPageTitle()}
-                </h1>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 capitalize">
+                    {getPageTitle()}
+                  </h1>
+                  {!isNew && bothInactive && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-semibold">
+                      Inactive
+                    </span>
+                  )}
+                </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-gray-500 dark:text-gray-400">
                   <span>
                     {t("subscriptionProducts.userType")}: {t(`subscriptionProducts.${state.formData.targetRole}`) || state.formData.targetRole}
@@ -1291,10 +1348,62 @@ function SubscriptionProductFormContainer() {
                     Stripe Prices
                   </h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    Select prices from your Stripe account. Ensure STRIPE_SECRET_KEY is set.
+                    Select prices from your Stripe account and activate/deactivate billing intervals. Ensure STRIPE_SECRET_KEY is set.
                   </p>
+
+                  {/* Plan status warning */}
+                  {!isNew && bothInactive && (
+                    <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-4">
+                      <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Plan deactivated</p>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-0.5">
+                          Both monthly and yearly billing are off. This plan is hidden from users and cannot be purchased. Activate at least one interval to make it available.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    {/* Monthly */}
+                    <div className={`rounded-lg border p-4 transition-colors ${monthActive ? "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 opacity-60"}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Monthly</span>
+                        {!isNew && state.product && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={monthActive}
+                              aria-busy={priceActiveLoading === "month"}
+                              aria-label={monthActive ? "Deactivate monthly billing" : "Activate monthly billing"}
+                              onClick={() => handleTogglePriceActive("month")}
+                              disabled={priceActiveLoading != null}
+                              title={monthActive ? "Turn off — monthly billing won't be available" : "Turn on — enable monthly billing for this plan"}
+                              className={[
+                                "relative h-6 w-10 shrink-0 rounded-full p-0.5 transition-colors duration-200",
+                                "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800",
+                                priceActiveLoading === "month"
+                                  ? "cursor-wait border border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-700"
+                                  : monthActive
+                                    ? "bg-emerald-600 hover:bg-emerald-500"
+                                    : "bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400",
+                              ].join(" ")}
+                            >
+                              <span
+                                className={[
+                                  "pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full shadow-sm transition-transform duration-200 ease-out",
+                                  priceActiveLoading === "month" ? "bg-gray-300 dark:bg-gray-500" : "bg-white",
+                                  monthActive ? "translate-x-4" : "translate-x-0",
+                                ].join(" ")}
+                              />
+                            </button>
+                            <span className={`text-xs tabular-nums ${priceActiveLoading === "month" ? "text-gray-400" : monthActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400"}`}>
+                              {priceActiveLoading === "month" ? "Saving…" : monthActive ? "Active" : "Off"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                       <StripePriceSelect
                         label="Monthly price"
                         prices={stripePrices}
@@ -1308,7 +1417,46 @@ function SubscriptionProductFormContainer() {
                         </p>
                       )}
                     </div>
-                    <div>
+
+                    {/* Yearly */}
+                    <div className={`rounded-lg border p-4 transition-colors ${yearActive ? "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 opacity-60"}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Yearly</span>
+                        {!isNew && state.product && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={yearActive}
+                              aria-busy={priceActiveLoading === "year"}
+                              aria-label={yearActive ? "Deactivate yearly billing" : "Activate yearly billing"}
+                              onClick={() => handleTogglePriceActive("year")}
+                              disabled={priceActiveLoading != null}
+                              title={yearActive ? "Turn off — yearly billing won't be available" : "Turn on — enable yearly billing for this plan"}
+                              className={[
+                                "relative h-6 w-10 shrink-0 rounded-full p-0.5 transition-colors duration-200",
+                                "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800",
+                                priceActiveLoading === "year"
+                                  ? "cursor-wait border border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-700"
+                                  : yearActive
+                                    ? "bg-emerald-600 hover:bg-emerald-500"
+                                    : "bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400",
+                              ].join(" ")}
+                            >
+                              <span
+                                className={[
+                                  "pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full shadow-sm transition-transform duration-200 ease-out",
+                                  priceActiveLoading === "year" ? "bg-gray-300 dark:bg-gray-500" : "bg-white",
+                                  yearActive ? "translate-x-4" : "translate-x-0",
+                                ].join(" ")}
+                              />
+                            </button>
+                            <span className={`text-xs tabular-nums ${priceActiveLoading === "year" ? "text-gray-400" : yearActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400"}`}>
+                              {priceActiveLoading === "year" ? "Saving…" : yearActive ? "Active" : "Off"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                       <StripePriceSelect
                         label="Annual price"
                         prices={stripePrices}

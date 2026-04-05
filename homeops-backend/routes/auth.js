@@ -65,7 +65,9 @@ const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
   homeowner_maintain: "maintain",
   homeowner_growth: "growth",
   homeowner_win: "win",
-  beta_homeowner: "beta_homeowner",
+  homeowner_beta: "homeowner_beta",
+  /** @deprecated Legacy alias; normalize to homeowner_beta */
+  beta_homeowner: "homeowner_beta",
   agent_basic: "basic",
   agent_pro: "pro",
   agent_growth: "growth",
@@ -726,7 +728,7 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
         subscriptionTier,
       ]
     );
-    const ALWAYS_VALID_TIERS = ["free", "beta_homeowner"];
+    const ALWAYS_VALID_TIERS = ["free", "homeowner_beta"];
     if (tierCheckRes.rows.length === 0 && !ALWAYS_VALID_TIERS.includes(subscriptionTier)) {
       throw new BadRequestError(`Invalid subscriptionTier "${subscriptionTier}" for role "${role}"`);
     }
@@ -740,7 +742,7 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     }
 
     /** Tiers that can complete onboarding without Stripe. If checkout returns a session_id, we still verify below. */
-    const FREE_TIERS = ["free", "beta_homeowner"];
+    const FREE_TIERS = ["free", "homeowner_beta"];
     let isPaidTier = !FREE_TIERS.includes(subscriptionTier);
     if (isPaidTier && planCode) {
       const isZeroCost = await isPlanCodeZeroCost(planCode, billingInterval);
@@ -798,8 +800,9 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     const userRole = existingUser?.role || role;
     if (accountResult.rows[0] && !isPaidTier && !SKIP_SUBSCRIPTION_ROLES.includes(userRole)) {
       try {
-        const selectedFreePlanCode = planCode ||
-          (subscriptionTier === "beta_homeowner" ? "beta_homeowner" : "homeowner_free");
+        const selectedFreePlanCode =
+          planCode ||
+          (subscriptionTier === "homeowner_beta" ? "homeowner_beta" : "homeowner_free");
         await Subscription.ensureAccountOnPlanCode(
           accountResult.rows[0].account_id,
           selectedFreePlanCode

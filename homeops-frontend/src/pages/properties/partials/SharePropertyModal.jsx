@@ -94,7 +94,8 @@ const HOMEOWNER_SLOT_LIMITS = {
   free: 1,
   maintain: 2,
   win: null /* unlimited */,
-  beta_homeowner: 2,
+  homeowner_beta: 2,
+  beta_homeowner: 2, // legacy users.subscription_tier
 };
 
 const HOMEOWNER_INVITE_TYPES = [

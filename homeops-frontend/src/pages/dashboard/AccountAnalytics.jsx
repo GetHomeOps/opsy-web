@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import React, {useState, useEffect, useCallback, useMemo, useRef} from "react";
 import {createPortal} from "react-dom";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
@@ -28,6 +22,45 @@ import {
 
 const DEFAULT_ITEMS_PER_PAGE = 10;
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const HEATMAP_MONTH_NAMES_UPPER = [
+  "JANUARY",
+  "FEBRUARY",
+  "MARCH",
+  "APRIL",
+  "MAY",
+  "JUNE",
+  "JULY",
+  "AUGUST",
+  "SEPTEMBER",
+  "OCTOBER",
+  "NOVEMBER",
+  "DECEMBER",
+];
+
+/** `ymd` = YYYY-MM-DD from API (browser timezone via request). */
+function formatHeatmapTooltipDayLine(ymd) {
+  const parts = String(ymd).split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return "";
+  const [y, m, d] = parts;
+  const ref = new Date(y, m - 1, d);
+  const dow = DAY_LABELS[ref.getDay()]?.toUpperCase() || "";
+  const month = HEATMAP_MONTH_NAMES_UPPER[ref.getMonth()];
+  const dayNum = ref.getDate();
+  const yFull = ref.getFullYear();
+  const cy = new Date().getFullYear();
+  const yearPart = yFull !== cy ? ` ${yFull}` : "";
+  return `${dow} ${month} ${dayNum}${yearPart}`;
+}
+
+function heatmapRowShortLabel(ymd, rowIndex) {
+  if (rowIndex === 0) return "Today";
+  const parts = String(ymd).split("-").map(Number);
+  if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return "—";
+  const [y, m, d] = parts;
+  const ref = new Date(y, m - 1, d);
+  return DAY_LABELS[ref.getDay()] || "—";
+}
 
 function formatDuration(ms) {
   if (!ms || ms <= 0) return "—";
@@ -71,7 +104,7 @@ const HEATMAP_CELL =
 
 const HEATMAP_TIP_HIDE_MS = 60;
 
-function HeatmapGrid({patterns}) {
+function HeatmapGrid({patterns, dayKeys}) {
   const hideTimerRef = useRef(null);
   const [tip, setTip] = useState(null);
 
@@ -85,7 +118,7 @@ function HeatmapGrid({patterns}) {
   useEffect(() => () => clearHideTimer(), [clearHideTimer]);
 
   const showCellTip = useCallback(
-    (e, {day, hour, count, durationMs, hasViews}) => {
+    (e, {rowYmd, hour, count, durationMs, hasViews}) => {
       clearHideTimer();
       const el = e.currentTarget;
       const rect = el.getBoundingClientRect();
@@ -96,7 +129,7 @@ function HeatmapGrid({patterns}) {
         x,
         y,
         placeAbove,
-        day,
+        rowYmd,
         hour,
         count,
         durationMs,
@@ -114,24 +147,32 @@ function HeatmapGrid({patterns}) {
     }, HEATMAP_TIP_HIDE_MS);
   }, [clearHideTimer]);
 
-  const grid = Array.from({length: 7}, () =>
-    Array.from({length: 24}, () => ({count: 0, durationMs: 0})),
-  );
-  let maxCount = 0;
-  for (const p of patterns) {
-    const cell = grid[p.dayOfWeek][p.hour];
-    cell.count += p.count || 0;
-    cell.durationMs += p.durationMs || 0;
-    maxCount = Math.max(maxCount, cell.count);
-  }
+  const {grid, maxCount} = useMemo(() => {
+    const keys = Array.isArray(dayKeys) ? dayKeys : [];
+    const rowIndexByDate = new Map(keys.map((ymd, i) => [ymd, i]));
+    const g = keys.map(() =>
+      Array.from({length: 24}, () => ({count: 0, durationMs: 0})),
+    );
+    let mc = 0;
+    for (const p of patterns || []) {
+      const ymd = p.localDate;
+      if (!ymd) continue;
+      const ri = rowIndexByDate.get(ymd);
+      if (ri === undefined) continue;
+      const cell = g[ri][p.hour];
+      cell.count += p.count || 0;
+      cell.durationMs += p.durationMs || 0;
+      mc = Math.max(mc, cell.count);
+    }
+    return {grid: g, maxCount: mc};
+  }, [patterns, dayKeys]);
 
   const getOpacity = (count) => {
     if (maxCount === 0 || count === 0) return 0;
     return 0.15 + (count / maxCount) * 0.85;
   };
 
-  const portalRoot =
-    typeof document !== "undefined" ? document.body : null;
+  const portalRoot = typeof document !== "undefined" ? document.body : null;
 
   const tipPanel =
     tip &&
@@ -163,7 +204,7 @@ function HeatmapGrid({patterns}) {
           <div className="flex flex-col gap-1.5">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[#456564] dark:text-teal-400/90">
-                {tip.day}
+                {formatHeatmapTooltipDayLine(tip.rowYmd)}
               </p>
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-50 tabular-nums">
                 {tip.hour}:00 – {tip.hour}:59
@@ -181,16 +222,21 @@ function HeatmapGrid({patterns}) {
               </div>
               <div className="flex justify-between gap-4 items-start">
                 <dt className="text-gray-500 dark:text-gray-400 shrink-0 pt-0.5">
-                  Est. dwell
+                  Time spent
                 </dt>
                 <dd className="text-right font-medium text-gray-800 dark:text-gray-100 leading-snug">
                   {tip.durationMs >= 1000 ? (
                     <span className="text-[#456564] dark:text-teal-400">
-                      {formatDuration(tip.durationMs)}
+                      ~{formatDuration(tip.durationMs)}
                     </span>
                   ) : tip.hasViews ? (
-                    <span className="text-[11px] font-normal text-gray-500 dark:text-gray-400">
-                      No next view in session
+                    <span className="inline-flex flex-col items-end gap-0.5">
+                      <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                        Session ended here
+                      </span>
+                      <span className="text-[10px] font-normal text-gray-400 dark:text-gray-500 leading-snug">
+                        User left or was idle 30+ min
+                      </span>
                     </span>
                   ) : (
                     <span className="text-gray-400 dark:text-gray-500">—</span>
@@ -198,10 +244,13 @@ function HeatmapGrid({patterns}) {
                 </dd>
               </div>
             </dl>
-            <p className="text-[10px] leading-relaxed text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-gray-700/80 pt-1.5 mt-0.5">
-              Dwell is estimated from time until the next page view (same
-              session, 30&nbsp;min gap max).
-            </p>
+            {tip.hasViews && (
+              <p className="text-[10px] leading-relaxed text-gray-400 dark:text-gray-500 border-t border-gray-100 dark:border-gray-700/80 pt-1.5 mt-0.5">
+                {tip.durationMs >= 1000
+                  ? "Time spent is measured from the first to last page navigation within this hour slot."
+                  : "Time can\u2019t be measured when this was the user\u2019s last page before leaving or going idle."}
+              </p>
+            )}
           </div>
         </Transition>
       </div>,
@@ -213,7 +262,7 @@ function HeatmapGrid({patterns}) {
       {tipPanel}
       <div className="max-w-full overflow-x-auto pb-1">
         <div className="inline-block min-w-0">
-          <div className="flex gap-0.5 ml-7 sm:ml-8">
+          <div className="flex gap-0.5 ml-9 sm:ml-10">
             {Array.from({length: 24}, (_, i) => (
               <div
                 key={i}
@@ -223,65 +272,67 @@ function HeatmapGrid({patterns}) {
               </div>
             ))}
           </div>
-          {DAY_LABELS.map((day, di) => (
-            <div key={day} className="flex items-center gap-0.5 mt-0.5">
-              <span className="w-6 sm:w-7 text-right text-[9px] text-gray-500 dark:text-gray-400 shrink-0 pr-0.5">
-                {day}
-              </span>
-              <div className="flex gap-0.5">
-                {grid[di].map((cell, hi) => {
-                  const {count, durationMs} = cell;
-                  const label = formatHeatmapDuration(durationMs);
-                  const hasViews = count > 0;
-                  const op = getOpacity(count);
-                  const filled = hasViews && op > 0;
-                  return (
-                    <div
-                      key={hi}
-                      aria-label={`${day} ${hi}:00, ${count} views${
-                        durationMs >= 1000
-                          ? `, estimated dwell ${formatDuration(durationMs)}`
-                          : ""
-                      }`}
-                      className={HEATMAP_CELL}
-                      style={{
-                        backgroundColor:
-                          !hasViews
+          {(dayKeys || []).map((ymd, di) => {
+            const rowLabel = heatmapRowShortLabel(ymd, di);
+            return (
+              <div key={ymd} className="flex items-center gap-0.5 mt-0.5">
+                <span className="w-8 sm:w-9 text-right text-[9px] text-gray-500 dark:text-gray-400 shrink-0 pr-0.5">
+                  {rowLabel}
+                </span>
+                <div className="flex gap-0.5">
+                  {(grid[di] || []).map((cell, hi) => {
+                    const {count, durationMs} = cell;
+                    const label = formatHeatmapDuration(durationMs);
+                    const hasViews = count > 0;
+                    const op = getOpacity(count);
+                    const filled = hasViews && op > 0;
+                    return (
+                      <div
+                        key={hi}
+                        aria-label={`${formatHeatmapTooltipDayLine(ymd)}, ${hi}:00, ${count} views${
+                          durationMs >= 1000
+                            ? `, ~${formatDuration(durationMs)} spent`
+                            : ""
+                        }`}
+                        className={HEATMAP_CELL}
+                        style={{
+                          backgroundColor: !hasViews
                             ? "rgba(156,163,175,0.12)"
                             : `rgba(69,101,100,${op})`,
-                        color: filled
-                          ? op > 0.45
-                            ? "rgba(255,255,255,0.95)"
-                            : "rgba(17,24,39,0.9)"
-                          : "rgba(107,114,128,0.9)",
-                      }}
-                      onMouseEnter={(e) =>
-                        showCellTip(e, {
-                          day,
-                          hour: hi,
-                          count,
-                          durationMs,
-                          hasViews,
-                        })
-                      }
-                      onMouseLeave={scheduleHideTip}
-                    >
-                      {label ||
-                        (hasViews ? (
-                          <span className="opacity-60 font-normal">·</span>
-                        ) : null)}
-                    </div>
-                  );
-                })}
+                          color: filled
+                            ? op > 0.45
+                              ? "rgba(255,255,255,0.95)"
+                              : "rgba(17,24,39,0.9)"
+                            : "rgba(107,114,128,0.9)",
+                        }}
+                        onMouseEnter={(e) =>
+                          showCellTip(e, {
+                            rowYmd: ymd,
+                            hour: hi,
+                            count,
+                            durationMs,
+                            hasViews,
+                          })
+                        }
+                        onMouseLeave={scheduleHideTip}
+                      >
+                        {label ||
+                          (hasViews ? (
+                            <span className="opacity-60 font-normal">·</span>
+                          ) : null)}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
         <p className="text-[9px] text-gray-500 dark:text-gray-400 max-w-md leading-snug">
-          Cell color = page views. Label = estimated dwell from gaps to the next
-          view in the same session (30&nbsp;min max gap).
+          Color intensity = page views. Cell label = time spent on pages. Hover
+          a cell for details.
         </p>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-[10px] text-gray-400 dark:text-gray-500">
@@ -331,7 +382,7 @@ function StatBadge({icon: Icon, label, value, color = "gray"}) {
   );
 }
 
-function UserActivityRow({user, isLast}) {
+function UserActivityRow({user, isLast, heatmapDayKeys = []}) {
   const [showPages, setShowPages] = useState(false);
   const [showPatterns, setShowPatterns] = useState(false);
 
@@ -392,7 +443,7 @@ function UserActivityRow({user, isLast}) {
         </div>
       </div>
 
-      <div className="flex gap-2 px-5 pb-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 pb-3">
         {user.topPages?.length > 0 && (
           <button
             type="button"
@@ -403,7 +454,13 @@ function UserActivityRow({user, isLast}) {
             {showPages ? "Hide" : "Show"} pages ({user.topPages.length})
           </button>
         )}
-        {user.visitPatterns?.length > 0 && (
+        {user.topPages?.length > 0 && heatmapDayKeys.length > 0 && (
+          <span
+            className="h-4 w-px shrink-0 bg-gray-200 dark:bg-gray-600"
+            aria-hidden
+          />
+        )}
+        {heatmapDayKeys.length > 0 && (
           <button
             type="button"
             onClick={() => setShowPatterns((p) => !p)}
@@ -451,13 +508,16 @@ function UserActivityRow({user, isLast}) {
         </div>
       )}
 
-      {showPatterns && user.visitPatterns?.length > 0 && (
+      {showPatterns && heatmapDayKeys.length > 0 && (
         <div className="px-5 pb-4">
           <div className="rounded-lg border border-gray-100 dark:border-gray-700/60 p-3 bg-gray-50/50 dark:bg-gray-900/30">
             <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-2 font-medium uppercase tracking-wide">
-              Activity heatmap (last 30 days)
+              Activity heatmap (today and prior 6 days)
             </p>
-            <HeatmapGrid patterns={user.visitPatterns} />
+            <HeatmapGrid
+              patterns={user.visitPatterns || []}
+              dayKeys={heatmapDayKeys}
+            />
           </div>
         </div>
       )}
@@ -468,6 +528,7 @@ function UserActivityRow({user, isLast}) {
 function AccountAnalytics() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [accounts, setAccounts] = useState([]);
+  const [activityHeatmapDays, setActivityHeatmapDays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedAccounts, setExpandedAccounts] = useState(new Set());
@@ -506,13 +567,17 @@ function AccountAnalytics() {
     try {
       setLoading(true);
       setError(null);
-      const data = await AppApi.getAccountsActivity();
-      setAccounts(data || []);
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const {accounts: nextAccounts, activityHeatmapDays: dayKeys} =
+        await AppApi.getAccountsActivity({timeZone});
+      setAccounts(nextAccounts);
+      setActivityHeatmapDays(dayKeys);
     } catch (err) {
       setError(
         err?.messages?.[0] || err?.message || "Failed to load account activity",
       );
       setAccounts([]);
+      setActivityHeatmapDays([]);
     } finally {
       setLoading(false);
     }
@@ -536,26 +601,20 @@ function AccountAnalytics() {
     setCurrentPage(1);
   };
 
-  const accountSummary = useCallback(
-    (acct) => {
-      const users = acct.users || [];
-      const totalLogins24h = users.reduce((s, u) => s + (u.logins24h || 0), 0);
-      const totalLogins12h = users.reduce((s, u) => s + (u.logins12h || 0), 0);
-      const activeSessions = users.reduce(
-        (s, u) => s + (u.sessionCount || 0),
-        0,
-      );
-      const avgSessions =
-        users.filter((u) => u.avgSessionMs > 0).length > 0
-          ? Math.round(
-              users.reduce((s, u) => s + (u.avgSessionMs || 0), 0) /
-                users.filter((u) => u.avgSessionMs > 0).length,
-            )
-          : 0;
-      return {totalLogins24h, totalLogins12h, activeSessions, avgSessions};
-    },
-    [],
-  );
+  const accountSummary = useCallback((acct) => {
+    const users = acct.users || [];
+    const totalLogins24h = users.reduce((s, u) => s + (u.logins24h || 0), 0);
+    const totalLogins12h = users.reduce((s, u) => s + (u.logins12h || 0), 0);
+    const activeSessions = users.reduce((s, u) => s + (u.sessionCount || 0), 0);
+    const avgSessions =
+      users.filter((u) => u.avgSessionMs > 0).length > 0
+        ? Math.round(
+            users.reduce((s, u) => s + (u.avgSessionMs || 0), 0) /
+              users.filter((u) => u.avgSessionMs > 0).length,
+          )
+        : 0;
+    return {totalLogins24h, totalLogins12h, activeSessions, avgSessions};
+  }, []);
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
@@ -712,6 +771,7 @@ function AccountAnalytics() {
                                 key={user.userId}
                                 user={user}
                                 isLast={idx === acct.users.length - 1}
+                                heatmapDayKeys={activityHeatmapDays}
                               />
                             ))}
                           </div>

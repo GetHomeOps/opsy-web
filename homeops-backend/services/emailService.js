@@ -573,23 +573,27 @@ async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl
     console.warn("[emailService] SES not configured — skipping communication notify email");
     return { success: false, reason: "ses_not_configured" };
   }
+  const toAddr = to && String(to).trim();
+  if (!toAddr) {
+    return { success: false, reason: "no_recipient" };
+  }
   const greeting = userName ? `Hi ${escapeHtml(userName)},` : "Hi,";
   const title = escapeHtml(subjectLine || "New message");
-  const safeUrl = escapeHtml(viewUrl);
+  const safeHref = escapeHtmlAttr(viewUrl);
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
       <h2 style="color: #456564;">${title}</h2>
       <p>${greeting}</p>
       <p>You have a new message in ${escapeHtml(brandName)}. Open it in the app using the link below.</p>
       <p style="margin: 24px 0;">
-        <a href="${safeUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View in ${escapeHtml(brandName)}</a>
+        <a href="${safeHref}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View in ${escapeHtml(brandName)}</a>
       </p>
       <p style="color: #6b7280; font-size: 14px;">This link opens the message in your browser. Sign in if prompted.</p>
       ${getEmailFooterHtml()}
     </div>
   `;
   return sendViaSes({
-    to,
+    to: toAddr,
     subject: `${subjectLine || "New message"} — ${brandName}`,
     html,
     usage,

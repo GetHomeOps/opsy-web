@@ -512,6 +512,7 @@ CREATE TABLE plan_prices (
     billing_interval VARCHAR(20) NOT NULL CHECK (billing_interval IN ('month', 'year')),
     unit_amount INTEGER,
     currency VARCHAR(10) DEFAULT 'usd',
+    is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(subscription_product_id, billing_interval)
 );

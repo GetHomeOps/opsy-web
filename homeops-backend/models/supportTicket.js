@@ -17,7 +17,8 @@ const TIER_TO_PRIORITY = {
   win: 100,
   pro: 50,
   maintain: 50,
-  beta_homeowner: 50,
+  homeowner_beta: 50,
+  beta_homeowner: 50, // legacy users.subscription_tier
   free: 10,
   basic: 10,
 };

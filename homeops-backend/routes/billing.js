@@ -436,6 +436,25 @@ router.patch("/plans/:id/prices", ensureLoggedIn, ensureSuperAdmin, async functi
   }
 });
 
+/** PATCH /billing/plans/:id/prices/active - Toggle price interval active/inactive (Super Admin).
+ *  Body: { billingInterval: "month"|"year", isActive: boolean }
+ *  When both intervals are inactive the parent plan is also deactivated automatically. */
+router.patch("/plans/:id/prices/active", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) throw new BadRequestError("Invalid plan ID");
+    const { billingInterval, isActive } = req.body;
+    if (!billingInterval || !["month", "year"].includes(billingInterval)) {
+      throw new BadRequestError("billingInterval must be month or year");
+    }
+    if (typeof isActive !== "boolean") throw new BadRequestError("isActive must be a boolean");
+    const plan = await planModel.togglePriceActive(id, billingInterval, isActive);
+    return res.json({ plan });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** GET /billing/stripe/prices - List active Stripe prices for admin dropdown */
 router.get("/stripe/prices", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
   try {

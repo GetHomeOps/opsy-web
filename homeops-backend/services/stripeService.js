@@ -59,7 +59,8 @@ async function createCheckoutSession({ accountId, userId, planCode, billingInter
   const plan = await db.query(
     `SELECT sp.id, sp.code, sp.trial_days, pp.stripe_price_id
      FROM subscription_products sp
-     LEFT JOIN plan_prices pp ON pp.subscription_product_id = sp.id AND pp.billing_interval = $1
+     LEFT JOIN plan_prices pp ON pp.subscription_product_id = sp.id
+       AND pp.billing_interval = $1 AND COALESCE(pp.is_active, true) = true
      WHERE sp.code = $2 AND sp.is_active = true`,
     [billingInterval, planCode]
   );

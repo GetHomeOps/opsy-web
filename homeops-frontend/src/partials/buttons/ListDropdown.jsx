@@ -1,9 +1,9 @@
 import React, {useState, useRef, useEffect} from "react";
 import Transition from "../../utils/Transition";
 import {useTranslation} from "react-i18next";
-import {Settings} from "lucide-react";
+import {Settings, UserPlus} from "lucide-react";
 
-function ListDropdown({align, onImport, onDelete, onDuplicate, hasSelection}) {
+function ListDropdown({align, onImport, onDelete, onDuplicate, onInviteUser, hasSelection}) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const trigger = useRef(null);
@@ -55,6 +55,13 @@ function ListDropdown({align, onImport, onDelete, onDuplicate, hasSelection}) {
   function handleDuplicate(e) {
     e.stopPropagation();
     onDuplicate?.();
+    setDropdownOpen(false);
+  }
+
+  /* handle invite user */
+  function handleInviteUser(e) {
+    e.stopPropagation();
+    onInviteUser?.();
     setDropdownOpen(false);
   }
 
@@ -113,6 +120,19 @@ function ListDropdown({align, onImport, onDelete, onDuplicate, hasSelection}) {
                     <line x1="12" y1="3" x2="12" y2="15" />
                   </svg>
                   <span className="text-sm font-medium ml-2">{t("import")}</span>
+                </button>
+              </li>
+            )}
+            {hasSelection && onInviteUser && (
+              <li>
+                <button
+                  className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
+                  onClick={handleInviteUser}
+                >
+                  <UserPlus className="w-5 h-5" strokeWidth={1.5} />
+                  <span className="text-sm font-medium ml-2">
+                    {t("inviteUser", {defaultValue: "Invite User"})}
+                  </span>
                 </button>
               </li>
             )}

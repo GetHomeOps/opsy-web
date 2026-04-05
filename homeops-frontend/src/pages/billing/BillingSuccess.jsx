@@ -33,7 +33,7 @@ export default function BillingSuccess() {
       }
 
       const subscriptionTier = PLAN_CODE_TO_SUBSCRIPTION_TIER[plan] || plan;
-      const FREE_TIERS = ["free", "beta_homeowner"];
+      const FREE_TIERS = ["free", "homeowner_beta", "beta_homeowner"];
       const isPaidTier = !FREE_TIERS.includes(subscriptionTier);
 
       if (isPaidTier && !stripeSessionId) {

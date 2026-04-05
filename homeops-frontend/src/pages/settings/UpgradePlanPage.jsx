@@ -244,9 +244,11 @@ function UpgradePlanPage() {
               </p>
             </div>
 
-            {/* Billing interval toggle */}
+            {/* Billing interval toggle - only if at least one plan has yearly pricing active */}
             {plans.some(
               (p) => p.stripePrices?.year || p.stripePrices?.annual,
+            ) && plans.some(
+              (p) => p.stripePrices?.month,
             ) && (
               <div className="flex justify-center mb-8">
                 <div className="inline-flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">

@@ -6,6 +6,7 @@ import {ContactProvider} from "./context/ContactContext";
 import {UserProvider} from "./context/UserContext";
 import {PropertyProvider} from "./context/PropertyContext";
 import TierLimitBanner from "./components/TierLimitBanner";
+import PageViewTracker from "./components/PageViewTracker";
 
 import "./css/style.css";
 
@@ -24,6 +25,7 @@ function App() {
         <UserProvider>
           <PropertyProvider>
             <TierLimitBanner />
+            <PageViewTracker />
             <RoutesList />
           </PropertyProvider>
         </UserProvider>

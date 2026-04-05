@@ -12,8 +12,32 @@ import DataTableItem from "../../components/DataTableItem";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
 import ListDropdown from "../../partials/buttons/ListDropdown";
+import {
+  readListUiSession,
+  writeListUiSession,
+} from "../../utils/listUiSessionStorage";
 
 const PAGE_STORAGE_KEY = "subscription_products_list_page";
+/** Session list UI: cleared on full page load (refresh), kept during SPA navigation. */
+const LIST_UI_SCOPE = "subscription-products";
+
+function normalizeListQueryFromSession(raw) {
+  if (!raw || typeof raw !== "object") {
+    return {searchTerm: "", activeFilters: []};
+  }
+  const searchTerm = typeof raw.searchTerm === "string" ? raw.searchTerm : "";
+  const rawFilters = raw.activeFilters;
+  const activeFilters = Array.isArray(rawFilters)
+    ? rawFilters.filter(
+        (f) =>
+          f &&
+          typeof f.type === "string" &&
+          typeof f.value === "string" &&
+          (f.label == null || typeof f.label === "string"),
+      )
+    : [];
+  return {searchTerm, activeFilters};
+}
 
 const FILTER_CATEGORIES = [
   {type: "userType", labelKey: "subscriptionProducts.userType"},
@@ -273,9 +297,21 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
 }
 
 function SubscriptionProductsList() {
-  const [state, dispatch] = useReducer(reducer, {
-    ...initialState,
-    currentPage: Number(localStorage.getItem(PAGE_STORAGE_KEY)) || 1,
+  const [state, dispatch] = useReducer(reducer, undefined, () => {
+    try {
+      localStorage.removeItem("subscription_products_list_query");
+    } catch {
+      /* legacy localStorage key from earlier implementation */
+    }
+    const persistedQuery = normalizeListQueryFromSession(
+      readListUiSession(LIST_UI_SCOPE),
+    );
+    return {
+      ...initialState,
+      currentPage: Number(localStorage.getItem(PAGE_STORAGE_KEY)) || 1,
+      searchTerm: persistedQuery.searchTerm,
+      activeFilters: persistedQuery.activeFilters,
+    };
   });
 
   const navigate = useNavigate();
@@ -323,6 +359,14 @@ function SubscriptionProductsList() {
     }
   }, [state.currentPage]);
 
+  // Persist search + filters for SPA navigation only (cleared on full page refresh)
+  useEffect(() => {
+    writeListUiSession(LIST_UI_SCOPE, {
+      searchTerm: state.searchTerm,
+      activeFilters: state.activeFilters,
+    });
+  }, [state.searchTerm, state.activeFilters]);
+
   // Banner timeout
   useEffect(() => {
     if (state.bannerOpen) {
@@ -364,7 +408,7 @@ function SubscriptionProductsList() {
 
   // Filtered and sorted products
   const filteredProducts = useMemo(() => {
-    let items = state.products.filter((p) => p.isActive !== false);
+    let items = [...state.products];
 
     // Search
     if (state.searchTerm) {
@@ -551,6 +595,7 @@ function SubscriptionProductsList() {
     const prices = product?.prices || [];
     const pr = prices.find((p) => p.billingInterval === interval);
     if (pr) {
+      if (pr.isActive === false) return "Off";
       if (pr.unitAmount != null) {
         return new Intl.NumberFormat("en-US", {style: "currency", currency: pr.currency || "usd"}).format(pr.unitAmount / 100);
       }
@@ -569,9 +614,14 @@ function SubscriptionProductsList() {
       key: "name",
       label: t("name"),
       sortable: true,
-      render: (value) => (
-        <span className="font-medium text-gray-800 dark:text-gray-100 capitalize">
+      render: (value, item) => (
+        <span className="font-medium text-gray-800 dark:text-gray-100 capitalize inline-flex items-center gap-2">
           {value || "—"}
+          {item.isActive === false && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+              Inactive
+            </span>
+          )}
         </span>
       ),
     },
@@ -610,21 +660,27 @@ function SubscriptionProductsList() {
       key: "monthlyPrice",
       label: t("subscriptionProducts.monthly") || "Monthly",
       sortable: false,
-      render: (value, item) => (
-        <span className="font-medium text-gray-800 dark:text-gray-100">
-          {getPriceForInterval(item, "month")}
-        </span>
-      ),
+      render: (value, item) => {
+        const label = getPriceForInterval(item, "month");
+        return (
+          <span className={`font-medium ${label === "Off" ? "text-gray-400 dark:text-gray-500 italic" : "text-gray-800 dark:text-gray-100"}`}>
+            {label}
+          </span>
+        );
+      },
     },
     {
       key: "yearlyPrice",
       label: t("subscriptionProducts.yearly") || "Yearly",
       sortable: false,
-      render: (value, item) => (
-        <span className="font-medium text-gray-800 dark:text-gray-100">
-          {getPriceForInterval(item, "year")}
-        </span>
-      ),
+      render: (value, item) => {
+        const label = getPriceForInterval(item, "year");
+        return (
+          <span className={`font-medium ${label === "Off" ? "text-gray-400 dark:text-gray-500 italic" : "text-gray-800 dark:text-gray-100"}`}>
+            {label}
+          </span>
+        );
+      },
     },
     {
       key: "maxProperties",

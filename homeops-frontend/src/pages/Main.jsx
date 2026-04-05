@@ -1,10 +1,8 @@
-import React, {useState, useEffect} from "react";
-import {useLocation} from "react-router-dom";
+import React, {useState} from "react";
 
 import Sidebar from "../partials/Sidebar";
 import Header from "../partials/Header";
 import {useAuth} from "../context/AuthContext";
-import AppApi from "../api/api";
 
 import HomeownerHome from "./home/HomeownerHome";
 import AgentHome from "./home/AgentHome";
@@ -51,17 +49,8 @@ class SidebarErrorBoundary extends React.Component {
 
 function Main() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const location = useLocation();
   const {currentUser} = useAuth();
   const role = (currentUser?.role ?? "").toLowerCase();
-
-  useEffect(() => {
-    if (currentUser?.id && location?.pathname) {
-      AppApi.logEngagementEvent("page_view", {path: location.pathname}).catch(
-        () => {},
-      );
-    }
-  }, [location.pathname, currentUser?.id]);
 
   const HomeComponent =
     role === "homeowner"

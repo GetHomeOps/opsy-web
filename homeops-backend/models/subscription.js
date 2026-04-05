@@ -155,7 +155,7 @@ class Subscription {
   }
 
   /** Ensure account has at least one active subscription. Creates free tier if none exists.
-   * @param {{ planCode?: string }} [options] — e.g. { planCode: "beta_homeowner" } for promotional tiers */
+   * @param {{ planCode?: string }} [options] — e.g. { planCode: "homeowner_beta" } for promotional tiers */
   static async ensureDefaultForAccount(accountId, userRole = "homeowner", options = {}) {
     const existing = await db.query(
       `SELECT id FROM account_subscriptions WHERE account_id = $1 AND status = 'active' LIMIT 1`,
@@ -195,7 +195,7 @@ class Subscription {
 
   /** Ensure account has an active subscription on the exact requested plan code.
    * Used for onboarding free-tier selections so switching between free plans
-   * (e.g. beta_homeowner -> homeowner_free) updates the active subscription.
+   * (e.g. homeowner_beta -> homeowner_free) updates the active subscription.
    */
   static async ensureAccountOnPlanCode(accountId, planCode) {
     if (!accountId || !planCode) {

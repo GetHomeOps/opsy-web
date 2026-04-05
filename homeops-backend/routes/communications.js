@@ -16,8 +16,7 @@ const {
   estimateRecipients,
 } = require("../services/commRecipients");
 const { ALLOWED_TRIGGER_EVENTS } = require("../services/commAutoSend");
-const { sendCommunicationNotifyEmail } = require("../services/emailService");
-const { APP_BASE_URL } = require("../config");
+const { notifyCommunicationRecipientsByEmail } = require("../services/communicationEmailNotify");
 const db = require("../db");
 
 const router = express.Router();
@@ -298,26 +297,13 @@ router.post("/:id/send", ensureLoggedIn, ensureAdminOrSuperAdmin, async (req, re
         title: `New: ${comm.subject || "Message"}`,
       });
 
-      const accRow = await db.query(`SELECT url, name FROM accounts WHERE id = $1`, [comm.accountId]);
-      const accountSlug = String(accRow.rows[0]?.url || accRow.rows[0]?.name || "home").replace(
-        /^\/+|\/+$/g,
-        ""
-      );
-      const base = (APP_BASE_URL || "").replace(/\/$/, "");
-      for (const u of users) {
-        if (!u?.email) continue;
-        const viewUrl = `${base}/${accountSlug}/communications/${comm.id}/view`;
-        sendCommunicationNotifyEmail({
-          to: u.email,
-          userName: u.name,
-          subjectLine: comm.subject,
-          viewUrl,
-          usage:
-            comm.accountId && userId
-              ? { accountId: comm.accountId, userId, emailType: "communication_notify" }
-              : undefined,
-        }).catch((e) => console.error("[communications/send] notify email:", e.message));
-      }
+      await notifyCommunicationRecipientsByEmail({
+        communicationId: comm.id,
+        accountId: comm.accountId,
+        subject: comm.subject,
+        users,
+        actorUserId: userId,
+      });
     }
 
     const updated = await Communication.getById(req.params.id);

@@ -167,7 +167,6 @@ function UsersList() {
     sortConfig,
     handleSort,
     deleteUser,
-    bulkDuplicateUsers,
     refetchUsers,
   } = useContext(userContext);
   const {t, i18n} = useTranslation();
@@ -365,39 +364,6 @@ function UsersList() {
       return;
     }
     dispatch({type: "SET_DANGER_MODAL", payload: true});
-  }
-
-  /* Handles bulk duplication of selected users */
-  async function handleDuplicate() {
-    if (selectedItems.length === 0) return;
-
-    dispatch({type: "SET_SUBMITTING", payload: true});
-    try {
-      const duplicatedUsers = await bulkDuplicateUsers(selectedItems);
-
-      // Show success message
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "success",
-          message: `${duplicatedUsers.length} user${
-            duplicatedUsers.length !== 1 ? "s" : ""
-          } duplicated successfully`,
-        },
-      });
-    } catch (error) {
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "error",
-          message: `Error duplicating users. Error: ${error}`,
-        },
-      });
-    } finally {
-      dispatch({type: "SET_SUBMITTING", payload: false});
-    }
   }
 
   /* Handles bulk deletion of selected users */
@@ -763,7 +729,6 @@ function UsersList() {
                   hasSelection={selectedItems.length > 0}
                   onImport={() => navigate(`/${accountUrl}/users/import`)}
                   onDelete={handleDeleteClick}
-                  onDuplicate={handleDuplicate}
                 />
 
                 {/* Add User button */}

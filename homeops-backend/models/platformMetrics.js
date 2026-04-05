@@ -451,31 +451,93 @@ class PlatformMetrics {
     return { agents };
   }
 
+  /** @param {unknown} raw */
+  static _safeIanaTimeZone(raw) {
+    const s = typeof raw === "string" ? raw.trim() : "";
+    if (!s || s.length > 80 || !/^[A-Za-z0-9_/+-]+$/.test(s)) return "UTC";
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: s });
+      return s;
+    } catch {
+      return "UTC";
+    }
+  }
+
   /**
-   * Build day×hour cells: page_view counts plus estimated dwell time (ms) from
-   * gaps between consecutive page_views within sessionGapMs (same user).
+   * Calendar date (YYYY-MM-DD) and hour (0–23) for an instant in `timeZone` (IANA).
+   * @param {Date|string|number} iso
+   * @param {string} timeZone
+   */
+  static _localYmdHour(iso, timeZone) {
+    const d = new Date(iso);
+    const dp = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(d);
+    const y = dp.find((p) => p.type === "year").value;
+    const m = dp.find((p) => p.type === "month").value;
+    const day = dp.find((p) => p.type === "day").value;
+    const ymd = `${y}-${m}-${day}`;
+    const hp = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "numeric",
+      hourCycle: "h23",
+    }).formatToParts(d);
+    const hour = parseInt(hp.find((p) => p.type === "hour").value, 10);
+    return { ymd, hour };
+  }
+
+  /**
+   * Today first, then the six prior calendar days, in `timeZone` (matches Postgres).
+   * @param {string} timeZone
+   */
+  static async _getActivityHeatmapDayKeys(timeZone) {
+    const res = await db.query(
+      `SELECT to_char(gs::date, 'YYYY-MM-DD') AS ymd
+       FROM generate_series(
+         (NOW() AT TIME ZONE $1::text)::date,
+         (NOW() AT TIME ZONE $1::text)::date - interval '6 days',
+         interval '-1 day'
+       ) AS gs`,
+      [timeZone]
+    );
+    return res.rows.map((r) => r.ymd);
+  }
+
+  /**
+   * Build calendar-day×hour cells in `timeZone`, only for dates in `allowedDateSet`.
    * Dwell for each gap is attributed to the hour bucket of the earlier event.
    * @param {Array<{user_id: number, created_at: Date|string}>} rows
    * @param {number} sessionGapMs
-   * @returns {Map<number, Array<{dayOfWeek: number, hour: number, count: number, durationMs: number}>>}
+   * @param {string} timeZone
+   * @param {Set<string>} allowedDateSet YYYY-MM-DD
+   * @returns {Map<number, Array<{localDate: string, hour: number, count: number, durationMs: number}>>}
    */
-  static _buildVisitPatternCells(rows, sessionGapMs) {
-    const key = (userId, dow, hour) => `${userId}:${dow}:${hour}`;
+  static _buildVisitPatternCells(rows, sessionGapMs, timeZone, allowedDateSet) {
+    const key = (userId, ymd, hour) => `${userId}|${ymd}|${hour}`;
     const cells = new Map();
 
     const ensure = (userId, ts) => {
-      const d = new Date(ts);
-      const dow = d.getDay();
-      const h = d.getHours();
-      const k = key(userId, dow, h);
+      const { ymd, hour } = PlatformMetrics._localYmdHour(ts, timeZone);
+      if (!allowedDateSet.has(ymd)) return null;
+      const k = key(userId, ymd, hour);
       if (!cells.has(k)) {
-        cells.set(k, { userId, dayOfWeek: dow, hour: h, count: 0, durationMs: 0 });
+        cells.set(k, {
+          userId,
+          localDate: ymd,
+          hour,
+          count: 0,
+          durationMs: 0,
+        });
       }
       return cells.get(k);
     };
 
     for (const r of rows) {
-      ensure(r.user_id, r.created_at).count += 1;
+      const cell = ensure(r.user_id, r.created_at);
+      if (cell) cell.count += 1;
     }
 
     let curUser = null;
@@ -489,7 +551,8 @@ class PlatformMetrics {
       }
       const gap = ts - prevTs;
       if (gap > 0 && gap <= sessionGapMs) {
-        ensure(curUser, prevTs).durationMs += gap;
+        const cell = ensure(curUser, prevTs);
+        if (cell) cell.durationMs += gap;
       }
       prevTs = ts;
     }
@@ -498,7 +561,7 @@ class PlatformMetrics {
     for (const c of cells.values()) {
       if (!byUser.has(c.userId)) byUser.set(c.userId, []);
       byUser.get(c.userId).push({
-        dayOfWeek: c.dayOfWeek,
+        localDate: c.localDate,
         hour: c.hour,
         count: c.count,
         durationMs: Math.round(c.durationMs),
@@ -511,46 +574,50 @@ class PlatformMetrics {
    * Per-account user activity analytics: login frequency, session duration,
    * pages visited, and historic visit patterns from platform_engagement_events.
    */
-  static async getUserActivityByAccount() {
-    const [accountUsersRes, loginsRes, pageViewsRes, sessionsRes] = await Promise.all([
-      db.query(
-        `SELECT au.account_id, a.name AS account_name,
-                u.id AS user_id, u.name AS user_name, u.email AS user_email,
-                u.role::text AS user_role
-         FROM account_users au
-         JOIN accounts a ON a.id = au.account_id
-         JOIN users u ON u.id = au.user_id
-         ORDER BY a.name NULLS LAST, u.name NULLS LAST`
-      ),
-      db.query(
-        `SELECT e.user_id,
-                COUNT(*) FILTER (WHERE e.created_at >= NOW() - INTERVAL '24 hours')::int AS logins_24h,
-                COUNT(*) FILTER (WHERE e.created_at >= NOW() - INTERVAL '12 hours')::int AS logins_12h,
-                COUNT(*)::int AS logins_total,
-                MAX(e.created_at) AS last_login
-         FROM platform_engagement_events e
-         WHERE e.event_type = 'login'
-         GROUP BY e.user_id`
-      ),
-      db.query(
-        `SELECT e.user_id,
-                e.event_data->>'path' AS path,
-                COUNT(*)::int AS visit_count,
-                MAX(e.created_at) AS last_visited
-         FROM platform_engagement_events e
-         WHERE e.event_type = 'page_view'
-           AND e.event_data->>'path' IS NOT NULL
-         GROUP BY e.user_id, e.event_data->>'path'
-         ORDER BY visit_count DESC`
-      ),
-      db.query(
-        `SELECT user_id, created_at
-         FROM platform_engagement_events
-         WHERE event_type = 'page_view'
-           AND created_at >= NOW() - INTERVAL '30 days'
-         ORDER BY user_id, created_at`
-      ),
-    ]);
+  static async getUserActivityByAccount({ timeZone: rawTz } = {}) {
+    const timeZone = PlatformMetrics._safeIanaTimeZone(rawTz);
+
+    const [heatmapDayKeys, accountUsersRes, loginsRes, pageViewsRes, sessionsRes] =
+      await Promise.all([
+        PlatformMetrics._getActivityHeatmapDayKeys(timeZone),
+        db.query(
+          `SELECT au.account_id, a.name AS account_name,
+                  u.id AS user_id, u.name AS user_name, u.email AS user_email,
+                  u.role::text AS user_role
+           FROM account_users au
+           JOIN accounts a ON a.id = au.account_id
+           JOIN users u ON u.id = au.user_id
+           ORDER BY a.name NULLS LAST, u.name NULLS LAST`
+        ),
+        db.query(
+          `SELECT e.user_id,
+                  COUNT(*) FILTER (WHERE e.created_at >= NOW() - INTERVAL '24 hours')::int AS logins_24h,
+                  COUNT(*) FILTER (WHERE e.created_at >= NOW() - INTERVAL '12 hours')::int AS logins_12h,
+                  COUNT(*)::int AS logins_total,
+                  MAX(e.created_at) AS last_login
+           FROM platform_engagement_events e
+           WHERE e.event_type = 'login'
+           GROUP BY e.user_id`
+        ),
+        db.query(
+          `SELECT e.user_id,
+                  e.event_data->>'path' AS path,
+                  COUNT(*)::int AS visit_count,
+                  MAX(e.created_at) AS last_visited
+           FROM platform_engagement_events e
+           WHERE e.event_type = 'page_view'
+             AND e.event_data->>'path' IS NOT NULL
+           GROUP BY e.user_id, e.event_data->>'path'
+           ORDER BY visit_count DESC`
+        ),
+        db.query(
+          `SELECT user_id, created_at
+           FROM platform_engagement_events
+           WHERE event_type = 'page_view'
+             AND created_at >= NOW() - INTERVAL '30 days'
+           ORDER BY user_id, created_at`
+        ),
+      ]);
 
     const loginsByUser = new Map();
     for (const r of loginsRes.rows) {
@@ -617,9 +684,12 @@ class PlatformMetrics {
       });
     }
 
+    const heatmapDateSet = new Set(heatmapDayKeys);
     const patternsByUser = PlatformMetrics._buildVisitPatternCells(
       sessionsRes.rows,
-      SESSION_GAP_MS
+      SESSION_GAP_MS,
+      timeZone,
+      heatmapDateSet
     );
 
     const accountMap = new Map();
@@ -652,7 +722,10 @@ class PlatformMetrics {
       });
     }
 
-    return [...accountMap.values()];
+    return {
+      accounts: [...accountMap.values()],
+      activityHeatmapDays: heatmapDayKeys,
+    };
   }
 
   /**
