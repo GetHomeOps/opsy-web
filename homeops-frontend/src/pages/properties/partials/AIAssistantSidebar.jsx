@@ -138,7 +138,14 @@ function AIAssistantSidebar({
 
     const update = () => {
       if (!containerRef.current) return;
-      containerRef.current.style.height = `${vv.height}px`;
+      const keyboardInset = Math.max(
+        0,
+        window.innerHeight - vv.height - vv.offsetTop,
+      );
+      containerRef.current.style.setProperty(
+        "--ai-keyboard-inset",
+        `${keyboardInset}px`,
+      );
     };
 
     update();
@@ -148,6 +155,7 @@ function AIAssistantSidebar({
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
+      containerRef.current?.style.setProperty("--ai-keyboard-inset", "0px");
     };
   }, [embedded, isOpen]);
 
@@ -1085,7 +1093,13 @@ function AIAssistantSidebar({
         </div>
 
         {propertyId && (
-          <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-gray-200 dark:border-gray-700 shrink-0">
+          <div
+            className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0"
+            style={{
+              paddingBottom:
+                "calc(max(1rem, env(safe-area-inset-bottom)) + var(--ai-keyboard-inset, 0px))",
+            }}
+          >
             <div className="flex gap-2 items-end">
               <textarea
                 ref={inputRef}

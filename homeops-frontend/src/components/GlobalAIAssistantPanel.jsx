@@ -97,7 +97,14 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
 
     const update = () => {
       if (!panelRef.current) return;
-      panelRef.current.style.height = `${vv.height}px`;
+      const keyboardInset = Math.max(
+        0,
+        window.innerHeight - vv.height - vv.offsetTop,
+      );
+      panelRef.current.style.setProperty(
+        "--ai-keyboard-inset",
+        `${keyboardInset}px`,
+      );
     };
 
     update();
@@ -107,6 +114,7 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
     return () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
+      panelRef.current?.style.setProperty("--ai-keyboard-inset", "0px");
     };
   }, [isOpen]);
 
@@ -120,7 +128,11 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
       leaveStart="opacity-100"
       leaveEnd="opacity-0"
     >
-      <div ref={panelRef} className="fixed top-0 right-0 w-full max-w-md bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl z-50 flex flex-col overflow-hidden" style={{height: "100dvh"}}>
+      <div
+        ref={panelRef}
+        className="fixed inset-y-0 right-0 w-full max-w-md h-[100dvh] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl z-50 flex flex-col overflow-hidden"
+        style={{"--ai-keyboard-inset": "0px"}}
+      >
         {!selectedPropertyId ? (
           <>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
