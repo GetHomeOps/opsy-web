@@ -536,6 +536,7 @@
   "settings.profilePhoto": "Profile photo",
   "settings.pleaseFixErrors": "Please fix the following errors:",
   "settings.profileSaved": "Profile saved successfully.",
+  "settings.languageSaved": "Language saved. The interface will update.",
   "settings.properties": "Properties",
   "settings.renewsOn": "Renews on",
   "settings.teamMembers": "Team Members",

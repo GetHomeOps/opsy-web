@@ -133,6 +133,7 @@ const mfaLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: { message: "Too many MFA attempts, please try again later.", status: 429 } },
+  skip: (req) => req.method === "GET" && req.path === "/status",
 });
 
 app.use("/auth", authLimiter, authRoutes);

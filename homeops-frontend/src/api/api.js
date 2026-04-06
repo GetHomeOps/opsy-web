@@ -313,6 +313,11 @@ class AppApi {
     return res.user;
   }
 
+  /** Lightweight onboarding status: has calendar integrations + saved professionals (booleans). */
+  static async getOnboardingStatus() {
+    return this.request("users/onboarding-status");
+  }
+
   static async getAllUsers() {
     let res = await this.request(`users`);
     return res.users;

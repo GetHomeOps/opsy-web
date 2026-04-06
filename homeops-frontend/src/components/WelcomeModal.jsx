@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useTranslation} from "react-i18next";
-import {useNavigate, useLocation} from "react-router-dom";
+import {useNavigate} from "react-router-dom";
 import confetti from "canvas-confetti";
 import {Sparkles, Check, ChevronRight} from "lucide-react";
 import ModalBlank from "./ModalBlank";
@@ -64,11 +64,22 @@ function WelcomeModal() {
   const {currentUser, refreshCurrentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const navigate = useNavigate();
-  const location = useLocation();
   const {t} = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
-  /** True when this open was triggered right after sign-in (sessionStorage flag). */
-  const [useWelcomeHeadline, setUseWelcomeHeadline] = useState(false);
+  /** True when this open was triggered right after sign-in (sessionStorage flag). Computed once at mount. */
+  const [useWelcomeHeadline] = useState(() => {
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        const val =
+          sessionStorage.getItem(POST_LOGIN_WELCOME_GREETING_KEY) === "1";
+        if (val) sessionStorage.removeItem(POST_LOGIN_WELCOME_GREETING_KEY);
+        return val;
+      }
+    } catch {
+      /* ignore */
+    }
+    return false;
+  });
   /** Hide for this session only (Skip for now); modal can show again after reload or next visit. */
   const [sessionSkipped, setSessionSkipped] = useState(false);
 
@@ -105,28 +116,23 @@ function WelcomeModal() {
   }, [userId, refreshCurrentUser]);
 
   const [calendarIntegrations, setCalendarIntegrations] = useState([]);
-  const [calendarIntegrationsLoaded, setCalendarIntegrationsLoaded] =
-    useState(false);
-  useEffect(() => {
-    if (!currentUser?.id || !showForRole) return;
-    setCalendarIntegrationsLoaded(false);
-    AppApi.getCalendarIntegrations()
-      .then((data) => setCalendarIntegrations(data || []))
-      .catch(() => setCalendarIntegrations([]))
-      .finally(() => setCalendarIntegrationsLoaded(true));
-  }, [currentUser?.id, showForRole]);
-
   const [savedProfessionals, setSavedProfessionals] = useState([]);
-  const [savedProfessionalsLoaded, setSavedProfessionalsLoaded] =
-    useState(false);
+  const [onboardingDataLoaded, setOnboardingDataLoaded] = useState(false);
+
   useEffect(() => {
     if (!currentUser?.id || !showForRole) return;
-    setSavedProfessionalsLoaded(false);
-    AppApi.getSavedProfessionals()
-      .then((data) => setSavedProfessionals(data || []))
-      .catch(() => setSavedProfessionals([]))
-      .finally(() => setSavedProfessionalsLoaded(true));
-  }, [currentUser?.id, showForRole, location.pathname]);
+    setOnboardingDataLoaded(false);
+    AppApi.getOnboardingStatus()
+      .then((data) => {
+        setCalendarIntegrations(data?.hasCalendarIntegrations ? [true] : []);
+        setSavedProfessionals(data?.hasSavedProfessionals ? [true] : []);
+      })
+      .catch(() => {
+        setCalendarIntegrations([]);
+        setSavedProfessionals([]);
+      })
+      .finally(() => setOnboardingDataLoaded(true));
+  }, [currentUser?.id, showForRole]);
 
   const extraContext = useMemo(
     () => ({calendarIntegrations, savedProfessionals}),
@@ -144,8 +150,6 @@ function WelcomeModal() {
     navigate,
   });
 
-  const onboardingDataLoaded = calendarIntegrationsLoaded && savedProfessionalsLoaded;
-
   useEffect(() => {
     if (!userId || !showForRole) return;
     if (welcomeDismissedPermanently || sessionSkipped) {
@@ -156,19 +160,6 @@ function WelcomeModal() {
       setModalOpen(false);
       return;
     }
-    let freshWelcome = false;
-    try {
-      if (typeof sessionStorage !== "undefined") {
-        freshWelcome =
-          sessionStorage.getItem(POST_LOGIN_WELCOME_GREETING_KEY) === "1";
-        if (freshWelcome) {
-          sessionStorage.removeItem(POST_LOGIN_WELCOME_GREETING_KEY);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    setUseWelcomeHeadline(freshWelcome);
     setModalOpen(true);
   }, [
     userId,
@@ -269,27 +260,43 @@ function WelcomeModal() {
                   className="w-28 h-28 object-contain drop-shadow-md"
                 />
               </div>
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#456564] dark:text-[#7aa3a2]">
-                  {t("onboarding.badge")}
-                </span>
-                <Sparkles className="w-4 h-4 text-amber-500" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                {useWelcomeHeadline
-                  ? firstName
-                    ? t("onboarding.titleWithName", {name: firstName})
-                    : t("onboarding.title")
-                  : firstName
-                    ? t("onboarding.titleReturningWithName", {name: firstName})
-                    : t("onboarding.titleReturning")}
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
-                {useWelcomeHeadline
-                  ? t("onboarding.subtitle")
-                  : t("onboarding.subtitleReturning")}
-              </p>
+              {!onboardingDataLoaded ? (
+                <>
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <div className="h-3 w-24 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                  </div>
+                  <div className="flex justify-center mb-2">
+                    <div className="h-7 w-64 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="h-4 w-72 rounded bg-gray-100 dark:bg-gray-700/60 animate-pulse" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-semibold uppercase tracking-wider text-[#456564] dark:text-[#7aa3a2]">
+                      {t("onboarding.badge")}
+                    </span>
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    {useWelcomeHeadline
+                      ? firstName
+                        ? t("onboarding.titleWithName", {name: firstName})
+                        : t("onboarding.title")
+                      : firstName
+                        ? t("onboarding.titleReturningWithName", {name: firstName})
+                        : t("onboarding.titleReturning")}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto leading-relaxed">
+                    {useWelcomeHeadline
+                      ? t("onboarding.subtitle")
+                      : t("onboarding.subtitleReturning")}
+                  </p>
+                </>
+              )}
             </div>
 
             {allComplete && onboardingDataLoaded ? (

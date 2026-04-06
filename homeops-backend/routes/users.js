@@ -28,6 +28,7 @@ const { BadRequestError, ForbiddenError } = require("../expressError");
 const User = require("../models/user");
 const userUpdateSchema = require("../schemas/userUpdate.json");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
+const db = require("../db");
 const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
 
 const router = express.Router();
@@ -113,6 +114,24 @@ router.get("/user-accounts", ensureLoggedIn, async function (req, res, next) {
     if (!userId) throw new ForbiddenError("User authentication required.");
     const result = await User.userHasAccount(userId);
     return res.json({ accountIds: result ? [result.account_id] : [] });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /onboarding-status - Lightweight check for welcome modal: has calendar integrations + saved professionals. */
+router.get("/onboarding-status", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const userId = res.locals.user?.id;
+    if (!userId) return res.status(401).json({ error: { message: "Unauthorized" } });
+    const [calResult, proResult] = await Promise.all([
+      db.query(`SELECT EXISTS(SELECT 1 FROM calendar_integrations WHERE user_id = $1) AS has`, [userId]),
+      db.query(`SELECT EXISTS(SELECT 1 FROM saved_professionals WHERE user_id = $1) AS has`, [userId]),
+    ]);
+    return res.json({
+      hasCalendarIntegrations: calResult.rows[0]?.has ?? false,
+      hasSavedProfessionals: proResult.rows[0]?.has ?? false,
+    });
   } catch (err) {
     return next(err);
   }
