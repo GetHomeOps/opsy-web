@@ -25,6 +25,7 @@ import {
 
 const TEXT_COLORS = [
   { value: "#000000", label: "Black" },
+  { value: "#ffffff", label: "White" },
   { value: "#374151", label: "Gray" },
   { value: "#dc2626", label: "Red" },
   { value: "#ea580c", label: "Orange" },

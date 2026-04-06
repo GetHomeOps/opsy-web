@@ -463,11 +463,18 @@ class AppApi {
     return res;
   }
 
-  /** Switch account to a free / zero-cost plan (cancels Stripe sub when applicable). */
+  /** Schedule downgrade to a free / zero-cost plan (at end of billing period when on Stripe). */
   static async downgradeToPlan({ planCode, accountId }) {
     const body = { planCode };
     if (accountId != null) body.accountId = accountId;
     return this.request(`billing/downgrade-to-plan`, body, "POST");
+  }
+
+  /** Undo a scheduled cancellation so the subscription renews normally. */
+  static async reactivateSubscription({ accountId }) {
+    const body = {};
+    if (accountId != null) body.accountId = accountId;
+    return this.request(`billing/reactivate`, body, "POST");
   }
 
   static async createPortalSession({ accountId, returnUrl }) {

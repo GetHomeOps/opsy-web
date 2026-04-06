@@ -9,8 +9,6 @@ import {useAuth} from "../../context/AuthContext";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
-import PostRichEditor from "../../components/PostRichEditor";
-import useImageUpload from "../../hooks/useImageUpload";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import ComposeSection from "./partials/ComposeSection";
 import AudienceSection from "./partials/AudienceSection";
@@ -311,7 +309,7 @@ function CommunicationComposer() {
       <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="flex-1 overflow-y-auto">
-          <div className={PAGE_LAYOUT.form}>
+          <div className={showPreview ? "px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[90rem] mx-auto" : PAGE_LAYOUT.form}>
             {/* Top bar */}
             <div className="flex items-center justify-between mb-8">
               <button
@@ -419,10 +417,10 @@ function CommunicationComposer() {
             </div>
 
             {/* Main layout: form + preview */}
-            <div className={`flex gap-6 ${showPreview ? "" : ""}`}>
+            <div className="flex gap-6">
               {/* Left: Sections */}
               <div
-                className={`flex-1 min-w-0 space-y-6 ${showPreview ? "max-w-[60%]" : ""}`}
+                className={`flex-1 min-w-0 space-y-6 ${showPreview ? "max-w-[55%]" : ""}`}
               >
                 {/* 1. Compose */}
                 <ComposeSection
@@ -532,7 +530,7 @@ function CommunicationComposer() {
 
               {/* Right: Live preview */}
               {showPreview && (
-                <div className="w-[40%] min-w-[320px] shrink-0 sticky top-0 self-start">
+                <div className="w-[45%] min-w-[400px] max-w-[560px] shrink-0 sticky top-0 self-start max-h-[calc(100vh-6rem)]">
                   <LivePreview form={form} template={template} />
                 </div>
               )}

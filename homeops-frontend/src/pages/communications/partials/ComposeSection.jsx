@@ -13,8 +13,10 @@ import {
   Palette,
   GripVertical,
   Image,
+  Check,
 } from "lucide-react";
 import { getVideoThumbnailSync } from "../../../utils/videoThumbnail";
+import { LAYOUTS, LAYOUT_THUMBNAILS } from "./templateLayouts";
 
 function ComposeSection({ form, updateForm, disabled, template, setTemplate, accountId }) {
   const [pdfUploading, setPdfUploading] = useState(false);
@@ -236,6 +238,50 @@ function ComposeSection({ form, updateForm, disabled, template, setTemplate, acc
           </div>
         )}
 
+        {/* Layout picker */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Layout
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            {LAYOUTS.map((layout) => {
+              const currentLayout = form.content?.layout || "classic";
+              const isSelected = currentLayout === layout.id;
+              const Thumb = LAYOUT_THUMBNAILS[layout.id];
+              return (
+                <button
+                  key={layout.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() =>
+                    updateForm({ content: { ...form.content, layout: layout.id } })
+                  }
+                  className={`relative flex flex-col items-center p-3 rounded-xl border-2 transition-all text-left disabled:opacity-50 ${
+                    isSelected
+                      ? "border-[#456564] bg-[#456564]/5 dark:bg-[#456564]/10 ring-1 ring-[#456564]/20"
+                      : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800"
+                  }`}
+                >
+                  {isSelected && (
+                    <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#456564] flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                  <div className="w-full aspect-[3/2] mb-2 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-700/50 p-1">
+                    <Thumb selected={isSelected} />
+                  </div>
+                  <span className={`text-xs font-semibold ${isSelected ? "text-[#456564]" : "text-gray-700 dark:text-gray-300"}`}>
+                    {layout.name}
+                  </span>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 text-center leading-tight mt-0.5">
+                    {layout.description}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Subject */}
         <div>
           <label htmlFor="comm-subject" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -274,11 +320,15 @@ function ComposeSection({ form, updateForm, disabled, template, setTemplate, acc
             />
             {form.imageKey ? (
               <div className="relative group/preview">
-                <img
-                  src={previewImageUrl || previewImagePreviewUrl || ""}
-                  alt="Preview"
-                  className="w-24 h-16 rounded-lg object-cover border border-gray-200 dark:border-gray-600"
-                />
+                {previewImageUrl || previewImagePreviewUrl ? (
+                  <img
+                    src={previewImageUrl || previewImagePreviewUrl}
+                    alt="Preview"
+                    className="w-24 h-16 rounded-lg object-cover border border-gray-200 dark:border-gray-600"
+                  />
+                ) : (
+                  <div className="w-24 h-16 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 animate-pulse" />
+                )}
                 <div className="absolute inset-0 rounded-lg bg-black/40 flex items-center justify-center gap-2 opacity-0 group-hover/preview:opacity-100 transition-opacity">
                   {!disabled && (
                     <>

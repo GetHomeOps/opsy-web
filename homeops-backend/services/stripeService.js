@@ -355,6 +355,10 @@ async function handleSubscriptionUpdated(subscription) {
         `UPDATE account_subscriptions SET status = $1, updated_at = NOW() WHERE stripe_subscription_id = $2`,
         [status, subId]
       );
+      if (status === "canceled") {
+        const pendingPlan = subscription.metadata?.pending_downgrade_plan || null;
+        await ensureFreePlanFallback(accountRes.rows[0].account_id, pendingPlan);
+      }
     } else if (periodStart && periodEnd) {
       // Never downgrade active/trialing to incomplete from a stale event payload
       const noDowngrade = status === "incomplete" ? `AND status NOT IN ('active', 'trialing')` : "";
@@ -422,6 +426,11 @@ async function handleSubscriptionUpdated(subscription) {
        WHERE account_id = $1 AND stripe_subscription_id IS NULL AND status = 'active'`,
       [accountId]
     );
+  }
+
+  if (status === "canceled") {
+    const pendingPlan = subscription.metadata?.pending_downgrade_plan || null;
+    await ensureFreePlanFallback(accountId, pendingPlan);
   }
 }
 
@@ -567,8 +576,10 @@ async function listCustomerInvoices(stripeCustomerId, limit = 12) {
  * - checkout created a subscription whose current status is active/trialing.
  */
 /**
- * Move an account to a zero-cost plan: cancel any Stripe subscription(s), end active DB rows, insert new active row.
- * Validates target plan has no paid Stripe prices (unit_amount > 0) and matches expectedAudience (homeowner | agent).
+ * Schedule downgrade to a zero-cost plan at the end of the current billing period.
+ * For Stripe subscriptions: sets cancel_at_period_end and stores the target plan in metadata.
+ * For non-Stripe (DB-only) subs or mock mode: switches immediately.
+ * Validates target plan has no paid Stripe prices (unit_amount > 0) and matches expectedAudience.
  */
 async function downgradeToZeroCostPlan({ accountId, userId, planCode, expectedAudience }) {
   const planRes = await db.query(
@@ -618,35 +629,42 @@ async function downgradeToZeroCostPlan({ accountId, userId, planCode, expectedAu
     return { alreadyOnPlan: true, planCode };
   }
 
+  const stripeSubs = currentRows.filter((r) => r.stripe_subscription_id);
+
+  if (stripeSubs.length > 0 && !BILLING_MOCK_MODE && stripe) {
+    let accessUntil = null;
+    for (const row of stripeSubs) {
+      const updated = await stripe.subscriptions.update(row.stripe_subscription_id, {
+        cancel_at_period_end: true,
+        metadata: { pending_downgrade_plan: planCode },
+      });
+      const dates = getSubscriptionPeriodDates(updated);
+      if (dates.end) accessUntil = dates.end;
+    }
+
+    for (const row of stripeSubs) {
+      await db.query(
+        `UPDATE account_subscriptions SET cancel_at_period_end = true, updated_at = NOW()
+         WHERE stripe_subscription_id = $1`,
+        [row.stripe_subscription_id]
+      );
+    }
+
+    return {
+      scheduled: true,
+      planCode,
+      accessUntil: accessUntil instanceof Date ? accessUntil.toISOString() : accessUntil,
+    };
+  }
+
   const now = new Date();
   const end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-  if (BILLING_MOCK_MODE || !stripe) {
-    await db.query(
-      `UPDATE account_subscriptions SET status = 'canceled', updated_at = NOW()
-       WHERE account_id = $1 AND status IN ('active', 'trialing')`,
-      [accountId]
-    );
-    await db.query(
-      `INSERT INTO account_subscriptions
-       (account_id, subscription_product_id, status, current_period_start, current_period_end, cancel_at_period_end)
-       VALUES ($1, $2, 'active', $3, $4, false)`,
-      [accountId, plan.id, now, end]
-    );
-    return { success: true, planCode, mock: true };
-  }
-
-  const stripeSubs = currentRows.filter((r) => r.stripe_subscription_id);
-  for (const row of stripeSubs) {
-    await stripe.subscriptions.cancel(row.stripe_subscription_id);
-  }
 
   await db.query(
     `UPDATE account_subscriptions SET status = 'canceled', updated_at = NOW()
      WHERE account_id = $1 AND status IN ('active', 'trialing')`,
     [accountId]
   );
-
   await db.query(
     `INSERT INTO account_subscriptions
      (account_id, subscription_product_id, status, current_period_start, current_period_end, cancel_at_period_end)
@@ -654,7 +672,94 @@ async function downgradeToZeroCostPlan({ accountId, userId, planCode, expectedAu
     [accountId, plan.id, now, end]
   );
 
-  return { success: true, planCode };
+  return { success: true, planCode, mock: BILLING_MOCK_MODE || false };
+}
+
+/**
+ * Reactivate a subscription that was scheduled to cancel at period end.
+ * Clears cancel_at_period_end on both Stripe and the local DB row.
+ */
+async function reactivateSubscription(accountId, userId) {
+  if (BILLING_MOCK_MODE || !stripe) {
+    throw new BadRequestError("Reactivation not available in mock mode.");
+  }
+
+  const access = await db.query(
+    `SELECT 1 FROM account_users WHERE account_id = $1 AND user_id = $2`,
+    [accountId, userId]
+  );
+  if (!access.rows[0]) throw new BadRequestError("Access denied to this account.");
+
+  const subRes = await db.query(
+    `SELECT stripe_subscription_id
+     FROM account_subscriptions
+     WHERE account_id = $1 AND status IN ('active', 'trialing') AND cancel_at_period_end = true
+     LIMIT 1`,
+    [accountId]
+  );
+  const stripeSubId = subRes.rows[0]?.stripe_subscription_id;
+  if (!stripeSubId) {
+    throw new BadRequestError("No pending cancellation found.");
+  }
+
+  await stripe.subscriptions.update(stripeSubId, {
+    cancel_at_period_end: false,
+    metadata: { pending_downgrade_plan: "" },
+  });
+
+  await db.query(
+    `UPDATE account_subscriptions SET cancel_at_period_end = false, updated_at = NOW()
+     WHERE stripe_subscription_id = $1`,
+    [stripeSubId]
+  );
+
+  return { reactivated: true };
+}
+
+/**
+ * When a paid subscription ends (canceled/deleted), ensure the account gets a free plan row
+ * so it never has zero active subscriptions. Uses pending_downgrade_plan from Stripe metadata
+ * when available, otherwise falls back to the default free plan for the account's audience.
+ */
+async function ensureFreePlanFallback(accountId, pendingPlanCode) {
+  const activeRes = await db.query(
+    `SELECT 1 FROM account_subscriptions WHERE account_id = $1 AND status IN ('active', 'trialing') LIMIT 1`,
+    [accountId]
+  );
+  if (activeRes.rows.length > 0) return;
+
+  let freePlanId = null;
+
+  if (pendingPlanCode) {
+    const planRes = await db.query(
+      `SELECT id FROM subscription_products WHERE code = $1 AND (is_active IS NULL OR is_active = true) LIMIT 1`,
+      [pendingPlanCode]
+    );
+    freePlanId = planRes.rows[0]?.id;
+  }
+
+  if (!freePlanId) {
+    const fallbackRes = await db.query(
+      `SELECT id FROM subscription_products
+       WHERE (code LIKE '%_free' OR price::float = 0) AND (is_active IS NULL OR is_active = true)
+       ORDER BY sort_order ASC NULLS LAST LIMIT 1`
+    );
+    freePlanId = fallbackRes.rows[0]?.id;
+  }
+
+  if (!freePlanId) return;
+
+  const now = new Date();
+  const end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  await db.query(
+    `INSERT INTO account_subscriptions
+     (account_id, subscription_product_id, status, current_period_start, current_period_end, cancel_at_period_end)
+     VALUES ($1, $2, 'active', $3, $4, false)`,
+    [accountId, freePlanId, now, end]
+  );
+
+  console.info(`[billing] ensureFreePlanFallback: inserted free plan for account=${accountId}`);
 }
 
 async function verifyCheckoutSession(sessionId, { userId } = {}) {
@@ -713,4 +818,5 @@ module.exports = {
   verifyCheckoutSession,
   syncCheckoutSessionSubscription,
   downgradeToZeroCostPlan,
+  reactivateSubscription,
 };

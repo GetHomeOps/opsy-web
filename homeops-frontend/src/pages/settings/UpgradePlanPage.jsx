@@ -111,14 +111,30 @@ function UpgradePlanPage() {
       setCheckoutLoading(plan.code);
       setError(null);
       try {
-        await AppApi.downgradeToPlan({
+        const result = await AppApi.downgradeToPlan({
           planCode: plan.code,
           accountId: accountId ?? undefined,
         });
         window.dispatchEvent(new Event("plans-updated"));
-        navigate(`/${accountUrl}/settings/billing`, {
-          state: {planChanged: plan.name || plan.code},
-        });
+
+        if (result.scheduled) {
+          const dateStr = result.accessUntil
+            ? new Date(result.accessUntil).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })
+            : "";
+          navigate(`/${accountUrl}/settings/billing`, {
+            state: {
+              planChanged: `Downgrade scheduled${dateStr ? ` — you keep your current plan until ${dateStr}` : ""}`,
+            },
+          });
+        } else {
+          navigate(`/${accountUrl}/settings/billing`, {
+            state: {planChanged: plan.name || plan.code},
+          });
+        }
       } catch (err) {
         setError(
           err?.message ||

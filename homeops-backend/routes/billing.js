@@ -114,6 +114,39 @@ router.post("/downgrade-to-plan", ensureLoggedIn, wrapStripeErrors(async functio
   }
 }));
 
+/** POST /billing/reactivate
+ *  Undo a scheduled cancellation (cancel_at_period_end) so the subscription renews normally.
+ *  Body: { accountId? }
+ */
+router.post("/reactivate", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
+  try {
+    const userId = res.locals.user?.id;
+    if (!userId) throw new ForbiddenError("Authentication required");
+
+    const { accountId } = req.body || {};
+    let accountIdToUse = accountId;
+    if (!accountIdToUse) {
+      const acc = await db.query(
+        `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
+        [userId]
+      );
+      if (!acc.rows[0]) throw new BadRequestError("No account found. Complete signup first.");
+      accountIdToUse = acc.rows[0].account_id;
+    }
+
+    const hasAccess = await db.query(
+      `SELECT 1 FROM account_users WHERE account_id = $1 AND user_id = $2`,
+      [accountIdToUse, userId]
+    );
+    if (!hasAccess.rows[0]) throw new ForbiddenError("Access denied to this account");
+
+    const result = await stripeService.reactivateSubscription(accountIdToUse, userId);
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+}));
+
 /** POST /billing/portal-session
  *  Body: { accountId?, returnUrl? }
  *  Returns: { url }
@@ -227,6 +260,32 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
         [subscription.code]
       );
       limits = limRes.rows[0] || null;
+    } else {
+      const userRole = (res.locals.user?.role || "homeowner").toLowerCase();
+      const fallbackRole = ["agent", "admin"].includes(userRole) ? "agent" : "homeowner";
+      const freePlanRes = await db.query(
+        `SELECT sp.code, sp.name, sp.trial_days AS "trialDays"
+         FROM subscription_products sp
+         WHERE sp.target_role = $1 AND (sp.price IS NULL OR sp.price::float = 0)
+           AND (sp.is_active IS NULL OR sp.is_active = true)
+         ORDER BY sp.sort_order ASC NULLS LAST LIMIT 1`,
+        [fallbackRole]
+      );
+      if (freePlanRes.rows[0]) {
+        plan = { code: freePlanRes.rows[0].code, name: freePlanRes.rows[0].name, trialDays: freePlanRes.rows[0].trialDays };
+        const limRes = await db.query(
+          `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
+                  pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
+                  pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+                  pl.max_documents_per_system AS "maxDocumentsPerSystem",
+                  COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
+           FROM plan_limits pl
+           JOIN subscription_products sp ON sp.id = pl.subscription_product_id
+           WHERE sp.code = $1`,
+          [freePlanRes.rows[0].code]
+        );
+        limits = limRes.rows[0] || null;
+      }
     }
 
     // Keep billing/status resilient in production if optional analytics tables are missing

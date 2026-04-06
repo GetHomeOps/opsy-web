@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useCallback} from "react";
 import {useTranslation} from "react-i18next";
-import {useNavigate} from "react-router-dom";
+import {useNavigate, useLocation} from "react-router-dom";
 import {
   Sparkles,
   Loader2,
@@ -22,7 +22,11 @@ import {PAGE_LAYOUT} from "../../constants/layout";
 function BillingPage() {
   const {t} = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [successMsg, setSuccessMsg] = useState(
+    location.state?.planChanged || null,
+  );
   const {currentAccount} = useCurrentAccount();
   const {currentUser} = useAuth();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
@@ -33,6 +37,7 @@ function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [reactivateLoading, setReactivateLoading] = useState(false);
 
   const accountId = currentAccount?.id;
   const userRole = (currentUser?.role || "homeowner").toLowerCase();
@@ -70,6 +75,12 @@ function BillingPage() {
   }, [accountId, targetRole]);
 
   useEffect(() => {
+    if (location.state?.planChanged) {
+      window.history.replaceState({}, "");
+    }
+  }, [location.state?.planChanged]);
+
+  useEffect(() => {
     if (!accountId) {
       setLoading(false);
       return;
@@ -85,6 +96,20 @@ function BillingPage() {
     window.addEventListener("plans-updated", onPlansUpdated);
     return () => window.removeEventListener("plans-updated", onPlansUpdated);
   }, [accountId, fetchBilling]);
+
+  async function handleReactivate() {
+    if (!accountId) return;
+    setReactivateLoading(true);
+    setError(null);
+    try {
+      await AppApi.reactivateSubscription({accountId});
+      fetchBilling();
+    } catch (err) {
+      setError(err?.message || "Failed to reactivate subscription.");
+    } finally {
+      setReactivateLoading(false);
+    }
+  }
 
   async function handleManageBilling() {
     if (!accountId) return;
@@ -151,6 +176,19 @@ function BillingPage() {
               </p>
             </div>
 
+            {successMsg && (
+              <div className="mb-6 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                <span>{successMsg}</span>
+                <button
+                  type="button"
+                  onClick={() => setSuccessMsg(null)}
+                  className="ml-3 text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-200 text-lg leading-none"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+
             {error && (
               <div className="mb-6 rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
                 {error}
@@ -198,29 +236,52 @@ function BillingPage() {
                   </div>
                   <div className="p-6">
                     {sub || billing?.mockMode ? (
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div>
-                          <p className="text-xl font-semibold text-gray-900 dark:text-white capitalize">
-                            {plan?.name || "Maintain"}
-                          </p>
-                          {sub?.currentPeriodEnd && (
-                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                              {t("settings.renewsOn") || "Renews on"}{" "}
-                              <strong>
-                                {formatDate(sub.currentPeriodEnd)}
-                              </strong>
-                              {sub.cancelAtPeriodEnd && (
-                                <span className="ml-2 text-amber-600 dark:text-amber-400">
-                                  (cancels at period end)
-                                </span>
-                              )}
+                      <>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                          <div>
+                            <p className="text-xl font-semibold text-gray-900 dark:text-white capitalize">
+                              {plan?.name || "Maintain"}
                             </p>
-                          )}
+                            {sub?.currentPeriodEnd && (
+                              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                {sub.cancelAtPeriodEnd
+                                  ? "Access until"
+                                  : t("settings.renewsOn") || "Renews on"}{" "}
+                                <strong>
+                                  {formatDate(sub.currentPeriodEnd)}
+                                </strong>
+                              </p>
+                            )}
+                          </div>
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 font-medium text-emerald-800 dark:text-emerald-300">
+                            {sub?.status || "Active"}
+                          </span>
                         </div>
-                        <span className="inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 font-medium text-emerald-800 dark:text-emerald-300">
-                          {sub?.status || "Active"}
-                        </span>
-                      </div>
+                        {sub?.cancelAtPeriodEnd && (
+                          <div className="mt-4 flex items-center gap-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 px-4 py-3">
+                            <p className="flex-1 text-sm text-amber-800 dark:text-amber-300">
+                              Your subscription will be canceled on{" "}
+                              <strong>{formatDate(sub.currentPeriodEnd)}</strong>.
+                              You keep full access until then.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleReactivate}
+                              disabled={reactivateLoading}
+                              className="shrink-0 btn bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold disabled:opacity-50"
+                            >
+                              {reactivateLoading ? (
+                                <span className="inline-flex items-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Reactivating…
+                                </span>
+                              ) : (
+                                "Keep my plan"
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <p className="text-gray-500 dark:text-gray-400">
                         {t("settings.noActivePlan") ||
