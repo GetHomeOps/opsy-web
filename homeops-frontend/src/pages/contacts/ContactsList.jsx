@@ -310,6 +310,7 @@ ContactsList -> ContactsTable, PaginationClassic
 function ContactsList() {
   const {
     contacts,
+    contactsLoading,
     selectedItems,
     handleToggleSelection,
     deleteContact,
@@ -877,6 +878,7 @@ function ContactsList() {
             <>
               <ContactsTable
                 contacts={state.filteredContacts}
+                loading={contactsLoading}
                 onToggleSelect={handleToggleSelection}
                 selectedItems={selectedItems}
                 totalContacts={state.filteredContacts.length}

@@ -129,8 +129,36 @@ function ConversationBody({messages, loading, conversation, currentUserId}) {
 
   if (loading && messages.length === 0) {
     return (
-      <div className="grow flex items-center justify-center">
-        <p className="text-sm text-gray-500">Loading messages…</p>
+      <div className="grow px-4 sm:px-6 md:px-5 py-6 space-y-4">
+        {/* Incoming message skeleton */}
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+          <div className="space-y-2 max-w-[60%]">
+            <div className="h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            <div className="h-16 w-52 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse" />
+          </div>
+        </div>
+        {/* Outgoing message skeleton */}
+        <div className="flex items-start gap-3 flex-row-reverse">
+          <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+          <div className="space-y-2 max-w-[60%] flex flex-col items-end">
+            <div className="h-12 w-44 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          </div>
+        </div>
+        {/* Another incoming */}
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+          <div className="space-y-2 max-w-[60%]">
+            <div className="h-10 w-64 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse" />
+          </div>
+        </div>
+        {/* Another outgoing */}
+        <div className="flex items-start gap-3 flex-row-reverse">
+          <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+          <div className="space-y-2 max-w-[60%] flex flex-col items-end">
+            <div className="h-20 w-56 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          </div>
+        </div>
       </div>
     );
   }

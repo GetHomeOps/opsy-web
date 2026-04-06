@@ -119,7 +119,21 @@ function ConversationSidebar({
         {/* Conversation List */}
         <div className="px-3 pb-3">
           {loading ? (
-            <div className="text-center py-8 text-sm text-gray-500">Loading…</div>
+            <div className="space-y-1 py-1">
+              {Array.from({length: 6}).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-lg">
+                  <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="h-3.5 w-24 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                      <div className="h-3 w-10 rounded bg-gray-100 dark:bg-gray-700/60 animate-pulse" />
+                    </div>
+                    <div className="h-3 w-36 rounded bg-gray-100 dark:bg-gray-700/60 animate-pulse" />
+                    <div className="h-2.5 w-28 rounded bg-gray-100 dark:bg-gray-700/60 animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-8 text-sm text-gray-500">
               {searchTerm ? "No conversations match your search" : "No conversations yet"}

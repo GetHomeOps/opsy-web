@@ -20,6 +20,53 @@ function imageSeed(id) {
   );
 }
 
+function ProfessionalDirectorySkeleton() {
+  return (
+    <>
+      <div className="relative mb-10 rounded-2xl overflow-hidden shadow-xl min-h-[260px] sm:min-h-[300px]">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-800 via-teal-800/95 to-slate-900" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(16,185,129,0.12),transparent)]" />
+        <div className="relative z-10 px-6 sm:px-10 py-10 sm:py-14">
+          <div className="max-w-2xl mx-auto flex flex-col items-center gap-3 sm:gap-4">
+            <div className="h-8 sm:h-10 w-[85%] max-w-lg rounded-lg bg-white/20 animate-pulse" />
+            <div className="h-4 w-full max-w-md rounded bg-white/15 animate-pulse" />
+            <div className="h-3 w-full max-w-xl rounded bg-white/10 animate-pulse" />
+            <div className="h-3 w-[90%] max-w-lg rounded bg-white/10 animate-pulse hidden sm:block" />
+            <div className="h-10 w-full max-w-md rounded-xl bg-white/20 animate-pulse mt-4" />
+            <div className="h-11 w-56 rounded-xl bg-white/25 animate-pulse" />
+          </div>
+        </div>
+      </div>
+
+      <section>
+        <div className="mb-6 space-y-2">
+          <div className="h-7 w-52 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          <div className="h-4 w-80 max-w-full rounded bg-gray-100 dark:bg-gray-700/60 animate-pulse" />
+        </div>
+        {Array.from({length: 3}).map((_, sec) => (
+          <section key={sec} className="mb-10">
+            <div className="h-6 w-44 rounded bg-gray-200 dark:bg-gray-700 animate-pulse mb-4" />
+            <div className="flex gap-4 overflow-hidden pb-2">
+              {Array.from({length: 5}).map((_, card) => (
+                <div
+                  key={card}
+                  className="flex-shrink-0 w-[180px] sm:w-[200px] rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800"
+                >
+                  <div className="aspect-[4/3] bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-3.5 w-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                    <div className="h-3 w-2/3 rounded bg-gray-100 dark:bg-gray-600 animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </section>
+    </>
+  );
+}
+
 function mapHierarchyToSections(hierarchy) {
   if (!hierarchy?.length) return [];
   const collator = new Intl.Collator(undefined, {
@@ -111,8 +158,16 @@ function ProfessionalDirectory() {
         <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className="grow flex items-center justify-center">
-            <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
+          <main className="grow">
+            <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto relative">
+              <div className="absolute top-8 right-4 sm:right-5 flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <Loader2 className="w-5 h-5 text-[#456564] animate-spin shrink-0" />
+                <span className="text-xs font-medium hidden sm:inline">
+                  Loading…
+                </span>
+              </div>
+              <ProfessionalDirectorySkeleton />
+            </div>
           </main>
         </div>
       </div>

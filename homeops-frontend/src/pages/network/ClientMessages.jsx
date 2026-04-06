@@ -177,6 +177,37 @@ function ClientMessages() {
                     accountId={currentAccount?.id}
                   />
                 </>
+              ) : loadingConversations ? (
+                <div className="grow flex flex-col">
+                  {/* Skeleton conversation header */}
+                  <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700/60 px-4 sm:px-6 md:px-5 h-16">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                      <div className="space-y-1.5">
+                        <div className="h-3.5 w-28 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                        <div className="h-2.5 w-40 rounded bg-gray-100 dark:bg-gray-700/60 animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Skeleton message bubbles */}
+                  <div className="grow px-4 sm:px-6 md:px-5 py-6 space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+                      <div className="space-y-2 max-w-[60%]">
+                        <div className="h-3 w-16 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                        <div className="h-14 w-48 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 flex-row-reverse">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+                      <div className="h-10 w-40 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+                      <div className="h-16 w-56 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse" />
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="grow flex items-center justify-center">
                   <div className="text-center px-6">
@@ -186,14 +217,12 @@ function ClientMessages() {
                       </svg>
                     </div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {loadingConversations ? "Loading conversations…" : "No conversations yet"}
+                      No conversations yet
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xs mx-auto">
-                      {loadingConversations
-                        ? ""
-                        : isHomeownerViewer
-                          ? "When you message your agent from a property, the conversation will appear here."
-                          : "When a homeowner contacts you through their property dashboard, the conversation will appear here."}
+                      {isHomeownerViewer
+                        ? "When you message your agent from a property, the conversation will appear here."
+                        : "When a homeowner contacts you through their property dashboard, the conversation will appear here."}
                     </p>
                   </div>
                 </div>

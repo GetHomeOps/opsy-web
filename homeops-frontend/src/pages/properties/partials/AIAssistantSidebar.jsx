@@ -85,6 +85,7 @@ function AIAssistantSidebar({
   const [inspectionDate, setInspectionDate] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const hasLoadedConversationRef = useRef(false);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     if (scheduleSuccess) {
@@ -129,6 +130,26 @@ function AIAssistantSidebar({
   }, [systemContext?.systemId, systemContext?.systemName, systemLabel]);
 
   const [overrideSystemContext, setOverrideSystemContext] = useState(null);
+
+  useEffect(() => {
+    if (embedded || !isOpen) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const update = () => {
+      if (!containerRef.current) return;
+      containerRef.current.style.height = `${vv.height}px`;
+    };
+
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [embedded, isOpen]);
 
   const resetLocalState = useCallback(() => {
     setConversationId(null);
@@ -512,6 +533,7 @@ function AIAssistantSidebar({
   const sidebarContent = (
     <>
       <div
+        ref={containerRef}
         className={`flex flex-col overflow-hidden ${embedded ? "flex-1 min-h-0" : "h-full"}`}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
@@ -520,10 +542,11 @@ function AIAssistantSidebar({
               <button
                 type="button"
                 onClick={onBack}
-                className="p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300"
-                aria-label="Back"
+                className="flex items-center gap-0.5 -ml-2 pl-1.5 pr-2 py-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                aria-label="Back to property selection"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-5 h-5" />
+                <span className="text-xs font-medium">Back</span>
               </button>
             )}
             <img

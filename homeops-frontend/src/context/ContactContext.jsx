@@ -27,6 +27,7 @@ State:
 */
 export function ContactProvider({children}) {
   const [contacts, setContacts] = useState([]);
+  const [contactsLoading, setContactsLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState([]);
   const [viewMode, setViewMode] = useLocalStorage("contacts-view-mode", "list");
   const {currentUser, isLoading} = useAuth();
@@ -64,6 +65,7 @@ export function ContactProvider({children}) {
     if (isLoading || !currentUser) return;
 
     try {
+      setContactsLoading(true);
       let fetchedContacts = [];
 
       if (currentAccount?.id) {
@@ -74,6 +76,8 @@ export function ContactProvider({children}) {
     } catch (err) {
       console.error("There was an error retrieving contacts:", err);
       setContacts([]);
+    } finally {
+      setContactsLoading(false);
     }
   }, [isLoading, currentUser, currentAccount?.id]);
 
@@ -263,6 +267,7 @@ export function ContactProvider({children}) {
   const contextValue = useMemo(
     () => ({
       contacts,
+      contactsLoading,
       selectedItems,
       setSelectedItems,
       sortConfig: listSortConfig,
@@ -284,6 +289,7 @@ export function ContactProvider({children}) {
     }),
     [
       contacts,
+      contactsLoading,
       selectedItems,
       listSortConfig,
       listSortedItems,

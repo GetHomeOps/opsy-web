@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useContext, useMemo} from "react";
+import React, {useState, useEffect, useContext, useMemo, useRef} from "react";
 import {useNavigate} from "react-router-dom";
 import {X, ArrowUpCircle, Loader2, Search} from "lucide-react";
 import opsyAiIcon from "../images/opsy_ai2.webp";
@@ -27,6 +27,7 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
   const [systemContext, setSystemContext] = useState(null);
   const [propertySystems, setPropertySystems] = useState([]);
   const [propertySearch, setPropertySearch] = useState("");
+  const panelRef = useRef(null);
 
   const filteredProperties = useMemo(() => {
     const list = properties || [];
@@ -89,6 +90,26 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
     setSystemContext(null);
   }, [selectedPropertyId, isOpen, getSystemsByPropertyId]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const update = () => {
+      if (!panelRef.current) return;
+      panelRef.current.style.height = `${vv.height}px`;
+    };
+
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [isOpen]);
+
   return (
     <Transition
       show={isOpen}
@@ -99,7 +120,7 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
       leaveStart="opacity-100"
       leaveEnd="opacity-0"
     >
-      <div className="fixed inset-y-0 right-0 w-full max-w-md h-screen bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl z-50 flex flex-col overflow-hidden">
+      <div ref={panelRef} className="fixed top-0 right-0 w-full max-w-md bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl z-50 flex flex-col overflow-hidden" style={{height: "100dvh"}}>
         {!selectedPropertyId ? (
           <>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">

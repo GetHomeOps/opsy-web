@@ -6,6 +6,7 @@ import DataTableItem from "../../components/DataTableItem";
 
 function ContactsTable({
   contacts,
+  loading,
   onToggleSelect,
   selectedItems,
   totalContacts,
@@ -96,6 +97,7 @@ function ContactsTable({
       sortConfig={sortConfig}
       onSort={onSort}
       emptyMessage="contacts.emptyState"
+      loading={loading}
       renderItem={renderItem}
       allSelected={allSelected}
     />

@@ -144,14 +144,15 @@ function WelcomeModal() {
     navigate,
   });
 
+  const onboardingDataLoaded = calendarIntegrationsLoaded && savedProfessionalsLoaded;
+
   useEffect(() => {
     if (!userId || !showForRole) return;
-    if (!calendarIntegrationsLoaded || !savedProfessionalsLoaded) return;
     if (welcomeDismissedPermanently || sessionSkipped) {
       setModalOpen(false);
       return;
     }
-    if (allComplete) {
+    if (onboardingDataLoaded && allComplete) {
       setModalOpen(false);
       return;
     }
@@ -173,8 +174,7 @@ function WelcomeModal() {
     userId,
     showForRole,
     allComplete,
-    calendarIntegrationsLoaded,
-    savedProfessionalsLoaded,
+    onboardingDataLoaded,
     welcomeDismissedPermanently,
     sessionSkipped,
   ]);
@@ -292,7 +292,7 @@ function WelcomeModal() {
               </p>
             </div>
 
-            {allComplete ? (
+            {allComplete && onboardingDataLoaded ? (
               /* Success state */
               <div className="text-center py-4">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 mb-4">
@@ -312,6 +312,51 @@ function WelcomeModal() {
                   {t("onboarding.explore")}
                 </button>
               </div>
+            ) : !onboardingDataLoaded ? (
+              /* Skeleton while onboarding data loads */
+              <>
+                <div className="flex items-center justify-between mb-4 px-1">
+                  <div className="h-3 w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                  <div className="h-1.5 flex-1 max-w-[120px] mx-3 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                </div>
+                <div className="space-y-3 mb-6">
+                  {Array.from({length: 4}).map((_, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60"
+                    >
+                      <div className="w-11 h-11 rounded-xl bg-gray-200 dark:bg-gray-700 animate-pulse flex-shrink-0" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="h-3.5 w-32 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                        <div className="h-3 w-48 rounded bg-gray-100 dark:bg-gray-700/60 animate-pulse" />
+                      </div>
+                      <div className="h-8 w-16 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-center">
+                  <button
+                    type="button"
+                    onClick={handleSkipForNow}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 underline underline-offset-2"
+                  >
+                    {t("onboarding.skip")}
+                  </button>
+                  <span
+                    className="hidden sm:inline text-gray-300 dark:text-gray-600"
+                    aria-hidden
+                  >
+                    |
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleDismissPermanently}
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 underline underline-offset-2"
+                  >
+                    {t("onboarding.doNotShowAgain")}
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 {/* Progress indicator */}
