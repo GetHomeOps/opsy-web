@@ -7,7 +7,7 @@
     "phone": "2065550000",
     "password": "12345678",
     "role": "agent",
-    "avatar_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&fit=crop&q=80"
+    "avatar_url": "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&fit=crop&q=80"
   },
   "properties": [
     {
@@ -597,7 +597,7 @@
         "state": "WA",
         "zip": "98007"
       },
-      "main_photo": "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&fit=crop&q=80"
+      "main_photo": "https://images.unsplash.com/photo-1599809275671-b5942cabc7a2?w=1200&fit=crop&q=80"
     },
     {
       "index": 32,
@@ -1338,7 +1338,7 @@
         "state": "WA",
         "zip": "98201"
       },
-      "main_photo": "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&fit=crop&q=80"
+      "main_photo": "https://images.unsplash.com/photo-1599809275671-b5942cabc7a2?w=1200&fit=crop&q=80"
     },
     {
       "index": 71,

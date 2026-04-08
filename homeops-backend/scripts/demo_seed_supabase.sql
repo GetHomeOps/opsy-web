@@ -31,7 +31,7 @@ VALUES (
   true,
   'local',
   true,
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&fit=crop&q=80',
   'agent_premium'
 )
 ON CONFLICT (email) DO UPDATE SET
@@ -1666,7 +1666,7 @@ SELECT
   a.id,
   'WA-98007-17814',
   '14502 SE 14th St',
-  'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1599809275671-b5942cabc7a2?w=1200&fit=crop&q=80',
   '14502 SE 14th St, Bellevue, WA 98007',
   '14502 SE 14th St',
   'Bellevue',
@@ -3694,7 +3694,7 @@ SELECT
   a.id,
   'WA-98201-75989',
   '3415 35th St',
-  'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1599809275671-b5942cabc7a2?w=1200&fit=crop&q=80',
   '3415 35th St, Everett, WA 98201',
   '3415 35th St',
   'Everett',
@@ -5266,5 +5266,234 @@ ON CONFLICT (property_uid) DO NOTHING;
 
 INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.scott@email.com' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
 INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.scott@email.com' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
+
+-- =============================================================================
+-- Rich demo property fields, systems, maintenance, and analytics engagement
+-- (scoped to homeowner demo accounts: accounts.url ~ ^demo-hw-)
+-- =============================================================================
+
+UPDATE properties AS p SET
+  hps_score = 58 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 35),
+  tax_id = 'KING-' || LPAD((ABS(hashtext(COALESCE(p.passport_id, ''))) % 900000 + 100000)::text, 6, '0'),
+  county = 'King County',
+  address_line_2 = CASE (ABS(hashtext(COALESCE(p.property_uid, ''))) % 5)
+    WHEN 0 THEN NULL WHEN 1 THEN '' ELSE 'Unit ' || ((ABS(hashtext(COALESCE(p.property_uid, ''))) % 8) + 1)::text END,
+  owner_name = (SELECT u.name FROM property_users pu JOIN users u ON u.id = pu.user_id
+                WHERE pu.property_id = p.id AND pu.role = 'owner'::property_role LIMIT 1),
+  owner_name_2 = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 4) = 0 THEN NULL ELSE 'Co-owner' END,
+  owner_city = p.city,
+  occupant_name = (SELECT u.name FROM property_users pu JOIN users u ON u.id = pu.user_id
+                   WHERE pu.property_id = p.id AND pu.role = 'owner'::property_role LIMIT 1),
+  occupant_type = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 6) = 0 THEN 'Tenant' ELSE 'Owner' END,
+  owner_phone = (SELECT u.phone FROM property_users pu JOIN users u ON u.id = pu.user_id
+                 WHERE pu.property_id = p.id AND pu.role = 'owner'::property_role LIMIT 1),
+  phone_to_show = 'owner',
+  property_type = 'Residential',
+  sub_type = (ARRAY['Single Family', 'Townhouse', 'Condo', 'Multi-Family'])[1 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 4)],
+  roof_type = (ARRAY['Composition', 'Metal', 'Tile', 'Wood shake', 'Slate'])[1 + (ABS(hashtext(COALESCE(p.city, ''))) % 5)],
+  year_built = 1978 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 42),
+  effective_year_built = 1985 + (ABS(hashtext(COALESCE(p.passport_id, ''))) % 35),
+  effective_year_built_source = 'County assessor',
+  sq_ft_total = (2200 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2200))::numeric,
+  sq_ft_finished = (2000 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 1800))::numeric,
+  sq_ft_unfinished = (150 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 600))::numeric,
+  garage_sq_ft = (300 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 500))::numeric,
+  total_dwelling_sq_ft = (2100 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2000))::numeric,
+  sq_ft_source = 'Assessor',
+  lot_size = (0.12 + ((ABS(hashtext(COALESCE(p.property_uid, ''))) % 35)::numeric / 100))::text || ' ac',
+  lot_size_source = 'Parcel record',
+  lot_dim = (ARRAY['80x120', '75x110', '90x105', '60x130'])[1 + (ABS(hashtext(COALESCE(p.zip, ''))) % 4)],
+  price_per_sq_ft = (280 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 220))::text,
+  total_price_per_sq_ft = (265 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 200))::text,
+  bed_count = 3 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 4),
+  bath_count = 2 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
+  full_baths = 2 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2),
+  three_quarter_baths = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3) = 0 THEN 1 ELSE 0 END,
+  half_baths = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2) = 0 THEN 1 ELSE 0 END,
+  number_of_showers = 2 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
+  number_of_bathtubs = 1 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2),
+  fireplaces = (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
+  fireplace_types = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3) = 0 THEN NULL ELSE 'Gas insert' END,
+  basement = (ARRAY['Full unfinished', 'Partial finished', 'Crawl space', 'None'])[1 + (ABS(hashtext(COALESCE(p.state, ''))) % 4)],
+  parking_type = (ARRAY['Attached garage', 'Detached garage', 'Carport', 'Driveway'])[1 + (ABS(hashtext(COALESCE(p.zip, ''))) % 4)],
+  total_covered_parking = 2 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
+  total_uncovered_parking = (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
+  school_district = COALESCE(p.city, 'Local') || ' School District',
+  elementary_school = COALESCE(p.city, 'North') || ' Elementary',
+  junior_high_school = COALESCE(p.city, 'Central') || ' Middle School',
+  senior_high_school = COALESCE(p.city, 'Regional') || ' High School',
+  school_district_websites = 'https://www.k12.wa.us',
+  list_date = DATE '2024-03-01' + ((ABS(hashtext(COALESCE(p.property_uid, ''))) % 60) * INTERVAL '1 day'),
+  expire_date = DATE '2025-12-31',
+  identity_data_source = 'attom',
+  identity_lookup_populated_keys = '["address","city","state","zip","county","yearBuilt","sqFtTotal","bedCount","bathCount","ownerName"]'::jsonb,
+  updated_at = NOW()
+FROM accounts AS a
+WHERE p.account_id = a.id AND a.url ~ '^demo-hw-[0-9]+$';
+
+INSERT INTO property_systems (property_id, system_key, data, next_service_date, included)
+SELECT
+  p.id,
+  sk.system_key,
+  jsonb_build_object(
+    'brand', 'DemoPro',
+    'model', 'DP-' || (ABS(hashtext(p.property_uid || sk.system_key)) % 900 + 100),
+    'installedYear', (1992 + (ABS(hashtext(p.property_uid)) % 28))::text,
+    'warrantyExpires', to_char(CURRENT_DATE + interval '2 years', 'YYYY-MM-DD'),
+    'lastNote', 'Demo seed: typical residential system profile.'
+  ),
+  CURRENT_DATE + ((ABS(hashtext(p.property_uid || sk.system_key)) % 200) * INTERVAL '1 day'),
+  true
+FROM properties p
+JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
+CROSS JOIN (VALUES
+  ('roof'), ('gutters'), ('foundation'), ('exterior'), ('windows'),
+  ('heating'), ('ac'), ('waterHeating'), ('electrical'), ('plumbing'), ('safety'), ('inspections')
+) AS sk(system_key)
+ON CONFLICT (property_id, system_key) DO UPDATE SET
+  data = EXCLUDED.data,
+  next_service_date = EXCLUDED.next_service_date,
+  included = EXCLUDED.included,
+  updated_at = NOW();
+
+INSERT INTO property_maintenance (property_id, system_key, completed_at, next_service_date, data, status, record_status)
+SELECT
+  p.id,
+  pm.system_key,
+  CASE WHEN (ABS(hashtext(p.property_uid || pm.system_key)) % 2) = 0
+    THEN NOW() - ((10 + (ABS(hashtext(p.property_uid)) % 40)) * INTERVAL '1 day') ELSE NULL END,
+  NOW() + ((15 + (ABS(hashtext(p.property_uid || pm.system_key)) % 60)) * INTERVAL '1 day'),
+  jsonb_build_object(
+    'summary', CASE pm.system_key
+      WHEN 'heating' THEN 'Annual furnace service'
+      WHEN 'roof' THEN 'Shingle inspection and minor repair'
+      ELSE 'Routine system check' END,
+    'vendor', 'Northwest Home Services',
+    'cost', 85 + (ABS(hashtext(p.property_uid || pm.system_key)) % 400),
+    'priority', CASE WHEN (ABS(hashtext(p.property_uid)) % 5) = 0 THEN 'high' ELSE 'normal' END
+  ),
+  CASE WHEN (ABS(hashtext(p.property_uid || pm.system_key)) % 2) = 0 THEN 'completed' ELSE 'pending' END,
+  CASE WHEN (ABS(hashtext(p.property_uid || pm.system_key)) % 2) = 0 THEN 'user_completed' ELSE 'draft' END
+FROM properties p
+JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
+CROSS JOIN (VALUES ('heating'), ('roof'), ('plumbing')) AS pm(system_key);
+
+INSERT INTO maintenance_events (
+  property_id, system_key, system_name, scheduled_date, scheduled_time,
+  status, event_type, timezone, email_reminder, created_by
+)
+SELECT
+  p.id,
+  CASE g.n WHEN 1 THEN 'heating' ELSE 'inspections' END,
+  CASE g.n WHEN 1 THEN 'Seasonal HVAC tune-up' ELSE 'Annual property inspection' END,
+  CURRENT_DATE + (g.n * 18 + (ABS(hashtext(p.property_uid)) % 10)),
+  CASE g.n WHEN 1 THEN TIME '09:00' ELSE NULL END,
+  'scheduled',
+  CASE g.n WHEN 1 THEN 'maintenance'::text ELSE 'inspection'::text END,
+  'America/Los_Angeles',
+  true,
+  CASE g.n WHEN 1
+    THEN (SELECT pu.user_id FROM property_users pu WHERE pu.property_id = p.id AND pu.role = 'owner'::property_role LIMIT 1)
+    ELSE (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1) END
+FROM properties p
+JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
+CROSS JOIN generate_series(1, 2) AS g(n);
+
+-- Logins (agent + each demo homeowner) for activity / session analytics
+INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
+SELECT u.id, 'login', '{}'::jsonb,
+  NOW() - (gs * INTERVAL '14 hours') - (random() * INTERVAL '5 days')
+FROM (
+  SELECT id FROM users WHERE email = 'agent@opsy.com'
+  UNION
+  SELECT u2.id FROM users u2
+  JOIN accounts a2 ON a2.owner_user_id = u2.id AND a2.url ~ '^demo-hw-[0-9]+$'
+) AS u
+CROSS JOIN generate_series(1, 7) AS gs;
+
+-- Agent page views on portfolio properties (path matches property analytics regex)
+INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
+SELECT
+  (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1),
+  'page_view',
+  jsonb_build_object(
+    'path', '/' || a.url || '/properties/' || p.property_uid,
+    'propertyId', p.property_uid
+  ),
+  NOW() - (random() * INTERVAL '27 days')
+FROM properties p
+JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
+CROSS JOIN generate_series(1, 6) AS gv;
+
+-- Homeowner page views (same paths; role = homeowner for visit breakdown)
+INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
+SELECT
+  hw.id,
+  'page_view',
+  jsonb_build_object(
+    'path', '/' || a.url || '/properties/' || p.property_uid,
+    'propertyId', p.property_uid
+  ),
+  NOW() - (random() * INTERVAL '27 days')
+FROM properties p
+JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
+JOIN property_users pu ON pu.property_id = p.id AND pu.role = 'owner'::property_role
+JOIN users hw ON hw.id = pu.user_id
+CROSS JOIN generate_series(1, 5) AS gv;
+
+-- Extra routes for “top pages” / path analytics
+INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
+SELECT
+  hw.id,
+  'page_view',
+  jsonb_build_object('path', '/' || a.url || '/home'),
+  NOW() - (random() * INTERVAL '14 days')
+FROM accounts a
+JOIN users hw ON hw.id = a.owner_user_id
+CROSS JOIN generate_series(1, 3) AS gv
+WHERE a.url ~ '^demo-hw-[0-9]+$';
+
+INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
+SELECT
+  (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1),
+  'page_view',
+  jsonb_build_object('path', '/demo-agent/home'),
+  NOW() - (random() * INTERVAL '14 days')
+FROM generate_series(1, 12) AS gv;
+
+-- Engagement event types used in dashboards / counts
+INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
+SELECT
+  hw.id,
+  'maintenance_logged',
+  jsonb_build_object('propertyId', p.property_uid, 'systemKey', 'heating'),
+  NOW() - (random() * INTERVAL '20 days')
+FROM properties p
+JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
+JOIN property_users pu ON pu.property_id = p.id AND pu.role = 'owner'::property_role
+JOIN users hw ON hw.id = pu.user_id
+WHERE (ABS(hashtext(p.property_uid)) % 2) = 0;
+
+INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
+SELECT
+  hw.id,
+  'document_uploaded',
+  jsonb_build_object('propertyId', p.property_uid, 'documentType', 'warranty'),
+  NOW() - (random() * INTERVAL '20 days')
+FROM properties p
+JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
+JOIN property_users pu ON pu.property_id = p.id AND pu.role = 'owner'::property_role
+JOIN users hw ON hw.id = pu.user_id
+WHERE (ABS(hashtext(p.property_uid)) % 3) = 0;
+
+INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
+SELECT
+  (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1),
+  'property_updated',
+  jsonb_build_object('propertyId', p.property_uid),
+  NOW() - (random() * INTERVAL '25 days')
+FROM properties p
+JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
+WHERE (ABS(hashtext(p.property_uid)) % 4) = 0;
 
 COMMIT;

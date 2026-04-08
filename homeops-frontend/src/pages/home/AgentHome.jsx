@@ -329,15 +329,14 @@ function AgentHome() {
           label: t("agentHome.homeownerVisits") || "Homeowner",
           data: data.map((d) => d.homeowner),
           backgroundColor: "#3b82f6",
-          borderRadius: 4,
-          borderSkipped: false,
+          // Stacked bars: omit borderSkipped so Chart.js only rounds the stack ends (not each segment).
+          borderRadius: 3,
         },
         {
           label: t("agentHome.agentVisits") || "Agent",
           data: data.map((d) => d.agent),
           backgroundColor: "#456564",
-          borderRadius: 4,
-          borderSkipped: false,
+          borderRadius: 3,
         },
       ],
     };

@@ -54,23 +54,29 @@ function AgentHomeKpiCharts({
               </h3>
               <Eye className="w-4 h-4 text-[#456564]/70" />
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
               {t("agentHome.mostVisitedPropertiesDesc") ||
                 "Top properties visited by homeowners this week"}
             </p>
             {propertyVisitsChartData ? (
-              <div className="h-44">
+              <div className="h-36 min-h-0">
                 <Bar
                   data={propertyVisitsChartData}
                   options={{
                     ...chartOptions,
                     indexAxis: "y",
+                    layout: {padding: {top: 0, right: 4, bottom: 0, left: 0}},
                     plugins: {
                       ...chartOptions.plugins,
                       legend: {
                         display: true,
                         position: "bottom",
-                        labels: {boxWidth: 10, padding: 8, font: {size: 10}},
+                        align: "start",
+                        labels: {
+                          boxWidth: 10,
+                          padding: 4,
+                          font: {size: 10},
+                        },
                       },
                       tooltip: {
                         ...chartOptions.plugins?.tooltip,
@@ -84,19 +90,19 @@ function AgentHomeKpiCharts({
                       x: {
                         stacked: true,
                         grid: {display: false},
-                        ticks: {stepSize: 1},
+                        ticks: {stepSize: 1, padding: 0},
                       },
                       y: {
                         stacked: true,
                         grid: {display: false},
-                        ticks: {font: {size: 10}},
+                        ticks: {font: {size: 10}, padding: 2},
                       },
                     },
                   }}
                 />
               </div>
             ) : (
-              <div className="h-44 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-200 dark:border-gray-600 rounded-lg">
+              <div className="h-36 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-200 dark:border-gray-600 rounded-lg">
                 <Eye className="w-10 h-10 mb-2 opacity-50" />
                 {t("agentHome.noVisitsData") ||
                   "No property visits recorded this week."}

@@ -1,0 +1,38 @@
+name: Demo Database Reset
+
+on:
+  schedule:
+    # Every day at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+env:
+  SCRIPTS_DIR: homeops-backend/scripts
+  SCHEMA_FILE: homeops-backend/opsy-schema.sql
+
+jobs:
+  reset-demo-db:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Teardown — drop all tables and types
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$SCRIPTS_DIR/demo_teardown_supabase.sql"
+        env:
+          DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+
+      - name: Recreate schema
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$SCHEMA_FILE"
+        env:
+          DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+
+      - name: Seed demo data
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$SCRIPTS_DIR/demo_seed_supabase.sql"
+        env:
+          DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
