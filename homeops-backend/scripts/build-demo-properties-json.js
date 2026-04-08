@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Regenerates data/demo-properties.json (static Pexels CDN URLs).
+ * Regenerates data/demo-properties.json with Unsplash house exterior + portrait URLs.
  * Run from homeops-backend: node scripts/build-demo-properties-json.js
  */
 
@@ -113,48 +113,94 @@ const ADDRESS_LINES = `
 1215 212th Ave SE, Sammamish, WA 98074
 `.trim().split("\n");
 
-/** Pexels house / exterior photos (verified HTTP 200; cycled for 100 rows). */
+/**
+ * Unsplash house exterior photos — all verified HTTP 200.
+ * Unsplash allows hotlinking per https://unsplash.com/license
+ */
 const HOUSE_IDS = [
-  1396132, 1115804, 1643384, 2251247, 323705, 1029599, 221540, 1390684, 2102587, 280221,
-  534220, 106399, 1181406, 318191, 1396120, 323780, 259588, 1396123, 1571460, 1396122,
-  2014422, 1393942, 2121121, 1571468, 1396125, 1643389, 1396134, 1396126, 2724748, 2635038,
-  2724749, 2635037, 2121122, 1571453, 1643383, 1396127, 259751, 1390966, 1571467, 1396133,
+  "1564013799919-ab600027ffc6",
+  "1570129477492-45c003edd2be",
+  "1583608205776-bfd35f0d9f83",
+  "1600596542815-ffad4c1539a9",
+  "1600585154340-be6161a56a0c",
+  "1600047509807-ba8f99d2cdde",
+  "1512917774080-9991f1c4c750",
+  "1523217582562-09d0def993a6",
+  "1600585154526-990dced4db0d",
+  "1600573472550-8090b5e0745e",
+  "1600573472592-401b489a3cdc",
+  "1600566753190-17f0baa2a6c3",
+  "1600607687939-ce8a6c25118c",
+  "1600607687644-c7171b42498f",
+  "1605276374104-dee2a0ed3cd6",
+  "1600585153490-76fb20a32601",
+  "1600566752355-35792bedcfea",
+  "1600585154363-67eb9e2e2099",
+  "1600585154084-4e5fe7c39198",
+  "1600573472591-ee6b68d14c68",
+  "1600047509358-9dc75507daeb",
+  "1558036117-15d82a90b9b1",
+  "1580587771525-78b9dba3b914",
+  "1625602812206-5ec545ca1231",
+  "1518780664697-55e3ad937233",
+  "1572120360610-d971b9d7767c",
+  "1568605114967-8130f3a36994",
+  "1605146769289-440113cc3d00",
+  "1613977257365-aaae5a9817ff",
+  "1592595896616-c37162298647",
+  "1560518883-ce09059eeffa",
+  "1592595896551-12b371d546d5",
+  "1484154218962-a197022b5858",
+  "1430285561322-7808604715df",
+  "1502672260266-1c1ef2d93688",
+  "1416331108676-a22ccb276e35",
+  "1510627489930-0c1b0bfb6785",
+  "1480074568708-e7b720bb3f09",
+  "1542314831-068cd1dbfeeb",
 ];
 
-/** Pexels portrait / people photos for homeowner avatars (verified HTTP 200). */
+/** Unsplash portrait photos — verified HTTP 200. */
 const PORTRAIT_IDS = [
-  774909, 1181695, 1222271, 1239291, 1181514, 1236723, 1181686, 1043471, 1121796, 1181687,
-  2379004, 1024311, 733872, 614810, 3785079, 3771089, 3783184, 3785077, 3785078, 1181516,
-  1043472, 1121797,
+  "1507003211169-0a1dd7228f2d",
+  "1494790108377-be9c29b29330",
+  "1544005313-94ddf0286df2",
+  "1500648767791-00dcc994a43e",
+  "1506794778202-cad84cf45f1d",
+  "1534528741775-53994a69daeb",
+  "1488426862026-3ee34a7d66df",
+  "1517841905240-472988babdf9",
+  "1472099645785-5658abf4ff4e",
+  "1580489944761-15a19d654956",
+  "1438761681033-6461ffad8d80",
+  "1573496359142-b8d87734a5a2",
+  "1560250097-0b93528c311a",
+  "1567532939604-b6b5b0db2604",
+  "1499996860823-5214fcc65f8f",
+  "1508214751196-bcfd4ca60f91",
+  "1544725176-7c40e5a71c5e",
+  "1519085360753-af0119f7cbe7",
+  "1552058544-f2b08422138a",
+  "1542596768-5d1d21f1cf98",
+  "1600878459138-e1123b37cb30",
 ];
 
-function pexelsHouse(id) {
-  return `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1200`;
+function unsplashHouse(id) {
+  return `https://images.unsplash.com/photo-${id}?w=1200&fit=crop&q=80`;
 }
 
-function pexelsPortrait(id) {
-  return `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=800`;
+function unsplashPortrait(id) {
+  return `https://images.unsplash.com/photo-${id}?w=400&fit=crop&q=80`;
 }
 
 function parseAddressLine(line) {
   const parts = line.split(",").map((s) => s.trim());
-  if (parts.length < 3) {
-    throw new Error(`Bad address line: ${line}`);
-  }
+  if (parts.length < 3) throw new Error(`Bad address line: ${line}`);
   const address_line_1 = parts.slice(0, -2).join(", ");
   const city = parts[parts.length - 2];
   const stateZip = parts[parts.length - 1];
   const m = stateZip.match(/^([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
-  if (!m) {
-    throw new Error(`Bad state/zip: ${stateZip} in ${line}`);
-  }
-  return {
-    full: line.trim(),
-    address_line_1,
-    city,
-    state: m[1].toUpperCase(),
-    zip: m[2],
-  };
+  if (!m) throw new Error(`Bad state/zip: ${stateZip} in ${line}`);
+  return { full: line.trim(), address_line_1, city, state: m[1].toUpperCase(), zip: m[2] };
 }
 
 const FIRST = ["Alex", "Sam", "Jordan", "Riley", "Casey", "Morgan", "Taylor", "Quinn", "Jamie", "Avery"];
@@ -163,8 +209,6 @@ const LAST = ["Nguyen", "Patel", "Garcia", "Kim", "Chen", "Martinez", "Brown", "
 const properties = ADDRESS_LINES.map((line, i) => {
   const n = i + 1;
   const pad = String(n).padStart(3, "0");
-  const houseId = HOUSE_IDS[i % HOUSE_IDS.length];
-  const portraitId = PORTRAIT_IDS[i % PORTRAIT_IDS.length];
   return {
     index: n,
     homeowner: {
@@ -173,35 +217,29 @@ const properties = ADDRESS_LINES.map((line, i) => {
       phone: `206555${String(1000 + n).slice(-4)}`,
       password: "12345678",
       role: "homeowner",
-      avatar_url: pexelsPortrait(portraitId),
-      pexels_portrait_photo_id: portraitId,
+      avatar_url: unsplashPortrait(PORTRAIT_IDS[i % PORTRAIT_IDS.length]),
     },
     address: parseAddressLine(line),
-    main_photo: pexelsHouse(houseId),
-    pexels_house_photo_id: houseId,
+    main_photo: unsplashHouse(HOUSE_IDS[i % HOUSE_IDS.length]),
   };
 });
 
-const agentPortraitId = 2182970;
 const doc = {
-  version: 1,
+  version: 2,
   description:
-    "Demo seed: one agent (all properties), one homeowner per property. Passwords are plaintext for local seed scripts only — hash before persisting. Images: Pexels (see photo ids on each record).",
+    "Demo seed: 1 agent (all properties), 1 homeowner per property. Passwords are plaintext — hash before persisting. Photos: Unsplash (house exteriors + portraits).",
   agent: {
     email: "agent@opsy.com",
     name: "Jordan Agent",
     phone: "2065550000",
     password: "12345678",
     role: "agent",
-    avatar_url: pexelsPortrait(agentPortraitId),
-    pexels_portrait_photo_id: agentPortraitId,
+    avatar_url: unsplashPortrait("1507003211169-0a1dd7228f2d"),
   },
   properties,
 };
 
-if (properties.length !== 100) {
-  throw new Error(`Expected 100 properties, got ${properties.length}`);
-}
+if (properties.length !== 100) throw new Error(`Expected 100 properties, got ${properties.length}`);
 
 fs.writeFileSync(OUT, JSON.stringify(doc, null, 2), "utf8");
-console.log(`Wrote ${OUT}`);
+console.log(`Wrote ${OUT} (${properties.length} properties)`);

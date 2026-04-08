@@ -222,14 +222,14 @@ function SubscriptionFormContainer() {
 
   /** Handle form field changes */
   function handleChange(e) {
-    const {id: fieldId, value} = e.target;
-    dispatch({type: "SET_FORM_DATA", payload: {[fieldId]: value}});
+    const {id: fieldId, name: fieldName, value} = e.target;
+    const key = fieldId || fieldName;
+    dispatch({type: "SET_FORM_DATA", payload: {[key]: value}});
 
-    // Clear error when field is being edited
-    if (state.errors[fieldId]) {
+    if (state.errors[key]) {
       dispatch({
         type: "SET_ERRORS",
-        payload: {...state.errors, [fieldId]: null},
+        payload: {...state.errors, [key]: null},
       });
     }
 

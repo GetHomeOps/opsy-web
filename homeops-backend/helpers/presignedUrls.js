@@ -63,6 +63,10 @@ async function addPresignedUrlToItem(item, keyField, urlField = null) {
   const urlFieldName = urlField || `${keyField}_url`;
   const key = item[keyField];
 
+  if (typeof key === "string" && (key.startsWith("https://") || key.startsWith("http://"))) {
+    return { ...item, [urlFieldName]: key };
+  }
+
   if (!isSafeS3Key(key)) {
     return { ...item, [urlFieldName]: null };
   }
