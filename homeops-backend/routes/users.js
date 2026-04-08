@@ -146,6 +146,16 @@ router.get("/:email", ensureLoggedIn, async function (req, res, next) {
     }
     const user = await User.get(req.params.email);
     const userWithUrl = await addPresignedUrlToItem(user, "image", "image_url");
+
+    if (isSelfLookup && !user.welcomeModalDismissed) {
+      const [calResult, proResult] = await Promise.all([
+        db.query(`SELECT EXISTS(SELECT 1 FROM calendar_integrations WHERE user_id = $1) AS has`, [user.id]),
+        db.query(`SELECT EXISTS(SELECT 1 FROM saved_professionals WHERE user_id = $1) AS has`, [user.id]),
+      ]);
+      userWithUrl.hasCalendarIntegrations = calResult.rows[0]?.has ?? false;
+      userWithUrl.hasSavedProfessionals = proResult.rows[0]?.has ?? false;
+    }
+
     return res.json({ user: userWithUrl });
   } catch (err) {
     return next(err);

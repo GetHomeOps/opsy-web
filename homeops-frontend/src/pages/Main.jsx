@@ -77,7 +77,7 @@ function Main() {
           </div>
         </main>
 
-        <WelcomeModal />
+        {!currentUser?.welcomeModalDismissed && <WelcomeModal />}
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 import React from "react";
 import {Bar, Doughnut, Line} from "react-chartjs-2";
 import {
-  Building2,
   Users,
   Activity,
   BarChart3,
@@ -13,7 +12,6 @@ import {
   Eye,
   MousePointerClick,
   Clock,
-  UserCircle,
   Loader2,
 } from "lucide-react";
 import "./chartConfig";
@@ -21,10 +19,6 @@ import "./chartConfig";
 function AgentHomeKpiCharts({
   t,
   totalProperties,
-  totalUsers,
-  totalContacts,
-  portfolioBarData,
-  portfolioDoughnutData,
   chartOptions,
   healthDoughnutData,
   healthDistribution,
@@ -36,6 +30,8 @@ function AgentHomeKpiCharts({
   healthByPropertyData,
   teamByPropertyData,
   isLoadingTeams,
+  propertyVisitsChartData,
+  activitiesByPropertyChartData,
 }) {
   return (
     <>
@@ -49,121 +45,125 @@ function AgentHomeKpiCharts({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Most Visited Properties (last 7 days, top 5) */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {t("agentHome.portfolioOverview") || "Portfolio Overview"}
+                {t("agentHome.mostVisitedProperties") ||
+                  "Most Visited Properties"}
               </h3>
-              <Building2 className="w-4 h-4 text-[#456564]/70" />
+              <Eye className="w-4 h-4 text-[#456564]/70" />
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-              {t("agentHome.portfolioOverviewDesc") ||
-                "Properties, users, and contacts in your portfolio"}
+              {t("agentHome.mostVisitedPropertiesDesc") ||
+                "Top properties visited by homeowners this week"}
             </p>
-            <div className="h-44">
-              <Bar
-                data={portfolioBarData}
-                options={{
-                  ...chartOptions,
-                  indexAxis: "y",
-                  plugins: {
-                    ...chartOptions.plugins,
-                    tooltip: {
-                      ...chartOptions.plugins?.tooltip,
-                      callbacks: {label: (ctx) => `${ctx.raw}`},
-                    },
-                  },
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#456564]" />
-                <span className="text-xs text-gray-600 dark:text-gray-400">
-                  {totalProperties}{" "}
-                  {t("agentHome.totalProperties") || "Properties"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#3b82f6]" />
-                <span className="text-xs text-gray-600 dark:text-gray-400">
-                  {totalUsers} {t("agentHome.users") || "Users"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-[#8b5cf6]" />
-                <span className="text-xs text-gray-600 dark:text-gray-400">
-                  {totalContacts} {t("contacts") || "Contacts"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {t("agentHome.portfolioMix") || "Portfolio Mix"}
-              </h3>
-              <Activity className="w-4 h-4 text-[#456564]/70" />
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-              {t("agentHome.portfolioMixDesc") ||
-                "Distribution across your portfolio"}
-            </p>
-            {portfolioDoughnutData ? (
-              <>
-                <div className="h-44 flex items-center justify-center">
-                  <Doughnut
-                    data={portfolioDoughnutData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      cutout: "68%",
-                      plugins: {
-                        legend: {display: false},
-                        tooltip: chartOptions.plugins?.tooltip,
+            {propertyVisitsChartData ? (
+              <div className="h-44">
+                <Bar
+                  data={propertyVisitsChartData}
+                  options={{
+                    ...chartOptions,
+                    indexAxis: "y",
+                    plugins: {
+                      ...chartOptions.plugins,
+                      legend: {
+                        display: true,
+                        position: "bottom",
+                        labels: {boxWidth: 10, padding: 8, font: {size: 10}},
                       },
-                    }}
-                  />
-                </div>
-                <div className="flex justify-center gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                  {[
-                    {
-                      key: "properties",
-                      value: totalProperties,
-                      color: "#456564",
-                      icon: Building2,
+                      tooltip: {
+                        ...chartOptions.plugins?.tooltip,
+                        callbacks: {
+                          label: (ctx) =>
+                            `${ctx.dataset.label}: ${ctx.raw}`,
+                        },
+                      },
                     },
-                    {
-                      key: "users",
-                      value: totalUsers,
-                      color: "#3b82f6",
-                      icon: UserCircle,
+                    scales: {
+                      x: {
+                        stacked: true,
+                        grid: {display: false},
+                        ticks: {stepSize: 1},
+                      },
+                      y: {
+                        stacked: true,
+                        grid: {display: false},
+                        ticks: {font: {size: 10}},
+                      },
                     },
-                    {
-                      key: "contacts",
-                      value: totalContacts,
-                      color: "#8b5cf6",
-                      icon: Users,
-                    },
-                  ].map(({key, value, color, icon: Icon}) => (
-                    <div key={key} className="flex flex-col items-center gap-1">
-                      <Icon className="w-4 h-4 opacity-70" style={{color}} />
-                      <span className="text-sm font-bold text-gray-900 dark:text-white">
-                        {value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
+                  }}
+                />
+              </div>
             ) : (
               <div className="h-44 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-200 dark:border-gray-600 rounded-lg">
-                <Activity className="w-10 h-10 mb-2 opacity-50" />
-                No data yet. Add properties, users, or contacts to see your mix.
+                <Eye className="w-10 h-10 mb-2 opacity-50" />
+                {t("agentHome.noVisitsData") ||
+                  "No property visits recorded this week."}
               </div>
             )}
           </div>
 
+          {/* Activities per Property (top 10) */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                {t("agentHome.activitiesPerProperty") ||
+                  "Activities per Property"}
+              </h3>
+              <Activity className="w-4 h-4 text-[#456564]/70" />
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {t("agentHome.activitiesPerPropertyDesc") ||
+                "AI requests, documents, to-dos, and more"}
+            </p>
+            {activitiesByPropertyChartData ? (
+              <div className="h-44">
+                <Bar
+                  data={activitiesByPropertyChartData}
+                  options={{
+                    ...chartOptions,
+                    indexAxis: "y",
+                    plugins: {
+                      ...chartOptions.plugins,
+                      legend: {
+                        display: true,
+                        position: "bottom",
+                        labels: {boxWidth: 10, padding: 8, font: {size: 10}},
+                      },
+                      tooltip: {
+                        ...chartOptions.plugins?.tooltip,
+                        callbacks: {
+                          label: (ctx) =>
+                            `${ctx.dataset.label}: ${ctx.raw}`,
+                        },
+                      },
+                    },
+                    scales: {
+                      x: {
+                        stacked: true,
+                        grid: {display: false},
+                        ticks: {stepSize: 1},
+                      },
+                      y: {
+                        stacked: true,
+                        grid: {display: false},
+                        ticks: {font: {size: 10}},
+                      },
+                    },
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="h-44 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 text-sm border border-dashed border-gray-200 dark:border-gray-600 rounded-lg">
+                <Activity className="w-10 h-10 mb-2 opacity-50" />
+                {t("agentHome.noActivitiesData") ||
+                  "No property activities recorded yet."}
+              </div>
+            )}
+          </div>
+
+          {/* Health Distribution */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -267,7 +267,7 @@ function AgentHomeKpiCharts({
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {t("agentHome.engagementTrend") || "Engagement Trend"}
+                {t("agentHome.engagementTrend") || "Homeowner Activity"}
               </h3>
               <span className="text-xs text-gray-400 dark:text-gray-500">
                 {t("agentHome.last30Days") || "Last 30 days"}
@@ -344,13 +344,13 @@ function AgentHomeKpiCharts({
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {t("agentHome.eventsByType") || "Events by Type"}
+                {t("agentHome.eventsByType") || "Activity Breakdown"}
               </h3>
               <BarChart3 className="w-4 h-4 text-gray-400 dark:text-gray-500" />
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               {t("agentHome.eventsByTypeDesc") ||
-                "Breakdown of engagement event types"}
+                "How homeowner interactions are distributed"}
             </p>
             {engagementLoading && !engagementCounts.length ? (
               <div className="h-48 flex items-center justify-center text-gray-400 text-sm">
@@ -423,13 +423,13 @@ function AgentHomeKpiCharts({
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {t("agentHome.healthByProperty") || "Health Score by Property"}
+                {t("agentHome.healthByProperty") || "Property Health Ranking"}
               </h3>
               <Heart className="w-4 h-4 text-gray-400 dark:text-gray-500" />
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               {t("agentHome.healthByPropertyDesc") ||
-                "Individual property health scores across your portfolio"}
+                "Individual property health scores"}
             </p>
             {healthByPropertyData ? (
               <div className="h-48">
@@ -461,13 +461,13 @@ function AgentHomeKpiCharts({
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {t("agentHome.teamByProperty") || "Team Size by Property"}
+                {t("agentHome.teamByProperty") || "Team Members by Property"}
               </h3>
               <Users className="w-4 h-4 text-gray-400 dark:text-gray-500" />
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               {t("agentHome.teamByPropertyDesc") ||
-                "Number of team members assigned per property"}
+                "Team members assigned to each property"}
             </p>
             {teamByPropertyData ? (
               <div className="h-48">

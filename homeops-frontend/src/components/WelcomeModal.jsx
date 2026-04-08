@@ -1,7 +1,6 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useTranslation} from "react-i18next";
 import {useNavigate} from "react-router-dom";
-import confetti from "canvas-confetti";
 import {Sparkles, Check, ChevronRight} from "lucide-react";
 import ModalBlank from "./ModalBlank";
 import {useAuth} from "../context/AuthContext";
@@ -11,14 +10,11 @@ import AppApi from "../api/api";
 import {POST_LOGIN_WELCOME_GREETING_KEY} from "../utils/authNavigation";
 import OpsyMascot from "../images/opsy2.png";
 
-/**
- * Default `canvas-confetti` uses a worker + OffscreenCanvas; some browsers fail silently.
- * A main-thread instance is more reliable for the welcome modal overlay.
- */
 let welcomeConfettiFire = null;
-function getWelcomeConfettiFire() {
+async function getWelcomeConfettiFire() {
   if (typeof window === "undefined") return null;
   if (!welcomeConfettiFire) {
+    const {default: confetti} = await import("canvas-confetti");
     welcomeConfettiFire = confetti.create(null, {
       resize: true,
       useWorker: false,
@@ -120,7 +116,21 @@ function WelcomeModal() {
   const [onboardingDataLoaded, setOnboardingDataLoaded] = useState(false);
 
   useEffect(() => {
-    if (!currentUser?.id || !showForRole) return;
+    if (!currentUser?.id || !showForRole || welcomeDismissedPermanently) {
+      if (welcomeDismissedPermanently) setOnboardingDataLoaded(true);
+      return;
+    }
+
+    if (
+      currentUser.hasCalendarIntegrations !== undefined &&
+      currentUser.hasSavedProfessionals !== undefined
+    ) {
+      setCalendarIntegrations(currentUser.hasCalendarIntegrations ? [true] : []);
+      setSavedProfessionals(currentUser.hasSavedProfessionals ? [true] : []);
+      setOnboardingDataLoaded(true);
+      return;
+    }
+
     setOnboardingDataLoaded(false);
     AppApi.getOnboardingStatus()
       .then((data) => {
@@ -132,7 +142,7 @@ function WelcomeModal() {
         setSavedProfessionals([]);
       })
       .finally(() => setOnboardingDataLoaded(true));
-  }, [currentUser?.id, showForRole]);
+  }, [currentUser?.id, showForRole, welcomeDismissedPermanently]);
 
   const extraContext = useMemo(
     () => ({calendarIntegrations, savedProfessionals}),
@@ -183,16 +193,17 @@ function WelcomeModal() {
       localStorage.getItem(confettiShownKey)
     )
       return;
-    const timeout = setTimeout(() => {
-      const fireConfetti = getWelcomeConfettiFire();
-      if (!fireConfetti) return;
-      const count = 700;
-      const defaults = {
-        origin: {y: 0.6},
-        colors: ["#456564", "#5a8180", "#7aa3a2", "#fbbf24", "#34d399"],
-        zIndex: WELCOME_CONFETTI_Z_INDEX,
-      };
+    let cancelled = false;
+    const timeout = setTimeout(async () => {
       try {
+        const fireConfetti = await getWelcomeConfettiFire();
+        if (!fireConfetti || cancelled) return;
+        const count = 700;
+        const defaults = {
+          origin: {y: 0.6},
+          colors: ["#456564", "#5a8180", "#7aa3a2", "#fbbf24", "#34d399"],
+          zIndex: WELCOME_CONFETTI_Z_INDEX,
+        };
         const fire = (particleRatio, opts) =>
           fireConfetti({
             ...defaults,
@@ -222,7 +233,10 @@ function WelcomeModal() {
         // Don't persist — allow retry on next open
       }
     }, 320);
-    return () => clearTimeout(timeout);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [modalOpen, userId, confettiShownKey, useWelcomeHeadline]);
 
   const firstName =
@@ -327,7 +341,7 @@ function WelcomeModal() {
                   <div className="h-1.5 flex-1 max-w-[120px] mx-3 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
                 </div>
                 <div className="space-y-3 mb-6">
-                  {Array.from({length: 4}).map((_, i) => (
+                  {Array.from({length: 5}).map((_, i) => (
                     <div
                       key={i}
                       className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60"

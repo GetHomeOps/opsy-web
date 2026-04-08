@@ -96,6 +96,57 @@ router.get("/trend", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
+/** GET /property-visits - Top properties by page views in the last 7 days. */
+router.get("/property-visits", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const { limit } = req.query;
+    const endDate = new Date().toISOString().slice(0, 10);
+    const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    let userIds;
+    if (res.locals.user?.role !== "super_admin") {
+      userIds = await getUserIdsInSameAccounts(res.locals.user.id);
+      if (!userIds.length) return res.json({ visits: [] });
+    }
+    const visits = await PlatformEngagement.getPropertyPageViews({
+      startDate,
+      endDate,
+      userIds,
+      limit: limit ? Number(limit) : 5,
+    });
+    return res.json({ visits });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /activities-by-property - AI, document, and maintenance counts per property. */
+router.get("/activities-by-property", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const { limit } = req.query;
+    let propertyIds;
+    if (res.locals.user?.role !== "super_admin") {
+      const accRes = await db.query(
+        `SELECT DISTINCT p.property_uid
+         FROM account_users au
+         JOIN properties p ON p.account_id = au.account_id
+         WHERE au.user_id = $1`,
+        [res.locals.user.id]
+      );
+      propertyIds = accRes.rows.map((r) => r.property_uid);
+      if (!propertyIds.length) return res.json({ activities: [] });
+    }
+    const activities = await PlatformEngagement.getActivitiesByProperty({
+      propertyIds,
+      limit: limit ? Number(limit) : 10,
+    });
+    return res.json({ activities });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** GET /:id - Get single event. Platform admin only. */
 router.get("/:id", ensurePlatformAdmin, async function (req, res, next) {
   try {

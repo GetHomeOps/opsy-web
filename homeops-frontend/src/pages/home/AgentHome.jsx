@@ -94,12 +94,14 @@ function AgentHome() {
   const fetchedTeamUidsRef = useRef(new Set());
 
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
-  const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] = useState(false);
-  const {handleAddProperty, isChecking: addPropertyChecking} = useAddPropertyWithLimitCheck({
-    accountId: currentAccount?.id,
-    accountUrl,
-    onLimitReached: () => setPropertyLimitUpgradeOpen(true),
-  });
+  const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] =
+    useState(false);
+  const {handleAddProperty, isChecking: addPropertyChecking} =
+    useAddPropertyWithLimitCheck({
+      accountId: currentAccount?.id,
+      accountUrl,
+      onLimitReached: () => setPropertyLimitUpgradeOpen(true),
+    });
   const rawFirstName =
     currentUser?.fullName?.split(" ")[0] ||
     currentUser?.name?.split(" ")[0] ||
@@ -137,6 +139,8 @@ function AgentHome() {
   const [engagementCounts, setEngagementCounts] = useState([]);
   const [engagementTrend, setEngagementTrend] = useState([]);
   const [engagementLoading, setEngagementLoading] = useState(true);
+  const [propertyVisits, setPropertyVisits] = useState([]);
+  const [activitiesByProperty, setActivitiesByProperty] = useState([]);
 
   // ─── Communications (draft / scheduled / sent) ───────────────────
   const [communications, setCommunications] = useState([]);
@@ -158,10 +162,18 @@ function AgentHome() {
       AppApi.getEngagementTrend({startDate: startStr, endDate: endStr})
         .then((tr) => (cancelled ? [] : tr || []))
         .catch(() => []),
-    ]).then(([counts, trend]) => {
+      AppApi.getPropertyPageViews()
+        .then((v) => (cancelled ? [] : v || []))
+        .catch(() => []),
+      AppApi.getActivitiesByProperty()
+        .then((a) => (cancelled ? [] : a || []))
+        .catch(() => []),
+    ]).then(([counts, trend, visits, activities]) => {
       if (cancelled) return;
       setEngagementCounts(Array.isArray(counts) ? counts : []);
       setEngagementTrend(Array.isArray(trend) ? trend : []);
+      setPropertyVisits(Array.isArray(visits) ? visits : []);
+      setActivitiesByProperty(Array.isArray(activities) ? activities : []);
       setEngagementLoading(false);
     });
     return () => {
@@ -199,9 +211,7 @@ function AgentHome() {
         return;
       fetchedCommImageKeysRef.current.add(key);
       AppApi.getPresignedPreviewUrl(key)
-        .then((url) =>
-          setCommPresignedUrls((prev) => ({...prev, [key]: url})),
-        )
+        .then((url) => setCommPresignedUrls((prev) => ({...prev, [key]: url})))
         .catch(() => fetchedCommImageKeysRef.current.delete(key));
     });
   }, [communications]);
@@ -294,46 +304,91 @@ function AgentHome() {
     };
   }, [properties, propertyTeams]);
 
-  // ─── Chart data for agent portfolio (properties, users, contacts) ─
-  const portfolioBarData = useMemo(
-    () => ({
-      labels: [
-        t("agentHome.totalProperties") || "Properties",
-        t("agentHome.users") || "Users",
-        t("contacts") || "Contacts",
-      ],
+  // ─── Chart data for property visits (top 5, last week, split by role) ──
+  const propertyVisitsChartData = useMemo(() => {
+    if (!propertyVisits?.length || !properties?.length) return null;
+    const propMap = new Map(
+      properties.map((p) => [String(p.property_uid ?? p.id), p]),
+    );
+    const truncate = (s) => (s.length > 18 ? s.slice(0, 16) + "…" : s);
+    const data = propertyVisits
+      .map((v) => {
+        const prop = propMap.get(String(v.propertyId));
+        return {
+          label: truncate(prop?.address || `Property ${v.propertyId}`),
+          homeowner: v.homeownerCount ?? 0,
+          agent: v.agentCount ?? 0,
+        };
+      })
+      .slice(0, 5);
+    if (!data.length) return null;
+    return {
+      labels: data.map((d) => d.label),
       datasets: [
         {
-          label: t("agentHome.portfolioCount") || "Count",
-          data: [totalProperties, totalUsers, totalContacts],
-          backgroundColor: ["#456564", "#3b82f6", "#8b5cf6"],
-          borderRadius: 8,
+          label: t("agentHome.homeownerVisits") || "Homeowner",
+          data: data.map((d) => d.homeowner),
+          backgroundColor: "#3b82f6",
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+        {
+          label: t("agentHome.agentVisits") || "Agent",
+          data: data.map((d) => d.agent),
+          backgroundColor: "#456564",
+          borderRadius: 4,
           borderSkipped: false,
         },
       ],
-    }),
-    [totalProperties, totalUsers, totalContacts, t],
-  );
+    };
+  }, [propertyVisits, properties, t]);
 
-  const portfolioDoughnutData = useMemo(() => {
-    const total = totalProperties + totalUsers + totalContacts;
-    if (total === 0) return null;
+  // ─── Chart data for activities per property (top 10, split by type) ───
+  const activitiesByPropertyChartData = useMemo(() => {
+    if (!activitiesByProperty?.length || !properties?.length) return null;
+    const propMap = new Map(
+      properties.map((p) => [String(p.property_uid ?? p.id), p]),
+    );
+    const truncate = (s) => (s.length > 18 ? s.slice(0, 16) + "…" : s);
+    const data = activitiesByProperty
+      .map((a) => {
+        const prop = propMap.get(String(a.propertyId));
+        return {
+          label: truncate(prop?.address || `Property ${a.propertyId}`),
+          ai: a.aiCount ?? 0,
+          documents: a.documentsCount ?? 0,
+          maintenance: a.maintenanceCount ?? 0,
+        };
+      })
+      .slice(0, 10);
+    if (!data.length) return null;
     return {
-      labels: [
-        t("agentHome.totalProperties") || "Properties",
-        t("agentHome.users") || "Users",
-        t("contacts") || "Contacts",
-      ],
+      labels: data.map((d) => d.label),
       datasets: [
         {
-          data: [totalProperties, totalUsers, totalContacts],
-          backgroundColor: ["#456564", "#3b82f6", "#8b5cf6"],
-          borderWidth: 0,
-          hoverOffset: 6,
+          label: "AI",
+          data: data.map((d) => d.ai),
+          backgroundColor: "#8b5cf6",
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+        {
+          label: t("agentHome.documentsLabel") || "Documents",
+          data: data.map((d) => d.documents),
+          backgroundColor: "#3b82f6",
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+        {
+          label: t("agentHome.maintenanceLabel") || "Maintenance",
+          data: data.map((d) => d.maintenance),
+          backgroundColor: "#f59e0b",
+          borderRadius: 4,
+          borderSkipped: false,
         },
       ],
     };
-  }, [totalProperties, totalUsers, totalContacts, t]);
+  }, [activitiesByProperty, properties, t]);
 
   const chartOptions = useMemo(
     () => ({
@@ -596,7 +651,9 @@ function AgentHome() {
                 disabled={addPropertyChecking}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#456564] text-white rounded-xl font-medium text-sm hover:bg-[#3a5554] transition-colors disabled:opacity-70"
               >
-                {addPropertyChecking ? "…" : (t("agentHome.createProperty") || "Create property")}
+                {addPropertyChecking
+                  ? "…"
+                  : t("agentHome.createProperty") || "Create property"}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -635,9 +692,7 @@ function AgentHome() {
                     )}
                     {/* Health score overlay badge */}
                     <div className="absolute top-3 right-3">
-                      <div
-                        className="px-2.5 py-1 rounded-lg text-xs font-bold backdrop-blur-sm shadow-sm bg-emerald-500/90 text-white"
-                      >
+                      <div className="px-2.5 py-1 rounded-lg text-xs font-bold backdrop-blur-sm shadow-sm bg-emerald-500/90 text-white">
                         {score}%
                       </div>
                     </div>
@@ -729,7 +784,9 @@ function AgentHome() {
               itemsPerPage={propertiesPerPage}
               onPageChange={setPropertiesPage}
               onItemsPerPageChange={(n) =>
-                setPropertiesPerPage(Number(n) || DEFAULT_AGENT_HOME_PROPERTIES_PER_PAGE)
+                setPropertiesPerPage(
+                  Number(n) || DEFAULT_AGENT_HOME_PROPERTIES_PER_PAGE,
+                )
               }
               pageSizeOptions={AGENT_HOME_PROPERTY_PAGE_SIZES}
             />
@@ -740,10 +797,6 @@ function AgentHome() {
       <AgentHomeKpiCharts
         t={t}
         totalProperties={totalProperties}
-        totalUsers={totalUsers}
-        totalContacts={totalContacts}
-        portfolioBarData={portfolioBarData}
-        portfolioDoughnutData={portfolioDoughnutData}
         chartOptions={chartOptions}
         healthDoughnutData={healthDoughnutData}
         healthDistribution={healthDistribution}
@@ -755,6 +808,8 @@ function AgentHome() {
         healthByPropertyData={healthByPropertyData}
         teamByPropertyData={teamByPropertyData}
         isLoadingTeams={isLoadingTeams}
+        propertyVisitsChartData={propertyVisitsChartData}
+        activitiesByPropertyChartData={activitiesByPropertyChartData}
       />
 
       {/* COMMUNICATIONS — list + link to composer ────────────────────── */}
@@ -794,10 +849,16 @@ function AgentHome() {
         ) : (communications?.length ?? 0) > 0 ? (
           <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide">
             {communications.map((comm) => {
-              const title = comm.subject || t("agentHome.untitledCommunication") || "Communication";
+              const title =
+                comm.subject ||
+                t("agentHome.untitledCommunication") ||
+                "Communication";
               const rawText =
                 typeof comm.content === "string"
-                  ? comm.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+                  ? comm.content
+                      .replace(/<[^>]*>/g, " ")
+                      .replace(/\s+/g, " ")
+                      .trim()
                   : "";
               const shortDesc = rawText.slice(0, 120);
               const imageUrl =
@@ -858,7 +919,8 @@ function AgentHome() {
               className="flex-shrink-0 w-72 sm:w-80 bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden snap-start flex flex-col items-center justify-center min-h-[200px] cursor-pointer hover:border-[#456564]/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
               onClick={() => navigate(`/${accountUrl}/communications/new`)}
               onKeyDown={(e) =>
-                e.key === "Enter" && navigate(`/${accountUrl}/communications/new`)
+                e.key === "Enter" &&
+                navigate(`/${accountUrl}/communications/new`)
               }
               role="button"
               tabIndex={0}
@@ -881,7 +943,8 @@ function AgentHome() {
               className="flex-1 min-w-0 bg-white dark:bg-gray-800 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 flex flex-col items-center justify-center min-h-[180px] cursor-pointer hover:border-[#456564]/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
               onClick={() => navigate(`/${accountUrl}/communications/new`)}
               onKeyDown={(e) =>
-                e.key === "Enter" && navigate(`/${accountUrl}/communications/new`)
+                e.key === "Enter" &&
+                navigate(`/${accountUrl}/communications/new`)
               }
               role="button"
               tabIndex={0}

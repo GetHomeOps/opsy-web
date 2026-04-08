@@ -1267,6 +1267,16 @@ class AppApi {
     await this.request("engagement", { eventType, eventData }, "POST");
   }
 
+  static async getPropertyPageViews(params = {}) {
+    let res = await this.request("engagement/property-visits", params);
+    return res.visits;
+  }
+
+  static async getActivitiesByProperty(params = {}) {
+    let res = await this.request("engagement/activities-by-property", params);
+    return res.activities;
+  }
+
   /* --------- Professional Categories --------- */
 
   static async getAllProfessionalCategories() {

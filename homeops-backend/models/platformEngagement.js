@@ -239,6 +239,122 @@ class PlatformEngagement {
 
     return result.rows;
   }
+  /**
+   * Top properties by page-view events in a time window, split by user role
+   * (homeowner vs agent/admin).
+   *
+   * Resolves the property UID from:
+   *   1. Explicit `event_data.propertyId`
+   *   2. Extracted from `event_data.path` matching /:account/properties/:uid
+   *
+   * Returns [{ propertyId, homeownerCount, agentCount, count }, ...]
+   */
+  static async getPropertyPageViews({ startDate, endDate, userIds, limit = 5 } = {}) {
+    const clauses = [`e.event_type = 'page_view'`];
+    const values = [];
+
+    if (startDate) {
+      values.push(startDate);
+      clauses.push(`e.created_at::date >= $${values.length}::date`);
+    }
+    if (endDate) {
+      values.push(endDate);
+      clauses.push(`e.created_at::date <= $${values.length}::date`);
+    }
+    if (userIds?.length) {
+      values.push(userIds);
+      clauses.push(`e.user_id = ANY($${values.length}::int[])`);
+    }
+
+    values.push(Math.min(limit, 20));
+    const limitIdx = values.length;
+
+    const result = await db.query(
+      `WITH prop_views AS (
+         SELECT COALESCE(
+                  e.event_data->>'propertyId',
+                  substring(e.event_data->>'path' FROM '/[^/]+/properties/([^/]+)')
+                ) AS prop_id,
+                u.role AS user_role
+         FROM platform_engagement_events e
+         LEFT JOIN users u ON u.id = e.user_id
+         WHERE ${clauses.join(" AND ")}
+           AND (
+             (e.event_data->>'propertyId') IS NOT NULL
+             OR e.event_data->>'path' ~ '/[^/]+/properties/[^/]+'
+           )
+       )
+       SELECT prop_id                                             AS "propertyId",
+              COUNT(*) FILTER (WHERE user_role = 'homeowner')::int AS "homeownerCount",
+              COUNT(*) FILTER (WHERE user_role <> 'homeowner')::int AS "agentCount",
+              COUNT(*)::int                                        AS count
+       FROM prop_views
+       WHERE prop_id IS NOT NULL
+         AND prop_id NOT IN ('new', 'edit')
+       GROUP BY prop_id
+       ORDER BY count DESC
+       LIMIT $${limitIdx}`,
+      values
+    );
+
+    return result.rows;
+  }
+
+  /**
+   * Activity counts per property broken down by category
+   * (AI conversations, documents, maintenance records).
+   *
+   * Queries the actual data tables rather than engagement events so the
+   * numbers reflect real work done on each property.
+   *
+   * Accepts an optional `propertyIds` array to scope to specific properties.
+   *
+   * Returns [{ propertyId, aiCount, documentsCount, maintenanceCount, count }, ...]
+   */
+  static async getActivitiesByProperty({ propertyIds, limit = 10 } = {}) {
+    const values = [];
+    let propertyFilter = "";
+
+    if (propertyIds?.length) {
+      values.push(propertyIds);
+      propertyFilter = `WHERE p.property_uid = ANY($${values.length}::text[])`;
+    }
+
+    values.push(Math.min(limit, 50));
+    const limitIdx = values.length;
+
+    const result = await db.query(
+      `SELECT property_uid AS "propertyId",
+              "aiCount", "documentsCount", "maintenanceCount",
+              ("aiCount" + "documentsCount" + "maintenanceCount") AS count
+       FROM (
+         SELECT p.property_uid,
+                COALESCE(ai.cnt, 0)::int  AS "aiCount",
+                COALESCE(doc.cnt, 0)::int AS "documentsCount",
+                COALESCE(mnt.cnt, 0)::int AS "maintenanceCount"
+         FROM properties p
+         LEFT JOIN (
+           SELECT property_id, COUNT(*) AS cnt
+           FROM ai_conversations GROUP BY property_id
+         ) ai  ON ai.property_id  = p.id
+         LEFT JOIN (
+           SELECT property_id, COUNT(*) AS cnt
+           FROM property_documents GROUP BY property_id
+         ) doc ON doc.property_id = p.id
+         LEFT JOIN (
+           SELECT property_id, COUNT(*) AS cnt
+           FROM property_maintenance GROUP BY property_id
+         ) mnt ON mnt.property_id = p.id
+         ${propertyFilter}
+       ) sub
+       WHERE ("aiCount" + "documentsCount" + "maintenanceCount") > 0
+       ORDER BY count DESC
+       LIMIT $${limitIdx}`,
+      values
+    );
+
+    return result.rows;
+  }
 }
 
 module.exports = PlatformEngagement;
