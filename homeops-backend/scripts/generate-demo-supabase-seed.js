@@ -44,7 +44,7 @@ function generatePassportId(state, zip) {
   w(`--`);
   w(`-- Logins (local auth / users table):`);
   w(`--   Agent:     ${agent.email} / ${agent.password}`);
-  w(`--   Homeowner: demo.homeowner.001@opsy.local … .100 / 12345678`);
+  w(`--   Homeowner: firstname.lastname@email.com / 12345678`);
   w(`--`);
   w(`-- Safe to re-run: uses ON CONFLICT DO NOTHING where possible;`);
   w(`--   re-running after partial failure may skip some rows — prefer a clean DB or delete demo rows.`);
@@ -60,7 +60,7 @@ function generatePassportId(state, zip) {
 
   w(``);
   w(`-- ---- Agent user ----`);
-  w(`INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)`);
+  w(`INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url, subscription_tier)`);
   w(`VALUES (`);
   w(`  ${esc(agent.email)},`);
   w(`  ${esc(agentHash)},`);
@@ -71,7 +71,8 @@ function generatePassportId(state, zip) {
   w(`  true,`);
   w(`  'local',`);
   w(`  true,`);
-  w(`  ${esc(agent.avatar_url)}`);
+  w(`  ${esc(agent.avatar_url)},`);
+  w(`  'agent_premium'`);
   w(`)`);
   w(`ON CONFLICT (email) DO UPDATE SET`);
   w(`  password_hash = EXCLUDED.password_hash,`);
@@ -81,7 +82,31 @@ function generatePassportId(state, zip) {
   w(`  is_active = EXCLUDED.is_active,`);
   w(`  avatar_url = EXCLUDED.avatar_url,`);
   w(`  email_verified = EXCLUDED.email_verified,`);
+  w(`  subscription_tier = EXCLUDED.subscription_tier,`);
   w(`  updated_at = NOW();`);
+
+  w(``);
+  w(`-- ---- Agent account + Win (agent_premium) subscription ----`);
+  w(`INSERT INTO accounts (name, url, owner_user_id)`);
+  w(`SELECT ${esc(agent.name + ' (Demo)')}, 'demo-agent', u.id`);
+  w(`FROM users u WHERE u.email = ${esc(agent.email)}`);
+  w(`ON CONFLICT (url) DO NOTHING;`);
+  w(``);
+  w(`INSERT INTO account_users (account_id, user_id, role)`);
+  w(`SELECT a.id, u.id, 'owner'::account_role`);
+  w(`FROM accounts a JOIN users u ON u.email = ${esc(agent.email)}`);
+  w(`WHERE a.url = 'demo-agent'`);
+  w(`ON CONFLICT DO NOTHING;`);
+  w(``);
+  w(`INSERT INTO subscription_products (name, description, target_role, code, price, sort_order, is_active, max_properties, max_contacts, max_viewers, max_team_members)`);
+  w(`VALUES ('Win', 'Agent Win plan', 'agent', 'agent_premium', 249, 6, true, 999, 9999, 100, 100)`);
+  w(`ON CONFLICT (code) DO NOTHING;`);
+  w(``);
+  w(`INSERT INTO account_subscriptions (account_id, subscription_product_id, status, current_period_start, current_period_end)`);
+  w(`SELECT a.id, sp.id, 'active', NOW(), NOW() + INTERVAL '1 year'`);
+  w(`FROM accounts a, subscription_products sp`);
+  w(`WHERE a.url = 'demo-agent' AND sp.code = 'agent_premium'`);
+  w(`AND NOT EXISTS (SELECT 1 FROM account_subscriptions asub WHERE asub.account_id = a.id);`);
 
   for (const p of props) {
     const ho = p.homeowner;

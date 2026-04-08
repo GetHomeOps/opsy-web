@@ -203,17 +203,49 @@ function parseAddressLine(line) {
   return { full: line.trim(), address_line_1, city, state: m[1].toUpperCase(), zip: m[2] };
 }
 
-const FIRST = ["Alex", "Sam", "Jordan", "Riley", "Casey", "Morgan", "Taylor", "Quinn", "Jamie", "Avery"];
-const LAST = ["Nguyen", "Patel", "Garcia", "Kim", "Chen", "Martinez", "Brown", "Lee", "Singh", "Walker"];
+const FIRST = [
+  "Alex", "Sam", "Jordan", "Riley", "Casey", "Morgan", "Taylor", "Quinn", "Jamie", "Avery",
+  "Blake", "Cameron", "Dakota", "Drew", "Emery", "Frankie", "Hayden", "Jessie", "Kelly", "Lane",
+  "Micah", "Noel", "Parker", "Reese", "Sage", "Skyler", "Tatum", "Val", "Wren", "Zion",
+];
+const LAST = [
+  "Nguyen", "Patel", "Garcia", "Kim", "Chen", "Martinez", "Brown", "Lee", "Singh", "Walker",
+  "Rivera", "Clark", "Lewis", "Robinson", "Hall", "Young", "Anderson", "Thomas", "Jackson", "White",
+  "Harris", "Martin", "Thompson", "Moore", "Scott", "Wilson", "Davis", "Miller", "Johnson", "Jones",
+];
+
+function seededRng(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 0xffffffff; };
+}
+
+function shuffle(arr, seed) {
+  const rng = seededRng(seed);
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const allPairs = [];
+for (const first of FIRST) {
+  for (const last of LAST) {
+    if (first.toLowerCase() !== last.toLowerCase()) allPairs.push({ first, last });
+  }
+}
+const namePairs = shuffle(allPairs, 20250407).slice(0, 100);
 
 const properties = ADDRESS_LINES.map((line, i) => {
   const n = i + 1;
-  const pad = String(n).padStart(3, "0");
+  const { first, last } = namePairs[i];
+  const emailLocal = `${first.toLowerCase()}.${last.toLowerCase()}`;
   return {
     index: n,
     homeowner: {
-      email: `demo.homeowner.${pad}@opsy.local`,
-      name: `${FIRST[i % FIRST.length]} ${LAST[i % LAST.length]} ${pad}`,
+      email: `${emailLocal}@email.com`,
+      name: `${first} ${last}`,
       phone: `206555${String(1000 + n).slice(-4)}`,
       password: "12345678",
       role: "homeowner",

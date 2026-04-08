@@ -5,7 +5,7 @@
 --
 -- Logins (local auth / users table):
 --   Agent:     agent@opsy.com / 12345678
---   Homeowner: demo.homeowner.001@opsy.local … .100 / 12345678
+--   Homeowner: firstname.lastname@email.com / 12345678
 --
 -- Safe to re-run: uses ON CONFLICT DO NOTHING where possible;
 --   re-running after partial failure may skip some rows — prefer a clean DB or delete demo rows.
@@ -20,10 +20,10 @@
 BEGIN;
 
 -- ---- Agent user ----
-INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
+INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url, subscription_tier)
 VALUES (
   'agent@opsy.com',
-  '$2b$12$klmp4apMR66vVasb9Zd6xOmBqVtZObGriwUiSTHh426pri.HgUekq',
+  '$2b$12$hTeQBKB9dKSyASrj9Ql5SuEPNY6Pvsztyg9118d6UziNhPnKA6cHC',
   'Jordan Agent',
   '2065550000',
   'agent'::user_role,
@@ -31,7 +31,8 @@ VALUES (
   true,
   'local',
   true,
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&fit=crop&q=80'
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&fit=crop&q=80',
+  'agent_premium'
 )
 ON CONFLICT (email) DO UPDATE SET
   password_hash = EXCLUDED.password_hash,
@@ -41,14 +42,37 @@ ON CONFLICT (email) DO UPDATE SET
   is_active = EXCLUDED.is_active,
   avatar_url = EXCLUDED.avatar_url,
   email_verified = EXCLUDED.email_verified,
+  subscription_tier = EXCLUDED.subscription_tier,
   updated_at = NOW();
+
+-- ---- Agent account + Win (agent_premium) subscription ----
+INSERT INTO accounts (name, url, owner_user_id)
+SELECT 'Jordan Agent (Demo)', 'demo-agent', u.id
+FROM users u WHERE u.email = 'agent@opsy.com'
+ON CONFLICT (url) DO NOTHING;
+
+INSERT INTO account_users (account_id, user_id, role)
+SELECT a.id, u.id, 'owner'::account_role
+FROM accounts a JOIN users u ON u.email = 'agent@opsy.com'
+WHERE a.url = 'demo-agent'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO subscription_products (name, description, target_role, code, price, sort_order, is_active, max_properties, max_contacts, max_viewers, max_team_members)
+VALUES ('Win', 'Agent Win plan', 'agent', 'agent_premium', 249, 6, true, 999, 9999, 100, 100)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO account_subscriptions (account_id, subscription_product_id, status, current_period_start, current_period_end)
+SELECT a.id, sp.id, 'active', NOW(), NOW() + INTERVAL '1 year'
+FROM accounts a, subscription_products sp
+WHERE a.url = 'demo-agent' AND sp.code = 'agent_premium'
+AND NOT EXISTS (SELECT 1 FROM account_subscriptions asub WHERE asub.account_id = a.id);
 
 -- ---- Property 1: 4150 86th Ave SE, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.001@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 001',
+  'noel.moore@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Noel Moore',
   '2065551001',
   'homeowner'::user_role,
   0,
@@ -67,20 +91,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 001 (Demo)', 'demo-hw-001', u.id
-FROM users u WHERE u.email = 'demo.homeowner.001@opsy.local'
+SELECT 'Noel Moore (Demo)', 'demo-hw-001', u.id
+FROM users u WHERE u.email = 'noel.moore@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.001@opsy.local' WHERE a.url = 'demo-hw-001' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.001@opsy.local' WHERE a.url = 'demo-hw-001' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'noel.moore@email.com' WHERE a.url = 'demo-hw-001' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'noel.moore@email.com' WHERE a.url = 'demo-hw-001' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'G5YN7CQC',
+  '97PSFGVJ',
   a.id,
-  'WA-98040-44152',
+  'WA-98040-53960',
   '4150 86th Ave SE',
   'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&fit=crop&q=80',
   '4150 86th Ave SE, Mercer Island, WA 98040',
@@ -92,15 +116,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-001'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.001@opsy.local' WHERE a.url = 'demo-hw-001' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.001@opsy.local' WHERE a.url = 'demo-hw-001' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'noel.moore@email.com' WHERE a.url = 'demo-hw-001' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'noel.moore@email.com' WHERE a.url = 'demo-hw-001' ON CONFLICT DO NOTHING;
 
 -- ---- Property 2: 3021 74th Ave SE, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.002@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 002',
+  'noel.jones@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Noel Jones',
   '2065551002',
   'homeowner'::user_role,
   0,
@@ -119,20 +143,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 002 (Demo)', 'demo-hw-002', u.id
-FROM users u WHERE u.email = 'demo.homeowner.002@opsy.local'
+SELECT 'Noel Jones (Demo)', 'demo-hw-002', u.id
+FROM users u WHERE u.email = 'noel.jones@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.002@opsy.local' WHERE a.url = 'demo-hw-002' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.002@opsy.local' WHERE a.url = 'demo-hw-002' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'noel.jones@email.com' WHERE a.url = 'demo-hw-002' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'noel.jones@email.com' WHERE a.url = 'demo-hw-002' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '777B869P',
+  'THCQVEVK',
   a.id,
-  'WA-98040-27660',
+  'WA-98040-50388',
   '3021 74th Ave SE',
   'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&fit=crop&q=80',
   '3021 74th Ave SE, Mercer Island, WA 98040',
@@ -144,15 +168,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-002'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.002@opsy.local' WHERE a.url = 'demo-hw-002' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.002@opsy.local' WHERE a.url = 'demo-hw-002' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'noel.jones@email.com' WHERE a.url = 'demo-hw-002' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'noel.jones@email.com' WHERE a.url = 'demo-hw-002' ON CONFLICT DO NOTHING;
 
 -- ---- Property 3: 8815 SE 63rd St, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.003@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 003',
+  'tatum.walker@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Tatum Walker',
   '2065551003',
   'homeowner'::user_role,
   0,
@@ -171,20 +195,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 003 (Demo)', 'demo-hw-003', u.id
-FROM users u WHERE u.email = 'demo.homeowner.003@opsy.local'
+SELECT 'Tatum Walker (Demo)', 'demo-hw-003', u.id
+FROM users u WHERE u.email = 'tatum.walker@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.003@opsy.local' WHERE a.url = 'demo-hw-003' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.003@opsy.local' WHERE a.url = 'demo-hw-003' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'tatum.walker@email.com' WHERE a.url = 'demo-hw-003' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'tatum.walker@email.com' WHERE a.url = 'demo-hw-003' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'TZN9ZAMR',
+  'CK53CMWE',
   a.id,
-  'WA-98040-72293',
+  'WA-98040-79078',
   '8815 SE 63rd St',
   'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=1200&fit=crop&q=80',
   '8815 SE 63rd St, Mercer Island, WA 98040',
@@ -196,15 +220,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-003'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.003@opsy.local' WHERE a.url = 'demo-hw-003' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.003@opsy.local' WHERE a.url = 'demo-hw-003' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'tatum.walker@email.com' WHERE a.url = 'demo-hw-003' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'tatum.walker@email.com' WHERE a.url = 'demo-hw-003' ON CONFLICT DO NOTHING;
 
 -- ---- Property 4: 4305 92nd Ave SE, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.004@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 004',
+  'alex.jackson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Alex Jackson',
   '2065551004',
   'homeowner'::user_role,
   0,
@@ -223,20 +247,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 004 (Demo)', 'demo-hw-004', u.id
-FROM users u WHERE u.email = 'demo.homeowner.004@opsy.local'
+SELECT 'Alex Jackson (Demo)', 'demo-hw-004', u.id
+FROM users u WHERE u.email = 'alex.jackson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.004@opsy.local' WHERE a.url = 'demo-hw-004' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.004@opsy.local' WHERE a.url = 'demo-hw-004' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'alex.jackson@email.com' WHERE a.url = 'demo-hw-004' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'alex.jackson@email.com' WHERE a.url = 'demo-hw-004' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'ZYPEJQ3A',
+  'W5BQXEAT',
   a.id,
-  'WA-98040-42355',
+  'WA-98040-65752',
   '4305 92nd Ave SE',
   'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&fit=crop&q=80',
   '4305 92nd Ave SE, Mercer Island, WA 98040',
@@ -248,15 +272,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-004'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.004@opsy.local' WHERE a.url = 'demo-hw-004' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.004@opsy.local' WHERE a.url = 'demo-hw-004' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'alex.jackson@email.com' WHERE a.url = 'demo-hw-004' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'alex.jackson@email.com' WHERE a.url = 'demo-hw-004' ON CONFLICT DO NOTHING;
 
 -- ---- Property 5: 7610 SE 40th St, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.005@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 005',
+  'reese.moore@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Reese Moore',
   '2065551005',
   'homeowner'::user_role,
   0,
@@ -275,20 +299,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 005 (Demo)', 'demo-hw-005', u.id
-FROM users u WHERE u.email = 'demo.homeowner.005@opsy.local'
+SELECT 'Reese Moore (Demo)', 'demo-hw-005', u.id
+FROM users u WHERE u.email = 'reese.moore@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.005@opsy.local' WHERE a.url = 'demo-hw-005' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.005@opsy.local' WHERE a.url = 'demo-hw-005' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'reese.moore@email.com' WHERE a.url = 'demo-hw-005' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'reese.moore@email.com' WHERE a.url = 'demo-hw-005' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GW54RHHZ',
+  'MB3VFP6A',
   a.id,
-  'WA-98040-61800',
+  'WA-98040-13116',
   '7610 SE 40th St',
   'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&fit=crop&q=80',
   '7610 SE 40th St, Mercer Island, WA 98040',
@@ -300,15 +324,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-005'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.005@opsy.local' WHERE a.url = 'demo-hw-005' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.005@opsy.local' WHERE a.url = 'demo-hw-005' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'reese.moore@email.com' WHERE a.url = 'demo-hw-005' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'reese.moore@email.com' WHERE a.url = 'demo-hw-005' ON CONFLICT DO NOTHING;
 
 -- ---- Property 6: 5100 84th Ave SE, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.006@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 006',
+  'drew.garcia@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Drew Garcia',
   '2065551006',
   'homeowner'::user_role,
   0,
@@ -327,20 +351,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 006 (Demo)', 'demo-hw-006', u.id
-FROM users u WHERE u.email = 'demo.homeowner.006@opsy.local'
+SELECT 'Drew Garcia (Demo)', 'demo-hw-006', u.id
+FROM users u WHERE u.email = 'drew.garcia@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.006@opsy.local' WHERE a.url = 'demo-hw-006' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.006@opsy.local' WHERE a.url = 'demo-hw-006' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'drew.garcia@email.com' WHERE a.url = 'demo-hw-006' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'drew.garcia@email.com' WHERE a.url = 'demo-hw-006' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'LKXFGMT4',
+  '5Q3S9KVG',
   a.id,
-  'WA-98040-88183',
+  'WA-98040-90088',
   '5100 84th Ave SE',
   'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=1200&fit=crop&q=80',
   '5100 84th Ave SE, Mercer Island, WA 98040',
@@ -352,15 +376,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-006'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.006@opsy.local' WHERE a.url = 'demo-hw-006' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.006@opsy.local' WHERE a.url = 'demo-hw-006' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.garcia@email.com' WHERE a.url = 'demo-hw-006' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.garcia@email.com' WHERE a.url = 'demo-hw-006' ON CONFLICT DO NOTHING;
 
 -- ---- Property 7: 9102 SE 50th St, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.007@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 007',
+  'kelly.wilson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Kelly Wilson',
   '2065551007',
   'homeowner'::user_role,
   0,
@@ -379,20 +403,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 007 (Demo)', 'demo-hw-007', u.id
-FROM users u WHERE u.email = 'demo.homeowner.007@opsy.local'
+SELECT 'Kelly Wilson (Demo)', 'demo-hw-007', u.id
+FROM users u WHERE u.email = 'kelly.wilson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.007@opsy.local' WHERE a.url = 'demo-hw-007' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.007@opsy.local' WHERE a.url = 'demo-hw-007' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'kelly.wilson@email.com' WHERE a.url = 'demo-hw-007' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'kelly.wilson@email.com' WHERE a.url = 'demo-hw-007' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'NRY99AQ8',
+  'HLVFK4NS',
   a.id,
-  'WA-98040-90605',
+  'WA-98040-73244',
   '9102 SE 50th St',
   'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&fit=crop&q=80',
   '9102 SE 50th St, Mercer Island, WA 98040',
@@ -404,15 +428,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-007'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.007@opsy.local' WHERE a.url = 'demo-hw-007' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.007@opsy.local' WHERE a.url = 'demo-hw-007' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'kelly.wilson@email.com' WHERE a.url = 'demo-hw-007' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'kelly.wilson@email.com' WHERE a.url = 'demo-hw-007' ON CONFLICT DO NOTHING;
 
 -- ---- Property 8: 3820 80th Ave SE, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.008@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 008',
+  'val.singh@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Val Singh',
   '2065551008',
   'homeowner'::user_role,
   0,
@@ -431,20 +455,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 008 (Demo)', 'demo-hw-008', u.id
-FROM users u WHERE u.email = 'demo.homeowner.008@opsy.local'
+SELECT 'Val Singh (Demo)', 'demo-hw-008', u.id
+FROM users u WHERE u.email = 'val.singh@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.008@opsy.local' WHERE a.url = 'demo-hw-008' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.008@opsy.local' WHERE a.url = 'demo-hw-008' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'val.singh@email.com' WHERE a.url = 'demo-hw-008' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'val.singh@email.com' WHERE a.url = 'demo-hw-008' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'RPP2VX8V',
+  'CJB72C48',
   a.id,
-  'WA-98040-38361',
+  'WA-98040-26129',
   '3820 80th Ave SE',
   'https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=1200&fit=crop&q=80',
   '3820 80th Ave SE, Mercer Island, WA 98040',
@@ -456,15 +480,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-008'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.008@opsy.local' WHERE a.url = 'demo-hw-008' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.008@opsy.local' WHERE a.url = 'demo-hw-008' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'val.singh@email.com' WHERE a.url = 'demo-hw-008' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'val.singh@email.com' WHERE a.url = 'demo-hw-008' ON CONFLICT DO NOTHING;
 
 -- ---- Property 9: 7215 SE 29th St, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.009@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 009',
+  'frankie.walker@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Frankie Walker',
   '2065551009',
   'homeowner'::user_role,
   0,
@@ -483,20 +507,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 009 (Demo)', 'demo-hw-009', u.id
-FROM users u WHERE u.email = 'demo.homeowner.009@opsy.local'
+SELECT 'Frankie Walker (Demo)', 'demo-hw-009', u.id
+FROM users u WHERE u.email = 'frankie.walker@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.009@opsy.local' WHERE a.url = 'demo-hw-009' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.009@opsy.local' WHERE a.url = 'demo-hw-009' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'frankie.walker@email.com' WHERE a.url = 'demo-hw-009' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'frankie.walker@email.com' WHERE a.url = 'demo-hw-009' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'EJKHSLCZ',
+  'YFEMWCKK',
   a.id,
-  'WA-98040-35554',
+  'WA-98040-99442',
   '7215 SE 29th St',
   'https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=1200&fit=crop&q=80',
   '7215 SE 29th St, Mercer Island, WA 98040',
@@ -508,15 +532,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-009'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.009@opsy.local' WHERE a.url = 'demo-hw-009' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.009@opsy.local' WHERE a.url = 'demo-hw-009' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'frankie.walker@email.com' WHERE a.url = 'demo-hw-009' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'frankie.walker@email.com' WHERE a.url = 'demo-hw-009' ON CONFLICT DO NOTHING;
 
 -- ---- Property 10: 8412 SE 68th St, Mercer Island, WA 98040 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.010@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 010',
+  'jamie.martin@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jamie Martin',
   '2065551010',
   'homeowner'::user_role,
   0,
@@ -535,20 +559,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 010 (Demo)', 'demo-hw-010', u.id
-FROM users u WHERE u.email = 'demo.homeowner.010@opsy.local'
+SELECT 'Jamie Martin (Demo)', 'demo-hw-010', u.id
+FROM users u WHERE u.email = 'jamie.martin@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.010@opsy.local' WHERE a.url = 'demo-hw-010' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.010@opsy.local' WHERE a.url = 'demo-hw-010' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jamie.martin@email.com' WHERE a.url = 'demo-hw-010' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jamie.martin@email.com' WHERE a.url = 'demo-hw-010' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '94ZZABAA',
+  'S3LPZ5SM',
   a.id,
-  'WA-98040-23437',
+  'WA-98040-46056',
   '8412 SE 68th St',
   'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=1200&fit=crop&q=80',
   '8412 SE 68th St, Mercer Island, WA 98040',
@@ -560,15 +584,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-010'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.010@opsy.local' WHERE a.url = 'demo-hw-010' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.010@opsy.local' WHERE a.url = 'demo-hw-010' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jamie.martin@email.com' WHERE a.url = 'demo-hw-010' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jamie.martin@email.com' WHERE a.url = 'demo-hw-010' ON CONFLICT DO NOTHING;
 
 -- ---- Property 11: 2415 NW 65th St, Seattle, WA 98117 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.011@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 011',
+  'skyler.nguyen@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Skyler Nguyen',
   '2065551011',
   'homeowner'::user_role,
   0,
@@ -587,20 +611,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 011 (Demo)', 'demo-hw-011', u.id
-FROM users u WHERE u.email = 'demo.homeowner.011@opsy.local'
+SELECT 'Skyler Nguyen (Demo)', 'demo-hw-011', u.id
+FROM users u WHERE u.email = 'skyler.nguyen@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.011@opsy.local' WHERE a.url = 'demo-hw-011' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.011@opsy.local' WHERE a.url = 'demo-hw-011' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.nguyen@email.com' WHERE a.url = 'demo-hw-011' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.nguyen@email.com' WHERE a.url = 'demo-hw-011' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'PST2ZRLH',
+  'KQJ86DAF',
   a.id,
-  'WA-98117-31099',
+  'WA-98117-85646',
   '2415 NW 65th St',
   'https://images.unsplash.com/photo-1600573472592-401b489a3cdc?w=1200&fit=crop&q=80',
   '2415 NW 65th St, Seattle, WA 98117',
@@ -612,15 +636,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-011'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.011@opsy.local' WHERE a.url = 'demo-hw-011' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.011@opsy.local' WHERE a.url = 'demo-hw-011' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.nguyen@email.com' WHERE a.url = 'demo-hw-011' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.nguyen@email.com' WHERE a.url = 'demo-hw-011' ON CONFLICT DO NOTHING;
 
 -- ---- Property 12: 7512 35th Ave NE, Seattle, WA 98115 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.012@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 012',
+  'lane.hall@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Lane Hall',
   '2065551012',
   'homeowner'::user_role,
   0,
@@ -639,20 +663,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 012 (Demo)', 'demo-hw-012', u.id
-FROM users u WHERE u.email = 'demo.homeowner.012@opsy.local'
+SELECT 'Lane Hall (Demo)', 'demo-hw-012', u.id
+FROM users u WHERE u.email = 'lane.hall@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.012@opsy.local' WHERE a.url = 'demo-hw-012' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.012@opsy.local' WHERE a.url = 'demo-hw-012' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'lane.hall@email.com' WHERE a.url = 'demo-hw-012' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'lane.hall@email.com' WHERE a.url = 'demo-hw-012' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '8THZKHS8',
+  'HBNFK34M',
   a.id,
-  'WA-98115-87267',
+  'WA-98115-19240',
   '7512 35th Ave NE',
   'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=1200&fit=crop&q=80',
   '7512 35th Ave NE, Seattle, WA 98115',
@@ -664,15 +688,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-012'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.012@opsy.local' WHERE a.url = 'demo-hw-012' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.012@opsy.local' WHERE a.url = 'demo-hw-012' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.hall@email.com' WHERE a.url = 'demo-hw-012' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.hall@email.com' WHERE a.url = 'demo-hw-012' ON CONFLICT DO NOTHING;
 
 -- ---- Property 13: 4120 51st Ave SW, Seattle, WA 98116 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.013@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 013',
+  'jamie.thompson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jamie Thompson',
   '2065551013',
   'homeowner'::user_role,
   0,
@@ -691,20 +715,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 013 (Demo)', 'demo-hw-013', u.id
-FROM users u WHERE u.email = 'demo.homeowner.013@opsy.local'
+SELECT 'Jamie Thompson (Demo)', 'demo-hw-013', u.id
+FROM users u WHERE u.email = 'jamie.thompson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.013@opsy.local' WHERE a.url = 'demo-hw-013' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.013@opsy.local' WHERE a.url = 'demo-hw-013' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jamie.thompson@email.com' WHERE a.url = 'demo-hw-013' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jamie.thompson@email.com' WHERE a.url = 'demo-hw-013' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'Z9V8GJVN',
+  'LYL9X8VZ',
   a.id,
-  'WA-98116-57829',
+  'WA-98116-99133',
   '4120 51st Ave SW',
   'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200&fit=crop&q=80',
   '4120 51st Ave SW, Seattle, WA 98116',
@@ -716,15 +740,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-013'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.013@opsy.local' WHERE a.url = 'demo-hw-013' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.013@opsy.local' WHERE a.url = 'demo-hw-013' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jamie.thompson@email.com' WHERE a.url = 'demo-hw-013' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jamie.thompson@email.com' WHERE a.url = 'demo-hw-013' ON CONFLICT DO NOTHING;
 
 -- ---- Property 14: 1824 11th Ave W, Seattle, WA 98119 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.014@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 014',
+  'taylor.lee@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Taylor Lee',
   '2065551014',
   'homeowner'::user_role,
   0,
@@ -743,20 +767,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 014 (Demo)', 'demo-hw-014', u.id
-FROM users u WHERE u.email = 'demo.homeowner.014@opsy.local'
+SELECT 'Taylor Lee (Demo)', 'demo-hw-014', u.id
+FROM users u WHERE u.email = 'taylor.lee@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.014@opsy.local' WHERE a.url = 'demo-hw-014' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.014@opsy.local' WHERE a.url = 'demo-hw-014' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.lee@email.com' WHERE a.url = 'demo-hw-014' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.lee@email.com' WHERE a.url = 'demo-hw-014' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'PQ7T2APJ',
+  'CLVZEZXE',
   a.id,
-  'WA-98119-59011',
+  'WA-98119-91988',
   '1824 11th Ave W',
   'https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=1200&fit=crop&q=80',
   '1824 11th Ave W, Seattle, WA 98119',
@@ -768,15 +792,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-014'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.014@opsy.local' WHERE a.url = 'demo-hw-014' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.014@opsy.local' WHERE a.url = 'demo-hw-014' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.lee@email.com' WHERE a.url = 'demo-hw-014' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.lee@email.com' WHERE a.url = 'demo-hw-014' ON CONFLICT DO NOTHING;
 
 -- ---- Property 15: 6515 Phinney Ave N, Seattle, WA 98103 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.015@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 015',
+  'alex.garcia@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Alex Garcia',
   '2065551015',
   'homeowner'::user_role,
   0,
@@ -795,20 +819,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 015 (Demo)', 'demo-hw-015', u.id
-FROM users u WHERE u.email = 'demo.homeowner.015@opsy.local'
+SELECT 'Alex Garcia (Demo)', 'demo-hw-015', u.id
+FROM users u WHERE u.email = 'alex.garcia@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.015@opsy.local' WHERE a.url = 'demo-hw-015' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.015@opsy.local' WHERE a.url = 'demo-hw-015' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'alex.garcia@email.com' WHERE a.url = 'demo-hw-015' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'alex.garcia@email.com' WHERE a.url = 'demo-hw-015' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'QM5WYT2T',
+  'ALGWCTPH',
   a.id,
-  'WA-98103-61309',
+  'WA-98103-51057',
   '6515 Phinney Ave N',
   'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1200&fit=crop&q=80',
   '6515 Phinney Ave N, Seattle, WA 98103',
@@ -820,15 +844,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-015'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.015@opsy.local' WHERE a.url = 'demo-hw-015' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.015@opsy.local' WHERE a.url = 'demo-hw-015' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'alex.garcia@email.com' WHERE a.url = 'demo-hw-015' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'alex.garcia@email.com' WHERE a.url = 'demo-hw-015' ON CONFLICT DO NOTHING;
 
 -- ---- Property 16: 3218 38th Ave SW, Seattle, WA 98126 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.016@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 016',
+  'sage.patel@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Sage Patel',
   '2065551016',
   'homeowner'::user_role,
   0,
@@ -847,20 +871,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 016 (Demo)', 'demo-hw-016', u.id
-FROM users u WHERE u.email = 'demo.homeowner.016@opsy.local'
+SELECT 'Sage Patel (Demo)', 'demo-hw-016', u.id
+FROM users u WHERE u.email = 'sage.patel@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.016@opsy.local' WHERE a.url = 'demo-hw-016' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.016@opsy.local' WHERE a.url = 'demo-hw-016' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'sage.patel@email.com' WHERE a.url = 'demo-hw-016' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'sage.patel@email.com' WHERE a.url = 'demo-hw-016' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GB7PCUHV',
+  '4ZDZUFXB',
   a.id,
-  'WA-98126-40342',
+  'WA-98126-36313',
   '3218 38th Ave SW',
   'https://images.unsplash.com/photo-1600585153490-76fb20a32601?w=1200&fit=crop&q=80',
   '3218 38th Ave SW, Seattle, WA 98126',
@@ -872,15 +896,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-016'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.016@opsy.local' WHERE a.url = 'demo-hw-016' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.016@opsy.local' WHERE a.url = 'demo-hw-016' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sage.patel@email.com' WHERE a.url = 'demo-hw-016' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sage.patel@email.com' WHERE a.url = 'demo-hw-016' ON CONFLICT DO NOTHING;
 
 -- ---- Property 17: 912 24th Ave E, Seattle, WA 98112 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.017@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 017',
+  'jamie.white@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jamie White',
   '2065551017',
   'homeowner'::user_role,
   0,
@@ -899,20 +923,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 017 (Demo)', 'demo-hw-017', u.id
-FROM users u WHERE u.email = 'demo.homeowner.017@opsy.local'
+SELECT 'Jamie White (Demo)', 'demo-hw-017', u.id
+FROM users u WHERE u.email = 'jamie.white@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.017@opsy.local' WHERE a.url = 'demo-hw-017' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.017@opsy.local' WHERE a.url = 'demo-hw-017' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jamie.white@email.com' WHERE a.url = 'demo-hw-017' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jamie.white@email.com' WHERE a.url = 'demo-hw-017' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'CRZSBJCZ',
+  'SJU5TFK8',
   a.id,
-  'WA-98112-50752',
+  'WA-98112-31273',
   '912 24th Ave E',
   'https://images.unsplash.com/photo-1600566752355-35792bedcfea?w=1200&fit=crop&q=80',
   '912 24th Ave E, Seattle, WA 98112',
@@ -924,15 +948,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-017'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.017@opsy.local' WHERE a.url = 'demo-hw-017' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.017@opsy.local' WHERE a.url = 'demo-hw-017' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jamie.white@email.com' WHERE a.url = 'demo-hw-017' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jamie.white@email.com' WHERE a.url = 'demo-hw-017' ON CONFLICT DO NOTHING;
 
 -- ---- Property 18: 5420 39th Ave S, Seattle, WA 98118 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.018@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 018',
+  'quinn.jackson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Quinn Jackson',
   '2065551018',
   'homeowner'::user_role,
   0,
@@ -951,20 +975,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 018 (Demo)', 'demo-hw-018', u.id
-FROM users u WHERE u.email = 'demo.homeowner.018@opsy.local'
+SELECT 'Quinn Jackson (Demo)', 'demo-hw-018', u.id
+FROM users u WHERE u.email = 'quinn.jackson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.018@opsy.local' WHERE a.url = 'demo-hw-018' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.018@opsy.local' WHERE a.url = 'demo-hw-018' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.jackson@email.com' WHERE a.url = 'demo-hw-018' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.jackson@email.com' WHERE a.url = 'demo-hw-018' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'WVXDZ3RP',
+  'N2SCRP9G',
   a.id,
-  'WA-98118-27529',
+  'WA-98118-35518',
   '5420 39th Ave S',
   'https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?w=1200&fit=crop&q=80',
   '5420 39th Ave S, Seattle, WA 98118',
@@ -976,15 +1000,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-018'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.018@opsy.local' WHERE a.url = 'demo-hw-018' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.018@opsy.local' WHERE a.url = 'demo-hw-018' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.jackson@email.com' WHERE a.url = 'demo-hw-018' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.jackson@email.com' WHERE a.url = 'demo-hw-018' ON CONFLICT DO NOTHING;
 
 -- ---- Property 19: 1415 E Aloha St, Seattle, WA 98102 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.019@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 019',
+  'micah.anderson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Micah Anderson',
   '2065551019',
   'homeowner'::user_role,
   0,
@@ -1003,20 +1027,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 019 (Demo)', 'demo-hw-019', u.id
-FROM users u WHERE u.email = 'demo.homeowner.019@opsy.local'
+SELECT 'Micah Anderson (Demo)', 'demo-hw-019', u.id
+FROM users u WHERE u.email = 'micah.anderson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.019@opsy.local' WHERE a.url = 'demo-hw-019' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.019@opsy.local' WHERE a.url = 'demo-hw-019' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'micah.anderson@email.com' WHERE a.url = 'demo-hw-019' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'micah.anderson@email.com' WHERE a.url = 'demo-hw-019' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'V23NTZHD',
+  'HMJDBURQ',
   a.id,
-  'WA-98102-82464',
+  'WA-98102-20707',
   '1415 E Aloha St',
   'https://images.unsplash.com/photo-1600585154084-4e5fe7c39198?w=1200&fit=crop&q=80',
   '1415 E Aloha St, Seattle, WA 98102',
@@ -1028,15 +1052,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-019'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.019@opsy.local' WHERE a.url = 'demo-hw-019' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.019@opsy.local' WHERE a.url = 'demo-hw-019' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'micah.anderson@email.com' WHERE a.url = 'demo-hw-019' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'micah.anderson@email.com' WHERE a.url = 'demo-hw-019' ON CONFLICT DO NOTHING;
 
 -- ---- Property 20: 8312 20th Ave NW, Seattle, WA 98117 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.020@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 020',
+  'taylor.thomas@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Taylor Thomas',
   '2065551020',
   'homeowner'::user_role,
   0,
@@ -1055,20 +1079,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 020 (Demo)', 'demo-hw-020', u.id
-FROM users u WHERE u.email = 'demo.homeowner.020@opsy.local'
+SELECT 'Taylor Thomas (Demo)', 'demo-hw-020', u.id
+FROM users u WHERE u.email = 'taylor.thomas@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.020@opsy.local' WHERE a.url = 'demo-hw-020' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.020@opsy.local' WHERE a.url = 'demo-hw-020' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.thomas@email.com' WHERE a.url = 'demo-hw-020' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.thomas@email.com' WHERE a.url = 'demo-hw-020' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'LNPV38FQ',
+  'WV96C7DA',
   a.id,
-  'WA-98117-70258',
+  'WA-98117-42073',
   '8312 20th Ave NW',
   'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?w=1200&fit=crop&q=80',
   '8312 20th Ave NW, Seattle, WA 98117',
@@ -1080,15 +1104,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-020'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.020@opsy.local' WHERE a.url = 'demo-hw-020' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.020@opsy.local' WHERE a.url = 'demo-hw-020' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.thomas@email.com' WHERE a.url = 'demo-hw-020' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.thomas@email.com' WHERE a.url = 'demo-hw-020' ON CONFLICT DO NOTHING;
 
 -- ---- Property 21: 2815 34th Ave S, Seattle, WA 98144 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.021@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 021',
+  'casey.thompson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Casey Thompson',
   '2065551021',
   'homeowner'::user_role,
   0,
@@ -1107,20 +1131,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 021 (Demo)', 'demo-hw-021', u.id
-FROM users u WHERE u.email = 'demo.homeowner.021@opsy.local'
+SELECT 'Casey Thompson (Demo)', 'demo-hw-021', u.id
+FROM users u WHERE u.email = 'casey.thompson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.021@opsy.local' WHERE a.url = 'demo-hw-021' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.021@opsy.local' WHERE a.url = 'demo-hw-021' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'casey.thompson@email.com' WHERE a.url = 'demo-hw-021' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'casey.thompson@email.com' WHERE a.url = 'demo-hw-021' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '7J2XA6XM',
+  'DXD6GZPC',
   a.id,
-  'WA-98144-97956',
+  'WA-98144-73248',
   '2815 34th Ave S',
   'https://images.unsplash.com/photo-1600047509358-9dc75507daeb?w=1200&fit=crop&q=80',
   '2815 34th Ave S, Seattle, WA 98144',
@@ -1132,15 +1156,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-021'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.021@opsy.local' WHERE a.url = 'demo-hw-021' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.021@opsy.local' WHERE a.url = 'demo-hw-021' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'casey.thompson@email.com' WHERE a.url = 'demo-hw-021' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'casey.thompson@email.com' WHERE a.url = 'demo-hw-021' ON CONFLICT DO NOTHING;
 
 -- ---- Property 22: 7718 18th Ave NE, Seattle, WA 98115 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.022@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 022',
+  'cameron.patel@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Cameron Patel',
   '2065551022',
   'homeowner'::user_role,
   0,
@@ -1159,20 +1183,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 022 (Demo)', 'demo-hw-022', u.id
-FROM users u WHERE u.email = 'demo.homeowner.022@opsy.local'
+SELECT 'Cameron Patel (Demo)', 'demo-hw-022', u.id
+FROM users u WHERE u.email = 'cameron.patel@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.022@opsy.local' WHERE a.url = 'demo-hw-022' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.022@opsy.local' WHERE a.url = 'demo-hw-022' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'cameron.patel@email.com' WHERE a.url = 'demo-hw-022' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'cameron.patel@email.com' WHERE a.url = 'demo-hw-022' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'M55UFRNH',
+  'VRGKYNX4',
   a.id,
-  'WA-98115-73965',
+  'WA-98115-16176',
   '7718 18th Ave NE',
   'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?w=1200&fit=crop&q=80',
   '7718 18th Ave NE, Seattle, WA 98115',
@@ -1184,15 +1208,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-022'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.022@opsy.local' WHERE a.url = 'demo-hw-022' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.022@opsy.local' WHERE a.url = 'demo-hw-022' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'cameron.patel@email.com' WHERE a.url = 'demo-hw-022' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'cameron.patel@email.com' WHERE a.url = 'demo-hw-022' ON CONFLICT DO NOTHING;
 
 -- ---- Property 23: 4521 4th Ave NE, Seattle, WA 98105 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.023@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 023',
+  'quinn.wilson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Quinn Wilson',
   '2065551023',
   'homeowner'::user_role,
   0,
@@ -1211,20 +1235,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 023 (Demo)', 'demo-hw-023', u.id
-FROM users u WHERE u.email = 'demo.homeowner.023@opsy.local'
+SELECT 'Quinn Wilson (Demo)', 'demo-hw-023', u.id
+FROM users u WHERE u.email = 'quinn.wilson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.023@opsy.local' WHERE a.url = 'demo-hw-023' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.023@opsy.local' WHERE a.url = 'demo-hw-023' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.wilson@email.com' WHERE a.url = 'demo-hw-023' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.wilson@email.com' WHERE a.url = 'demo-hw-023' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'VL6Q2WHZ',
+  '6Z9HTPM2',
   a.id,
-  'WA-98105-22189',
+  'WA-98105-94581',
   '4521 4th Ave NE',
   'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&fit=crop&q=80',
   '4521 4th Ave NE, Seattle, WA 98105',
@@ -1236,15 +1260,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-023'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.023@opsy.local' WHERE a.url = 'demo-hw-023' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.023@opsy.local' WHERE a.url = 'demo-hw-023' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.wilson@email.com' WHERE a.url = 'demo-hw-023' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.wilson@email.com' WHERE a.url = 'demo-hw-023' ON CONFLICT DO NOTHING;
 
 -- ---- Property 24: 6210 25th Ave NW, Seattle, WA 98107 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.024@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 024',
+  'taylor.chen@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Taylor Chen',
   '2065551024',
   'homeowner'::user_role,
   0,
@@ -1263,20 +1287,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 024 (Demo)', 'demo-hw-024', u.id
-FROM users u WHERE u.email = 'demo.homeowner.024@opsy.local'
+SELECT 'Taylor Chen (Demo)', 'demo-hw-024', u.id
+FROM users u WHERE u.email = 'taylor.chen@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.024@opsy.local' WHERE a.url = 'demo-hw-024' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.024@opsy.local' WHERE a.url = 'demo-hw-024' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.chen@email.com' WHERE a.url = 'demo-hw-024' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.chen@email.com' WHERE a.url = 'demo-hw-024' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GGTZSMK4',
+  'FLSDL575',
   a.id,
-  'WA-98107-42729',
+  'WA-98107-78959',
   '6210 25th Ave NW',
   'https://images.unsplash.com/photo-1625602812206-5ec545ca1231?w=1200&fit=crop&q=80',
   '6210 25th Ave NW, Seattle, WA 98107',
@@ -1288,15 +1312,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-024'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.024@opsy.local' WHERE a.url = 'demo-hw-024' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.024@opsy.local' WHERE a.url = 'demo-hw-024' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.chen@email.com' WHERE a.url = 'demo-hw-024' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.chen@email.com' WHERE a.url = 'demo-hw-024' ON CONFLICT DO NOTHING;
 
 -- ---- Property 25: 1115 W Galer St, Seattle, WA 98119 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.025@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 025',
+  'sam.clark@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Sam Clark',
   '2065551025',
   'homeowner'::user_role,
   0,
@@ -1315,20 +1339,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 025 (Demo)', 'demo-hw-025', u.id
-FROM users u WHERE u.email = 'demo.homeowner.025@opsy.local'
+SELECT 'Sam Clark (Demo)', 'demo-hw-025', u.id
+FROM users u WHERE u.email = 'sam.clark@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.025@opsy.local' WHERE a.url = 'demo-hw-025' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.025@opsy.local' WHERE a.url = 'demo-hw-025' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'sam.clark@email.com' WHERE a.url = 'demo-hw-025' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'sam.clark@email.com' WHERE a.url = 'demo-hw-025' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'CM2B5HUB',
+  'X8C4P7CE',
   a.id,
-  'WA-98119-58717',
+  'WA-98119-83875',
   '1115 W Galer St',
   'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=1200&fit=crop&q=80',
   '1115 W Galer St, Seattle, WA 98119',
@@ -1340,15 +1364,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-025'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.025@opsy.local' WHERE a.url = 'demo-hw-025' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.025@opsy.local' WHERE a.url = 'demo-hw-025' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sam.clark@email.com' WHERE a.url = 'demo-hw-025' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sam.clark@email.com' WHERE a.url = 'demo-hw-025' ON CONFLICT DO NOTHING;
 
 -- ---- Property 26: 8214 1st Ave NE, Seattle, WA 98115 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.026@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 026',
+  'blake.brown@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Blake Brown',
   '2065551026',
   'homeowner'::user_role,
   0,
@@ -1367,20 +1391,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 026 (Demo)', 'demo-hw-026', u.id
-FROM users u WHERE u.email = 'demo.homeowner.026@opsy.local'
+SELECT 'Blake Brown (Demo)', 'demo-hw-026', u.id
+FROM users u WHERE u.email = 'blake.brown@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.026@opsy.local' WHERE a.url = 'demo-hw-026' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.026@opsy.local' WHERE a.url = 'demo-hw-026' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'blake.brown@email.com' WHERE a.url = 'demo-hw-026' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'blake.brown@email.com' WHERE a.url = 'demo-hw-026' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '8S4WFHD9',
+  'WB9KQG5B',
   a.id,
-  'WA-98115-63234',
+  'WA-98115-42681',
   '8214 1st Ave NE',
   'https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=1200&fit=crop&q=80',
   '8214 1st Ave NE, Seattle, WA 98115',
@@ -1392,15 +1416,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-026'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.026@opsy.local' WHERE a.url = 'demo-hw-026' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.026@opsy.local' WHERE a.url = 'demo-hw-026' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'blake.brown@email.com' WHERE a.url = 'demo-hw-026' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'blake.brown@email.com' WHERE a.url = 'demo-hw-026' ON CONFLICT DO NOTHING;
 
 -- ---- Property 27: 3315 19th Ave S, Seattle, WA 98144 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.027@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 027',
+  'avery.kim@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Avery Kim',
   '2065551027',
   'homeowner'::user_role,
   0,
@@ -1419,20 +1443,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 027 (Demo)', 'demo-hw-027', u.id
-FROM users u WHERE u.email = 'demo.homeowner.027@opsy.local'
+SELECT 'Avery Kim (Demo)', 'demo-hw-027', u.id
+FROM users u WHERE u.email = 'avery.kim@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.027@opsy.local' WHERE a.url = 'demo-hw-027' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.027@opsy.local' WHERE a.url = 'demo-hw-027' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'avery.kim@email.com' WHERE a.url = 'demo-hw-027' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'avery.kim@email.com' WHERE a.url = 'demo-hw-027' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'QDGKQRM4',
+  'SY6P6BFE',
   a.id,
-  'WA-98144-70054',
+  'WA-98144-73640',
   '3315 19th Ave S',
   'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&fit=crop&q=80',
   '3315 19th Ave S, Seattle, WA 98144',
@@ -1444,15 +1468,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-027'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.027@opsy.local' WHERE a.url = 'demo-hw-027' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.027@opsy.local' WHERE a.url = 'demo-hw-027' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.kim@email.com' WHERE a.url = 'demo-hw-027' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.kim@email.com' WHERE a.url = 'demo-hw-027' ON CONFLICT DO NOTHING;
 
 -- ---- Property 28: 5218 42nd Ave SW, Seattle, WA 98136 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.028@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 028',
+  'tatum.singh@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Tatum Singh',
   '2065551028',
   'homeowner'::user_role,
   0,
@@ -1471,20 +1495,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 028 (Demo)', 'demo-hw-028', u.id
-FROM users u WHERE u.email = 'demo.homeowner.028@opsy.local'
+SELECT 'Tatum Singh (Demo)', 'demo-hw-028', u.id
+FROM users u WHERE u.email = 'tatum.singh@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.028@opsy.local' WHERE a.url = 'demo-hw-028' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.028@opsy.local' WHERE a.url = 'demo-hw-028' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'tatum.singh@email.com' WHERE a.url = 'demo-hw-028' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'tatum.singh@email.com' WHERE a.url = 'demo-hw-028' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '4ADXYMSM',
+  'A7G8BL5S',
   a.id,
-  'WA-98136-68261',
+  'WA-98136-73567',
   '5218 42nd Ave SW',
   'https://images.unsplash.com/photo-1605146769289-440113cc3d00?w=1200&fit=crop&q=80',
   '5218 42nd Ave SW, Seattle, WA 98136',
@@ -1496,15 +1520,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-028'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.028@opsy.local' WHERE a.url = 'demo-hw-028' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.028@opsy.local' WHERE a.url = 'demo-hw-028' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'tatum.singh@email.com' WHERE a.url = 'demo-hw-028' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'tatum.singh@email.com' WHERE a.url = 'demo-hw-028' ON CONFLICT DO NOTHING;
 
 -- ---- Property 29: 1712 28th Ave W, Seattle, WA 98199 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.029@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 029',
+  'frankie.robinson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Frankie Robinson',
   '2065551029',
   'homeowner'::user_role,
   0,
@@ -1523,20 +1547,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 029 (Demo)', 'demo-hw-029', u.id
-FROM users u WHERE u.email = 'demo.homeowner.029@opsy.local'
+SELECT 'Frankie Robinson (Demo)', 'demo-hw-029', u.id
+FROM users u WHERE u.email = 'frankie.robinson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.029@opsy.local' WHERE a.url = 'demo-hw-029' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.029@opsy.local' WHERE a.url = 'demo-hw-029' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'frankie.robinson@email.com' WHERE a.url = 'demo-hw-029' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'frankie.robinson@email.com' WHERE a.url = 'demo-hw-029' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'KHKNCQDY',
+  'KT2EHXK2',
   a.id,
-  'WA-98199-67698',
+  'WA-98199-68083',
   '1712 28th Ave W',
   'https://images.unsplash.com/photo-1613977257365-aaae5a9817ff?w=1200&fit=crop&q=80',
   '1712 28th Ave W, Seattle, WA 98199',
@@ -1548,15 +1572,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-029'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.029@opsy.local' WHERE a.url = 'demo-hw-029' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.029@opsy.local' WHERE a.url = 'demo-hw-029' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'frankie.robinson@email.com' WHERE a.url = 'demo-hw-029' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'frankie.robinson@email.com' WHERE a.url = 'demo-hw-029' ON CONFLICT DO NOTHING;
 
 -- ---- Property 30: 9415 8th Ave NW, Seattle, WA 98117 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.030@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 030',
+  'emery.robinson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Emery Robinson',
   '2065551030',
   'homeowner'::user_role,
   0,
@@ -1575,20 +1599,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 030 (Demo)', 'demo-hw-030', u.id
-FROM users u WHERE u.email = 'demo.homeowner.030@opsy.local'
+SELECT 'Emery Robinson (Demo)', 'demo-hw-030', u.id
+FROM users u WHERE u.email = 'emery.robinson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.030@opsy.local' WHERE a.url = 'demo-hw-030' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.030@opsy.local' WHERE a.url = 'demo-hw-030' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'emery.robinson@email.com' WHERE a.url = 'demo-hw-030' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'emery.robinson@email.com' WHERE a.url = 'demo-hw-030' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '7JESRBYX',
+  'DU9AJ6FK',
   a.id,
-  'WA-98117-28802',
+  'WA-98117-88089',
   '9415 8th Ave NW',
   'https://images.unsplash.com/photo-1592595896616-c37162298647?w=1200&fit=crop&q=80',
   '9415 8th Ave NW, Seattle, WA 98117',
@@ -1600,15 +1624,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-030'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.030@opsy.local' WHERE a.url = 'demo-hw-030' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.030@opsy.local' WHERE a.url = 'demo-hw-030' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'emery.robinson@email.com' WHERE a.url = 'demo-hw-030' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'emery.robinson@email.com' WHERE a.url = 'demo-hw-030' ON CONFLICT DO NOTHING;
 
 -- ---- Property 31: 14502 SE 14th St, Bellevue, WA 98007 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.031@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 031',
+  'sam.garcia@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Sam Garcia',
   '2065551031',
   'homeowner'::user_role,
   0,
@@ -1627,20 +1651,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 031 (Demo)', 'demo-hw-031', u.id
-FROM users u WHERE u.email = 'demo.homeowner.031@opsy.local'
+SELECT 'Sam Garcia (Demo)', 'demo-hw-031', u.id
+FROM users u WHERE u.email = 'sam.garcia@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.031@opsy.local' WHERE a.url = 'demo-hw-031' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.031@opsy.local' WHERE a.url = 'demo-hw-031' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'sam.garcia@email.com' WHERE a.url = 'demo-hw-031' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'sam.garcia@email.com' WHERE a.url = 'demo-hw-031' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GF2XSNJG',
+  'Z9ZZ8XPA',
   a.id,
-  'WA-98007-97999',
+  'WA-98007-17814',
   '14502 SE 14th St',
   'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&fit=crop&q=80',
   '14502 SE 14th St, Bellevue, WA 98007',
@@ -1652,15 +1676,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-031'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.031@opsy.local' WHERE a.url = 'demo-hw-031' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.031@opsy.local' WHERE a.url = 'demo-hw-031' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sam.garcia@email.com' WHERE a.url = 'demo-hw-031' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sam.garcia@email.com' WHERE a.url = 'demo-hw-031' ON CONFLICT DO NOTHING;
 
 -- ---- Property 32: 2115 104th Ave SE, Bellevue, WA 98004 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.032@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 032',
+  'noel.anderson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Noel Anderson',
   '2065551032',
   'homeowner'::user_role,
   0,
@@ -1679,20 +1703,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 032 (Demo)', 'demo-hw-032', u.id
-FROM users u WHERE u.email = 'demo.homeowner.032@opsy.local'
+SELECT 'Noel Anderson (Demo)', 'demo-hw-032', u.id
+FROM users u WHERE u.email = 'noel.anderson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.032@opsy.local' WHERE a.url = 'demo-hw-032' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.032@opsy.local' WHERE a.url = 'demo-hw-032' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'noel.anderson@email.com' WHERE a.url = 'demo-hw-032' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'noel.anderson@email.com' WHERE a.url = 'demo-hw-032' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'LM2Y5PAJ',
+  'HH6RXYE9',
   a.id,
-  'WA-98004-53938',
+  'WA-98004-52233',
   '2115 104th Ave SE',
   'https://images.unsplash.com/photo-1592595896551-12b371d546d5?w=1200&fit=crop&q=80',
   '2115 104th Ave SE, Bellevue, WA 98004',
@@ -1704,15 +1728,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-032'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.032@opsy.local' WHERE a.url = 'demo-hw-032' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.032@opsy.local' WHERE a.url = 'demo-hw-032' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'noel.anderson@email.com' WHERE a.url = 'demo-hw-032' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'noel.anderson@email.com' WHERE a.url = 'demo-hw-032' ON CONFLICT DO NOTHING;
 
 -- ---- Property 33: 16210 NE 12th St, Bellevue, WA 98008 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.033@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 033',
+  'jamie.martinez@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jamie Martinez',
   '2065551033',
   'homeowner'::user_role,
   0,
@@ -1731,20 +1755,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 033 (Demo)', 'demo-hw-033', u.id
-FROM users u WHERE u.email = 'demo.homeowner.033@opsy.local'
+SELECT 'Jamie Martinez (Demo)', 'demo-hw-033', u.id
+FROM users u WHERE u.email = 'jamie.martinez@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.033@opsy.local' WHERE a.url = 'demo-hw-033' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.033@opsy.local' WHERE a.url = 'demo-hw-033' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jamie.martinez@email.com' WHERE a.url = 'demo-hw-033' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jamie.martinez@email.com' WHERE a.url = 'demo-hw-033' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '9FF8WW5D',
+  'G3UVRBCG',
   a.id,
-  'WA-98008-59544',
+  'WA-98008-43665',
   '16210 NE 12th St',
   'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=1200&fit=crop&q=80',
   '16210 NE 12th St, Bellevue, WA 98008',
@@ -1756,15 +1780,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-033'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.033@opsy.local' WHERE a.url = 'demo-hw-033' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.033@opsy.local' WHERE a.url = 'demo-hw-033' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jamie.martinez@email.com' WHERE a.url = 'demo-hw-033' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jamie.martinez@email.com' WHERE a.url = 'demo-hw-033' ON CONFLICT DO NOTHING;
 
 -- ---- Property 34: 4515 130th Ave SE, Bellevue, WA 98006 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.034@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 034',
+  'wren.wilson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Wren Wilson',
   '2065551034',
   'homeowner'::user_role,
   0,
@@ -1783,20 +1807,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 034 (Demo)', 'demo-hw-034', u.id
-FROM users u WHERE u.email = 'demo.homeowner.034@opsy.local'
+SELECT 'Wren Wilson (Demo)', 'demo-hw-034', u.id
+FROM users u WHERE u.email = 'wren.wilson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.034@opsy.local' WHERE a.url = 'demo-hw-034' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.034@opsy.local' WHERE a.url = 'demo-hw-034' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'wren.wilson@email.com' WHERE a.url = 'demo-hw-034' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'wren.wilson@email.com' WHERE a.url = 'demo-hw-034' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'LVM9MH52',
+  'DYMY5XNW',
   a.id,
-  'WA-98006-50261',
+  'WA-98006-18487',
   '4515 130th Ave SE',
   'https://images.unsplash.com/photo-1430285561322-7808604715df?w=1200&fit=crop&q=80',
   '4515 130th Ave SE, Bellevue, WA 98006',
@@ -1808,15 +1832,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-034'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.034@opsy.local' WHERE a.url = 'demo-hw-034' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.034@opsy.local' WHERE a.url = 'demo-hw-034' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'wren.wilson@email.com' WHERE a.url = 'demo-hw-034' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'wren.wilson@email.com' WHERE a.url = 'demo-hw-034' ON CONFLICT DO NOTHING;
 
 -- ---- Property 35: 11215 SE 60th St, Bellevue, WA 98006 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.035@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 035',
+  'drew.walker@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Drew Walker',
   '2065551035',
   'homeowner'::user_role,
   0,
@@ -1835,20 +1859,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 035 (Demo)', 'demo-hw-035', u.id
-FROM users u WHERE u.email = 'demo.homeowner.035@opsy.local'
+SELECT 'Drew Walker (Demo)', 'demo-hw-035', u.id
+FROM users u WHERE u.email = 'drew.walker@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.035@opsy.local' WHERE a.url = 'demo-hw-035' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.035@opsy.local' WHERE a.url = 'demo-hw-035' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'drew.walker@email.com' WHERE a.url = 'demo-hw-035' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'drew.walker@email.com' WHERE a.url = 'demo-hw-035' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'AWABRZSE',
+  '4NAQGG2B',
   a.id,
-  'WA-98006-32515',
+  'WA-98006-43521',
   '11215 SE 60th St',
   'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&fit=crop&q=80',
   '11215 SE 60th St, Bellevue, WA 98006',
@@ -1860,15 +1884,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-035'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.035@opsy.local' WHERE a.url = 'demo-hw-035' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.035@opsy.local' WHERE a.url = 'demo-hw-035' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.walker@email.com' WHERE a.url = 'demo-hw-035' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.walker@email.com' WHERE a.url = 'demo-hw-035' ON CONFLICT DO NOTHING;
 
 -- ---- Property 36: 13210 NE 40th St, Bellevue, WA 98005 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.036@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 036',
+  'wren.young@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Wren Young',
   '2065551036',
   'homeowner'::user_role,
   0,
@@ -1887,20 +1911,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 036 (Demo)', 'demo-hw-036', u.id
-FROM users u WHERE u.email = 'demo.homeowner.036@opsy.local'
+SELECT 'Wren Young (Demo)', 'demo-hw-036', u.id
+FROM users u WHERE u.email = 'wren.young@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.036@opsy.local' WHERE a.url = 'demo-hw-036' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.036@opsy.local' WHERE a.url = 'demo-hw-036' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'wren.young@email.com' WHERE a.url = 'demo-hw-036' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'wren.young@email.com' WHERE a.url = 'demo-hw-036' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'SM7VVGH6',
+  '4EDTLW8B',
   a.id,
-  'WA-98005-82418',
+  'WA-98005-93898',
   '13210 NE 40th St',
   'https://images.unsplash.com/photo-1416331108676-a22ccb276e35?w=1200&fit=crop&q=80',
   '13210 NE 40th St, Bellevue, WA 98005',
@@ -1912,15 +1936,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-036'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.036@opsy.local' WHERE a.url = 'demo-hw-036' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.036@opsy.local' WHERE a.url = 'demo-hw-036' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'wren.young@email.com' WHERE a.url = 'demo-hw-036' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'wren.young@email.com' WHERE a.url = 'demo-hw-036' ON CONFLICT DO NOTHING;
 
 -- ---- Property 37: 15412 SE 22nd St, Bellevue, WA 98007 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.037@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 037',
+  'parker.young@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Parker Young',
   '2065551037',
   'homeowner'::user_role,
   0,
@@ -1939,20 +1963,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 037 (Demo)', 'demo-hw-037', u.id
-FROM users u WHERE u.email = 'demo.homeowner.037@opsy.local'
+SELECT 'Parker Young (Demo)', 'demo-hw-037', u.id
+FROM users u WHERE u.email = 'parker.young@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.037@opsy.local' WHERE a.url = 'demo-hw-037' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.037@opsy.local' WHERE a.url = 'demo-hw-037' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'parker.young@email.com' WHERE a.url = 'demo-hw-037' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'parker.young@email.com' WHERE a.url = 'demo-hw-037' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GFG489XQ',
+  'CAC9393B',
   a.id,
-  'WA-98007-32309',
+  'WA-98007-67565',
   '15412 SE 22nd St',
   'https://images.unsplash.com/photo-1510627489930-0c1b0bfb6785?w=1200&fit=crop&q=80',
   '15412 SE 22nd St, Bellevue, WA 98007',
@@ -1964,15 +1988,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-037'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.037@opsy.local' WHERE a.url = 'demo-hw-037' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.037@opsy.local' WHERE a.url = 'demo-hw-037' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.young@email.com' WHERE a.url = 'demo-hw-037' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.young@email.com' WHERE a.url = 'demo-hw-037' ON CONFLICT DO NOTHING;
 
 -- ---- Property 38: 10214 NE 15th St, Bellevue, WA 98004 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.038@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 038',
+  'zion.clark@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Zion Clark',
   '2065551038',
   'homeowner'::user_role,
   0,
@@ -1991,20 +2015,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 038 (Demo)', 'demo-hw-038', u.id
-FROM users u WHERE u.email = 'demo.homeowner.038@opsy.local'
+SELECT 'Zion Clark (Demo)', 'demo-hw-038', u.id
+FROM users u WHERE u.email = 'zion.clark@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.038@opsy.local' WHERE a.url = 'demo-hw-038' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.038@opsy.local' WHERE a.url = 'demo-hw-038' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'zion.clark@email.com' WHERE a.url = 'demo-hw-038' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'zion.clark@email.com' WHERE a.url = 'demo-hw-038' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'G7WAGGBF',
+  'F9M3XXUG',
   a.id,
-  'WA-98004-68377',
+  'WA-98004-85103',
   '10214 NE 15th St',
   'https://images.unsplash.com/photo-1480074568708-e7b720bb3f09?w=1200&fit=crop&q=80',
   '10214 NE 15th St, Bellevue, WA 98004',
@@ -2016,15 +2040,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-038'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.038@opsy.local' WHERE a.url = 'demo-hw-038' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.038@opsy.local' WHERE a.url = 'demo-hw-038' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'zion.clark@email.com' WHERE a.url = 'demo-hw-038' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'zion.clark@email.com' WHERE a.url = 'demo-hw-038' ON CONFLICT DO NOTHING;
 
 -- ---- Property 39: 16415 SE 42nd St, Bellevue, WA 98006 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.039@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 039',
+  'val.moore@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Val Moore',
   '2065551039',
   'homeowner'::user_role,
   0,
@@ -2043,20 +2067,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 039 (Demo)', 'demo-hw-039', u.id
-FROM users u WHERE u.email = 'demo.homeowner.039@opsy.local'
+SELECT 'Val Moore (Demo)', 'demo-hw-039', u.id
+FROM users u WHERE u.email = 'val.moore@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.039@opsy.local' WHERE a.url = 'demo-hw-039' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.039@opsy.local' WHERE a.url = 'demo-hw-039' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'val.moore@email.com' WHERE a.url = 'demo-hw-039' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'val.moore@email.com' WHERE a.url = 'demo-hw-039' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'MTC8T8LG',
+  'TWJE52SW',
   a.id,
-  'WA-98006-31257',
+  'WA-98006-86303',
   '16415 SE 42nd St',
   'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1200&fit=crop&q=80',
   '16415 SE 42nd St, Bellevue, WA 98006',
@@ -2068,15 +2092,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-039'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.039@opsy.local' WHERE a.url = 'demo-hw-039' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.039@opsy.local' WHERE a.url = 'demo-hw-039' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'val.moore@email.com' WHERE a.url = 'demo-hw-039' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'val.moore@email.com' WHERE a.url = 'demo-hw-039' ON CONFLICT DO NOTHING;
 
 -- ---- Property 40: 3215 118th Ave SE, Bellevue, WA 98005 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.040@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 040',
+  'quinn.jones@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Quinn Jones',
   '2065551040',
   'homeowner'::user_role,
   0,
@@ -2095,20 +2119,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 040 (Demo)', 'demo-hw-040', u.id
-FROM users u WHERE u.email = 'demo.homeowner.040@opsy.local'
+SELECT 'Quinn Jones (Demo)', 'demo-hw-040', u.id
+FROM users u WHERE u.email = 'quinn.jones@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.040@opsy.local' WHERE a.url = 'demo-hw-040' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.040@opsy.local' WHERE a.url = 'demo-hw-040' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.jones@email.com' WHERE a.url = 'demo-hw-040' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.jones@email.com' WHERE a.url = 'demo-hw-040' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'STGKFPAA',
+  'W37XG3Z3',
   a.id,
-  'WA-98005-20041',
+  'WA-98005-52620',
   '3215 118th Ave SE',
   'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&fit=crop&q=80',
   '3215 118th Ave SE, Bellevue, WA 98005',
@@ -2120,15 +2144,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-040'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.040@opsy.local' WHERE a.url = 'demo-hw-040' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.040@opsy.local' WHERE a.url = 'demo-hw-040' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.jones@email.com' WHERE a.url = 'demo-hw-040' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.jones@email.com' WHERE a.url = 'demo-hw-040' ON CONFLICT DO NOTHING;
 
 -- ---- Property 41: 14210 NE 72nd St, Redmond, WA 98052 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.041@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 041',
+  'lane.chen@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Lane Chen',
   '2065551041',
   'homeowner'::user_role,
   0,
@@ -2147,20 +2171,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 041 (Demo)', 'demo-hw-041', u.id
-FROM users u WHERE u.email = 'demo.homeowner.041@opsy.local'
+SELECT 'Lane Chen (Demo)', 'demo-hw-041', u.id
+FROM users u WHERE u.email = 'lane.chen@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.041@opsy.local' WHERE a.url = 'demo-hw-041' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.041@opsy.local' WHERE a.url = 'demo-hw-041' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'lane.chen@email.com' WHERE a.url = 'demo-hw-041' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'lane.chen@email.com' WHERE a.url = 'demo-hw-041' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GL57NRAC',
+  'YLCR2NAW',
   a.id,
-  'WA-98052-62619',
+  'WA-98052-78054',
   '14210 NE 72nd St',
   'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&fit=crop&q=80',
   '14210 NE 72nd St, Redmond, WA 98052',
@@ -2172,15 +2196,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-041'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.041@opsy.local' WHERE a.url = 'demo-hw-041' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.041@opsy.local' WHERE a.url = 'demo-hw-041' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.chen@email.com' WHERE a.url = 'demo-hw-041' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.chen@email.com' WHERE a.url = 'demo-hw-041' ON CONFLICT DO NOTHING;
 
 -- ---- Property 42: 16515 NE 104th St, Redmond, WA 98052 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.042@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 042',
+  'avery.davis@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Avery Davis',
   '2065551042',
   'homeowner'::user_role,
   0,
@@ -2199,20 +2223,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 042 (Demo)', 'demo-hw-042', u.id
-FROM users u WHERE u.email = 'demo.homeowner.042@opsy.local'
+SELECT 'Avery Davis (Demo)', 'demo-hw-042', u.id
+FROM users u WHERE u.email = 'avery.davis@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.042@opsy.local' WHERE a.url = 'demo-hw-042' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.042@opsy.local' WHERE a.url = 'demo-hw-042' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'avery.davis@email.com' WHERE a.url = 'demo-hw-042' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'avery.davis@email.com' WHERE a.url = 'demo-hw-042' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'KQDN3GND',
+  'ELF8LUCE',
   a.id,
-  'WA-98052-93164',
+  'WA-98052-74225',
   '16515 NE 104th St',
   'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=1200&fit=crop&q=80',
   '16515 NE 104th St, Redmond, WA 98052',
@@ -2224,15 +2248,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-042'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.042@opsy.local' WHERE a.url = 'demo-hw-042' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.042@opsy.local' WHERE a.url = 'demo-hw-042' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.davis@email.com' WHERE a.url = 'demo-hw-042' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.davis@email.com' WHERE a.url = 'demo-hw-042' ON CONFLICT DO NOTHING;
 
 -- ---- Property 43: 7812 154th Ave NE, Redmond, WA 98052 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.043@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 043',
+  'avery.walker@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Avery Walker',
   '2065551043',
   'homeowner'::user_role,
   0,
@@ -2251,20 +2275,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 043 (Demo)', 'demo-hw-043', u.id
-FROM users u WHERE u.email = 'demo.homeowner.043@opsy.local'
+SELECT 'Avery Walker (Demo)', 'demo-hw-043', u.id
+FROM users u WHERE u.email = 'avery.walker@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.043@opsy.local' WHERE a.url = 'demo-hw-043' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.043@opsy.local' WHERE a.url = 'demo-hw-043' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'avery.walker@email.com' WHERE a.url = 'demo-hw-043' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'avery.walker@email.com' WHERE a.url = 'demo-hw-043' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'N3ZVTB3D',
+  'DHESLKLG',
   a.id,
-  'WA-98052-14513',
+  'WA-98052-13141',
   '7812 154th Ave NE',
   'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&fit=crop&q=80',
   '7812 154th Ave NE, Redmond, WA 98052',
@@ -2276,15 +2300,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-043'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.043@opsy.local' WHERE a.url = 'demo-hw-043' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.043@opsy.local' WHERE a.url = 'demo-hw-043' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.walker@email.com' WHERE a.url = 'demo-hw-043' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.walker@email.com' WHERE a.url = 'demo-hw-043' ON CONFLICT DO NOTHING;
 
 -- ---- Property 44: 18210 NE 30th St, Redmond, WA 98052 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.044@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 044',
+  'hayden.wilson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Hayden Wilson',
   '2065551044',
   'homeowner'::user_role,
   0,
@@ -2303,20 +2327,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 044 (Demo)', 'demo-hw-044', u.id
-FROM users u WHERE u.email = 'demo.homeowner.044@opsy.local'
+SELECT 'Hayden Wilson (Demo)', 'demo-hw-044', u.id
+FROM users u WHERE u.email = 'hayden.wilson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.044@opsy.local' WHERE a.url = 'demo-hw-044' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.044@opsy.local' WHERE a.url = 'demo-hw-044' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'hayden.wilson@email.com' WHERE a.url = 'demo-hw-044' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'hayden.wilson@email.com' WHERE a.url = 'demo-hw-044' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'XAAQYHVV',
+  'FVZNMLMA',
   a.id,
-  'WA-98052-45880',
+  'WA-98052-36112',
   '18210 NE 30th St',
   'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&fit=crop&q=80',
   '18210 NE 30th St, Redmond, WA 98052',
@@ -2328,15 +2352,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-044'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.044@opsy.local' WHERE a.url = 'demo-hw-044' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.044@opsy.local' WHERE a.url = 'demo-hw-044' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'hayden.wilson@email.com' WHERE a.url = 'demo-hw-044' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'hayden.wilson@email.com' WHERE a.url = 'demo-hw-044' ON CONFLICT DO NOTHING;
 
 -- ---- Property 45: 11215 172nd Ave NE, Redmond, WA 98052 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.045@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 045',
+  'dakota.young@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Dakota Young',
   '2065551045',
   'homeowner'::user_role,
   0,
@@ -2355,20 +2379,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 045 (Demo)', 'demo-hw-045', u.id
-FROM users u WHERE u.email = 'demo.homeowner.045@opsy.local'
+SELECT 'Dakota Young (Demo)', 'demo-hw-045', u.id
+FROM users u WHERE u.email = 'dakota.young@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.045@opsy.local' WHERE a.url = 'demo-hw-045' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.045@opsy.local' WHERE a.url = 'demo-hw-045' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'dakota.young@email.com' WHERE a.url = 'demo-hw-045' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'dakota.young@email.com' WHERE a.url = 'demo-hw-045' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '86LU8ZR8',
+  'M6TWY7LS',
   a.id,
-  'WA-98052-68493',
+  'WA-98052-31278',
   '11215 172nd Ave NE',
   'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=1200&fit=crop&q=80',
   '11215 172nd Ave NE, Redmond, WA 98052',
@@ -2380,15 +2404,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-045'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.045@opsy.local' WHERE a.url = 'demo-hw-045' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.045@opsy.local' WHERE a.url = 'demo-hw-045' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'dakota.young@email.com' WHERE a.url = 'demo-hw-045' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'dakota.young@email.com' WHERE a.url = 'demo-hw-045' ON CONFLICT DO NOTHING;
 
 -- ---- Property 46: 9214 122nd Ave NE, Kirkland, WA 98033 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.046@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 046',
+  'taylor.lewis@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Taylor Lewis',
   '2065551046',
   'homeowner'::user_role,
   0,
@@ -2407,20 +2431,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 046 (Demo)', 'demo-hw-046', u.id
-FROM users u WHERE u.email = 'demo.homeowner.046@opsy.local'
+SELECT 'Taylor Lewis (Demo)', 'demo-hw-046', u.id
+FROM users u WHERE u.email = 'taylor.lewis@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.046@opsy.local' WHERE a.url = 'demo-hw-046' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.046@opsy.local' WHERE a.url = 'demo-hw-046' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.lewis@email.com' WHERE a.url = 'demo-hw-046' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.lewis@email.com' WHERE a.url = 'demo-hw-046' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '2WF6HRMX',
+  'G9RMBTMP',
   a.id,
-  'WA-98033-61430',
+  'WA-98033-26777',
   '9214 122nd Ave NE',
   'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&fit=crop&q=80',
   '9214 122nd Ave NE, Kirkland, WA 98033',
@@ -2432,15 +2456,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-046'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.046@opsy.local' WHERE a.url = 'demo-hw-046' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.046@opsy.local' WHERE a.url = 'demo-hw-046' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.lewis@email.com' WHERE a.url = 'demo-hw-046' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.lewis@email.com' WHERE a.url = 'demo-hw-046' ON CONFLICT DO NOTHING;
 
 -- ---- Property 47: 13415 100th Ave NE, Kirkland, WA 98034 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.047@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 047',
+  'morgan.hall@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Morgan Hall',
   '2065551047',
   'homeowner'::user_role,
   0,
@@ -2459,20 +2483,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 047 (Demo)', 'demo-hw-047', u.id
-FROM users u WHERE u.email = 'demo.homeowner.047@opsy.local'
+SELECT 'Morgan Hall (Demo)', 'demo-hw-047', u.id
+FROM users u WHERE u.email = 'morgan.hall@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.047@opsy.local' WHERE a.url = 'demo-hw-047' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.047@opsy.local' WHERE a.url = 'demo-hw-047' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'morgan.hall@email.com' WHERE a.url = 'demo-hw-047' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'morgan.hall@email.com' WHERE a.url = 'demo-hw-047' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'X6ECD52W',
+  'H7H3HLLW',
   a.id,
-  'WA-98034-81198',
+  'WA-98034-31253',
   '13415 100th Ave NE',
   'https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=1200&fit=crop&q=80',
   '13415 100th Ave NE, Kirkland, WA 98034',
@@ -2484,15 +2508,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-047'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.047@opsy.local' WHERE a.url = 'demo-hw-047' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.047@opsy.local' WHERE a.url = 'demo-hw-047' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'morgan.hall@email.com' WHERE a.url = 'demo-hw-047' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'morgan.hall@email.com' WHERE a.url = 'demo-hw-047' ON CONFLICT DO NOTHING;
 
 -- ---- Property 48: 11512 80th Ave NE, Kirkland, WA 98034 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.048@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 048',
+  'sage.nguyen@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Sage Nguyen',
   '2065551048',
   'homeowner'::user_role,
   0,
@@ -2511,20 +2535,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 048 (Demo)', 'demo-hw-048', u.id
-FROM users u WHERE u.email = 'demo.homeowner.048@opsy.local'
+SELECT 'Sage Nguyen (Demo)', 'demo-hw-048', u.id
+FROM users u WHERE u.email = 'sage.nguyen@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.048@opsy.local' WHERE a.url = 'demo-hw-048' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.048@opsy.local' WHERE a.url = 'demo-hw-048' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'sage.nguyen@email.com' WHERE a.url = 'demo-hw-048' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'sage.nguyen@email.com' WHERE a.url = 'demo-hw-048' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'MTWVSQG6',
+  '227X6U25',
   a.id,
-  'WA-98034-11423',
+  'WA-98034-34571',
   '11512 80th Ave NE',
   'https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=1200&fit=crop&q=80',
   '11512 80th Ave NE, Kirkland, WA 98034',
@@ -2536,15 +2560,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-048'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.048@opsy.local' WHERE a.url = 'demo-hw-048' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.048@opsy.local' WHERE a.url = 'demo-hw-048' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sage.nguyen@email.com' WHERE a.url = 'demo-hw-048' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sage.nguyen@email.com' WHERE a.url = 'demo-hw-048' ON CONFLICT DO NOTHING;
 
 -- ---- Property 49: 7415 116th Ave NE, Kirkland, WA 98033 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.049@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 049',
+  'dakota.jackson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Dakota Jackson',
   '2065551049',
   'homeowner'::user_role,
   0,
@@ -2563,20 +2587,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 049 (Demo)', 'demo-hw-049', u.id
-FROM users u WHERE u.email = 'demo.homeowner.049@opsy.local'
+SELECT 'Dakota Jackson (Demo)', 'demo-hw-049', u.id
+FROM users u WHERE u.email = 'dakota.jackson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.049@opsy.local' WHERE a.url = 'demo-hw-049' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.049@opsy.local' WHERE a.url = 'demo-hw-049' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'dakota.jackson@email.com' WHERE a.url = 'demo-hw-049' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'dakota.jackson@email.com' WHERE a.url = 'demo-hw-049' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'TW8QMN4B',
+  'SJT5NQ6X',
   a.id,
-  'WA-98033-15591',
+  'WA-98033-69583',
   '7415 116th Ave NE',
   'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=1200&fit=crop&q=80',
   '7415 116th Ave NE, Kirkland, WA 98033',
@@ -2588,15 +2612,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-049'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.049@opsy.local' WHERE a.url = 'demo-hw-049' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.049@opsy.local' WHERE a.url = 'demo-hw-049' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'dakota.jackson@email.com' WHERE a.url = 'demo-hw-049' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'dakota.jackson@email.com' WHERE a.url = 'demo-hw-049' ON CONFLICT DO NOTHING;
 
 -- ---- Property 50: 14210 119th Ave NE, Kirkland, WA 98034 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.050@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 050',
+  'emery.brown@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Emery Brown',
   '2065551050',
   'homeowner'::user_role,
   0,
@@ -2615,20 +2639,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 050 (Demo)', 'demo-hw-050', u.id
-FROM users u WHERE u.email = 'demo.homeowner.050@opsy.local'
+SELECT 'Emery Brown (Demo)', 'demo-hw-050', u.id
+FROM users u WHERE u.email = 'emery.brown@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.050@opsy.local' WHERE a.url = 'demo-hw-050' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.050@opsy.local' WHERE a.url = 'demo-hw-050' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'emery.brown@email.com' WHERE a.url = 'demo-hw-050' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'emery.brown@email.com' WHERE a.url = 'demo-hw-050' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'W58QLVMD',
+  'RK5KJDCP',
   a.id,
-  'WA-98034-93707',
+  'WA-98034-19355',
   '14210 119th Ave NE',
   'https://images.unsplash.com/photo-1600573472592-401b489a3cdc?w=1200&fit=crop&q=80',
   '14210 119th Ave NE, Kirkland, WA 98034',
@@ -2640,15 +2664,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-050'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.050@opsy.local' WHERE a.url = 'demo-hw-050' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.050@opsy.local' WHERE a.url = 'demo-hw-050' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'emery.brown@email.com' WHERE a.url = 'demo-hw-050' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'emery.brown@email.com' WHERE a.url = 'demo-hw-050' ON CONFLICT DO NOTHING;
 
 -- ---- Property 51: 5214 230th Ave SE, Issaquah, WA 98029 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.051@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 051',
+  'casey.harris@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Casey Harris',
   '2065551051',
   'homeowner'::user_role,
   0,
@@ -2667,20 +2691,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 051 (Demo)', 'demo-hw-051', u.id
-FROM users u WHERE u.email = 'demo.homeowner.051@opsy.local'
+SELECT 'Casey Harris (Demo)', 'demo-hw-051', u.id
+FROM users u WHERE u.email = 'casey.harris@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.051@opsy.local' WHERE a.url = 'demo-hw-051' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.051@opsy.local' WHERE a.url = 'demo-hw-051' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'casey.harris@email.com' WHERE a.url = 'demo-hw-051' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'casey.harris@email.com' WHERE a.url = 'demo-hw-051' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'H5F3AFUD',
+  'T848PB9P',
   a.id,
-  'WA-98029-53891',
+  'WA-98029-46539',
   '5214 230th Ave SE',
   'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=1200&fit=crop&q=80',
   '5214 230th Ave SE, Issaquah, WA 98029',
@@ -2692,15 +2716,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-051'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.051@opsy.local' WHERE a.url = 'demo-hw-051' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.051@opsy.local' WHERE a.url = 'demo-hw-051' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'casey.harris@email.com' WHERE a.url = 'demo-hw-051' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'casey.harris@email.com' WHERE a.url = 'demo-hw-051' ON CONFLICT DO NOTHING;
 
 -- ---- Property 52: 4115 212th Way SE, Issaquah, WA 98027 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.052@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 052',
+  'riley.hall@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Riley Hall',
   '2065551052',
   'homeowner'::user_role,
   0,
@@ -2719,20 +2743,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 052 (Demo)', 'demo-hw-052', u.id
-FROM users u WHERE u.email = 'demo.homeowner.052@opsy.local'
+SELECT 'Riley Hall (Demo)', 'demo-hw-052', u.id
+FROM users u WHERE u.email = 'riley.hall@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.052@opsy.local' WHERE a.url = 'demo-hw-052' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.052@opsy.local' WHERE a.url = 'demo-hw-052' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'riley.hall@email.com' WHERE a.url = 'demo-hw-052' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'riley.hall@email.com' WHERE a.url = 'demo-hw-052' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'YZ6EVJTF',
+  'XCFCZUUW',
   a.id,
-  'WA-98027-66952',
+  'WA-98027-86378',
   '4115 212th Way SE',
   'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200&fit=crop&q=80',
   '4115 212th Way SE, Issaquah, WA 98027',
@@ -2744,15 +2768,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-052'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.052@opsy.local' WHERE a.url = 'demo-hw-052' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.052@opsy.local' WHERE a.url = 'demo-hw-052' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'riley.hall@email.com' WHERE a.url = 'demo-hw-052' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'riley.hall@email.com' WHERE a.url = 'demo-hw-052' ON CONFLICT DO NOTHING;
 
 -- ---- Property 53: 1412 Front St S, Issaquah, WA 98027 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.053@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 053',
+  'val.jones@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Val Jones',
   '2065551053',
   'homeowner'::user_role,
   0,
@@ -2771,20 +2795,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 053 (Demo)', 'demo-hw-053', u.id
-FROM users u WHERE u.email = 'demo.homeowner.053@opsy.local'
+SELECT 'Val Jones (Demo)', 'demo-hw-053', u.id
+FROM users u WHERE u.email = 'val.jones@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.053@opsy.local' WHERE a.url = 'demo-hw-053' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.053@opsy.local' WHERE a.url = 'demo-hw-053' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'val.jones@email.com' WHERE a.url = 'demo-hw-053' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'val.jones@email.com' WHERE a.url = 'demo-hw-053' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '297BSM9P',
+  'DKHQPNKF',
   a.id,
-  'WA-98027-21194',
+  'WA-98027-50884',
   '1412 Front St S',
   'https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=1200&fit=crop&q=80',
   '1412 Front St S, Issaquah, WA 98027',
@@ -2796,15 +2820,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-053'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.053@opsy.local' WHERE a.url = 'demo-hw-053' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.053@opsy.local' WHERE a.url = 'demo-hw-053' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'val.jones@email.com' WHERE a.url = 'demo-hw-053' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'val.jones@email.com' WHERE a.url = 'demo-hw-053' ON CONFLICT DO NOTHING;
 
 -- ---- Property 54: 24510 SE 44th St, Issaquah, WA 98029 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.054@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 054',
+  'lane.scott@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Lane Scott',
   '2065551054',
   'homeowner'::user_role,
   0,
@@ -2823,20 +2847,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 054 (Demo)', 'demo-hw-054', u.id
-FROM users u WHERE u.email = 'demo.homeowner.054@opsy.local'
+SELECT 'Lane Scott (Demo)', 'demo-hw-054', u.id
+FROM users u WHERE u.email = 'lane.scott@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.054@opsy.local' WHERE a.url = 'demo-hw-054' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.054@opsy.local' WHERE a.url = 'demo-hw-054' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'lane.scott@email.com' WHERE a.url = 'demo-hw-054' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'lane.scott@email.com' WHERE a.url = 'demo-hw-054' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'WYNUWEMZ',
+  'CDCHQ2V8',
   a.id,
-  'WA-98029-27713',
+  'WA-98029-43156',
   '24510 SE 44th St',
   'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1200&fit=crop&q=80',
   '24510 SE 44th St, Issaquah, WA 98029',
@@ -2848,15 +2872,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-054'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.054@opsy.local' WHERE a.url = 'demo-hw-054' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.054@opsy.local' WHERE a.url = 'demo-hw-054' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.scott@email.com' WHERE a.url = 'demo-hw-054' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.scott@email.com' WHERE a.url = 'demo-hw-054' ON CONFLICT DO NOTHING;
 
 -- ---- Property 55: 6215 220th Ave SE, Issaquah, WA 98027 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.055@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 055',
+  'skyler.hall@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Skyler Hall',
   '2065551055',
   'homeowner'::user_role,
   0,
@@ -2875,20 +2899,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 055 (Demo)', 'demo-hw-055', u.id
-FROM users u WHERE u.email = 'demo.homeowner.055@opsy.local'
+SELECT 'Skyler Hall (Demo)', 'demo-hw-055', u.id
+FROM users u WHERE u.email = 'skyler.hall@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.055@opsy.local' WHERE a.url = 'demo-hw-055' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.055@opsy.local' WHERE a.url = 'demo-hw-055' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.hall@email.com' WHERE a.url = 'demo-hw-055' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.hall@email.com' WHERE a.url = 'demo-hw-055' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'PA2UXAZX',
+  'ZDJZGSD4',
   a.id,
-  'WA-98027-60656',
+  'WA-98027-84231',
   '6215 220th Ave SE',
   'https://images.unsplash.com/photo-1600585153490-76fb20a32601?w=1200&fit=crop&q=80',
   '6215 220th Ave SE, Issaquah, WA 98027',
@@ -2900,15 +2924,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-055'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.055@opsy.local' WHERE a.url = 'demo-hw-055' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.055@opsy.local' WHERE a.url = 'demo-hw-055' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.hall@email.com' WHERE a.url = 'demo-hw-055' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.hall@email.com' WHERE a.url = 'demo-hw-055' ON CONFLICT DO NOTHING;
 
 -- ---- Property 56: 3412 N 26th St, Tacoma, WA 98407 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.056@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 056',
+  'emery.thomas@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Emery Thomas',
   '2065551056',
   'homeowner'::user_role,
   0,
@@ -2927,20 +2951,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 056 (Demo)', 'demo-hw-056', u.id
-FROM users u WHERE u.email = 'demo.homeowner.056@opsy.local'
+SELECT 'Emery Thomas (Demo)', 'demo-hw-056', u.id
+FROM users u WHERE u.email = 'emery.thomas@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.056@opsy.local' WHERE a.url = 'demo-hw-056' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.056@opsy.local' WHERE a.url = 'demo-hw-056' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'emery.thomas@email.com' WHERE a.url = 'demo-hw-056' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'emery.thomas@email.com' WHERE a.url = 'demo-hw-056' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'NQQDKU2W',
+  '9QKSA7JA',
   a.id,
-  'WA-98407-43831',
+  'WA-98407-98957',
   '3412 N 26th St',
   'https://images.unsplash.com/photo-1600566752355-35792bedcfea?w=1200&fit=crop&q=80',
   '3412 N 26th St, Tacoma, WA 98407',
@@ -2952,15 +2976,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-056'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.056@opsy.local' WHERE a.url = 'demo-hw-056' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.056@opsy.local' WHERE a.url = 'demo-hw-056' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'emery.thomas@email.com' WHERE a.url = 'demo-hw-056' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'emery.thomas@email.com' WHERE a.url = 'demo-hw-056' ON CONFLICT DO NOTHING;
 
 -- ---- Property 57: 1515 S 19th St, Tacoma, WA 98405 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.057@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 057',
+  'noel.walker@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Noel Walker',
   '2065551057',
   'homeowner'::user_role,
   0,
@@ -2979,20 +3003,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 057 (Demo)', 'demo-hw-057', u.id
-FROM users u WHERE u.email = 'demo.homeowner.057@opsy.local'
+SELECT 'Noel Walker (Demo)', 'demo-hw-057', u.id
+FROM users u WHERE u.email = 'noel.walker@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.057@opsy.local' WHERE a.url = 'demo-hw-057' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.057@opsy.local' WHERE a.url = 'demo-hw-057' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'noel.walker@email.com' WHERE a.url = 'demo-hw-057' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'noel.walker@email.com' WHERE a.url = 'demo-hw-057' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'XP5A28XS',
+  '7TN5FC3P',
   a.id,
-  'WA-98405-46104',
+  'WA-98405-22729',
   '1515 S 19th St',
   'https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?w=1200&fit=crop&q=80',
   '1515 S 19th St, Tacoma, WA 98405',
@@ -3004,15 +3028,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-057'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.057@opsy.local' WHERE a.url = 'demo-hw-057' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.057@opsy.local' WHERE a.url = 'demo-hw-057' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'noel.walker@email.com' WHERE a.url = 'demo-hw-057' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'noel.walker@email.com' WHERE a.url = 'demo-hw-057' ON CONFLICT DO NOTHING;
 
 -- ---- Property 58: 4210 N Huson St, Tacoma, WA 98407 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.058@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 058',
+  'jessie.nguyen@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jessie Nguyen',
   '2065551058',
   'homeowner'::user_role,
   0,
@@ -3031,20 +3055,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 058 (Demo)', 'demo-hw-058', u.id
-FROM users u WHERE u.email = 'demo.homeowner.058@opsy.local'
+SELECT 'Jessie Nguyen (Demo)', 'demo-hw-058', u.id
+FROM users u WHERE u.email = 'jessie.nguyen@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.058@opsy.local' WHERE a.url = 'demo-hw-058' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.058@opsy.local' WHERE a.url = 'demo-hw-058' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jessie.nguyen@email.com' WHERE a.url = 'demo-hw-058' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jessie.nguyen@email.com' WHERE a.url = 'demo-hw-058' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '7LXPJFP5',
+  '5JEFHS23',
   a.id,
-  'WA-98407-26094',
+  'WA-98407-23335',
   '4210 N Huson St',
   'https://images.unsplash.com/photo-1600585154084-4e5fe7c39198?w=1200&fit=crop&q=80',
   '4210 N Huson St, Tacoma, WA 98407',
@@ -3056,15 +3080,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-058'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.058@opsy.local' WHERE a.url = 'demo-hw-058' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.058@opsy.local' WHERE a.url = 'demo-hw-058' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jessie.nguyen@email.com' WHERE a.url = 'demo-hw-058' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jessie.nguyen@email.com' WHERE a.url = 'demo-hw-058' ON CONFLICT DO NOTHING;
 
 -- ---- Property 59: 5112 S 8th St, Tacoma, WA 98465 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.059@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 059',
+  'parker.garcia@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Parker Garcia',
   '2065551059',
   'homeowner'::user_role,
   0,
@@ -3083,20 +3107,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 059 (Demo)', 'demo-hw-059', u.id
-FROM users u WHERE u.email = 'demo.homeowner.059@opsy.local'
+SELECT 'Parker Garcia (Demo)', 'demo-hw-059', u.id
+FROM users u WHERE u.email = 'parker.garcia@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.059@opsy.local' WHERE a.url = 'demo-hw-059' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.059@opsy.local' WHERE a.url = 'demo-hw-059' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'parker.garcia@email.com' WHERE a.url = 'demo-hw-059' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'parker.garcia@email.com' WHERE a.url = 'demo-hw-059' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'E7GSVRS8',
+  '9MGKWK38',
   a.id,
-  'WA-98465-42674',
+  'WA-98465-91780',
   '5112 S 8th St',
   'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?w=1200&fit=crop&q=80',
   '5112 S 8th St, Tacoma, WA 98465',
@@ -3108,15 +3132,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-059'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.059@opsy.local' WHERE a.url = 'demo-hw-059' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.059@opsy.local' WHERE a.url = 'demo-hw-059' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.garcia@email.com' WHERE a.url = 'demo-hw-059' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.garcia@email.com' WHERE a.url = 'demo-hw-059' ON CONFLICT DO NOTHING;
 
 -- ---- Property 60: 2815 N Proctor St, Tacoma, WA 98407 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.060@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 060',
+  'lane.martin@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Lane Martin',
   '2065551060',
   'homeowner'::user_role,
   0,
@@ -3135,20 +3159,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 060 (Demo)', 'demo-hw-060', u.id
-FROM users u WHERE u.email = 'demo.homeowner.060@opsy.local'
+SELECT 'Lane Martin (Demo)', 'demo-hw-060', u.id
+FROM users u WHERE u.email = 'lane.martin@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.060@opsy.local' WHERE a.url = 'demo-hw-060' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.060@opsy.local' WHERE a.url = 'demo-hw-060' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'lane.martin@email.com' WHERE a.url = 'demo-hw-060' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'lane.martin@email.com' WHERE a.url = 'demo-hw-060' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'U6LL6GSF',
+  'Y3YK26RR',
   a.id,
-  'WA-98407-85232',
+  'WA-98407-22302',
   '2815 N Proctor St',
   'https://images.unsplash.com/photo-1600047509358-9dc75507daeb?w=1200&fit=crop&q=80',
   '2815 N Proctor St, Tacoma, WA 98407',
@@ -3160,15 +3184,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-060'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.060@opsy.local' WHERE a.url = 'demo-hw-060' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.060@opsy.local' WHERE a.url = 'demo-hw-060' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.martin@email.com' WHERE a.url = 'demo-hw-060' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.martin@email.com' WHERE a.url = 'demo-hw-060' ON CONFLICT DO NOTHING;
 
 -- ---- Property 61: 1214 S Washington St, Tacoma, WA 98405 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.061@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 061',
+  'hayden.robinson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Hayden Robinson',
   '2065551061',
   'homeowner'::user_role,
   0,
@@ -3187,20 +3211,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 061 (Demo)', 'demo-hw-061', u.id
-FROM users u WHERE u.email = 'demo.homeowner.061@opsy.local'
+SELECT 'Hayden Robinson (Demo)', 'demo-hw-061', u.id
+FROM users u WHERE u.email = 'hayden.robinson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.061@opsy.local' WHERE a.url = 'demo-hw-061' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.061@opsy.local' WHERE a.url = 'demo-hw-061' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'hayden.robinson@email.com' WHERE a.url = 'demo-hw-061' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'hayden.robinson@email.com' WHERE a.url = 'demo-hw-061' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'SAVQ58F6',
+  'A8ZNKB6L',
   a.id,
-  'WA-98405-17442',
+  'WA-98405-42616',
   '1214 S Washington St',
   'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?w=1200&fit=crop&q=80',
   '1214 S Washington St, Tacoma, WA 98405',
@@ -3212,15 +3236,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-061'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.061@opsy.local' WHERE a.url = 'demo-hw-061' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.061@opsy.local' WHERE a.url = 'demo-hw-061' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'hayden.robinson@email.com' WHERE a.url = 'demo-hw-061' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'hayden.robinson@email.com' WHERE a.url = 'demo-hw-061' ON CONFLICT DO NOTHING;
 
 -- ---- Property 62: 3815 N 15th St, Tacoma, WA 98406 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.062@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 062',
+  'blake.jones@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Blake Jones',
   '2065551062',
   'homeowner'::user_role,
   0,
@@ -3239,20 +3263,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 062 (Demo)', 'demo-hw-062', u.id
-FROM users u WHERE u.email = 'demo.homeowner.062@opsy.local'
+SELECT 'Blake Jones (Demo)', 'demo-hw-062', u.id
+FROM users u WHERE u.email = 'blake.jones@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.062@opsy.local' WHERE a.url = 'demo-hw-062' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.062@opsy.local' WHERE a.url = 'demo-hw-062' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'blake.jones@email.com' WHERE a.url = 'demo-hw-062' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'blake.jones@email.com' WHERE a.url = 'demo-hw-062' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'RFQYS42V',
+  'RR58T5L5',
   a.id,
-  'WA-98406-95453',
+  'WA-98406-22613',
   '3815 N 15th St',
   'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&fit=crop&q=80',
   '3815 N 15th St, Tacoma, WA 98406',
@@ -3264,15 +3288,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-062'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.062@opsy.local' WHERE a.url = 'demo-hw-062' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.062@opsy.local' WHERE a.url = 'demo-hw-062' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'blake.jones@email.com' WHERE a.url = 'demo-hw-062' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'blake.jones@email.com' WHERE a.url = 'demo-hw-062' ON CONFLICT DO NOTHING;
 
 -- ---- Property 63: 6412 S Puget Sound Ave, Tacoma, WA 98409 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.063@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 063',
+  'morgan.thomas@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Morgan Thomas',
   '2065551063',
   'homeowner'::user_role,
   0,
@@ -3291,20 +3315,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 063 (Demo)', 'demo-hw-063', u.id
-FROM users u WHERE u.email = 'demo.homeowner.063@opsy.local'
+SELECT 'Morgan Thomas (Demo)', 'demo-hw-063', u.id
+FROM users u WHERE u.email = 'morgan.thomas@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.063@opsy.local' WHERE a.url = 'demo-hw-063' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.063@opsy.local' WHERE a.url = 'demo-hw-063' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'morgan.thomas@email.com' WHERE a.url = 'demo-hw-063' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'morgan.thomas@email.com' WHERE a.url = 'demo-hw-063' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'HRLWVPYD',
+  'UL7P5ZM2',
   a.id,
-  'WA-98409-38623',
+  'WA-98409-67924',
   '6412 S Puget Sound Ave',
   'https://images.unsplash.com/photo-1625602812206-5ec545ca1231?w=1200&fit=crop&q=80',
   '6412 S Puget Sound Ave, Tacoma, WA 98409',
@@ -3316,15 +3340,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-063'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.063@opsy.local' WHERE a.url = 'demo-hw-063' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.063@opsy.local' WHERE a.url = 'demo-hw-063' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'morgan.thomas@email.com' WHERE a.url = 'demo-hw-063' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'morgan.thomas@email.com' WHERE a.url = 'demo-hw-063' ON CONFLICT DO NOTHING;
 
 -- ---- Property 64: 4515 N Lexington St, Tacoma, WA 98407 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.064@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 064',
+  'taylor.wilson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Taylor Wilson',
   '2065551064',
   'homeowner'::user_role,
   0,
@@ -3343,20 +3367,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 064 (Demo)', 'demo-hw-064', u.id
-FROM users u WHERE u.email = 'demo.homeowner.064@opsy.local'
+SELECT 'Taylor Wilson (Demo)', 'demo-hw-064', u.id
+FROM users u WHERE u.email = 'taylor.wilson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.064@opsy.local' WHERE a.url = 'demo-hw-064' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.064@opsy.local' WHERE a.url = 'demo-hw-064' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.wilson@email.com' WHERE a.url = 'demo-hw-064' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.wilson@email.com' WHERE a.url = 'demo-hw-064' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'VZG44FCL',
+  'GV5XPWSD',
   a.id,
-  'WA-98407-65098',
+  'WA-98407-38462',
   '4515 N Lexington St',
   'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=1200&fit=crop&q=80',
   '4515 N Lexington St, Tacoma, WA 98407',
@@ -3368,15 +3392,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-064'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.064@opsy.local' WHERE a.url = 'demo-hw-064' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.064@opsy.local' WHERE a.url = 'demo-hw-064' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.wilson@email.com' WHERE a.url = 'demo-hw-064' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.wilson@email.com' WHERE a.url = 'demo-hw-064' ON CONFLICT DO NOTHING;
 
 -- ---- Property 65: 2115 S Tyler St, Tacoma, WA 98405 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.065@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 065',
+  'frankie.brown@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Frankie Brown',
   '2065551065',
   'homeowner'::user_role,
   0,
@@ -3395,20 +3419,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 065 (Demo)', 'demo-hw-065', u.id
-FROM users u WHERE u.email = 'demo.homeowner.065@opsy.local'
+SELECT 'Frankie Brown (Demo)', 'demo-hw-065', u.id
+FROM users u WHERE u.email = 'frankie.brown@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.065@opsy.local' WHERE a.url = 'demo-hw-065' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.065@opsy.local' WHERE a.url = 'demo-hw-065' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'frankie.brown@email.com' WHERE a.url = 'demo-hw-065' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'frankie.brown@email.com' WHERE a.url = 'demo-hw-065' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '5FDGQXYK',
+  'P58RDUXW',
   a.id,
-  'WA-98405-62193',
+  'WA-98405-31866',
   '2115 S Tyler St',
   'https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=1200&fit=crop&q=80',
   '2115 S Tyler St, Tacoma, WA 98405',
@@ -3420,15 +3444,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-065'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.065@opsy.local' WHERE a.url = 'demo-hw-065' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.065@opsy.local' WHERE a.url = 'demo-hw-065' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'frankie.brown@email.com' WHERE a.url = 'demo-hw-065' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'frankie.brown@email.com' WHERE a.url = 'demo-hw-065' ON CONFLICT DO NOTHING;
 
 -- ---- Property 66: 4215 Colby Ave, Everett, WA 98203 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.066@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 066',
+  'drew.lewis@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Drew Lewis',
   '2065551066',
   'homeowner'::user_role,
   0,
@@ -3447,20 +3471,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 066 (Demo)', 'demo-hw-066', u.id
-FROM users u WHERE u.email = 'demo.homeowner.066@opsy.local'
+SELECT 'Drew Lewis (Demo)', 'demo-hw-066', u.id
+FROM users u WHERE u.email = 'drew.lewis@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.066@opsy.local' WHERE a.url = 'demo-hw-066' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.066@opsy.local' WHERE a.url = 'demo-hw-066' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'drew.lewis@email.com' WHERE a.url = 'demo-hw-066' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'drew.lewis@email.com' WHERE a.url = 'demo-hw-066' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '72N2VSYE',
+  'P3QU9PGV',
   a.id,
-  'WA-98203-19224',
+  'WA-98203-35320',
   '4215 Colby Ave',
   'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&fit=crop&q=80',
   '4215 Colby Ave, Everett, WA 98203',
@@ -3472,15 +3496,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-066'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.066@opsy.local' WHERE a.url = 'demo-hw-066' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.066@opsy.local' WHERE a.url = 'demo-hw-066' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.lewis@email.com' WHERE a.url = 'demo-hw-066' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.lewis@email.com' WHERE a.url = 'demo-hw-066' ON CONFLICT DO NOTHING;
 
 -- ---- Property 67: 1512 73rd St SE, Everett, WA 98203 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.067@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 067',
+  'lane.kim@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Lane Kim',
   '2065551067',
   'homeowner'::user_role,
   0,
@@ -3499,20 +3523,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 067 (Demo)', 'demo-hw-067', u.id
-FROM users u WHERE u.email = 'demo.homeowner.067@opsy.local'
+SELECT 'Lane Kim (Demo)', 'demo-hw-067', u.id
+FROM users u WHERE u.email = 'lane.kim@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.067@opsy.local' WHERE a.url = 'demo-hw-067' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.067@opsy.local' WHERE a.url = 'demo-hw-067' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'lane.kim@email.com' WHERE a.url = 'demo-hw-067' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'lane.kim@email.com' WHERE a.url = 'demo-hw-067' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'U3J52G8V',
+  '79ZAHNQL',
   a.id,
-  'WA-98203-17984',
+  'WA-98203-13254',
   '1512 73rd St SE',
   'https://images.unsplash.com/photo-1605146769289-440113cc3d00?w=1200&fit=crop&q=80',
   '1512 73rd St SE, Everett, WA 98203',
@@ -3524,15 +3548,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-067'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.067@opsy.local' WHERE a.url = 'demo-hw-067' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.067@opsy.local' WHERE a.url = 'demo-hw-067' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.kim@email.com' WHERE a.url = 'demo-hw-067' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.kim@email.com' WHERE a.url = 'demo-hw-067' ON CONFLICT DO NOTHING;
 
 -- ---- Property 68: 2315 112th St SE, Everett, WA 98208 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.068@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 068',
+  'parker.kim@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Parker Kim',
   '2065551068',
   'homeowner'::user_role,
   0,
@@ -3551,20 +3575,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 068 (Demo)', 'demo-hw-068', u.id
-FROM users u WHERE u.email = 'demo.homeowner.068@opsy.local'
+SELECT 'Parker Kim (Demo)', 'demo-hw-068', u.id
+FROM users u WHERE u.email = 'parker.kim@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.068@opsy.local' WHERE a.url = 'demo-hw-068' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.068@opsy.local' WHERE a.url = 'demo-hw-068' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'parker.kim@email.com' WHERE a.url = 'demo-hw-068' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'parker.kim@email.com' WHERE a.url = 'demo-hw-068' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'UCGDNEEG',
+  'ZC3AHHDT',
   a.id,
-  'WA-98208-65411',
+  'WA-98208-15997',
   '2315 112th St SE',
   'https://images.unsplash.com/photo-1613977257365-aaae5a9817ff?w=1200&fit=crop&q=80',
   '2315 112th St SE, Everett, WA 98208',
@@ -3576,15 +3600,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-068'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.068@opsy.local' WHERE a.url = 'demo-hw-068' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.068@opsy.local' WHERE a.url = 'demo-hw-068' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.kim@email.com' WHERE a.url = 'demo-hw-068' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.kim@email.com' WHERE a.url = 'demo-hw-068' ON CONFLICT DO NOTHING;
 
 -- ---- Property 69: 5412 Mukilteo Blvd, Everett, WA 98203 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.069@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 069',
+  'sam.walker@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Sam Walker',
   '2065551069',
   'homeowner'::user_role,
   0,
@@ -3603,20 +3627,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 069 (Demo)', 'demo-hw-069', u.id
-FROM users u WHERE u.email = 'demo.homeowner.069@opsy.local'
+SELECT 'Sam Walker (Demo)', 'demo-hw-069', u.id
+FROM users u WHERE u.email = 'sam.walker@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.069@opsy.local' WHERE a.url = 'demo-hw-069' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.069@opsy.local' WHERE a.url = 'demo-hw-069' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'sam.walker@email.com' WHERE a.url = 'demo-hw-069' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'sam.walker@email.com' WHERE a.url = 'demo-hw-069' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'PJLMZKBT',
+  'H82H4BV7',
   a.id,
-  'WA-98203-61478',
+  'WA-98203-83189',
   '5412 Mukilteo Blvd',
   'https://images.unsplash.com/photo-1592595896616-c37162298647?w=1200&fit=crop&q=80',
   '5412 Mukilteo Blvd, Everett, WA 98203',
@@ -3628,15 +3652,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-069'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.069@opsy.local' WHERE a.url = 'demo-hw-069' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.069@opsy.local' WHERE a.url = 'demo-hw-069' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sam.walker@email.com' WHERE a.url = 'demo-hw-069' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sam.walker@email.com' WHERE a.url = 'demo-hw-069' ON CONFLICT DO NOTHING;
 
 -- ---- Property 70: 3415 35th St, Everett, WA 98201 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.070@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 070',
+  'casey.moore@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Casey Moore',
   '2065551070',
   'homeowner'::user_role,
   0,
@@ -3655,20 +3679,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 070 (Demo)', 'demo-hw-070', u.id
-FROM users u WHERE u.email = 'demo.homeowner.070@opsy.local'
+SELECT 'Casey Moore (Demo)', 'demo-hw-070', u.id
+FROM users u WHERE u.email = 'casey.moore@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.070@opsy.local' WHERE a.url = 'demo-hw-070' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.070@opsy.local' WHERE a.url = 'demo-hw-070' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'casey.moore@email.com' WHERE a.url = 'demo-hw-070' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'casey.moore@email.com' WHERE a.url = 'demo-hw-070' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'XWJSLYET',
+  'JQ97NP95',
   a.id,
-  'WA-98201-43671',
+  'WA-98201-75989',
   '3415 35th St',
   'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&fit=crop&q=80',
   '3415 35th St, Everett, WA 98201',
@@ -3680,15 +3704,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-070'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.070@opsy.local' WHERE a.url = 'demo-hw-070' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.070@opsy.local' WHERE a.url = 'demo-hw-070' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'casey.moore@email.com' WHERE a.url = 'demo-hw-070' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'casey.moore@email.com' WHERE a.url = 'demo-hw-070' ON CONFLICT DO NOTHING;
 
 -- ---- Property 71: 8210 19th Ave SE, Everett, WA 98208 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.071@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 071',
+  'jordan.nguyen@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jordan Nguyen',
   '2065551071',
   'homeowner'::user_role,
   0,
@@ -3707,20 +3731,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 071 (Demo)', 'demo-hw-071', u.id
-FROM users u WHERE u.email = 'demo.homeowner.071@opsy.local'
+SELECT 'Jordan Nguyen (Demo)', 'demo-hw-071', u.id
+FROM users u WHERE u.email = 'jordan.nguyen@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.071@opsy.local' WHERE a.url = 'demo-hw-071' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.071@opsy.local' WHERE a.url = 'demo-hw-071' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jordan.nguyen@email.com' WHERE a.url = 'demo-hw-071' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jordan.nguyen@email.com' WHERE a.url = 'demo-hw-071' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'QKACX2VF',
+  'W85FVVQ3',
   a.id,
-  'WA-98208-66016',
+  'WA-98208-96330',
   '8210 19th Ave SE',
   'https://images.unsplash.com/photo-1592595896551-12b371d546d5?w=1200&fit=crop&q=80',
   '8210 19th Ave SE, Everett, WA 98208',
@@ -3732,15 +3756,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-071'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.071@opsy.local' WHERE a.url = 'demo-hw-071' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.071@opsy.local' WHERE a.url = 'demo-hw-071' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jordan.nguyen@email.com' WHERE a.url = 'demo-hw-071' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jordan.nguyen@email.com' WHERE a.url = 'demo-hw-071' ON CONFLICT DO NOTHING;
 
 -- ---- Property 72: 4615 Grand Ave, Everett, WA 98203 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.072@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 072',
+  'jessie.white@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jessie White',
   '2065551072',
   'homeowner'::user_role,
   0,
@@ -3759,20 +3783,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 072 (Demo)', 'demo-hw-072', u.id
-FROM users u WHERE u.email = 'demo.homeowner.072@opsy.local'
+SELECT 'Jessie White (Demo)', 'demo-hw-072', u.id
+FROM users u WHERE u.email = 'jessie.white@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.072@opsy.local' WHERE a.url = 'demo-hw-072' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.072@opsy.local' WHERE a.url = 'demo-hw-072' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jessie.white@email.com' WHERE a.url = 'demo-hw-072' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jessie.white@email.com' WHERE a.url = 'demo-hw-072' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GEDCXXZS',
+  'W4X6KB97',
   a.id,
-  'WA-98203-38477',
+  'WA-98203-85626',
   '4615 Grand Ave',
   'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=1200&fit=crop&q=80',
   '4615 Grand Ave, Everett, WA 98203',
@@ -3784,15 +3808,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-072'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.072@opsy.local' WHERE a.url = 'demo-hw-072' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.072@opsy.local' WHERE a.url = 'demo-hw-072' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jessie.white@email.com' WHERE a.url = 'demo-hw-072' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jessie.white@email.com' WHERE a.url = 'demo-hw-072' ON CONFLICT DO NOTHING;
 
 -- ---- Property 73: 1215 100th Pl SE, Everett, WA 98208 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.073@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 073',
+  'casey.young@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Casey Young',
   '2065551073',
   'homeowner'::user_role,
   0,
@@ -3811,20 +3835,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 073 (Demo)', 'demo-hw-073', u.id
-FROM users u WHERE u.email = 'demo.homeowner.073@opsy.local'
+SELECT 'Casey Young (Demo)', 'demo-hw-073', u.id
+FROM users u WHERE u.email = 'casey.young@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.073@opsy.local' WHERE a.url = 'demo-hw-073' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.073@opsy.local' WHERE a.url = 'demo-hw-073' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'casey.young@email.com' WHERE a.url = 'demo-hw-073' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'casey.young@email.com' WHERE a.url = 'demo-hw-073' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'UEPVB7AJ',
+  'FB323VGL',
   a.id,
-  'WA-98208-98148',
+  'WA-98208-52310',
   '1215 100th Pl SE',
   'https://images.unsplash.com/photo-1430285561322-7808604715df?w=1200&fit=crop&q=80',
   '1215 100th Pl SE, Everett, WA 98208',
@@ -3836,15 +3860,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-073'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.073@opsy.local' WHERE a.url = 'demo-hw-073' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.073@opsy.local' WHERE a.url = 'demo-hw-073' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'casey.young@email.com' WHERE a.url = 'demo-hw-073' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'casey.young@email.com' WHERE a.url = 'demo-hw-073' ON CONFLICT DO NOTHING;
 
 -- ---- Property 74: 6512 Fleming St, Everett, WA 98203 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.074@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 074',
+  'drew.kim@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Drew Kim',
   '2065551074',
   'homeowner'::user_role,
   0,
@@ -3863,20 +3887,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 074 (Demo)', 'demo-hw-074', u.id
-FROM users u WHERE u.email = 'demo.homeowner.074@opsy.local'
+SELECT 'Drew Kim (Demo)', 'demo-hw-074', u.id
+FROM users u WHERE u.email = 'drew.kim@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.074@opsy.local' WHERE a.url = 'demo-hw-074' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.074@opsy.local' WHERE a.url = 'demo-hw-074' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'drew.kim@email.com' WHERE a.url = 'demo-hw-074' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'drew.kim@email.com' WHERE a.url = 'demo-hw-074' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'AZFH6CFX',
+  'N8LGW682',
   a.id,
-  'WA-98203-46692',
+  'WA-98203-46411',
   '6512 Fleming St',
   'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&fit=crop&q=80',
   '6512 Fleming St, Everett, WA 98203',
@@ -3888,15 +3912,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-074'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.074@opsy.local' WHERE a.url = 'demo-hw-074' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.074@opsy.local' WHERE a.url = 'demo-hw-074' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.kim@email.com' WHERE a.url = 'demo-hw-074' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.kim@email.com' WHERE a.url = 'demo-hw-074' ON CONFLICT DO NOTHING;
 
 -- ---- Property 75: 2815 14th St, Everett, WA 98201 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.075@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 075',
+  'taylor.miller@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Taylor Miller',
   '2065551075',
   'homeowner'::user_role,
   0,
@@ -3915,20 +3939,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 075 (Demo)', 'demo-hw-075', u.id
-FROM users u WHERE u.email = 'demo.homeowner.075@opsy.local'
+SELECT 'Taylor Miller (Demo)', 'demo-hw-075', u.id
+FROM users u WHERE u.email = 'taylor.miller@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.075@opsy.local' WHERE a.url = 'demo-hw-075' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.075@opsy.local' WHERE a.url = 'demo-hw-075' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.miller@email.com' WHERE a.url = 'demo-hw-075' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'taylor.miller@email.com' WHERE a.url = 'demo-hw-075' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'D4SQC67E',
+  'AM46RP9H',
   a.id,
-  'WA-98201-55560',
+  'WA-98201-88503',
   '2815 14th St',
   'https://images.unsplash.com/photo-1416331108676-a22ccb276e35?w=1200&fit=crop&q=80',
   '2815 14th St, Everett, WA 98201',
@@ -3940,15 +3964,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-075'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.075@opsy.local' WHERE a.url = 'demo-hw-075' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.075@opsy.local' WHERE a.url = 'demo-hw-075' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.miller@email.com' WHERE a.url = 'demo-hw-075' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'taylor.miller@email.com' WHERE a.url = 'demo-hw-075' ON CONFLICT DO NOTHING;
 
 -- ---- Property 76: 1412 21st St, Snohomish, WA 98290 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.076@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 076',
+  'riley.lewis@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Riley Lewis',
   '2065551076',
   'homeowner'::user_role,
   0,
@@ -3967,20 +3991,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 076 (Demo)', 'demo-hw-076', u.id
-FROM users u WHERE u.email = 'demo.homeowner.076@opsy.local'
+SELECT 'Riley Lewis (Demo)', 'demo-hw-076', u.id
+FROM users u WHERE u.email = 'riley.lewis@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.076@opsy.local' WHERE a.url = 'demo-hw-076' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.076@opsy.local' WHERE a.url = 'demo-hw-076' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'riley.lewis@email.com' WHERE a.url = 'demo-hw-076' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'riley.lewis@email.com' WHERE a.url = 'demo-hw-076' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'EEPADESZ',
+  'EGDX6CQA',
   a.id,
-  'WA-98290-30645',
+  'WA-98290-76533',
   '1412 21st St',
   'https://images.unsplash.com/photo-1510627489930-0c1b0bfb6785?w=1200&fit=crop&q=80',
   '1412 21st St, Snohomish, WA 98290',
@@ -3992,15 +4016,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-076'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.076@opsy.local' WHERE a.url = 'demo-hw-076' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.076@opsy.local' WHERE a.url = 'demo-hw-076' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'riley.lewis@email.com' WHERE a.url = 'demo-hw-076' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'riley.lewis@email.com' WHERE a.url = 'demo-hw-076' ON CONFLICT DO NOTHING;
 
 -- ---- Property 77: 5215 116th St SE, Snohomish, WA 98290 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.077@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 077',
+  'drew.jones@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Drew Jones',
   '2065551077',
   'homeowner'::user_role,
   0,
@@ -4019,20 +4043,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 077 (Demo)', 'demo-hw-077', u.id
-FROM users u WHERE u.email = 'demo.homeowner.077@opsy.local'
+SELECT 'Drew Jones (Demo)', 'demo-hw-077', u.id
+FROM users u WHERE u.email = 'drew.jones@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.077@opsy.local' WHERE a.url = 'demo-hw-077' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.077@opsy.local' WHERE a.url = 'demo-hw-077' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'drew.jones@email.com' WHERE a.url = 'demo-hw-077' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'drew.jones@email.com' WHERE a.url = 'demo-hw-077' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'H37ZGM32',
+  'E2RGJYYF',
   a.id,
-  'WA-98290-51280',
+  'WA-98290-21199',
   '5215 116th St SE',
   'https://images.unsplash.com/photo-1480074568708-e7b720bb3f09?w=1200&fit=crop&q=80',
   '5215 116th St SE, Snohomish, WA 98290',
@@ -4044,15 +4068,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-077'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.077@opsy.local' WHERE a.url = 'demo-hw-077' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.077@opsy.local' WHERE a.url = 'demo-hw-077' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.jones@email.com' WHERE a.url = 'demo-hw-077' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.jones@email.com' WHERE a.url = 'demo-hw-077' ON CONFLICT DO NOTHING;
 
 -- ---- Property 78: 13210 4th St, Snohomish, WA 98290 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.078@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 078',
+  'wren.scott@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Wren Scott',
   '2065551078',
   'homeowner'::user_role,
   0,
@@ -4071,20 +4095,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 078 (Demo)', 'demo-hw-078', u.id
-FROM users u WHERE u.email = 'demo.homeowner.078@opsy.local'
+SELECT 'Wren Scott (Demo)', 'demo-hw-078', u.id
+FROM users u WHERE u.email = 'wren.scott@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.078@opsy.local' WHERE a.url = 'demo-hw-078' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.078@opsy.local' WHERE a.url = 'demo-hw-078' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'wren.scott@email.com' WHERE a.url = 'demo-hw-078' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'wren.scott@email.com' WHERE a.url = 'demo-hw-078' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'ZDZN29G3',
+  '9BY3HKRD',
   a.id,
-  'WA-98290-95918',
+  'WA-98290-89811',
   '13210 4th St',
   'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1200&fit=crop&q=80',
   '13210 4th St, Snohomish, WA 98290',
@@ -4096,15 +4120,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-078'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.078@opsy.local' WHERE a.url = 'demo-hw-078' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.078@opsy.local' WHERE a.url = 'demo-hw-078' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'wren.scott@email.com' WHERE a.url = 'demo-hw-078' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'wren.scott@email.com' WHERE a.url = 'demo-hw-078' ON CONFLICT DO NOTHING;
 
 -- ---- Property 79: 8415 160th St SE, Snohomish, WA 98296 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.079@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 079',
+  'morgan.anderson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Morgan Anderson',
   '2065551079',
   'homeowner'::user_role,
   0,
@@ -4123,20 +4147,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 079 (Demo)', 'demo-hw-079', u.id
-FROM users u WHERE u.email = 'demo.homeowner.079@opsy.local'
+SELECT 'Morgan Anderson (Demo)', 'demo-hw-079', u.id
+FROM users u WHERE u.email = 'morgan.anderson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.079@opsy.local' WHERE a.url = 'demo-hw-079' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.079@opsy.local' WHERE a.url = 'demo-hw-079' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'morgan.anderson@email.com' WHERE a.url = 'demo-hw-079' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'morgan.anderson@email.com' WHERE a.url = 'demo-hw-079' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'EUEVVYS7',
+  'VJYLU2AB',
   a.id,
-  'WA-98296-53626',
+  'WA-98296-77361',
   '8415 160th St SE',
   'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&fit=crop&q=80',
   '8415 160th St SE, Snohomish, WA 98296',
@@ -4148,15 +4172,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-079'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.079@opsy.local' WHERE a.url = 'demo-hw-079' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.079@opsy.local' WHERE a.url = 'demo-hw-079' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'morgan.anderson@email.com' WHERE a.url = 'demo-hw-079' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'morgan.anderson@email.com' WHERE a.url = 'demo-hw-079' ON CONFLICT DO NOTHING;
 
 -- ---- Property 80: 6112 120th Ave SE, Snohomish, WA 98290 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.080@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 080',
+  'lane.young@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Lane Young',
   '2065551080',
   'homeowner'::user_role,
   0,
@@ -4175,20 +4199,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 080 (Demo)', 'demo-hw-080', u.id
-FROM users u WHERE u.email = 'demo.homeowner.080@opsy.local'
+SELECT 'Lane Young (Demo)', 'demo-hw-080', u.id
+FROM users u WHERE u.email = 'lane.young@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.080@opsy.local' WHERE a.url = 'demo-hw-080' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.080@opsy.local' WHERE a.url = 'demo-hw-080' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'lane.young@email.com' WHERE a.url = 'demo-hw-080' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'lane.young@email.com' WHERE a.url = 'demo-hw-080' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '853TNTBR',
+  'FYVGDXTZ',
   a.id,
-  'WA-98290-11796',
+  'WA-98290-64192',
   '6112 120th Ave SE',
   'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&fit=crop&q=80',
   '6112 120th Ave SE, Snohomish, WA 98290',
@@ -4200,15 +4224,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-080'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.080@opsy.local' WHERE a.url = 'demo-hw-080' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.080@opsy.local' WHERE a.url = 'demo-hw-080' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.young@email.com' WHERE a.url = 'demo-hw-080' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.young@email.com' WHERE a.url = 'demo-hw-080' ON CONFLICT DO NOTHING;
 
 -- ---- Property 81: 2415 108th St SE, Everett, WA 98208 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.081@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 081',
+  'cameron.chen@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Cameron Chen',
   '2065551081',
   'homeowner'::user_role,
   0,
@@ -4227,20 +4251,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 081 (Demo)', 'demo-hw-081', u.id
-FROM users u WHERE u.email = 'demo.homeowner.081@opsy.local'
+SELECT 'Cameron Chen (Demo)', 'demo-hw-081', u.id
+FROM users u WHERE u.email = 'cameron.chen@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.081@opsy.local' WHERE a.url = 'demo-hw-081' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.081@opsy.local' WHERE a.url = 'demo-hw-081' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'cameron.chen@email.com' WHERE a.url = 'demo-hw-081' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'cameron.chen@email.com' WHERE a.url = 'demo-hw-081' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'P7T3DZ7Q',
+  'CAEAP7ME',
   a.id,
-  'WA-98208-31736',
+  'WA-98208-75819',
   '2415 108th St SE',
   'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=1200&fit=crop&q=80',
   '2415 108th St SE, Everett, WA 98208',
@@ -4252,15 +4276,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-081'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.081@opsy.local' WHERE a.url = 'demo-hw-081' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.081@opsy.local' WHERE a.url = 'demo-hw-081' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'cameron.chen@email.com' WHERE a.url = 'demo-hw-081' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'cameron.chen@email.com' WHERE a.url = 'demo-hw-081' ON CONFLICT DO NOTHING;
 
 -- ---- Property 82: 7210 200th St SW, Lynnwood, WA 98036 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.082@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 082',
+  'drew.patel@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Drew Patel',
   '2065551082',
   'homeowner'::user_role,
   0,
@@ -4279,20 +4303,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 082 (Demo)', 'demo-hw-082', u.id
-FROM users u WHERE u.email = 'demo.homeowner.082@opsy.local'
+SELECT 'Drew Patel (Demo)', 'demo-hw-082', u.id
+FROM users u WHERE u.email = 'drew.patel@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.082@opsy.local' WHERE a.url = 'demo-hw-082' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.082@opsy.local' WHERE a.url = 'demo-hw-082' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'drew.patel@email.com' WHERE a.url = 'demo-hw-082' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'drew.patel@email.com' WHERE a.url = 'demo-hw-082' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'MKAXXR59',
+  '3JXAEXSH',
   a.id,
-  'WA-98036-78614',
+  'WA-98036-80698',
   '7210 200th St SW',
   'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&fit=crop&q=80',
   '7210 200th St SW, Lynnwood, WA 98036',
@@ -4304,15 +4328,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-082'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.082@opsy.local' WHERE a.url = 'demo-hw-082' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.082@opsy.local' WHERE a.url = 'demo-hw-082' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.patel@email.com' WHERE a.url = 'demo-hw-082' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.patel@email.com' WHERE a.url = 'demo-hw-082' ON CONFLICT DO NOTHING;
 
 -- ---- Property 83: 4515 164th St SW, Lynnwood, WA 98037 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.083@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 083',
+  'riley.brown@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Riley Brown',
   '2065551083',
   'homeowner'::user_role,
   0,
@@ -4331,20 +4355,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 083 (Demo)', 'demo-hw-083', u.id
-FROM users u WHERE u.email = 'demo.homeowner.083@opsy.local'
+SELECT 'Riley Brown (Demo)', 'demo-hw-083', u.id
+FROM users u WHERE u.email = 'riley.brown@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.083@opsy.local' WHERE a.url = 'demo-hw-083' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.083@opsy.local' WHERE a.url = 'demo-hw-083' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'riley.brown@email.com' WHERE a.url = 'demo-hw-083' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'riley.brown@email.com' WHERE a.url = 'demo-hw-083' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '2FHKM5C3',
+  '53FJB3SP',
   a.id,
-  'WA-98037-47257',
+  'WA-98037-78541',
   '4515 164th St SW',
   'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&fit=crop&q=80',
   '4515 164th St SW, Lynnwood, WA 98037',
@@ -4356,15 +4380,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-083'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.083@opsy.local' WHERE a.url = 'demo-hw-083' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.083@opsy.local' WHERE a.url = 'demo-hw-083' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'riley.brown@email.com' WHERE a.url = 'demo-hw-083' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'riley.brown@email.com' WHERE a.url = 'demo-hw-083' ON CONFLICT DO NOTHING;
 
 -- ---- Property 84: 18210 72nd Ave W, Edmonds, WA 98026 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.084@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 084',
+  'quinn.patel@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Quinn Patel',
   '2065551084',
   'homeowner'::user_role,
   0,
@@ -4383,20 +4407,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 084 (Demo)', 'demo-hw-084', u.id
-FROM users u WHERE u.email = 'demo.homeowner.084@opsy.local'
+SELECT 'Quinn Patel (Demo)', 'demo-hw-084', u.id
+FROM users u WHERE u.email = 'quinn.patel@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.084@opsy.local' WHERE a.url = 'demo-hw-084' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.084@opsy.local' WHERE a.url = 'demo-hw-084' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.patel@email.com' WHERE a.url = 'demo-hw-084' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.patel@email.com' WHERE a.url = 'demo-hw-084' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '9XTBECWR',
+  'DYQ5AJFC',
   a.id,
-  'WA-98026-99770',
+  'WA-98026-42020',
   '18210 72nd Ave W',
   'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=1200&fit=crop&q=80',
   '18210 72nd Ave W, Edmonds, WA 98026',
@@ -4408,15 +4432,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-084'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.084@opsy.local' WHERE a.url = 'demo-hw-084' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.084@opsy.local' WHERE a.url = 'demo-hw-084' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.patel@email.com' WHERE a.url = 'demo-hw-084' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.patel@email.com' WHERE a.url = 'demo-hw-084' ON CONFLICT DO NOTHING;
 
 -- ---- Property 85: 9415 220th St SW, Edmonds, WA 98020 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.085@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 085',
+  'drew.johnson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Drew Johnson',
   '2065551085',
   'homeowner'::user_role,
   0,
@@ -4435,20 +4459,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 085 (Demo)', 'demo-hw-085', u.id
-FROM users u WHERE u.email = 'demo.homeowner.085@opsy.local'
+SELECT 'Drew Johnson (Demo)', 'demo-hw-085', u.id
+FROM users u WHERE u.email = 'drew.johnson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.085@opsy.local' WHERE a.url = 'demo-hw-085' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.085@opsy.local' WHERE a.url = 'demo-hw-085' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'drew.johnson@email.com' WHERE a.url = 'demo-hw-085' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'drew.johnson@email.com' WHERE a.url = 'demo-hw-085' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'G7FBJJJV',
+  '67KGZGUX',
   a.id,
-  'WA-98020-92268',
+  'WA-98020-25185',
   '9415 220th St SW',
   'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&fit=crop&q=80',
   '9415 220th St SW, Edmonds, WA 98020',
@@ -4460,15 +4484,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-085'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.085@opsy.local' WHERE a.url = 'demo-hw-085' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.085@opsy.local' WHERE a.url = 'demo-hw-085' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.johnson@email.com' WHERE a.url = 'demo-hw-085' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'drew.johnson@email.com' WHERE a.url = 'demo-hw-085' ON CONFLICT DO NOTHING;
 
 -- ---- Property 86: 21510 48th Ave W, Mountlake Terrace, WA 98043 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.086@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 086',
+  'skyler.thomas@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Skyler Thomas',
   '2065551086',
   'homeowner'::user_role,
   0,
@@ -4487,20 +4511,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 086 (Demo)', 'demo-hw-086', u.id
-FROM users u WHERE u.email = 'demo.homeowner.086@opsy.local'
+SELECT 'Skyler Thomas (Demo)', 'demo-hw-086', u.id
+FROM users u WHERE u.email = 'skyler.thomas@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.086@opsy.local' WHERE a.url = 'demo-hw-086' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.086@opsy.local' WHERE a.url = 'demo-hw-086' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.thomas@email.com' WHERE a.url = 'demo-hw-086' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.thomas@email.com' WHERE a.url = 'demo-hw-086' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '74B7XBPV',
+  '3LJ55KMY',
   a.id,
-  'WA-98043-57128',
+  'WA-98043-47975',
   '21510 48th Ave W',
   'https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=1200&fit=crop&q=80',
   '21510 48th Ave W, Mountlake Terrace, WA 98043',
@@ -4512,15 +4536,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-086'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.086@opsy.local' WHERE a.url = 'demo-hw-086' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.086@opsy.local' WHERE a.url = 'demo-hw-086' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.thomas@email.com' WHERE a.url = 'demo-hw-086' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.thomas@email.com' WHERE a.url = 'demo-hw-086' ON CONFLICT DO NOTHING;
 
 -- ---- Property 87: 15412 12th Ave NE, Shoreline, WA 98155 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.087@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 087',
+  'skyler.patel@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Skyler Patel',
   '2065551087',
   'homeowner'::user_role,
   0,
@@ -4539,20 +4563,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 087 (Demo)', 'demo-hw-087', u.id
-FROM users u WHERE u.email = 'demo.homeowner.087@opsy.local'
+SELECT 'Skyler Patel (Demo)', 'demo-hw-087', u.id
+FROM users u WHERE u.email = 'skyler.patel@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.087@opsy.local' WHERE a.url = 'demo-hw-087' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.087@opsy.local' WHERE a.url = 'demo-hw-087' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.patel@email.com' WHERE a.url = 'demo-hw-087' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.patel@email.com' WHERE a.url = 'demo-hw-087' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '3L8ESMB2',
+  'ZW5DA968',
   a.id,
-  'WA-98155-71728',
+  'WA-98155-37330',
   '15412 12th Ave NE',
   'https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=1200&fit=crop&q=80',
   '15412 12th Ave NE, Shoreline, WA 98155',
@@ -4564,15 +4588,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-087'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.087@opsy.local' WHERE a.url = 'demo-hw-087' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.087@opsy.local' WHERE a.url = 'demo-hw-087' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.patel@email.com' WHERE a.url = 'demo-hw-087' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.patel@email.com' WHERE a.url = 'demo-hw-087' ON CONFLICT DO NOTHING;
 
 -- ---- Property 88: 18215 8th Ave NW, Shoreline, WA 98177 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.088@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 088',
+  'sage.garcia@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Sage Garcia',
   '2065551088',
   'homeowner'::user_role,
   0,
@@ -4591,20 +4615,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 088 (Demo)', 'demo-hw-088', u.id
-FROM users u WHERE u.email = 'demo.homeowner.088@opsy.local'
+SELECT 'Sage Garcia (Demo)', 'demo-hw-088', u.id
+FROM users u WHERE u.email = 'sage.garcia@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.088@opsy.local' WHERE a.url = 'demo-hw-088' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.088@opsy.local' WHERE a.url = 'demo-hw-088' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'sage.garcia@email.com' WHERE a.url = 'demo-hw-088' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'sage.garcia@email.com' WHERE a.url = 'demo-hw-088' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'AK5Q6FLD',
+  '9JHAQARL',
   a.id,
-  'WA-98177-42010',
+  'WA-98177-90776',
   '18215 8th Ave NW',
   'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=1200&fit=crop&q=80',
   '18215 8th Ave NW, Shoreline, WA 98177',
@@ -4616,15 +4640,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-088'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.088@opsy.local' WHERE a.url = 'demo-hw-088' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.088@opsy.local' WHERE a.url = 'demo-hw-088' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sage.garcia@email.com' WHERE a.url = 'demo-hw-088' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'sage.garcia@email.com' WHERE a.url = 'demo-hw-088' ON CONFLICT DO NOTHING;
 
 -- ---- Property 89: 11210 NE 132nd St, Kirkland, WA 98034 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.089@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 089',
+  'parker.singh@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Parker Singh',
   '2065551089',
   'homeowner'::user_role,
   0,
@@ -4643,20 +4667,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 089 (Demo)', 'demo-hw-089', u.id
-FROM users u WHERE u.email = 'demo.homeowner.089@opsy.local'
+SELECT 'Parker Singh (Demo)', 'demo-hw-089', u.id
+FROM users u WHERE u.email = 'parker.singh@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.089@opsy.local' WHERE a.url = 'demo-hw-089' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.089@opsy.local' WHERE a.url = 'demo-hw-089' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'parker.singh@email.com' WHERE a.url = 'demo-hw-089' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'parker.singh@email.com' WHERE a.url = 'demo-hw-089' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'N3KXXKDP',
+  'NT2SJW97',
   a.id,
-  'WA-98034-39670',
+  'WA-98034-52431',
   '11210 NE 132nd St',
   'https://images.unsplash.com/photo-1600573472592-401b489a3cdc?w=1200&fit=crop&q=80',
   '11210 NE 132nd St, Kirkland, WA 98034',
@@ -4668,15 +4692,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-089'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.089@opsy.local' WHERE a.url = 'demo-hw-089' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.089@opsy.local' WHERE a.url = 'demo-hw-089' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.singh@email.com' WHERE a.url = 'demo-hw-089' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.singh@email.com' WHERE a.url = 'demo-hw-089' ON CONFLICT DO NOTHING;
 
 -- ---- Property 90: 14515 148th Ave NE, Woodinville, WA 98072 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.090@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 090',
+  'frankie.nguyen@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Frankie Nguyen',
   '2065551090',
   'homeowner'::user_role,
   0,
@@ -4695,20 +4719,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 090 (Demo)', 'demo-hw-090', u.id
-FROM users u WHERE u.email = 'demo.homeowner.090@opsy.local'
+SELECT 'Frankie Nguyen (Demo)', 'demo-hw-090', u.id
+FROM users u WHERE u.email = 'frankie.nguyen@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.090@opsy.local' WHERE a.url = 'demo-hw-090' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.090@opsy.local' WHERE a.url = 'demo-hw-090' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'frankie.nguyen@email.com' WHERE a.url = 'demo-hw-090' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'frankie.nguyen@email.com' WHERE a.url = 'demo-hw-090' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'FN9J5XPX',
+  'TWK646P7',
   a.id,
-  'WA-98072-37822',
+  'WA-98072-94904',
   '14515 148th Ave NE',
   'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=1200&fit=crop&q=80',
   '14515 148th Ave NE, Woodinville, WA 98072',
@@ -4720,15 +4744,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-090'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.090@opsy.local' WHERE a.url = 'demo-hw-090' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.090@opsy.local' WHERE a.url = 'demo-hw-090' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'frankie.nguyen@email.com' WHERE a.url = 'demo-hw-090' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'frankie.nguyen@email.com' WHERE a.url = 'demo-hw-090' ON CONFLICT DO NOTHING;
 
 -- ---- Property 91: 17210 140th Ave NE, Woodinville, WA 98072 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.091@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Alex Nguyen 091',
+  'jordan.johnson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jordan Johnson',
   '2065551091',
   'homeowner'::user_role,
   0,
@@ -4747,20 +4771,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Alex Nguyen 091 (Demo)', 'demo-hw-091', u.id
-FROM users u WHERE u.email = 'demo.homeowner.091@opsy.local'
+SELECT 'Jordan Johnson (Demo)', 'demo-hw-091', u.id
+FROM users u WHERE u.email = 'jordan.johnson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.091@opsy.local' WHERE a.url = 'demo-hw-091' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.091@opsy.local' WHERE a.url = 'demo-hw-091' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jordan.johnson@email.com' WHERE a.url = 'demo-hw-091' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jordan.johnson@email.com' WHERE a.url = 'demo-hw-091' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '8XYY8TYY',
+  '3294VZZD',
   a.id,
-  'WA-98072-47081',
+  'WA-98072-89571',
   '17210 140th Ave NE',
   'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200&fit=crop&q=80',
   '17210 140th Ave NE, Woodinville, WA 98072',
@@ -4772,15 +4796,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-091'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.091@opsy.local' WHERE a.url = 'demo-hw-091' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.091@opsy.local' WHERE a.url = 'demo-hw-091' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jordan.johnson@email.com' WHERE a.url = 'demo-hw-091' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jordan.johnson@email.com' WHERE a.url = 'demo-hw-091' ON CONFLICT DO NOTHING;
 
 -- ---- Property 92: 2115 NE 195th St, Bothell, WA 98011 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.092@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Sam Patel 092',
+  'quinn.lee@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Quinn Lee',
   '2065551092',
   'homeowner'::user_role,
   0,
@@ -4799,20 +4823,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Sam Patel 092 (Demo)', 'demo-hw-092', u.id
-FROM users u WHERE u.email = 'demo.homeowner.092@opsy.local'
+SELECT 'Quinn Lee (Demo)', 'demo-hw-092', u.id
+FROM users u WHERE u.email = 'quinn.lee@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.092@opsy.local' WHERE a.url = 'demo-hw-092' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.092@opsy.local' WHERE a.url = 'demo-hw-092' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.lee@email.com' WHERE a.url = 'demo-hw-092' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'quinn.lee@email.com' WHERE a.url = 'demo-hw-092' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'H6NL3XPV',
+  'UN8VAG7T',
   a.id,
-  'WA-98011-87465',
+  'WA-98011-50718',
   '2115 NE 195th St',
   'https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=1200&fit=crop&q=80',
   '2115 NE 195th St, Bothell, WA 98011',
@@ -4824,15 +4848,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-092'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.092@opsy.local' WHERE a.url = 'demo-hw-092' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.092@opsy.local' WHERE a.url = 'demo-hw-092' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.lee@email.com' WHERE a.url = 'demo-hw-092' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'quinn.lee@email.com' WHERE a.url = 'demo-hw-092' ON CONFLICT DO NOTHING;
 
 -- ---- Property 93: 24015 112th Ave SE, Kent, WA 98031 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.093@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jordan Garcia 093',
+  'skyler.lewis@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Skyler Lewis',
   '2065551093',
   'homeowner'::user_role,
   0,
@@ -4851,20 +4875,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jordan Garcia 093 (Demo)', 'demo-hw-093', u.id
-FROM users u WHERE u.email = 'demo.homeowner.093@opsy.local'
+SELECT 'Skyler Lewis (Demo)', 'demo-hw-093', u.id
+FROM users u WHERE u.email = 'skyler.lewis@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.093@opsy.local' WHERE a.url = 'demo-hw-093' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.093@opsy.local' WHERE a.url = 'demo-hw-093' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.lewis@email.com' WHERE a.url = 'demo-hw-093' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'skyler.lewis@email.com' WHERE a.url = 'demo-hw-093' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'NQ3WF2ZB',
+  '4UBSHPDT',
   a.id,
-  'WA-98031-54402',
+  'WA-98031-50782',
   '24015 112th Ave SE',
   'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1200&fit=crop&q=80',
   '24015 112th Ave SE, Kent, WA 98031',
@@ -4876,15 +4900,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-093'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.093@opsy.local' WHERE a.url = 'demo-hw-093' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.093@opsy.local' WHERE a.url = 'demo-hw-093' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.lewis@email.com' WHERE a.url = 'demo-hw-093' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'skyler.lewis@email.com' WHERE a.url = 'demo-hw-093' ON CONFLICT DO NOTHING;
 
 -- ---- Property 94: 13210 SE 272nd St, Kent, WA 98042 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.094@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Riley Kim 094',
+  'jessie.robinson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jessie Robinson',
   '2065551094',
   'homeowner'::user_role,
   0,
@@ -4903,20 +4927,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Riley Kim 094 (Demo)', 'demo-hw-094', u.id
-FROM users u WHERE u.email = 'demo.homeowner.094@opsy.local'
+SELECT 'Jessie Robinson (Demo)', 'demo-hw-094', u.id
+FROM users u WHERE u.email = 'jessie.robinson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.094@opsy.local' WHERE a.url = 'demo-hw-094' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.094@opsy.local' WHERE a.url = 'demo-hw-094' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jessie.robinson@email.com' WHERE a.url = 'demo-hw-094' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jessie.robinson@email.com' WHERE a.url = 'demo-hw-094' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '34FHQQDP',
+  'GHKY23JC',
   a.id,
-  'WA-98042-23480',
+  'WA-98042-77784',
   '13210 SE 272nd St',
   'https://images.unsplash.com/photo-1600585153490-76fb20a32601?w=1200&fit=crop&q=80',
   '13210 SE 272nd St, Kent, WA 98042',
@@ -4928,15 +4952,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-094'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.094@opsy.local' WHERE a.url = 'demo-hw-094' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.094@opsy.local' WHERE a.url = 'demo-hw-094' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jessie.robinson@email.com' WHERE a.url = 'demo-hw-094' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jessie.robinson@email.com' WHERE a.url = 'demo-hw-094' ON CONFLICT DO NOTHING;
 
 -- ---- Property 95: 31215 124th Ave SE, Auburn, WA 98092 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.095@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Casey Chen 095',
+  'dakota.thomas@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Dakota Thomas',
   '2065551095',
   'homeowner'::user_role,
   0,
@@ -4955,20 +4979,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Casey Chen 095 (Demo)', 'demo-hw-095', u.id
-FROM users u WHERE u.email = 'demo.homeowner.095@opsy.local'
+SELECT 'Dakota Thomas (Demo)', 'demo-hw-095', u.id
+FROM users u WHERE u.email = 'dakota.thomas@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.095@opsy.local' WHERE a.url = 'demo-hw-095' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.095@opsy.local' WHERE a.url = 'demo-hw-095' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'dakota.thomas@email.com' WHERE a.url = 'demo-hw-095' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'dakota.thomas@email.com' WHERE a.url = 'demo-hw-095' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'Z9QNEDBF',
+  '7U7NU3KZ',
   a.id,
-  'WA-98092-75004',
+  'WA-98092-18941',
   '31215 124th Ave SE',
   'https://images.unsplash.com/photo-1600566752355-35792bedcfea?w=1200&fit=crop&q=80',
   '31215 124th Ave SE, Auburn, WA 98092',
@@ -4980,15 +5004,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-095'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.095@opsy.local' WHERE a.url = 'demo-hw-095' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.095@opsy.local' WHERE a.url = 'demo-hw-095' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'dakota.thomas@email.com' WHERE a.url = 'demo-hw-095' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'dakota.thomas@email.com' WHERE a.url = 'demo-hw-095' ON CONFLICT DO NOTHING;
 
 -- ---- Property 96: 4512 S 300th St, Auburn, WA 98001 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.096@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Morgan Martinez 096',
+  'parker.miller@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Parker Miller',
   '2065551096',
   'homeowner'::user_role,
   0,
@@ -5007,20 +5031,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Morgan Martinez 096 (Demo)', 'demo-hw-096', u.id
-FROM users u WHERE u.email = 'demo.homeowner.096@opsy.local'
+SELECT 'Parker Miller (Demo)', 'demo-hw-096', u.id
+FROM users u WHERE u.email = 'parker.miller@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.096@opsy.local' WHERE a.url = 'demo-hw-096' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.096@opsy.local' WHERE a.url = 'demo-hw-096' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'parker.miller@email.com' WHERE a.url = 'demo-hw-096' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'parker.miller@email.com' WHERE a.url = 'demo-hw-096' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'REENAFDE',
+  'SE9B4HQE',
   a.id,
-  'WA-98001-82088',
+  'WA-98001-62370',
   '4512 S 300th St',
   'https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?w=1200&fit=crop&q=80',
   '4512 S 300th St, Auburn, WA 98001',
@@ -5032,15 +5056,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-096'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.096@opsy.local' WHERE a.url = 'demo-hw-096' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.096@opsy.local' WHERE a.url = 'demo-hw-096' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.miller@email.com' WHERE a.url = 'demo-hw-096' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'parker.miller@email.com' WHERE a.url = 'demo-hw-096' ON CONFLICT DO NOTHING;
 
 -- ---- Property 97: 15210 SE 296th St, Kent, WA 98042 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.097@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Taylor Brown 097',
+  'jordan.wilson@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Jordan Wilson',
   '2065551097',
   'homeowner'::user_role,
   0,
@@ -5059,20 +5083,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Taylor Brown 097 (Demo)', 'demo-hw-097', u.id
-FROM users u WHERE u.email = 'demo.homeowner.097@opsy.local'
+SELECT 'Jordan Wilson (Demo)', 'demo-hw-097', u.id
+FROM users u WHERE u.email = 'jordan.wilson@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.097@opsy.local' WHERE a.url = 'demo-hw-097' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.097@opsy.local' WHERE a.url = 'demo-hw-097' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'jordan.wilson@email.com' WHERE a.url = 'demo-hw-097' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'jordan.wilson@email.com' WHERE a.url = 'demo-hw-097' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'TFD2CJUX',
+  'GGV5CYPP',
   a.id,
-  'WA-98042-91140',
+  'WA-98042-64896',
   '15210 SE 296th St',
   'https://images.unsplash.com/photo-1600585154084-4e5fe7c39198?w=1200&fit=crop&q=80',
   '15210 SE 296th St, Kent, WA 98042',
@@ -5084,15 +5108,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-097'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.097@opsy.local' WHERE a.url = 'demo-hw-097' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.097@opsy.local' WHERE a.url = 'demo-hw-097' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jordan.wilson@email.com' WHERE a.url = 'demo-hw-097' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'jordan.wilson@email.com' WHERE a.url = 'demo-hw-097' ON CONFLICT DO NOTHING;
 
 -- ---- Property 98: 2415 NW Sammamish Rd, Issaquah, WA 98027 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.098@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Quinn Lee 098',
+  'lane.davis@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Lane Davis',
   '2065551098',
   'homeowner'::user_role,
   0,
@@ -5111,20 +5135,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Quinn Lee 098 (Demo)', 'demo-hw-098', u.id
-FROM users u WHERE u.email = 'demo.homeowner.098@opsy.local'
+SELECT 'Lane Davis (Demo)', 'demo-hw-098', u.id
+FROM users u WHERE u.email = 'lane.davis@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.098@opsy.local' WHERE a.url = 'demo-hw-098' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.098@opsy.local' WHERE a.url = 'demo-hw-098' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'lane.davis@email.com' WHERE a.url = 'demo-hw-098' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'lane.davis@email.com' WHERE a.url = 'demo-hw-098' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '2SJ5NUP3',
+  'MNYLQRHQ',
   a.id,
-  'WA-98027-42687',
+  'WA-98027-62172',
   '2415 NW Sammamish Rd',
   'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?w=1200&fit=crop&q=80',
   '2415 NW Sammamish Rd, Issaquah, WA 98027',
@@ -5136,15 +5160,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-098'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.098@opsy.local' WHERE a.url = 'demo-hw-098' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.098@opsy.local' WHERE a.url = 'demo-hw-098' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.davis@email.com' WHERE a.url = 'demo-hw-098' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'lane.davis@email.com' WHERE a.url = 'demo-hw-098' ON CONFLICT DO NOTHING;
 
 -- ---- Property 99: 4112 228th Ave SE, Sammamish, WA 98075 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.099@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Jamie Singh 099',
+  'tatum.jones@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Tatum Jones',
   '2065551099',
   'homeowner'::user_role,
   0,
@@ -5163,20 +5187,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Jamie Singh 099 (Demo)', 'demo-hw-099', u.id
-FROM users u WHERE u.email = 'demo.homeowner.099@opsy.local'
+SELECT 'Tatum Jones (Demo)', 'demo-hw-099', u.id
+FROM users u WHERE u.email = 'tatum.jones@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.099@opsy.local' WHERE a.url = 'demo-hw-099' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.099@opsy.local' WHERE a.url = 'demo-hw-099' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'tatum.jones@email.com' WHERE a.url = 'demo-hw-099' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'tatum.jones@email.com' WHERE a.url = 'demo-hw-099' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'BJTCUXXN',
+  'DX5HN36E',
   a.id,
-  'WA-98075-75990',
+  'WA-98075-33058',
   '4112 228th Ave SE',
   'https://images.unsplash.com/photo-1600047509358-9dc75507daeb?w=1200&fit=crop&q=80',
   '4112 228th Ave SE, Sammamish, WA 98075',
@@ -5188,15 +5212,15 @@ FROM accounts a
 WHERE a.url = 'demo-hw-099'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.099@opsy.local' WHERE a.url = 'demo-hw-099' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.099@opsy.local' WHERE a.url = 'demo-hw-099' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'tatum.jones@email.com' WHERE a.url = 'demo-hw-099' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'tatum.jones@email.com' WHERE a.url = 'demo-hw-099' ON CONFLICT DO NOTHING;
 
 -- ---- Property 100: 1215 212th Ave SE, Sammamish, WA 98074 ----
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
-  'demo.homeowner.100@opsy.local',
-  '$2b$12$bO9diWBvRvjp1z3izMh.8OdPFqSd5Y002/uxlW3nONClMwqceeiHu',
-  'Avery Walker 100',
+  'avery.scott@email.com',
+  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  'Avery Scott',
   '2065551100',
   'homeowner'::user_role,
   0,
@@ -5215,20 +5239,20 @@ ON CONFLICT (email) DO UPDATE SET
   updated_at = NOW();
 
 INSERT INTO accounts (name, url, owner_user_id)
-SELECT 'Avery Walker 100 (Demo)', 'demo-hw-100', u.id
-FROM users u WHERE u.email = 'demo.homeowner.100@opsy.local'
+SELECT 'Avery Scott (Demo)', 'demo-hw-100', u.id
+FROM users u WHERE u.email = 'avery.scott@email.com'
 ON CONFLICT (url) DO NOTHING;
 
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.100@opsy.local' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
-INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'demo.homeowner.100@opsy.local' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, u.id, 'owner'::account_role FROM accounts a JOIN users u ON u.email = 'avery.scott@email.com' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
+INSERT INTO account_users (account_id, user_id, role) SELECT a.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'member'::account_role FROM accounts a JOIN users u ON u.email = 'avery.scott@email.com' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
 
 INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'SRSDBYYG',
+  'VK98BKS8',
   a.id,
-  'WA-98074-55636',
+  'WA-98074-83665',
   '1215 212th Ave SE',
   'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?w=1200&fit=crop&q=80',
   '1215 212th Ave SE, Sammamish, WA 98074',
@@ -5240,7 +5264,7 @@ FROM accounts a
 WHERE a.url = 'demo-hw-100'
 ON CONFLICT (property_uid) DO NOTHING;
 
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.100@opsy.local' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
-INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'demo.homeowner.100@opsy.local' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.scott@email.com' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
+INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.scott@email.com' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
 
 COMMIT;
