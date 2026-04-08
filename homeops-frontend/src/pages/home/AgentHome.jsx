@@ -36,6 +36,11 @@ import {
 import {HealthBadge, AgentHomeStats, AgentHomeKpiCharts} from "./components";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import UpgradePrompt from "../../components/UpgradePrompt";
+import PaginationClassic from "../../components/PaginationClassic";
+
+/** Even page sizes that align with the home grid (1 / 2 / 3 columns). */
+const AGENT_HOME_PROPERTY_PAGE_SIZES = [6, 12, 18];
+const DEFAULT_AGENT_HOME_PROPERTIES_PER_PAGE = 6;
 
 /*
  * ════════════════════════════════════════════════════════════════════
@@ -106,6 +111,27 @@ function AgentHome() {
   const totalProperties = properties?.length || 0;
   const totalUsers = users?.length || 0;
   const totalContacts = contacts?.length || 0;
+
+  const [propertiesPage, setPropertiesPage] = useState(1);
+  const [propertiesPerPage, setPropertiesPerPage] = useState(
+    DEFAULT_AGENT_HOME_PROPERTIES_PER_PAGE,
+  );
+
+  const paginatedProperties = useMemo(() => {
+    if (!properties?.length) return [];
+    const start = (propertiesPage - 1) * propertiesPerPage;
+    return properties.slice(start, start + propertiesPerPage);
+  }, [properties, propertiesPage, propertiesPerPage]);
+
+  useEffect(() => {
+    const lastPage = Math.max(
+      1,
+      Math.ceil(totalProperties / propertiesPerPage) || 1,
+    );
+    if (propertiesPage > lastPage) {
+      setPropertiesPage(lastPage);
+    }
+  }, [totalProperties, propertiesPerPage, propertiesPage]);
 
   // ─── Engagement analytics state ─────────────────────────────────
   const [engagementCounts, setEngagementCounts] = useState([]);
@@ -575,7 +601,7 @@ function AgentHome() {
               </button>
             </div>
           ) : (
-            properties.map((property) => {
+            paginatedProperties.map((property) => {
               const uid = property.property_uid ?? property.id;
               const photoUrl = getMainPhotoUrl(property);
               const score = getHpsScore(property);
@@ -694,6 +720,21 @@ function AgentHome() {
             })
           )}
         </div>
+
+        {totalProperties > propertiesPerPage && (
+          <div className="mt-6">
+            <PaginationClassic
+              currentPage={propertiesPage}
+              totalItems={totalProperties}
+              itemsPerPage={propertiesPerPage}
+              onPageChange={setPropertiesPage}
+              onItemsPerPageChange={(n) =>
+                setPropertiesPerPage(Number(n) || DEFAULT_AGENT_HOME_PROPERTIES_PER_PAGE)
+              }
+              pageSizeOptions={AGENT_HOME_PROPERTY_PAGE_SIZES}
+            />
+          </div>
+        )}
       </section>
 
       <AgentHomeKpiCharts
