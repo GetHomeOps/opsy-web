@@ -181,7 +181,7 @@ async function canAddTeamMember(accountId, propertyId, userRole) {
   if (isAdminRole(userRole)) return { allowed: true, current: 0, max: 999999 };
   const limits = await getAccountLimits(accountId);
   const countRes = await db.query(
-    `SELECT COUNT(*)::int AS count FROM property_users WHERE property_id = $1`,
+    `SELECT COUNT(*)::int AS count FROM property_users WHERE property_id = $1 AND role != 'viewer'`,
     [propertyId]
   );
   const current = countRes.rows[0].count;

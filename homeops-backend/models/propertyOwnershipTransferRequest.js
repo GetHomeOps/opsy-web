@@ -4,10 +4,29 @@ const db = require("../db");
 const { BadRequestError, ForbiddenError, NotFoundError } = require("../expressError");
 const Notification = require("./notification");
 const User = require("./user");
+const { canCreateProperty, isAdminRole } = require("../services/tierService");
 
 function propertyLabel(row) {
   const parts = [row.address, row.city, row.state].filter(Boolean);
   return parts.length ? parts.join(", ") : "this property";
+}
+
+/**
+ * Resolve a user's primary account id.
+ * Prefers the account they own; falls back to any linked account.
+ */
+async function resolveUserPrimaryAccountId(userId, queryFn) {
+  const fn = queryFn || ((t, p) => db.query(t, p));
+  const res = await fn(
+    `SELECT au.account_id
+     FROM account_users au
+     LEFT JOIN accounts a ON a.id = au.account_id
+     WHERE au.user_id = $1
+     ORDER BY (a.owner_user_id = $1) DESC
+     LIMIT 1`,
+    [userId]
+  );
+  return res.rows[0]?.account_id ?? null;
 }
 
 async function cancelPendingForProperty(propertyId, client) {
@@ -53,6 +72,28 @@ class PropertyOwnershipTransferRequest {
     );
     if (memberRow.rows.length === 0) {
       throw new BadRequestError("The new owner must already be on the property team");
+    }
+
+    // Early check: will the recipient's account exceed its property limit?
+    const toAccountId = await resolveUserPrimaryAccountId(toUserId);
+    if (toAccountId) {
+      const propAccountRes = await db.query(
+        `SELECT account_id FROM properties WHERE id = $1`,
+        [propertyId]
+      );
+      const currentAccountId = propAccountRes.rows[0]?.account_id;
+      if (currentAccountId && Number(currentAccountId) !== Number(toAccountId)) {
+        const toUserRes = await db.query(`SELECT role FROM users WHERE id = $1`, [toUserId]);
+        const toUserRole = toUserRes.rows[0]?.role;
+        if (!isAdminRole(toUserRole)) {
+          const tierCheck = await canCreateProperty(toAccountId, toUserRole);
+          if (!tierCheck.allowed) {
+            throw new ForbiddenError(
+              `The recipient has reached their property limit (${tierCheck.current}/${tierCheck.max}). They need to upgrade their plan before ownership can be transferred.`
+            );
+          }
+        }
+      }
     }
 
     const client = await db.connect();
@@ -142,6 +183,37 @@ class PropertyOwnershipTransferRequest {
         throw new BadRequestError("Ownership has changed; this transfer is no longer valid");
       }
 
+      // Resolve both users' accounts to determine if property needs to move
+      const toAccountId = await resolveUserPrimaryAccountId(
+        row.to_user_id,
+        (t, p) => client.query(t, p)
+      );
+      if (!toAccountId) {
+        throw new BadRequestError("The recipient does not have an account");
+      }
+
+      const propAccountRes = await client.query(
+        `SELECT account_id FROM properties WHERE id = $1`,
+        [row.property_id]
+      );
+      const currentAccountId = propAccountRes.rows[0]?.account_id;
+      const accountChanging = currentAccountId && Number(currentAccountId) !== Number(toAccountId);
+
+      // Enforce max_properties on the recipient's account (skip if property stays on same account)
+      if (accountChanging) {
+        const toUserRes = await client.query(`SELECT role FROM users WHERE id = $1`, [row.to_user_id]);
+        const toUserRole = toUserRes.rows[0]?.role;
+        if (!isAdminRole(toUserRole)) {
+          const tierCheck = await canCreateProperty(toAccountId, toUserRole);
+          if (!tierCheck.allowed) {
+            throw new ForbiddenError(
+              `The recipient has reached their property limit (${tierCheck.current}/${tierCheck.max}). They need to upgrade their plan before accepting this transfer.`
+            );
+          }
+        }
+      }
+
+      // Swap roles
       await client.query(
         `UPDATE property_users SET role = 'editor', updated_at = NOW()
          WHERE property_id = $1 AND user_id = $2 AND role = 'owner'`,
@@ -152,6 +224,15 @@ class PropertyOwnershipTransferRequest {
          WHERE property_id = $1 AND user_id = $2`,
         [row.property_id, row.to_user_id]
       );
+
+      // Move property to recipient's account
+      if (accountChanging) {
+        await client.query(
+          `UPDATE properties SET account_id = $1, updated_at = NOW() WHERE id = $2`,
+          [toAccountId, row.property_id]
+        );
+      }
+
       await client.query(
         `UPDATE property_ownership_transfer_requests
          SET status = 'accepted', responded_at = NOW() WHERE id = $1`,

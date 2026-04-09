@@ -468,9 +468,16 @@ function PropertyFormContainer() {
   const location = useLocation();
   const {uid, accountUrl: accountUrlParam} = useParams();
   const [searchParams] = useSearchParams();
-  const invitationIdFromUrl =
+  const invitationIdFromUrlRaw =
     searchParams.get("invitation")?.trim?.() || searchParams.get("invitation");
-  const isInvitationView = Boolean(invitationIdFromUrl && uid !== "new");
+  const [validatedInvitationId, setValidatedInvitationId] = useState(null);
+  const [isValidatingInvitationId, setIsValidatingInvitationId] = useState(false);
+  const invitationIdFromUrl = validatedInvitationId;
+  const isInvitationView = Boolean(
+    invitationIdFromUrlRaw &&
+      uid !== "new" &&
+      (isValidatingInvitationId || invitationIdFromUrl),
+  );
   const tabFromUrl = searchParams.get("tab");
   const {t} = useTranslation();
   const {
@@ -889,6 +896,68 @@ function PropertyFormContainer() {
   const isCurrentUserAgent = ["agent", "admin", "super_admin"].includes(
     (currentUser?.role ?? "").toLowerCase(),
   );
+
+  // Invitation mode is only enabled when the invitation belongs to the
+  // current user and targets the currently viewed property.
+  useEffect(() => {
+    if (!invitationIdFromUrlRaw || uid === "new") {
+      setValidatedInvitationId(null);
+      setIsValidatingInvitationId(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function validateInvitationAccess() {
+      setIsValidatingInvitationId(true);
+      setValidatedInvitationId(null);
+      try {
+        const received = await AppApi.getReceivedInvitations({status: "pending"});
+        if (cancelled) return;
+
+        const isValid = (received ?? []).some((inv) => {
+          const matchesInvitation = String(inv.id) === String(invitationIdFromUrlRaw);
+          const invitationPropertyRef = inv.propertyUid ?? inv.propertyId;
+          const matchesProperty =
+            invitationPropertyRef != null &&
+            String(invitationPropertyRef) === String(uid);
+          return matchesInvitation && matchesProperty;
+        });
+
+        if (isValid) {
+          setValidatedInvitationId(invitationIdFromUrlRaw);
+          return;
+        }
+      } catch (err) {
+        console.warn("Failed to validate invitation access:", err);
+      }
+
+      if (cancelled) return;
+
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("invitation");
+      const nextSearch = nextParams.toString();
+      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, {
+        replace: true,
+        state: location.state,
+      });
+    }
+
+    validateInvitationAccess().finally(() => {
+      if (!cancelled) setIsValidatingInvitationId(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    invitationIdFromUrlRaw,
+    uid,
+    searchParams,
+    navigate,
+    location.pathname,
+    location.state,
+  ]);
 
   useEffect(() => {
     if (

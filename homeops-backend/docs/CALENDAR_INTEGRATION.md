@@ -13,13 +13,9 @@ Calendar integration allows users to connect their Google Calendar and Microsoft
 
 ## Setup
 
-### 1. Database Migration
+### 1. Database schema
 
-Run the migration to create the required tables:
-
-```bash
-node scripts/run-calendar-integration-migration.js
-```
+The `calendar_integrations` and `event_calendar_syncs` tables are defined in `opsy-schema.sql`. Apply that file for a fresh database, or ensure your existing database matches it.
 
 ### 2. Google Calendar
 

@@ -18,6 +18,7 @@ import {
   RefreshCw,
   X,
   Search,
+  AlertTriangle,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import SelectDropdown from "../../contacts/SelectDropdown";
@@ -776,6 +777,7 @@ function SharePropertyModal({
   const [transferOwnershipOpen, setTransferOwnershipOpen] = useState(false);
   const [selectedNewOwnerId, setSelectedNewOwnerId] = useState("");
   const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferError, setTransferError] = useState("");
   const [resendingId, setResendingId] = useState(null);
   const [platformAgents, setPlatformAgents] = useState([]);
   const [removeConfirmMember, setRemoveConfirmMember] = useState(null);
@@ -991,7 +993,7 @@ function SharePropertyModal({
 
   const handleInvite = async () => {
     if (!canSubmit || isSubmitting) return;
-    if (activeTab === "homeowner" && atHomeownerLimit) return;
+    if (activeTab === "homeowner" && homeownerInviteType !== "view_only" && atHomeownerLimit) return;
     if (
       activeTab === "homeowner" &&
       homeownerInviteType === "view_only" &&
@@ -1119,16 +1121,25 @@ function SharePropertyModal({
   const handleTransferOwnership = useCallback(async () => {
     if (!selectedNewOwnerId || !onTransferOwnership) return;
     setTransferSubmitting(true);
-    setEmailError("");
+    setTransferError("");
     try {
       await onTransferOwnership(selectedNewOwnerId);
       setTransferOwnershipOpen(false);
       setSelectedNewOwnerId("");
+      setTransferError("");
       setSuccessType("ownership_sent");
       setTimeout(() => setSuccessType(null), 2800);
     } catch (err) {
-      setEmailError(
-        err?.message || "Could not send transfer request. Please try again.",
+      const msg = (err?.message || "").trim();
+      const isLimitError =
+        msg.toLowerCase().includes("property limit") ||
+        msg.toLowerCase().includes("recipient has reached");
+      setTransferError(
+        isLimitError
+          ? "Transfer could not be completed. The user has reached the property limit on their plan. They need to upgrade before ownership can be transferred."
+          : msg
+            ? `Transfer could not be completed. ${msg}`
+            : "Transfer could not be completed. Please try again.",
       );
     } finally {
       setTransferSubmitting(false);
@@ -1323,7 +1334,7 @@ function SharePropertyModal({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setEmailError("");
+                                    setTransferError("");
                                     setTransferOwnershipOpen(true);
                                   }}
                                   className="inline-flex items-center gap-1.5 text-sm font-medium text-[#456564] dark:text-[#5a7a78] hover:underline"
@@ -1360,18 +1371,13 @@ function SharePropertyModal({
                                       onClick={() => {
                                         setTransferOwnershipOpen(false);
                                         setSelectedNewOwnerId("");
-                                        setEmailError("");
+                                        setTransferError("");
                                       }}
                                       className="btn-sm border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
                                     >
                                       Cancel
                                     </button>
                                   </div>
-                                  {emailError && transferOwnershipOpen && (
-                                    <p className="text-xs text-red-600 dark:text-red-400">
-                                      {emailError}
-                                    </p>
-                                  )}
                                 </div>
                               )}
                             </div>
@@ -1383,6 +1389,24 @@ function SharePropertyModal({
                       </div>
                     )}
                   </div>
+
+                  {transferError && (
+                    <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 mt-3">
+                      <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-red-700 dark:text-red-400 leading-relaxed">
+                          {transferError}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setTransferError("")}
+                        className="shrink-0 text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-300"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
 
                   {/* Section 2: Team Members (excluding owner) */}
                   {teamMembersExcludingOwner.length > 0 && (
@@ -1439,6 +1463,7 @@ function SharePropertyModal({
 
                   {activeTab === "homeowner" &&
                     atHomeownerLimit &&
+                    homeownerInviteType !== "view_only" &&
                     maxHomeownerSlots != null && (
                       <div className="p-4 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">
                         You&apos;ve reached your plan limit for household
@@ -1529,7 +1554,7 @@ function SharePropertyModal({
                             {HOMEOWNER_INVITE_TYPES.map((opt) => {
                               const isViewOnly = opt.id === "view_only";
                               const isDisabled =
-                                atHomeownerLimit ||
+                                (!isViewOnly && atHomeownerLimit) ||
                                 (isViewOnly && atViewerLimit);
                               return (
                                 <button
@@ -1576,7 +1601,9 @@ function SharePropertyModal({
                           placeholder="e.g. Jane Smith"
                           autoComplete="name"
                           disabled={
-                            activeTab === "homeowner" && atHomeownerLimit
+                            activeTab === "homeowner" &&
+                            ((homeownerInviteType !== "view_only" && atHomeownerLimit) ||
+                              (homeownerInviteType === "view_only" && atViewerLimit))
                           }
                           className="form-input w-full"
                         />
@@ -1612,7 +1639,9 @@ function SharePropertyModal({
                           aria-label="Invitee email"
                           aria-invalid={!!emailError}
                           disabled={
-                            activeTab === "homeowner" && atHomeownerLimit
+                            activeTab === "homeowner" &&
+                            ((homeownerInviteType !== "view_only" && atHomeownerLimit) ||
+                              (homeownerInviteType === "view_only" && atViewerLimit))
                           }
                         />
                       </div>
@@ -1721,7 +1750,9 @@ function SharePropertyModal({
                       disabled={
                         !canSubmit ||
                         isSubmitting ||
-                        (activeTab === "homeowner" && atHomeownerLimit) ||
+                        (activeTab === "homeowner" &&
+                          homeownerInviteType !== "view_only" &&
+                          atHomeownerLimit) ||
                         (activeTab === "homeowner" &&
                           homeownerInviteType === "view_only" &&
                           atViewerLimit)

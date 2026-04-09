@@ -28,7 +28,7 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
       }
     }
 
-    if (propertyId) {
+    if (propertyId && intendedRole !== 'viewer') {
       const teamCheck = await canAddTeamMember(accountId, propertyId, userRole);
       if (!teamCheck.allowed) {
         throw new ForbiddenError(`Team member limit reached (${teamCheck.current}/${teamCheck.max}). Upgrade your plan.`);
