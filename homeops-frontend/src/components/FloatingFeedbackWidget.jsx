@@ -12,6 +12,7 @@ const VIEWPORT_EDGE_PAD = 8;
 const PANEL_LAUNCHER_GAP_PX = 8;
 /** Fallback before layout measure; real position comes from clampPanelPosition */
 const PANEL_ABOVE_LAUNCHER_PX = 52;
+const DEFAULT_LAUNCHER_LEFT_GUESS_PX = 180;
 
 function getStoredPosition() {
   try {
@@ -19,6 +20,15 @@ function getStoredPosition() {
     if (raw) return JSON.parse(raw);
   } catch {}
   return null;
+}
+
+function getDefaultPosition() {
+  if (typeof window === "undefined") return { right: 24, bottom: 24 };
+  // Position near bottom-left while keeping internal right/bottom coordinate system.
+  return {
+    right: Math.max(24, window.innerWidth - DEFAULT_LAUNCHER_LEFT_GUESS_PX),
+    bottom: 24,
+  };
 }
 
 /** Keep { right, bottom } within viewport for an element of size w×h (fixed; right/bottom offsets). */
@@ -48,7 +58,7 @@ function FloatingFeedbackWidget() {
   const fileInputRef = useRef(null);
 
   const stored = getStoredPosition();
-  const [position, setPosition] = useState(stored || { right: 24, bottom: 24 });
+  const [position, setPosition] = useState(stored || getDefaultPosition());
   const [dragging, setDragging] = useState(false);
   const dragState = useRef(null);
   const btnRef = useRef(null);
