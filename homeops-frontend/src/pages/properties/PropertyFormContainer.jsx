@@ -885,9 +885,11 @@ function PropertyFormContainer() {
     openAiAssistantWithPlanCheck,
   ]);
 
-  /* Show invite-agent CTA on every property visit when no agent, user isn't agent, and not permanently dismissed */
-  const hasAgent = useMemo(() => {
+  /* True when an agent is on the team or any invitation is still pending (API pending rows use
+   * editor/viewer, not role "agent", so _pending is required). Used only to suppress the floating CTA. */
+  const hasAgentOrPendingInvitation = useMemo(() => {
     return (homeopsTeam ?? []).some((m) => {
+      if (m._pending === true) return true;
       const r = (m.role ?? "").toLowerCase();
       return ["agent", "admin", "super_admin"].includes(r);
     });
@@ -963,7 +965,7 @@ function PropertyFormContainer() {
     if (
       uid === "new" ||
       !hasResolvedTeamForCta ||
-      hasAgent ||
+      hasAgentOrPendingInvitation ||
       isCurrentUserAgent ||
       isInviteAgentCtaDismissed(uid)
     ) {
@@ -971,7 +973,7 @@ function PropertyFormContainer() {
       return;
     }
     setShowInviteAgentCta(true);
-  }, [uid, hasResolvedTeamForCta, hasAgent, isCurrentUserAgent]);
+  }, [uid, hasResolvedTeamForCta, hasAgentOrPendingInvitation, isCurrentUserAgent]);
 
   /* Open invitation modal when viewing property from invitation notification */
   useEffect(() => {
