@@ -70,6 +70,8 @@ function TicketConversation({
   onUserReply,
   updating = false,
   internalNotes = "",
+  snippetInsert = { seq: 0, text: "" },
+  cannedResponses = [],
 }) {
   const scrollRef = useRef(null);
   const endRef = useRef(null);
@@ -156,6 +158,8 @@ function TicketConversation({
         onUserReply={onUserReply}
         updating={updating}
         internalNotes={internalNotes}
+        snippetInsert={snippetInsert}
+        cannedResponses={cannedResponses}
       />
     </div>
   );

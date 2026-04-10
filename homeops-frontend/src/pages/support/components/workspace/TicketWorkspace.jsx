@@ -3,6 +3,8 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import TicketSidebar from "./TicketSidebar";
 import TicketConversation from "./TicketConversation";
 import TicketContextPanel from "./TicketContextPanel";
+import { useCannedResponses } from "./useCannedResponses";
+import { resolveCannedPlaceholders } from "./cannedResponsesStorage";
 
 function TicketWorkspace({
   ticket,
@@ -27,6 +29,14 @@ function TicketWorkspace({
   const [notesDirty, setNotesDirty] = useState(false);
   const [contextOpen, setContextOpen] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [snippetInsert, setSnippetInsert] = useState({ seq: 0, text: "" });
+  const canned = useCannedResponses();
+
+  function handleInsertSnippet(text) {
+    const resolved = resolveCannedPlaceholders(text ?? "", ticket)?.trim();
+    if (!resolved) return;
+    setSnippetInsert((s) => ({ seq: s.seq + 1, text: resolved }));
+  }
 
   useEffect(() => {
     setInternalNotes(ticket?.internalNotes || "");
@@ -105,6 +115,8 @@ function TicketWorkspace({
           onUserReply={onUserReply}
           updating={updating}
           internalNotes={internalNotes}
+          snippetInsert={snippetInsert}
+          cannedResponses={canned.items}
         />
       </div>
 
@@ -126,7 +138,7 @@ function TicketWorkspace({
 
       {/* Right context panel */}
       {contextOpen && (
-        <div className="w-[300px] min-w-[300px] hidden xl:flex flex-col">
+        <div className="w-[min(340px,100%)] min-w-[300px] max-w-[380px] hidden xl:flex flex-col shrink-0">
           <TicketContextPanel
             ticket={ticket}
             readOnly={readOnly}
@@ -138,6 +150,8 @@ function TicketWorkspace({
             setInternalNotes={setInternalNotes}
             isOpen={contextOpen}
             onToggle={() => setContextOpen((o) => !o)}
+            onInsertSnippet={handleInsertSnippet}
+            canned={canned}
           />
         </div>
       )}

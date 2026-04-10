@@ -1,5 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { Send, StickyNote, ChevronDown } from "lucide-react";
+import { tryExpandCannedShortcut } from "./cannedResponsesStorage";
+
+const COMPOSER_TEXTAREA_MIN_PX = 80;
+
+function getComposerTextareaMaxPx() {
+  if (typeof window === "undefined") return 352;
+  const rem =
+    parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  return Math.min(22 * rem, window.innerHeight * 0.5);
+}
 
 function TicketComposer({
   ticket,
@@ -11,10 +21,55 @@ function TicketComposer({
   onUserReply,
   updating = false,
   internalNotes = "",
+  snippetInsert = { seq: 0, text: "" },
+  cannedResponses = [],
 }) {
   const [text, setText] = useState("");
   const [mode, setMode] = useState("reply");
   const [showActions, setShowActions] = useState(false);
+  const textareaRef = useRef(null);
+  const pendingCursorRef = useRef(null);
+
+  const syncTextareaHeight = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const maxH = getComposerTextareaMaxPx();
+    ta.style.height = "auto";
+    const scrollH = ta.scrollHeight;
+    const nextH = Math.min(Math.max(scrollH, COMPOSER_TEXTAREA_MIN_PX), maxH);
+    ta.style.height = `${nextH}px`;
+    ta.style.overflowY = scrollH > maxH ? "auto" : "hidden";
+  }, []);
+
+  useLayoutEffect(() => {
+    syncTextareaHeight();
+  }, [text, mode, syncTextareaHeight]);
+
+  useEffect(() => {
+    function onResize() {
+      syncTextareaHeight();
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [syncTextareaHeight]);
+
+  useEffect(() => {
+    if (!snippetInsert?.seq) return;
+    const next = snippetInsert.text?.trim();
+    if (!next) return;
+    setText((prev) => (prev?.trim() ? `${prev}\n\n${next}` : next));
+  }, [snippetInsert?.seq, snippetInsert?.text]);
+
+  useEffect(() => {
+    const pos = pendingCursorRef.current;
+    if (pos == null) return;
+    pendingCursorRef.current = null;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    requestAnimationFrame(() => {
+      ta.selectionStart = ta.selectionEnd = pos;
+    });
+  }, [text]);
 
   if (readOnly && !onUserReply) return null;
 
@@ -97,9 +152,11 @@ function TicketComposer({
           }`}
         >
           <textarea
+            ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="w-full border-0 bg-transparent px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:ring-0 resize-none min-h-[80px]"
+            rows={1}
+            className="w-full border-0 bg-transparent px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:ring-0 resize-none min-h-[80px] overflow-hidden"
             placeholder={
               readOnly
                 ? "Type your reply..."
@@ -111,6 +168,28 @@ function TicketComposer({
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
                 handleSend();
+                return;
+              }
+              if (
+                cannedResponses.length > 0 &&
+                (e.key === " " || e.key === "Enter") &&
+                !e.metaKey &&
+                !e.ctrlKey
+              ) {
+                const ta = e.target;
+                if (ta.tagName !== "TEXTAREA") return;
+                const cursorPos = ta.selectionStart;
+                const expanded = tryExpandCannedShortcut(
+                  text,
+                  cursorPos,
+                  cannedResponses,
+                  ticket,
+                );
+                if (expanded) {
+                  e.preventDefault();
+                  pendingCursorRef.current = expanded.newCursor;
+                  setText(expanded.newText);
+                }
               }
             }}
           />

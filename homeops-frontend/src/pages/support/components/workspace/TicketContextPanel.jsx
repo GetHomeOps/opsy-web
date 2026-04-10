@@ -1,8 +1,17 @@
-import React, { useState } from "react";
-import { User, Clock, Lock, FileText, Pencil, Paperclip, ExternalLink } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import {
+  User,
+  Clock,
+  Lock,
+  FileText,
+  Pencil,
+  Paperclip,
+  ExternalLink,
+  MessageSquareText,
+} from "lucide-react";
 import { format } from "date-fns";
-import ContextTabs from "./ContextTabs";
 import CustomerInfoCard from "./CustomerInfoCard";
+import DefaultAnswersTab from "./DefaultAnswersTab";
 import MarkdownText from "../MarkdownText";
 import AppApi from "../../../../api/api";
 
@@ -11,6 +20,7 @@ const TABS = [
   { id: "history", label: "History", icon: Clock },
   { id: "attachments", label: "Attachments", icon: Paperclip },
   { id: "notes", label: "Notes", icon: Lock },
+  { id: "snippets", label: "Canned responses", icon: MessageSquareText },
 ];
 
 function HistoryTab({ ticket }) {
@@ -246,61 +256,122 @@ function TicketContextPanel({
   setInternalNotes,
   isOpen = true,
   onToggle,
+  onInsertSnippet,
+  canned,
 }) {
   const [activeTab, setActiveTab] = useState("customer");
+
+  const visibleTabs = useMemo(
+    () =>
+      TABS.filter((t) => {
+        if (readOnly && (t.id === "notes" || t.id === "snippets")) return false;
+        return true;
+      }),
+    [readOnly],
+  );
+
+  useEffect(() => {
+    if (visibleTabs.some((t) => t.id === activeTab)) return;
+    setActiveTab(visibleTabs[0]?.id ?? "customer");
+  }, [visibleTabs, activeTab]);
+
+  const activeTabMeta = useMemo(
+    () => visibleTabs.find((t) => t.id === activeTab) ?? visibleTabs[0],
+    [visibleTabs, activeTab],
+  );
 
   if (!isOpen) return null;
 
   return (
-    <aside className="flex flex-col h-full border-l border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/30">
-      <ContextTabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
+    <aside className="flex flex-row h-full min-h-0 border-l border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/30">
+      <div className="flex-1 min-w-0 flex flex-col min-h-0">
+        <div className="shrink-0 px-4 py-3 border-b border-gray-200 dark:border-gray-700/60">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+            {activeTabMeta?.label ?? "Context"}
+          </h2>
+        </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {activeTab === "customer" && (
-          <div className="px-4 py-4">
-            <CustomerInfoCard ticket={ticket} />
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {activeTab === "customer" && (
+            <div className="px-4 py-4">
+              <CustomerInfoCard ticket={ticket} />
 
-            {/* Extra details section */}
-            {ticket?.description && ticket?.type !== "data_adjustment" && (
-              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700/50">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <FileText className="w-3.5 h-3.5 text-gray-400" />
-                  <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                    Description
-                  </span>
+              {ticket?.description && ticket?.type !== "data_adjustment" && (
+                <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <FileText className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                      Description
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                    <MarkdownText className="block whitespace-pre-wrap">
+                      {ticket.description}
+                    </MarkdownText>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                  <MarkdownText className="block whitespace-pre-wrap">
-                    {ticket.description}
-                  </MarkdownText>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
-        {activeTab === "history" && <HistoryTab ticket={ticket} />}
+          {activeTab === "history" && <HistoryTab ticket={ticket} />}
 
-        {activeTab === "attachments" && <AttachmentsTab ticket={ticket} />}
+          {activeTab === "attachments" && <AttachmentsTab ticket={ticket} />}
 
-        {activeTab === "notes" && !readOnly && (
-          <NotesTab
-            ticket={ticket}
-            internalNotes={internalNotes}
-            onInternalNotes={onInternalNotes}
-            updating={updating}
-            notesDirty={notesDirty}
-            setNotesDirty={setNotesDirty}
-            setInternalNotes={setInternalNotes}
-          />
-        )}
+          {activeTab === "snippets" && !readOnly && canned && (
+            <DefaultAnswersTab
+              ticket={ticket}
+              onInsertSnippet={onInsertSnippet}
+              canned={canned}
+            />
+          )}
 
-        {activeTab === "notes" && readOnly && (
-          <div className="p-4 text-sm text-gray-400 italic">
-            Notes are only visible to support team.
-          </div>
-        )}
+          {activeTab === "notes" && !readOnly && (
+            <NotesTab
+              ticket={ticket}
+              internalNotes={internalNotes}
+              onInternalNotes={onInternalNotes}
+              updating={updating}
+              notesDirty={notesDirty}
+              setNotesDirty={setNotesDirty}
+              setInternalNotes={setInternalNotes}
+            />
+          )}
+
+          {activeTab === "notes" && readOnly && (
+            <div className="p-4 text-sm text-gray-400 italic">
+              Notes are only visible to support team.
+            </div>
+          )}
+        </div>
       </div>
+
+      <nav
+        className="w-11 shrink-0 border-l border-gray-200 dark:border-gray-700/60 flex flex-col items-center py-2 gap-0.5 bg-gray-50/80 dark:bg-gray-950/40"
+        aria-label="Context sections"
+      >
+        {visibleTabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              title={tab.label}
+              aria-label={tab.label}
+              aria-current={isActive ? "true" : undefined}
+              onClick={() => setActiveTab(tab.id)}
+              className={`p-2 rounded-md transition-colors ${
+                isActive
+                  ? "bg-[#456564]/15 text-[#456564] dark:text-[#7a9e9c] dark:bg-[#456564]/25"
+                  : "text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/80"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+            </button>
+          );
+        })}
+      </nav>
     </aside>
   );
 }
