@@ -7,6 +7,7 @@ import {UserProvider} from "./context/UserContext";
 import {PropertyProvider} from "./context/PropertyContext";
 import TierLimitBanner from "./components/TierLimitBanner";
 import PageViewTracker from "./components/PageViewTracker";
+import GoogleAnalyticsTracker from "./components/GoogleAnalyticsTracker";
 
 import "./css/style.css";
 
@@ -25,6 +26,7 @@ function App() {
         <UserProvider>
           <PropertyProvider>
             <TierLimitBanner />
+            <GoogleAnalyticsTracker />
             <PageViewTracker />
             <RoutesList />
           </PropertyProvider>
