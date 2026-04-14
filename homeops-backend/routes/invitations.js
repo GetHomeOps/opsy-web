@@ -5,7 +5,7 @@ const { ensureLoggedIn, ensurePropertyOwner, ensurePropertyAccess, ensureUserCan
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const Invitation = require("../models/invitation");
 const Notification = require("../models/notification");
-const { createPropertyInvitation, createAccountInvitation, acceptInvitation, acceptInvitationForLoggedInUser, resendInvitation } = require("../services/invitationService");
+const { createPropertyInvitation, createBulkPropertyInvitations, createAccountInvitation, acceptInvitation, acceptInvitationForLoggedInUser, resendInvitation } = require("../services/invitationService");
 const { canInviteViewer, canAddTeamMember } = require("../services/tierService");
 
 const router = express.Router();
@@ -52,6 +52,37 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
     }
 
     return res.status(201).json({ invitation: result.invitation, token: result.token });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST /bulk-property — Invite one email to many properties in one request; one consolidated email. Body: inviteeEmail, accountId, propertyIds[], intendedRole?, inviteeName? */
+router.post("/bulk-property", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const { inviteeEmail, inviteeName, accountId, propertyIds, intendedRole } = req.body;
+    if (!inviteeEmail || !accountId) {
+      throw new BadRequestError("inviteeEmail and accountId are required");
+    }
+    if (!Array.isArray(propertyIds) || propertyIds.length === 0) {
+      throw new BadRequestError("propertyIds must be a non-empty array");
+    }
+
+    const inviterUserId = res.locals.user.id;
+    const userRole = res.locals.user?.role;
+
+    const result = await createBulkPropertyInvitations({
+      inviterUserId,
+      inviteeEmail,
+      inviteeName,
+      accountId,
+      propertyIds,
+      intendedRole,
+      inviterUserRole: userRole,
+    });
+
+    const statusCode = result.succeeded.length > 0 ? 201 : 200;
+    return res.status(statusCode).json(result);
   } catch (err) {
     return next(err);
   }

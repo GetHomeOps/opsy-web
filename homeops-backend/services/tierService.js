@@ -177,15 +177,72 @@ async function canInviteViewer(accountId, propertyId, userRole) {
   return { allowed: current < limits.maxViewers, current, max: limits.maxViewers };
 }
 
-async function canAddTeamMember(accountId, propertyId, userRole) {
+async function canAddTeamMember(accountId, propertyId, userRole, options = {}) {
   if (isAdminRole(userRole)) return { allowed: true, current: 0, max: 999999 };
-  const limits = await getAccountLimits(accountId);
+  const limits = options.limits ?? (await getAccountLimits(accountId));
   const countRes = await db.query(
     `SELECT COUNT(*)::int AS count FROM property_users WHERE property_id = $1 AND role != 'viewer'`,
     [propertyId]
   );
   const current = countRes.rows[0].count;
   return { allowed: current < limits.maxTeamMembers, current, max: limits.maxTeamMembers };
+}
+
+/**
+ * One limits fetch + one grouped count query for bulk property invitations.
+ * @returns {Promise<Map<number, { allowed: boolean, current: number, max: number }>>}
+ */
+async function getTeamMemberInviteEligibilityByProperty(accountId, propertyIds, userRole) {
+  const map = new Map();
+  if (!propertyIds?.length) return map;
+  if (isAdminRole(userRole)) {
+    for (const id of propertyIds) {
+      map.set(id, { allowed: true, current: 0, max: 999999 });
+    }
+    return map;
+  }
+  const limits = await getAccountLimits(accountId);
+  const max = limits.maxTeamMembers;
+  const countRes = await db.query(
+    `SELECT property_id, COUNT(*)::int AS count FROM property_users
+     WHERE property_id = ANY($1::int[]) AND role != 'viewer'
+     GROUP BY property_id`,
+    [propertyIds]
+  );
+  const countByProp = new Map(countRes.rows.map((r) => [r.property_id, r.count]));
+  for (const pid of propertyIds) {
+    const current = countByProp.get(pid) ?? 0;
+    map.set(pid, { allowed: current < max, current, max });
+  }
+  return map;
+}
+
+/**
+ * @returns {Promise<Map<number, { allowed: boolean, current: number, max: number }>>}
+ */
+async function getViewerInviteEligibilityByProperty(accountId, propertyIds, userRole) {
+  const map = new Map();
+  if (!propertyIds?.length) return map;
+  if (isAdminRole(userRole)) {
+    for (const id of propertyIds) {
+      map.set(id, { allowed: true, current: 0, max: 999999 });
+    }
+    return map;
+  }
+  const limits = await getAccountLimits(accountId);
+  const max = limits.maxViewers;
+  const countRes = await db.query(
+    `SELECT property_id, COUNT(*)::int AS count FROM property_users
+     WHERE property_id = ANY($1::int[]) AND role = 'viewer'
+     GROUP BY property_id`,
+    [propertyIds]
+  );
+  const countByProp = new Map(countRes.rows.map((r) => [r.property_id, r.count]));
+  for (const pid of propertyIds) {
+    const current = countByProp.get(pid) ?? 0;
+    map.set(pid, { allowed: current < max, current, max });
+  }
+  return map;
 }
 
 /** Check if a document can be uploaded to a specific system on a property. */
@@ -209,6 +266,8 @@ module.exports = {
   canAddContact,
   canInviteViewer,
   canAddTeamMember,
+  getTeamMemberInviteEligibilityByProperty,
+  getViewerInviteEligibilityByProperty,
   checkAiTokenQuota,
   checkAiFeaturesAllowed,
   canUploadDocumentToSystem,

@@ -29,6 +29,7 @@ import {
   DEFAULT_SYSTEM_IDS,
 } from "../constants/propertySystems";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
+import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -78,6 +79,9 @@ function AIAssistantSidebar({
   const [scheduledFor, setScheduledFor] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [scheduleNotes, setScheduleNotes] = useState("");
+  const bindContractorSearchInput = useSuppressBrowserAddressAutofill(
+    "ai-assistant-contractor-search",
+  );
   const [scheduling, setScheduling] = useState(false);
   const [scheduleSuccess, setScheduleSuccess] = useState(null);
   const [scheduleSystem, setScheduleSystem] = useState(null);
@@ -916,6 +920,7 @@ function AIAssistantSidebar({
                     onChange={(e) => setContractorSearch(e.target.value)}
                     placeholder="Search professionals, contacts, or type email..."
                     className="form-input w-full pl-8 text-sm py-1.5 bg-white dark:bg-gray-800"
+                    {...bindContractorSearchInput()}
                   />
                 </div>
                 <div className="mt-1.5 max-h-44 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">

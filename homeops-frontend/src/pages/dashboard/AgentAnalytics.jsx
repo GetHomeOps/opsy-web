@@ -5,6 +5,7 @@ import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import PaginationClassic from "../../components/PaginationClassic";
 import FilterDropdown from "../../components/FilterDropdown";
+import useSuppressBrowserAddressAutofill from "../../hooks/useSuppressBrowserAddressAutofill";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import {
   Building2,
@@ -68,9 +69,7 @@ function agentMatchesDropdownFilters(agent, filtersByType) {
     if (!ok) return false;
   }
   if (filtersByType.city?.length) {
-    const cities = properties
-      .map((p) => (p.city || "").trim())
-      .filter(Boolean);
+    const cities = properties.map((p) => (p.city || "").trim()).filter(Boolean);
     const ok = filtersByType.city.some((c) => cities.includes(c));
     if (!ok) return false;
   }
@@ -118,6 +117,9 @@ function AgentAnalytics() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
   const [searchTerm, setSearchTerm] = useState("");
+  const bindAgentSearchInput = useSuppressBrowserAddressAutofill(
+    "agent-analytics-search",
+  );
   const [accountFilter, setAccountFilter] = useState("");
   const [activeFilters, setActiveFilters] = useState([]);
 
@@ -330,11 +332,11 @@ function AgentAnalytics() {
                     <input
                       id="dashboard-agent-analytics-search"
                       type="search"
-                      autoComplete="off"
                       placeholder="Search by agent, account, property, address…"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="form-input w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-gray-300 dark:focus:border-gray-600 rounded-lg shadow-sm text-sm"
+                      {...bindAgentSearchInput()}
                     />
                     <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none pl-3">
                       <Search className="w-4 h-4 text-gray-400 dark:text-gray-500 ml-0.5" />

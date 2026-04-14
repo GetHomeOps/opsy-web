@@ -382,6 +382,12 @@ class AppApi {
     return res;
   }
 
+  /** One request + one email for invitee when inviting to multiple properties. */
+  static async createBulkPropertyInvitations(data) {
+    let res = await this.request(`invitations/bulk-property`, data, "POST");
+    return res;
+  }
+
   static async acceptInvitation(id, data) {
     let res = await this.request(`invitations/${id}/accept`, data, "POST");
     return res;

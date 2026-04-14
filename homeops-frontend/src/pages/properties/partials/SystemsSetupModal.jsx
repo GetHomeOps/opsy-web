@@ -2,6 +2,7 @@ import React, {useState, useEffect, useCallback, useId, useRef} from "react";
 import {createPortal} from "react-dom";
 import {useParams, useNavigate} from "react-router-dom";
 import {useDynamicPosition} from "../../../hooks/useDynamicPosition";
+import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
 import {useAuth} from "../../../context/AuthContext";
 import {
   Plus,
@@ -440,6 +441,9 @@ function SystemsSetupModal({
     error: placesError,
     AutocompleteWrapper: AddressAutocompleteWrapper,
   } = useGooglePlacesAutocomplete({onPlaceSelected: handlePlaceSelected});
+  const bindAddressSearchInput = useSuppressBrowserAddressAutofill(
+    "systems-setup-address-search",
+  );
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -1344,7 +1348,7 @@ function SystemsSetupModal({
                           defaultValue={identityFields.address}
                           placeholder="Start typing an address to search..."
                           className="form-input w-full rounded-xl border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] transition-colors py-3"
-                          autoComplete="off"
+                          {...bindAddressSearchInput()}
                         />
                       </AddressAutocompleteWrapper>
                     ) : (
@@ -1355,7 +1359,7 @@ function SystemsSetupModal({
                         defaultValue={identityFields.address}
                         placeholder="Start typing an address to search..."
                         className="form-input w-full rounded-xl border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] transition-colors py-3"
-                        autoComplete="off"
+                        {...bindAddressSearchInput()}
                       />
                     )}
                     {placesError && (

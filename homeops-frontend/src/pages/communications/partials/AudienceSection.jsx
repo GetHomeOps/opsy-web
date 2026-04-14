@@ -1,50 +1,104 @@
-import React, { useState } from "react";
-import { Users, Search, Plus, Trash2 } from "lucide-react";
+import React, {useState} from "react";
+import {Users, Search, Plus, Trash2} from "lucide-react";
+import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
 
 const RECIPIENT_PRESETS_ADMIN = [
-  { value: "all_homeowners", label: "All homeowners", desc: "Every homeowner in your organization" },
-  { value: "all_agents", label: "All agents", desc: "Every agent in your organization" },
-  { value: "all_users", label: "All users", desc: "Everyone (homeowners + agents)" },
-  { value: "selected_homeowners", label: "Selected homeowners", desc: "Pick individual homeowners" },
-  { value: "selected_agents", label: "Selected agents", desc: "Pick individual agents" },
-  { value: "selected_users", label: "Selected users", desc: "Pick individual users" },
+  {
+    value: "all_homeowners",
+    label: "All homeowners",
+    desc: "Every homeowner in your organization",
+  },
+  {
+    value: "all_agents",
+    label: "All agents",
+    desc: "Every agent in your organization",
+  },
+  {
+    value: "all_users",
+    label: "All users",
+    desc: "Everyone (homeowners + agents)",
+  },
+  {
+    value: "selected_homeowners",
+    label: "Selected homeowners",
+    desc: "Pick individual homeowners",
+  },
+  {
+    value: "selected_agents",
+    label: "Selected agents",
+    desc: "Pick individual agents",
+  },
+  {
+    value: "selected_users",
+    label: "Selected users",
+    desc: "Pick individual users",
+  },
 ];
 
 const RECIPIENT_PRESETS_AGENT = [
-  { value: "all_homeowners", label: "All assigned homeowners", desc: "Homeowners linked to your properties" },
-  { value: "selected_homeowners", label: "Selected homeowners", desc: "Pick individual homeowners" },
+  {
+    value: "all_homeowners",
+    label: "All assigned homeowners",
+    desc: "Homeowners linked to your properties",
+  },
+  {
+    value: "selected_homeowners",
+    label: "Selected homeowners",
+    desc: "Pick individual homeowners",
+  },
 ];
 
 const AUTO_SEND_TRIGGERS = [
-  { value: "user_created", label: "On account creation" },
-  { value: "property_invitation_accepted", label: "Property invitation accepted" },
+  {value: "user_created", label: "On account creation"},
+  {
+    value: "property_invitation_accepted",
+    label: "Property invitation accepted",
+  },
 ];
 
 const AUTO_SEND_TRIGGER_ROLES = [
-  { value: "homeowner", label: "Homeowner" },
-  { value: "agent", label: "Agent" },
+  {value: "homeowner", label: "Homeowner"},
+  {value: "agent", label: "Agent"},
 ];
 
-function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions, estimatedCount }) {
+function AudienceSection({
+  form,
+  updateForm,
+  disabled,
+  isAdmin,
+  recipientOptions,
+  estimatedCount,
+}) {
   const [recipientSearch, setRecipientSearch] = useState("");
+  const bindRecipientSearchInput = useSuppressBrowserAddressAutofill(
+    "communications-audience-search",
+  );
   const presets = isAdmin ? RECIPIENT_PRESETS_ADMIN : RECIPIENT_PRESETS_AGENT;
   const isAutoSend = form.deliveryMode === "auto_send";
 
   const toggleRecipientId = (uid) => {
     const ids = form.recipientIds || [];
-    const next = ids.includes(uid) ? ids.filter((x) => x !== uid) : [...ids, uid];
-    updateForm({ recipientIds: next });
+    const next = ids.includes(uid)
+      ? ids.filter((x) => x !== uid)
+      : [...ids, uid];
+    updateForm({recipientIds: next});
   };
 
   const filterList = (list) => {
     if (!recipientSearch?.trim()) return list || [];
     const q = recipientSearch.toLowerCase().trim();
     return (list || []).filter(
-      (r) => (r.name || "").toLowerCase().includes(q) || (r.email || "").toLowerCase().includes(q)
+      (r) =>
+        (r.name || "").toLowerCase().includes(q) ||
+        (r.email || "").toLowerCase().includes(q),
     );
   };
 
-  const isSelectMode = ["selected_homeowners", "selected_agents", "selected_users"].includes(form.recipientMode);
+  const isSelectMode = [
+    "selected_homeowners",
+    "selected_agents",
+    "selected_users",
+  ].includes(form.recipientMode);
 
   const getPickerList = () => {
     if (!recipientOptions) return [];
@@ -54,7 +108,10 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
       case "selected_agents":
         return filterList(recipientOptions.agents);
       case "selected_users":
-        return filterList([...(recipientOptions.homeowners || []), ...(recipientOptions.agents || [])]);
+        return filterList([
+          ...(recipientOptions.homeowners || []),
+          ...(recipientOptions.agents || []),
+        ]);
       default:
         return [];
     }
@@ -63,20 +120,23 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
   // Auto-send rules management
   const addRule = () => {
     updateForm({
-      rules: [...(form.rules || []), { triggerEvent: "user_created", triggerRole: "homeowner" }],
+      rules: [
+        ...(form.rules || []),
+        {triggerEvent: "user_created", triggerRole: "homeowner"},
+      ],
     });
   };
 
   const updateRule = (index, field, value) => {
     const next = [...(form.rules || [])];
-    next[index] = { ...next[index], [field]: value };
-    updateForm({ rules: next });
+    next[index] = {...next[index], [field]: value};
+    updateForm({rules: next});
   };
 
   const removeRule = (index) => {
     const next = [...(form.rules || [])];
     next.splice(index, 1);
-    updateForm({ rules: next });
+    updateForm({rules: next});
   };
 
   return (
@@ -91,7 +151,9 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
               Audience
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {isAutoSend ? "Set rules for when to automatically send" : "Who should receive this communication?"}
+              {isAutoSend
+                ? "Set rules for when to automatically send"
+                : "Who should receive this communication?"}
             </p>
           </div>
         </div>
@@ -102,7 +164,9 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => !disabled && updateForm({ deliveryMode: "send_now", rules: [] })}
+            onClick={() =>
+              !disabled && updateForm({deliveryMode: "send_now", rules: []})
+            }
             disabled={disabled}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               !isAutoSend
@@ -114,7 +178,14 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
           </button>
           <button
             type="button"
-            onClick={() => !disabled && updateForm({ deliveryMode: "auto_send", recipientMode: "", recipientIds: [] })}
+            onClick={() =>
+              !disabled &&
+              updateForm({
+                deliveryMode: "auto_send",
+                recipientMode: "",
+                recipientIds: [],
+              })
+            }
             disabled={disabled}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               isAutoSend
@@ -144,13 +215,22 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
                     name="recipientMode"
                     value={preset.value}
                     checked={form.recipientMode === preset.value}
-                    onChange={() => updateForm({ recipientMode: preset.value, recipientIds: [] })}
+                    onChange={() =>
+                      updateForm({
+                        recipientMode: preset.value,
+                        recipientIds: [],
+                      })
+                    }
                     disabled={disabled}
                     className="mt-0.5"
                   />
                   <div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">{preset.label}</span>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{preset.desc}</p>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {preset.label}
+                    </span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {preset.desc}
+                    </p>
                   </div>
                 </label>
               ))}
@@ -167,6 +247,7 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
                     onChange={(e) => setRecipientSearch(e.target.value)}
                     placeholder="Search by name or email…"
                     className="form-input w-full pl-9 text-sm"
+                    {...bindRecipientSearchInput()}
                   />
                 </div>
                 <div className="max-h-52 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-xl p-2 space-y-0.5">
@@ -190,7 +271,10 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
                         <span className="text-sm text-gray-800 dark:text-gray-200">
                           {u.name || u.email}
                           {u.name && u.email && (
-                            <span className="text-gray-500 dark:text-gray-400"> ({u.email})</span>
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {" "}
+                              ({u.email})
+                            </span>
                           )}
                         </span>
                       </label>
@@ -221,13 +305,15 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {isAdmin ? (
                 <>
-                  Automatically send to the <strong>homeowner</strong> or <strong>agent</strong> who triggers
-                  the event (when <strong>any</strong> of these rules match).
+                  Automatically send to the <strong>homeowner</strong> or{" "}
+                  <strong>agent</strong> who triggers the event (when{" "}
+                  <strong>any</strong> of these rules match).
                 </>
               ) : (
                 <>
-                  Automatically send this message to the <strong>homeowner</strong> who triggers the event
-                  (when <strong>any</strong> of these rules match).
+                  Automatically send this message to the{" "}
+                  <strong>homeowner</strong> who triggers the event (when{" "}
+                  <strong>any</strong> of these rules match).
                 </>
               )}
             </p>
@@ -236,29 +322,45 @@ function AudienceSection({ form, updateForm, disabled, isAdmin, recipientOptions
                 key={idx}
                 className="flex flex-wrap items-center gap-3 p-3.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/30"
               >
-                <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">When</span>
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">
+                  When
+                </span>
                 <select
                   value={rule.triggerEvent}
-                  onChange={(e) => updateRule(idx, "triggerEvent", e.target.value)}
+                  onChange={(e) =>
+                    updateRule(idx, "triggerEvent", e.target.value)
+                  }
                   disabled={disabled}
                   className="form-select flex-1 min-w-[10rem] text-sm disabled:opacity-60"
                 >
                   {AUTO_SEND_TRIGGERS.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
                   ))}
                 </select>
                 {isAdmin && (
                   <>
-                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">→</span>
-                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">To</span>
+                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">
+                      →
+                    </span>
+                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400 shrink-0">
+                      To
+                    </span>
                     <select
-                      value={rule.triggerRole === "agent" ? "agent" : "homeowner"}
-                      onChange={(e) => updateRule(idx, "triggerRole", e.target.value)}
+                      value={
+                        rule.triggerRole === "agent" ? "agent" : "homeowner"
+                      }
+                      onChange={(e) =>
+                        updateRule(idx, "triggerRole", e.target.value)
+                      }
                       disabled={disabled}
                       className="form-select flex-1 min-w-[8rem] text-sm disabled:opacity-60"
                     >
                       {AUTO_SEND_TRIGGER_ROLES.map((t) => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
                       ))}
                     </select>
                   </>

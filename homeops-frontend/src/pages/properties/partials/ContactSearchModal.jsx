@@ -1,6 +1,7 @@
 import React, {useState, useMemo} from "react";
 import {X, Search} from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
+import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
 
 /**
  * Modal to search and select from all contacts and agents.
@@ -16,13 +17,17 @@ function ContactSearchModal({
   onSelectContact,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
+  const bindContactSearchInput =
+    useSuppressBrowserAddressAutofill("contact-search-modal");
 
   const term = searchTerm.trim().toLowerCase();
   const agentEmails = new Set(
-    (agents || []).map((a) => (a.email || "").trim().toLowerCase()).filter(Boolean)
+    (agents || [])
+      .map((a) => (a.email || "").trim().toLowerCase())
+      .filter(Boolean),
   );
   const dedupedContacts = (contacts || []).filter(
-    (c) => !agentEmails.has((c.email || "").trim().toLowerCase())
+    (c) => !agentEmails.has((c.email || "").trim().toLowerCase()),
   );
 
   const filteredSavedProfessionals = useMemo(() => {
@@ -32,9 +37,7 @@ function ContactSearchModal({
       const email = (p.email || "").toLowerCase();
       const company = (p.companyName || "").toLowerCase();
       return (
-        name.includes(term) ||
-        email.includes(term) ||
-        company.includes(term)
+        name.includes(term) || email.includes(term) || company.includes(term)
       );
     });
   }, [savedProfessionals, term]);
@@ -98,7 +101,7 @@ function ContactSearchModal({
             placeholder="Search by name or email…"
             className="form-input w-full pl-9"
             autoFocus
-            autoComplete="off"
+            {...bindContactSearchInput()}
           />
         </div>
 
@@ -172,7 +175,9 @@ function ContactSearchModal({
               </p>
               <ul className="space-y-1">
                 {filteredContacts.map((c, idx) => (
-                  <li key={`contact-${c.id}-${(c.email || "").toLowerCase()}-${idx}`}>
+                  <li
+                    key={`contact-${c.id}-${(c.email || "").toLowerCase()}-${idx}`}
+                  >
                     <button
                       type="button"
                       onClick={() => handleSelect(c)}
@@ -199,12 +204,12 @@ function ContactSearchModal({
           {filteredAgents.length === 0 &&
             filteredContacts.length === 0 &&
             filteredSavedProfessionals.length === 0 && (
-            <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-              {searchTerm.trim()
-                ? "No matches found."
-                : "Start typing to search."}
-            </p>
-          )}
+              <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                {searchTerm.trim()
+                  ? "No matches found."
+                  : "Start typing to search."}
+              </p>
+            )}
         </div>
       </div>
     </ModalBlank>

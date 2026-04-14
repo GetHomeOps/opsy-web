@@ -5,6 +5,7 @@ import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import PaginationClassic from "../../components/PaginationClassic";
 import FilterDropdown from "../../components/FilterDropdown";
+import useSuppressBrowserAddressAutofill from "../../hooks/useSuppressBrowserAddressAutofill";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import {
   Building2,
@@ -87,9 +88,7 @@ function propertyMatchesSearch(prop, qLower) {
     prop.propertyId != null ? String(prop.propertyId) : "",
     ...members.flatMap((m) => [m.userName, m.userEmail].filter(Boolean)),
   ];
-  return parts.some(
-    (p) => p && String(p).toLowerCase().includes(qLower),
-  );
+  return parts.some((p) => p && String(p).toLowerCase().includes(qLower));
 }
 
 function propertyActivityTotals(prop) {
@@ -163,6 +162,9 @@ function PropertyAnalytics() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
   const [searchTerm, setSearchTerm] = useState("");
+  const bindPropertySearchInput = useSuppressBrowserAddressAutofill(
+    "property-analytics-search",
+  );
   const [accountFilter, setAccountFilter] = useState("");
   const [activeFilters, setActiveFilters] = useState([]);
   const [sortOption, setSortOption] = useState("default");
@@ -313,7 +315,9 @@ function PropertyAnalytics() {
   }, [searchTerm, accountFilter, activeFilters, sortOption]);
 
   useEffect(() => {
-    const totalPages = Math.ceil(sortedFilteredProperties.length / itemsPerPage);
+    const totalPages = Math.ceil(
+      sortedFilteredProperties.length / itemsPerPage,
+    );
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(1);
     }
@@ -422,11 +426,11 @@ function PropertyAnalytics() {
                     <input
                       id="dashboard-properties-search"
                       type="search"
-                      autoComplete="off"
                       placeholder="Search by name, address, account, owner, team…"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="form-input w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-gray-300 dark:focus:border-gray-600 rounded-lg shadow-sm text-sm"
+                      {...bindPropertySearchInput()}
                     />
                     <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none pl-3">
                       <Search className="w-4 h-4 text-gray-400 dark:text-gray-500 ml-0.5" />
@@ -628,10 +632,11 @@ function PropertyAnalytics() {
                     Team &amp; activity
                   </h2>
                   <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 max-w-3xl">
-                    Expand a property to see each member&apos;s visits (page views under that
-                    property&apos;s URL), AI report analyses, scheduled maintenance events, and
-                    invitations sent for that property. Document counts are for the whole
-                    property (uploads are not stored per user).
+                    Expand a property to see each member&apos;s visits (page
+                    views under that property&apos;s URL), AI report analyses,
+                    scheduled maintenance events, and invitations sent for that
+                    property. Document counts are for the whole property
+                    (uploads are not stored per user).
                   </p>
                 </div>
                 <div className="space-y-4">
@@ -683,12 +688,10 @@ function PropertyAnalytics() {
                                 <Calendar className="w-3.5 h-3.5 shrink-0 text-gray-400 dark:text-gray-500" />
                                 <span>
                                   Created{" "}
-                                  {formatAnalyticsDateTime(prop.createdAt) || "—"}
+                                  {formatAnalyticsDateTime(prop.createdAt) ||
+                                    "—"}
                                   {prop.createdByDisplay ? (
-                                    <>
-                                      {" "}
-                                      · by {prop.createdByDisplay}
-                                    </>
+                                    <> · by {prop.createdByDisplay}</>
                                   ) : (
                                     ""
                                   )}

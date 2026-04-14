@@ -2,6 +2,7 @@ import React, {useState, useEffect, useMemo, useCallback, useRef} from "react";
 import {createPortal} from "react-dom";
 import {useParams} from "react-router-dom";
 import useCurrentAccount from "../../../hooks/useCurrentAccount";
+import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
 import {useAuth} from "../../../context/AuthContext";
 import {
   X,
@@ -263,6 +264,9 @@ function ProfessionalStep({
     "Professional";
 
   const [searchFocused, setSearchFocused] = useState(false);
+  const bindProfessionalSearchInput = useSuppressBrowserAddressAutofill(
+    "schedule-system-professional-search",
+  );
   const hasSearchQuery = professionalSearch.trim().length > 0;
   const suggestedContacts = hasSearchQuery
     ? filteredContacts
@@ -448,11 +452,12 @@ function ProfessionalStep({
                 type="text"
                 value={professionalSearch}
                 onChange={(e) => setProfessionalSearch(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
                 placeholder="Search by name..."
                 className="form-input w-full pl-9 text-sm"
-                autoComplete="off"
+                {...bindProfessionalSearchInput({
+                  onFocus: () => setSearchFocused(true),
+                  onBlur: () => setTimeout(() => setSearchFocused(false), 150),
+                })}
               />
             </div>
             {createPortal(dropdownContent, document.body)}

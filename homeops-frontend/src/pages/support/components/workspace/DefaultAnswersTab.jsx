@@ -4,6 +4,7 @@ import {
   CANNED_PLACEHOLDER_VARIABLES,
   resolveCannedPlaceholders,
 } from "./cannedResponsesStorage";
+import useSuppressBrowserAddressAutofill from "../../../../hooks/useSuppressBrowserAddressAutofill";
 
 function CannedResponseModal({ open, onClose, initial, onSave, heading, ticket }) {
   const [title, setTitle] = useState("");
@@ -11,6 +12,8 @@ function CannedResponseModal({ open, onClose, initial, onSave, heading, ticket }
   const [body, setBody] = useState("");
   const [formError, setFormError] = useState("");
   const bodyRef = useRef(null);
+  const bindTitleInput = useSuppressBrowserAddressAutofill("canned-response-title");
+  const bindShortcutInput = useSuppressBrowserAddressAutofill("canned-response-shortcut");
 
   useEffect(() => {
     if (!open) return;
@@ -106,7 +109,7 @@ function CannedResponseModal({ open, onClose, initial, onSave, heading, ticket }
               onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-[#456564] focus:border-[#456564]"
               placeholder="e.g. Acknowledge feedback"
-              autoComplete="off"
+              {...bindTitleInput()}
             />
           </div>
           <div>
@@ -129,8 +132,8 @@ function CannedResponseModal({ open, onClose, initial, onSave, heading, ticket }
                 }
                 className="flex-1 min-w-0 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-[#456564] focus:border-[#456564] font-mono"
                 placeholder="thanks"
-                autoComplete="off"
                 spellCheck={false}
+                {...bindShortcutInput()}
               />
             </div>
             <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">

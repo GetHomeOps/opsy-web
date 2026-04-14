@@ -2,6 +2,7 @@ import React, {useState, useRef, useEffect, useContext, useMemo} from "react";
 import {useNavigate} from "react-router-dom";
 import {Search, Building2, FileText, User} from "lucide-react";
 import useCurrentAccount from "../hooks/useCurrentAccount";
+import useSuppressBrowserAddressAutofill from "../hooks/useSuppressBrowserAddressAutofill";
 import {useAuth} from "../context/AuthContext";
 import PropertyContext from "../context/PropertyContext";
 import ContactContext from "../context/ContactContext";
@@ -41,7 +42,13 @@ const EXTRA_NAV_SEARCH_PAGES = [
     path: "settings/upgrade",
     roles: "all",
     requiresAccountUrl: true,
-    searchAliases: ["plans", "plan", "upgrade", "subscription", "subscriptions"],
+    searchAliases: [
+      "plans",
+      "plan",
+      "upgrade",
+      "subscription",
+      "subscriptions",
+    ],
   },
   {
     label: "Profile & Preferences",
@@ -85,11 +92,19 @@ function NavbarSearch({disabled = false}) {
   const {contacts = [], refreshContacts} = useContext(ContactContext);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState({properties: [], contacts: [], pages: []});
+  const [results, setResults] = useState({
+    properties: [],
+    contacts: [],
+    pages: [],
+  });
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
   const mobileInputRef = useRef(null);
   const containerRef = useRef(null);
+  const bindDesktopSearchInput =
+    useSuppressBrowserAddressAutofill("navbar-search-desktop");
+  const bindMobileSearchInput =
+    useSuppressBrowserAddressAutofill("navbar-search-mobile");
 
   const accountUrl = currentAccount?.url || "";
   const role = currentUser?.role;
@@ -102,7 +117,8 @@ function NavbarSearch({disabled = false}) {
     const baseFilter = (p) => {
       if (p.roles === "superAdminOnly" && !isSuperAdmin) return false;
       if (p.roles === "adminOnly" && !canManageUsers) return false;
-      if (p.roles === "adminOrAgent" && !(canManageUsers || isAgent)) return false;
+      if (p.roles === "adminOrAgent" && !(canManageUsers || isAgent))
+        return false;
       if (p.hideForPlatformAdmins && canManageUsers) return false;
       return true;
     };
@@ -119,7 +135,15 @@ function NavbarSearch({disabled = false}) {
       if (properties?.length === 0) refreshProperties?.();
       if (contacts?.length === 0 && refreshContacts) refreshContacts();
     }
-  }, [open, properties?.length, contacts?.length, currentUser, role, refreshProperties, refreshContacts]);
+  }, [
+    open,
+    properties?.length,
+    contacts?.length,
+    currentUser,
+    role,
+    refreshProperties,
+    refreshContacts,
+  ]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -140,7 +164,12 @@ function NavbarSearch({disabled = false}) {
       ).toLowerCase();
       const city = (p.city || "").toLowerCase();
       const state = (p.state || "").toLowerCase();
-      return addr.includes(q) || name.includes(q) || city.includes(q) || state.includes(q);
+      return (
+        addr.includes(q) ||
+        name.includes(q) ||
+        city.includes(q) ||
+        state.includes(q)
+      );
     });
 
     const contactMatches = (contacts || []).filter((c) => {
@@ -150,7 +179,9 @@ function NavbarSearch({disabled = false}) {
       return name.includes(q) || email.includes(q) || company.includes(q);
     });
 
-    const pageMatches = visiblePages.filter((p) => pageSearchHaystack(p).includes(q));
+    const pageMatches = visiblePages.filter((p) =>
+      pageSearchHaystack(p).includes(q),
+    );
 
     setResults({
       properties: propMatches.slice(0, 6),
@@ -189,7 +220,9 @@ function NavbarSearch({disabled = false}) {
   const handleSelectProperty = (p) => {
     const uid = p.property_uid ?? p.uid ?? p.id;
     if (uid) {
-      navigate(accountUrl ? `/${accountUrl}/properties/${uid}` : `/properties/${uid}`);
+      navigate(
+        accountUrl ? `/${accountUrl}/properties/${uid}` : `/properties/${uid}`,
+      );
     }
     setOpen(false);
     setQuery("");
@@ -208,7 +241,9 @@ function NavbarSearch({disabled = false}) {
 
   const handleSelectContact = (c) => {
     if (c?.id) {
-      navigate(accountUrl ? `/${accountUrl}/contacts/${c.id}` : `/contacts/${c.id}`);
+      navigate(
+        accountUrl ? `/${accountUrl}/contacts/${c.id}` : `/contacts/${c.id}`,
+      );
     }
     setOpen(false);
     setQuery("");
@@ -229,11 +264,13 @@ function NavbarSearch({disabled = false}) {
       type="text"
       value={query}
       onChange={(e) => setQuery(e.target.value)}
-      onFocus={() => !disabled && setOpen(true)}
       placeholder="Search properties, contacts, pages, billing & pricing…"
       disabled={disabled}
       className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
       aria-label="Search"
+      {...bindDesktopSearchInput({
+        onFocus: () => !disabled && setOpen(true),
+      })}
     />
   );
 
@@ -330,7 +367,9 @@ function NavbarSearch({disabled = false}) {
           focusSearchInput();
         }}
       >
-        <Search className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`} />
+        <Search
+          className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`}
+        />
         {searchInput}
       </div>
 
@@ -345,7 +384,9 @@ function NavbarSearch({disabled = false}) {
         className={`lg:hidden flex items-center justify-center w-9 h-9 shrink-0 rounded-xl ${searchBarClasses}`}
         aria-label="Search"
       >
-        <Search className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`} />
+        <Search
+          className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`}
+        />
       </button>
 
       {/* Mobile overlay: full search bar when expanded */}
@@ -358,7 +399,9 @@ function NavbarSearch({disabled = false}) {
       )}
       <div
         className={`lg:hidden fixed inset-x-4 top-4 z-[60] transition-all duration-200 ${
-          open ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
+          open
+            ? "opacity-100 visible"
+            : "opacity-0 invisible pointer-events-none"
         }`}
       >
         <div className="relative w-full">
@@ -367,17 +410,21 @@ function NavbarSearch({disabled = false}) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 w-full">
-              <Search className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`} />
+              <Search
+                className={`w-4 h-4 shrink-0 ${disabled ? "text-gray-400/70" : "text-gray-400"}`}
+              />
               <input
                 ref={mobileInputRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onFocus={() => !disabled && setOpen(true)}
                 placeholder="Search properties, contacts, pages, billing & pricing…"
                 disabled={disabled}
                 className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
                 aria-label="Search"
+                {...bindMobileSearchInput({
+                  onFocus: () => !disabled && setOpen(true),
+                })}
               />
             </div>
           </div>

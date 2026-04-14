@@ -28,6 +28,7 @@ import {
 } from "../constants/maintenanceSchedule";
 import AppApi, {getApiErrorMessage} from "../../../api/api";
 import opsyAi2Icon from "../../../images/opsy_ai2.webp";
+import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
 
 const STEPS = [
   {id: "type", label: "Request Type"},
@@ -38,7 +39,8 @@ const STEPS = [
 
 function coerceContractorId(sourceId) {
   if (sourceId == null || sourceId === "") return null;
-  if (typeof sourceId === "number" && Number.isInteger(sourceId)) return sourceId;
+  if (typeof sourceId === "number" && Number.isInteger(sourceId))
+    return sourceId;
   const n = parseInt(String(sourceId), 10);
   return Number.isFinite(n) ? n : null;
 }
@@ -292,6 +294,9 @@ function ContractorStep({
   const triggerRef = useRef(null);
   const [dropdownRect, setDropdownRect] = useState(null);
   const [searchFocused, setSearchFocused] = useState(false);
+  const bindContractorSearchInput = useSuppressBrowserAddressAutofill(
+    "maintenance-contractor-search",
+  );
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isCustomEmail =
     contractorSearch.trim() && emailRegex.test(contractorSearch.trim());
@@ -516,14 +521,15 @@ function ContractorStep({
                 type="text"
                 value={contractorSearch}
                 onChange={(e) => setContractorSearch(e.target.value)}
-                onFocus={(e) => {
-                  setSearchFocused(true);
-                  e.target.select?.();
-                }}
-                onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
                 placeholder="Search by name or type any email..."
                 className="form-input w-full pl-9 text-sm"
-                autoComplete="off"
+                {...bindContractorSearchInput({
+                  onFocus: (e) => {
+                    setSearchFocused(true);
+                    e.target.select?.();
+                  },
+                  onBlur: () => setTimeout(() => setSearchFocused(false), 150),
+                })}
               />
             </div>
             {createPortal(dropdownContent, document.body)}
@@ -630,7 +636,10 @@ function ScheduleStep({
             <span className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-[#456564]" />
               Maintenance Date
-              <span className="text-red-500 dark:text-red-400 font-normal" aria-hidden>
+              <span
+                className="text-red-500 dark:text-red-400 font-normal"
+                aria-hidden
+              >
                 *
               </span>
               <span className="sr-only">(required)</span>
@@ -956,9 +965,9 @@ function MessageStep({
                     No system data available
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Add system details to your property (e.g. inspection reports, system
-                    condition, install dates) to receive personalized AI maintenance
-                    recommendations.
+                    Add system details to your property (e.g. inspection
+                    reports, system condition, install dates) to receive
+                    personalized AI maintenance recommendations.
                   </p>
                 </div>
               </div>
@@ -1093,7 +1102,9 @@ function SuccessOverlay({requestType}) {
             <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
           </div>
           <p className="text-base font-semibold text-gray-900 dark:text-white">
-            {requestType === "inspection" ? "Inspection scheduled!" : "Maintenance scheduled!"}
+            {requestType === "inspection"
+              ? "Inspection scheduled!"
+              : "Maintenance scheduled!"}
           </p>
         </div>
       </div>
@@ -1242,9 +1253,7 @@ function MaintenanceScheduleModal({
     setAiAdvice(null);
     setAiLoading(false);
     setSendEmail(true);
-    setReplyEmail(
-      currentUser?.data?.email || currentUser?.email || "",
-    );
+    setReplyEmail(currentUser?.data?.email || currentUser?.email || "");
     setSaveError("");
   }, [
     isOpen,
@@ -1310,7 +1319,8 @@ function MaintenanceScheduleModal({
         });
       } else {
         setAiAdvice({
-          recommendedFrequency: advice.recommendedFrequency || "Annual inspection recommended",
+          recommendedFrequency:
+            advice.recommendedFrequency || "Annual inspection recommended",
           riskWarning: advice.riskWarning || null,
           suggestedQuestions: advice.suggestedQuestions ?? [],
           suggestions: advice.suggestions ?? [],
@@ -1345,7 +1355,8 @@ function MaintenanceScheduleModal({
   const nextDisabledTitle = () => {
     if (canAdvance()) return undefined;
     if (currentStep === 0) return "Select a request type to continue";
-    if (currentStep === 1) return "Choose whether you have a contractor to continue";
+    if (currentStep === 1)
+      return "Choose whether you have a contractor to continue";
     if (currentStep === 2) return "Select a date to continue";
     return undefined;
   };
@@ -1577,9 +1588,7 @@ function MaintenanceScheduleModal({
                 onClick={handleSave}
                 disabled={!scheduledDate || saving}
                 className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                title={
-                  !scheduledDate ? "Select a date to continue" : undefined
-                }
+                title={!scheduledDate ? "Select a date to continue" : undefined}
               >
                 {saving ? (
                   <span className="flex items-center gap-2">

@@ -26,9 +26,13 @@ const { onUserCreated } = require("./resourceAutoSend");
 const Notification = require("../models/notification");
 const { syncPropertyMissingAgentAdminNotifications } = require("./propertyMissingAgentNotifications");
 const { notifyNewUserAccount } = require("./opsTeamNotifyService");
-const { sendInvitationEmail } = require("./emailService");
+const { sendInvitationEmail, sendBulkPropertyInvitationEmail } = require("./emailService");
 const { APP_BASE_URL } = require("../config");
-const { canAddContact } = require("./tierService");
+const {
+  canAddContact,
+  getTeamMemberInviteEligibilityByProperty,
+  getViewerInviteEligibilityByProperty,
+} = require("./tierService");
 
 const VALID_ACCOUNT_ROLES = new Set(["owner", "admin", "member", "view_only"]);
 
@@ -43,6 +47,66 @@ function mapToAccountRole(intendedRole, invitationType) {
   return "member";
 }
 
+function buildPropertyInviteUrl({
+  baseUrl,
+  accountUrl,
+  invitation,
+  token,
+  propertyUid,
+  hasExistingAccount,
+  isLinkedToAccount,
+}) {
+  if (hasExistingAccount && propertyUid) {
+    return `${baseUrl}/${accountUrl}/properties/${propertyUid}?invitation=${encodeURIComponent(String(invitation.id))}`;
+  }
+  if (hasExistingAccount) {
+    const q = new URLSearchParams();
+    q.set("email", invitation.inviteeEmail.trim());
+    if (isLinkedToAccount) {
+      q.set("returnTo", `/${accountUrl}/invitations`);
+    }
+    return `${baseUrl}/signin?${q.toString()}`;
+  }
+  return `${baseUrl}/${accountUrl}/invite/confirm?token=${encodeURIComponent(token)}&email=${encodeURIComponent(invitation.inviteeEmail)}`;
+}
+
+async function ensureInviteeContactAutoCreated({
+  emailLower,
+  inviteeEmailTrimmed,
+  trimmedInviteeName,
+  accountId,
+  inviterUserRole,
+}) {
+  const existingContact = await db.query(
+    `SELECT c.id FROM contacts c
+     JOIN account_contacts ac ON ac.contact_id = c.id
+     WHERE LOWER(TRIM(c.email)) = $1 AND ac.account_id = $2
+     LIMIT 1`,
+    [emailLower, accountId]
+  );
+  if (existingContact.rows.length > 0) return;
+  const tierCheck = await canAddContact(accountId, inviterUserRole);
+  if (!tierCheck.allowed) return;
+  try {
+    const localPart = inviteeEmailTrimmed.split("@")[0];
+    const contactName =
+      trimmedInviteeName || localPart || inviteeEmailTrimmed;
+    const contact = await Contact.create({
+      name: contactName,
+      email: inviteeEmailTrimmed,
+    });
+    await Contact.addToAccount({
+      contactId: contact.id,
+      accountId,
+    });
+  } catch (contactErr) {
+    console.error(
+      "[invitationService] Failed to auto-create contact for invitee:",
+      contactErr.message
+    );
+  }
+}
+
 async function createPropertyInvitation({
   inviterUserId,
   inviteeEmail,
@@ -55,6 +119,7 @@ async function createPropertyInvitation({
   const emailLower = (inviteeEmail || "").trim().toLowerCase();
   if (!emailLower) throw new BadRequestError("inviteeEmail is required");
   const trimmedInviteeName = (inviteeName || "").trim();
+  const inviteeEmailTrimmed = inviteeEmail.trim();
 
   // Prevent duplicate: user already in property team
   const existingMember = await db.query(
@@ -77,37 +142,13 @@ async function createPropertyInvitation({
     throw new BadRequestError("An invitation has already been sent to this email address.");
   }
 
-  // Auto-create contact in My Contacts if invitee email doesn't exist
-  const existingContact = await db.query(
-    `SELECT c.id FROM contacts c
-     JOIN account_contacts ac ON ac.contact_id = c.id
-     WHERE LOWER(TRIM(c.email)) = $1 AND ac.account_id = $2
-     LIMIT 1`,
-    [emailLower, accountId]
-  );
-  if (existingContact.rows.length === 0) {
-    const tierCheck = await canAddContact(accountId, inviterUserRole);
-    if (tierCheck.allowed) {
-      try {
-        const localPart = (inviteeEmail || "").trim().split("@")[0];
-        const contactName =
-          trimmedInviteeName || localPart || (inviteeEmail || "").trim();
-        const contact = await Contact.create({
-          name: contactName,
-          email: inviteeEmail.trim(),
-        });
-        await Contact.addToAccount({
-          contactId: contact.id,
-          accountId,
-        });
-      } catch (contactErr) {
-        console.error(
-          "[invitationService] Failed to auto-create contact for invitee:",
-          contactErr.message
-        );
-      }
-    }
-  }
+  await ensureInviteeContactAutoCreated({
+    emailLower,
+    inviteeEmailTrimmed,
+    trimmedInviteeName,
+    accountId,
+    inviterUserRole,
+  });
 
   const { token, tokenHash } = generateInvitationToken();
   const expiresAt = new Date();
@@ -156,6 +197,180 @@ async function createPropertyInvitation({
   }
 
   return { invitation, token };
+}
+
+/**
+ * Create property invitations for many properties for one invitee; sends a single consolidated email.
+ * Returns per-property success/failure (partial success allowed). Does not throw for per-property errors.
+ */
+async function createBulkPropertyInvitations({
+  inviterUserId,
+  inviteeEmail,
+  inviteeName,
+  accountId,
+  propertyIds,
+  intendedRole,
+  inviterUserRole,
+}) {
+  const emailLower = (inviteeEmail || "").trim().toLowerCase();
+  if (!emailLower) throw new BadRequestError("inviteeEmail is required");
+  if (!Array.isArray(propertyIds) || propertyIds.length === 0) {
+    throw new BadRequestError("propertyIds must be a non-empty array");
+  }
+
+  const rawIds = [
+    ...new Set(
+      propertyIds
+        .map((id) => Number(id))
+        .filter((n) => Number.isInteger(n) && n > 0)
+    ),
+  ];
+  if (rawIds.length === 0) {
+    throw new BadRequestError("propertyIds must contain valid property ids");
+  }
+
+  const succeeded = [];
+  const failed = [];
+
+  const accountProps = await db.query(
+    `SELECT id FROM properties WHERE account_id = $1 AND id = ANY($2::int[])`,
+    [accountId, rawIds]
+  );
+  const validInAccount = new Set(accountProps.rows.map((r) => r.id));
+
+  for (const pid of rawIds) {
+    if (!validInAccount.has(pid)) {
+      failed.push({ propertyId: pid, message: "Property not found in this account." });
+    }
+  }
+
+  const toCheck = rawIds.filter((pid) => validInAccount.has(pid));
+  if (toCheck.length === 0) {
+    return { succeeded, failed };
+  }
+
+  const [membersRes, pendingRes] = await Promise.all([
+    db.query(
+      `SELECT pu.property_id FROM property_users pu
+       JOIN users u ON u.id = pu.user_id
+       WHERE pu.property_id = ANY($1::int[]) AND LOWER(TRIM(u.email)) = $2`,
+      [toCheck, emailLower]
+    ),
+    db.query(
+      `SELECT property_id FROM invitations
+       WHERE property_id = ANY($1::int[]) AND status = 'pending' AND LOWER(TRIM(invitee_email)) = $2`,
+      [toCheck, emailLower]
+    ),
+  ]);
+
+  const blockedMember = new Set(membersRes.rows.map((r) => r.property_id));
+  const blockedPending = new Set(pendingRes.rows.map((r) => r.property_id));
+
+  const intents = intendedRole || "editor";
+
+  const notBlockedForTier = toCheck.filter(
+    (pid) => !blockedMember.has(pid) && !blockedPending.has(pid)
+  );
+  const tierByProperty =
+    intents === "viewer"
+      ? await getViewerInviteEligibilityByProperty(accountId, notBlockedForTier, inviterUserRole)
+      : await getTeamMemberInviteEligibilityByProperty(accountId, notBlockedForTier, inviterUserRole);
+
+  const eligible = [];
+  for (const pid of toCheck) {
+    if (blockedMember.has(pid)) {
+      failed.push({ propertyId: pid, message: "This person is already on the property team." });
+      continue;
+    }
+    if (blockedPending.has(pid)) {
+      failed.push({
+        propertyId: pid,
+        message: "An invitation has already been sent to this email address.",
+      });
+      continue;
+    }
+    const tier = tierByProperty.get(pid);
+    if (!tier?.allowed) {
+      failed.push({
+        propertyId: pid,
+        message:
+          intents === "viewer"
+            ? `Viewer limit reached (${tier?.current ?? 0}/${tier?.max ?? 0}). Upgrade your plan.`
+            : `Team member limit reached (${tier?.current ?? 0}/${tier?.max ?? 0}). Upgrade your plan.`,
+      });
+      continue;
+    }
+    eligible.push(pid);
+  }
+
+  if (eligible.length === 0) {
+    return { succeeded, failed };
+  }
+
+  const trimmedInviteeName = (inviteeName || "").trim();
+  const inviteeEmailTrimmed = inviteeEmail.trim();
+  await ensureInviteeContactAutoCreated({
+    emailLower,
+    inviteeEmailTrimmed,
+    trimmedInviteeName,
+    accountId,
+    inviterUserRole,
+  });
+
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 48);
+
+  const createdRows = [];
+  for (const propertyId of eligible) {
+    const { token, tokenHash } = generateInvitationToken();
+    const invitation = await Invitation.create({
+      type: "property",
+      inviterUserId,
+      inviteeEmail,
+      accountId,
+      propertyId,
+      intendedRole: intents,
+      tokenHash,
+      expiresAt,
+    });
+    createdRows.push({ invitation, token, propertyId });
+  }
+
+  const existingUser = await db.query(
+    `SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 AND is_active = true`,
+    [emailLower]
+  );
+  const inviteeUserId = existingUser.rows[0]?.id ?? null;
+  if (inviteeUserId != null) {
+    await Promise.all(
+      createdRows.map(({ invitation }) =>
+        Notification.create({
+          userId: inviteeUserId,
+          type: "property_invitation",
+          title: "You've been invited to join a property",
+          invitationId: invitation.id,
+        }).catch((notifErr) => {
+          console.error("[invitationService] Failed to create notification for invitee:", notifErr.message);
+        })
+      )
+    );
+  }
+
+  try {
+    await sendBulkInvitationEmailForPropertyInvites({
+      invitationsWithTokens: createdRows.map(({ invitation, token }) => ({ invitation, token })),
+      inviterUserId,
+      inviteeUserId,
+    });
+  } catch (err) {
+    console.error("[invitationService] Failed to send bulk invitation email:", err.message);
+  }
+
+  for (const row of createdRows) {
+    succeeded.push({ invitation: row.invitation, propertyId: row.propertyId });
+  }
+
+  return { succeeded, failed };
 }
 
 async function createAccountInvitation({ inviterUserId, inviteeEmail, accountId, intendedRole }) {
@@ -212,20 +427,23 @@ async function sendInvitationEmailForInvitation({ invitation, token, inviterUser
     propertyUid = prop.rows[0]?.property_uid || null;
   }
 
-  let inviteUrl;
-  if (hasExistingAccount && propertyUid) {
-    inviteUrl = `${baseUrl}/${accountUrl}/properties/${propertyUid}?invitation=${encodeURIComponent(String(invitation.id))}`;
-  } else if (hasExistingAccount) {
-    const q = new URLSearchParams();
-    q.set("email", invitation.inviteeEmail.trim());
-    const linked = await Account.isUserLinkedToAccount(resolvedInviteeUserId, invitation.accountId);
-    if (linked) {
-      q.set("returnTo", `/${accountUrl}/invitations`);
-    }
-    inviteUrl = `${baseUrl}/signin?${q.toString()}`;
-  } else {
-    inviteUrl = `${baseUrl}/${accountUrl}/invite/confirm?token=${encodeURIComponent(token)}&email=${encodeURIComponent(invitation.inviteeEmail)}`;
+  let isLinkedToAccount = false;
+  if (hasExistingAccount && !propertyUid) {
+    isLinkedToAccount = await Account.isUserLinkedToAccount(
+      resolvedInviteeUserId,
+      invitation.accountId
+    );
   }
+
+  const inviteUrl = buildPropertyInviteUrl({
+    baseUrl,
+    accountUrl,
+    invitation,
+    token,
+    propertyUid,
+    hasExistingAccount,
+    isLinkedToAccount,
+  });
 
   let inviterName = null;
   if (inviterUserId) {
@@ -245,6 +463,93 @@ async function sendInvitationEmailForInvitation({ invitation, token, inviterUser
       invitation.accountId && inviterUserId
         ? {
             accountId: invitation.accountId,
+            userId: inviterUserId,
+            emailType,
+          }
+        : undefined,
+  });
+}
+
+/** One SES send for multiple property rows; shared lookups (account, inviter, properties). */
+async function sendBulkInvitationEmailForPropertyInvites({
+  invitationsWithTokens,
+  inviterUserId,
+  inviteeUserId,
+}) {
+  if (!invitationsWithTokens?.length) return;
+
+  const baseUrl = (APP_BASE_URL || process.env.APP_WEB_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
+  const firstInv = invitationsWithTokens[0].invitation;
+  const account = await Account.get(firstInv.accountId);
+  const accountUrl = String(account?.url || account?.name || "home").replace(/^\/+/, "");
+  const emailNorm = (firstInv.inviteeEmail || "").trim().toLowerCase();
+
+  let resolvedInviteeUserId = inviteeUserId;
+  if (resolvedInviteeUserId === undefined) {
+    const r = await db.query(
+      `SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 AND is_active = true`,
+      [emailNorm]
+    );
+    resolvedInviteeUserId = r.rows[0]?.id ?? null;
+  }
+  const hasExistingAccount = resolvedInviteeUserId != null;
+
+  const propertyIds = [
+    ...new Set(invitationsWithTokens.map(({ invitation }) => invitation.propertyId).filter(Boolean)),
+  ];
+  const propRes = await db.query(
+    `SELECT id, address, property_uid FROM properties WHERE id = ANY($1::int[])`,
+    [propertyIds]
+  );
+  const propById = new Map(propRes.rows.map((row) => [row.id, row]));
+
+  let isLinkedToAccount = false;
+  if (hasExistingAccount) {
+    const needsAccountLinkFlag = invitationsWithTokens.some(({ invitation }) => {
+      const row = propById.get(invitation.propertyId);
+      return !row?.property_uid;
+    });
+    if (needsAccountLinkFlag) {
+      isLinkedToAccount = await Account.isUserLinkedToAccount(
+        resolvedInviteeUserId,
+        firstInv.accountId
+      );
+    }
+  }
+
+  let inviterName = null;
+  if (inviterUserId) {
+    const inviter = await db.query(`SELECT name FROM users WHERE id = $1`, [inviterUserId]);
+    inviterName = inviter.rows[0]?.name || null;
+  }
+
+  const items = invitationsWithTokens.map(({ invitation, token }) => {
+    const row = propById.get(invitation.propertyId);
+    const propertyAddress = row?.address || null;
+    const propertyUid = row?.property_uid || null;
+    const inviteUrl = buildPropertyInviteUrl({
+      baseUrl,
+      accountUrl,
+      invitation,
+      token,
+      propertyUid,
+      hasExistingAccount,
+      isLinkedToAccount,
+    });
+    return { propertyAddress, inviteUrl };
+  });
+
+  const emailType = "invitation_property";
+  await sendBulkPropertyInvitationEmail({
+    to: firstInv.inviteeEmail,
+    inviterName,
+    inviteeName: null,
+    items,
+    inviteeHasAccount: hasExistingAccount,
+    usage:
+      firstInv.accountId && inviterUserId
+        ? {
+            accountId: firstInv.accountId,
             userId: inviterUserId,
             emailType,
           }
@@ -515,6 +820,7 @@ async function resendInvitation(invitationId, inviterUserId) {
 
 module.exports = {
   createPropertyInvitation,
+  createBulkPropertyInvitations,
   createAccountInvitation,
   acceptInvitation,
   acceptInvitationForLoggedInUser,

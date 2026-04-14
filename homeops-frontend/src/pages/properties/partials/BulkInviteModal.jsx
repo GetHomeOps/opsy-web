@@ -1,4 +1,11 @@
-import React, {useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect} from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import {createPortal} from "react-dom";
 import {
   UserPlus,
@@ -11,6 +18,7 @@ import {
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import AppApi from "../../../api/api";
+import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
 
 const EMAIL_REGEX =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
@@ -33,6 +41,8 @@ function AgentSearchField({
   const containerRef = useRef(null);
   const listRef = useRef(null);
   const dropdownRef = useRef(null);
+  const bindAgentSearchInput =
+    useSuppressBrowserAddressAutofill("bulk-invite-agent-search");
 
   const agentsWithEmail = useMemo(
     () => (agents || []).filter((a) => a.email?.trim()),
@@ -53,7 +63,9 @@ function AgentSearchField({
 
   const allEmails = useMemo(() => {
     const set = new Set();
-    agentsWithEmail.forEach((a) => set.add((a.email || "").trim().toLowerCase()));
+    agentsWithEmail.forEach((a) =>
+      set.add((a.email || "").trim().toLowerCase()),
+    );
     return set;
   }, [agentsWithEmail]);
 
@@ -156,7 +168,11 @@ function AgentSearchField({
       e.preventDefault();
       return;
     }
-    if (e.key === "Enter" && highlightIndex >= 0 && flatOptions[highlightIndex]) {
+    if (
+      e.key === "Enter" &&
+      highlightIndex >= 0 &&
+      flatOptions[highlightIndex]
+    ) {
       handleSelect(flatOptions[highlightIndex]);
       e.preventDefault();
     }
@@ -176,7 +192,6 @@ function AgentSearchField({
           type="text"
           value={inputValue}
           onChange={handleInputChange}
-          onFocus={handleInputFocus}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
@@ -184,7 +199,7 @@ function AgentSearchField({
           className={`form-input w-full pr-9 ${
             error ? "border-red-500 dark:border-red-500" : ""
           } ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
-          autoComplete="off"
+          {...bindAgentSearchInput({onFocus: handleInputFocus})}
         />
         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
           <ChevronDown
@@ -245,7 +260,8 @@ function AgentSearchField({
                   );
                 }
 
-                const imgUrl = item.image_url || item.avatarUrl || item.avatar_url;
+                const imgUrl =
+                  item.image_url || item.avatarUrl || item.avatar_url;
                 return (
                   <li
                     key={item.id || idx}
@@ -270,7 +286,8 @@ function AgentSearchField({
                       />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-[#456564] dark:bg-[#5a7a78] flex items-center justify-center text-white text-xs font-semibold shrink-0">
-                        {(item.name || item.email)?.charAt(0)?.toUpperCase() || "?"}
+                        {(item.name || item.email)?.charAt(0)?.toUpperCase() ||
+                          "?"}
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
@@ -305,6 +322,7 @@ function BulkInviteModal({
   modalOpen,
   setModalOpen,
   selectedProperties = [],
+  /** Fallback when a list row omits account_id (prefer each property's account). */
   currentAccount,
 }) {
   const [agents, setAgents] = useState([]);
@@ -366,28 +384,61 @@ function BulkInviteModal({
     setEmailError("");
     setIsSubmitting(true);
 
-    const accountId = currentAccount?.id;
     const succeeded = [];
     const failed = [];
 
-    for (const prop of visibleProperties) {
-      /* API expects DB integer id (property_users.property_id), not property_uid string */
-      const propertyId = prop.id;
+    const byAccount = new Map();
+    for (const p of visibleProperties) {
+      const rawAid = p.account_id ?? p.accountId ?? currentAccount?.id;
+      if (rawAid == null || rawAid === "") {
+        failed.push({
+          property: p,
+          error: "Could not determine which account this property belongs to.",
+        });
+        continue;
+      }
+      const accountKey = Number(rawAid);
+      if (!Number.isFinite(accountKey)) {
+        failed.push({
+          property: p,
+          error: "Invalid account for this property.",
+        });
+        continue;
+      }
+      if (!byAccount.has(accountKey)) byAccount.set(accountKey, []);
+      byAccount.get(accountKey).push(p);
+    }
+
+    for (const [accountId, props] of byAccount) {
+      const byId = new Map(props.map((prop) => [prop.id, prop]));
       try {
-        await AppApi.createInvitation({
-          type: "property",
+        const res = await AppApi.createBulkPropertyInvitations({
           inviteeEmail: effectiveEmail,
           inviteeName: selectedAgentName || undefined,
           accountId,
-          propertyId,
+          propertyIds: props.map((prop) => prop.id),
           intendedRole: "agent",
         });
-        succeeded.push(prop);
+        for (const row of res.succeeded || []) {
+          const prop = byId.get(row.propertyId);
+          if (prop) succeeded.push(prop);
+        }
+        for (const row of res.failed || []) {
+          const prop = byId.get(row.propertyId);
+          if (prop) {
+            failed.push({
+              property: prop,
+              error: row.message || "Failed to send invitation",
+            });
+          }
+        }
       } catch (err) {
-        failed.push({
-          property: prop,
-          error: err?.message || "Failed to send invitation",
-        });
+        for (const prop of props) {
+          failed.push({
+            property: prop,
+            error: err?.message || "Failed to send invitations",
+          });
+        }
       }
     }
 
@@ -425,7 +476,9 @@ function BulkInviteModal({
               {results.succeeded.length > 0 && (
                 <p className="text-base font-semibold text-gray-900 dark:text-white">
                   {results.succeeded.length}{" "}
-                  {results.succeeded.length === 1 ? "invitation" : "invitations"}{" "}
+                  {results.succeeded.length === 1
+                    ? "invitation"
+                    : "invitations"}{" "}
                   sent successfully!
                 </p>
               )}

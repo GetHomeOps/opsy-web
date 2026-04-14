@@ -369,6 +369,99 @@ async function sendInvitationEmail({
 }
 
 /**
+ * Single email listing multiple property invitations (one link per property / invitation token).
+ * @param {Object} opts - { to, inviterName?, inviteeName?, items: { propertyAddress?, inviteUrl }[], inviteeHasAccount?, usage? }
+ */
+async function sendBulkPropertyInvitationEmail({
+  to,
+  inviterName,
+  inviteeName,
+  items,
+  inviteeHasAccount = false,
+  usage,
+}) {
+  if (!isSesConfigured()) {
+    throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("sendBulkPropertyInvitationEmail requires a non-empty items array");
+  }
+
+  const n = items.length;
+  const subject =
+    n === 1
+      ? `You've been invited to join a property${items[0].propertyAddress ? `: ${items[0].propertyAddress}` : ""}`
+      : `You've been invited to join ${n} properties`;
+
+  const intro = inviteeName ? `Hi ${escapeHtml(inviteeName)},` : "Hi,";
+  const inviterText = inviterName ? `${escapeHtml(inviterName)} has` : "Someone has";
+
+  let contextLead;
+  if (n === 1) {
+    contextLead = items[0].propertyAddress
+      ? `${inviterText} invited you to join a property: ${escapeHtml(items[0].propertyAddress)}.`
+      : `${inviterText} invited you to join a property.`;
+  } else {
+    contextLead = `${inviterText} invited you to join the following ${n} properties on ${escapeHtml(brandName)}:`;
+  }
+
+  const headline = n === 1 ? "Property invitation" : "Property invitations";
+  const footerNote =
+    n === 1
+      ? "This invitation expires in 48 hours. If you didn't expect this invite, you can safely ignore this email."
+      : "These invitations expire in 48 hours. If you didn't expect this invite, you can safely ignore this email.";
+
+  let bodyExtra;
+  let linkIntro;
+  if (inviteeHasAccount) {
+    bodyExtra = `${contextLead} You already have a ${escapeHtml(
+      brandName
+    )} account. Use the links below to open each property and accept or decline. If you're not signed in, you'll be asked to sign in first. You can also respond from your notifications (bell icon) when signed in.`;
+    linkIntro = n === 1 ? "" : `<p style="margin-top: 16px;">Open each invitation:</p>`;
+  } else {
+    bodyExtra = `${contextLead} Use the links below to join ${escapeHtml(
+      brandName
+    )} and set your password to accept ${n === 1 ? "this invitation" : "each invitation"}.`;
+    linkIntro = n === 1 ? "" : `<p style="margin-top: 16px;">Accept each invitation:</p>`;
+  }
+
+  const listHtml =
+    n === 1
+      ? `<p style="margin: 24px 0;">
+        <a href="${escapeHtmlAttr(items[0].inviteUrl)}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">${
+          inviteeHasAccount ? "View invitation" : "Accept invitation"
+        }</a>
+      </p>`
+      : `<ul style="padding-left: 20px; margin: 16px 0; line-height: 1.6;">
+        ${items
+          .map((it) => {
+            const label = it.propertyAddress
+              ? escapeHtml(it.propertyAddress)
+              : "Property invitation";
+            const cta = inviteeHasAccount ? "View" : "Accept";
+            return `<li style="margin: 10px 0;">
+              <a href="${escapeHtmlAttr(it.inviteUrl)}" style="color: #456564; font-weight: 600;">${cta}: ${label}</a>
+            </li>`;
+          })
+          .join("")}
+      </ul>`;
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color: #456564;">${headline}</h2>
+      <p>${intro}</p>
+      <p>${bodyExtra}</p>
+      ${linkIntro}
+      ${listHtml}
+      <p style="color: #6b7280; font-size: 14px;">${footerNote}</p>
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  return sendViaSes({ to, subject, html, usage });
+}
+
+/**
  * Send contractor report request email with a link to fill out the maintenance report.
  * @param {Object} opts - { to, reportUrl, contractorName?, propertyAddress?, systemName?, senderName?, origin?, inspectionDate? }
  */
@@ -604,6 +697,7 @@ module.exports = {
   sendPasswordResetEmail,
   sendEmailVerificationEmail,
   sendInvitationEmail,
+  sendBulkPropertyInvitationEmail,
   sendContractorReportEmail,
   sendScheduleNotificationEmail,
   sendProfessionalContactEmail,
