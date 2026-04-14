@@ -38,6 +38,7 @@ const FILTER_CATEGORIES = [
   {type: "state", labelKey: "state"},
   {type: "owner", labelKey: "owner"},
   {type: "health", labelKey: "healthStatus"},
+  {type: "agentAssignment", labelKey: "filterAgentAssignment"},
 ];
 
 const HEALTH_RANGES = [
@@ -46,6 +47,18 @@ const HEALTH_RANGES = [
   {value: "at_risk", labelKey: "atRisk", min: 25, max: 39, color: "#f97316"},
   {value: "critical", labelKey: "critical", min: 0, max: 24, color: "#ef4444"},
 ];
+
+const AGENT_ASSIGNMENT_FILTERS = [
+  {value: "with_agent", labelKey: "filterWithAgentAssigned"},
+  {value: "without_agent", labelKey: "filterWithoutAgent"},
+];
+
+/** Opsy list payload includes has_opsy_agent when the team has agent/admin/super_admin. */
+function propertyHasOpsyAgent(property) {
+  return (
+    property?.has_opsy_agent === true || property?.hasOpsyAgent === true
+  );
+}
 
 const initialState = {
   currentPage: 1,
@@ -397,6 +410,10 @@ function PropertiesList() {
         label: t(h.labelKey),
         dot: h.color,
       })),
+      agentAssignment: AGENT_ASSIGNMENT_FILTERS.map((a) => ({
+        value: a.value,
+        label: t(a.labelKey),
+      })),
     }),
     [uniqueCities, uniqueStates, uniqueOwners, t],
   );
@@ -531,6 +548,16 @@ function PropertiesList() {
         const matchesAny = filtersByType.health.some((hv) => {
           const range = HEALTH_RANGES.find((r) => r.value === hv);
           return range && health >= range.min && health <= range.max;
+        });
+        if (!matchesAny) return false;
+      }
+
+      if (filtersByType.agentAssignment) {
+        const hasAgent = propertyHasOpsyAgent(property);
+        const matchesAny = filtersByType.agentAssignment.some((hv) => {
+          if (hv === "with_agent") return hasAgent;
+          if (hv === "without_agent") return !hasAgent;
+          return false;
         });
         if (!matchesAny) return false;
       }

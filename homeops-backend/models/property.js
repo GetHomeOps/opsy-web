@@ -51,6 +51,15 @@ const PROPERTY_LIST_COLUMNS = `
   p.school_district, p.elementary_school,
   p.junior_high_school, p.senior_high_school`;
 
+/** True when the property team includes a user whose platform role is agent, admin, or super_admin (Opsy agent). */
+const PROPERTY_LIST_HAS_OPSY_AGENT = `EXISTS (
+  SELECT 1
+  FROM property_users pu_has_opsy_agent
+  INNER JOIN users u_has_opsy_agent ON u_has_opsy_agent.id = pu_has_opsy_agent.user_id
+  WHERE pu_has_opsy_agent.property_id = p.id
+    AND u_has_opsy_agent.role IN ('agent', 'admin', 'super_admin')
+) AS has_opsy_agent`;
+
 /** Insertable columns for properties (matches opsy-schema.sql; excludes id, created_at, updated_at) */
 const PROPERTY_INSERT_COLUMNS = [
   "property_uid",
@@ -127,7 +136,7 @@ class Property {
   /* Get all properties */
   static async getAll() {
     const result = await db.query(
-      `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name
+      `SELECT ${PROPERTY_LIST_COLUMNS}, ${PROPERTY_LIST_HAS_OPSY_AGENT}, owner_sub.name AS owner_user_name
        FROM properties p
        LEFT JOIN (
          SELECT DISTINCT ON (pu.property_id)
@@ -214,7 +223,7 @@ class Property {
   /* Get properties by account id */
   static async getPropertiesByAccountId(accountId) {
     const result = await db.query(
-      `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name
+      `SELECT ${PROPERTY_LIST_COLUMNS}, ${PROPERTY_LIST_HAS_OPSY_AGENT}, owner_sub.name AS owner_user_name
        FROM properties p
        LEFT JOIN (
          SELECT DISTINCT ON (pu.property_id)
@@ -235,7 +244,8 @@ class Property {
   static async getPropertiesByUserId(userId) {
     const result = await db.query(
       `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name,
-              pu.role AS property_role
+              pu.role AS property_role,
+              ${PROPERTY_LIST_HAS_OPSY_AGENT}
        FROM properties p
        JOIN property_users pu ON p.id = pu.property_id
        LEFT JOIN (
@@ -258,6 +268,7 @@ class Property {
     const result = await db.query(
       `SELECT DISTINCT ON (p.id)
         ${PROPERTY_LIST_COLUMNS},
+        ${PROPERTY_LIST_HAS_OPSY_AGENT},
         i.id AS _invitation_id,
         i.intended_role AS _invitation_role,
         i.expires_at AS _invitation_expires_at,
