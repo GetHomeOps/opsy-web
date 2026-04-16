@@ -7,6 +7,12 @@ const SupportTicket = require("../models/supportTicket");
 const User = require("../models/user");
 const Account = require("../models/account");
 const { notifyNewSupportOrFeedbackTicket } = require("../services/opsTeamNotifyService");
+const {
+  postAutomatedInitialReply,
+  notifyUserTicketCreated,
+  notifyUserAdminReply,
+  generateAutomatedReplyText,
+} = require("../services/ticketNotifyService");
 
 const router = express.Router();
 
@@ -51,7 +57,24 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
     notifyNewSupportOrFeedbackTicket(ticket).catch((e) =>
       console.error("[opsTeamNotify] support ticket:", e.message)
     );
-    return res.status(201).json({ ticket });
+
+    // Post the automated acknowledgment reply in-thread, then email the creator.
+    // Both are best-effort: never block ticket creation on notification failures.
+    let ticketForResponse = ticket;
+    const autoText = generateAutomatedReplyText(ticket);
+    if (["support", "feedback"].includes(ticket.type)) {
+      try {
+        const autoResult = await postAutomatedInitialReply(ticket);
+        if (autoResult?.ticket) ticketForResponse = autoResult.ticket;
+      } catch (e) {
+        console.error("[ticketNotify] auto-reply:", e.message);
+      }
+      notifyUserTicketCreated(ticketForResponse, { autoResponseText: autoText }).catch(
+        (e) => console.error("[ticketNotify] user created email:", e.message)
+      );
+    }
+
+    return res.status(201).json({ ticket: ticketForResponse });
   } catch (err) {
     return next(err);
   }
@@ -131,6 +154,20 @@ router.post("/:id/replies", ensureLoggedIn, async function (req, res, next) {
       role,
       body: body.trim(),
     });
+
+    // Notify the ticket creator by email when an agent replies (skip user→self replies).
+    if (role === "admin") {
+      const latestReply = (updated.replies || [])
+        .slice()
+        .reverse()
+        .find((r) => !r.isAutomated && r.role === "admin");
+      if (latestReply) {
+        notifyUserAdminReply(updated, latestReply).catch((e) =>
+          console.error("[ticketNotify] admin reply email:", e.message)
+        );
+      }
+    }
+
     return res.status(201).json({ ticket: updated });
   } catch (err) {
     return next(err);

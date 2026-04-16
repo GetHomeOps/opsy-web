@@ -852,9 +852,11 @@ CREATE INDEX idx_support_tickets_property_id ON support_tickets(property_id);
 CREATE TABLE support_ticket_replies (
     id SERIAL PRIMARY KEY,
     ticket_id INTEGER NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
-    author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- author_id is NULL for automated system replies (see is_automated)
+    author_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'user')),
     body TEXT NOT NULL,
+    is_automated BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_support_ticket_replies_ticket_id ON support_ticket_replies(ticket_id);
@@ -1241,3 +1243,50 @@ CREATE TABLE ai_action_drafts (
 CREATE INDEX idx_ai_action_drafts_property ON ai_action_drafts(property_id);
 CREATE INDEX idx_ai_action_drafts_user ON ai_action_drafts(user_id);
 CREATE INDEX idx_ai_action_drafts_status ON ai_action_drafts(status);
+
+-- ============================================================
+-- Coupons & Coupon Redemptions
+-- ============================================================
+
+CREATE TABLE coupons (
+    id                   SERIAL PRIMARY KEY,
+    code                 VARCHAR(50) NOT NULL UNIQUE,
+    name                 VARCHAR(255),
+    description          TEXT,
+    discount_type        VARCHAR(20) NOT NULL CHECK (discount_type IN ('percent', 'fixed')),
+    discount_value       DECIMAL(10,2) NOT NULL,
+    currency             VARCHAR(10) DEFAULT 'usd',
+    duration             VARCHAR(20) NOT NULL CHECK (duration IN ('once', 'repeating', 'forever')),
+    duration_in_months   INTEGER,
+    plan_ids             INTEGER[] DEFAULT '{}',
+    max_redemptions      INTEGER,
+    redemption_count     INTEGER NOT NULL DEFAULT 0,
+    expires_at           TIMESTAMPTZ,
+    is_active            BOOLEAN NOT NULL DEFAULT true,
+    stripe_coupon_id     VARCHAR(255),
+    stripe_promo_code_id VARCHAR(255),
+    coupon_type          VARCHAR(10) NOT NULL DEFAULT 'general'
+                           CHECK (coupon_type IN ('general', 'unique')),
+    batch_id             UUID DEFAULT NULL,
+    batch_name           VARCHAR(255) DEFAULT NULL,
+    created_by           INTEGER REFERENCES users(id),
+    created_at           TIMESTAMPTZ DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_coupons_code ON coupons(code);
+CREATE INDEX idx_coupons_active ON coupons(is_active) WHERE is_active = true;
+CREATE INDEX idx_coupons_batch ON coupons(batch_id) WHERE batch_id IS NOT NULL;
+
+CREATE TABLE coupon_redemptions (
+    id                     SERIAL PRIMARY KEY,
+    coupon_id              INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+    account_id             INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    user_id                INTEGER NOT NULL REFERENCES users(id),
+    stripe_subscription_id VARCHAR(255),
+    redeemed_at            TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(coupon_id, account_id)
+);
+
+CREATE INDEX idx_coupon_redemptions_coupon ON coupon_redemptions(coupon_id);
+CREATE INDEX idx_coupon_redemptions_account ON coupon_redemptions(account_id);

@@ -573,10 +573,10 @@ export default function InspectionAnalysisModalContent({
           <InspectionChecklistPanel propertyId={propertyId} />
         </section>
 
-        {/* Recommended Actions (raw from analysis) */}
+        {/* Recommended Actions Summary (raw from analysis) */}
         <section>
           <h3 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3">
-            Recommended Actions
+            Recommended Actions Summary
           </h3>
           {actions.length === 0 ? (
             <p className="text-sm text-neutral-500 dark:text-neutral-400">

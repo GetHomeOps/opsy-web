@@ -693,6 +693,199 @@ async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl
   });
 }
 
+/** Format multi-line plain text into safe HTML paragraphs/lists for ticket emails. */
+function ticketBodyToHtml(text) {
+  if (!text) return "";
+  const safe = escapeHtml(text).replace(/\r\n/g, "\n");
+  const blocks = safe.split(/\n{2,}/);
+  return blocks
+    .map((block) => {
+      const lines = block.split("\n");
+      const allBullets = lines.every((l) => /^[-*•]\s+/.test(l.trim()));
+      if (allBullets && lines.length > 1) {
+        const items = lines
+          .map((l) => `<li style="margin: 4px 0;">${l.trim().replace(/^[-*•]\s+/, "")}</li>`)
+          .join("");
+        return `<ul style="padding-left: 20px; margin: 12px 0; line-height: 1.6;">${items}</ul>`;
+      }
+      return `<p style="margin: 12px 0; line-height: 1.6;">${lines.join("<br/>")}</p>`;
+    })
+    .join("");
+}
+
+/** Human-friendly first name fallback from a full name string. */
+function firstNameFromUser(userName) {
+  if (!userName || typeof userName !== "string") return null;
+  const trimmed = userName.trim();
+  if (!trimmed) return null;
+  const first = trimmed.split(/\s+/)[0];
+  return first || null;
+}
+
+/** Shared header/style block for ticket emails. */
+function ticketEmailShell({ heading, intro, bodyHtml, ctaUrl, ctaLabel, footerNote }) {
+  const safeHref = ctaUrl ? escapeHtmlAttr(ctaUrl) : null;
+  const cta = safeHref
+    ? `<p style="margin: 24px 0;">
+        <a href="${safeHref}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">${escapeHtml(ctaLabel || "View ticket")}</a>
+      </p>`
+    : "";
+  const note = footerNote
+    ? `<p style="color: #6b7280; font-size: 13px; margin-top: 20px;">${escapeHtml(footerNote)}</p>`
+    : "";
+  return `
+    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+      <h2 style="color: #456564; margin-bottom: 8px;">${escapeHtml(heading)}</h2>
+      ${intro ? `<p style="margin: 12px 0; line-height: 1.6;">${intro}</p>` : ""}
+      ${bodyHtml || ""}
+      ${cta}
+      ${note}
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+}
+
+/**
+ * Confirmation email sent to a user immediately after they submit a support or feedback ticket.
+ * The in-thread automated response text is mirrored here so users get a consistent acknowledgment
+ * in-app and in their inbox.
+ */
+async function sendSupportTicketReceivedEmail({
+  to,
+  userName,
+  ticket,
+  viewUrl,
+  autoResponseText,
+  usage,
+}) {
+  if (!isSesConfigured()) {
+    console.warn("[emailService] SES not configured — skipping ticket received email");
+    return { success: false, reason: "ses_not_configured" };
+  }
+  const toAddr = to && String(to).trim();
+  if (!toAddr) return { success: false, reason: "no_recipient" };
+
+  const firstName = firstNameFromUser(userName);
+  const intro = firstName
+    ? `Hi ${escapeHtml(firstName)},`
+    : "Hi there,";
+  const typeLabel = ticket?.type === "feedback" ? "feedback" : "support request";
+  const heading =
+    ticket?.type === "feedback"
+      ? `We received your feedback`
+      : `We received your support request`;
+  const ticketRef = ticket?.id != null ? `#${ticket.id}` : "";
+  const subjectLine = ticket?.subject ? `: ${ticket.subject}` : "";
+  const subject = `[${brandName} Support] Ticket ${ticketRef} received${subjectLine}`.slice(
+    0,
+    200
+  );
+
+  const body = ticketBodyToHtml(autoResponseText);
+  const meta = detailsTableTicket([
+    ["Ticket", ticketRef || "(pending)"],
+    ["Subject", ticket?.subject],
+    ["Type", ticket?.type === "feedback" ? "Feedback" : "Support"],
+  ]);
+
+  const html = ticketEmailShell({
+    heading,
+    intro,
+    bodyHtml: `${body}${meta}`,
+    ctaUrl: viewUrl,
+    ctaLabel: "View ticket",
+    footerNote:
+      "You're receiving this email because you submitted a " +
+      typeLabel +
+      " in Opsy. Replies to this email are not monitored — please use the ticket link above to continue the conversation.",
+  });
+
+  return sendViaSes({ to: toAddr, subject, html, usage });
+}
+
+/**
+ * Notification email sent to the ticket creator whenever a team member posts a reply.
+ * Skip automated replies (they're acknowledged by sendSupportTicketReceivedEmail) and
+ * skip when the creator is the author (self-echo).
+ */
+async function sendSupportTicketReplyEmail({
+  to,
+  userName,
+  ticket,
+  reply,
+  viewUrl,
+  usage,
+}) {
+  if (!isSesConfigured()) {
+    console.warn("[emailService] SES not configured — skipping ticket reply email");
+    return { success: false, reason: "ses_not_configured" };
+  }
+  const toAddr = to && String(to).trim();
+  if (!toAddr) return { success: false, reason: "no_recipient" };
+  if (!reply?.body?.trim()) return { success: false, reason: "empty_body" };
+
+  const firstName = firstNameFromUser(userName);
+  const intro = firstName
+    ? `Hi ${escapeHtml(firstName)},`
+    : "Hi there,";
+  const ticketRef = ticket?.id != null ? `#${ticket.id}` : "";
+  const subjectLine = ticket?.subject ? `: ${ticket.subject}` : "";
+  const subject = `[${brandName} Support] New reply on ticket ${ticketRef}${subjectLine}`.slice(
+    0,
+    200
+  );
+
+  const replyBlock = `
+    <div style="margin: 16px 0; padding: 14px 16px; background: #f9fafb; border-left: 3px solid #456564; border-radius: 6px; font-size: 15px; color: #111827; line-height: 1.55; white-space: pre-wrap;">
+      ${escapeHtml(reply.body).replace(/\n/g, "<br/>")}
+    </div>`;
+
+  const meta = detailsTableTicket([
+    ["Ticket", ticketRef],
+    ["Subject", ticket?.subject],
+    ["Status", humanizeStatus(ticket?.status)],
+  ]);
+
+  const html = ticketEmailShell({
+    heading: `A team member replied to your ticket`,
+    intro,
+    bodyHtml: `
+      <p style="margin: 12px 0; line-height: 1.6;">
+        The Opsy Support team just posted an update on your ticket${ticketRef ? ` ${ticketRef}` : ""}.
+      </p>
+      ${replyBlock}
+      ${meta}
+      <p style="margin: 12px 0; line-height: 1.6;">
+        Open the ticket below to view the full conversation or reply.
+      </p>`,
+    ctaUrl: viewUrl,
+    ctaLabel: "View and reply",
+    footerNote:
+      "Replies to this email are not monitored — please use the ticket link above so the entire thread stays with your request.",
+  });
+
+  return sendViaSes({ to: toAddr, subject, html, usage });
+}
+
+function detailsTableTicket(rows) {
+  const body = rows
+    .filter(([, v]) => v != null && String(v).trim() !== "")
+    .map(
+      ([label, value]) =>
+        `<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top; font-size: 13px;">${escapeHtml(label)}</td><td style="vertical-align: top; font-size: 13px; color: #111827;">${escapeHtml(value)}</td></tr>`
+    )
+    .join("");
+  if (!body) return "";
+  return `<table style="border-collapse: collapse; margin: 12px 0;">${body}</table>`;
+}
+
+function humanizeStatus(status) {
+  if (!status) return null;
+  return String(status)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendEmailVerificationEmail,
@@ -702,6 +895,8 @@ module.exports = {
   sendScheduleNotificationEmail,
   sendProfessionalContactEmail,
   sendCommunicationNotifyEmail,
+  sendSupportTicketReceivedEmail,
+  sendSupportTicketReplyEmail,
   getOpsTeamNotifyRecipients,
   sendOpsTeamInternalNotification,
 };

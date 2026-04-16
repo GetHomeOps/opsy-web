@@ -1,6 +1,6 @@
 import React from "react";
 import { format } from "date-fns";
-import { User, Headphones, MessageSquare } from "lucide-react";
+import { User, Headphones, MessageSquare, Bot } from "lucide-react";
 import MarkdownText from "../MarkdownText";
 
 const ROLE_CONFIG = {
@@ -25,11 +25,12 @@ const ROLE_CONFIG = {
 };
 
 function ConversationMessage({ item }) {
+  const isAutomated = !!item.isAutomated;
   const config =
     item.type === "initial"
       ? ROLE_CONFIG.initial
       : ROLE_CONFIG[item.role] || ROLE_CONFIG.user;
-  const Icon = config.icon;
+  const Icon = isAutomated ? Bot : config.icon;
   const isAdmin = item.role === "admin" && item.type !== "initial";
 
   return (
@@ -45,9 +46,14 @@ function ConversationMessage({ item }) {
           <span className="text-sm font-semibold text-gray-900 dark:text-white">
             {item.actor}
           </span>
-          {isAdmin && (
+          {isAdmin && !isAutomated && (
             <span className="text-[10px] font-medium uppercase tracking-wider text-[#456564] dark:text-[#7a9e9c] bg-[#456564]/10 dark:bg-[#456564]/20 px-1.5 py-0.5 rounded">
               Support
+            </span>
+          )}
+          {isAutomated && (
+            <span className="text-[10px] font-medium uppercase tracking-wider text-[#456564] dark:text-[#7a9e9c] bg-[#456564]/10 dark:bg-[#456564]/20 px-1.5 py-0.5 rounded">
+              Auto-reply
             </span>
           )}
           {item.type === "initial" && (

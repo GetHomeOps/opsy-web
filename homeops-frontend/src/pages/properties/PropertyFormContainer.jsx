@@ -471,12 +471,13 @@ function PropertyFormContainer() {
   const invitationIdFromUrlRaw =
     searchParams.get("invitation")?.trim?.() || searchParams.get("invitation");
   const [validatedInvitationId, setValidatedInvitationId] = useState(null);
-  const [isValidatingInvitationId, setIsValidatingInvitationId] = useState(false);
+  const [isValidatingInvitationId, setIsValidatingInvitationId] =
+    useState(false);
   const invitationIdFromUrl = validatedInvitationId;
   const isInvitationView = Boolean(
     invitationIdFromUrlRaw &&
-      uid !== "new" &&
-      (isValidatingInvitationId || invitationIdFromUrl),
+    uid !== "new" &&
+    (isValidatingInvitationId || invitationIdFromUrl),
   );
   const tabFromUrl = searchParams.get("tab");
   const {t} = useTranslation();
@@ -914,11 +915,14 @@ function PropertyFormContainer() {
       setIsValidatingInvitationId(true);
       setValidatedInvitationId(null);
       try {
-        const received = await AppApi.getReceivedInvitations({status: "pending"});
+        const received = await AppApi.getReceivedInvitations({
+          status: "pending",
+        });
         if (cancelled) return;
 
         const isValid = (received ?? []).some((inv) => {
-          const matchesInvitation = String(inv.id) === String(invitationIdFromUrlRaw);
+          const matchesInvitation =
+            String(inv.id) === String(invitationIdFromUrlRaw);
           const invitationPropertyRef = inv.propertyUid ?? inv.propertyId;
           const matchesProperty =
             invitationPropertyRef != null &&
@@ -973,7 +977,12 @@ function PropertyFormContainer() {
       return;
     }
     setShowInviteAgentCta(true);
-  }, [uid, hasResolvedTeamForCta, hasAgentOrPendingInvitation, isCurrentUserAgent]);
+  }, [
+    uid,
+    hasResolvedTeamForCta,
+    hasAgentOrPendingInvitation,
+    isCurrentUserAgent,
+  ]);
 
   /* Open invitation modal when viewing property from invitation notification */
   useEffect(() => {
@@ -1026,9 +1035,9 @@ function PropertyFormContainer() {
       const detail = event?.detail ?? {};
       const eventUid = detail.propertyUid;
       const eventPropertyId = detail.propertyId;
-      const currentPropertyId = state.property?.identity?.id ?? state.property?.id;
-      const matchesUid =
-        eventUid != null && String(eventUid) === String(uid);
+      const currentPropertyId =
+        state.property?.identity?.id ?? state.property?.id;
+      const matchesUid = eventUid != null && String(eventUid) === String(uid);
       const matchesId =
         eventPropertyId != null &&
         currentPropertyId != null &&

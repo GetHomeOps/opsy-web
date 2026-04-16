@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "name": { "type": ["string", "null"], "maxLength": 255 },
+    "description": { "type": ["string", "null"] },
+    "planIds": { "type": "array", "items": { "type": "integer" } },
+    "maxRedemptions": { "type": ["integer", "null"], "minimum": 1 },
+    "expiresAt": { "type": ["string", "null"], "format": "date-time" },
+    "isActive": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

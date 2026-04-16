@@ -280,7 +280,8 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     if (/\/helpdesk(\/|$)/.test(path)) return "helpdesk";
     if (
       /\/subscriptions(\/|$)/.test(path) ||
-      /\/subscription-products(\/|$)/.test(path)
+      /\/subscription-products(\/|$)/.test(path) ||
+      /\/coupons(\/|$)/.test(path)
     )
       return "subscriptions";
     if (/\/dashboard(\/|$)/.test(path)) return "dashboard";

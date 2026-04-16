@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "couponType": { "type": "string", "enum": ["general", "unique"], "default": "general" },
+    "code": { "type": "string", "minLength": 2, "maxLength": 50, "pattern": "^[A-Za-z0-9_-]+$" },
+    "name": { "type": ["string", "null"], "maxLength": 255 },
+    "description": { "type": ["string", "null"] },
+    "discountType": { "type": "string", "enum": ["percent", "fixed"] },
+    "discountValue": { "type": "number", "exclusiveMinimum": 0 },
+    "currency": { "type": "string", "maxLength": 10 },
+    "duration": { "type": "string", "enum": ["once", "repeating", "forever"] },
+    "durationInMonths": { "type": ["integer", "null"], "minimum": 1, "maximum": 36 },
+    "planIds": { "type": "array", "items": { "type": "integer" } },
+    "maxRedemptions": { "type": ["integer", "null"], "minimum": 1 },
+    "expiresAt": { "type": ["string", "null"], "format": "date-time" },
+    "isActive": { "type": "boolean" },
+    "quantity": { "type": "integer", "minimum": 1, "maximum": 500 },
+    "codePrefix": { "type": "string", "maxLength": 20, "pattern": "^[A-Za-z0-9_-]*$" },
+    "batchName": { "type": ["string", "null"], "maxLength": 255 }
+  },
+  "required": ["discountType", "discountValue", "duration"],
+  "additionalProperties": false
+}

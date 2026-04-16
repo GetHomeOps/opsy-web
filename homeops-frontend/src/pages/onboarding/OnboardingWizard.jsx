@@ -20,6 +20,7 @@ import {
   PLAN_LIMITS,
   PLAN_CODE_TO_SUBSCRIPTION_TIER,
 } from "./onboardingPlans";
+import CouponCodeInput from "../../components/billing/CouponCodeInput";
 
 /** At most one "Most popular" badge per list (API order). */
 function withSinglePopularFlag(plans) {
@@ -284,6 +285,7 @@ function Step2Plan({
   apiPlans,
   subscriptionProducts = [],
   apiLoading,
+  onCouponApplied,
 }) {
   const plans = withSinglePopularFlag(
     apiPlans && apiPlans.length > 0
@@ -363,6 +365,11 @@ function Step2Plan({
           </div>
         </div>
       )}
+
+      {/* Coupon Code */}
+      <div className="flex justify-center mt-4">
+        <CouponCodeInput planCode={null} onCouponApplied={onCouponApplied} />
+      </div>
 
       {apiLoading ? (
         <div className="flex items-center justify-center py-16">
@@ -565,6 +572,7 @@ export default function OnboardingWizard() {
   const [role, setRole] = useState(null);
   const [plan, setPlan] = useState(null);
   const [billingInterval, setBillingInterval] = useState("month");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [apiPlans, setApiPlans] = useState([]);
   const [subscriptionProducts, setSubscriptionProducts] = useState([]);
   const [apiLoading, setApiLoading] = useState(false);
@@ -647,6 +655,7 @@ export default function OnboardingWizard() {
           billingInterval,
           successUrl,
           cancelUrl,
+          couponCode: appliedCoupon?.code || undefined,
         });
         if (url) window.location.href = url;
         else setError("Could not start checkout. Please try again.");
@@ -687,6 +696,7 @@ export default function OnboardingWizard() {
               apiPlans={apiPlans}
               subscriptionProducts={subscriptionProducts}
               apiLoading={apiLoading}
+              onCouponApplied={setAppliedCoupon}
             />
           )}
           {step === 3 && (

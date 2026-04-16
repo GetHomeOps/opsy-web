@@ -459,13 +459,15 @@ class AppApi {
     return res;
   }
 
-  static async createCheckoutSession({ planCode, billingInterval, successUrl, cancelUrl }) {
-    const res = await this.request(`billing/checkout-session`, {
+  static async createCheckoutSession({ planCode, billingInterval, successUrl, cancelUrl, couponCode }) {
+    const body = {
       planCode,
       billingInterval: billingInterval || "month",
       successUrl,
       cancelUrl,
-    }, "POST");
+    };
+    if (couponCode) body.couponCode = couponCode;
+    const res = await this.request(`billing/checkout-session`, body, "POST");
     return res;
   }
 
@@ -556,6 +558,49 @@ class AppApi {
   static async getStripePrices() {
     const res = await this.request(`billing/stripe/prices`);
     return res;
+  }
+
+  /* --------- Coupons --------- */
+
+  static async getCoupons() {
+    return this.request(`coupons`);
+  }
+
+  static async getCouponsGrouped() {
+    // GET requests merge `data` into url.search; embedding ?view=batches in the path is stripped.
+    return this.request(`coupons`, { view: "batches" });
+  }
+
+  static async getCoupon(id) {
+    return this.request(`coupons/${id}`);
+  }
+
+  static async createCoupon(data) {
+    return this.request(`coupons`, data, "POST");
+  }
+
+  static async updateCoupon(id, data) {
+    return this.request(`coupons/${id}`, data, "PATCH");
+  }
+
+  static async deleteCoupon(id) {
+    return this.request(`coupons/${id}`, {}, "DELETE");
+  }
+
+  static async getBatchCodes(batchId) {
+    return this.request(`coupons/batch/${batchId}`);
+  }
+
+  static async deleteBatch(batchId) {
+    return this.request(`coupons/batch/${batchId}`, {}, "DELETE");
+  }
+
+  static async activateBatch(batchId) {
+    return this.request(`coupons/batch/${batchId}/activate`, {}, "POST");
+  }
+
+  static async validateCoupon(code, planCode) {
+    return this.request(`coupons/validate`, { code, planCode }, "POST");
   }
 
   /* --------- MFA --------- */

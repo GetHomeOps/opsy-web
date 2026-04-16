@@ -40,17 +40,24 @@ function buildChatterThread(ticket) {
 
   const replies = ticket?.replies || [];
   replies.forEach((r, i) => {
+    const isAuto = !!r.isAutomated;
     items.push({
       id: `reply-${r.id || i}`,
       type: "reply",
       role: r.role || "admin",
-      actor:
-        r.authorName ||
-        r.authorEmail ||
-        (r.role === "admin" ? "Support" : "User"),
+      actor: isAuto
+        ? "Opsy Support"
+        : r.authorName ||
+          r.authorEmail ||
+          (r.role === "admin" ? "Support" : "User"),
       text: r.body,
       timestamp: r.createdAt,
-      label: r.role === "admin" ? "Support reply" : "User reply",
+      label: isAuto
+        ? "Automated reply"
+        : r.role === "admin"
+          ? "Support reply"
+          : "User reply",
+      isAutomated: isAuto,
     });
   });
 

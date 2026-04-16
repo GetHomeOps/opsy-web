@@ -19,6 +19,7 @@ import {
   AGENT_PLANS,
   PLAN_CODE_TO_SUBSCRIPTION_TIER,
 } from "../onboarding/onboardingPlans";
+import CouponCodeInput from "../../components/billing/CouponCodeInput";
 
 /** At most one "Most popular" badge; list order matches API (sort_order, then price). */
 function withSinglePopularFlag(plans) {
@@ -43,6 +44,7 @@ function UpgradePlanPage() {
   const [error, setError] = useState(null);
   const [billingInterval, setBillingInterval] = useState("month");
   const [checkoutLoading, setCheckoutLoading] = useState(null);
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
   const accountId = currentAccount?.id;
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
@@ -159,6 +161,7 @@ function UpgradePlanPage() {
         billingInterval,
         successUrl,
         cancelUrl,
+        couponCode: appliedCoupon?.code || undefined,
       });
       if (url) {
         window.location.href = url;
@@ -296,6 +299,14 @@ function UpgradePlanPage() {
                 </div>
               </div>
             )}
+
+            {/* Coupon Code */}
+            <div className="flex justify-center mb-6">
+              <CouponCodeInput
+                planCode={null}
+                onCouponApplied={setAppliedCoupon}
+              />
+            </div>
 
             {error && (
               <div className="mb-6 rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300 flex items-center gap-2">

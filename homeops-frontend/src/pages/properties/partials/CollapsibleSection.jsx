@@ -450,7 +450,8 @@ function CollapsibleSection({
                         (ev) => (ev.system_key ?? ev.systemKey) === systemType,
                       );
                       setTimeout(
-                        () => onViewSystemEvents?.(sysEvents, title || systemLabel),
+                        () =>
+                          onViewSystemEvents?.(sysEvents, title || systemLabel),
                         0,
                       );
                     }}
@@ -569,6 +570,12 @@ function CollapsibleSection({
             systemKey={checklistSystemKey ?? systemType}
             maintenanceRecords={maintenanceRecords}
             compact
+            contacts={contacts}
+            systemType={systemType}
+            systemLabel={systemLabel || title}
+            propertyData={propertyData}
+            onScheduleSuccess={onScheduleSuccess}
+            onOpenAIAssistant={onOpenAIAssistant}
           />
         </div>
       )}

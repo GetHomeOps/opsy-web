@@ -174,7 +174,9 @@ async function get(id) {
   try {
     const repliesRes = await db.query(
       `SELECT r.id, r.ticket_id AS "ticketId", r.author_id AS "authorId",
-              r.role, r.body, r.created_at AS "createdAt",
+              r.role, r.body,
+              COALESCE(r.is_automated, FALSE) AS "isAutomated",
+              r.created_at AS "createdAt",
               u.name AS "authorName", u.email AS "authorEmail"
        FROM support_ticket_replies r
        LEFT JOIN users u ON u.id = r.author_id
@@ -184,7 +186,8 @@ async function get(id) {
     );
     replies = repliesRes.rows || [];
   } catch (err) {
-    if (err.code !== "42P01") throw err; // 42P01 = relation does not exist (migration not run)
+    if (err.code !== "42P01" && err.code !== "42703") throw err;
+    // 42P01 = relation does not exist, 42703 = column does not exist (migration not run yet)
   }
   ticket.replies = replies;
   ticket.activity = buildActivityFromReplies(ticket, ticket.replies);
@@ -193,24 +196,43 @@ async function get(id) {
 
 /** Build activity items for timeline (replies only; frontend adds initial message). */
 function buildActivityFromReplies(ticket, replies) {
-  return (replies || []).map((r) => ({
-    type: "reply",
-    actor: r.authorName || r.authorEmail || (r.role === "admin" ? "Support" : "User"),
-    text: r.body,
-    timestamp: r.createdAt,
-    label: r.role === "admin" ? "Admin reply" : "User reply",
-  }));
+  return (replies || []).map((r) => {
+    const isAuto = !!r.isAutomated;
+    const actor = isAuto
+      ? "Opsy Support (automated)"
+      : r.authorName || r.authorEmail || (r.role === "admin" ? "Support" : "User");
+    const label = isAuto
+      ? "Automated reply"
+      : r.role === "admin"
+        ? "Admin reply"
+        : "User reply";
+    return {
+      type: "reply",
+      actor,
+      text: r.body,
+      timestamp: r.createdAt,
+      label,
+      isAutomated: isAuto,
+      role: r.role,
+    };
+  });
 }
 
-/** Add a reply to a ticket. Admin adds as 'admin', user adds as 'user'. */
-async function addReply(ticketId, { authorId, role, body }) {
+/**
+ * Add a reply to a ticket. Admin adds as 'admin', user adds as 'user'.
+ * Pass isAutomated=true to record a system-generated reply (no author required).
+ */
+async function addReply(ticketId, { authorId, role, body, isAutomated = false }) {
   if (!body?.trim()) throw new BadRequestError("Reply body is required");
   if (!["admin", "user"].includes(role)) throw new BadRequestError("role must be 'admin' or 'user'");
+  if (!isAutomated && !authorId) {
+    throw new BadRequestError("authorId is required for non-automated replies");
+  }
 
   await db.query(
-    `INSERT INTO support_ticket_replies (ticket_id, author_id, role, body)
-     VALUES ($1, $2, $3, $4)`,
-    [ticketId, authorId, role, body.trim()]
+    `INSERT INTO support_ticket_replies (ticket_id, author_id, role, body, is_automated)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [ticketId, authorId || null, role, body.trim(), !!isAutomated]
   );
   return get(ticketId);
 }

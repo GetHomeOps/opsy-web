@@ -28,6 +28,7 @@ import {
   DollarSign,
   Clock,
   Inbox,
+  Tag,
 } from "lucide-react";
 
 const ICON_SIZE = 18;
@@ -213,6 +214,13 @@ export const SIDEBAR_CONFIG = [
             label: "Products & Plans",
             path: "subscription-products",
             icon: icon(Package),
+            roles: "superAdminOnly",
+          },
+          {
+            id: "coupons",
+            label: "Coupons",
+            path: "coupons",
+            icon: icon(Tag),
             roles: "superAdminOnly",
           },
         ],

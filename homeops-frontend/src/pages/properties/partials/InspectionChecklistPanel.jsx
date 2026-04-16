@@ -6,6 +6,7 @@
  */
 
 import React, {useState, useEffect, useCallback, useMemo, useRef} from "react";
+import {createPortal} from "react-dom";
 import {
   CheckCircle2,
   Circle,
@@ -23,9 +24,11 @@ import {
   MapPin,
   User,
   Clock,
+  Sparkles,
 } from "lucide-react";
 import AppApi from "../../../api/api";
 import ModalBlank from "../../../components/ModalBlank";
+import ScheduleSystemModal from "./ScheduleSystemModal";
 import {parseDateInput} from "../../../lib/dateOffset";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 
@@ -260,9 +263,10 @@ function ChecklistItem({
   onViewEvent,
   isAddressedByMaintenance = false,
   isSyncing = false,
+  onScheduleItem,
+  onAIPromptItem,
 }) {
   const isUserCreated = item.source === "user_created";
-  // User's explicit status takes precedence: if they unchecked (pending/in_progress), show as unchecked
   const explicitlyIncomplete = ["pending", "in_progress"].includes(
     String(item.status ?? "").toLowerCase(),
   );
@@ -274,8 +278,6 @@ function ChecklistItem({
     : STATUS_CONFIG.not_completed;
   const StatusIcon = statusConf.icon;
   const SevIcon = SEVERITY_ICONS[item.severity] || SEVERITY_ICONS.medium;
-  const priorityColor =
-    PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.medium;
 
   const handleToggle = () => {
     if (isSyncing) return;
@@ -314,10 +316,10 @@ function ChecklistItem({
         <StatusIcon className="w-5 h-5" strokeWidth={isChecked ? 2.5 : 1.5} />
       </button>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-2 overflow-x-auto checklist-h-scroll pb-0.5">
           <span
-            className={`text-sm font-medium transition-colors duration-200 ${
+            className={`text-sm font-medium transition-colors duration-200 whitespace-nowrap flex-shrink-0 ${
               isChecked
                 ? "text-gray-400 dark:text-gray-500 line-through"
                 : "text-gray-800 dark:text-gray-200"
@@ -326,20 +328,52 @@ function ChecklistItem({
             {item.title}
           </span>
           {isUserCreated && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/15 dark:text-[#7aa3a2]">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/15 dark:text-[#7aa3a2] flex-shrink-0">
               My ToDo
             </span>
           )}
           {effectivePriority && effectivePriority !== "medium" && (
-              <span
-                className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full transition-opacity duration-150 ${pillStyle} ${
-                  isChecked ? "opacity-45" : ""
-                }`}
-              >
-                <SevIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
-                {effectivePriority}
-              </span>
-            )}
+            <span
+              className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full transition-opacity duration-150 flex-shrink-0 ${pillStyle} ${
+                isChecked ? "opacity-45" : ""
+              }`}
+            >
+              <SevIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
+              {effectivePriority}
+            </span>
+          )}
+          {!isChecked && (onScheduleItem || onAIPromptItem) && (
+            <div className="inline-flex items-center gap-1 flex-shrink-0 ml-auto pl-2">
+              {onScheduleItem && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onScheduleItem(item);
+                  }}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-gray-500 dark:text-gray-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all duration-150"
+                  title="Schedule maintenance for this item"
+                >
+                  <Calendar className="w-3 h-3" />
+                  <span className="hidden sm:inline">Schedule</span>
+                </button>
+              )}
+              {onAIPromptItem && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAIPromptItem(item);
+                  }}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-gray-500 dark:text-gray-400 hover:text-violet-700 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/20 border border-transparent hover:border-violet-200 dark:hover:border-violet-800/50 transition-all duration-150"
+                  title="Ask AI about this item"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span className="hidden sm:inline">AI</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
         {item.description && (
           <p
@@ -376,9 +410,16 @@ function ChecklistItem({
             }}
             className="inline-flex items-center px-1.5 py-1 rounded text-emerald-500 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all duration-150"
             title={(() => {
-              const d = parseDateInput(linkedEvent.scheduled_date ?? linkedEvent.scheduledDate);
+              const d = parseDateInput(
+                linkedEvent.scheduled_date ?? linkedEvent.scheduledDate,
+              );
               const dateStr = d
-                ? d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+                ? d.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
                 : linkedEvent.scheduled_date || "—";
               const contractor = linkedEvent.contractor_name || "No contractor";
               return `${dateStr} · ${contractor}`;
@@ -513,6 +554,12 @@ export default function InspectionChecklistPanel({
   systemKey = null,
   maintenanceRecords = [],
   compact = false,
+  contacts = [],
+  systemType,
+  systemLabel,
+  propertyData = {},
+  onScheduleSuccess,
+  onOpenAIAssistant,
 }) {
   const [items, setItems] = useState([]);
   const [progress, setProgress] = useState(null);
@@ -526,29 +573,33 @@ export default function InspectionChecklistPanel({
   const [systemEventsModalOpen, setSystemEventsModalOpen] = useState(false);
   const [systemEventsModalEvents, setSystemEventsModalEvents] = useState([]);
   const [systemEventsModalLabel, setSystemEventsModalLabel] = useState("");
+  const [scheduleForItem, setScheduleForItem] = useState(null);
 
-  const loadData = useCallback(async ({showLoader = true} = {}) => {
-    if (!propertyId) return;
-    if (showLoader) setLoading(true);
-    try {
-      const [itemsRes, progressRes, eventsRes] = await Promise.all([
-        AppApi.getInspectionChecklist(propertyId, {systemKey}),
-        AppApi.getInspectionChecklistProgress(propertyId),
-        AppApi.getMaintenanceEventsByProperty(propertyId).catch(() => []),
-      ]);
-      setItems(itemsRes);
-      setProgress(progressRes);
-      setMaintenanceEvents(eventsRes || []);
-      if (!systemKey) {
-        const systems = new Set(itemsRes.map((i) => i.system_key));
-        setExpandedSystems(systems);
+  const loadData = useCallback(
+    async ({showLoader = true} = {}) => {
+      if (!propertyId) return;
+      if (showLoader) setLoading(true);
+      try {
+        const [itemsRes, progressRes, eventsRes] = await Promise.all([
+          AppApi.getInspectionChecklist(propertyId, {systemKey}),
+          AppApi.getInspectionChecklistProgress(propertyId),
+          AppApi.getMaintenanceEventsByProperty(propertyId).catch(() => []),
+        ]);
+        setItems(itemsRes);
+        setProgress(progressRes);
+        setMaintenanceEvents(eventsRes || []);
+        if (!systemKey) {
+          const systems = new Set(itemsRes.map((i) => i.system_key));
+          setExpandedSystems(systems);
+        }
+      } catch (err) {
+        console.error("[InspectionChecklistPanel] Load failed:", err);
+      } finally {
+        if (showLoader) setLoading(false);
       }
-    } catch (err) {
-      console.error("[InspectionChecklistPanel] Load failed:", err);
-    } finally {
-      if (showLoader) setLoading(false);
-    }
-  }, [propertyId, systemKey]);
+    },
+    [propertyId, systemKey],
+  );
 
   useEffect(() => {
     loadData({showLoader: true});
@@ -758,6 +809,26 @@ export default function InspectionChecklistPanel({
     [maintenanceEvents],
   );
 
+  const handleScheduleItem = useCallback(
+    (item) => {
+      setScheduleForItem(item);
+    },
+    [],
+  );
+
+  const handleAIPromptItem = useCallback(
+    (item) => {
+      if (!onOpenAIAssistant) return;
+      const resolvedLabel = systemLabel || getSystemLabel(item.system_key);
+      onOpenAIAssistant({
+        systemId: systemType || item.system_key,
+        systemName: resolvedLabel,
+        initialPrompt: `Regarding the inspection finding: "${item.title}"${item.description ? ` — ${item.description}` : ""}. What should I know about this issue? What are my options and recommended next steps?`,
+      });
+    },
+    [onOpenAIAssistant, systemType, systemLabel],
+  );
+
   const completedChecklistItemIds = useMemo(() => {
     const ids = new Set();
     for (const rec of maintenanceRecords || []) {
@@ -822,6 +893,14 @@ export default function InspectionChecklistPanel({
     const hasAnyItems = sysItems.length > 0;
     return (
       <div className="space-y-2">
+        <style>{`
+          .checklist-h-scroll { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent; }
+          .dark .checklist-h-scroll { scrollbar-color: rgba(255,255,255,0.15) transparent; }
+          .checklist-h-scroll::-webkit-scrollbar { height: 3px; }
+          .checklist-h-scroll::-webkit-scrollbar-track { background: transparent; }
+          .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
+          .dark .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
+        `}</style>
         {sysProgress && hasAnyItems && (
           <ProgressBar
             completed={sysProgress.completed}
@@ -841,6 +920,8 @@ export default function InspectionChecklistPanel({
               Number(item.id),
             )}
             isSyncing={syncingItemId === item.id}
+            onScheduleItem={propertyId ? handleScheduleItem : undefined}
+            onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
           />
         ))}
         {userItems.length > 0 && inspectionItems.length > 0 && (
@@ -864,6 +945,8 @@ export default function InspectionChecklistPanel({
               Number(item.id),
             )}
             isSyncing={syncingItemId === item.id}
+            onScheduleItem={propertyId ? handleScheduleItem : undefined}
+            onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
           />
         ))}
         <AddTodoForm
@@ -876,12 +959,38 @@ export default function InspectionChecklistPanel({
           isOpen={eventDetailOpen}
           onClose={setEventDetailOpen}
         />
+        {scheduleForItem &&
+          createPortal(
+            <ScheduleSystemModal
+              isOpen={true}
+              onClose={() => setScheduleForItem(null)}
+              systemLabel={systemLabel || getSystemLabel(scheduleForItem.system_key)}
+              systemType={systemType || scheduleForItem.system_key}
+              contacts={contacts}
+              onScheduleSuccess={() => {
+                onScheduleSuccess?.();
+                setScheduleForItem(null);
+              }}
+              propertyId={propertyId}
+              propertyData={propertyData}
+              checklistItemId={scheduleForItem.id}
+            />,
+            document.body,
+          )}
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      <style>{`
+        .checklist-h-scroll { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent; }
+        .dark .checklist-h-scroll { scrollbar-color: rgba(255,255,255,0.15) transparent; }
+        .checklist-h-scroll::-webkit-scrollbar { height: 3px; }
+        .checklist-h-scroll::-webkit-scrollbar-track { background: transparent; }
+        .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
+        .dark .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
+      `}</style>
       {progress && (
         <div className="flex items-center gap-3 mb-1">
           <ProgressBar
@@ -941,6 +1050,8 @@ export default function InspectionChecklistPanel({
                       Number(item.id),
                     )}
                     isSyncing={syncingItemId === item.id}
+                    onScheduleItem={propertyId ? handleScheduleItem : undefined}
+                    onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
                   />
                 ))}
                 {userItems.length > 0 && inspectionItems.length > 0 && (
@@ -966,6 +1077,8 @@ export default function InspectionChecklistPanel({
                       Number(item.id),
                     )}
                     isSyncing={syncingItemId === item.id}
+                    onScheduleItem={propertyId ? handleScheduleItem : undefined}
+                    onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
                   />
                 ))}
                 <AddTodoForm
@@ -989,6 +1102,24 @@ export default function InspectionChecklistPanel({
         isOpen={systemEventsModalOpen}
         onClose={setSystemEventsModalOpen}
       />
+      {scheduleForItem &&
+        createPortal(
+          <ScheduleSystemModal
+            isOpen={true}
+            onClose={() => setScheduleForItem(null)}
+            systemLabel={systemLabel || getSystemLabel(scheduleForItem.system_key)}
+            systemType={systemType || scheduleForItem.system_key}
+            contacts={contacts}
+            onScheduleSuccess={() => {
+              onScheduleSuccess?.();
+              setScheduleForItem(null);
+            }}
+            propertyId={propertyId}
+            propertyData={propertyData}
+            checklistItemId={scheduleForItem.id}
+          />,
+          document.body,
+        )}
     </div>
   );
 }

@@ -56,6 +56,7 @@ const inspectionChecklistRoutes = require("./routes/inspectionChecklist");
 const aiRoutes = require("./routes/ai");
 const webhookRoutes = require("./routes/webhooks");
 const billingRoutes = require("./routes/billing");
+const couponRoutes = require("./routes/coupons");
 const calendarIntegrationsRoutes = require("./routes/calendarIntegrations");
 
 const app = express();
@@ -166,6 +167,7 @@ app.use("/inspection-analysis", inspectionAnalysisRoutes);
 app.use("/", inspectionChecklistRoutes);
 app.use("/ai", aiRoutes);
 app.use("/billing", billingRoutes);
+app.use("/coupons", couponRoutes);
 app.use("/calendar-integrations", calendarIntegrationsRoutes);
 
 // Serve React SPA when frontend build is present (same-origin deployment)

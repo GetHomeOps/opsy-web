@@ -1,6 +1,6 @@
 import React from "react";
 import { format } from "date-fns";
-import { MessageSquare, User, Headphones, Lock } from "lucide-react";
+import { MessageSquare, User, Headphones, Lock, Bot } from "lucide-react";
 import MarkdownText from "./MarkdownText";
 
 const MESSAGE_STYLES = {
@@ -48,7 +48,7 @@ function DiscussionTimeline({ items, emptyMessage = "No messages yet." }) {
             : item.role === "admin"
               ? MESSAGE_STYLES.admin
               : MESSAGE_STYLES.user;
-        const Icon = style.icon;
+        const Icon = item.isAutomated ? Bot : style.icon;
 
         return (
           <div

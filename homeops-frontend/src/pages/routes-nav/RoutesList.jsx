@@ -49,6 +49,8 @@ import SubscriptionsList from "../subscriptions/SubscriptionsList";
 import Subscription from "../subscriptions/Subscription";
 import SubscriptionProductsList from "../subscriptions/SubscriptionProductsList";
 import SubscriptionProduct from "../subscriptions/SubscriptionProduct";
+import CouponsList from "../coupons/CouponsList";
+import CouponForm from "../coupons/CouponForm";
 import ProfessionalDirectory from "../professionals/ProfessionalDirectory";
 import ProfessionalsDirectorySample from "../professionals/ProfessionalsDirectorySample";
 import CategoryDirectoryPage from "../professionals/CategoryDirectoryPage";
@@ -663,6 +665,31 @@ function RoutesList() {
         element={
           <SuperAdminRoute>
             <SubscriptionProduct />
+          </SuperAdminRoute>
+        }
+      />
+      {/* Coupons (Super Admin) */}
+      <Route
+        path="/:accountUrl/coupons"
+        element={
+          <SuperAdminRoute>
+            <CouponsList />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/coupons/new"
+        element={
+          <SuperAdminRoute>
+            <CouponForm />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/coupons/:id"
+        element={
+          <SuperAdminRoute>
+            <CouponForm />
           </SuperAdminRoute>
         }
       />

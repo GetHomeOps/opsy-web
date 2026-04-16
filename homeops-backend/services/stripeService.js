@@ -49,7 +49,7 @@ async function getOrCreateStripeCustomer(accountId, email, name) {
 }
 
 /** Create Checkout Session for subscription. Returns { url }. */
-async function createCheckoutSession({ accountId, userId, planCode, billingInterval = "month", successUrl, cancelUrl, customerEmail, customerName }) {
+async function createCheckoutSession({ accountId, userId, planCode, billingInterval = "month", successUrl, cancelUrl, customerEmail, customerName, couponCode }) {
   if (BILLING_MOCK_MODE) {
     const base = successUrl || STRIPE_SUCCESS_URL;
     const sep = base.includes("?") ? "&" : "?";
@@ -103,7 +103,9 @@ async function createCheckoutSession({ accountId, userId, planCode, billingInter
       subscription_product_id: String(plan.rows[0].id),
       billing_interval: billingInterval,
     },
-    allow_promotion_codes: true,
+    ...(couponCode
+      ? { discounts: [{ promotion_code: couponCode }] }
+      : { allow_promotion_codes: true }),
     ...(logoUrl && {
       branding_settings: {
         logo: { type: "url", url: logoUrl },
@@ -466,6 +468,49 @@ async function handleInvoicePayment(invoice) {
   }
 }
 
+/** Handle customer.discount.created — record coupon redemption when Stripe applies a discount. */
+async function handleDiscountCreated(discount) {
+  const stripeCouponId = discount.coupon?.id;
+  const stripePromoCodeId = discount.promotion_code || null;
+  const stripeCustomerId = discount.customer;
+  if (!stripeCouponId || !stripeCustomerId) return;
+
+  const Coupon = require("../models/coupon");
+
+  // For batch (unique) coupons, multiple DB rows share the same stripe_coupon_id
+  // but each has a distinct stripe_promo_code_id. Match on promo code first.
+  let coupon = null;
+  if (stripePromoCodeId) {
+    coupon = await Coupon.findByStripePromoCodeId(stripePromoCodeId);
+  }
+  if (!coupon) {
+    coupon = await Coupon.findByStripeCouponId(stripeCouponId);
+  }
+  if (!coupon) return;
+
+  const accountRes = await db.query(
+    `SELECT a.id, a.owner_user_id FROM accounts WHERE stripe_customer_id = $1`,
+    [stripeCustomerId]
+  );
+  if (!accountRes.rows[0]) return;
+
+  const accountId = accountRes.rows[0].id;
+  const userId = accountRes.rows[0].owner_user_id;
+  const subscriptionId = discount.subscription || null;
+
+  try {
+    await Coupon.recordRedemption({
+      couponId: coupon.id,
+      accountId,
+      userId,
+      stripeSubscriptionId: subscriptionId,
+    });
+  } catch (err) {
+    if (err.code === "23505") return; // unique violation — already recorded
+    console.warn("[webhooks/stripe] handleDiscountCreated: failed to record redemption", err.message);
+  }
+}
+
 /** Process webhook event (idempotent). */
 async function processWebhookEvent(event) {
   if (await isEventProcessed(event.id)) return;
@@ -486,6 +531,13 @@ async function processWebhookEvent(event) {
     case "invoice.payment_succeeded":
     case "invoice.payment_failed":
       await handleInvoicePayment(event.data.object);
+      break;
+    case "customer.discount.created":
+      await handleDiscountCreated(event.data.object);
+      break;
+    case "customer.discount.deleted":
+      // Logged for audit; no local action needed
+      console.info(`[webhooks/stripe] customer.discount.deleted: customer=${event.data.object?.customer}`);
       break;
     default:
       break;

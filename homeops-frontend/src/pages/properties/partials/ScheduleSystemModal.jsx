@@ -32,7 +32,8 @@ const STEPS = [
 
 function coerceContractorId(sourceId) {
   if (sourceId == null || sourceId === "") return null;
-  if (typeof sourceId === "number" && Number.isInteger(sourceId)) return sourceId;
+  if (typeof sourceId === "number" && Number.isInteger(sourceId))
+    return sourceId;
   const n = parseInt(String(sourceId), 10);
   return Number.isFinite(n) ? n : null;
 }
@@ -500,6 +501,55 @@ function ProfessionalStep({
   );
 }
 
+/** Shared body for "Suggested inspection scope" (Details + Message steps). */
+function SuggestedInspectionScopeBody({
+  maintenanceLoading,
+  maintenanceRecommendations,
+}) {
+  const hasRecommendations =
+    Array.isArray(maintenanceRecommendations) &&
+    maintenanceRecommendations.length > 0;
+
+  if (maintenanceLoading) {
+    return (
+      <div
+        className="flex items-center gap-2.5 py-3 min-h-[4.5rem]"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <Loader2
+          className="w-5 h-5 animate-spin text-[#456564] dark:text-[#7aa3a2] flex-shrink-0"
+          aria-hidden
+        />
+        <span className="text-sm text-gray-600 dark:text-gray-400">
+          Loading inspection suggestions…
+        </span>
+      </div>
+    );
+  }
+
+  if (hasRecommendations) {
+    return (
+      <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1.5">
+        {maintenanceRecommendations.map((item, idx) => (
+          <li key={idx} className="flex items-start gap-2">
+            <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2] flex-shrink-0 mt-0.5" />
+            <span>{typeof item === "string" ? item : item.task || item}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <p className="text-sm text-gray-500 dark:text-gray-400">
+      No specific recommendations yet. Add inspection documents or run AI
+      analysis for tailored suggestions.
+    </p>
+  );
+}
+
 /* ──────────────────── Step 3: Scheduling Details ──────────────────── */
 
 function DetailsStep({
@@ -514,11 +564,6 @@ function DetailsStep({
   selectedChecklistItemId,
   setSelectedChecklistItemId,
 }) {
-  const hasRecommendations =
-    scheduleType === "inspection" &&
-    Array.isArray(maintenanceRecommendations) &&
-    maintenanceRecommendations.length > 0;
-
   return (
     <div className="space-y-5">
       <div>
@@ -526,14 +571,14 @@ function DetailsStep({
           Scheduling Details
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Choose a date to continue (required). Time is optional; reminder options
-          are on the next step.
+          Choose a date to continue (required). Time is optional; reminder
+          options are on the next step.
         </p>
       </div>
 
       {(() => {
         const pendingItems = checklistItems.filter(
-          (item) => (item.status || "").toLowerCase() !== "completed"
+          (item) => (item.status || "").toLowerCase() !== "completed",
         );
         return pendingItems.length > 0;
       })() && (
@@ -543,24 +588,22 @@ function DetailsStep({
           </label>
           <select
             value={selectedChecklistItemId ?? ""}
-            onChange={(e) =>
-              setSelectedChecklistItemId(e.target.value || null)
-            }
+            onChange={(e) => setSelectedChecklistItemId(e.target.value || null)}
             className="form-select w-full"
           >
             <option value="">None — general event</option>
             {checklistItems
               .filter(
-                (item) => (item.status || "").toLowerCase() !== "completed"
+                (item) => (item.status || "").toLowerCase() !== "completed",
               )
               .map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-                {item.priority && item.priority !== "medium"
-                  ? ` (${item.priority})`
-                  : ""}
-              </option>
-            ))}
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                  {item.priority && item.priority !== "medium"
+                    ? ` (${item.priority})`
+                    : ""}
+                </option>
+              ))}
           </select>
           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
             Link this event to an inspection checklist item
@@ -574,27 +617,10 @@ function DetailsStep({
             <Wrench className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
             Suggested inspection scope
           </h4>
-          {maintenanceLoading ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Loading recommendations...
-            </p>
-          ) : hasRecommendations ? (
-            <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1.5">
-              {maintenanceRecommendations.map((item, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2] flex-shrink-0 mt-0.5" />
-                  <span>
-                    {typeof item === "string" ? item : item.task || item}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              No specific recommendations yet. Add inspection documents or run
-              AI analysis for tailored suggestions.
-            </p>
-          )}
+          <SuggestedInspectionScopeBody
+            maintenanceLoading={maintenanceLoading}
+            maintenanceRecommendations={maintenanceRecommendations}
+          />
         </div>
       )}
 
@@ -604,7 +630,10 @@ function DetailsStep({
             <span className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-[#456564]" />
               Date
-              <span className="text-red-500 dark:text-red-400 font-normal" aria-hidden>
+              <span
+                className="text-red-500 dark:text-red-400 font-normal"
+                aria-hidden
+              >
                 *
               </span>
               <span className="sr-only">(required)</span>
@@ -712,11 +741,16 @@ function EmailPreview({
       <div className="p-4 text-sm flex flex-col gap-3 overflow-hidden">
         <div className="space-y-1 text-gray-600 dark:text-gray-400 shrink-0">
           <p>
-            <span className="font-medium text-gray-500 dark:text-gray-500">To:</span>{" "}
+            <span className="font-medium text-gray-500 dark:text-gray-500">
+              To:
+            </span>{" "}
             {contractorEmail ? (
               <>
                 {contractorName || "Contractor"}
-                <span className="text-gray-400"> &lt;{contractorEmail}&gt;</span>
+                <span className="text-gray-400">
+                  {" "}
+                  &lt;{contractorEmail}&gt;
+                </span>
               </>
             ) : contractorSelected ? (
               <span className="text-red-600 dark:text-red-400 font-medium">
@@ -728,12 +762,16 @@ function EmailPreview({
           </p>
           {replyEmail && (
             <p>
-              <span className="font-medium text-gray-500 dark:text-gray-500">Reply-To:</span>{" "}
+              <span className="font-medium text-gray-500 dark:text-gray-500">
+                Reply-To:
+              </span>{" "}
               {replyEmail}
             </p>
           )}
           <p>
-            <span className="font-medium text-gray-500 dark:text-gray-500">Subject:</span>{" "}
+            <span className="font-medium text-gray-500 dark:text-gray-500">
+              Subject:
+            </span>{" "}
             Service scheduled — {systemName || "Maintenance"}
             {propertyAddress ? ` at ${propertyAddress}` : ""}
           </p>
@@ -748,10 +786,27 @@ function EmailPreview({
           />
           {(propertyAddress || systemName || formattedDate) && (
             <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 text-xs space-y-1">
-              {propertyAddress && <p><span className="font-medium">Property:</span> {propertyAddress}</p>}
-              {systemName && <p><span className="font-medium">System:</span> {systemName}</p>}
-              <p><span className="font-medium">Date:</span> {formattedDate}{formattedTime ? ` at ${formattedTime}` : ""}</p>
-              {senderName && <p><span className="font-medium">Requested by:</span> {senderName}</p>}
+              {propertyAddress && (
+                <p>
+                  <span className="font-medium">Property:</span>{" "}
+                  {propertyAddress}
+                </p>
+              )}
+              {systemName && (
+                <p>
+                  <span className="font-medium">System:</span> {systemName}
+                </p>
+              )}
+              <p>
+                <span className="font-medium">Date:</span> {formattedDate}
+                {formattedTime ? ` at ${formattedTime}` : ""}
+              </p>
+              {senderName && (
+                <p>
+                  <span className="font-medium">Requested by:</span>{" "}
+                  {senderName}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -796,7 +851,9 @@ function MessageStep({
   const promptsToShow = useMemo(() => {
     if (contractorQuestionsLoading) return [];
     if (contractorSuggestedQuestions?.length > 0) {
-      return contractorSuggestedQuestions.map((q) => String(q).trim()).filter(Boolean);
+      return contractorSuggestedQuestions
+        .map((q) => String(q).trim())
+        .filter(Boolean);
     }
     return defaultContractorPrompts(scheduleType, systemLabel);
   }, [
@@ -876,7 +933,8 @@ function MessageStep({
                   </h4>
                 </div>
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-2.5 leading-relaxed">
-                  Suggested lines based on your system and schedule type. Tap to add to your email.
+                  Suggested lines based on your system and schedule type. Tap to
+                  add to your email.
                 </p>
                 {contractorQuestionsLoading ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
@@ -889,7 +947,9 @@ function MessageStep({
                       <li key={idx}>
                         <button
                           type="button"
-                          onClick={() => appendLineToMessageBody(setMessageBody, prompt)}
+                          onClick={() =>
+                            appendLineToMessageBody(setMessageBody, prompt)
+                          }
                           className="w-full text-left text-xs leading-snug px-2.5 py-2 rounded-md border border-violet-200/90 dark:border-violet-800/60 bg-white/90 dark:bg-gray-800/80 text-gray-700 dark:text-gray-200 hover:border-violet-400 dark:hover:border-violet-600 hover:bg-violet-50/80 dark:hover:bg-violet-950/40 transition-colors"
                         >
                           + {prompt}
@@ -922,29 +982,17 @@ function MessageStep({
 
       {scheduleType === "inspection" &&
         (hasRecommendations || maintenanceLoading) && (
-        <div className="rounded-lg border border-[#456564]/20 dark:border-[#7aa3a2]/30 bg-[#456564]/5 dark:bg-[#456564]/10 p-4">
-          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1.5">
-            <Wrench className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
-            Suggested inspection scope
-          </h4>
-          {maintenanceLoading ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Loading recommendations...
-            </p>
-          ) : hasRecommendations ? (
-            <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1.5">
-              {maintenanceRecommendations.map((item, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2] flex-shrink-0 mt-0.5" />
-                  <span>
-                    {typeof item === "string" ? item : item.task || item}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      )}
+          <div className="rounded-lg border border-[#456564]/20 dark:border-[#7aa3a2]/30 bg-[#456564]/5 dark:bg-[#456564]/10 p-4">
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1.5">
+              <Wrench className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
+              Suggested inspection scope
+            </h4>
+            <SuggestedInspectionScopeBody
+              maintenanceLoading={maintenanceLoading}
+              maintenanceRecommendations={maintenanceRecommendations}
+            />
+          </div>
+        )}
 
       {/* ── Alert / reminder ── */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-5">
@@ -1109,7 +1157,9 @@ function ScheduleSystemModal({
       .catch(() => {
         if (!cancelled) setChecklistItems([]);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, propId, systemType]);
 
   useEffect(() => {
@@ -1126,11 +1176,7 @@ function ScheduleSystemModal({
       setScheduledTime("");
       setSelectedChecklistItemId(checklistItemId || null);
       setMessageBody("");
-      setReplyEmail(
-        currentUser?.data?.email ||
-          currentUser?.email ||
-          "",
-      );
+      setReplyEmail(currentUser?.data?.email || currentUser?.email || "");
       setMaintenanceRecommendations([]);
       setContractorSuggestedQuestions([]);
       setMaintenanceLoading(false);
@@ -1161,7 +1207,9 @@ function ScheduleSystemModal({
           advice?.suggestions?.length ? advice.suggestions : [],
         );
         const qs = Array.isArray(advice?.suggestedQuestions)
-          ? advice.suggestedQuestions.map((q) => String(q).trim()).filter(Boolean)
+          ? advice.suggestedQuestions
+              .map((q) => String(q).trim())
+              .filter(Boolean)
           : [];
         setContractorSuggestedQuestions(qs);
       })
@@ -1236,7 +1284,8 @@ function ScheduleSystemModal({
   const nextDisabledTitle = () => {
     if (canAdvance()) return undefined;
     if (currentStep === 0) return "Select a type to continue";
-    if (currentStep === 1) return "Choose whether you have a professional to continue";
+    if (currentStep === 1)
+      return "Choose whether you have a professional to continue";
     if (currentStep === 2) return "Select a date to continue";
     return undefined;
   };
@@ -1287,13 +1336,15 @@ function ScheduleSystemModal({
     }
 
     const resolvedMessageBody = sendEmail
-      ? (messageBody?.trim() ||
+      ? (
+          messageBody?.trim() ||
           generateMessageTemplate(
             propertyName,
             systemLabel,
             scheduledDate,
             scheduleType,
-          )).trim()
+          )
+        ).trim()
       : "";
 
     const eventPayload = {
@@ -1314,9 +1365,9 @@ function ScheduleSystemModal({
       alert_custom_days: alertCustomDaysVal,
       email_reminder: alertEnabled,
       message_enabled: sendEmail && !!resolvedMessageBody,
-      message_body: sendEmail && resolvedMessageBody ? resolvedMessageBody : null,
-      reply_email:
-        sendEmail && replyEmail?.trim() ? replyEmail.trim() : null,
+      message_body:
+        sendEmail && resolvedMessageBody ? resolvedMessageBody : null,
+      reply_email: sendEmail && replyEmail?.trim() ? replyEmail.trim() : null,
       send_email_now: sendEmailNow,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       checklist_item_id: selectedChecklistItemId
@@ -1381,7 +1432,7 @@ function ScheduleSystemModal({
       modalOpen={isOpen}
       setModalOpen={onClose}
       closeOnClickOutside={false}
-        contentClassName="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden p-0"
+      contentClassName="max-w-4xl max-h-[85vh] flex flex-col overflow-hidden p-0"
     >
       <div className="relative flex flex-col flex-1 min-h-0 p-6">
         <div className="flex items-center justify-between mb-4 shrink-0">
@@ -1477,9 +1528,7 @@ function ScheduleSystemModal({
               scheduledDate={scheduledDate}
               scheduledTime={scheduledTime}
               scheduleType={scheduleType}
-              senderName={
-                currentUser?.data?.name || currentUser?.name || ""
-              }
+              senderName={currentUser?.data?.name || currentUser?.name || ""}
               maintenanceRecommendations={maintenanceRecommendations}
               maintenanceLoading={maintenanceLoading}
               contractorSuggestedQuestions={contractorSuggestedQuestions}
@@ -1547,9 +1596,7 @@ function ScheduleSystemModal({
                 {saving ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    {savingAction === "email"
-                      ? "Sending..."
-                      : "Saving..."}
+                    {savingAction === "email" ? "Sending..." : "Saving..."}
                   </>
                 ) : sendEmail && selectedProfessional?.email ? (
                   <>

@@ -15,6 +15,7 @@ const { BadRequestError, ForbiddenError } = require("../expressError");
 const db = require("../db");
 const stripeService = require("../services/stripeService");
 const planModel = require("../models/plan");
+const Coupon = require("../models/coupon");
 const { BILLING_MOCK_MODE } = require("../config");
 const { wrapStripeErrors } = require("../utils/stripeErrors");
 
@@ -29,7 +30,7 @@ router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function
     const userId = res.locals.user?.id;
     if (!userId) throw new ForbiddenError("Authentication required");
 
-    const { planCode, billingInterval = "month", accountId, successUrl, cancelUrl } = req.body || {};
+    const { planCode, billingInterval = "month", accountId, successUrl, cancelUrl, couponCode } = req.body || {};
     if (!planCode) throw new BadRequestError("planCode is required");
 
     let accountIdToUse = accountId;
@@ -54,6 +55,13 @@ router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function
     );
     const user = userRes.rows[0];
 
+    let resolvedPromoCodeId;
+    if (couponCode) {
+      const validation = await Coupon.validate(couponCode, accountIdToUse, planCode);
+      if (!validation.valid) throw new BadRequestError(validation.reason);
+      resolvedPromoCodeId = validation.coupon?.stripePromoCodeId || undefined;
+    }
+
     const { url } = await stripeService.createCheckoutSession({
       accountId: accountIdToUse,
       userId,
@@ -63,6 +71,7 @@ router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function
       cancelUrl,
       customerEmail: user?.email,
       customerName: user?.name,
+      couponCode: resolvedPromoCodeId,
     });
 
     return res.json({ url });
