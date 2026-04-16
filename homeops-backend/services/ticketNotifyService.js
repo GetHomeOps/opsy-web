@@ -30,19 +30,18 @@ function firstNameOf(userName) {
 /**
  * Build the automated response text posted as the first admin reply on every
  * new support/feedback ticket. Copy follows common help-desk best practices:
- * acknowledge receipt, surface the ticket reference, set clear expectations on
- * next steps and response time, and invite the user to add more context.
+ * acknowledge receipt, set clear expectations on next steps and response time,
+ * and invite the user to add more context.
  */
 function generateAutomatedReplyText(ticket) {
   const firstName = firstNameOf(ticket?.createdByName);
   const greeting = firstName ? `Hi ${firstName},` : "Hi there,";
-  const ref = ticket?.id != null ? `#${ticket.id}` : "";
 
   if (ticket?.type === "feedback") {
     return [
       greeting,
       "",
-      `Thank you for sharing your feedback with Opsy — it's been received and will be reviewed by our product team. Your ticket reference is ${ref}.`,
+      `Thank you for sharing your feedback with Opsy — it's been received and will be reviewed by our product team.`,
       "",
       "What happens next:",
       "- Our product team reviews new feedback on a rolling basis.",
@@ -58,7 +57,7 @@ function generateAutomatedReplyText(ticket) {
   return [
     greeting,
     "",
-    `Thank you for reaching out to Opsy Support — your request has been received and a member of our team will review it shortly. Your ticket reference is ${ref}.`,
+    `Thank you for reaching out to Opsy Support — your request has been received and a member of our team will review it shortly.`,
     "",
     "What to expect:",
     "- A team member will reply here within 1 business day.",
@@ -126,7 +125,6 @@ async function notifyUserTicketCreated(ticket, { autoResponseText } = {}) {
   try {
     await sendSupportTicketReceivedEmail({
       to,
-      userName: ticket.createdByName || ticket.createdByEmail,
       ticket,
       viewUrl: buildTicketUrl(ticket),
       autoResponseText: autoResponseText || generateAutomatedReplyText(ticket),

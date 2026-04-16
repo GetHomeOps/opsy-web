@@ -169,8 +169,16 @@ async function canAddContact(accountId, userRole) {
 async function canInviteViewer(accountId, propertyId, userRole) {
   if (isAdminRole(userRole)) return { allowed: true, current: 0, max: 999999 };
   const limits = await getAccountLimits(accountId);
+  /* Count accepted viewers + pending viewer invitations so outstanding invites
+     cannot bypass the plan limit while they sit unaccepted. */
   const countRes = await db.query(
-    `SELECT COUNT(*)::int AS count FROM property_users WHERE property_id = $1 AND role = 'viewer'`,
+    `SELECT
+       (SELECT COUNT(*)::int FROM property_users
+          WHERE property_id = $1 AND role = 'viewer')
+       +
+       (SELECT COUNT(*)::int FROM invitations
+          WHERE property_id = $1 AND status = 'pending' AND intended_role = 'viewer')
+       AS count`,
     [propertyId]
   );
   const current = countRes.rows[0].count;
@@ -231,9 +239,19 @@ async function getViewerInviteEligibilityByProperty(accountId, propertyIds, user
   }
   const limits = await getAccountLimits(accountId);
   const max = limits.maxViewers;
+  /* Combine accepted viewers + pending viewer invitations per property. */
   const countRes = await db.query(
-    `SELECT property_id, COUNT(*)::int AS count FROM property_users
-     WHERE property_id = ANY($1::int[]) AND role = 'viewer'
+    `SELECT property_id, SUM(count)::int AS count FROM (
+       SELECT property_id, COUNT(*)::int AS count
+         FROM property_users
+         WHERE property_id = ANY($1::int[]) AND role = 'viewer'
+         GROUP BY property_id
+       UNION ALL
+       SELECT property_id, COUNT(*)::int AS count
+         FROM invitations
+         WHERE property_id = ANY($1::int[]) AND status = 'pending' AND intended_role = 'viewer'
+         GROUP BY property_id
+     ) t
      GROUP BY property_id`,
     [propertyIds]
   );

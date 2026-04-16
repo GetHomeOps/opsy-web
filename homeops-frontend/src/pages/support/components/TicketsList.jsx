@@ -3,6 +3,7 @@ import {format} from "date-fns";
 import {Ticket, Loader2} from "lucide-react";
 import {useTranslation} from "react-i18next";
 import TicketAttachmentIndicator from "./TicketAttachmentIndicator";
+import {shouldShowPublicStatusBadge} from "./StatusBadge";
 
 /**
  * Reusable tickets list for users to see their submitted tickets.
@@ -95,13 +96,15 @@ function TicketsList({
                     <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 mr-2 capitalize">
                       {ticket.type}
                     </span>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass(
-                        ticket.status,
-                      )}`}
-                    >
-                      {label(ticket.status)}
-                    </span>
+                    {shouldShowPublicStatusBadge(ticket.status) ? (
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass(
+                          ticket.status,
+                        )}`}
+                      >
+                        {label(ticket.status)}
+                      </span>
+                    ) : null}
                     <TicketAttachmentIndicator
                       attachmentKeys={ticket.attachmentKeys}
                       className="ml-1 align-middle"

@@ -32,7 +32,13 @@ const {
   canAddContact,
   getTeamMemberInviteEligibilityByProperty,
   getViewerInviteEligibilityByProperty,
+  getAccountLimits,
 } = require("./tierService");
+const {
+  assertPropertyCanAcceptAgentInvite,
+  isEmailAnActiveAgentUser,
+  propertyHasAgentMemberOrPendingAgentInvitation,
+} = require("./propertyAgentPolicy");
 
 const VALID_ACCOUNT_ROLES = new Set(["owner", "admin", "member", "view_only"]);
 
@@ -141,6 +147,9 @@ async function createPropertyInvitation({
   if (pendingInv.rows.length > 0) {
     throw new BadRequestError("An invitation has already been sent to this email address.");
   }
+
+  /* Only one agent per property (platform role agent/admin/super_admin). */
+  await assertPropertyCanAcceptAgentInvite(propertyId, emailLower);
 
   await ensureInviteeContactAutoCreated({
     emailLower,
@@ -266,6 +275,19 @@ async function createBulkPropertyInvitations({
   const blockedMember = new Set(membersRes.rows.map((r) => r.property_id));
   const blockedPending = new Set(pendingRes.rows.map((r) => r.property_id));
 
+  /* If the invitee is an agent-role user, block any property that already has
+     another agent-role user (accepted or pending invitation). */
+  const inviteeIsAgent = await isEmailAnActiveAgentUser(emailLower);
+  const blockedAgentExists = new Set();
+  if (inviteeIsAgent) {
+    for (const pid of toCheck) {
+      if (blockedMember.has(pid) || blockedPending.has(pid)) continue;
+      if (await propertyHasAgentMemberOrPendingAgentInvitation(pid)) {
+        blockedAgentExists.add(pid);
+      }
+    }
+  }
+
   const intents = intendedRole || "editor";
 
   const notBlockedForTier = toCheck.filter(
@@ -286,6 +308,14 @@ async function createBulkPropertyInvitations({
       failed.push({
         propertyId: pid,
         message: "An invitation has already been sent to this email address.",
+      });
+      continue;
+    }
+    if (blockedAgentExists.has(pid)) {
+      failed.push({
+        propertyId: pid,
+        message:
+          "An agent has already been added or invited to this property. Only one agent is allowed per property.",
       });
       continue;
     }
@@ -570,6 +600,40 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
     user = existingUser.rows[0];
   } else {
     invitation = await Invitation.validateToken(rawToken);
+  }
+
+  /* Re-check plan viewer capacity at acceptance time to prevent pending
+     invitations issued before an upgrade/downgrade or before sibling invites
+     from pushing the property over its plan limit. */
+  if (
+    invitation?.type === "property" &&
+    invitation.propertyId &&
+    invitation.accountId &&
+    (invitation.intendedRole || "").toLowerCase() === "viewer"
+  ) {
+    const limits = await getAccountLimits(invitation.accountId);
+    const max = limits.maxViewers;
+    if (max != null) {
+      const cntRes = await db.query(
+        `SELECT
+           (SELECT COUNT(*)::int FROM property_users
+              WHERE property_id = $1 AND role = 'viewer')
+           +
+           (SELECT COUNT(*)::int FROM invitations
+              WHERE property_id = $1
+                AND status = 'pending'
+                AND intended_role = 'viewer'
+                AND id != $2)
+           AS count`,
+        [invitation.propertyId, invitation.id]
+      );
+      const current = cntRes.rows[0].count;
+      if (current >= max) {
+        throw new ForbiddenError(
+          `View-only user limit reached (${current}/${max}) for this property. Ask the property owner to upgrade the plan before accepting.`
+        );
+      }
+    }
   }
 
   await db.query("BEGIN");

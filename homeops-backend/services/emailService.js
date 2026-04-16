@@ -752,7 +752,6 @@ function ticketEmailShell({ heading, intro, bodyHtml, ctaUrl, ctaLabel, footerNo
  */
 async function sendSupportTicketReceivedEmail({
   to,
-  userName,
   ticket,
   viewUrl,
   autoResponseText,
@@ -765,32 +764,26 @@ async function sendSupportTicketReceivedEmail({
   const toAddr = to && String(to).trim();
   if (!toAddr) return { success: false, reason: "no_recipient" };
 
-  const firstName = firstNameFromUser(userName);
-  const intro = firstName
-    ? `Hi ${escapeHtml(firstName)},`
-    : "Hi there,";
   const typeLabel = ticket?.type === "feedback" ? "feedback" : "support request";
   const heading =
     ticket?.type === "feedback"
       ? `We received your feedback`
       : `We received your support request`;
-  const ticketRef = ticket?.id != null ? `#${ticket.id}` : "";
   const subjectLine = ticket?.subject ? `: ${ticket.subject}` : "";
-  const subject = `[${brandName} Support] Ticket ${ticketRef} received${subjectLine}`.slice(
+  const subject = `[${brandName} Support] Request received${subjectLine}`.slice(
     0,
     200
   );
 
   const body = ticketBodyToHtml(autoResponseText);
   const meta = detailsTableTicket([
-    ["Ticket", ticketRef || "(pending)"],
     ["Subject", ticket?.subject],
     ["Type", ticket?.type === "feedback" ? "Feedback" : "Support"],
   ]);
 
   const html = ticketEmailShell({
     heading,
-    intro,
+    intro: null,
     bodyHtml: `${body}${meta}`,
     ctaUrl: viewUrl,
     ctaLabel: "View ticket",
@@ -828,9 +821,8 @@ async function sendSupportTicketReplyEmail({
   const intro = firstName
     ? `Hi ${escapeHtml(firstName)},`
     : "Hi there,";
-  const ticketRef = ticket?.id != null ? `#${ticket.id}` : "";
   const subjectLine = ticket?.subject ? `: ${ticket.subject}` : "";
-  const subject = `[${brandName} Support] New reply on ticket ${ticketRef}${subjectLine}`.slice(
+  const subject = `[${brandName} Support] New reply${subjectLine}`.slice(
     0,
     200
   );
@@ -841,7 +833,6 @@ async function sendSupportTicketReplyEmail({
     </div>`;
 
   const meta = detailsTableTicket([
-    ["Ticket", ticketRef],
     ["Subject", ticket?.subject],
     ["Status", humanizeStatus(ticket?.status)],
   ]);
@@ -851,7 +842,7 @@ async function sendSupportTicketReplyEmail({
     intro,
     bodyHtml: `
       <p style="margin: 12px 0; line-height: 1.6;">
-        The Opsy Support team just posted an update on your ticket${ticketRef ? ` ${ticketRef}` : ""}.
+        The Opsy Support team just posted an update on your request.
       </p>
       ${replyBlock}
       ${meta}

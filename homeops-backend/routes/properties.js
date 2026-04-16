@@ -9,9 +9,10 @@ const propertyNewSchema = require("../schemas/propertyNew.json");
 const propertyUpdateSchema = require("../schemas/propertyUpdate.json");
 const { generatePassportId } = require("../helpers/properties");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
-const { canCreateProperty, checkAiTokenQuota, checkAiFeaturesAllowed } = require("../services/tierService");
+const { canCreateProperty, checkAiTokenQuota, checkAiFeaturesAllowed, getAccountLimits } = require("../services/tierService");
 const { onPropertyCreated } = require("../services/resourceAutoSend");
 const { syncPropertyMissingAgentAdminNotifications } = require("../services/propertyMissingAgentNotifications");
+const { assertAtMostOneAgentOnProperty } = require("../services/propertyAgentPolicy");
 const InspectionAnalysisJob = require("../models/inspectionAnalysisJob");
 const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const { enqueue } = require("../services/inspectionAnalysisQueue");
@@ -469,6 +470,48 @@ router.post("/:propertyId/users", ensureLoggedIn, ensurePropertyAccess({ param: 
     const propertyId = req.params.propertyId;
     const users = Array.isArray(req.body) ? req.body : (req.body.users || []);
     if (!Array.isArray(users)) throw new BadRequestError("Provide users array with id and role");
+    /* Only one agent per property — reject before any insert. */
+    await assertAtMostOneAgentOnProperty(
+      propertyId,
+      users.map((u) => u?.id).filter((id) => id != null),
+      { isSync: false }
+    );
+    /* Enforce per-plan view-only user limit on additive adds (admins bypass). */
+    const addRoleUserRole = res.locals.user?.role;
+    const viewerAdds = users.filter(
+      (u) => (u?.role || "").toLowerCase() === "viewer" && u.id != null
+    );
+    if (
+      viewerAdds.length > 0 &&
+      addRoleUserRole !== "admin" &&
+      addRoleUserRole !== "super_admin"
+    ) {
+      const property = await Property.get(propertyId);
+      if (property?.account_id) {
+        const limits = await getAccountLimits(property.account_id);
+        const max = limits.maxViewers;
+        if (max != null) {
+          const cntRes = await db.query(
+            `SELECT
+               (SELECT COUNT(*)::int FROM property_users
+                  WHERE property_id = $1 AND role = 'viewer'
+                    AND user_id NOT IN (SELECT UNNEST($2::int[])))
+               +
+               (SELECT COUNT(*)::int FROM invitations
+                  WHERE property_id = $1 AND status = 'pending' AND intended_role = 'viewer')
+               AS count`,
+            [property.id, viewerAdds.map((u) => Number(u.id)).filter(Number.isInteger)]
+          );
+          const existing = cntRes.rows[0]?.count ?? 0;
+          const total = existing + viewerAdds.length;
+          if (total > max) {
+            throw new ForbiddenError(
+              `View-only user limit reached (${total}/${max}) for this property. Remove a view-only member or upgrade the plan.`
+            );
+          }
+        }
+      }
+    }
     const property_users = [];
     for (const { id, role } of users) {
       if (id == null) throw new BadRequestError("Each user must have id and role");
@@ -509,10 +552,50 @@ router.patch("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "prop
 /** PATCH /:propertyId/team - Sync property team. Body: array of { id, role }. */
 router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: "propertyId" }), async function (req, res, next) {
   try {
-    const property_users = await Property.updatePropertyUsers(req.params.propertyId, req.body);
-    clearPropertyAccessCache(req.params.propertyId);
+    const propertyId = req.params.propertyId;
+    /* Only one agent per property — reject before sync. */
+    if (Array.isArray(req.body)) {
+      await assertAtMostOneAgentOnProperty(
+        propertyId,
+        req.body.map((u) => u?.id).filter((id) => id != null),
+        { isSync: true }
+      );
+    }
+    /* Enforce per-plan view-only user limit on team sync (admins bypass). */
+    const userRole = res.locals.user?.role;
+    if (
+      Array.isArray(req.body) &&
+      userRole !== "admin" &&
+      userRole !== "super_admin"
+    ) {
+      const viewerIds = req.body
+        .filter((u) => (u?.role || "").toLowerCase() === "viewer")
+        .map((u) => u.id)
+        .filter((id) => id != null);
+      const property = await Property.get(propertyId);
+      if (property?.account_id) {
+        const limits = await getAccountLimits(property.account_id);
+        const max = limits.maxViewers;
+        if (max != null) {
+          const pendingRes = await db.query(
+            `SELECT COUNT(*)::int AS count FROM invitations
+             WHERE property_id = $1 AND status = 'pending' AND intended_role = 'viewer'`,
+            [property.id]
+          );
+          const pendingViewerInvites = pendingRes.rows[0]?.count ?? 0;
+          const total = viewerIds.length + pendingViewerInvites;
+          if (total > max) {
+            throw new ForbiddenError(
+              `View-only user limit reached (${total}/${max}) for this property. Remove a view-only member or upgrade the plan.`
+            );
+          }
+        }
+      }
+    }
+    const property_users = await Property.updatePropertyUsers(propertyId, req.body);
+    clearPropertyAccessCache(propertyId);
     try {
-      await syncPropertyMissingAgentAdminNotifications(req.params.propertyId);
+      await syncPropertyMissingAgentAdminNotifications(propertyId);
     } catch (missingAgentErr) {
       console.error("[propertyMissingAgent] PATCH team:", missingAgentErr.message);
     }

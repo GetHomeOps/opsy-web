@@ -13,6 +13,12 @@ export const SUPPORT_STATUS_LABELS = {
   pending_review: "Pending Review",
 };
 
+/** Hide default queue labels on user-facing surfaces (list + read-only detail). */
+export function shouldShowPublicStatusBadge(status) {
+  const s = (status || "").toLowerCase().replace(/-/g, "_");
+  return s !== "new" && s !== "open";
+}
+
 /** Status display labels for feedback (4 columns) */
 export const FEEDBACK_STATUS_LABELS = {
   new: "New",
