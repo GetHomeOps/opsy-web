@@ -159,6 +159,8 @@ function buildFallbackPlans(role, subscriptionProducts = []) {
           maxProperties: product.limits.maxProperties,
           maxContacts: product.limits.maxContacts,
           aiTokenMonthlyQuota: product.limits.aiTokenMonthlyQuota,
+          maxDocumentsPerSystem: product.limits.maxDocumentsPerSystem,
+          aiFeaturesEnabled: product.limits.aiFeaturesEnabled,
         };
       }
     }
@@ -167,6 +169,14 @@ function buildFallbackPlans(role, subscriptionProducts = []) {
       maxProperties: limitsFromProduct?.maxProperties ?? planLimits.properties,
       maxContacts: limitsFromProduct?.maxContacts ?? planLimits.contacts,
       aiTokenMonthlyQuota: limitsFromProduct?.aiTokenMonthlyQuota,
+      maxDocumentsPerSystem:
+        limitsFromProduct?.maxDocumentsPerSystem ??
+        planLimits.maxDocumentsPerSystem ??
+        5,
+      aiFeaturesEnabled:
+        limitsFromProduct?.aiFeaturesEnabled ??
+        planLimits.aiFeaturesEnabled ??
+        true,
     };
     const productFeatures = Array.isArray(product?.features)
       ? product.features
@@ -303,7 +313,9 @@ function Step2Plan({
       (p.price != null && p.price > 0),
   );
   const hasMonthly = plans.some((p) => p.stripePrices?.month);
-  const hasYearly = plans.some((p) => p.stripePrices?.year || p.stripePrices?.annual);
+  const hasYearly = plans.some(
+    (p) => p.stripePrices?.year || p.stripePrices?.annual,
+  );
   const showIntervalToggle = hasPaidPlans && hasMonthly && hasYearly;
   const colCount = Math.min(Math.max(plans.length, 1), 5);
   const gridColsMap = {
@@ -385,7 +397,8 @@ function Step2Plan({
             No plans available right now
           </h3>
           <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
-            All subscription plans for your account type are currently inactive. Please check back soon.
+            All subscription plans for your account type are currently inactive.
+            Please check back soon.
           </p>
         </div>
       ) : (
@@ -423,9 +436,8 @@ function Step2Plan({
                 yearlyTotal = (yearUnit / 100).toFixed(2);
               }
             } else if (typeof monthUnit === "number") {
-              displayPrice = monthUnit === 0
-                ? "Free"
-                : `$${(monthUnit / 100).toFixed(2)}`;
+              displayPrice =
+                monthUnit === 0 ? "Free" : `$${(monthUnit / 100).toFixed(2)}`;
             } else if (p.price === 0 || !isPaidPlan) {
               displayPrice = "Free";
             } else {
@@ -524,18 +536,27 @@ function Step2Plan({
   );
 }
 
-function Step3Confirmation({role, plan, apiPlans}) {
+function Step3Confirmation({role, plan, selectedPlan}) {
   const roleLabel = role === "homeowner" ? "Homeowner" : "Agent";
 
-  const allPlans =
-    apiPlans && apiPlans.length > 0
-      ? apiPlans
-      : role === "homeowner"
-        ? HOMEOWNER_PLANS
-        : AGENT_PLANS;
-  const planData = allPlans.find((p) => (p.code || p.id) === plan);
-  const planLabel = planData?.name ?? plan;
-  const lim = planData?.limits || PLAN_LIMITS[role]?.[plan] || {};
+  const planLabel = selectedPlan?.name ?? plan;
+  const fallbackLim = PLAN_LIMITS[role]?.[plan] || {};
+  const rawLim =
+    selectedPlan?.limits && typeof selectedPlan.limits === "object"
+      ? selectedPlan.limits
+      : {};
+  const lim = {...fallbackLim, ...rawLim};
+  const propsVal = lim.maxProperties ?? lim.properties ?? "—";
+  const contactsVal = lim.maxContacts ?? lim.contacts ?? "—";
+  const docsVal = lim.maxDocumentsPerSystem;
+  const docsDisplay =
+    docsVal != null && docsVal !== ""
+      ? typeof docsVal === "number"
+        ? docsVal.toLocaleString()
+        : String(docsVal)
+      : "—";
+  const aiAssistance =
+    lim.aiFeaturesEnabled === false ? "No AI Assistance" : "AI Assistance";
 
   return (
     <div className="space-y-6">
@@ -561,16 +582,10 @@ function Step3Confirmation({role, plan, apiPlans}) {
             Summary of limits
           </p>
           <ul className="space-y-1">
-            <li>• Properties: {lim.maxProperties ?? lim.properties ?? "—"}</li>
-            <li>• Contacts: {lim.maxContacts ?? lim.contacts ?? "—"}</li>
-            {lim.maxDocumentsPerSystem != null && (
-              <li>• Documents per system: {lim.maxDocumentsPerSystem}</li>
-            )}
-            {lim.aiTokenMonthlyQuota != null && lim.aiTokenMonthlyQuota > 0 && (
-              <li>
-                • AI tokens/month: {lim.aiTokenMonthlyQuota.toLocaleString()}
-              </li>
-            )}
+            <li>• Properties: {propsVal}</li>
+            <li>• Contacts: {contactsVal}</li>
+            <li>• Documents per System: {docsDisplay}</li>
+            <li>• {aiAssistance}</li>
           </ul>
         </div>
       </div>
@@ -608,7 +623,9 @@ export default function OnboardingWizard() {
       } catch {
         plansApiOk = false;
       }
-      const products = await AppApi.getSubscriptionProductsByRole(role).catch(() => []);
+      const products = await AppApi.getSubscriptionProductsByRole(role).catch(
+        () => [],
+      );
       setApiPlans(withSinglePopularFlag(plans));
       setApiPlansLoaded(plansApiOk);
       setSubscriptionProducts(Array.isArray(products) ? products : []);
@@ -722,7 +739,11 @@ export default function OnboardingWizard() {
             />
           )}
           {step === 3 && (
-            <Step3Confirmation role={role} plan={plan} apiPlans={apiPlans} />
+            <Step3Confirmation
+              role={role}
+              plan={plan}
+              selectedPlan={selectedPlan}
+            />
           )}
         </div>
 

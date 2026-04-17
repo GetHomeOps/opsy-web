@@ -402,7 +402,10 @@ class SubscriptionProduct {
     try {
       const limitsRes = await db.query(
         `SELECT subscription_product_id AS "subscriptionProductId", max_properties AS "maxProperties",
-                max_contacts AS "maxContacts", ai_token_monthly_quota AS "aiTokenMonthlyQuota" FROM plan_limits
+                max_contacts AS "maxContacts", ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+                max_documents_per_system AS "maxDocumentsPerSystem",
+                COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled"
+         FROM plan_limits
          WHERE subscription_product_id = ANY($1::int[])`,
         [products.map((p) => p.id)]
       );
@@ -412,6 +415,8 @@ class SubscriptionProduct {
           maxProperties: row.maxProperties,
           maxContacts: row.maxContacts,
           aiTokenMonthlyQuota: row.aiTokenMonthlyQuota,
+          maxDocumentsPerSystem: row.maxDocumentsPerSystem,
+          aiFeaturesEnabled: row.aiFeaturesEnabled,
         };
       }
       for (const p of products) {

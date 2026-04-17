@@ -54,9 +54,9 @@ import {
   Loader2,
 } from "lucide-react";
 import OpsyMascot from "../../images/opsy2.png";
-import heroMountBaker from "../../images/homepage/Mount Baker.webp";
+import heroMountBaker from "../../images/homepage/mount_baker.webp";
 import heroOlympics from "../../images/homepage/Olymoics 1.webp";
-import heroSeattleSpring from "../../images/homepage/Seattle Spring.webp";
+import heroForest from "../../images/homepage/forest2.webp";
 import heroSeattleSkyline2 from "../../images/homepage/Seattle skyline 2.webp";
 import heroSeattleSkyline3 from "../../images/homepage/Seattle skyline 3.webp";
 import AgentCard from "./components/AgentCard";
@@ -65,7 +65,7 @@ import AgentModal from "./components/AgentModal";
 const HOME_HERO_BACKGROUNDS = [
   heroMountBaker,
   heroOlympics,
-  heroSeattleSpring,
+  heroForest,
   heroSeattleSkyline2,
   heroSeattleSkyline3,
 ];

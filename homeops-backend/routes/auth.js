@@ -35,6 +35,7 @@ const {
   GOOGLE_REDIRECT_URI_SIGNIN,
   GOOGLE_REDIRECT_URI_SIGNUP,
   AUTH_SUCCESS_REDIRECT,
+  BILLING_MOCK_MODE,
 } = require("../config");
 const userAuthSchema = require("../schemas/userAuth.json");
 const userRegisterSchema = require("../schemas/userRegister.json");
@@ -750,12 +751,30 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     }
 
     if (stripeSessionId) {
-      const verification = await stripeService.verifyCheckoutSession(stripeSessionId, { userId });
+      // Fetch the session (with subscription + price expanded) once and reuse for verify + sync.
+      // Avoids 2-3 redundant Stripe round-trips on the post-checkout redirect (~500-1200ms).
+      let prefetchedSession = null;
+      if (!BILLING_MOCK_MODE && stripeService.stripe) {
+        try {
+          prefetchedSession = await stripeService.stripe.checkout.sessions.retrieve(
+            stripeSessionId,
+            { expand: ["subscription.items.data.price"] }
+          );
+        } catch (retrieveErr) {
+          console.warn(`[complete-onboarding] Stripe session retrieve failed for user ${userId}: ${retrieveErr.message}`);
+          throw new ForbiddenError("Payment could not be verified. Please complete checkout or contact support.");
+        }
+      }
+
+      const verification = await stripeService.verifyCheckoutSession(stripeSessionId, { userId, prefetchedSession });
       if (!verification.valid) {
         console.warn(`[complete-onboarding] Stripe session verification failed for user ${userId}: ${verification.reason}`);
         throw new ForbiddenError("Payment could not be verified. Please complete checkout or contact support.");
       }
-      const syncResult = await stripeService.syncCheckoutSessionSubscription(stripeSessionId, { userId });
+      const syncResult = await stripeService.syncCheckoutSessionSubscription(stripeSessionId, {
+        userId,
+        prefetchedSession: prefetchedSession || verification.session,
+      });
       if (!syncResult?.synced) {
         console.warn(`[complete-onboarding] Stripe sync failed for user ${userId}: ${syncResult?.reason || "unknown_reason"}`);
         throw new ForbiddenError("Payment was verified but subscription activation is incomplete. Please retry in a moment or contact support.");

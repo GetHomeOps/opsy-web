@@ -6,8 +6,10 @@ import {markPostLoginWelcomeGreeting} from "../../utils/authNavigation";
 import AppApi from "../../api/api";
 import {PLAN_CODE_TO_SUBSCRIPTION_TIER} from "../onboarding/onboardingPlans";
 
-const INITIAL_DELAY_MS = 3000; // Let Stripe webhooks process before polling
-const POLL_INTERVAL_MS = 3500; // Avoid rate limits (429) during activation
+// `completeOnboarding` already synchronously verifies and upserts the subscription from Stripe
+// (no webhook dependency), so the DB row is already active/trialing when it returns. Poll
+// immediately with a short interval and back off only if the first hit misses.
+const POLL_INTERVAL_MS = 1000;
 const POLL_TIMEOUT_MS = 60000;
 
 export default function BillingSuccess() {
@@ -90,10 +92,6 @@ export default function BillingSuccess() {
         }
         return;
       }
-
-      // Give Stripe webhooks time to process before polling
-      await new Promise((r) => setTimeout(r, INITIAL_DELAY_MS));
-      if (cancelled) return;
 
       const start = Date.now();
       const poll = async () => {

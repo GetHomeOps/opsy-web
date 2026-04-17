@@ -234,8 +234,14 @@ async function handleCheckoutExpired(session) {
   );
 }
 
-/** Process checkout.session.completed */
-async function handleCheckoutCompleted(session) {
+/**
+ * Process checkout.session.completed.
+ *
+ * Optionally accepts a pre-fetched subscription object (with `items.data.price` expanded)
+ * via `prefetchedSubscription` to avoid a redundant `stripe.subscriptions.retrieve` call
+ * when the caller already has it (e.g. from an expanded checkout session retrieve).
+ */
+async function handleCheckoutCompleted(session, { prefetchedSubscription = null } = {}) {
   const accountId = session.metadata?.account_id;
   const subscriptionProductId = session.metadata?.subscription_product_id;
   if (!accountId || !subscriptionProductId) return;
@@ -243,7 +249,13 @@ async function handleCheckoutCompleted(session) {
   const sub = session.subscription;
   if (!sub) return;
 
-  const subscription = await stripe.subscriptions.retrieve(sub, { expand: ["items.data.price"] });
+  // Use the pre-fetched expanded subscription when available, otherwise fall back to a fresh retrieve.
+  // The webhook path passes only the session, so we still need the network call there.
+  const subscriptionId = typeof sub === "string" ? sub : sub.id;
+  const subscription = prefetchedSubscription
+    && (typeof sub !== "string" || prefetchedSubscription.id === sub)
+    ? prefetchedSubscription
+    : await stripe.subscriptions.retrieve(subscriptionId, { expand: ["items.data.price"] });
   const priceId = subscription.items?.data?.[0]?.price?.id;
   const status = subscription.status;
   const { start: periodStart, end: periodEnd } = getSubscriptionPeriodDates(subscription);
@@ -281,12 +293,18 @@ async function handleCheckoutCompleted(session) {
   );
 }
 
-/** Upsert paid subscription state from a completed Checkout Session (webhook-independent fallback). */
-async function syncCheckoutSessionSubscription(sessionId, { userId } = {}) {
-  if (!sessionId) return { synced: false, reason: "missing_session_id" };
+/**
+ * Upsert paid subscription state from a completed Checkout Session (webhook-independent fallback).
+ *
+ * Optionally accepts a pre-fetched session (with `subscription.items.data.price` expanded) to avoid
+ * 1–2 redundant Stripe API calls on the post-checkout redirect path.
+ */
+async function syncCheckoutSessionSubscription(sessionId, { userId, prefetchedSession = null } = {}) {
+  if (!sessionId && !prefetchedSession) return { synced: false, reason: "missing_session_id" };
   if (BILLING_MOCK_MODE || !stripe) return { synced: true, mock: true };
 
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const session = prefetchedSession
+    || await stripe.checkout.sessions.retrieve(sessionId, { expand: ["subscription.items.data.price"] });
   if (!session) return { synced: false, reason: "session_not_found" };
 
   if (userId && session.metadata?.user_id && String(session.metadata.user_id) !== String(userId)) {
@@ -297,12 +315,15 @@ async function syncCheckoutSessionSubscription(sessionId, { userId } = {}) {
     return { synced: false, reason: "missing_subscription" };
   }
 
-  const subscription = await stripe.subscriptions.retrieve(session.subscription);
+  // session.subscription is the expanded object when we asked for it; otherwise it's an id string.
+  const subscription = typeof session.subscription === "object"
+    ? session.subscription
+    : await stripe.subscriptions.retrieve(session.subscription, { expand: ["items.data.price"] });
   if (!(subscription.status === "active" || subscription.status === "trialing")) {
     return { synced: false, reason: "subscription_not_active", status: subscription.status };
   }
 
-  await handleCheckoutCompleted(session);
+  await handleCheckoutCompleted(session, { prefetchedSubscription: subscription });
   return { synced: true, subscriptionId: subscription.id };
 }
 
@@ -814,28 +835,39 @@ async function ensureFreePlanFallback(accountId, pendingPlanCode) {
   console.info(`[billing] ensureFreePlanFallback: inserted free plan for account=${accountId}`);
 }
 
-async function verifyCheckoutSession(sessionId, { userId } = {}) {
-  if (!sessionId) return { valid: false, reason: "missing_session_id" };
+/**
+ * Verify a Checkout Session is in a usable state.
+ *
+ * Optionally accepts a pre-fetched session (with `subscription.items.data.price` expanded) so the
+ * caller can perform a single Stripe retrieve and reuse it for both verification and sync.
+ * On success, `session` (and `subscription` when applicable) are returned for downstream reuse.
+ */
+async function verifyCheckoutSession(sessionId, { userId, prefetchedSession = null } = {}) {
+  if (!sessionId && !prefetchedSession) return { valid: false, reason: "missing_session_id" };
   if (BILLING_MOCK_MODE || !stripe) return { valid: true, session: { id: sessionId, mock: true } };
 
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = prefetchedSession
+      || await stripe.checkout.sessions.retrieve(sessionId, { expand: ["subscription.items.data.price"] });
 
     if (userId && session.metadata?.user_id && String(session.metadata.user_id) !== String(userId)) {
       return { valid: false, reason: "session_user_mismatch" };
     }
 
     if (session.payment_status === "paid") {
-      return { valid: true, session };
+      const sub = typeof session.subscription === "object" ? session.subscription : null;
+      return { valid: true, session, subscription: sub };
     }
 
     // For trial checkouts Stripe may return payment_status=no_payment_required.
     // Require an actually active/trialing subscription (not incomplete/past_due).
     if (session.subscription) {
       try {
-        const subscription = await stripe.subscriptions.retrieve(session.subscription);
+        const subscription = typeof session.subscription === "object"
+          ? session.subscription
+          : await stripe.subscriptions.retrieve(session.subscription, { expand: ["items.data.price"] });
         if (subscription.status === "active" || subscription.status === "trialing") {
-          return { valid: true, session };
+          return { valid: true, session, subscription };
         }
         return {
           valid: false,

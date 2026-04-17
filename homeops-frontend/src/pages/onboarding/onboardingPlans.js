@@ -193,14 +193,49 @@ export function tierFromPlanCode(planCode) {
 /** Plan limits for confirmation summary (fallback when API not loaded). Editable in Super Admin. */
 export const PLAN_LIMITS = {
   homeowner: {
-    homeowner_free: { properties: 1, contacts: 20 },
-    homeowner_maintain: { properties: 1, contacts: 40 },
-    homeowner_win: { properties: "2+", contacts: "Unlimited" },
-    homeowner_beta: { properties: 1, contacts: 40 },
+    homeowner_free: {
+      properties: 1,
+      contacts: 20,
+      maxDocumentsPerSystem: 5,
+      aiFeaturesEnabled: false,
+    },
+    homeowner_maintain: {
+      properties: 1,
+      contacts: 40,
+      maxDocumentsPerSystem: 5,
+      aiFeaturesEnabled: true,
+    },
+    homeowner_win: {
+      properties: "2+",
+      contacts: "Unlimited",
+      maxDocumentsPerSystem: 5,
+      aiFeaturesEnabled: true,
+    },
+    homeowner_beta: {
+      properties: 1,
+      contacts: 40,
+      maxDocumentsPerSystem: 5,
+      aiFeaturesEnabled: true,
+    },
   },
   agent: {
-    agent_basic: { properties: 5, contacts: "—" },
-    agent_pro: { properties: 25, contacts: "—" },
-    agent_premium: { properties: 50, contacts: "—" },
+    agent_basic: {
+      properties: 5,
+      contacts: "—",
+      maxDocumentsPerSystem: 5,
+      aiFeaturesEnabled: false,
+    },
+    agent_pro: {
+      properties: 25,
+      contacts: "—",
+      maxDocumentsPerSystem: 5,
+      aiFeaturesEnabled: true,
+    },
+    agent_premium: {
+      properties: 50,
+      contacts: "—",
+      maxDocumentsPerSystem: 5,
+      aiFeaturesEnabled: true,
+    },
   },
 };
