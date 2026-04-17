@@ -88,7 +88,11 @@ async function getPlansForAudience(audienceType) {
       [p.id]
     );
     const activePrices = prices.rows.filter((r) => r.isActive !== false);
-    if (activePrices.length === 0) continue;
+    /* Skip paid plans that have no active Stripe prices (can't be subscribed to via Stripe).
+       Free / zero-cost plans don't need a plan_prices row — they go through the in-app
+       downgrade flow, so keep them visible even when activePrices is empty. */
+    const isZeroCostPlan = Number(p.price ?? 0) <= 0;
+    if (activePrices.length === 0 && !isZeroCostPlan) continue;
 
     p.prices = activePrices.reduce((acc, r) => {
       acc[r.billingInterval] = r.stripePriceId;
@@ -375,12 +379,30 @@ async function getPlanById(id) {
 }
 
 /** Toggle is_active on a specific plan_prices row.
- *  When both month & year are inactive, also sets the parent subscription_product.is_active = false.
- *  When at least one becomes active, ensures subscription_product.is_active = true. */
+ *  - Requires a plan_prices row to already exist for the interval. Without one we have nothing
+ *    to flip, and silently no-oping previously caused the parent plan to be deactivated by the
+ *    cascade below (zero rows → anyActive=false). Force the caller to link a Stripe price first.
+ *  - Cascade rule (when rows exist):
+ *      • at least one interval active → parent stays / becomes active
+ *      • all existing intervals inactive → parent becomes inactive
+ *    If zero rows exist we never touch the parent's is_active flag. */
 async function togglePriceActive(productId, billingInterval, isActive) {
   if (!["month", "year"].includes(billingInterval)) {
     throw new BadRequestError("billingInterval must be month or year");
   }
+
+  const existing = await db.query(
+    `SELECT id FROM plan_prices
+     WHERE subscription_product_id = $1 AND billing_interval = $2`,
+    [productId, billingInterval]
+  );
+  if (!existing.rows[0]) {
+    const intervalLabel = billingInterval === "month" ? "monthly" : "yearly";
+    throw new BadRequestError(
+      `No Stripe ${intervalLabel} price linked to this plan yet — pick one in the Prices tab and save before toggling it on.`
+    );
+  }
+
   await db.query(
     `UPDATE plan_prices SET is_active = $1
      WHERE subscription_product_id = $2 AND billing_interval = $3`,
@@ -392,12 +414,35 @@ async function togglePriceActive(productId, billingInterval, isActive) {
      FROM plan_prices WHERE subscription_product_id = $1`,
     [productId]
   );
-  const anyActive = remaining.rows.some((r) => r.isActive === true);
+  if (remaining.rows.length > 0) {
+    const anyActive = remaining.rows.some((r) => r.isActive === true);
+    await db.query(
+      `UPDATE subscription_products SET is_active = $1, updated_at = NOW() WHERE id = $2`,
+      [anyActive, productId]
+    );
+  }
+
+  return getPlanById(productId);
+}
+
+/** Set the parent subscription_product.is_active flag and cascade to all of its plan_prices rows.
+ *  - Toggling Off:  product hidden everywhere, both monthly + yearly prices flipped to inactive.
+ *  - Toggling On:   product visible again, any existing plan_prices rows flipped back to active.
+ *  Use this for the global plan switch; per-interval toggling still goes through togglePriceActive. */
+async function setPlanActive(productId, isActive) {
+  const exists = await db.query(
+    `SELECT id FROM subscription_products WHERE id = $1`,
+    [productId]
+  );
+  if (!exists.rows[0]) throw new NotFoundError(`Plan not found: ${productId}`);
   await db.query(
     `UPDATE subscription_products SET is_active = $1, updated_at = NOW() WHERE id = $2`,
-    [anyActive, productId]
+    [isActive, productId]
   );
-
+  await db.query(
+    `UPDATE plan_prices SET is_active = $1 WHERE subscription_product_id = $2`,
+    [isActive, productId]
+  );
   return getPlanById(productId);
 }
 
@@ -412,5 +457,6 @@ module.exports = {
   updatePlanFeatures,
   updatePlanPrice,
   togglePriceActive,
+  setPlanActive,
   getPlanById,
 };

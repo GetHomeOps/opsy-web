@@ -283,13 +283,17 @@ function Step2Plan({
   billingInterval,
   onBillingIntervalChange,
   apiPlans,
+  apiPlansLoaded,
   subscriptionProducts = [],
   apiLoading,
   onCouponApplied,
 }) {
+  /* When the API call succeeded (apiPlansLoaded), trust its result — even if empty —
+     so that admin deactivations are honored. Only render hardcoded fallback plans when
+     the API call actually errored. */
   const plans = withSinglePopularFlag(
-    apiPlans && apiPlans.length > 0
-      ? apiPlans
+    apiPlansLoaded
+      ? apiPlans || []
       : buildFallbackPlans(role, subscriptionProducts),
   );
   const hasPaidPlans = plans.some(
@@ -374,6 +378,15 @@ function Step2Plan({
       {apiLoading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        </div>
+      ) : plans.length === 0 ? (
+        <div className="mt-10 mx-auto max-w-md rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/60 px-6 py-10 text-center">
+          <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
+            No plans available right now
+          </h3>
+          <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+            All subscription plans for your account type are currently inactive. Please check back soon.
+          </p>
         </div>
       ) : (
         <div
@@ -574,6 +587,10 @@ export default function OnboardingWizard() {
   const [billingInterval, setBillingInterval] = useState("month");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [apiPlans, setApiPlans] = useState([]);
+  /* True once we successfully fetched the plan list (even if it came back empty).
+     Used to decide whether to render hardcoded fallback plans — we should only fall back
+     when the network/API genuinely failed, otherwise admin deactivations get masked. */
+  const [apiPlansLoaded, setApiPlansLoaded] = useState(false);
   const [subscriptionProducts, setSubscriptionProducts] = useState([]);
   const [apiLoading, setApiLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -583,13 +600,17 @@ export default function OnboardingWizard() {
     if (!role) return;
     setApiLoading(true);
     try {
-      const [plans, products] = await Promise.all([
-        AppApi.getBillingPlans(role)
-          .then((r) => r.plans || [])
-          .catch(() => []),
-        AppApi.getSubscriptionProductsByRole(role).catch(() => []),
-      ]);
+      let plans = [];
+      let plansApiOk = true;
+      try {
+        const r = await AppApi.getBillingPlans(role);
+        plans = r?.plans || [];
+      } catch {
+        plansApiOk = false;
+      }
+      const products = await AppApi.getSubscriptionProductsByRole(role).catch(() => []);
       setApiPlans(withSinglePopularFlag(plans));
+      setApiPlansLoaded(plansApiOk);
       setSubscriptionProducts(Array.isArray(products) ? products : []);
     } finally {
       setApiLoading(false);
@@ -610,7 +631,7 @@ export default function OnboardingWizard() {
 
   const availablePlans = role
     ? withSinglePopularFlag(
-        apiPlans && apiPlans.length > 0
+        apiPlansLoaded
           ? apiPlans
           : buildFallbackPlans(role, subscriptionProducts),
       )
@@ -694,6 +715,7 @@ export default function OnboardingWizard() {
               billingInterval={billingInterval}
               onBillingIntervalChange={setBillingInterval}
               apiPlans={apiPlans}
+              apiPlansLoaded={apiPlansLoaded}
               subscriptionProducts={subscriptionProducts}
               apiLoading={apiLoading}
               onCouponApplied={setAppliedCoupon}

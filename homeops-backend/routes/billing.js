@@ -49,6 +49,30 @@ router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function
     );
     if (!hasAccess.rows[0]) throw new ForbiddenError("Access denied to this account");
 
+    const userRoleCheckout = (res.locals.user?.role || "").toLowerCase();
+    if (userRoleCheckout === "super_admin") {
+      const interval =
+        billingInterval === "annual" ? "year" : billingInterval;
+      const paidCheck = await db.query(
+        `SELECT pp.unit_amount, sp.price AS legacy_price
+         FROM subscription_products sp
+         LEFT JOIN plan_prices pp ON pp.subscription_product_id = sp.id
+           AND pp.billing_interval = $2 AND COALESCE(pp.is_active, true) = true
+         WHERE sp.code = $1`,
+        [planCode, interval]
+      );
+      const row = paidCheck.rows[0];
+      const ua = row?.unit_amount;
+      if (ua != null && ua > 0) {
+        throw new ForbiddenError("Super admin accounts do not use paid subscriptions.");
+      }
+      const lp = row?.legacy_price;
+      const legacyNum = lp != null && lp !== "" ? Number(lp) : NaN;
+      if ((ua == null || ua === 0) && Number.isFinite(legacyNum) && legacyNum > 0) {
+        throw new ForbiddenError("Super admin accounts do not use paid subscriptions.");
+      }
+    }
+
     const userRes = await db.query(
       `SELECT email, name FROM users WHERE id = $1`,
       [userId]
@@ -498,6 +522,22 @@ router.patch("/plans/:id/prices", ensureLoggedIn, ensureSuperAdmin, async functi
     const { billingInterval, stripePriceId } = req.body;
     if (!billingInterval) throw new BadRequestError("billingInterval is required");
     const plan = await planModel.updatePlanPrice(id, billingInterval, stripePriceId || null);
+    return res.json({ plan });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** PATCH /billing/plans/:id/active - Toggle the plan globally active/inactive (Super Admin).
+ *  Body: { isActive: boolean }
+ *  Cascades to every plan_prices row so monthly + yearly intervals stay in sync with the parent. */
+router.patch("/plans/:id/active", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) throw new BadRequestError("Invalid plan ID");
+    const { isActive } = req.body;
+    if (typeof isActive !== "boolean") throw new BadRequestError("isActive must be a boolean");
+    const plan = await planModel.setPlanActive(id, isActive);
     return res.json({ plan });
   } catch (err) {
     return next(err);

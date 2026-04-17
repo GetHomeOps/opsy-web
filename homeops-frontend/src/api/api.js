@@ -554,6 +554,12 @@ class AppApi {
     return res;
   }
 
+  /** Super Admin: toggle a whole plan active/inactive. Cascades to both monthly and yearly prices. */
+  static async setBillingPlanActive(id, isActive) {
+    const res = await this.request(`billing/plans/${id}/active`, { isActive }, "PATCH");
+    return res;
+  }
+
   /** Super Admin: fetch active Stripe prices for dropdown */
   static async getStripePrices() {
     const res = await this.request(`billing/stripe/prices`);

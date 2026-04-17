@@ -21,6 +21,90 @@ import {
 } from "../onboarding/onboardingPlans";
 import CouponCodeInput from "../../components/billing/CouponCodeInput";
 
+/**
+ * Color variants for PricingSwitch — emerald (user type) + violet (billing).
+ * Solid darker thumb + white active label; muted inactive labels on tinted track.
+ */
+const PRICING_SWITCH_VARIANTS = {
+  /** User type (Homeowner / Agent): deeper forest green, solid thumb + white label */
+  emerald: {
+    track:
+      "bg-emerald-100/90 dark:bg-emerald-950/55 ring-1 ring-emerald-300/90 dark:ring-emerald-800/80",
+    thumb:
+      "bg-emerald-700 dark:bg-emerald-600 shadow-md shadow-emerald-900/25 ring-1 ring-emerald-800/60 dark:ring-emerald-400/30",
+    activeText: "text-white",
+    inactiveText:
+      "text-emerald-900/45 dark:text-emerald-400/55 hover:text-emerald-900 dark:hover:text-emerald-200",
+  },
+  /** Billing interval: deeper purple, solid thumb + white label (pairs with emerald user toggle) */
+  violet: {
+    track:
+      "bg-violet-100/90 dark:bg-violet-950/55 ring-1 ring-violet-300/90 dark:ring-violet-800/80",
+    thumb:
+      "bg-violet-700 dark:bg-violet-600 shadow-md shadow-violet-900/25 ring-1 ring-violet-800/60 dark:ring-violet-400/30",
+    activeText: "text-white",
+    inactiveText:
+      "text-violet-900/45 dark:text-violet-400/55 hover:text-violet-900 dark:hover:text-violet-200",
+  },
+};
+
+/**
+ * Compact two-option pill control with a smoothly sliding thumb.
+ * Sizes: "sm" for tight contexts, "md" for primary toggles.
+ */
+function PricingSwitch({
+  value,
+  onChange,
+  left,
+  right,
+  ariaLabel,
+  variant = "violet",
+  size = "sm",
+}) {
+  const isRight = value === right.value;
+  const v = PRICING_SWITCH_VARIANTS[variant] || PRICING_SWITCH_VARIANTS.violet;
+  const sizeClasses =
+    size === "md"
+      ? "h-9 min-w-[7rem] px-5 text-sm"
+      : "h-7 min-w-[5.5rem] px-4 text-xs";
+
+  return (
+    <div
+      className={`relative inline-flex items-center rounded-full p-0.5 ${v.track}`}
+      role="group"
+      aria-label={ariaLabel}
+    >
+      <div
+        className={`pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-full transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none will-change-transform ${v.thumb}`}
+        style={{transform: isRight ? "translateX(100%)" : "translateX(0)"}}
+        aria-hidden
+      />
+      <button
+        type="button"
+        role="radio"
+        aria-checked={!isRight}
+        onClick={() => onChange(left.value)}
+        className={`relative z-10 rounded-full font-semibold transition-colors duration-200 ease-out motion-reduce:transition-none ${sizeClasses} ${
+          !isRight ? v.activeText : v.inactiveText
+        }`}
+      >
+        {left.label}
+      </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={isRight}
+        onClick={() => onChange(right.value)}
+        className={`relative z-10 rounded-full font-semibold transition-colors duration-200 ease-out motion-reduce:transition-none ${sizeClasses} ${
+          isRight ? v.activeText : v.inactiveText
+        }`}
+      >
+        {right.label}
+      </button>
+    </div>
+  );
+}
+
 /** At most one "Most popular" badge; list order matches API (sort_order, then price). */
 function withSinglePopularFlag(plans) {
   if (!Array.isArray(plans) || plans.length === 0) return plans;
@@ -49,31 +133,42 @@ function UpgradePlanPage() {
   const accountId = currentAccount?.id;
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const userRole = (currentUser?.role || "homeowner").toLowerCase();
+  const isSuperAdmin = userRole === "super_admin";
   const targetRole = ["agent", "admin"].includes(userRole)
     ? "agent"
     : "homeowner";
-  const fallbackPlans = targetRole === "agent" ? AGENT_PLANS : HOMEOWNER_PLANS;
+  /** Super admins can switch between homeowner and agent pricing (reference). */
+  const [planAudience, setPlanAudience] = useState("homeowner");
+  const audienceForFetch = isSuperAdmin ? planAudience : targetRole;
+  const fallbackPlans =
+    audienceForFetch === "agent" ? AGENT_PLANS : HOMEOWNER_PLANS;
 
   const loadPlans = React.useCallback(async () => {
     if (!accountId) return;
     try {
       setError(null);
-      const [statusRes, plansRes] = await Promise.all([
-        AppApi.getBillingStatus(accountId).catch(() => null),
-        AppApi.getBillingPlans(targetRole)
-          .then((r) => r.plans || [])
-          .catch(() => []),
-      ]);
-      setBilling(statusRes);
-      setPlans(
-        withSinglePopularFlag(plansRes.length > 0 ? plansRes : fallbackPlans),
+      /* Track API success vs failure separately. An empty list from a successful API
+         call means "the admin has nothing active" — don't mask that with hardcoded plans
+         from onboardingPlans.js, otherwise deactivated plans appear to keep showing. */
+      let plansRes = [];
+      let plansApiOk = true;
+      try {
+        const r = await AppApi.getBillingPlans(audienceForFetch);
+        plansRes = r?.plans || [];
+      } catch {
+        plansApiOk = false;
+      }
+      const statusRes = await AppApi.getBillingStatus(accountId).catch(
+        () => null,
       );
+      setBilling(statusRes);
+      setPlans(withSinglePopularFlag(plansApiOk ? plansRes : fallbackPlans));
     } catch (err) {
       setError(err?.message || "Failed to load plans");
     } finally {
       setLoading(false);
     }
-  }, [accountId, targetRole, fallbackPlans]);
+  }, [accountId, audienceForFetch, fallbackPlans]);
 
   useEffect(() => {
     if (!accountId) {
@@ -108,6 +203,15 @@ function UpgradePlanPage() {
 
   async function handleSelectPlan(plan) {
     if (plan.code === currentPlanCode) return;
+
+    if (isSuperAdmin && planAudience === "agent") return;
+
+    if (isSuperAdmin && planAudience === "homeowner" && !isZeroCostPlan(plan)) {
+      setError(
+        "Super admin accounts do not require a paid subscription. You can still move to a free plan when applicable.",
+      );
+      return;
+    }
 
     if (isZeroCostPlan(plan)) {
       setCheckoutLoading(plan.code);
@@ -177,12 +281,20 @@ function UpgradePlanPage() {
 
   function formatPrice(plan) {
     const prices = plan.stripePrices || {};
-    const priceObj = prices[billingInterval];
+    let priceObj = prices[billingInterval];
+    if (priceObj?.unitAmount == null) {
+      priceObj =
+        prices.month || prices.year || prices.annual || prices.yr || null;
+    }
     if (priceObj?.unitAmount != null) {
       const amount = priceObj.unitAmount / 100;
+      if (amount <= 0) return "Free";
       return `$${amount % 1 === 0 ? amount : amount.toFixed(2)}`;
     }
     if (plan.price === 0) return "Free";
+    const legacy =
+      plan?.price != null && plan?.price !== "" ? Number(plan.price) : NaN;
+    if (Number.isFinite(legacy) && legacy <= 0) return "Free";
     return "—";
   }
 
@@ -220,7 +332,11 @@ function UpgradePlanPage() {
     return allCodes.indexOf(planCode);
   }
 
-  const currentIdx = getPlanTierIndex(currentPlanCode);
+  const isAgentPricingView = isSuperAdmin && planAudience === "agent";
+  /** Agent pricing is reference-only; tier index is not tied to the account subscription. */
+  const planCodeForTierIndex = isAgentPricingView ? null : currentPlanCode;
+  const homeownerCurrentIdx = getPlanTierIndex(planCodeForTierIndex);
+  const currentIdx = homeownerCurrentIdx;
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
@@ -250,7 +366,7 @@ function UpgradePlanPage() {
               </h1>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
                 Unlock more properties, contacts, AI features, and storage.
-                {currentPlanCode && (
+                {currentPlanCode && !isAgentPricingView && !isSuperAdmin && (
                   <>
                     {" "}
                     You're currently on the{" "}
@@ -260,53 +376,75 @@ function UpgradePlanPage() {
                     plan.
                   </>
                 )}
+                {isAgentPricingView && (
+                  <>
+                    {" "}
+                    <span className="block mt-2 text-gray-600 dark:text-gray-400">
+                      Agent pricing is shown for reference only.
+                    </span>
+                  </>
+                )}
+                {isSuperAdmin && !isAgentPricingView && (
+                  <span className="block mt-2 text-amber-700/90 dark:text-amber-400/90 text-xs">
+                    Super admin accounts are not billed for paid homeowner
+                    plans.
+                  </span>
+                )}
               </p>
             </div>
+
+            {/* Super admin: homeowner vs agent pricing */}
+            {isSuperAdmin && (
+              <div className="flex justify-center mb-6">
+                <PricingSwitch
+                  value={planAudience}
+                  onChange={setPlanAudience}
+                  left={{value: "homeowner", label: "Homeowner"}}
+                  right={{value: "agent", label: "Agent"}}
+                  ariaLabel="Homeowner or agent pricing"
+                  variant="emerald"
+                  size="md"
+                />
+              </div>
+            )}
 
             {/* Billing interval toggle - only if at least one plan has yearly pricing active */}
             {plans.some(
               (p) => p.stripePrices?.year || p.stripePrices?.annual,
-            ) && plans.some(
-              (p) => p.stripePrices?.month,
-            ) && (
-              <div className="flex justify-center mb-8">
-                <div className="inline-flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-                  <button
-                    type="button"
-                    onClick={() => setBillingInterval("month")}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                      billingInterval === "month"
-                        ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
-                    }`}
-                  >
-                    Monthly
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBillingInterval("year")}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                      billingInterval === "year"
-                        ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700"
-                    }`}
-                  >
-                    Yearly
-                    <span className="ml-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                      Save 20%
-                    </span>
-                  </button>
+            ) &&
+              plans.some((p) => p.stripePrices?.month) && (
+                <div className="flex flex-col items-center mb-8 gap-1.5">
+                <PricingSwitch
+                  value={billingInterval}
+                  onChange={setBillingInterval}
+                  left={{value: "month", label: "Monthly"}}
+                  right={{value: "year", label: "Yearly"}}
+                  ariaLabel="Monthly or yearly billing"
+                  variant="violet"
+                  size="sm"
+                />
+                <span
+                  className={`text-[10px] font-semibold tracking-wide uppercase transition-opacity duration-200 ${
+                    billingInterval === "year"
+                      ? "text-violet-800 dark:text-violet-300 opacity-100"
+                      : "text-gray-400 dark:text-gray-500 opacity-70"
+                  }`}
+                >
+                  Save 20% yearly
+                </span>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Coupon Code */}
-            <div className="flex justify-center mb-6">
-              <CouponCodeInput
-                planCode={null}
-                onCouponApplied={setAppliedCoupon}
-              />
-            </div>
+            {/* Coupon Code — super admins don't check out paid plans from this page */}
+            {!isAgentPricingView &&
+              !(isSuperAdmin && planAudience === "homeowner") && (
+                <div className="flex justify-center mb-6">
+                  <CouponCodeInput
+                    planCode={null}
+                    onCouponApplied={setAppliedCoupon}
+                  />
+                </div>
+              )}
 
             {error && (
               <div className="mb-6 rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300 flex items-center gap-2">
@@ -319,10 +457,44 @@ function UpgradePlanPage() {
               <div className="flex justify-center py-20">
                 <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
               </div>
+            ) : plans.length === 0 ? (
+              <div className="mx-auto max-w-md rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-6 py-10 text-center">
+                <AlertCircle className="w-6 h-6 mx-auto text-gray-400 dark:text-gray-500 mb-3" />
+                <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
+                  No plans available right now
+                </h3>
+                <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+                  All subscription plans for your account type are currently
+                  inactive. Please check back soon or{" "}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(`/${accountUrl}/settings/support/new`)
+                    }
+                    className="text-violet-600 dark:text-violet-400 hover:underline"
+                  >
+                    contact support
+                  </button>
+                  .
+                </p>
+              </div>
             ) : (
-              <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-start">
+              <div
+                className={`grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 items-start mx-auto ${
+                  plans.length === 1
+                    ? "lg:grid-cols-1 max-w-sm"
+                    : plans.length === 2
+                      ? "lg:grid-cols-2 max-w-2xl"
+                      : plans.length === 3
+                        ? "lg:grid-cols-3 max-w-4xl"
+                        : "lg:grid-cols-4 max-w-6xl"
+                }`}
+              >
                 {plans.map((plan) => {
-                  const isCurrent = plan.code === currentPlanCode;
+                  const isCurrent =
+                    !isSuperAdmin &&
+                    !isAgentPricingView &&
+                    plan.code === currentPlanCode;
                   const planIdx = getPlanTierIndex(plan.code);
                   const isUpgrade = currentIdx >= 0 && planIdx > currentIdx;
                   const isDowngrade = currentIdx >= 0 && planIdx < currentIdx;
@@ -330,6 +502,18 @@ function UpgradePlanPage() {
                   const price = formatPrice(plan);
                   const isPopular = plan.popular;
                   const isCheckingOut = checkoutLoading === plan.code;
+                  /** Super admin: account may still have a subscription row, but we don’t imply a “subscriber” plan — show a muted control instead of an empty slot. */
+                  const superAdminSameTierAsBilling =
+                    isSuperAdmin &&
+                    !isAgentPricingView &&
+                    !!currentPlanCode &&
+                    plan.code === currentPlanCode;
+                  const superAdminCannotSelectPaid =
+                    isSuperAdmin &&
+                    planAudience === "homeowner" &&
+                    !isZeroCostPlan(plan);
+                  const ctaDisabled =
+                    !!checkoutLoading || superAdminCannotSelectPaid;
 
                   return (
                     <div
@@ -377,7 +561,27 @@ function UpgradePlanPage() {
                       </div>
 
                       {/* CTA */}
-                      {isCurrent ? (
+                      {isAgentPricingView ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="mb-6 w-full py-2.5 rounded-lg text-sm font-semibold cursor-not-allowed opacity-[0.58] transition-opacity bg-gray-100 dark:bg-gray-700/80 text-gray-600 dark:text-gray-400"
+                        >
+                          {isUpgrade
+                            ? "Upgrade"
+                            : isDowngrade
+                              ? "Downgrade"
+                              : "Get started"}
+                        </button>
+                      ) : superAdminSameTierAsBilling ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="mb-6 w-full py-2.5 rounded-lg text-sm font-semibold cursor-not-allowed opacity-[0.55] bg-gray-100 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 border border-gray-200/80 dark:border-gray-700/80"
+                        >
+                          {isZeroCostPlan(plan) ? "Free" : "Included"}
+                        </button>
+                      ) : isCurrent ? (
                         <div className="mb-6 py-2.5 text-center text-sm font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
                           Current plan
                         </div>
@@ -385,11 +589,15 @@ function UpgradePlanPage() {
                         <button
                           type="button"
                           onClick={() => handleSelectPlan(plan)}
-                          disabled={!!checkoutLoading}
-                          className={`mb-6 w-full py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                            isPopular || isUpgrade
-                              ? "bg-violet-600 hover:bg-violet-700 text-white shadow-sm"
-                              : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white"
+                          disabled={ctaDisabled}
+                          className={`mb-6 w-full py-2.5 rounded-lg text-sm font-semibold transition-[opacity,transform] duration-200 ease-out disabled:cursor-not-allowed motion-reduce:transition-none ${
+                            superAdminCannotSelectPaid
+                              ? isPopular || isUpgrade
+                                ? "bg-violet-600 text-white shadow-sm opacity-[0.58]"
+                                : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white opacity-[0.58]"
+                              : isPopular || isUpgrade
+                                ? "bg-violet-600 hover:bg-violet-700 text-white shadow-sm disabled:opacity-50"
+                                : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white disabled:opacity-50"
                           }`}
                         >
                           {isCheckingOut ? (
@@ -422,10 +630,10 @@ function UpgradePlanPage() {
 
                       {/* Trial info */}
                       {plan.trialDays > 0 && !isCurrent && (
-                        <p className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50 text-xs text-center text-gray-500 dark:text-gray-400">
-                          {plan.trialDays}-day free trial included
-                        </p>
-                      )}
+                          <p className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50 text-xs text-center text-gray-500 dark:text-gray-400">
+                            {plan.trialDays}-day free trial included
+                          </p>
+                        )}
                     </div>
                   );
                 })}

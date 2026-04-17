@@ -1,7 +1,16 @@
 import React, {useReducer, useEffect, useState, useMemo} from "react";
 import {useNavigate, useParams, useLocation} from "react-router-dom";
 import {Reorder, useDragControls} from "framer-motion";
-import {AlertCircle, Package, Layers, FileText, CreditCard, GripVertical, Plus, Trash2} from "lucide-react";
+import {
+  AlertCircle,
+  Package,
+  Layers,
+  FileText,
+  CreditCard,
+  GripVertical,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import Banner from "../../partials/containers/Banner";
 import {useTranslation} from "react-i18next";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
@@ -10,17 +19,28 @@ import AppApi from "../../api/api";
 
 function formatStripePrice(unitAmount, currency = "usd") {
   if (unitAmount == null) return "N/A";
-  return new Intl.NumberFormat("en-US", {style: "currency", currency}).format(unitAmount / 100);
+  return new Intl.NumberFormat("en-US", {style: "currency", currency}).format(
+    unitAmount / 100,
+  );
 }
 
 function StripePriceSelect({label, prices, value, onChange, disabled}) {
   const options = (prices || [])
-    .filter((p) => p.interval === (label.toLowerCase().includes("annual") || label.toLowerCase().includes("year") ? "year" : "month"))
+    .filter(
+      (p) =>
+        p.interval ===
+        (label.toLowerCase().includes("annual") ||
+        label.toLowerCase().includes("year")
+          ? "year"
+          : "month"),
+    )
     .sort((a, b) => (a.unitAmount || 0) - (b.unitAmount || 0));
 
   return (
     <div>
-      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">{label}</label>
+      <label className="block text-sm font-medium mb-1 text-gray-500 dark:text-gray-400">
+        {label}
+      </label>
       <select
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
@@ -30,7 +50,9 @@ function StripePriceSelect({label, prices, value, onChange, disabled}) {
         <option value="">— Select from Stripe —</option>
         {options.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.productName || "Product"} — {p.nickname || formatStripePrice(p.unitAmount, p.currency)}/{p.interval}
+            {p.productName || "Product"} —{" "}
+            {p.nickname || formatStripePrice(p.unitAmount, p.currency)}/
+            {p.interval}
           </option>
         ))}
       </select>
@@ -39,7 +61,14 @@ function StripePriceSelect({label, prices, value, onChange, disabled}) {
 }
 
 /** Sortable feature row - grip handle only, smooth layout animations, clear drag feedback. */
-function SortableFeatureRow({feature, idx, onFieldChange, onRemove, onDragStart, onDragEnd}) {
+function SortableFeatureRow({
+  feature,
+  idx,
+  onFieldChange,
+  onRemove,
+  onDragStart,
+  onDragEnd,
+}) {
   const dragControls = useDragControls();
   return (
     <Reorder.Item
@@ -54,7 +83,8 @@ function SortableFeatureRow({feature, idx, onFieldChange, onRemove, onDragStart,
       transition={{type: "spring", stiffness: 400, damping: 35}}
       whileDrag={{
         scale: 1.02,
-        boxShadow: "0 10px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
+        boxShadow:
+          "0 10px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
         zIndex: 50,
         cursor: "grabbing",
       }}
@@ -223,8 +253,12 @@ function reducer(state, action) {
 /** Maps backend product object to form fields. Price comes from Stripe selection, not product. */
 function mapProductToForm(product) {
   const lim = product.limits || {};
-  const priceMonth = product.prices?.find((p) => p.billingInterval === "month" || p.billing_interval === "month");
-  const priceYear = product.prices?.find((p) => p.billingInterval === "year" || p.billing_interval === "year");
+  const priceMonth = product.prices?.find(
+    (p) => p.billingInterval === "month" || p.billing_interval === "month",
+  );
+  const priceYear = product.prices?.find(
+    (p) => p.billingInterval === "year" || p.billing_interval === "year",
+  );
   const hasTrial = product.trialDays != null && product.trialDays > 0;
   return {
     name: product.name || "",
@@ -239,27 +273,42 @@ function mapProductToForm(product) {
     maxViewers: lim.maxViewers ?? product.maxViewers ?? 2,
     maxTeamMembers: lim.maxTeamMembers ?? product.maxTeamMembers ?? 5,
     aiTokenMonthlyQuota: lim.aiTokenMonthlyQuota ?? 50000,
-    aiTokenMonthlyValueUsd: lim.aiTokenMonthlyValueUsd != null ? String(lim.aiTokenMonthlyValueUsd) : "",
-    aiTokenPriceUsd: lim.aiTokenPriceUsd != null ? String(lim.aiTokenPriceUsd) : "",
+    aiTokenMonthlyValueUsd:
+      lim.aiTokenMonthlyValueUsd != null
+        ? String(lim.aiTokenMonthlyValueUsd)
+        : "",
+    aiTokenPriceUsd:
+      lim.aiTokenPriceUsd != null ? String(lim.aiTokenPriceUsd) : "",
     maxDocumentsPerSystem: lim.maxDocumentsPerSystem ?? 5,
     aiFeaturesEnabled: lim.aiFeaturesEnabled !== false,
-    stripePriceIdMonth: priceMonth?.stripePriceId || priceMonth?.stripe_price_id || "",
-    stripePriceIdYear: priceYear?.stripePriceId || priceYear?.stripe_price_id || "",
-    priceActiveMonth: priceMonth ? priceMonth.isActive !== false : true,
-    priceActiveYear: priceYear ? priceYear.isActive !== false : true,
-    features: Array.isArray(product.features) ? product.features.map((f) => ({
-      id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
-      label: f.label || "",
-      included: !!f.included,
-    })) : [],
+    stripePriceIdMonth:
+      priceMonth?.stripePriceId || priceMonth?.stripe_price_id || "",
+    stripePriceIdYear:
+      priceYear?.stripePriceId || priceYear?.stripe_price_id || "",
+    /* Default to false when no plan_prices row exists — an interval with no Stripe price
+       isn't really "active". Previously defaulted to true, which made the toggle look On
+       even after the parent plan had been deactivated (no row to flip). */
+    priceActiveMonth: priceMonth ? priceMonth.isActive !== false : false,
+    priceActiveYear: priceYear ? priceYear.isActive !== false : false,
+    features: Array.isArray(product.features)
+      ? product.features.map((f) => ({
+          id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
+          label: f.label || "",
+          included: !!f.included,
+        }))
+      : [],
   };
 }
 
 const TABS = [
-  { id: "details", labelKey: "subscriptionProducts.tabDetails", icon: Package },
-  { id: "limits", labelKey: "subscriptionProducts.tabTierLimits", icon: Layers },
-  { id: "description", labelKey: "subscriptionProducts.tabDescription", icon: FileText },
-  { id: "prices", labelKey: "subscriptionProducts.tabPrices", icon: CreditCard },
+  {id: "details", labelKey: "subscriptionProducts.tabDetails", icon: Package},
+  {id: "limits", labelKey: "subscriptionProducts.tabTierLimits", icon: Layers},
+  {
+    id: "description",
+    labelKey: "subscriptionProducts.tabDescription",
+    icon: FileText,
+  },
+  {id: "prices", labelKey: "subscriptionProducts.tabPrices", icon: CreditCard},
 ];
 
 function SubscriptionProductFormContainer() {
@@ -279,9 +328,11 @@ function SubscriptionProductFormContainer() {
   const [popularLoading, setPopularLoading] = useState(false);
   const isPopular = !!state.product?.popular;
 
-  const roleForPopular = state.product?.targetRole || state.formData?.targetRole || "homeowner";
+  const roleForPopular =
+    state.product?.targetRole || state.formData?.targetRole || "homeowner";
   const roleLabelPopular =
-    t(`subscriptionProducts.${roleForPopular}`) || (roleForPopular === "agent" ? "Agent" : "Homeowner");
+    t(`subscriptionProducts.${roleForPopular}`) ||
+    (roleForPopular === "agent" ? "Agent" : "Homeowner");
 
   /** Plan marked popular for the same target role (one per role on the backend). */
   const popularPlanForRole = useMemo(() => {
@@ -337,9 +388,72 @@ function SubscriptionProductFormContainer() {
   }
 
   const [priceActiveLoading, setPriceActiveLoading] = useState(null);
-  const monthActive = !!state.formData.priceActiveMonth;
-  const yearActive = !!state.formData.priceActiveYear;
+  const [planActiveLoading, setPlanActiveLoading] = useState(false);
+  const productActive = state.product ? state.product.isActive !== false : true;
+  /* A plan_prices row must exist on the backend before we can toggle is_active for it.
+     Without one, hitting the toggle endpoint would no-op the price update and worse — flip
+     the parent plan inactive via the cascade. So gate the per-interval toggle on the row's
+     existence (sourced from the freshly-loaded product, not unsaved form state). */
+  const productPrices = state.product?.prices || [];
+  const monthRow = productPrices.find(
+    (p) => (p.billingInterval || p.billing_interval) === "month",
+  );
+  const yearRow = productPrices.find(
+    (p) => (p.billingInterval || p.billing_interval) === "year",
+  );
+  const monthHasRow = !!monthRow;
+  const yearHasRow = !!yearRow;
+  const monthActive =
+    productActive && monthHasRow && !!state.formData.priceActiveMonth;
+  const yearActive =
+    productActive && yearHasRow && !!state.formData.priceActiveYear;
   const bothInactive = !monthActive && !yearActive;
+  const hasAnyConfiguredPrice = monthHasRow || yearHasRow;
+  const monthPriceSelected =
+    monthHasRow || !!state.formData.stripePriceIdMonth?.trim();
+  const yearPriceSelected =
+    yearHasRow || !!state.formData.stripePriceIdYear?.trim();
+  const bothStripePricesSelected =
+    monthPriceSelected && yearPriceSelected;
+
+  async function handleTogglePlanActive() {
+    if (!state.product?.id) return;
+    const newValue = !productActive;
+    setPlanActiveLoading(true);
+    try {
+      await AppApi.setBillingPlanActive(state.product.id, newValue);
+      const [fullProduct, allProducts] = await Promise.all([
+        AppApi.getSubscriptionProduct(Number(id)),
+        AppApi.getAllSubscriptionProducts(),
+      ]);
+      dispatch({type: "SET_PRODUCT", payload: fullProduct});
+      setProducts(allProducts || []);
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message: newValue
+            ? `"${state.product.name}" is now active and available to subscribers`
+            : `"${state.product.name}" has been deactivated and is hidden from subscribers`,
+        },
+      });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("plans-updated"));
+      }
+    } catch (err) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: `Failed to update plan status: ${err.message || err}`,
+        },
+      });
+    } finally {
+      setPlanActiveLoading(false);
+    }
+  }
 
   async function handleTogglePriceActive(interval) {
     if (!state.product?.id) return;
@@ -347,7 +461,11 @@ function SubscriptionProductFormContainer() {
     const newValue = !state.formData[key];
     setPriceActiveLoading(interval);
     try {
-      await AppApi.toggleBillingPlanPriceActive(state.product.id, interval, newValue);
+      await AppApi.toggleBillingPlanPriceActive(
+        state.product.id,
+        interval,
+        newValue,
+      );
       const [fullProduct, allProducts] = await Promise.all([
         AppApi.getSubscriptionProduct(Number(id)),
         AppApi.getAllSubscriptionProducts(),
@@ -397,8 +515,10 @@ function SubscriptionProductFormContainer() {
         } else if (isNew) {
           dispatch({type: "SET_PRODUCT", payload: null});
         }
-        if (productsRes.status === "fulfilled") setProducts(productsRes.value || []);
-        if (stripeRes.status === "fulfilled") setStripePrices(stripeRes.value?.prices || []);
+        if (productsRes.status === "fulfilled")
+          setProducts(productsRes.value || []);
+        if (stripeRes.status === "fulfilled")
+          setStripePrices(stripeRes.value?.prices || []);
       } catch (err) {
         console.error("Error fetching subscription product:", err);
         dispatch({
@@ -431,7 +551,8 @@ function SubscriptionProductFormContainer() {
   /** Handle form field changes */
   function handleChange(e) {
     const {id: fieldId, value, type, checked} = e.target;
-    const payload = type === "checkbox" ? {[fieldId]: checked} : {[fieldId]: value};
+    const payload =
+      type === "checkbox" ? {[fieldId]: checked} : {[fieldId]: value};
     if (fieldId === "hasTrial" && !checked) {
       payload.trialDays = "";
     } else if (fieldId === "hasTrial" && checked && !state.formData.trialDays) {
@@ -448,10 +569,16 @@ function SubscriptionProductFormContainer() {
     }
     dispatch({type: "SET_FORM_DATA", payload});
     if (state.errors[fieldId]) {
-      dispatch({type: "SET_ERRORS", payload: {...state.errors, [fieldId]: null}});
+      dispatch({
+        type: "SET_ERRORS",
+        payload: {...state.errors, [fieldId]: null},
+      });
     }
     if (fieldId === "hasTrial" && state.errors.trialDays) {
-      dispatch({type: "SET_ERRORS", payload: {...state.errors, trialDays: null}});
+      dispatch({
+        type: "SET_ERRORS",
+        payload: {...state.errors, trialDays: null},
+      });
     }
     if (state.isInitialLoad) {
       dispatch({type: "SET_FORM_CHANGED", payload: true});
@@ -459,7 +586,8 @@ function SubscriptionProductFormContainer() {
   }
 
   function handleStripePriceChange(interval, value) {
-    const key = interval === "month" ? "stripePriceIdMonth" : "stripePriceIdYear";
+    const key =
+      interval === "month" ? "stripePriceIdMonth" : "stripePriceIdYear";
     dispatch({type: "SET_FORM_DATA", payload: {[key]: value || ""}});
     if (state.isInitialLoad) {
       dispatch({type: "SET_FORM_CHANGED", payload: true});
@@ -472,12 +600,14 @@ function SubscriptionProductFormContainer() {
 
   function handleAddFeature() {
     const features = [...(state.formData.features || [])];
-    features.push({ id: `f-${Date.now()}`, label: "", included: false });
+    features.push({id: `f-${Date.now()}`, label: "", included: false});
     handleFeaturesChange(features);
   }
 
   function handleRemoveFeature(idx) {
-    const features = [...(state.formData.features || [])].filter((_, i) => i !== idx);
+    const features = [...(state.formData.features || [])].filter(
+      (_, i) => i !== idx,
+    );
     handleFeaturesChange(features);
   }
 
@@ -485,11 +615,13 @@ function SubscriptionProductFormContainer() {
     try {
       const features = await AppApi.getDefaultPlanFeatures();
       if (Array.isArray(features) && features.length > 0) {
-        handleFeaturesChange(features.map((f) => ({
-          id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
-          label: f.label || "",
-          included: !!f.included,
-        })));
+        handleFeaturesChange(
+          features.map((f) => ({
+            id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
+            label: f.label || "",
+            included: !!f.included,
+          })),
+        );
       }
     } catch (err) {
       console.warn("Could not load default features:", err);
@@ -503,7 +635,8 @@ function SubscriptionProductFormContainer() {
       newErrors.name = t("subscriptionProducts.nameRequired");
     }
     if (isNew && !state.formData.code?.trim()) {
-      newErrors.code = "Select a plan code so onboarding and billing stay in sync with the app.";
+      newErrors.code =
+        "Select a plan code so onboarding and billing stay in sync with the app.";
     }
     if (state.formData.hasTrial) {
       const days = Number(state.formData.trialDays);
@@ -516,19 +649,62 @@ function SubscriptionProductFormContainer() {
   }
 
   const limitFields = [
-    { id: "maxProperties", label: t("subscriptionProducts.tierLimits.maxProperties") || "Max Properties" },
-    { id: "maxContacts", label: t("subscriptionProducts.tierLimits.maxContacts") || "Max Contacts" },
-    { id: "maxViewers", label: t("subscriptionProducts.tierLimits.maxViewers") || "Max View-only Users" },
-    { id: "maxTeamMembers", label: t("subscriptionProducts.tierLimits.maxTeamMembers") || "Max Home Owners (per property)" },
-    { id: "maxDocumentsPerSystem", label: t("subscriptionProducts.tierLimits.maxDocsPerSystem") || "Max documents per system" },
-    { id: "aiTokenMonthlyQuota", label: t("subscriptionProducts.tierLimits.tokensPerMonth") || "AI Tokens / month (fallback)" },
+    {
+      id: "maxProperties",
+      label:
+        t("subscriptionProducts.tierLimits.maxProperties") || "Max Properties",
+    },
+    {
+      id: "maxContacts",
+      label: t("subscriptionProducts.tierLimits.maxContacts") || "Max Contacts",
+    },
+    {
+      id: "maxViewers",
+      label:
+        t("subscriptionProducts.tierLimits.maxViewers") ||
+        "Max View-only Users",
+    },
+    {
+      id: "maxTeamMembers",
+      label:
+        t("subscriptionProducts.tierLimits.maxTeamMembers") ||
+        "Max Home Owners (per property)",
+    },
+    {
+      id: "maxDocumentsPerSystem",
+      label:
+        t("subscriptionProducts.tierLimits.maxDocsPerSystem") ||
+        "Max documents per system",
+    },
+    {
+      id: "aiTokenMonthlyQuota",
+      label:
+        t("subscriptionProducts.tierLimits.tokensPerMonth") ||
+        "AI Tokens / month (fallback)",
+    },
   ];
 
   const tabs = [
-    { id: "details", label: t("subscriptionProducts.tabs.productDetails") || "Product Details", icon: Package },
-    { id: "limits", label: t("subscriptionProducts.tabs.tierLimits") || "Tier Limits", icon: Layers },
-    { id: "description", label: t("subscriptionProducts.tabs.description") || "Description", icon: FileText },
-    { id: "prices", label: t("subscriptionProducts.tabs.prices") || "Prices", icon: CreditCard },
+    {
+      id: "details",
+      label: t("subscriptionProducts.tabs.productDetails") || "Product Details",
+      icon: Package,
+    },
+    {
+      id: "limits",
+      label: t("subscriptionProducts.tabs.tierLimits") || "Tier Limits",
+      icon: Layers,
+    },
+    {
+      id: "description",
+      label: t("subscriptionProducts.tabs.description") || "Description",
+      icon: FileText,
+    },
+    {
+      id: "prices",
+      label: t("subscriptionProducts.tabs.prices") || "Prices",
+      icon: CreditCard,
+    },
   ];
 
   function handleFeatureFieldChange(idx, field, value) {
@@ -553,28 +729,41 @@ function SubscriptionProductFormContainer() {
         price: 0,
         code: state.formData.code?.trim() || null,
         sortOrder: Number(state.formData.sortOrder) || 0,
-        trialDays: state.formData.hasTrial ? Number(state.formData.trialDays) || null : null,
+        trialDays: state.formData.hasTrial
+          ? Number(state.formData.trialDays) || null
+          : null,
         maxProperties: Number(state.formData.maxProperties) || 1,
         maxContacts: Number(state.formData.maxContacts) || 25,
         maxViewers: Number(state.formData.maxViewers) || 2,
         maxTeamMembers: Number(state.formData.maxTeamMembers) || 5,
-        aiTokenMonthlyQuota: Number(state.formData.aiTokenMonthlyQuota) || 50000,
-        aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd ? Number(state.formData.aiTokenMonthlyValueUsd) : null,
-        aiTokenPriceUsd: state.formData.aiTokenPriceUsd ? Number(state.formData.aiTokenPriceUsd) : null,
-        maxDocumentsPerSystem: Number(state.formData.maxDocumentsPerSystem) ?? 5,
+        aiTokenMonthlyQuota:
+          Number(state.formData.aiTokenMonthlyQuota) || 50000,
+        aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd
+          ? Number(state.formData.aiTokenMonthlyValueUsd)
+          : null,
+        aiTokenPriceUsd: state.formData.aiTokenPriceUsd
+          ? Number(state.formData.aiTokenPriceUsd)
+          : null,
+        maxDocumentsPerSystem:
+          Number(state.formData.maxDocumentsPerSystem) ?? 5,
         aiFeaturesEnabled: !!state.formData.aiFeaturesEnabled,
         stripePriceIdMonth: state.formData.stripePriceIdMonth?.trim() || null,
         stripePriceIdYear: state.formData.stripePriceIdYear?.trim() || null,
-        stripePriceId: state.formData.stripePriceIdMonth?.trim() || state.formData.stripePriceIdYear?.trim() || null,
+        stripePriceId:
+          state.formData.stripePriceIdMonth?.trim() ||
+          state.formData.stripePriceIdYear?.trim() ||
+          null,
         prices: {
           month: state.formData.stripePriceIdMonth?.trim() || null,
           year: state.formData.stripePriceIdYear?.trim() || null,
         },
-        features: (state.formData.features || []).filter((f) => f.label?.trim()).map((f) => ({
-          id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
-          label: f.label.trim(),
-          included: !!f.included,
-        })),
+        features: (state.formData.features || [])
+          .filter((f) => f.label?.trim())
+          .map((f) => ({
+            id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
+            label: f.label.trim(),
+            included: !!f.included,
+          })),
       };
 
       const res = await AppApi.createSubscriptionProduct(data);
@@ -621,28 +810,41 @@ function SubscriptionProductFormContainer() {
         targetRole: state.formData.targetRole || "homeowner",
         code: state.formData.code?.trim() || null,
         sortOrder: Number(state.formData.sortOrder) || 0,
-        trialDays: state.formData.hasTrial ? Number(state.formData.trialDays) || null : null,
+        trialDays: state.formData.hasTrial
+          ? Number(state.formData.trialDays) || null
+          : null,
         limits: {
           maxProperties: Number(state.formData.maxProperties) || 1,
           maxContacts: Number(state.formData.maxContacts) || 25,
           maxViewers: Number(state.formData.maxViewers) || 2,
           maxTeamMembers: Number(state.formData.maxTeamMembers) || 5,
-          aiTokenMonthlyQuota: Number(state.formData.aiTokenMonthlyQuota) || 50000,
-          aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd ? Number(state.formData.aiTokenMonthlyValueUsd) : null,
-          aiTokenPriceUsd: state.formData.aiTokenPriceUsd ? Number(state.formData.aiTokenPriceUsd) : null,
-          maxDocumentsPerSystem: Number(state.formData.maxDocumentsPerSystem) ?? 5,
+          aiTokenMonthlyQuota:
+            Number(state.formData.aiTokenMonthlyQuota) || 50000,
+          aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd
+            ? Number(state.formData.aiTokenMonthlyValueUsd)
+            : null,
+          aiTokenPriceUsd: state.formData.aiTokenPriceUsd
+            ? Number(state.formData.aiTokenPriceUsd)
+            : null,
+          maxDocumentsPerSystem:
+            Number(state.formData.maxDocumentsPerSystem) ?? 5,
           aiFeaturesEnabled: !!state.formData.aiFeaturesEnabled,
         },
         prices: {
           month: state.formData.stripePriceIdMonth?.trim() || null,
           year: state.formData.stripePriceIdYear?.trim() || null,
         },
-        stripePriceId: state.formData.stripePriceIdMonth?.trim() || state.formData.stripePriceIdYear?.trim() || null,
-        features: (state.formData.features || []).filter((f) => f.label?.trim()).map((f) => ({
-          id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
-          label: f.label.trim(),
-          included: !!f.included,
-        })),
+        stripePriceId:
+          state.formData.stripePriceIdMonth?.trim() ||
+          state.formData.stripePriceIdYear?.trim() ||
+          null,
+        features: (state.formData.features || [])
+          .filter((f) => f.label?.trim())
+          .map((f) => ({
+            id: f.id || `f-${Math.random().toString(36).slice(2, 9)}`,
+            label: f.label.trim(),
+            included: !!f.included,
+          })),
       };
 
       const res = await AppApi.updateSubscriptionProduct(Number(id), data);
@@ -720,17 +922,27 @@ function SubscriptionProductFormContainer() {
 
   /** Display price from form selections or product's plan_prices (match stripePrices) */
   function getDisplayPrice() {
-    const idMonth = state.formData.stripePriceIdMonth || state.product?.prices?.find((p) => p.billingInterval === "month" || p.billing_interval === "month")?.stripePriceId;
-    const idYear = state.formData.stripePriceIdYear || state.product?.prices?.find((p) => p.billingInterval === "year" || p.billing_interval === "year")?.stripePriceId;
+    const idMonth =
+      state.formData.stripePriceIdMonth ||
+      state.product?.prices?.find(
+        (p) => p.billingInterval === "month" || p.billing_interval === "month",
+      )?.stripePriceId;
+    const idYear =
+      state.formData.stripePriceIdYear ||
+      state.product?.prices?.find(
+        (p) => p.billingInterval === "year" || p.billing_interval === "year",
+      )?.stripePriceId;
     const parts = [];
     if (idMonth && stripePrices.length > 0) {
       const sp = stripePrices.find((p) => p.id === idMonth);
-      if (sp?.unitAmount != null) parts.push(`${formatStripePrice(sp.unitAmount, sp.currency)}/mo`);
+      if (sp?.unitAmount != null)
+        parts.push(`${formatStripePrice(sp.unitAmount, sp.currency)}/mo`);
       else if (idMonth) parts.push("Monthly linked");
     }
     if (idYear && stripePrices.length > 0) {
       const sp = stripePrices.find((p) => p.id === idYear);
-      if (sp?.unitAmount != null) parts.push(`${formatStripePrice(sp.unitAmount, sp.currency)}/yr`);
+      if (sp?.unitAmount != null)
+        parts.push(`${formatStripePrice(sp.unitAmount, sp.currency)}/yr`);
       else if (idYear) parts.push("Annual linked");
     }
     if (parts.length > 0) return parts.join(" · ");
@@ -742,7 +954,10 @@ function SubscriptionProductFormContainer() {
     if (!stripePriceId || stripePrices.length === 0) return null;
     const sp = stripePrices.find((p) => p.id === stripePriceId);
     if (!sp) return "Stripe price selected";
-    const amt = sp.unitAmount != null ? formatStripePrice(sp.unitAmount, sp.currency) : (sp.nickname || "Custom");
+    const amt =
+      sp.unitAmount != null
+        ? formatStripePrice(sp.unitAmount, sp.currency)
+        : sp.nickname || "Custom";
     return `${sp.productName || "Product"} — ${amt}/${sp.interval || interval}`;
   }
 
@@ -827,15 +1042,15 @@ function SubscriptionProductFormContainer() {
             >
               <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z" />
             </svg>
-            <span className="text-lg">
-              {t("subscriptionProducts.title")}
-            </span>
+            <span className="text-lg">{t("subscriptionProducts.title")}</span>
           </button>
 
           <div className="flex items-center gap-3">
             <button
               className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
-              onClick={() => navigate(`/${accountUrl}/subscription-products/new`)}
+              onClick={() =>
+                navigate(`/${accountUrl}/subscription-products/new`)
+              }
             >
               {t("new")}
             </button>
@@ -845,57 +1060,80 @@ function SubscriptionProductFormContainer() {
         {/* Prev/Next navigation */}
         <div className="flex justify-end mb-2">
           <div className="flex items-center">
-            {state.product && (() => {
-              const navState = location.state || buildNavState(state.product.id);
-              if (!navState || !navState.visibleProductIds?.length) return null;
-              const prevId = navState.currentIndex > 1 ? navState.visibleProductIds[navState.currentIndex - 2] : null;
-              const nextId = navState.currentIndex < navState.totalItems ? navState.visibleProductIds[navState.currentIndex] : null;
-              return (
-                <>
-                  <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
-                    {navState.currentIndex}{" / "}{navState.totalItems}
-                  </span>
-                  <button
-                    className="btn shadow-none p-1"
-                    title="Previous"
-                    onClick={() => {
-                      if (prevId) {
-                        navigate(`/${accountUrl}/subscription-products/${prevId}`, {
-                          state: {...navState, currentIndex: navState.currentIndex - 1},
-                        });
-                      }
-                    }}
-                    disabled={!prevId}
-                  >
-                    <svg
-                      className={`fill-current shrink-0 w-6 h-6 ${!prevId ? "text-gray-200 dark:text-gray-700" : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"}`}
-                      viewBox="0 0 18 18"
+            {state.product &&
+              (() => {
+                const navState =
+                  location.state || buildNavState(state.product.id);
+                if (!navState || !navState.visibleProductIds?.length)
+                  return null;
+                const prevId =
+                  navState.currentIndex > 1
+                    ? navState.visibleProductIds[navState.currentIndex - 2]
+                    : null;
+                const nextId =
+                  navState.currentIndex < navState.totalItems
+                    ? navState.visibleProductIds[navState.currentIndex]
+                    : null;
+                return (
+                  <>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
+                      {navState.currentIndex}
+                      {" / "}
+                      {navState.totalItems}
+                    </span>
+                    <button
+                      className="btn shadow-none p-1"
+                      title="Previous"
+                      onClick={() => {
+                        if (prevId) {
+                          navigate(
+                            `/${accountUrl}/subscription-products/${prevId}`,
+                            {
+                              state: {
+                                ...navState,
+                                currentIndex: navState.currentIndex - 1,
+                              },
+                            },
+                          );
+                        }
+                      }}
+                      disabled={!prevId}
                     >
-                      <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z" />
-                    </svg>
-                  </button>
-                  <button
-                    className="btn shadow-none p-1"
-                    title="Next"
-                    onClick={() => {
-                      if (nextId) {
-                        navigate(`/${accountUrl}/subscription-products/${nextId}`, {
-                          state: {...navState, currentIndex: navState.currentIndex + 1},
-                        });
-                      }
-                    }}
-                    disabled={!nextId}
-                  >
-                    <svg
-                      className={`fill-current shrink-0 w-6 h-6 ${!nextId ? "text-gray-200 dark:text-gray-700" : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"}`}
-                      viewBox="0 0 18 18"
+                      <svg
+                        className={`fill-current shrink-0 w-6 h-6 ${!prevId ? "text-gray-200 dark:text-gray-700" : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"}`}
+                        viewBox="0 0 18 18"
+                      >
+                        <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z" />
+                      </svg>
+                    </button>
+                    <button
+                      className="btn shadow-none p-1"
+                      title="Next"
+                      onClick={() => {
+                        if (nextId) {
+                          navigate(
+                            `/${accountUrl}/subscription-products/${nextId}`,
+                            {
+                              state: {
+                                ...navState,
+                                currentIndex: navState.currentIndex + 1,
+                              },
+                            },
+                          );
+                        }
+                      }}
+                      disabled={!nextId}
                     >
-                      <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z" />
-                    </svg>
-                  </button>
-                </>
-              );
-            })()}
+                      <svg
+                        className={`fill-current shrink-0 w-6 h-6 ${!nextId ? "text-gray-200 dark:text-gray-700" : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"}`}
+                        viewBox="0 0 18 18"
+                      >
+                        <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z" />
+                      </svg>
+                    </button>
+                  </>
+                );
+              })()}
           </div>
         </div>
 
@@ -911,7 +1149,7 @@ function SubscriptionProductFormContainer() {
                   <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 capitalize">
                     {getPageTitle()}
                   </h1>
-                  {!isNew && bothInactive && (
+                  {!isNew && !productActive && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-semibold">
                       Inactive
                     </span>
@@ -919,11 +1157,14 @@ function SubscriptionProductFormContainer() {
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-gray-500 dark:text-gray-400">
                   <span>
-                    {t("subscriptionProducts.userType")}: {t(`subscriptionProducts.${state.formData.targetRole}`) || state.formData.targetRole}
+                    {t("subscriptionProducts.userType")}:{" "}
+                    {t(`subscriptionProducts.${state.formData.targetRole}`) ||
+                      state.formData.targetRole}
                   </span>
                   <span className="text-gray-300 dark:text-gray-600">·</span>
                   <span>
-                    {t("subscriptionProducts.code")}: {state.formData.code || "—"}
+                    {t("subscriptionProducts.code")}:{" "}
+                    {state.formData.code || "—"}
                   </span>
                 </div>
                 {getDisplayPrice() !== "Select from Stripe" && (
@@ -935,9 +1176,67 @@ function SubscriptionProductFormContainer() {
                 )}
               </div>
 
-              {/* Most Popular — pill toggle + which plan is popular for this role */}
+              {/* Plan Active + Most Popular — pill toggles */}
               {!isNew && state.product && (
-                <div className="flex flex-col items-end gap-2 shrink-0 max-w-[min(100%,280px)]">
+                <div className="flex flex-col items-end gap-3 shrink-0 max-w-[min(100%,280px)]">
+                  {/* Active toggle (global on/off — cascades to both monthly + yearly prices) */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                      Plan active
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={productActive}
+                      aria-busy={planActiveLoading}
+                      aria-label={
+                        productActive
+                          ? "Deactivate this plan"
+                          : "Activate this plan"
+                      }
+                      onClick={handleTogglePlanActive}
+                      disabled={planActiveLoading}
+                      title={
+                        productActive
+                          ? "Turn off — hides plan from users and disables both monthly and yearly billing"
+                          : "Turn on — makes plan available again, restoring both monthly and yearly billing"
+                      }
+                      className={[
+                        "relative h-7 w-12 shrink-0 rounded-full p-0.5 transition-colors duration-200",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800",
+                        planActiveLoading
+                          ? "cursor-wait border border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-700"
+                          : productActive
+                            ? "bg-emerald-600 hover:bg-emerald-500"
+                            : "bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "pointer-events-none absolute top-0.5 left-0.5 h-6 w-6 rounded-full shadow-sm transition-transform duration-200 ease-out",
+                          planActiveLoading
+                            ? "bg-gray-300 dark:bg-gray-500"
+                            : "bg-white",
+                          productActive ? "translate-x-5" : "translate-x-0",
+                        ].join(" ")}
+                      />
+                    </button>
+                    <span
+                      className={`text-xs italic tabular-nums ${
+                        planActiveLoading
+                          ? "text-gray-400 dark:text-gray-500"
+                          : productActive
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-amber-600 dark:text-amber-400"
+                      }`}
+                    >
+                      {planActiveLoading
+                        ? "Saving…"
+                        : productActive
+                          ? "Active"
+                          : "Inactive"}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
                       Most popular
@@ -972,7 +1271,9 @@ function SubscriptionProductFormContainer() {
                       <span
                         className={[
                           "pointer-events-none absolute top-0.5 left-0.5 h-6 w-6 rounded-full shadow-sm transition-transform duration-200 ease-out",
-                          popularLoading ? "bg-gray-300 dark:bg-gray-500" : "bg-white",
+                          popularLoading
+                            ? "bg-gray-300 dark:bg-gray-500"
+                            : "bg-white",
                           isPopular ? "translate-x-5" : "translate-x-0",
                         ].join(" ")}
                       />
@@ -992,25 +1293,34 @@ function SubscriptionProductFormContainer() {
                   {(products.length > 0 || isPopular) && (
                     <p className="text-right text-[11px] leading-snug text-gray-500 dark:text-gray-400">
                       {popularPlanForRole ? (
-                        Number(popularPlanForRole.id) === Number(state.product.id) ? (
+                        Number(popularPlanForRole.id) ===
+                        Number(state.product.id) ? (
                           <>
                             This plan is the most popular for{" "}
-                            <span className="font-medium text-gray-700 dark:text-gray-300">{roleLabelPopular}</span>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">
+                              {roleLabelPopular}
+                            </span>
                             .
                           </>
                         ) : (
                           <>
                             Most popular for{" "}
-                            <span className="font-medium text-gray-700 dark:text-gray-300">{roleLabelPopular}</span>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">
+                              {roleLabelPopular}
+                            </span>
                             :{" "}
                             <button
                               type="button"
                               className="font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 underline-offset-2 hover:underline"
                               onClick={() =>
-                                navigate(`/${accountUrl}/subscription-products/${popularPlanForRole.id}`)
+                                navigate(
+                                  `/${accountUrl}/subscription-products/${popularPlanForRole.id}`,
+                                )
                               }
                             >
-                              {popularPlanForRole.name || popularPlanForRole.code || "Another plan"}
+                              {popularPlanForRole.name ||
+                                popularPlanForRole.code ||
+                                "Another plan"}
                             </button>
                             .
                           </>
@@ -1018,7 +1328,10 @@ function SubscriptionProductFormContainer() {
                       ) : (
                         <>
                           No plan is marked most popular for{" "}
-                          <span className="font-medium text-gray-700 dark:text-gray-300">{roleLabelPopular}</span> yet.
+                          <span className="font-medium text-gray-700 dark:text-gray-300">
+                            {roleLabelPopular}
+                          </span>{" "}
+                          yet.
                         </>
                       )}
                     </p>
@@ -1036,11 +1349,27 @@ function SubscriptionProductFormContainer() {
               {/* Tabs */}
               <div className="flex border-b border-gray-200 dark:border-gray-600 mb-6 gap-1">
                 {[
-                  { id: "details", label: t("subscriptionProducts.tabs.productDetails"), icon: Package },
-                  { id: "limits", label: t("subscriptionProducts.tabs.tierLimits"), icon: Layers },
-                  { id: "description", label: t("subscriptionProducts.tabs.description"), icon: FileText },
-                  { id: "prices", label: t("subscriptionProducts.tabs.prices"), icon: CreditCard },
-                ].map(({ id, label, icon: Icon }) => (
+                  {
+                    id: "details",
+                    label: t("subscriptionProducts.tabs.productDetails"),
+                    icon: Package,
+                  },
+                  {
+                    id: "limits",
+                    label: t("subscriptionProducts.tabs.tierLimits"),
+                    icon: Layers,
+                  },
+                  {
+                    id: "description",
+                    label: t("subscriptionProducts.tabs.description"),
+                    icon: FileText,
+                  },
+                  {
+                    id: "prices",
+                    label: t("subscriptionProducts.tabs.prices"),
+                    icon: CreditCard,
+                  },
+                ].map(({id, label, icon: Icon}) => (
                   <button
                     key={id}
                     type="button"
@@ -1060,423 +1389,576 @@ function SubscriptionProductFormContainer() {
               <div className="space-y-8">
                 {/* Product Details Tab */}
                 {activeTab === "details" && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                    <Package className="h-5 w-5 text-[#6E8276]" />
-                    {t("subscriptionProducts.productDetails")}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Name */}
-                    <div>
-                      <label className={getLabelClasses()} htmlFor="name">
-                        {t("name")}{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="name"
-                        className={getInputClasses("name")}
-                        type="text"
-                        value={state.formData.name}
-                        onChange={handleChange}
-                        placeholder={t("subscriptionProducts.namePlaceholder")}
-                      />
-                      {state.errors.name && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1" />
-                          <span>{state.errors.name}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Target Role */}
-                    <div>
-                      <label className={getLabelClasses()} htmlFor="targetRole">
-                        Target Role
-                      </label>
-                      <select
-                        id="targetRole"
-                        className={getInputClasses("targetRole")}
-                        value={state.formData.targetRole}
-                        onChange={handleChange}
-                      >
-                        <option value="homeowner">Homeowner</option>
-                        <option value="agent">Agent</option>
-                      </select>
-                    </div>
-
-                    {/* Plan code — must match backend onboarding / Stripe mapping (see auth.js PLAN_CODE_TO_SUBSCRIPTION_TIER). */}
-                    <div>
-                      <label className={getLabelClasses()} htmlFor="code">
-                        Plan Code
-                      </label>
-                      <select
-                        id="code"
-                        className={getInputClasses("code")}
-                        value={state.formData.code || ""}
-                        onChange={handleChange}
-                      >
-                        {isNew && (
-                          <option value="">
-                            — Select plan code —
-                          </option>
-                        )}
-                        {!isNew && !state.formData.code && (
-                          <option value="">— Missing code — set one</option>
-                        )}
-                        {planCodeSelectOptions(
-                          state.formData.targetRole,
-                          state.formData.code,
-                        ).map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                      {state.errors.code && (
-                        <div className="mt-1 flex items-center text-sm text-red-500">
-                          <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
-                          <span>{state.errors.code}</span>
-                        </div>
-                      )}
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Fixed list aligned with signup and Stripe. Display name above can differ (e.g. “Maintain”); this code is what the API uses. Beta comp plans: use{" "}
-                        <code className="text-[11px] bg-gray-100 dark:bg-gray-700 px-1 rounded">homeowner_beta</code>
-                        .
-                      </p>
-                    </div>
-
-                    {/* Sort Order & Trial Days */}
-                    <div>
-                      <label className={getLabelClasses()} htmlFor="sortOrder">
-                        Sort Order
-                      </label>
-                      <input
-                        id="sortOrder"
-                        className={getInputClasses("sortOrder")}
-                        type="number"
-                        min="0"
-                        value={state.formData.sortOrder}
-                        onChange={handleChange}
-                      />
-                    </div>
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                      <Package className="h-5 w-5 text-[#6E8276]" />
+                      {t("subscriptionProducts.productDetails")}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Name */}
+                      <div>
+                        <label className={getLabelClasses()} htmlFor="name">
+                          {t("name")} <span className="text-red-500">*</span>
+                        </label>
                         <input
-                          id="hasTrial"
-                          type="checkbox"
-                          checked={state.formData.hasTrial}
+                          id="name"
+                          className={getInputClasses("name")}
+                          type="text"
+                          value={state.formData.name}
                           onChange={handleChange}
-                          className="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                          Enable free trial
-                        </span>
-                      </label>
-                      {state.formData.hasTrial && (
-                        <div>
-                          <label className={getLabelClasses()} htmlFor="trialDays">
-                            Trial length (days)
-                          </label>
-                          <input
-                            id="trialDays"
-                            className={getInputClasses("trialDays")}
-                            type="number"
-                            min="1"
-                            value={state.formData.trialDays}
-                            onChange={handleChange}
-                            placeholder="e.g. 14"
-                          />
-                          {state.errors.trialDays && (
-                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                              {state.errors.trialDays}
-                            </p>
+                          placeholder={t(
+                            "subscriptionProducts.namePlaceholder",
                           )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Description (full width) */}
-                    <div className="md:col-span-2">
-                      <label
-                        className={getLabelClasses()}
-                        htmlFor="description"
-                      >
-                        {t("description")}
-                      </label>
-                      <textarea
-                        id="description"
-                        className="form-textarea w-full"
-                        rows="3"
-                        value={state.formData.description}
-                        onChange={handleChange}
-                        placeholder={t(
-                          "subscriptionProducts.descriptionPlaceholder",
+                        />
+                        {state.errors.name && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1" />
+                            <span>{state.errors.name}</span>
+                          </div>
                         )}
-                      />
+                      </div>
+
+                      {/* Target Role */}
+                      <div>
+                        <label
+                          className={getLabelClasses()}
+                          htmlFor="targetRole"
+                        >
+                          Target Role
+                        </label>
+                        <select
+                          id="targetRole"
+                          className={getInputClasses("targetRole")}
+                          value={state.formData.targetRole}
+                          onChange={handleChange}
+                        >
+                          <option value="homeowner">Homeowner</option>
+                          <option value="agent">Agent</option>
+                        </select>
+                      </div>
+
+                      {/* Plan code — must match backend onboarding / Stripe mapping (see auth.js PLAN_CODE_TO_SUBSCRIPTION_TIER). */}
+                      <div>
+                        <label className={getLabelClasses()} htmlFor="code">
+                          Plan Code
+                        </label>
+                        <select
+                          id="code"
+                          className={getInputClasses("code")}
+                          value={state.formData.code || ""}
+                          onChange={handleChange}
+                        >
+                          {isNew && (
+                            <option value="">— Select plan code —</option>
+                          )}
+                          {!isNew && !state.formData.code && (
+                            <option value="">— Missing code — set one</option>
+                          )}
+                          {planCodeSelectOptions(
+                            state.formData.targetRole,
+                            state.formData.code,
+                          ).map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                        {state.errors.code && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1 shrink-0" />
+                            <span>{state.errors.code}</span>
+                          </div>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Fixed list aligned with signup and Stripe. Display
+                          name above can differ (e.g. “Maintain”); this code is
+                          what the API uses. Beta comp plans: use{" "}
+                          <code className="text-[11px] bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                            homeowner_beta
+                          </code>
+                          .
+                        </p>
+                      </div>
+
+                      {/* Sort Order & Trial Days */}
+                      <div>
+                        <label
+                          className={getLabelClasses()}
+                          htmlFor="sortOrder"
+                        >
+                          Sort Order
+                        </label>
+                        <input
+                          id="sortOrder"
+                          className={getInputClasses("sortOrder")}
+                          type="number"
+                          min="0"
+                          value={state.formData.sortOrder}
+                          onChange={handleChange}
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            id="hasTrial"
+                            type="checkbox"
+                            checked={state.formData.hasTrial}
+                            onChange={handleChange}
+                            className="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                            Enable free trial
+                          </span>
+                        </label>
+                        {state.formData.hasTrial && (
+                          <div>
+                            <label
+                              className={getLabelClasses()}
+                              htmlFor="trialDays"
+                            >
+                              Trial length (days)
+                            </label>
+                            <input
+                              id="trialDays"
+                              className={getInputClasses("trialDays")}
+                              type="number"
+                              min="1"
+                              value={state.formData.trialDays}
+                              onChange={handleChange}
+                              placeholder="e.g. 14"
+                            />
+                            {state.errors.trialDays && (
+                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                {state.errors.trialDays}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Description (full width) */}
+                      <div className="md:col-span-2">
+                        <label
+                          className={getLabelClasses()}
+                          htmlFor="description"
+                        >
+                          {t("description")}
+                        </label>
+                        <textarea
+                          id="description"
+                          className="form-textarea w-full"
+                          rows="3"
+                          value={state.formData.description}
+                          onChange={handleChange}
+                          placeholder={t(
+                            "subscriptionProducts.descriptionPlaceholder",
+                          )}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
                 )}
 
                 {/* Tier Limits Tab */}
                 {activeTab === "limits" && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-                    Tier Limits
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    Enforced by backend validation across the platform.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {limitFields.map(({id, label}) => (
-                      <div key={id}>
-                        <label className={getLabelClasses()} htmlFor={id}>
-                          {label}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+                      Tier Limits
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                      Enforced by backend validation across the platform.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {limitFields.map(({id, label}) => (
+                        <div key={id}>
+                          <label className={getLabelClasses()} htmlFor={id}>
+                            {label}
+                          </label>
+                          <input
+                            id={id}
+                            className={getInputClasses(id)}
+                            type="number"
+                            min="0"
+                            value={state.formData[id]}
+                            onChange={handleChange}
+                          />
+                        </div>
+                      ))}
+                      <div>
+                        <label
+                          className={getLabelClasses()}
+                          htmlFor="aiTokenMonthlyValueUsd"
+                        >
+                          {t(
+                            "subscriptionProducts.tierLimits.tokenBudgetUsd",
+                          ) || "Token budget ($/month)"}
                         </label>
                         <input
-                          id={id}
-                          className={getInputClasses(id)}
+                          id="aiTokenMonthlyValueUsd"
+                          className={getInputClasses("aiTokenMonthlyValueUsd")}
                           type="number"
                           min="0"
-                          value={state.formData[id]}
+                          step="0.01"
+                          placeholder="e.g. 1.00"
+                          value={state.formData.aiTokenMonthlyValueUsd}
                           onChange={handleChange}
                         />
                       </div>
-                    ))}
-                    <div>
-                      <label className={getLabelClasses()} htmlFor="aiTokenMonthlyValueUsd">
-                        {t("subscriptionProducts.tierLimits.tokenBudgetUsd") || "Token budget ($/month)"}
-                      </label>
-                      <input
-                        id="aiTokenMonthlyValueUsd"
-                        className={getInputClasses("aiTokenMonthlyValueUsd")}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="e.g. 1.00"
-                        value={state.formData.aiTokenMonthlyValueUsd}
-                        onChange={handleChange}
-                      />
+                      <div>
+                        <label
+                          className={getLabelClasses()}
+                          htmlFor="aiTokenPriceUsd"
+                        >
+                          {t("subscriptionProducts.tierLimits.tokenPriceUsd") ||
+                            "Token price ($ per token)"}
+                        </label>
+                        <input
+                          id="aiTokenPriceUsd"
+                          className={getInputClasses("aiTokenPriceUsd")}
+                          type="number"
+                          min="0"
+                          step="0.00001"
+                          placeholder="e.g. 0.00002"
+                          value={state.formData.aiTokenPriceUsd}
+                          onChange={handleChange}
+                        />
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          When both budget and price are set, AI tokens/month =
+                          budget ÷ price. Otherwise uses fallback or
+                          AI_TOKEN_COST_USD env.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <label className={getLabelClasses()} htmlFor="aiTokenPriceUsd">
-                        {t("subscriptionProducts.tierLimits.tokenPriceUsd") || "Token price ($ per token)"}
+                    <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                      <label className="flex items-start gap-3 cursor-pointer max-w-2xl">
+                        <input
+                          id="aiFeaturesEnabled"
+                          type="checkbox"
+                          checked={!!state.formData.aiFeaturesEnabled}
+                          onChange={handleChange}
+                          className="mt-1 rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
+                            {t(
+                              "subscriptionProducts.tierLimits.aiFeaturesEnabled",
+                            ) || "Include AI features"}
+                          </span>
+                          <span className="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                            {t(
+                              "subscriptionProducts.tierLimits.aiFeaturesEnabledHint",
+                            ) ||
+                              "When enabled, subscribers can use AI inspection report analysis and the AI assistant (subject to token limits). When disabled, those actions are blocked at the API."}
+                          </span>
+                        </span>
                       </label>
-                      <input
-                        id="aiTokenPriceUsd"
-                        className={getInputClasses("aiTokenPriceUsd")}
-                        type="number"
-                        min="0"
-                        step="0.00001"
-                        placeholder="e.g. 0.00002"
-                        value={state.formData.aiTokenPriceUsd}
-                        onChange={handleChange}
-                      />
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        When both budget and price are set, AI tokens/month = budget ÷ price. Otherwise uses fallback or AI_TOKEN_COST_USD env.
-                      </p>
                     </div>
                   </div>
-                  <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
-                    <label className="flex items-start gap-3 cursor-pointer max-w-2xl">
-                      <input
-                        id="aiFeaturesEnabled"
-                        type="checkbox"
-                        checked={!!state.formData.aiFeaturesEnabled}
-                        onChange={handleChange}
-                        className="mt-1 rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500 shrink-0"
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
-                          {t("subscriptionProducts.tierLimits.aiFeaturesEnabled") || "Include AI features"}
-                        </span>
-                        <span className="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                          {t("subscriptionProducts.tierLimits.aiFeaturesEnabledHint") ||
-                            "When enabled, subscribers can use AI inspection report analysis and the AI assistant (subject to token limits). When disabled, those actions are blocked at the API."}
-                        </span>
-                      </span>
-                    </label>
-                  </div>
-                </div>
                 )}
 
                 {/* Description Tab - Plan Features */}
                 {activeTab === "description" && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-[#6E8276]" />
-                    {t("subscriptionProducts.tabs.description")}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    Manage the list of plan features displayed to users. Toggle Included / Not Included per feature.
-                  </p>
-                  <Reorder.Group
-                    as="div"
-                    axis="y"
-                    values={state.formData.features || []}
-                    onReorder={handleFeaturesChange}
-                    className={`mb-4 flex flex-col gap-3 transition-all duration-200 ${isFeaturesDragging ? "rounded-lg p-2 -m-2 ring-2 ring-dashed ring-[#6E8276]/50 bg-[#6E8276]/5 dark:bg-[#6E8276]/10" : ""}`}
-                  >
-                    {(state.formData.features || []).map((f, idx) => (
-                      <SortableFeatureRow
-                        key={f.id || idx}
-                        feature={f}
-                        idx={idx}
-                        onFieldChange={handleFeatureFieldChange}
-                        onRemove={handleRemoveFeature}
-                        onDragStart={() => setIsFeaturesDragging(true)}
-                        onDragEnd={() => setIsFeaturesDragging(false)}
-                      />
-                    ))}
-                  </Reorder.Group>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={handleAddFeature} className="btn bg-[#456564] hover:bg-[#34514f] text-white text-sm flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      {t("subscriptionProducts.features.addFeature") || "Add Feature"}
-                    </button>
-                    <button type="button" onClick={handleLoadDefaultFeatures} className="btn border border-gray-300 dark:border-gray-600 text-sm flex items-center gap-2">
-                      {t("subscriptionProducts.features.loadDefaults") || "Load Default Features"}
-                    </button>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-[#6E8276]" />
+                      {t("subscriptionProducts.tabs.description")}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                      Manage the list of plan features displayed to users.
+                      Toggle Included / Not Included per feature.
+                    </p>
+                    <Reorder.Group
+                      as="div"
+                      axis="y"
+                      values={state.formData.features || []}
+                      onReorder={handleFeaturesChange}
+                      className={`mb-4 flex flex-col gap-3 transition-all duration-200 ${isFeaturesDragging ? "rounded-lg p-2 -m-2 ring-2 ring-dashed ring-[#6E8276]/50 bg-[#6E8276]/5 dark:bg-[#6E8276]/10" : ""}`}
+                    >
+                      {(state.formData.features || []).map((f, idx) => (
+                        <SortableFeatureRow
+                          key={f.id || idx}
+                          feature={f}
+                          idx={idx}
+                          onFieldChange={handleFeatureFieldChange}
+                          onRemove={handleRemoveFeature}
+                          onDragStart={() => setIsFeaturesDragging(true)}
+                          onDragEnd={() => setIsFeaturesDragging(false)}
+                        />
+                      ))}
+                    </Reorder.Group>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleAddFeature}
+                        className="btn bg-[#456564] hover:bg-[#34514f] text-white text-sm flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        {t("subscriptionProducts.features.addFeature") ||
+                          "Add Feature"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleLoadDefaultFeatures}
+                        className="btn border border-gray-300 dark:border-gray-600 text-sm flex items-center gap-2"
+                      >
+                        {t("subscriptionProducts.features.loadDefaults") ||
+                          "Load Default Features"}
+                      </button>
+                    </div>
                   </div>
-                </div>
                 )}
 
                 {/* Prices Tab */}
                 {activeTab === "prices" && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-                    Stripe Prices
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    Select prices from your Stripe account and activate/deactivate billing intervals. Ensure STRIPE_SECRET_KEY is set.
-                  </p>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+                      Stripe Prices
+                    </h3>
+                    {(isNew || productActive) && !bothStripePricesSelected && (
+                      <p className="text-sm text-red-400 dark:text-red-300 mb-4">
+                        Select prices from your Stripe account and
+                        activate/deactivate billing intervals. Ensure
+                        STRIPE_SECRET_KEY is set.
+                      </p>
+                    )}
 
-                  {/* Plan status warning */}
-                  {!isNew && bothInactive && (
-                    <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-4">
-                      <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Plan deactivated</p>
-                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-0.5">
-                          Both monthly and yearly billing are off. This plan is hidden from users and cannot be purchased. Activate at least one interval to make it available.
-                        </p>
+                    {/* Plan status warning */}
+                    {!isNew && !productActive && (
+                      <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-4">
+                        <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                            Plan deactivated
+                          </p>
+                          <p className="text-sm text-amber-700 dark:text-amber-300 mt-0.5">
+                            This plan is hidden from users and cannot be
+                            purchased. Re-enable it with the “Plan active”
+                            switch above to restore both monthly and yearly
+                            billing.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                    {!isNew && productActive && bothInactive && (
+                      <div className="mb-4 flex items-start gap-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent p-4">
+                        <AlertCircle className="h-5 w-5 text-gray-500 dark:text-gray-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {hasAnyConfiguredPrice
+                              ? "No billing intervals enabled"
+                              : "No Stripe prices linked yet"}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
+                            {hasAnyConfiguredPrice
+                              ? "Both monthly and yearly billing are off. Activate at least one interval below so subscribers can purchase this plan."
+                              : "Pick a Stripe price for monthly and/or yearly below, then click Update. Each interval becomes active automatically once it's linked to a Stripe price."}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Monthly */}
-                    <div className={`rounded-lg border p-4 transition-colors ${monthActive ? "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 opacity-60"}`}>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Monthly</span>
-                        {!isNew && state.product && (
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={monthActive}
-                              aria-busy={priceActiveLoading === "month"}
-                              aria-label={monthActive ? "Deactivate monthly billing" : "Activate monthly billing"}
-                              onClick={() => handleTogglePriceActive("month")}
-                              disabled={priceActiveLoading != null}
-                              title={monthActive ? "Turn off — monthly billing won't be available" : "Turn on — enable monthly billing for this plan"}
-                              className={[
-                                "relative h-6 w-10 shrink-0 rounded-full p-0.5 transition-colors duration-200",
-                                "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800",
-                                priceActiveLoading === "month"
-                                  ? "cursor-wait border border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-700"
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Monthly */}
+                      <div
+                        className={`rounded-lg border p-4 transition-colors ${monthActive ? "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 opacity-60"}`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                            Monthly
+                          </span>
+                          {!isNew && state.product && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={monthActive}
+                                aria-busy={priceActiveLoading === "month"}
+                                aria-label={
+                                  monthActive
+                                    ? "Deactivate monthly billing"
+                                    : "Activate monthly billing"
+                                }
+                                onClick={() => handleTogglePriceActive("month")}
+                                disabled={
+                                  priceActiveLoading != null ||
+                                  !productActive ||
+                                  !monthHasRow
+                                }
+                                title={
+                                  !productActive
+                                    ? "Plan is deactivated — turn on the global Plan active switch first"
+                                    : !monthHasRow
+                                      ? "Pick a Stripe monthly price below and click Update before toggling this on"
+                                      : monthActive
+                                        ? "Turn off — monthly billing won't be available"
+                                        : "Turn on — enable monthly billing for this plan"
+                                }
+                                className={[
+                                  "relative h-6 w-10 shrink-0 rounded-full p-0.5 transition-colors duration-200",
+                                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800",
+                                  priceActiveLoading === "month"
+                                    ? "cursor-wait border border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-700"
+                                    : monthActive
+                                      ? "bg-emerald-600 hover:bg-emerald-500"
+                                      : "bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400",
+                                  (!productActive || !monthHasRow) &&
+                                  priceActiveLoading !== "month"
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : "",
+                                ].join(" ")}
+                              >
+                                <span
+                                  className={[
+                                    "pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full shadow-sm transition-transform duration-200 ease-out",
+                                    priceActiveLoading === "month"
+                                      ? "bg-gray-300 dark:bg-gray-500"
+                                      : "bg-white",
+                                    monthActive
+                                      ? "translate-x-4"
+                                      : "translate-x-0",
+                                  ].join(" ")}
+                                />
+                              </button>
+                              <span
+                                className={`text-xs tabular-nums ${priceActiveLoading === "month" ? "text-gray-400" : monthActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400"}`}
+                              >
+                                {priceActiveLoading === "month"
+                                  ? "Saving…"
                                   : monthActive
-                                    ? "bg-emerald-600 hover:bg-emerald-500"
-                                    : "bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400",
-                              ].join(" ")}
-                            >
-                              <span
-                                className={[
-                                  "pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full shadow-sm transition-transform duration-200 ease-out",
-                                  priceActiveLoading === "month" ? "bg-gray-300 dark:bg-gray-500" : "bg-white",
-                                  monthActive ? "translate-x-4" : "translate-x-0",
-                                ].join(" ")}
-                              />
-                            </button>
-                            <span className={`text-xs tabular-nums ${priceActiveLoading === "month" ? "text-gray-400" : monthActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400"}`}>
-                              {priceActiveLoading === "month" ? "Saving…" : monthActive ? "Active" : "Off"}
-                            </span>
-                          </div>
-                        )}
+                                    ? "Active"
+                                    : monthHasRow
+                                      ? "Off"
+                                      : "Not linked"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <StripePriceSelect
+                          label="Monthly price"
+                          prices={stripePrices}
+                          value={state.formData.stripePriceIdMonth}
+                          onChange={(v) => handleStripePriceChange("month", v)}
+                          disabled={state.isSubmitting}
+                        />
+                        {state.formData.stripePriceIdMonth &&
+                          getSelectedPriceLabel(
+                            state.formData.stripePriceIdMonth,
+                            "month",
+                          ) && (
+                            <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
+                              Selected:{" "}
+                              {getSelectedPriceLabel(
+                                state.formData.stripePriceIdMonth,
+                                "month",
+                              )}
+                            </p>
+                          )}
                       </div>
-                      <StripePriceSelect
-                        label="Monthly price"
-                        prices={stripePrices}
-                        value={state.formData.stripePriceIdMonth}
-                        onChange={(v) => handleStripePriceChange("month", v)}
-                        disabled={state.isSubmitting}
-                      />
-                      {state.formData.stripePriceIdMonth && getSelectedPriceLabel(state.formData.stripePriceIdMonth, "month") && (
-                        <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
-                          Selected: {getSelectedPriceLabel(state.formData.stripePriceIdMonth, "month")}
-                        </p>
-                      )}
-                    </div>
 
-                    {/* Yearly */}
-                    <div className={`rounded-lg border p-4 transition-colors ${yearActive ? "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 opacity-60"}`}>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Yearly</span>
-                        {!isNew && state.product && (
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={yearActive}
-                              aria-busy={priceActiveLoading === "year"}
-                              aria-label={yearActive ? "Deactivate yearly billing" : "Activate yearly billing"}
-                              onClick={() => handleTogglePriceActive("year")}
-                              disabled={priceActiveLoading != null}
-                              title={yearActive ? "Turn off — yearly billing won't be available" : "Turn on — enable yearly billing for this plan"}
-                              className={[
-                                "relative h-6 w-10 shrink-0 rounded-full p-0.5 transition-colors duration-200",
-                                "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800",
-                                priceActiveLoading === "year"
-                                  ? "cursor-wait border border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-700"
-                                  : yearActive
-                                    ? "bg-emerald-600 hover:bg-emerald-500"
-                                    : "bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400",
-                              ].join(" ")}
-                            >
-                              <span
+                      {/* Yearly */}
+                      <div
+                        className={`rounded-lg border p-4 transition-colors ${yearActive ? "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 opacity-60"}`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                            Yearly
+                          </span>
+                          {!isNew && state.product && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={yearActive}
+                                aria-busy={priceActiveLoading === "year"}
+                                aria-label={
+                                  yearActive
+                                    ? "Deactivate yearly billing"
+                                    : "Activate yearly billing"
+                                }
+                                onClick={() => handleTogglePriceActive("year")}
+                                disabled={
+                                  priceActiveLoading != null ||
+                                  !productActive ||
+                                  !yearHasRow
+                                }
+                                title={
+                                  !productActive
+                                    ? "Plan is deactivated — turn on the global Plan active switch first"
+                                    : !yearHasRow
+                                      ? "Pick a Stripe yearly price below and click Update before toggling this on"
+                                      : yearActive
+                                        ? "Turn off — yearly billing won't be available"
+                                        : "Turn on — enable yearly billing for this plan"
+                                }
                                 className={[
-                                  "pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full shadow-sm transition-transform duration-200 ease-out",
-                                  priceActiveLoading === "year" ? "bg-gray-300 dark:bg-gray-500" : "bg-white",
-                                  yearActive ? "translate-x-4" : "translate-x-0",
+                                  "relative h-6 w-10 shrink-0 rounded-full p-0.5 transition-colors duration-200",
+                                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-800",
+                                  priceActiveLoading === "year"
+                                    ? "cursor-wait border border-gray-300 bg-gray-100 dark:border-gray-600 dark:bg-gray-700"
+                                    : yearActive
+                                      ? "bg-emerald-600 hover:bg-emerald-500"
+                                      : "bg-gray-400 hover:bg-gray-500 dark:bg-gray-500 dark:hover:bg-gray-400",
+                                  (!productActive || !yearHasRow) &&
+                                  priceActiveLoading !== "year"
+                                    ? "opacity-50 cursor-not-allowed"
+                                    : "",
                                 ].join(" ")}
-                              />
-                            </button>
-                            <span className={`text-xs tabular-nums ${priceActiveLoading === "year" ? "text-gray-400" : yearActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400"}`}>
-                              {priceActiveLoading === "year" ? "Saving…" : yearActive ? "Active" : "Off"}
-                            </span>
-                          </div>
-                        )}
+                              >
+                                <span
+                                  className={[
+                                    "pointer-events-none absolute top-0.5 left-0.5 h-5 w-5 rounded-full shadow-sm transition-transform duration-200 ease-out",
+                                    priceActiveLoading === "year"
+                                      ? "bg-gray-300 dark:bg-gray-500"
+                                      : "bg-white",
+                                    yearActive
+                                      ? "translate-x-4"
+                                      : "translate-x-0",
+                                  ].join(" ")}
+                                />
+                              </button>
+                              <span
+                                className={`text-xs tabular-nums ${priceActiveLoading === "year" ? "text-gray-400" : yearActive ? "text-emerald-600 dark:text-emerald-400" : "text-gray-500 dark:text-gray-400"}`}
+                              >
+                                {priceActiveLoading === "year"
+                                  ? "Saving…"
+                                  : yearActive
+                                    ? "Active"
+                                    : yearHasRow
+                                      ? "Off"
+                                      : "Not linked"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <StripePriceSelect
+                          label="Annual price"
+                          prices={stripePrices}
+                          value={state.formData.stripePriceIdYear}
+                          onChange={(v) => handleStripePriceChange("year", v)}
+                          disabled={state.isSubmitting}
+                        />
+                        {state.formData.stripePriceIdYear &&
+                          getSelectedPriceLabel(
+                            state.formData.stripePriceIdYear,
+                            "year",
+                          ) && (
+                            <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
+                              Selected:{" "}
+                              {getSelectedPriceLabel(
+                                state.formData.stripePriceIdYear,
+                                "year",
+                              )}
+                            </p>
+                          )}
                       </div>
-                      <StripePriceSelect
-                        label="Annual price"
-                        prices={stripePrices}
-                        value={state.formData.stripePriceIdYear}
-                        onChange={(v) => handleStripePriceChange("year", v)}
-                        disabled={state.isSubmitting}
-                      />
-                      {state.formData.stripePriceIdYear && getSelectedPriceLabel(state.formData.stripePriceIdYear, "year") && (
-                        <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
-                          Selected: {getSelectedPriceLabel(state.formData.stripePriceIdYear, "year")}
-                        </p>
-                      )}
                     </div>
+                    {stripePrices.length === 0 && (
+                      <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                        No Stripe prices found. Ensure STRIPE_SECRET_KEY is set
+                        in your .env.
+                      </p>
+                    )}
                   </div>
-                  {stripePrices.length === 0 && (
-                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                      No Stripe prices found. Ensure STRIPE_SECRET_KEY is set in your .env.
-                    </p>
-                  )}
-                </div>
                 )}
               </div>
             </div>
