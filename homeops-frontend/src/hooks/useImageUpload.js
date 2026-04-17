@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import AppApi from "../api/api";
 import { compressImageForUpload } from "../utils/compressImage";
+import { S3_UPLOAD_FOLDER } from "../constants/s3UploadFolders";
 
 const ACCEPT_IMAGE = "image/jpeg,image/png,image/webp,image/gif";
 
@@ -11,6 +12,7 @@ const ACCEPT_IMAGE = "image/jpeg,image/png,image/webp,image/gif";
  * @param {Object} options
  * @param {(key: string, displayUrl?: string) => void} [options.onSuccess] - Called with S3 key and optional display URL
  * @param {(message: string) => void} [options.onError] - Called on validation or upload error
+ * @param {string} [options.uploadFolder] - S3 upload_folder (default: general attachments / legacy `documents/`)
  * @returns {{
  *   uploadImage: (file: File) => Promise<void>,
  *   imagePreviewUrl: string | null,
@@ -23,7 +25,11 @@ const ACCEPT_IMAGE = "image/jpeg,image/png,image/webp,image/gif";
  *   accept: string,
  * }}
  */
-export default function useImageUpload({ onSuccess, onError } = {}) {
+export default function useImageUpload({
+  onSuccess,
+  onError,
+  uploadFolder = S3_UPLOAD_FOLDER.DOCUMENTS,
+} = {}) {
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -57,7 +63,7 @@ export default function useImageUpload({ onSuccess, onError } = {}) {
 
       try {
         const toUpload = await compressImageForUpload(file);
-        const document = await AppApi.uploadDocument(toUpload);
+        const document = await AppApi.uploadDocument(toUpload, { uploadFolder });
         const key =
           document?.key ??
           document?.s3Key ??
@@ -88,7 +94,7 @@ export default function useImageUpload({ onSuccess, onError } = {}) {
         setImageUploading(false);
       }
     },
-    [onSuccess, onError, clearPreview],
+    [onSuccess, onError, clearPreview, uploadFolder],
   );
 
   return {

@@ -32,6 +32,7 @@ import AppApi, {
 } from "../../api/api";
 import SelectDropdown from "../contacts/SelectDropdown";
 import useImageUpload from "../../hooks/useImageUpload";
+import { S3_UPLOAD_FOLDER } from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import ImageUploadField from "../../components/ImageUploadField";
 
@@ -140,6 +141,7 @@ function UsersFormContainer() {
     clearPreview: clearUserPhotoPreview,
     clearUploadedUrl: clearUserPhotoUploadedUrl,
   } = useImageUpload({
+    uploadFolder: S3_UPLOAD_FOLDER.USER_PHOTOS,
     onSuccess: (key) => {
       dispatch({type: "SET_FORM_DATA", payload: {image: key}});
       if (state.isInitialLoad) {

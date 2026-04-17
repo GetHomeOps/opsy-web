@@ -129,6 +129,7 @@ import InviteAgentBenefitsModal from "./partials/InviteAgentBenefitsModal";
 import ModalBlank from "../../components/ModalBlank";
 import InspectionAnalysisModalContent from "./partials/InspectionAnalysisModalContent";
 import useImageUpload from "../../hooks/useImageUpload";
+import { S3_UPLOAD_FOLDER } from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import useGooglePlacesAutocomplete from "../../hooks/useGooglePlacesAutocomplete";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
@@ -712,6 +713,7 @@ function PropertyFormContainer() {
     clearPreview: clearMainPhotoPreview,
     clearUploadedUrl: clearMainPhotoUploadedUrl,
   } = useImageUpload({
+    uploadFolder: S3_UPLOAD_FOLDER.PROPERTY_PHOTOS,
     onSuccess: (key) => {
       dispatch({type: "SET_IDENTITY_FORM_DATA", payload: {mainPhoto: key}});
       if (state.isInitialLoad) {

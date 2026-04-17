@@ -54,10 +54,12 @@ class Professional {
     const result = await db.query(
       `SELECT p.*,
               pc.name AS category_name,
-              sc.name AS subcategory_name
+              sc.name AS subcategory_name,
+              scp.name AS subcategory_parent_name
        FROM professionals p
        LEFT JOIN professional_categories pc ON pc.id = p.category_id
        LEFT JOIN professional_categories sc ON sc.id = p.subcategory_id
+       LEFT JOIN professional_categories scp ON scp.id = sc.parent_id
        ${where}
        ORDER BY p.id ASC`,
       values,

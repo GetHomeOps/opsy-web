@@ -229,6 +229,34 @@ function Calendar() {
     return focusedDate && day.toDateString() === focusedDate.toDateString();
   };
 
+  /** Month grid: sky ring = today, teal ring = selected day (week view already uses sky tint for today). */
+  const monthDayCellRingClass = (day) => {
+    const t = isToday(day);
+    const f = isFocusedDay(day);
+    if (t && f) {
+      return "ring-2 ring-inset ring-sky-500/70 dark:ring-sky-400/55";
+    }
+    if (t) {
+      return "ring-2 ring-inset ring-sky-500/55 dark:ring-sky-400/45";
+    }
+    if (f) {
+      return "ring-2 ring-inset ring-[#456564]/50 dark:ring-[#7aa3a2]/50";
+    }
+    return "";
+  };
+
+  const monthDayNumberClass = (day) => {
+    const t = isToday(day);
+    const f = isFocusedDay(day);
+    if (t) {
+      return "text-sky-700 dark:text-sky-300 font-semibold";
+    }
+    if (f) {
+      return "text-[#456564] dark:text-[#7aa3a2] font-semibold";
+    }
+    return "";
+  };
+
   const getEventsForDay = (date) => {
     const dayStr = new Date(year, month, date).toDateString();
     return filteredEvents.filter((e) => {
@@ -634,7 +662,7 @@ function Calendar() {
                       const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                       return (
                         <div
-                          className={`relative bg-white dark:bg-gray-800 h-20 sm:h-28 lg:h-36 overflow-hidden group cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${isToday(day) || isFocusedDay(day) ? "ring-1 ring-inset ring-[#456564]/30" : ""}`}
+                          className={`relative bg-white dark:bg-gray-800 h-20 sm:h-28 lg:h-36 overflow-hidden group cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${monthDayCellRingClass(day)}`}
                           key={day}
                           onClick={() => {
                             setFocusedDate(new Date(year, month, day));
@@ -715,7 +743,7 @@ function Calendar() {
                                 </button>
                               )}
                               <span
-                                className={`inline-flex ml-auto w-6 h-6 items-center justify-center text-xs sm:text-sm dark:text-gray-300 font-medium text-center rounded-full ${isToday(day) || isFocusedDay(day) ? "text-[#456564] dark:text-[#7aa3a2] font-semibold" : ""}`}
+                                className={`inline-flex ml-auto w-6 h-6 items-center justify-center text-xs sm:text-sm font-medium text-center rounded-full ${monthDayNumberClass(day) || "text-gray-700 dark:text-gray-300"}`}
                               >
                                 {day}
                               </span>

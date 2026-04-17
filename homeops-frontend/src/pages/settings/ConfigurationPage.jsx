@@ -8,6 +8,7 @@ import { useAuth } from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import { PAGE_LAYOUT, SETTINGS_CARD } from "../../constants/layout";
 import useImageUpload from "../../hooks/useImageUpload";
+import { S3_UPLOAD_FOLDER } from "../../constants/s3UploadFolders";
 import ImageUploadField from "../../components/ImageUploadField";
 import { GoogleCalendarIcon, MicrosoftOutlookIcon } from "../../components/CalendarProviderIcons";
 
@@ -76,6 +77,7 @@ function ConfigurationPage() {
     clearPreview,
     clearUploadedUrl,
   } = useImageUpload({
+    uploadFolder: S3_UPLOAD_FOLDER.USER_PHOTOS,
     onSuccess: (key) => {
       setPhotoError(null);
       setPendingImageKey(key);

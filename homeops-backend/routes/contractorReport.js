@@ -63,7 +63,7 @@ router.post("/:token/upload", upload.single("file"), async function (req, res, n
       throw new BadRequestError("No file provided");
     }
     const ext = req.file.originalname.split(".").pop() || "bin";
-    const key = `documents/contractor-report/${tokenData.maintenanceRecordId}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
+    const key = `property_documents/contractor-report/${tokenData.maintenanceRecordId}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
     const { key: s3Key } = await uploadFile(req.file.buffer, key, req.file.mimetype);
     res.status(201).json({
       document: {

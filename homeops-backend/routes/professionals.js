@@ -5,6 +5,7 @@ const jsonschema = require("jsonschema");
 const { ensureLoggedIn, ensurePlatformAdmin } = require("../middleware/auth");
 const { BadRequestError, ExpressError } = require("../expressError");
 const Professional = require("../models/professional");
+const ProfessionalCategory = require("../models/professionalCategory");
 const ProfessionalReview = require("../models/professionalReview");
 const User = require("../models/user");
 const db = require("../db");
@@ -37,6 +38,7 @@ function professionalToExportRecord(row) {
     id: _id,
     category_name,
     subcategory_name,
+    subcategory_parent_name,
     saved: _saved,
     profile_photo_url: _url,
     photos: rawPhotos,
@@ -51,8 +53,63 @@ function professionalToExportRecord(row) {
     ...rest,
     category_name: category_name ?? null,
     subcategory_name: subcategory_name ?? null,
+    subcategory_parent_name: subcategory_parent_name ?? null,
     photos,
   };
+}
+
+/**
+ * Map category/subcategory names from export to IDs in the current database.
+ * Prefers names over exported numeric IDs so imports work across environments.
+ */
+async function resolveImportCategoryIds(item) {
+  const catName =
+    item.category_name != null && String(item.category_name).trim()
+      ? String(item.category_name).trim()
+      : "";
+  const subName =
+    item.subcategory_name != null && String(item.subcategory_name).trim()
+      ? String(item.subcategory_name).trim()
+      : "";
+  const subParentName =
+    item.subcategory_parent_name != null && String(item.subcategory_parent_name).trim()
+      ? String(item.subcategory_parent_name).trim()
+      : "";
+  const exportedCatId = optionalInt(item.category_id);
+  const exportedSubId = optionalInt(item.subcategory_id);
+
+  if (subName) {
+    const parentNamesToTry = [];
+    if (catName) parentNamesToTry.push(catName);
+    if (subParentName && !parentNamesToTry.includes(subParentName)) {
+      parentNamesToTry.push(subParentName);
+    }
+    for (const pName of parentNamesToTry) {
+      const parent = await ProfessionalCategory.findParentByNameInsensitive(pName);
+      if (!parent) continue;
+      const child = await ProfessionalCategory.findChildByParentAndNameInsensitive(
+        parent.id,
+        subName,
+      );
+      if (child) {
+        return { category_id: parent.id, subcategory_id: child.id };
+      }
+    }
+    const globalChild =
+      await ProfessionalCategory.findChildByNameInsensitiveGloballyUnique(subName);
+    if (globalChild && globalChild.parent_id) {
+      return { category_id: globalChild.parent_id, subcategory_id: globalChild.id };
+    }
+    return { category_id: null, subcategory_id: null };
+  }
+
+  if (catName) {
+    const parent = await ProfessionalCategory.findParentByNameInsensitive(catName);
+    if (parent) return { category_id: parent.id, subcategory_id: null };
+    return { category_id: null, subcategory_id: null };
+  }
+
+  return { category_id: exportedCatId, subcategory_id: exportedSubId };
 }
 
 /** GET /export - Full backup JSON (S3 keys, gallery keys). Admin only. */
@@ -115,10 +172,13 @@ router.post("/import-bundle", ensurePlatformAdmin, async function (req, res, nex
         throw new BadRequestError(`Row ${i + 1}: company_name is required`);
       }
       const photos = Array.isArray(item.photos) ? item.photos : [];
+      const { category_id: resolvedCatId, subcategory_id: resolvedSubId } =
+        await resolveImportCategoryIds(item);
       const {
         photos: _p,
         category_name: _cn,
         subcategory_name: _sn,
+        subcategory_parent_name: _spn,
         id: _oldId,
         created_at: _ca,
         updated_at: _ua,
@@ -132,8 +192,8 @@ router.post("/import-bundle", ensurePlatformAdmin, async function (req, res, nex
         last_name: rest.last_name ?? "",
         contact_name: rest.contact_name ?? null,
         company_name,
-        category_id: optionalInt(rest.category_id),
-        subcategory_id: optionalInt(rest.subcategory_id),
+        category_id: resolvedCatId,
+        subcategory_id: resolvedSubId,
         description: rest.description ?? null,
         phone: rest.phone ?? null,
         email: rest.email ?? null,

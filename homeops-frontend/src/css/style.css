@@ -326,12 +326,47 @@ button {
 
 /* Maintenance tab: spring-scale feedback when a new record is created via + */
 @keyframes maintenance-new-record-panel {
-  0%   { opacity: 0;    transform: scale(0.97); }
-  50%  { opacity: 1;    transform: scale(1.012); }
-  100% { opacity: 1;    transform: scale(1); }
+  0% {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.012);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .maintenance-new-record-panel-animate {
-  animation: maintenance-new-record-panel 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: maintenance-new-record-panel 0.35s
+    cubic-bezier(0.34, 1.56, 0.64, 1) both;
   transform-origin: top center;
+}
+
+/* Multi-tab forms: draw attention to tabs that contain validation errors */
+@keyframes form-tab-error-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.form-tab-error-shake {
+  animation: form-tab-error-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97)
+    both;
 }

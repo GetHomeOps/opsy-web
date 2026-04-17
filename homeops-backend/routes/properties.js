@@ -22,6 +22,7 @@ const Invitation = require("../models/invitation");
 const User = require("../models/user");
 const PropertyOwnershipTransferRequest = require("../models/propertyOwnershipTransferRequest");
 const db = require("../db");
+const { isAllowedInspectionAnalysisS3Key } = require("../constants/s3Upload");
 
 const router = new express.Router();
 
@@ -319,7 +320,7 @@ router.post(
         throw new BadRequestError("s3Key is required");
       }
       const trimmedKey = s3Key.trim();
-      if (!trimmedKey.startsWith("documents/") || trimmedKey.includes("..")) {
+      if (!isAllowedInspectionAnalysisS3Key(trimmedKey)) {
         throw new BadRequestError("Invalid s3Key");
       }
 

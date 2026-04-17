@@ -8,6 +8,7 @@ const { uploadFile, getPresignedUrl, getPresignedUrlForImage } = require("../ser
 const { AWS_S3_BUCKET } = require("../config");
 const { ulid } = require("ulid");
 const { MAX_DOCUMENT_UPLOAD_BYTES } = require("../constants/documentUpload");
+const { isAllowedS3KeyPrefix, resolveUploadFolderPrefix } = require("../constants/s3Upload");
 
 const router = express.Router();
 
@@ -20,11 +21,7 @@ function validateFileKey(key) {
   }
   const trimmed = key.trim();
   if (!trimmed) throw new BadRequestError("File key cannot be empty");
-  if (trimmed.includes("..") || trimmed.includes("//") || trimmed.startsWith("/")) {
-    throw new BadRequestError("Invalid file key");
-  }
-  if (!trimmed.startsWith("documents/")) throw new BadRequestError("Invalid file key");
-  if (trimmed.length > 512) throw new BadRequestError("File key too long");
+  if (!isAllowedS3KeyPrefix(trimmed)) throw new BadRequestError("Invalid file key");
   return trimmed;
 }
 
@@ -64,8 +61,14 @@ router.post("/upload", ensureLoggedIn, upload.single("file"), async (req, res, n
     }
 
     const userId = res.locals.user?.id;
+    const folderPrefix = resolveUploadFolderPrefix(req.body);
+    if (!folderPrefix) {
+      throw new BadRequestError(
+        "Invalid upload_folder. Use: documents, property_documents, property_photos, professionals, or user_photos."
+      );
+    }
     const ext = req.file.originalname.split(".").pop() || "bin";
-    const key = `documents/${userId}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
+    const key = `${folderPrefix}/${userId}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
 
     const { key: s3Key, url } = await uploadFile(
       req.file.buffer,

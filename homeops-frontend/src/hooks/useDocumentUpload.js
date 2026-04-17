@@ -4,6 +4,7 @@ import {
   MAX_DOCUMENT_UPLOAD_BYTES,
   documentFileTooLargeMessage,
 } from "../constants/documentUpload";
+import { S3_UPLOAD_FOLDER } from "../constants/s3UploadFolders";
 
 /**
  * Upload a document with progress reporting.
@@ -12,9 +13,14 @@ import {
  * @param {Object} options
  * @param {(result: { key: string, url: string }) => void} [options.onSuccess]
  * @param {(error: string) => void} [options.onError]
+ * @param {string} [options.uploadFolder] - S3 upload_folder (default: documents)
  * @returns {{ uploadDocument: (file: File) => Promise<{ key: string, url: string } | null>, progress: number, isUploading: boolean, error: string | null, clearError: () => void }}
  */
-export default function useDocumentUpload({onSuccess, onError} = {}) {
+export default function useDocumentUpload({
+  onSuccess,
+  onError,
+  uploadFolder = S3_UPLOAD_FOLDER.DOCUMENTS,
+} = {}) {
   const [progress, setProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -53,6 +59,9 @@ export default function useDocumentUpload({onSuccess, onError} = {}) {
         const xhr = new XMLHttpRequest();
         const formData = new FormData();
         formData.append("file", file);
+        if (uploadFolder) {
+          formData.append("upload_folder", uploadFolder);
+        }
 
         xhr.upload.addEventListener("progress", (e) => {
           if (e.lengthComputable) {
@@ -119,7 +128,7 @@ export default function useDocumentUpload({onSuccess, onError} = {}) {
         xhr.send(formData);
       });
     },
-    [onSuccess, onError],
+    [onSuccess, onError, uploadFolder],
   );
 
   return {uploadDocument, progress, isUploading, error, clearError};

@@ -137,6 +137,20 @@ class ProfessionalCategory {
     return result.rows[0] || null;
   }
 
+  /** Child row matching name when exactly one exists (any parent). Import helper. */
+  static async findChildByNameInsensitiveGloballyUnique(name) {
+    const result = await db.query(
+      `SELECT id, name, description, type, parent_id, icon, image_key,
+              sort_order, is_active, created_at, updated_at
+       FROM professional_categories
+       WHERE type = 'child' AND LOWER(TRIM(name)) = LOWER(TRIM($1))
+       ORDER BY id`,
+      [name],
+    );
+    if (result.rows.length === 1) return result.rows[0];
+    return null;
+  }
+
   static async update(id, data) {
     const { setCols, values } = sqlForPartialUpdate(data, {
       parent_id: "parent_id",

@@ -24,6 +24,7 @@ import {
 import AppApi from "../../api/api";
 import DatePickerInput from "../../components/DatePickerInput";
 import useDocumentUpload from "../../hooks/useDocumentUpload";
+import { S3_UPLOAD_FOLDER } from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import {
   DocumentsTreeView,
@@ -266,7 +267,7 @@ function DocumentsTab({
     isUploading,
     error: uploadHookError,
     clearError: clearUploadHookError,
-  } = useDocumentUpload();
+  } = useDocumentUpload({ uploadFolder: S3_UPLOAD_FOLDER.PROPERTY_DOCUMENTS });
 
   const {
     url: presignedPreviewUrl,

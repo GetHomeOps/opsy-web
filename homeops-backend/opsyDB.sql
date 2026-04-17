@@ -18,6 +18,8 @@ DROP TABLE IF EXISTS support_ticket_replies CASCADE;
 DROP TABLE IF EXISTS plan_limits CASCADE;
 DROP TABLE IF EXISTS plan_prices CASCADE;
 DROP TABLE IF EXISTS stripe_webhook_events CASCADE;
+DROP TABLE IF EXISTS coupon_redemptions CASCADE;
+DROP TABLE IF EXISTS coupons CASCADE;
 DROP TABLE IF EXISTS support_tickets CASCADE;
 DROP TABLE IF EXISTS ai_action_drafts CASCADE;
 DROP TABLE IF EXISTS ai_messages CASCADE;
@@ -66,12 +68,13 @@ DROP TABLE IF EXISTS account_users CASCADE;
 DROP TABLE IF EXISTS accounts CASCADE;
 DROP TABLE IF EXISTS mfa_backup_codes CASCADE;
 DROP TABLE IF EXISTS mfa_enrollment_temp CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
+-- Tables referencing users must drop before users (in-place reset; fresh DB is empty)
+DROP TABLE IF EXISTS resources CASCADE;
 DROP TABLE IF EXISTS email_verification_tokens CASCADE;
 DROP TABLE IF EXISTS password_reset_tokens CASCADE;
 DROP TABLE IF EXISTS refresh_tokens CASCADE;
-DROP TABLE IF EXISTS resources CASCADE;
 DROP TABLE IF EXISTS user_api_usage CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
 
 -- Drop old views (legacy – may not exist in current schema)
 DROP VIEW IF EXISTS daily_platform_metrics CASCADE;

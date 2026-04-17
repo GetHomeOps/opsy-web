@@ -26,6 +26,7 @@ import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 const SETUP_SYSTEMS = PROPERTY_SYSTEMS.filter((s) => s.id !== "inspections");
 import useGooglePlacesAutocomplete from "../../../hooks/useGooglePlacesAutocomplete";
 import useDocumentUpload from "../../../hooks/useDocumentUpload";
+import { S3_UPLOAD_FOLDER } from "../../../constants/s3UploadFolders";
 import AppApi from "../../../api/api";
 import AIFindingsPanel from "./AIFindingsPanel";
 import UpgradePrompt from "../../../components/UpgradePrompt";
@@ -924,7 +925,7 @@ function SystemsSetupModal({
     isUploading,
     progress: uploadProgress,
     error: uploadError,
-  } = useDocumentUpload();
+  } = useDocumentUpload({ uploadFolder: S3_UPLOAD_FOLDER.PROPERTY_DOCUMENTS });
 
   useEffect(() => {
     if (!propertyId || !isUploading) return;

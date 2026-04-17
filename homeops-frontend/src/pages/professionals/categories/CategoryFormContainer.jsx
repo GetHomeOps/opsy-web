@@ -16,6 +16,7 @@ import Header from "../../../partials/Header";
 import Banner from "../../../partials/containers/Banner";
 import useCurrentAccount from "../../../hooks/useCurrentAccount";
 import useImageUpload from "../../../hooks/useImageUpload";
+import { S3_UPLOAD_FOLDER } from "../../../constants/s3UploadFolders";
 import usePresignedPreview from "../../../hooks/usePresignedPreview";
 import ImageUploadField from "../../../components/ImageUploadField";
 import AppApi from "../../../api/api";
@@ -145,6 +146,7 @@ function CategoryFormContainer() {
     clearPreview,
     clearUploadedUrl,
   } = useImageUpload({
+    uploadFolder: S3_UPLOAD_FOLDER.PROFESSIONALS,
     onSuccess: (key) => {
       handleFieldChange("imageKey", key);
     },

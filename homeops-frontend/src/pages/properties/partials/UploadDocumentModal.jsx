@@ -4,6 +4,7 @@ import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
 import AppApi from "../../../api/api";
 import useDocumentUpload from "../../../hooks/useDocumentUpload";
+import { S3_UPLOAD_FOLDER } from "../../../constants/s3UploadFolders";
 import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../../constants/documentUpload";
 import UpgradePrompt from "../../../components/UpgradePrompt";
 
@@ -61,7 +62,7 @@ function UploadDocumentModal({
     isUploading,
     error: uploadHookError,
     clearError: clearUploadHookError,
-  } = useDocumentUpload();
+  } = useDocumentUpload({ uploadFolder: S3_UPLOAD_FOLDER.PROPERTY_DOCUMENTS });
 
   const handleClose = () => {
     if (!isUploading) {

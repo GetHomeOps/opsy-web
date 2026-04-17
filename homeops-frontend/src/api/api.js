@@ -956,7 +956,11 @@ class AppApi {
     return res.url;
   }
 
-  static async uploadDocument(file) {
+  /**
+   * @param {File|Blob} file
+   * @param {{ uploadFolder?: string }} [options] - S3 top-level folder (see S3_UPLOAD_FOLDER)
+   */
+  static async uploadDocument(file, options = {}) {
     if (
       file &&
       typeof file.size === "number" &&
@@ -966,6 +970,10 @@ class AppApi {
     }
     const formData = new FormData();
     formData.append("file", file);
+    const folder = options.uploadFolder ?? options.upload_folder;
+    if (folder) {
+      formData.append("upload_folder", folder);
+    }
     let res = await this.requestFormData("documents/upload", formData);
     return res.document;
   }
