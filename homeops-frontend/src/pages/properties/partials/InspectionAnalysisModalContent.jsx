@@ -22,9 +22,7 @@ import {
 } from "lucide-react";
 import {useInspectionAnalysis} from "../../../hooks/useInspectionAnalysis";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
-import {
-  filterSuggestedSystemsNotOnProperty,
-} from "../helpers/suggestedSystemsHelpers";
+import {filterSuggestedSystemsNotOnProperty} from "../helpers/suggestedSystemsHelpers";
 import InspectionChecklistPanel from "./InspectionChecklistPanel";
 
 const CONDITION_BADGES = {
@@ -102,15 +100,8 @@ export default function InspectionAnalysisModalContent({
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
     : "/professionals";
-  const {
-    status,
-    data,
-    error,
-    refresh,
-    load,
-    startAnalysis,
-    analysisProgress,
-  } = useInspectionAnalysis(propertyId);
+  const {status, data, error, refresh, load, startAnalysis, analysisProgress} =
+    useInspectionAnalysis(propertyId);
   const [missingSystems, setMissingSystems] = useState([]);
 
   useEffect(() => {
@@ -155,9 +146,7 @@ export default function InspectionAnalysisModalContent({
   if (status === "idle" || status === "loading") {
     const primary =
       analysisProgress ||
-      (status === "idle"
-        ? "Loading…"
-        : "Preparing inspection analysis…");
+      (status === "idle" ? "Loading…" : "Preparing inspection analysis…");
     return (
       <div className="flex flex-col items-center justify-center py-12 px-6 max-w-lg mx-auto text-center">
         <div className="animate-pulse space-y-4 w-full max-w-md">
@@ -656,7 +645,9 @@ export default function InspectionAnalysisModalContent({
           <section className="rounded-xl border border-[#456564]/20 dark:border-[#456564]/30 bg-[#456564]/[0.04] dark:bg-[#456564]/10 p-4 flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-                {missingSystems.length} system{missingSystems.length !== 1 ? "s" : ""} identified not on your property
+                {missingSystems.length} system
+                {missingSystems.length !== 1 ? "s" : ""} identified not on your
+                property
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                 {missingSystems

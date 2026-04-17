@@ -9,11 +9,12 @@ import {
   Upload,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
-import {getSystemFindingsFromAnalysis} from "../helpers/inspectionAnalysisHelpers";
+import {getSystemFindingsFromAnalysis, matchesSystemForAnalysis} from "../helpers/inspectionAnalysisHelpers";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 
 const CONDITION_COLORS = {
-  excellent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  excellent:
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   good: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
   fair: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   poor: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
@@ -47,7 +48,8 @@ function InspectionReportModal({
 }) {
   const [needsAttentionExpanded, setNeedsAttentionExpanded] = useState(true);
   const [maintenanceExpanded, setMaintenanceExpanded] = useState(true);
-  const [suggestedSystemsExpanded, setSuggestedSystemsExpanded] = useState(true);
+  const [suggestedSystemsExpanded, setSuggestedSystemsExpanded] =
+    useState(true);
 
   const filteredAnalysis = useMemo(() => {
     if (!systemId || !analysis) return analysis;
@@ -56,25 +58,39 @@ function InspectionReportModal({
       ...analysis,
       needsAttention: findings.needsAttention,
       maintenanceSuggestions: findings.maintenanceSuggestions,
-      suggestedSystemsToAdd: [], // Hide when filtered - not relevant to single system
-      citations: [], // Hide when filtered - citations may not be system-specific
+      suggestedSystemsToAdd: [],
+      citations: [],
     };
   }, [analysis, systemId]);
 
+  const systemDetection = useMemo(() => {
+    if (!systemId || !analysis) return null;
+    const detected = analysis.systemsDetected ?? analysis.systems_detected ?? [];
+    return detected.find((s) => {
+      const st = s.systemType ?? s.system_type ?? s.name;
+      return st && matchesSystemForAnalysis(systemId, st);
+    }) ?? null;
+  }, [analysis, systemId]);
+
   const displayAnalysis = systemId ? filteredAnalysis : analysis;
-  const hasAnalysis = displayAnalysis && (
-    displayAnalysis.conditionRating ||
-    displayAnalysis.summary ||
-    (displayAnalysis.needsAttention?.length > 0) ||
-    (displayAnalysis.maintenanceSuggestions?.length > 0)
-  );
   const needsAttention = displayAnalysis?.needsAttention ?? [];
   const maintenanceSuggestions = displayAnalysis?.maintenanceSuggestions ?? [];
   const suggestedSystemsToAdd = displayAnalysis?.suggestedSystemsToAdd ?? [];
   const citations = displayAnalysis?.citations ?? [];
 
+  const hasAnalysis = displayAnalysis && (
+    systemDetection ||
+    displayAnalysis.conditionRating ||
+    displayAnalysis.summary ||
+    needsAttention.length > 0 ||
+    maintenanceSuggestions.length > 0
+  );
+
   const getSystemLabel = (systemKey) => {
-    const key = typeof systemKey === "string" ? systemKey : systemKey?.systemType ?? systemKey?.system_key;
+    const key =
+      typeof systemKey === "string"
+        ? systemKey
+        : (systemKey?.systemType ?? systemKey?.system_key);
     return getSystemLabelFromAiType(key) || "—";
   };
 
@@ -93,7 +109,8 @@ function InspectionReportModal({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {systemLabel ? `${systemLabel} — ` : ""}Inspection Report Analysis
+                {systemLabel ? `${systemLabel} — ` : ""}Inspection Report
+                Analysis
               </h2>
               {displayAnalysis?.createdAt && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -140,14 +157,47 @@ function InspectionReportModal({
             </div>
           ) : (
             <>
-              {/* Condition & Summary — only show when full analysis (not system-filtered) */}
+              {/* System-specific condition from systemsDetected */}
+              {systemId && systemDetection && (
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    {systemDetection.condition && (
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium capitalize ${
+                          CONDITION_COLORS[systemDetection.condition] ||
+                          CONDITION_COLORS.good
+                        }`}
+                      >
+                        {systemDetection.condition}
+                      </span>
+                    )}
+                    {systemDetection.confidence != null && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {Math.round(systemDetection.confidence * 100)}% confidence
+                      </span>
+                    )}
+                  </div>
+                  {(systemDetection.conditionRationale ?? systemDetection.condition_rationale) && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      {systemDetection.conditionRationale ?? systemDetection.condition_rationale}
+                    </p>
+                  )}
+                  {systemDetection.evidence && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                      &ldquo;{systemDetection.evidence}&rdquo;
+                    </p>
+                  )}
+                </div>
+              )}
+              {/* Condition & Summary — full analysis (not system-filtered) */}
               {!systemId && (
                 <div>
                   <div className="flex items-center gap-2 flex-wrap mb-2">
                     {displayAnalysis.conditionRating && (
                       <span
                         className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium capitalize ${
-                          CONDITION_COLORS[displayAnalysis.conditionRating] || CONDITION_COLORS.good
+                          CONDITION_COLORS[displayAnalysis.conditionRating] ||
+                          CONDITION_COLORS.good
                         }`}
                       >
                         {displayAnalysis.conditionRating}
@@ -155,7 +205,8 @@ function InspectionReportModal({
                     )}
                     {displayAnalysis.conditionConfidence != null && (
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {Math.round(displayAnalysis.conditionConfidence * 100)}% confidence
+                        {Math.round(displayAnalysis.conditionConfidence * 100)}%
+                        confidence
                       </span>
                     )}
                   </div>
@@ -172,12 +223,21 @@ function InspectionReportModal({
                 </div>
               )}
 
+              {/* No specific issues message for system-filtered view */}
+              {systemId && needsAttention.length === 0 && maintenanceSuggestions.length === 0 && systemDetection && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No specific issues or maintenance suggestions were found for this system in the inspection report.
+                </p>
+              )}
+
               {/* Needs Attention */}
               {needsAttention.length > 0 && (
                 <div>
                   <button
                     type="button"
-                    onClick={() => setNeedsAttentionExpanded(!needsAttentionExpanded)}
+                    onClick={() =>
+                      setNeedsAttentionExpanded(!needsAttentionExpanded)
+                    }
                     className="flex items-center gap-2 w-full text-left text-sm font-semibold text-gray-800 dark:text-gray-200"
                   >
                     {needsAttentionExpanded ? (
@@ -244,7 +304,9 @@ function InspectionReportModal({
                             {item.task || getSystemLabel(item.systemType)}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            {item.suggestedWhen && <span>{item.suggestedWhen}</span>}
+                            {item.suggestedWhen && (
+                              <span>{item.suggestedWhen}</span>
+                            )}
                             {item.rationale && (
                               <span className="ml-1">— {item.rationale}</span>
                             )}
@@ -261,7 +323,9 @@ function InspectionReportModal({
                 <div>
                   <button
                     type="button"
-                    onClick={() => setSuggestedSystemsExpanded(!suggestedSystemsExpanded)}
+                    onClick={() =>
+                      setSuggestedSystemsExpanded(!suggestedSystemsExpanded)
+                    }
                     className="flex items-center gap-2 w-full text-left text-sm font-semibold text-gray-800 dark:text-gray-200"
                   >
                     {suggestedSystemsExpanded ? (

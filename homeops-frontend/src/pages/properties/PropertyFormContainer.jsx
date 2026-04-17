@@ -3552,6 +3552,11 @@ function PropertyFormContainer() {
                     onOpenInspectionReport={(systemId) => {
                       setInspectionReportSystemId(systemId ?? null);
                       setInspectionReportModalOpen(true);
+                      if (propertyIdForApi) {
+                        AppApi.getInspectionAnalysisByProperty(propertyIdForApi)
+                          .then((res) => setInspectionAnalysis(res?.analysis ?? null))
+                          .catch(() => {});
+                      }
                     }}
                     aiSidebarOpen={aiSidebarOpen}
                     onAiSidebarOpenChange={(open) => {
@@ -3992,7 +3997,7 @@ function PropertyFormContainer() {
           isOpen={inspectionReportModalOpen}
           onClose={() => {
             setInspectionReportModalOpen(false);
-            setInspectionReportSystemId(null);
+            setTimeout(() => setInspectionReportSystemId(null), 300);
           }}
           analysis={inspectionAnalysis}
           systemId={inspectionReportSystemId}
