@@ -282,6 +282,7 @@ function ProfessionalsList() {
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const [selectedItems, setSelectedItems] = useState([]);
+  const exportGuardRef = useRef(false);
   const [sortConfig, setSortConfig] = useState({
     key: "company_name",
     direction: "asc",
@@ -530,6 +531,50 @@ function ProfessionalsList() {
     dispatch({type: "SET_DANGER_MODAL", payload: true});
   };
 
+  const handleExportProfessionals = useCallback(async () => {
+    if (exportGuardRef.current) return;
+    exportGuardRef.current = true;
+    try {
+      const accountId = currentAccount?.id;
+      const bundle = await AppApi.exportProfessionalsBundle(
+        accountId != null ? accountId : undefined,
+      );
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const safeSlug = String(accountUrl || "professionals").replace(/[^a-z0-9-_]/gi, "_");
+      const stamp = new Date().toISOString().slice(0, 10);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `professionals-export_${safeSlug}_${stamp}.json`;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message: `Exported ${bundle.professionals?.length ?? 0} professional(s).`,
+        },
+      });
+    } catch (err) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: err?.message || "Export failed.",
+        },
+      });
+    } finally {
+      exportGuardRef.current = false;
+    }
+  }, [accountUrl, currentAccount?.id]);
+
   const handleDelete = async () => {
     dispatch({type: "SET_SUBMITTING", payload: true});
     try {
@@ -683,6 +728,7 @@ function ProfessionalsList() {
                 <ListDropdown
                   align="right"
                   hasSelection={selectedItems.length > 0}
+                  onExport={handleExportProfessionals}
                   onImport={() => navigate(`/${accountUrl}/professionals/import`)}
                   onDelete={handleDeleteClick}
                 />

@@ -12,6 +12,7 @@ class Professional {
       street1, street2, city, state, zip_code, country, service_area,
       budget_level, languages = [], years_in_business,
       is_verified = false, license_number, profile_photo, account_id,
+      is_active = true,
     } = data;
 
     const result = await db.query(
@@ -20,8 +21,8 @@ class Professional {
           description, phone, email, website,
           street1, street2, city, state, zip_code, country, service_area,
           budget_level, languages, years_in_business,
-          is_verified, license_number, profile_photo, account_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+          is_verified, license_number, profile_photo, account_id, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
        RETURNING *`,
       [
         first_name || "", last_name || "", contact_name || null, company_name, category_id || null, subcategory_id || null,
@@ -30,9 +31,38 @@ class Professional {
         zip_code || null, country || null, service_area || null,
         budget_level || null, languages, years_in_business || null,
         is_verified, license_number || null, profile_photo || null, account_id || null,
+        is_active !== false,
       ],
     );
     return result.rows[0];
+  }
+
+  /**
+   * Full rows for admin export (includes inactive). Optional account_id filter.
+   * Each row includes joined category names; call getPhotos per row for gallery keys.
+   */
+  static async getAllForExport({ account_id = null } = {}) {
+    const conditions = [];
+    const values = [];
+    let idx = 1;
+    if (account_id != null) {
+      conditions.push(`p.account_id = $${idx}`);
+      values.push(account_id);
+      idx++;
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const result = await db.query(
+      `SELECT p.*,
+              pc.name AS category_name,
+              sc.name AS subcategory_name
+       FROM professionals p
+       LEFT JOIN professional_categories pc ON pc.id = p.category_id
+       LEFT JOIN professional_categories sc ON sc.id = p.subcategory_id
+       ${where}
+       ORDER BY p.id ASC`,
+      values,
+    );
+    return result.rows;
   }
 
   static async getAll(filters = {}) {

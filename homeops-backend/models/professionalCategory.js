@@ -5,14 +5,32 @@ const { NotFoundError } = require("../expressError");
 const { sqlForPartialUpdate } = require("../helpers/sql");
 
 class ProfessionalCategory {
-  static async create({ name, description, type = "child", parent_id, icon, image_key, sort_order = 0 }) {
+  static async create({
+    name,
+    description,
+    type = "child",
+    parent_id,
+    icon,
+    image_key,
+    sort_order = 0,
+    is_active,
+  }) {
     const result = await db.query(
       `INSERT INTO professional_categories
-         (name, description, type, parent_id, icon, image_key, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (name, description, type, parent_id, icon, image_key, sort_order, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true))
        RETURNING id, name, description, type, parent_id, icon, image_key,
                  sort_order, is_active, created_at, updated_at`,
-      [name, description || null, type, parent_id || null, icon || null, image_key || null, sort_order],
+      [
+        name,
+        description || null,
+        type,
+        parent_id || null,
+        icon || null,
+        image_key || null,
+        sort_order,
+        is_active ?? null,
+      ],
     );
     return result.rows[0];
   }
@@ -88,6 +106,35 @@ class ProfessionalCategory {
       [parentId],
     );
     return result.rows;
+  }
+
+  /** First parent row matching name (case-insensitive, trimmed). */
+  static async findParentByNameInsensitive(name) {
+    const result = await db.query(
+      `SELECT id, name, description, type, parent_id, icon, image_key,
+              sort_order, is_active, created_at, updated_at
+       FROM professional_categories
+       WHERE type = 'parent' AND LOWER(TRIM(name)) = LOWER(TRIM($1))
+       ORDER BY id
+       LIMIT 1`,
+      [name],
+    );
+    return result.rows[0] || null;
+  }
+
+  /** First child under parent matching name (case-insensitive, trimmed). */
+  static async findChildByParentAndNameInsensitive(parentId, name) {
+    const result = await db.query(
+      `SELECT id, name, description, type, parent_id, icon, image_key,
+              sort_order, is_active, created_at, updated_at
+       FROM professional_categories
+       WHERE type = 'child' AND parent_id = $1
+         AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+       ORDER BY id
+       LIMIT 1`,
+      [parentId, name],
+    );
+    return result.rows[0] || null;
   }
 
   static async update(id, data) {

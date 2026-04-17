@@ -4,16 +4,20 @@ import {useTranslation} from "react-i18next";
 import {ChevronRight, ChevronDown, Layers, Tag, Users, FolderTree} from "lucide-react";
 
 import Sidebar from "../../../partials/Sidebar";
+import ListDropdown from "../../../partials/buttons/ListDropdown";
 import Header from "../../../partials/Header";
 import PaginationClassic from "../../../components/PaginationClassic";
 import DataTable from "../../../components/DataTable";
 import ModalBlank from "../../../components/ModalBlank";
 import Banner from "../../../partials/containers/Banner";
 import useCurrentAccount from "../../../hooks/useCurrentAccount";
+import {useAuth} from "../../../context/AuthContext";
 import AppApi from "../../../api/api";
 import {sortCategoryHierarchy} from "./categoryListOrder";
 
 const PAGE_STORAGE_KEY = "categories_list_page";
+
+const PLATFORM_ADMIN_ROLES = new Set(["super_admin", "admin"]);
 
 const FILTER_CATEGORIES = [
   {type: "type", labelKey: "type"},
@@ -232,8 +236,11 @@ function CategoriesList() {
   const navigate = useNavigate();
   const location = useLocation();
   const {t} = useTranslation();
+  const {currentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
+  const canImportExport = PLATFORM_ADMIN_ROLES.has(currentUser?.role);
+  const [importExportBusy, setImportExportBusy] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
   const [expandedGroups, setExpandedGroups] = useState([]);
   const [sortConfig, setSortConfig] = useState({
@@ -524,6 +531,51 @@ function CategoriesList() {
     } finally {
       dispatch({type: "SET_SUBMITTING", payload: false});
     }
+  };
+
+  const handleExportCategories = async () => {
+    setImportExportBusy(true);
+    try {
+      const doc = await AppApi.exportProfessionalCategories();
+      const blob = new Blob([JSON.stringify(doc, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const date = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `professional-categories-${date}.json`;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message: "Categories exported successfully",
+        },
+      });
+    } catch (err) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: err?.message || "Export failed",
+        },
+      });
+    } finally {
+      setImportExportBusy(false);
+    }
+  };
+
+  const handleCategoryImport = () => {
+    navigate(
+      accountUrl
+        ? `/${accountUrl}/professionals/categories/import`
+        : "/professionals/categories/import",
+    );
   };
 
   /* ─── Table columns ────────────────────────────────────────── */
@@ -840,7 +892,15 @@ function CategoriesList() {
                   Directory
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {canImportExport && (
+                  <ListDropdown
+                    align="right"
+                    disabled={importExportBusy}
+                    onExport={handleExportCategories}
+                    onImport={handleCategoryImport}
+                  />
+                )}
                 {selectedItems.length > 0 && (
                   <button
                     className="btn border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-red-500"

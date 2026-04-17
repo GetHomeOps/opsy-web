@@ -5,6 +5,10 @@ const { ensureLoggedIn, ensurePlatformAdmin } = require("../middleware/auth");
 const { BadRequestError } = require("../expressError");
 const ProfessionalCategory = require("../models/professionalCategory");
 const { ensureProfessionalCategories } = require("../services/professionalCategorySeedService");
+const {
+  buildExportDocument,
+  importCategories,
+} = require("../services/professionalCategoryImportExportService");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
 
 const router = express.Router();
@@ -32,6 +36,33 @@ router.get("/hierarchy", ensureLoggedIn, async function (req, res, next) {
       }),
     );
     return res.json({ hierarchy: enriched });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /export — Full category tree with S3 image_key (no presigned URLs). Platform admin only. */
+router.get("/export", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    const doc = await buildExportDocument();
+    return res.json(doc);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST /import — Upsert categories from export document or seed-shaped JSON. Platform admin only. */
+router.post("/import", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    const mergeMissingOnly = req.body?.mergeMissingOnly !== false;
+    const { created, updated, unchanged } = await importCategories(req.body, { mergeMissingOnly });
+    return res.json({
+      message: "Import completed",
+      created,
+      updated,
+      unchanged,
+      mergeMissingOnly,
+    });
   } catch (err) {
     return next(err);
   }

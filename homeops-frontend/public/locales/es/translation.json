@@ -201,6 +201,8 @@
   "description": "Descripción",
   "descriptionValidationErrorMessage": "La descripción es obligatoria",
   "duplicate": "Duplicar",
+  "export": "Exportar",
+  "import": "Importar",
   "edit": "Editar",
   "email": "Correo electrónico",
   "emailActions": "Acciones de correo",

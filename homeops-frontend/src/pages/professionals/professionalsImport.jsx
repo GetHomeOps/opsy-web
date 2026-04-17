@@ -23,7 +23,29 @@ import {
   FileCheck,
   ArrowLeft,
   Briefcase,
+  FileJson,
 } from "lucide-react";
+
+const PROFESSIONALS_BUNDLE_FORMAT = "homeops-professionals";
+const PROFESSIONALS_BUNDLE_VERSION = 1;
+
+function parseProfessionalsBundleJson(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("File is not valid JSON.");
+  }
+  if (data.format !== PROFESSIONALS_BUNDLE_FORMAT || data.version !== PROFESSIONALS_BUNDLE_VERSION) {
+    throw new Error(
+      `Expected a professionals export (format "${PROFESSIONALS_BUNDLE_FORMAT}", version ${PROFESSIONALS_BUNDLE_VERSION}).`,
+    );
+  }
+  if (!Array.isArray(data.professionals)) {
+    throw new Error("Export is missing a professionals array.");
+  }
+  return data;
+}
 
 const PREVIEW_PAGE_SIZE = 50;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -244,6 +266,31 @@ function ProfessionalsImport() {
   const [showAllRows, setShowAllRows] = useState(false);
   const previewSectionRef = useRef(null);
   const [categoryHierarchy, setCategoryHierarchy] = useState([]);
+  const [importMode, setImportMode] = useState("spreadsheet");
+  const [jsonBundle, setJsonBundle] = useState(null);
+  const [jsonError, setJsonError] = useState("");
+  const [jsonSubmitting, setJsonSubmitting] = useState(false);
+  const [jsonImportError, setJsonImportError] = useState(null);
+  const [jsonImportedCount, setJsonImportedCount] = useState(null);
+
+  const switchImportMode = useCallback((mode) => {
+    setImportMode(mode);
+    if (mode === "json") {
+      setPendingFile(null);
+      setParseError("");
+      setAllRows([]);
+      setValidRows([]);
+      setInvalidRows([]);
+      setRowErrors({});
+      setImportError(null);
+      setImportSuccessCount(null);
+    } else {
+      setJsonBundle(null);
+      setJsonError("");
+      setJsonImportError(null);
+      setJsonImportedCount(null);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -321,7 +368,7 @@ function ProfessionalsImport() {
     if (!pendingFile) return;
     const name = (pendingFile.name || "").toLowerCase();
     if (!name.endsWith(".xlsx") && !name.endsWith(".csv")) {
-      setParseError("Please upload a .xlsx or .csv file.");
+      setParseError("Please upload a .xlsx or .csv file (use a .json file for full backup import).");
       return;
     }
     setParseError("");
@@ -358,22 +405,55 @@ function ProfessionalsImport() {
       });
   }, [pendingFile, categoryHierarchy]);
 
-  const handleFileSelect = useCallback((fileObj) => {
-    if (!fileObj) return;
-    const name = (fileObj.name || "").toLowerCase();
-    if (!name.endsWith(".xlsx") && !name.endsWith(".csv")) {
-      setParseError("Please choose a .xlsx or .csv file.");
-      return;
-    }
-    setParseError("");
-    setImportError(null);
-    setImportSuccessCount(null);
-    setPendingFile(fileObj);
-    setAllRows([]);
-    setValidRows([]);
-    setInvalidRows([]);
-    setRowErrors({});
-  }, []);
+  const handleFileSelect = useCallback(
+    (fileObj) => {
+      if (!fileObj) return;
+      const name = (fileObj.name || "").toLowerCase();
+
+      if (name.endsWith(".json")) {
+        switchImportMode("json");
+        setJsonImportError(null);
+        setJsonImportedCount(null);
+        setJsonError("");
+        setJsonBundle(null);
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const text = reader.result;
+            if (typeof text !== "string") {
+              throw new Error("Could not read file as text.");
+            }
+            const data = parseProfessionalsBundleJson(text);
+            setJsonBundle(data);
+            setJsonError("");
+          } catch (err) {
+            setJsonBundle(null);
+            setJsonError(err?.message || "Invalid export file.");
+          }
+        };
+        reader.onerror = () => {
+          setJsonBundle(null);
+          setJsonError("Failed to read file.");
+        };
+        reader.readAsText(fileObj, "UTF-8");
+        return;
+      }
+
+      if (!name.endsWith(".xlsx") && !name.endsWith(".csv")) {
+        setParseError("Please choose a .xlsx, .csv, or .json file.");
+        return;
+      }
+      setParseError("");
+      setImportError(null);
+      setImportSuccessCount(null);
+      setPendingFile(fileObj);
+      setAllRows([]);
+      setValidRows([]);
+      setInvalidRows([]);
+      setRowErrors({});
+    },
+    [switchImportMode],
+  );
 
   const handleDrop = useCallback(
     (e) => {
@@ -459,6 +539,54 @@ function ProfessionalsImport() {
     }
   }, [validRows, currentAccount?.id, isSubmitting, importSuccessCount]);
 
+  const handleJsonFileInput = useCallback((e) => {
+    const f = e.target?.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setJsonError("");
+    setJsonImportError(null);
+    setJsonImportedCount(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = reader.result;
+        if (typeof text !== "string") {
+          throw new Error("Could not read file as text.");
+        }
+        const data = parseProfessionalsBundleJson(text);
+        setJsonBundle(data);
+      } catch (err) {
+        setJsonBundle(null);
+        setJsonError(err?.message || "Invalid export file.");
+      }
+    };
+    reader.onerror = () => {
+      setJsonBundle(null);
+      setJsonError("Failed to read file.");
+    };
+    reader.readAsText(f, "UTF-8");
+  }, []);
+
+  const handleConfirmJsonImport = useCallback(async () => {
+    if (!jsonBundle || jsonSubmitting || jsonImportedCount != null) return;
+    setJsonImportError(null);
+    setJsonSubmitting(true);
+    try {
+      const payload = {
+        format: jsonBundle.format,
+        version: jsonBundle.version,
+        professionals: jsonBundle.professionals,
+      };
+      if (currentAccount?.id != null) payload.account_id = currentAccount.id;
+      const res = await AppApi.importProfessionalsBundle(payload);
+      setJsonImportedCount(res.imported ?? 0);
+    } catch (err) {
+      setJsonImportError(err?.message || "Import failed.");
+    } finally {
+      setJsonSubmitting(false);
+    }
+  }, [jsonBundle, currentAccount?.id, jsonSubmitting, jsonImportedCount]);
+
   return (
     <div className="flex h-[100dvh] overflow-hidden">
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
@@ -485,10 +613,142 @@ function ProfessionalsImport() {
                 Bulk Professional Import
               </h1>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Download a template, fill in your professionals (Company Name required), then upload and review before importing.
+                Import from a spreadsheet, or restore a full JSON backup (including profile and gallery image keys).
               </p>
             </div>
 
+            <div className="mb-6 flex flex-wrap gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-1 shadow-sm">
+              <button
+                type="button"
+                onClick={() => switchImportMode("spreadsheet")}
+                className={`flex-1 min-w-[140px] rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  importMode === "spreadsheet"
+                    ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                }`}
+              >
+                Spreadsheet (.xlsx / .csv)
+              </button>
+              <button
+                type="button"
+                onClick={() => switchImportMode("json")}
+                className={`flex-1 min-w-[140px] rounded-md px-3 py-2 text-sm font-medium transition-colors inline-flex items-center justify-center gap-2 ${
+                  importMode === "json"
+                    ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                }`}
+              >
+                <FileJson className="w-4 h-4 shrink-0" />
+                JSON backup
+              </button>
+            </div>
+
+            {importMode === "json" && (
+              <section className="mb-6">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30">
+                    <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                      Import JSON backup
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Use a file downloaded from Professionals → Actions → Export. It includes S3 object keys for the profile photo and project gallery. When moving to another environment, those objects must already exist in the target bucket (or keys updated to match).
+                    </p>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        type="file"
+                        accept=".json,application/json"
+                        onChange={handleJsonFileInput}
+                        className="hidden"
+                        id="professional-json-import"
+                      />
+                      <label
+                        htmlFor="professional-json-import"
+                        className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white inline-flex items-center gap-2 cursor-pointer"
+                      >
+                        <Upload className="w-4 h-4 shrink-0" />
+                        Choose JSON file
+                      </label>
+                      {jsonBundle && (
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          <strong className="text-gray-800 dark:text-gray-200">
+                            {jsonBundle.professionals.length}
+                          </strong>{" "}
+                          professional{jsonBundle.professionals.length !== 1 ? "s" : ""} in file
+                        </span>
+                      )}
+                    </div>
+                    {jsonError && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        {jsonError}
+                      </div>
+                    )}
+                    {jsonBundle && jsonImportedCount == null && (
+                      <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 dark:border-gray-700/50">
+                        <button
+                          type="button"
+                          onClick={handleConfirmJsonImport}
+                          disabled={jsonSubmitting}
+                          className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                          {jsonSubmitting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                              Importing…
+                            </>
+                          ) : (
+                            <>
+                              <FileCheck className="w-4 h-4 shrink-0" />
+                              Create {jsonBundle.professionals.length} professional
+                              {jsonBundle.professionals.length !== 1 ? "s" : ""}
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setJsonBundle(null);
+                            setJsonError("");
+                            setJsonImportError(null);
+                          }}
+                          className="btn border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500"
+                        >
+                          Clear file
+                        </button>
+                      </div>
+                    )}
+                    {jsonImportError && (
+                      <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        {jsonImportError}
+                      </div>
+                    )}
+                    {jsonImportedCount != null && (
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-green-600 dark:text-green-400 font-medium">
+                        <CheckCircle className="w-4 h-4" />
+                        {jsonImportedCount} professional{jsonImportedCount !== 1 ? "s" : ""} created.
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate(
+                              accountUrl ? `/${accountUrl}/professionals/manage` : "/professionals/manage",
+                            )
+                          }
+                          className="underline hover:no-underline font-normal"
+                        >
+                          View professionals
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {importMode === "spreadsheet" && (
+              <>
             <div className="mb-6 flex items-center gap-0 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-1 shadow-sm">
               {STEPS.map((step, i) => (
                 <React.Fragment key={step.id}>
@@ -556,7 +816,7 @@ function ProfessionalsImport() {
                     2. Upload your file
                   </h2>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    .xlsx or .csv. After selecting a file, click Import to preview rows.
+                    .xlsx, .csv, or a .json full backup from Export. For .json, you will switch to the JSON backup flow automatically.
                   </p>
                 </div>
                 <div className="p-4">
@@ -568,7 +828,7 @@ function ProfessionalsImport() {
                     >
                       <input
                         type="file"
-                        accept=".xlsx,.csv"
+                        accept=".xlsx,.csv,.json,application/json"
                         onChange={handleFileInput}
                         className="hidden"
                         id="professional-import-file"
@@ -587,7 +847,7 @@ function ProfessionalsImport() {
                           </span>
                         </span>
                         <span className="text-sm text-gray-500">
-                          .xlsx or .csv, max 10MB
+                          .xlsx, .csv, or .json, max 10MB
                         </span>
                       </label>
                     </div>
@@ -886,6 +1146,8 @@ function ProfessionalsImport() {
                   </div>
                 </div>
               </section>
+            )}
+              </>
             )}
           </div>
         </main>

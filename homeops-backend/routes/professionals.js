@@ -23,6 +23,165 @@ async function enrichProfessional(pro) {
   return enriched;
 }
 
+const EXPORT_FORMAT = "homeops-professionals";
+const EXPORT_VERSION = 1;
+
+function optionalInt(val) {
+  if (val == null || val === "") return null;
+  const n = parseInt(String(val), 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+function professionalToExportRecord(row) {
+  const {
+    id: _id,
+    category_name,
+    subcategory_name,
+    saved: _saved,
+    profile_photo_url: _url,
+    photos: rawPhotos,
+    ...rest
+  } = row;
+  const photos = (rawPhotos || []).map((p) => ({
+    photo_key: p.photo_key,
+    caption: p.caption ?? null,
+    sort_order: p.sort_order ?? 0,
+  }));
+  return {
+    ...rest,
+    category_name: category_name ?? null,
+    subcategory_name: subcategory_name ?? null,
+    photos,
+  };
+}
+
+/** GET /export - Full backup JSON (S3 keys, gallery keys). Admin only. */
+router.get("/export", ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    let accountId = null;
+    if (req.query.account_id != null && String(req.query.account_id).trim() !== "") {
+      accountId = parseInt(req.query.account_id, 10);
+      if (isNaN(accountId)) throw new BadRequestError("Invalid account_id");
+    }
+    const rows = await Professional.getAllForExport({ account_id: accountId });
+    const professionals = [];
+    for (const row of rows) {
+      const photos = await Professional.getPhotos(row.id);
+      professionals.push(
+        professionalToExportRecord({
+          ...row,
+          photos,
+        }),
+      );
+    }
+    return res.json({
+      format: EXPORT_FORMAT,
+      version: EXPORT_VERSION,
+      exportedAt: new Date().toISOString(),
+      account_id: accountId,
+      professionals,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST /import-bundle - Restore from GET /export JSON. Admin only. */
+router.post("/import-bundle", ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    const body = req.body || {};
+    if (body.format !== EXPORT_FORMAT || body.version !== EXPORT_VERSION) {
+      throw new BadRequestError(
+        `Expected format "${EXPORT_FORMAT}" and version ${EXPORT_VERSION}`,
+      );
+    }
+    const items = body.professionals;
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BadRequestError("professionals must be a non-empty array");
+    }
+    const targetAccountId =
+      body.account_id != null && String(body.account_id).trim() !== ""
+        ? parseInt(body.account_id, 10)
+        : null;
+    if (body.account_id != null && String(body.account_id).trim() !== "" && isNaN(targetAccountId)) {
+      throw new BadRequestError("Invalid account_id");
+    }
+
+    const created = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const company_name = item.company_name && String(item.company_name).trim();
+      if (!company_name) {
+        throw new BadRequestError(`Row ${i + 1}: company_name is required`);
+      }
+      const photos = Array.isArray(item.photos) ? item.photos : [];
+      const {
+        photos: _p,
+        category_name: _cn,
+        subcategory_name: _sn,
+        id: _oldId,
+        created_at: _ca,
+        updated_at: _ua,
+        rating: _r,
+        review_count: _rc,
+        ...rest
+      } = item;
+
+      const createPayload = {
+        first_name: rest.first_name ?? "",
+        last_name: rest.last_name ?? "",
+        contact_name: rest.contact_name ?? null,
+        company_name,
+        category_id: optionalInt(rest.category_id),
+        subcategory_id: optionalInt(rest.subcategory_id),
+        description: rest.description ?? null,
+        phone: rest.phone ?? null,
+        email: rest.email ?? null,
+        website: rest.website ?? null,
+        street1: rest.street1 ?? null,
+        street2: rest.street2 ?? null,
+        city: rest.city ?? null,
+        state: rest.state ?? null,
+        zip_code: rest.zip_code ?? null,
+        country: rest.country ?? null,
+        service_area: rest.service_area ?? null,
+        budget_level: rest.budget_level ?? null,
+        languages: Array.isArray(rest.languages) ? rest.languages : [],
+        years_in_business: optionalInt(rest.years_in_business),
+        is_verified: !!rest.is_verified,
+        license_number: rest.license_number ?? null,
+        profile_photo: rest.profile_photo ?? null,
+        is_active: rest.is_active !== false,
+        account_id:
+          targetAccountId != null && !isNaN(targetAccountId)
+            ? targetAccountId
+            : (rest.account_id ?? null),
+      };
+
+      const pro = await Professional.create(createPayload);
+      for (const ph of photos) {
+        const key = ph && ph.photo_key && String(ph.photo_key).trim();
+        if (!key) continue;
+        await Professional.addPhoto(
+          pro.id,
+          key,
+          ph.caption ?? null,
+          ph.sort_order != null ? Number(ph.sort_order) : 0,
+        );
+      }
+      const enriched = await enrichProfessional(pro);
+      created.push(enriched);
+    }
+
+    return res.status(201).json({
+      imported: created.length,
+      professionals: created,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** GET / - List professionals with optional filters. */
 router.get("/", ensureLoggedIn, async function (req, res, next) {
   try {

@@ -62,6 +62,7 @@ import ProfessionalFormContainer from "../professionals/ProfessionalFormContaine
 import ProfessionalsList from "../professionals/ProfessionalsList";
 import ProfessionalsImport from "../professionals/professionalsImport";
 import CategoriesList from "../professionals/categories/CategoriesList";
+import CategoriesImport from "../professionals/categories/categoriesImport";
 import CategoryFormContainer from "../professionals/categories/CategoryFormContainer";
 import DashboardOverview from "../dashboard/DashboardOverview";
 import AccountAnalytics from "../dashboard/AccountAnalytics";
@@ -573,6 +574,14 @@ function RoutesList() {
         element={
           <ProtectedRoute>
             <CategoriesList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/professionals/categories/import"
+        element={
+          <ProtectedRoute>
+            <CategoriesImport />
           </ProtectedRoute>
         }
       />

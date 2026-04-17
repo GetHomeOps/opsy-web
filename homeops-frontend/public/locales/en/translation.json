@@ -201,6 +201,8 @@
   "description": "Description",
   "descriptionValidationErrorMessage": "Description is required",
   "duplicate": "Duplicate",
+  "export": "Export",
+  "import": "Import",
   "edit": "Edit",
   "email": "Email",
   "emailActions": "Email Actions",

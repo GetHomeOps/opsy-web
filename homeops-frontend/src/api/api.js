@@ -1364,6 +1364,16 @@ class AppApi {
     return res;
   }
 
+  /** Platform admin: JSON document with categories, image_key, hierarchy (no presigned URLs). */
+  static async exportProfessionalCategories() {
+    return this.request("professional-categories/export");
+  }
+
+  /** Platform admin: upsert from export document, { categories: [...] }, or seed-shaped array. */
+  static async importProfessionalCategories(payload) {
+    return this.request("professional-categories/import", payload, "POST");
+  }
+
   /* --------- Professionals --------- */
 
   static async getAllProfessionals(filters = {}) {
@@ -1379,6 +1389,18 @@ class AppApi {
     if (filters.is_verified) params.is_verified = "true";
     const res = await this.request("professionals", params);
     return res.professionals;
+  }
+
+  /** Admin: full JSON export (includes S3 keys for profile and gallery photos). */
+  static async exportProfessionalsBundle(accountId = null) {
+    const params = {};
+    if (accountId != null && accountId !== "") params.account_id = accountId;
+    return this.request("professionals/export", params, "GET");
+  }
+
+  /** Admin: restore from exportProfessionalsBundle JSON. */
+  static async importProfessionalsBundle(payload) {
+    return this.request("professionals/import-bundle", payload, "POST");
   }
 
   static async getProfessional(id) {

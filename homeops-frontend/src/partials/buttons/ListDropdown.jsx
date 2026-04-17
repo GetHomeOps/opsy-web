@@ -3,7 +3,16 @@ import Transition from "../../utils/Transition";
 import {useTranslation} from "react-i18next";
 import {Settings, UserPlus} from "lucide-react";
 
-function ListDropdown({align, onImport, onDelete, onDuplicate, onInviteUser, hasSelection}) {
+function ListDropdown({
+  align,
+  onImport,
+  onExport,
+  onDelete,
+  onDuplicate,
+  onInviteUser,
+  hasSelection,
+  disabled = false,
+}) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const trigger = useRef(null);
@@ -37,10 +46,22 @@ function ListDropdown({align, onImport, onDelete, onDuplicate, onInviteUser, has
     return () => document.removeEventListener("keydown", keyHandler);
   }, [dropdownOpen]);
 
+  useEffect(() => {
+    if (disabled) setDropdownOpen(false);
+  }, [disabled]);
+
   /* handle import */
   function handleImport(e) {
     e.stopPropagation();
+    if (disabled) return;
     onImport?.();
+    setDropdownOpen(false);
+  }
+
+  function handleExport(e) {
+    e.stopPropagation();
+    if (disabled) return;
+    onExport?.();
     setDropdownOpen(false);
   }
 
@@ -69,9 +90,13 @@ function ListDropdown({align, onImport, onDelete, onDuplicate, onInviteUser, has
     <div className="relative inline-flex">
       <button
         ref={trigger}
-        className="btn px-2.5 bg-white dark:bg-gray-800 border-gray-200 hover:border-gray-300 dark:border-gray-700/60 dark:hover:border-gray-600 text-gray-400 dark:text-gray-500"
+        type="button"
+        className={`btn px-2.5 bg-white dark:bg-gray-800 border-gray-200 hover:border-gray-300 dark:border-gray-700/60 dark:hover:border-gray-600 text-gray-400 dark:text-gray-500 ${
+          disabled ? "opacity-50 cursor-not-allowed" : ""
+        }`}
         aria-haspopup="true"
-        onClick={() => setDropdownOpen(!dropdownOpen)}
+        disabled={disabled}
+        onClick={() => !disabled && setDropdownOpen(!dropdownOpen)}
         aria-expanded={dropdownOpen}
       >
         <span className="sr-only">Actions</span>
@@ -98,9 +123,36 @@ function ListDropdown({align, onImport, onDelete, onDuplicate, onInviteUser, has
             {t("actions")}
           </div>
           <ul className="mb-1">
+            {onExport && (
+              <li>
+                <button
+                  type="button"
+                  className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
+                  onClick={handleExport}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span className="text-sm font-medium ml-2">{t("export", {defaultValue: "Export"})}</span>
+                </button>
+              </li>
+            )}
             {onImport && (
               <li>
                 <button
+                  type="button"
                   className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
                   onClick={handleImport}
                 >
