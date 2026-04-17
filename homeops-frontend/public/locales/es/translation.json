@@ -355,6 +355,8 @@
   "parentCategory": "Categoría padre",
   "partner": "Socio",
   "password": "Contraseña",
+  "showPassword": "Mostrar contraseña",
+  "hidePassword": "Ocultar contraseña",
   "passwordMatchErrorMessage": "Las contraseñas no coinciden",
   "passwordMinLength": "La contraseña debe tener al menos 8 caracteres",
   "passwordMinLengthErrorMessage": "La contraseña debe tener al menos 8 caracteres",

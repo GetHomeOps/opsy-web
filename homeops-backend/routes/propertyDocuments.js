@@ -10,6 +10,7 @@ const { triggerReanalysisOnDocument } = require("../services/ai/propertyReanalys
 const { canUploadDocumentToSystem } = require("../services/tierService");
 const { logStorageUsage } = require("../services/usageService");
 const db = require("../db");
+const { isPropertyUid } = require("../helpers/properties");
 
 /** Set req.params.propertyId from document id so ensurePropertyAccess can run. */
 async function loadPropertyIdFromDocument(req, res, next) {
@@ -29,8 +30,8 @@ router.post("/", ensureLoggedIn, ensurePropertyAccess({ fromBody: "property_id",
     const system_key = rawSystemKey || "general";
     let propertyId = res.locals.resolvedPropertyId ?? req.params.propertyId ?? bodyPropertyId;
     // If still a UID string (fallback when middleware didn't set resolvedPropertyId), resolve to numeric id
-    if (propertyId != null && /^[A-Za-z0-9_-]{6,12}$/.test(String(propertyId)) && !/^\d+$/.test(String(propertyId))) {
-      const propRes = await db.query(`SELECT id FROM properties WHERE property_uid = $1`, [propertyId]);
+    if (propertyId != null && isPropertyUid(propertyId)) {
+      const propRes = await db.query(`SELECT id FROM properties WHERE property_uid = $1`, [String(propertyId)]);
       if (propRes.rows[0]) propertyId = propRes.rows[0].id;
     }
     if (typeof propertyId === "string" && /^\d+$/.test(propertyId)) propertyId = parseInt(propertyId, 10);

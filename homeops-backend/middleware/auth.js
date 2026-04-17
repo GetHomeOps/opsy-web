@@ -6,6 +6,7 @@ const { UnauthorizedError, ForbiddenError } = require("../expressError");
 const Account = require("../models/account");
 const User = require("../models/user");
 const db = require("../db");
+const { isPropertyUid } = require("../helpers/properties");
 
 /** Verify Bearer token, set res.locals.user (optional). Ignores invalid tokens. */
 function authenticateJWT(req, res, next) {
@@ -183,24 +184,27 @@ function ensurePropertyAccess(options = {}) {
         : (req.params[param] || req.params.uid || req.params.propertyId || req.params.PropertyId);
       if (!raw) throw new ForbiddenError("Property identifier missing.");
 
-      let propertyId = raw;
+      let propertyId;
+      const rawStr = String(raw);
       const paramExpectsNumericId = param === "propertyId" || param === "PropertyId";
 
-      if (/^\d+$/.test(String(raw))) {
-        propertyId = parseInt(raw, 10);
-      } else if (/^[A-Za-z0-9_-]{6,12}$/.test(raw)) {
-        const cached = _uidToIdCache.get(raw);
+      if (isPropertyUid(rawStr)) {
+        const cached = _uidToIdCache.get(rawStr);
         if (cached && cached.expiresAt > Date.now()) {
           propertyId = cached.value;
         } else {
           const propRes = await db.query(
             `SELECT id FROM properties WHERE property_uid = $1`,
-            [raw],
+            [rawStr],
           );
           if (propRes.rows.length === 0) throw new ForbiddenError("Property not found.");
           propertyId = propRes.rows[0].id;
-          _uidToIdCache.set(raw, { value: propertyId, expiresAt: Date.now() + _ACCESS_TTL_MS });
+          _uidToIdCache.set(rawStr, { value: propertyId, expiresAt: Date.now() + _ACCESS_TTL_MS });
         }
+      } else if (/^\d+$/.test(rawStr)) {
+        propertyId = parseInt(rawStr, 10);
+      } else {
+        throw new ForbiddenError("Property not found.");
       }
       if (paramExpectsNumericId) {
         req.params[param] = propertyId;
@@ -252,13 +256,18 @@ function ensurePropertyOwner(paramName = "propertyId") {
       const raw = req.params[paramName];
       if (!raw) throw new ForbiddenError("Property identifier missing.");
 
-      let propertyId = raw;
-      if (/^[A-Za-z0-9_-]{6,12}$/.test(raw) && !/^\d+$/.test(raw)) {
+      let propertyId;
+      const rawStr = String(raw);
+      if (isPropertyUid(rawStr)) {
         const propRes = await db.query(
-          `SELECT id FROM properties WHERE property_uid = $1`, [raw]
+          `SELECT id FROM properties WHERE property_uid = $1`, [rawStr]
         );
         if (propRes.rows.length === 0) throw new ForbiddenError("Property not found.");
         propertyId = propRes.rows[0].id;
+      } else if (/^\d+$/.test(rawStr)) {
+        propertyId = parseInt(rawStr, 10);
+      } else {
+        throw new ForbiddenError("Property not found.");
       }
 
       const result = await db.query(

@@ -12,6 +12,7 @@ const db = require("../db");
 const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const { getAiSummaryForProperty } = require("./ai/propertyReanalysisService");
 const { normalizeSystemType } = require("./systemTypes");
+const { isPropertyUid } = require("../helpers/properties");
 
 const MODEL = process.env.AI_MAINTENANCE_ADVICE_MODEL || "gpt-4o-mini";
 
@@ -85,19 +86,22 @@ async function getMaintenanceAdvice({
   systemContext = {},
   scheduleType = null,
 }) {
-  // Resolve property id
-  let resolvedId = propertyId;
-  if (!/^\d+$/.test(String(propertyId))) {
+  // Resolve property id: 8 digits = property_uid, other digits = primary-key id
+  let resolvedId;
+  const rawStr = String(propertyId);
+  if (isPropertyUid(rawStr)) {
     const propRes = await db.query(
       `SELECT id FROM properties WHERE property_uid = $1`,
-      [propertyId]
+      [rawStr]
     );
     if (propRes.rows.length === 0) {
       throw new Error("Property not found");
     }
     resolvedId = propRes.rows[0].id;
+  } else if (/^\d+$/.test(rawStr)) {
+    resolvedId = parseInt(rawStr, 10);
   } else {
-    resolvedId = parseInt(propertyId, 10);
+    throw new Error("Property not found");
   }
 
   const [analysis, aiSummary] = await Promise.all([

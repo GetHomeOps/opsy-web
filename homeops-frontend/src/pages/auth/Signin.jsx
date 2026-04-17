@@ -6,7 +6,14 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {useTranslation} from "react-i18next";
-import {AlertCircle, ExternalLink, Loader2, ShieldCheck} from "lucide-react";
+import {
+  AlertCircle,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import AppApi, {API_BASE_URL} from "../../api/api";
 import {
@@ -39,6 +46,7 @@ function Signin() {
   const [mfaSubmitting, setMfaSubmitting] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [resendVerifyState, setResendVerifyState] = useState("idle");
+  const [showPassword, setShowPassword] = useState(false);
   const justLoggedIn = useRef(false);
 
   const {t, i18n} = useTranslation();
@@ -380,15 +388,38 @@ function Signin() {
                       >
                         {t("password")}
                       </label>
-                      <input
-                        id="password"
-                        className="form-input w-full"
-                        type="password"
-                        autoComplete="on"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                      />
+                      <div className="relative">
+                        <input
+                          id="password"
+                          className="form-input w-full pr-10"
+                          type={showPassword ? "text" : "password"}
+                          autoComplete="current-password"
+                          name="password"
+                          value={formData.password}
+                          onChange={handleChange}
+                        />
+                        <button
+                          type="button"
+                          className="absolute inset-y-0 right-0 flex items-center justify-center px-2.5 rounded-md text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 dark:focus-visible:ring-gray-500 dark:focus-visible:ring-offset-gray-800"
+                          onClick={() => setShowPassword((v) => !v)}
+                          aria-pressed={showPassword}
+                          aria-controls="password"
+                          aria-label={
+                            showPassword
+                              ? t("hidePassword", "Hide password")
+                              : t("showPassword", "Show password")
+                          }
+                        >
+                          {showPassword ? (
+                            <EyeOff
+                              className="w-5 h-5 shrink-0"
+                              aria-hidden
+                            />
+                          ) : (
+                            <Eye className="w-5 h-5 shrink-0" aria-hidden />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-col items-center mt-6 gap-3">

@@ -7,7 +7,7 @@ const { BadRequestError, ForbiddenError } = require("../expressError");
 const Property = require("../models/property");
 const propertyNewSchema = require("../schemas/propertyNew.json");
 const propertyUpdateSchema = require("../schemas/propertyUpdate.json");
-const { generatePassportId } = require("../helpers/properties");
+const { generatePassportId, isPropertyUid } = require("../helpers/properties");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
 const { canCreateProperty, checkAiTokenQuota, checkAiFeaturesAllowed, getAccountLimits } = require("../services/tierService");
 const { onPropertyCreated } = require("../services/resourceAutoSend");
@@ -264,22 +264,23 @@ router.get("/:uid", ensureLoggedIn, ensurePropertyAccess(), async function (req,
   }
 });
 
-/** Resolve property_uid to numeric id. */
+/** Resolve property_uid (8 digits) or numeric primary-key id to numeric id. */
 async function resolvePropertyIdForInspection(req, res, next) {
   try {
     const raw = req.params.propertyId;
     if (!raw) return next();
-    if (/^\d+$/.test(String(raw))) {
-      req.params.propertyId = parseInt(raw, 10);
-      return next();
-    }
-    if (/^[A-Za-z0-9_-]{6,12}$/.test(raw) && !/^\d+$/.test(raw)) {
+    const rawStr = String(raw);
+    if (isPropertyUid(rawStr)) {
       const propRes = await db.query(
         `SELECT id FROM properties WHERE property_uid = $1`,
-        [raw]
+        [rawStr]
       );
       if (propRes.rows.length === 0) throw new ForbiddenError("Property not found.");
       req.params.propertyId = propRes.rows[0].id;
+      return next();
+    }
+    if (/^\d+$/.test(rawStr)) {
+      req.params.propertyId = parseInt(rawStr, 10);
       return next();
     }
     return next();

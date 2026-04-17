@@ -16,11 +16,20 @@
 
 const { customAlphabet } = require("nanoid");
 
-/** Generate readable property UIDs: uppercase + digits only, no ambiguous chars (0/O, 1/l/I) */
-const genPropertyUid = customAlphabet("23456789ABCDEFGHJKLMNPQRSTUVWXYZ", 8);
+/**
+ * Generate property UIDs: 8 numeric digits (leading zeros allowed).
+ * 100M combinations; uniqueness enforced by the DB UNIQUE constraint on
+ * `properties.property_uid`. Collisions are retried below in `create`.
+ *
+ * Legacy properties with alphanumeric uids (uppercase letters + digits) still
+ * exist in the DB but are no longer routable from URLs — see
+ * `helpers/properties.js` `PROPERTY_UID_REGEX`.
+ */
+const genPropertyUid = customAlphabet("0123456789", 8);
+const PROPERTY_UID_MAX_GEN_ATTEMPTS = 5;
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
-const { generatePassportId } = require("../helpers/properties");
+const { generatePassportId, isPropertyUid } = require("../helpers/properties");
 const { sqlForPartialUpdate } = require("../helpers/sql");
 
 /**
@@ -151,26 +160,47 @@ class Property {
     return result.rows;
   }
 
-  /* Create a new property from provided data (any subset of columns) */
+  /* Create a new property from provided data (any subset of columns).
+   *
+   * If `property_uid` is not provided, generates an 8-digit numeric uid.
+   * Retries up to PROPERTY_UID_MAX_GEN_ATTEMPTS times on the (extremely rare)
+   * UNIQUE-constraint collision. Postgres unique_violation = "23505". */
   static async create(data = {}) {
-    const withUid = { ...data, property_uid: data.property_uid || genPropertyUid() };
-    if (!withUid.passport_id && withUid.state != null && withUid.zip != null) {
-      withUid.passport_id = generatePassportId({ state: withUid.state, zip: withUid.zip });
+    const callerSuppliedUid = !!data.property_uid;
+    const base = { ...data };
+    if (!base.passport_id && base.state != null && base.zip != null) {
+      base.passport_id = generatePassportId({ state: base.state, zip: base.zip });
     }
-    const keys = Object.keys(withUid).filter((k) => PROPERTY_INSERT_COLUMNS.includes(k));
+    const keys = Object.keys({ ...base, property_uid: base.property_uid || "_" })
+      .filter((k) => PROPERTY_INSERT_COLUMNS.includes(k));
     if (keys.length === 0) {
       throw new BadRequestError("No valid property data provided");
     }
-    const values = keys.map((k) => (k === "property_uid" ? withUid.property_uid : coerceValue(k, withUid[k])));
     const cols = keys.map((k) => `"${k}"`).join(", ");
-    const placeholders = values.map((_, i) => `$${i + 1}`).join(", ");
-    const result = await db.query(
-      `INSERT INTO properties (${cols})
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
+    const sql = `INSERT INTO properties (${cols})
        VALUES (${placeholders})
-       RETURNING id, property_uid, passport_id, account_id, address, city, state, zip`,
-      values
-    );
-    return result.rows[0];
+       RETURNING id, property_uid, passport_id, account_id, address, city, state, zip`;
+
+    const maxAttempts = callerSuppliedUid ? 1 : PROPERTY_UID_MAX_GEN_ATTEMPTS;
+    let lastErr;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const withUid = { ...base, property_uid: base.property_uid || genPropertyUid() };
+      const values = keys.map((k) =>
+        k === "property_uid" ? withUid.property_uid : coerceValue(k, withUid[k])
+      );
+      try {
+        const result = await db.query(sql, values);
+        return result.rows[0];
+      } catch (err) {
+        if (err && err.code === "23505" && !callerSuppliedUid) {
+          lastErr = err;
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastErr || new Error("Failed to generate a unique property_uid");
   }
 
   /* Add user to property (upsert: update role if already exists) */
@@ -185,22 +215,25 @@ class Property {
     return result.rows[0];
   }
 
-  /* Get property by property uid or numeric id */
+  /* Get property by 8-digit property_uid or numeric primary-key id.
+   *
+   * Resolution rule (matches helpers/properties.js#PROPERTY_UID_REGEX):
+   *   - exactly 8 digits → property_uid lookup
+   *   - other numeric    → properties.id lookup
+   *   - anything else    → NotFoundError (legacy alphanumeric uids no longer routable) */
   static async get(uid) {
-    try {
-      const isNumeric = /^\d+$/.test(String(uid));
-      const result = await db.query(
-        isNumeric
-          ? `SELECT * FROM properties WHERE id = $1`
-          : `SELECT * FROM properties WHERE property_uid = $1`,
-        [isNumeric ? parseInt(uid, 10) : uid]
-      );
-      const property = result.rows[0];
-      if (!property) throw new NotFoundError(`No property with uid: ${uid}`);
-      return property;
-    } catch (err) {
-      throw err;
+    const raw = String(uid ?? "");
+    let result;
+    if (isPropertyUid(raw)) {
+      result = await db.query(`SELECT * FROM properties WHERE property_uid = $1`, [raw]);
+    } else if (/^\d+$/.test(raw)) {
+      result = await db.query(`SELECT * FROM properties WHERE id = $1`, [parseInt(raw, 10)]);
+    } else {
+      throw new NotFoundError(`No property with uid: ${uid}`);
     }
+    const property = result.rows[0];
+    if (!property) throw new NotFoundError(`No property with uid: ${uid}`);
+    return property;
   }
 
   /* Get agents/admins for an account */

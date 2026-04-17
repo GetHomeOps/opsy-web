@@ -39,7 +39,7 @@ describe("Signin error display", () => {
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: "test@example.com" },
     });
-    fireEvent.change(screen.getByLabelText(/password/i), {
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
       target: { value: "wrongpassword" },
     });
     const buttons = screen.getAllByRole("button", { name: /continue/i });
@@ -63,7 +63,7 @@ describe("Signin error display", () => {
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: "test@example.com" },
     });
-    fireEvent.change(screen.getByLabelText(/password/i), {
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
       target: { value: "wrongpassword" },
     });
     const buttons = screen.getAllByRole("button", { name: /continue/i });

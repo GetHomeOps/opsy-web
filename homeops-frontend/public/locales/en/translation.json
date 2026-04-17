@@ -355,6 +355,8 @@
   "parentCategory": "Parent Category",
   "partner": "Partner",
   "password": "Password",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
   "passwordMatchErrorMessage": "Passwords do not match",
   "passwordMinLength": "Password must be at least 8 characters",
   "passwordMinLengthErrorMessage": "Password must be at least 8 characters",
