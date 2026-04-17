@@ -36,6 +36,18 @@ export function AuthProvider({children}) {
   const [isSigningUp, setIsSigningUp] = useState(false);
   const isOAuthCallbackRef = useRef(false);
 
+  /* Wipe any persisted auth tokens. Used when the stored token is no longer
+   * usable (e.g. user deleted, database reset, token revoked). */
+  const clearStaleAuthTokens = useCallback(() => {
+    try {
+      localStorage.removeItem(REFRESH_TOKEN_STORAGE_ID);
+    } catch {
+      // ignore storage access errors
+    }
+    AppApi.token = null;
+    setToken(null);
+  }, [setToken]);
+
   /* Get the current user */
   useEffect(() => {
     async function getCurrentUser() {
@@ -52,6 +64,7 @@ export function AuthProvider({children}) {
 
           if (!currentUser || !currentUser.id) {
             console.error("Current user or user ID is undefined");
+            clearStaleAuthTokens();
             setCurrentUser({
               isLoading: false,
               data: null,
@@ -66,7 +79,15 @@ export function AuthProvider({children}) {
             data: {...currentUser, accounts: userAccounts || []},
           });
         } catch (err) {
-          console.error("App loadUserInfo: problem loading", err);
+          // If the token references a user that no longer exists (e.g. DB was
+          // reset) or is no longer valid, purge it so we don't re-fire the
+          // same failing request on every page load.
+          const status = err?.status;
+          if (status === 404 || status === 401 || status === 403) {
+            clearStaleAuthTokens();
+          } else {
+            console.error("App loadUserInfo: problem loading", err);
+          }
           setCurrentUser({
             isLoading: false,
             data: null,
