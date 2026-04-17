@@ -414,24 +414,24 @@ function UpgradePlanPage() {
             ) &&
               plans.some((p) => p.stripePrices?.month) && (
                 <div className="flex flex-col items-center mb-8 gap-1.5">
-                <PricingSwitch
-                  value={billingInterval}
-                  onChange={setBillingInterval}
-                  left={{value: "month", label: "Monthly"}}
-                  right={{value: "year", label: "Yearly"}}
-                  ariaLabel="Monthly or yearly billing"
-                  variant="violet"
-                  size="sm"
-                />
-                <span
-                  className={`text-[10px] font-semibold tracking-wide uppercase transition-opacity duration-200 ${
-                    billingInterval === "year"
-                      ? "text-violet-800 dark:text-violet-300 opacity-100"
-                      : "text-gray-400 dark:text-gray-500 opacity-70"
-                  }`}
-                >
-                  Save 20% yearly
-                </span>
+                  <PricingSwitch
+                    value={billingInterval}
+                    onChange={setBillingInterval}
+                    left={{value: "month", label: "Monthly"}}
+                    right={{value: "year", label: "Yearly"}}
+                    ariaLabel="Monthly or yearly billing"
+                    variant="violet"
+                    size="sm"
+                  />
+                  <span
+                    className={`text-[10px] font-semibold tracking-wide uppercase transition-opacity duration-200 ${
+                      billingInterval === "year"
+                        ? "text-violet-800 dark:text-violet-300 opacity-100"
+                        : "text-gray-400 dark:text-gray-500 opacity-70"
+                    }`}
+                  >
+                    Save 20% yearly
+                  </span>
                 </div>
               )}
 
@@ -630,10 +630,10 @@ function UpgradePlanPage() {
 
                       {/* Trial info */}
                       {plan.trialDays > 0 && !isCurrent && (
-                          <p className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50 text-xs text-center text-gray-500 dark:text-gray-400">
-                            {plan.trialDays}-day free trial included
-                          </p>
-                        )}
+                        <p className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50 text-xs text-center text-gray-500 dark:text-gray-400">
+                          {plan.trialDays}-day free trial included
+                        </p>
+                      )}
                     </div>
                   );
                 })}

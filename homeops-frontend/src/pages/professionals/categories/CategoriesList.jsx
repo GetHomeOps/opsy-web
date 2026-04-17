@@ -893,29 +893,19 @@ function CategoriesList() {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {canImportExport && (
+                {(canImportExport || selectedItems.length > 0) && (
                   <ListDropdown
                     align="right"
                     disabled={importExportBusy}
-                    onExport={handleExportCategories}
-                    onImport={handleCategoryImport}
+                    hasSelection={selectedItems.length > 0}
+                    onDelete={handleDeleteClick}
+                    onExport={
+                      canImportExport ? handleExportCategories : undefined
+                    }
+                    onImport={
+                      canImportExport ? handleCategoryImport : undefined
+                    }
                   />
-                )}
-                {selectedItems.length > 0 && (
-                  <button
-                    className="btn border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-red-500"
-                    onClick={handleDeleteClick}
-                  >
-                    <svg
-                      className="shrink-0 fill-current mr-1"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 16 16"
-                    >
-                      <path d="M5 7h2v6H5V7zm4 0h2v6H9V7zm3-6v2h4v2h-1v10c0 .6-.4 1-1 1H2c-.6 0-1-.4-1-1V5H0V3h4V1c0-.6.4-1 1-1h6c.6 0 1 .4 1 1zm-7 0v1h4V1H5zm6 4H3v9h8V5z" />
-                    </svg>
-                    <span>{t("delete")}</span>
-                  </button>
                 )}
                 <button
                   className="btn bg-[#456564] hover:bg-[#34514f] text-white shadow-sm"

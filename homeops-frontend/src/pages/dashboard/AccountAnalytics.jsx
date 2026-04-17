@@ -659,8 +659,8 @@ function AccountAnalytics() {
             )}
 
             {!loading && accounts.length > 0 && (
-              <div className="mb-5">
-                <div className="relative max-w-md">
+              <div className="mb-5 w-full">
+                <div className="relative w-full">
                   <label htmlFor="acct-analytics-search" className="sr-only">
                     Search accounts
                   </label>

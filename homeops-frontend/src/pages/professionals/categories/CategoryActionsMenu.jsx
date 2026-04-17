@@ -1,12 +1,17 @@
 import React, {useState, useRef, useEffect} from "react";
 import {useTranslation} from "react-i18next";
-import {ChevronDown, Trash2} from "lucide-react";
+import {ChevronDown, Settings, Trash2} from "lucide-react";
 import Transition from "../../../utils/Transition";
 
 /**
- * Primary + form-level actions (e.g. delete). Label is uppercase ACTIONS for visibility.
+ * Category detail actions (e.g. delete).
+ * @param {"section" | "toolbar"} [variant="section"] — "toolbar" matches list gear controls; "section" is the richer control for form headers.
  */
-export default function CategoryActionsMenu({onRequestDelete, buttonClassName = ""}) {
+export default function CategoryActionsMenu({
+  onRequestDelete,
+  buttonClassName = "",
+  variant = "section",
+}) {
   const {t} = useTranslation();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -26,24 +31,41 @@ export default function CategoryActionsMenu({onRequestDelete, buttonClassName = 
     return null;
   }
 
-  const btnBase =
-    "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/80 transition-colors shadow-sm";
+  const isToolbar = variant === "toolbar";
 
   return (
     <div className="relative inline-flex shrink-0" ref={wrapRef}>
       <button
         type="button"
-        className={`${btnBase} uppercase text-xs font-semibold tracking-wider ${buttonClassName}`}
+        className={
+          isToolbar
+            ? `btn px-2.5 bg-white dark:bg-gray-800 border-gray-200 hover:border-gray-300 dark:border-gray-700/60 dark:hover:border-gray-600 text-gray-400 dark:text-gray-500 ${buttonClassName}`
+            : `inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-800 dark:text-gray-100 shadow-sm transition-colors hover:border-[#456564]/45 hover:bg-[#456564]/[0.07] dark:hover:border-[#7aa3a2]/45 dark:hover:bg-[#456564]/12 ${buttonClassName}`
+        }
+        aria-label={t("actions", {defaultValue: "Actions"})}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        {t("actions", {defaultValue: "ACTIONS"})}
-        <ChevronDown
-          className={`w-4 h-4 shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
-            open ? "rotate-180" : ""
-          }`}
-        />
+        {isToolbar ? (
+          <Settings className="w-4 h-4 shrink-0 text-gray-500 dark:text-gray-400" />
+        ) : (
+          <>
+            <Settings
+              className="w-4 h-4 shrink-0 text-[#456564] dark:text-[#7aa3a2]"
+              aria-hidden
+            />
+            <span className="max-sm:sr-only">
+              {t("actions", {defaultValue: "Actions"})}
+            </span>
+            <ChevronDown
+              className={`w-4 h-4 shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
+                open ? "rotate-180" : ""
+              }`}
+              aria-hidden
+            />
+          </>
+        )}
       </button>
       <Transition
         show={open}
@@ -64,7 +86,7 @@ export default function CategoryActionsMenu({onRequestDelete, buttonClassName = 
           <li>
             <button
               type="button"
-              className="w-full flex items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/80 px-3 py-2 text-left"
+              className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 text-left"
               onClick={(e) => {
                 e.stopPropagation();
                 setOpen(false);

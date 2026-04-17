@@ -597,6 +597,7 @@ function CategoryFormContainer() {
                 {!isNew && state.existingCategory && (
                   <CategoryActionsMenu
                     key={categoryId}
+                    variant="toolbar"
                     onRequestDelete={handleRequestDelete}
                   />
                 )}
