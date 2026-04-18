@@ -49,7 +49,14 @@ class Subscription {
               u.role AS "ownerRole",
               s.subscription_product_id AS "subscriptionProductId",
               sp.name AS "productName",
-              sp.price AS "productPrice",
+              COALESCE(
+                CASE WHEN pp.unit_amount IS NOT NULL THEN pp.unit_amount::numeric / 100 END,
+                (SELECT ppm.unit_amount::numeric / 100 FROM plan_prices ppm
+                 WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
+                   AND (ppm.is_active IS NULL OR ppm.is_active = true)
+                 LIMIT 1),
+                sp.price
+              ) AS "productPrice",
               sp.target_role AS "targetRole",
               s.stripe_subscription_id AS "stripeSubscriptionId",
               s.status,
@@ -93,7 +100,14 @@ class Subscription {
               u.role AS "ownerRole",
               s.subscription_product_id AS "subscriptionProductId",
               sp.name AS "productName",
-              sp.price AS "productPrice",
+              COALESCE(
+                CASE WHEN pp.unit_amount IS NOT NULL THEN pp.unit_amount::numeric / 100 END,
+                (SELECT ppm.unit_amount::numeric / 100 FROM plan_prices ppm
+                 WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
+                   AND (ppm.is_active IS NULL OR ppm.is_active = true)
+                 LIMIT 1),
+                sp.price
+              ) AS "productPrice",
               sp.target_role AS "targetRole",
               s.status,
               s.current_period_start AS "currentPeriodStart",

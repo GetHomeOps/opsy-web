@@ -1,14 +1,17 @@
 -- =============================================================================
 -- Opsy demo teardown for Supabase / Railway Postgres
--- Drops ALL tables, views, types, and extensions in dependency order.
+-- Drops ALL tables, views, extensions, and types in dependency order.
 -- Extracted from opsyDB.sql but without psql meta-commands or DROP DATABASE.
 --
--- Usage:  psql "$DATABASE_URL" -f demo_teardown_supabase.sql
+-- Usage (recommended — stop on first error):
+--   psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f demo_teardown_supabase.sql
+--
+-- This script does NOT wrap DDL in a single transaction. If it did, a failure
+-- late in the script (e.g. DROP TYPE) would roll back everything, including
+-- DROP TABLE … properties, and you would still see rows in `properties`.
 -- =============================================================================
 
-BEGIN;
-
--- Drop tables in reverse dependency order
+-- Drop tables in reverse dependency order (each statement commits on its own)
 DROP TABLE IF EXISTS comm_attachments CASCADE;
 DROP TABLE IF EXISTS comm_recipients CASCADE;
 DROP TABLE IF EXISTS comm_rules CASCADE;
@@ -18,6 +21,8 @@ DROP TABLE IF EXISTS support_ticket_replies CASCADE;
 DROP TABLE IF EXISTS plan_limits CASCADE;
 DROP TABLE IF EXISTS plan_prices CASCADE;
 DROP TABLE IF EXISTS stripe_webhook_events CASCADE;
+DROP TABLE IF EXISTS coupon_redemptions CASCADE;
+DROP TABLE IF EXISTS coupons CASCADE;
 DROP TABLE IF EXISTS support_tickets CASCADE;
 DROP TABLE IF EXISTS ai_action_drafts CASCADE;
 DROP TABLE IF EXISTS ai_messages CASCADE;
@@ -76,6 +81,16 @@ DROP VIEW IF EXISTS daily_platform_metrics CASCADE;
 DROP VIEW IF EXISTS database_analytics CASCADE;
 DROP VIEW IF EXISTS notifications_view CASCADE;
 
+-- Extensions (vector = pgvector; powers document_chunks embeddings)
+DROP EXTENSION IF EXISTS vector CASCADE;
+DROP EXTENSION IF EXISTS pgcrypto CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_statements CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache_sample CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache_sample_history CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache_sample_history_summary CASCADE;
+DROP EXTENSION IF EXISTS pg_stat_kcache_sample_history_summary_daily CASCADE;
+
 -- Drop types
 DROP TYPE IF EXISTS user_role CASCADE;
 DROP TYPE IF EXISTS account_role CASCADE;
@@ -95,5 +110,3 @@ DROP TYPE IF EXISTS maintenance_type CASCADE;
 DROP TYPE IF EXISTS maintenance_category CASCADE;
 DROP TYPE IF EXISTS maintenance_subcategory CASCADE;
 DROP TYPE IF EXISTS record_status CASCADE;
-
-COMMIT;

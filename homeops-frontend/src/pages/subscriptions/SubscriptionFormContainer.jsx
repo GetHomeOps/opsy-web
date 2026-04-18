@@ -17,6 +17,19 @@ import {useAuth} from "../../context/AuthContext";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
 import AppApi from "../../api/api";
 
+/** USD display for catalog prices (API may send float noise from cents ÷ 100). */
+function formatSubscriptionPriceUsd(amount) {
+  if (amount == null || amount === "") return null;
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return String(amount);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
 const initialFormData = {
   userId: "",
   subscriptionProductId: "",
@@ -690,8 +703,11 @@ function SubscriptionFormContainer() {
                         <Package className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
                         <span>
                           {state.subscription.subscriptionProductName}
-                          {state.subscription.subscriptionProductPrice &&
-                            ` — $${state.subscription.subscriptionProductPrice}`}
+                          {state.subscription.subscriptionProductPrice != null
+                            ? ` — ${formatSubscriptionPriceUsd(
+                                state.subscription.subscriptionProductPrice,
+                              )}`
+                            : ""}
                         </span>
                       </div>
                     )}
@@ -881,7 +897,9 @@ function SubscriptionFormContainer() {
                         </label>
                         <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
                           {state.subscription?.subscriptionProductPrice != null
-                            ? `$${state.subscription.subscriptionProductPrice}`
+                            ? formatSubscriptionPriceUsd(
+                                state.subscription.subscriptionProductPrice,
+                              )
                             : "—"}
                         </div>
                       </div>

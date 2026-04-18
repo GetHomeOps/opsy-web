@@ -8,9 +8,11 @@
 const fs = require("fs");
 const path = require("path");
 const bcrypt = require("bcrypt");
-const { customAlphabet } = require("nanoid");
 
-const genUid = customAlphabet("23456789ABCDEFGHJKLMNPQRSTUVWXYZ", 8);
+/** Must match backend `helpers/properties.js` PROPERTY_UID_REGEX (/^\\d{8}$/). */
+function demoPropertyUid(index) {
+  return String(97900000 + Number(index)).padStart(8, "0");
+}
 
 const SRC = path.join(__dirname, "..", "data", "demo-properties.json");
 const OUT = path.join(__dirname, "demo_seed_supabase.sql");
@@ -113,7 +115,7 @@ function generatePassportId(state, zip) {
     const addr = p.address;
     const pad = String(p.index).padStart(3, "0");
     const slug = `demo-hw-${pad}`;
-    const uid = genUid();
+    const uid = demoPropertyUid(p.index);
     const passportId = generatePassportId(addr.state, addr.zip);
 
     w(``);

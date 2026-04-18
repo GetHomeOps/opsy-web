@@ -23,7 +23,7 @@ BEGIN;
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url, subscription_tier)
 VALUES (
   'agent@opsy.com',
-  '$2b$12$hTeQBKB9dKSyASrj9Ql5SuEPNY6Pvsztyg9118d6UziNhPnKA6cHC',
+  '$2b$12$aB0/sY56eHWKVrGrqhfM8e8gypUkXl2WqiTPq.hA.37/p8h1OAjku',
   'Jordan Agent',
   '2065550000',
   'agent'::user_role,
@@ -71,7 +71,7 @@ AND NOT EXISTS (SELECT 1 FROM account_subscriptions asub WHERE asub.account_id =
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'noel.moore@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Noel Moore',
   '2065551001',
   'homeowner'::user_role,
@@ -102,9 +102,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '97PSFGVJ',
+  '97900001',
   a.id,
-  'WA-98040-53960',
+  'WA-98040-44421',
   '4150 86th Ave SE',
   'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&fit=crop&q=80',
   '4150 86th Ave SE, Mercer Island, WA 98040',
@@ -123,7 +123,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'noel.jones@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Noel Jones',
   '2065551002',
   'homeowner'::user_role,
@@ -154,9 +154,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'THCQVEVK',
+  '97900002',
   a.id,
-  'WA-98040-50388',
+  'WA-98040-26835',
   '3021 74th Ave SE',
   'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&fit=crop&q=80',
   '3021 74th Ave SE, Mercer Island, WA 98040',
@@ -175,7 +175,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'tatum.walker@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Tatum Walker',
   '2065551003',
   'homeowner'::user_role,
@@ -206,9 +206,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'CK53CMWE',
+  '97900003',
   a.id,
-  'WA-98040-79078',
+  'WA-98040-40374',
   '8815 SE 63rd St',
   'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=1200&fit=crop&q=80',
   '8815 SE 63rd St, Mercer Island, WA 98040',
@@ -227,7 +227,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'alex.jackson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Alex Jackson',
   '2065551004',
   'homeowner'::user_role,
@@ -258,9 +258,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'W5BQXEAT',
+  '97900004',
   a.id,
-  'WA-98040-65752',
+  'WA-98040-80722',
   '4305 92nd Ave SE',
   'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&fit=crop&q=80',
   '4305 92nd Ave SE, Mercer Island, WA 98040',
@@ -279,7 +279,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'reese.moore@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Reese Moore',
   '2065551005',
   'homeowner'::user_role,
@@ -310,9 +310,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'MB3VFP6A',
+  '97900005',
   a.id,
-  'WA-98040-13116',
+  'WA-98040-26001',
   '7610 SE 40th St',
   'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&fit=crop&q=80',
   '7610 SE 40th St, Mercer Island, WA 98040',
@@ -331,7 +331,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'drew.garcia@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Drew Garcia',
   '2065551006',
   'homeowner'::user_role,
@@ -362,9 +362,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '5Q3S9KVG',
+  '97900006',
   a.id,
-  'WA-98040-90088',
+  'WA-98040-11496',
   '5100 84th Ave SE',
   'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=1200&fit=crop&q=80',
   '5100 84th Ave SE, Mercer Island, WA 98040',
@@ -383,7 +383,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'kelly.wilson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Kelly Wilson',
   '2065551007',
   'homeowner'::user_role,
@@ -414,9 +414,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'HLVFK4NS',
+  '97900007',
   a.id,
-  'WA-98040-73244',
+  'WA-98040-89566',
   '9102 SE 50th St',
   'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&fit=crop&q=80',
   '9102 SE 50th St, Mercer Island, WA 98040',
@@ -435,7 +435,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'val.singh@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Val Singh',
   '2065551008',
   'homeowner'::user_role,
@@ -466,9 +466,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'CJB72C48',
+  '97900008',
   a.id,
-  'WA-98040-26129',
+  'WA-98040-70752',
   '3820 80th Ave SE',
   'https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=1200&fit=crop&q=80',
   '3820 80th Ave SE, Mercer Island, WA 98040',
@@ -487,7 +487,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'frankie.walker@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Frankie Walker',
   '2065551009',
   'homeowner'::user_role,
@@ -518,9 +518,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'YFEMWCKK',
+  '97900009',
   a.id,
-  'WA-98040-99442',
+  'WA-98040-75035',
   '7215 SE 29th St',
   'https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=1200&fit=crop&q=80',
   '7215 SE 29th St, Mercer Island, WA 98040',
@@ -539,7 +539,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jamie.martin@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jamie Martin',
   '2065551010',
   'homeowner'::user_role,
@@ -570,9 +570,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'S3LPZ5SM',
+  '97900010',
   a.id,
-  'WA-98040-46056',
+  'WA-98040-22694',
   '8412 SE 68th St',
   'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=1200&fit=crop&q=80',
   '8412 SE 68th St, Mercer Island, WA 98040',
@@ -591,7 +591,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'skyler.nguyen@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Skyler Nguyen',
   '2065551011',
   'homeowner'::user_role,
@@ -622,9 +622,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'KQJ86DAF',
+  '97900011',
   a.id,
-  'WA-98117-85646',
+  'WA-98117-23538',
   '2415 NW 65th St',
   'https://images.unsplash.com/photo-1600573472592-401b489a3cdc?w=1200&fit=crop&q=80',
   '2415 NW 65th St, Seattle, WA 98117',
@@ -643,7 +643,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'lane.hall@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Lane Hall',
   '2065551012',
   'homeowner'::user_role,
@@ -674,9 +674,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'HBNFK34M',
+  '97900012',
   a.id,
-  'WA-98115-19240',
+  'WA-98115-32278',
   '7512 35th Ave NE',
   'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=1200&fit=crop&q=80',
   '7512 35th Ave NE, Seattle, WA 98115',
@@ -695,7 +695,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jamie.thompson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jamie Thompson',
   '2065551013',
   'homeowner'::user_role,
@@ -726,9 +726,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'LYL9X8VZ',
+  '97900013',
   a.id,
-  'WA-98116-99133',
+  'WA-98116-59901',
   '4120 51st Ave SW',
   'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200&fit=crop&q=80',
   '4120 51st Ave SW, Seattle, WA 98116',
@@ -747,7 +747,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'taylor.lee@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Taylor Lee',
   '2065551014',
   'homeowner'::user_role,
@@ -778,9 +778,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'CLVZEZXE',
+  '97900014',
   a.id,
-  'WA-98119-91988',
+  'WA-98119-47264',
   '1824 11th Ave W',
   'https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=1200&fit=crop&q=80',
   '1824 11th Ave W, Seattle, WA 98119',
@@ -799,7 +799,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'alex.garcia@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Alex Garcia',
   '2065551015',
   'homeowner'::user_role,
@@ -830,9 +830,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'ALGWCTPH',
+  '97900015',
   a.id,
-  'WA-98103-51057',
+  'WA-98103-33522',
   '6515 Phinney Ave N',
   'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1200&fit=crop&q=80',
   '6515 Phinney Ave N, Seattle, WA 98103',
@@ -851,7 +851,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'sage.patel@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Sage Patel',
   '2065551016',
   'homeowner'::user_role,
@@ -882,9 +882,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '4ZDZUFXB',
+  '97900016',
   a.id,
-  'WA-98126-36313',
+  'WA-98126-69657',
   '3218 38th Ave SW',
   'https://images.unsplash.com/photo-1600585153490-76fb20a32601?w=1200&fit=crop&q=80',
   '3218 38th Ave SW, Seattle, WA 98126',
@@ -903,7 +903,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jamie.white@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jamie White',
   '2065551017',
   'homeowner'::user_role,
@@ -934,9 +934,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'SJU5TFK8',
+  '97900017',
   a.id,
-  'WA-98112-31273',
+  'WA-98112-23176',
   '912 24th Ave E',
   'https://images.unsplash.com/photo-1600566752355-35792bedcfea?w=1200&fit=crop&q=80',
   '912 24th Ave E, Seattle, WA 98112',
@@ -955,7 +955,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'quinn.jackson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Quinn Jackson',
   '2065551018',
   'homeowner'::user_role,
@@ -986,9 +986,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'N2SCRP9G',
+  '97900018',
   a.id,
-  'WA-98118-35518',
+  'WA-98118-34857',
   '5420 39th Ave S',
   'https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?w=1200&fit=crop&q=80',
   '5420 39th Ave S, Seattle, WA 98118',
@@ -1007,7 +1007,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'micah.anderson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Micah Anderson',
   '2065551019',
   'homeowner'::user_role,
@@ -1038,9 +1038,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'HMJDBURQ',
+  '97900019',
   a.id,
-  'WA-98102-20707',
+  'WA-98102-76044',
   '1415 E Aloha St',
   'https://images.unsplash.com/photo-1600585154084-4e5fe7c39198?w=1200&fit=crop&q=80',
   '1415 E Aloha St, Seattle, WA 98102',
@@ -1059,7 +1059,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'taylor.thomas@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Taylor Thomas',
   '2065551020',
   'homeowner'::user_role,
@@ -1090,9 +1090,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'WV96C7DA',
+  '97900020',
   a.id,
-  'WA-98117-42073',
+  'WA-98117-22664',
   '8312 20th Ave NW',
   'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?w=1200&fit=crop&q=80',
   '8312 20th Ave NW, Seattle, WA 98117',
@@ -1111,7 +1111,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'casey.thompson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Casey Thompson',
   '2065551021',
   'homeowner'::user_role,
@@ -1142,9 +1142,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'DXD6GZPC',
+  '97900021',
   a.id,
-  'WA-98144-73248',
+  'WA-98144-16256',
   '2815 34th Ave S',
   'https://images.unsplash.com/photo-1600047509358-9dc75507daeb?w=1200&fit=crop&q=80',
   '2815 34th Ave S, Seattle, WA 98144',
@@ -1163,7 +1163,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'cameron.patel@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Cameron Patel',
   '2065551022',
   'homeowner'::user_role,
@@ -1194,9 +1194,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'VRGKYNX4',
+  '97900022',
   a.id,
-  'WA-98115-16176',
+  'WA-98115-60541',
   '7718 18th Ave NE',
   'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?w=1200&fit=crop&q=80',
   '7718 18th Ave NE, Seattle, WA 98115',
@@ -1215,7 +1215,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'quinn.wilson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Quinn Wilson',
   '2065551023',
   'homeowner'::user_role,
@@ -1246,9 +1246,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '6Z9HTPM2',
+  '97900023',
   a.id,
-  'WA-98105-94581',
+  'WA-98105-76343',
   '4521 4th Ave NE',
   'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&fit=crop&q=80',
   '4521 4th Ave NE, Seattle, WA 98105',
@@ -1267,7 +1267,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'taylor.chen@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Taylor Chen',
   '2065551024',
   'homeowner'::user_role,
@@ -1298,9 +1298,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'FLSDL575',
+  '97900024',
   a.id,
-  'WA-98107-78959',
+  'WA-98107-86188',
   '6210 25th Ave NW',
   'https://images.unsplash.com/photo-1625602812206-5ec545ca1231?w=1200&fit=crop&q=80',
   '6210 25th Ave NW, Seattle, WA 98107',
@@ -1319,7 +1319,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'sam.clark@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Sam Clark',
   '2065551025',
   'homeowner'::user_role,
@@ -1350,9 +1350,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'X8C4P7CE',
+  '97900025',
   a.id,
-  'WA-98119-83875',
+  'WA-98119-87273',
   '1115 W Galer St',
   'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=1200&fit=crop&q=80',
   '1115 W Galer St, Seattle, WA 98119',
@@ -1371,7 +1371,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'blake.brown@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Blake Brown',
   '2065551026',
   'homeowner'::user_role,
@@ -1402,9 +1402,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'WB9KQG5B',
+  '97900026',
   a.id,
-  'WA-98115-42681',
+  'WA-98115-57293',
   '8214 1st Ave NE',
   'https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=1200&fit=crop&q=80',
   '8214 1st Ave NE, Seattle, WA 98115',
@@ -1423,7 +1423,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'avery.kim@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Avery Kim',
   '2065551027',
   'homeowner'::user_role,
@@ -1454,9 +1454,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'SY6P6BFE',
+  '97900027',
   a.id,
-  'WA-98144-73640',
+  'WA-98144-95403',
   '3315 19th Ave S',
   'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&fit=crop&q=80',
   '3315 19th Ave S, Seattle, WA 98144',
@@ -1475,7 +1475,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'tatum.singh@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Tatum Singh',
   '2065551028',
   'homeowner'::user_role,
@@ -1506,9 +1506,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'A7G8BL5S',
+  '97900028',
   a.id,
-  'WA-98136-73567',
+  'WA-98136-98928',
   '5218 42nd Ave SW',
   'https://images.unsplash.com/photo-1605146769289-440113cc3d00?w=1200&fit=crop&q=80',
   '5218 42nd Ave SW, Seattle, WA 98136',
@@ -1527,7 +1527,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'frankie.robinson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Frankie Robinson',
   '2065551029',
   'homeowner'::user_role,
@@ -1558,9 +1558,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'KT2EHXK2',
+  '97900029',
   a.id,
-  'WA-98199-68083',
+  'WA-98199-24116',
   '1712 28th Ave W',
   'https://images.unsplash.com/photo-1613977257365-aaae5a9817ff?w=1200&fit=crop&q=80',
   '1712 28th Ave W, Seattle, WA 98199',
@@ -1579,7 +1579,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'emery.robinson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Emery Robinson',
   '2065551030',
   'homeowner'::user_role,
@@ -1610,9 +1610,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'DU9AJ6FK',
+  '97900030',
   a.id,
-  'WA-98117-88089',
+  'WA-98117-13079',
   '9415 8th Ave NW',
   'https://images.unsplash.com/photo-1592595896616-c37162298647?w=1200&fit=crop&q=80',
   '9415 8th Ave NW, Seattle, WA 98117',
@@ -1631,7 +1631,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'sam.garcia@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Sam Garcia',
   '2065551031',
   'homeowner'::user_role,
@@ -1662,9 +1662,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'Z9ZZ8XPA',
+  '97900031',
   a.id,
-  'WA-98007-17814',
+  'WA-98007-15785',
   '14502 SE 14th St',
   'https://images.unsplash.com/photo-1599809275671-b5942cabc7a2?w=1200&fit=crop&q=80',
   '14502 SE 14th St, Bellevue, WA 98007',
@@ -1683,7 +1683,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'noel.anderson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Noel Anderson',
   '2065551032',
   'homeowner'::user_role,
@@ -1714,9 +1714,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'HH6RXYE9',
+  '97900032',
   a.id,
-  'WA-98004-52233',
+  'WA-98004-12906',
   '2115 104th Ave SE',
   'https://images.unsplash.com/photo-1592595896551-12b371d546d5?w=1200&fit=crop&q=80',
   '2115 104th Ave SE, Bellevue, WA 98004',
@@ -1735,7 +1735,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jamie.martinez@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jamie Martinez',
   '2065551033',
   'homeowner'::user_role,
@@ -1766,9 +1766,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'G3UVRBCG',
+  '97900033',
   a.id,
-  'WA-98008-43665',
+  'WA-98008-23968',
   '16210 NE 12th St',
   'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=1200&fit=crop&q=80',
   '16210 NE 12th St, Bellevue, WA 98008',
@@ -1787,7 +1787,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'wren.wilson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Wren Wilson',
   '2065551034',
   'homeowner'::user_role,
@@ -1818,9 +1818,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'DYMY5XNW',
+  '97900034',
   a.id,
-  'WA-98006-18487',
+  'WA-98006-82500',
   '4515 130th Ave SE',
   'https://images.unsplash.com/photo-1430285561322-7808604715df?w=1200&fit=crop&q=80',
   '4515 130th Ave SE, Bellevue, WA 98006',
@@ -1839,7 +1839,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'drew.walker@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Drew Walker',
   '2065551035',
   'homeowner'::user_role,
@@ -1870,9 +1870,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '4NAQGG2B',
+  '97900035',
   a.id,
-  'WA-98006-43521',
+  'WA-98006-17154',
   '11215 SE 60th St',
   'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&fit=crop&q=80',
   '11215 SE 60th St, Bellevue, WA 98006',
@@ -1891,7 +1891,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'wren.young@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Wren Young',
   '2065551036',
   'homeowner'::user_role,
@@ -1922,9 +1922,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '4EDTLW8B',
+  '97900036',
   a.id,
-  'WA-98005-93898',
+  'WA-98005-21712',
   '13210 NE 40th St',
   'https://images.unsplash.com/photo-1416331108676-a22ccb276e35?w=1200&fit=crop&q=80',
   '13210 NE 40th St, Bellevue, WA 98005',
@@ -1943,7 +1943,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'parker.young@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Parker Young',
   '2065551037',
   'homeowner'::user_role,
@@ -1974,9 +1974,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'CAC9393B',
+  '97900037',
   a.id,
-  'WA-98007-67565',
+  'WA-98007-59637',
   '15412 SE 22nd St',
   'https://images.unsplash.com/photo-1510627489930-0c1b0bfb6785?w=1200&fit=crop&q=80',
   '15412 SE 22nd St, Bellevue, WA 98007',
@@ -1995,7 +1995,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'zion.clark@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Zion Clark',
   '2065551038',
   'homeowner'::user_role,
@@ -2026,9 +2026,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'F9M3XXUG',
+  '97900038',
   a.id,
-  'WA-98004-85103',
+  'WA-98004-52599',
   '10214 NE 15th St',
   'https://images.unsplash.com/photo-1480074568708-e7b720bb3f09?w=1200&fit=crop&q=80',
   '10214 NE 15th St, Bellevue, WA 98004',
@@ -2047,7 +2047,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'val.moore@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Val Moore',
   '2065551039',
   'homeowner'::user_role,
@@ -2078,9 +2078,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'TWJE52SW',
+  '97900039',
   a.id,
-  'WA-98006-86303',
+  'WA-98006-15688',
   '16415 SE 42nd St',
   'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1200&fit=crop&q=80',
   '16415 SE 42nd St, Bellevue, WA 98006',
@@ -2099,7 +2099,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'quinn.jones@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Quinn Jones',
   '2065551040',
   'homeowner'::user_role,
@@ -2130,9 +2130,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'W37XG3Z3',
+  '97900040',
   a.id,
-  'WA-98005-52620',
+  'WA-98005-86620',
   '3215 118th Ave SE',
   'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&fit=crop&q=80',
   '3215 118th Ave SE, Bellevue, WA 98005',
@@ -2151,7 +2151,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'lane.chen@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Lane Chen',
   '2065551041',
   'homeowner'::user_role,
@@ -2182,9 +2182,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'YLCR2NAW',
+  '97900041',
   a.id,
-  'WA-98052-78054',
+  'WA-98052-19676',
   '14210 NE 72nd St',
   'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&fit=crop&q=80',
   '14210 NE 72nd St, Redmond, WA 98052',
@@ -2203,7 +2203,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'avery.davis@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Avery Davis',
   '2065551042',
   'homeowner'::user_role,
@@ -2234,9 +2234,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'ELF8LUCE',
+  '97900042',
   a.id,
-  'WA-98052-74225',
+  'WA-98052-90023',
   '16515 NE 104th St',
   'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=1200&fit=crop&q=80',
   '16515 NE 104th St, Redmond, WA 98052',
@@ -2255,7 +2255,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'avery.walker@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Avery Walker',
   '2065551043',
   'homeowner'::user_role,
@@ -2286,9 +2286,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'DHESLKLG',
+  '97900043',
   a.id,
-  'WA-98052-13141',
+  'WA-98052-47107',
   '7812 154th Ave NE',
   'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&fit=crop&q=80',
   '7812 154th Ave NE, Redmond, WA 98052',
@@ -2307,7 +2307,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'hayden.wilson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Hayden Wilson',
   '2065551044',
   'homeowner'::user_role,
@@ -2338,9 +2338,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'FVZNMLMA',
+  '97900044',
   a.id,
-  'WA-98052-36112',
+  'WA-98052-30508',
   '18210 NE 30th St',
   'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&fit=crop&q=80',
   '18210 NE 30th St, Redmond, WA 98052',
@@ -2359,7 +2359,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'dakota.young@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Dakota Young',
   '2065551045',
   'homeowner'::user_role,
@@ -2390,9 +2390,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'M6TWY7LS',
+  '97900045',
   a.id,
-  'WA-98052-31278',
+  'WA-98052-93946',
   '11215 172nd Ave NE',
   'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=1200&fit=crop&q=80',
   '11215 172nd Ave NE, Redmond, WA 98052',
@@ -2411,7 +2411,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'taylor.lewis@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Taylor Lewis',
   '2065551046',
   'homeowner'::user_role,
@@ -2442,9 +2442,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'G9RMBTMP',
+  '97900046',
   a.id,
-  'WA-98033-26777',
+  'WA-98033-35595',
   '9214 122nd Ave NE',
   'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&fit=crop&q=80',
   '9214 122nd Ave NE, Kirkland, WA 98033',
@@ -2463,7 +2463,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'morgan.hall@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Morgan Hall',
   '2065551047',
   'homeowner'::user_role,
@@ -2494,9 +2494,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'H7H3HLLW',
+  '97900047',
   a.id,
-  'WA-98034-31253',
+  'WA-98034-81041',
   '13415 100th Ave NE',
   'https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=1200&fit=crop&q=80',
   '13415 100th Ave NE, Kirkland, WA 98034',
@@ -2515,7 +2515,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'sage.nguyen@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Sage Nguyen',
   '2065551048',
   'homeowner'::user_role,
@@ -2546,9 +2546,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '227X6U25',
+  '97900048',
   a.id,
-  'WA-98034-34571',
+  'WA-98034-85855',
   '11512 80th Ave NE',
   'https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=1200&fit=crop&q=80',
   '11512 80th Ave NE, Kirkland, WA 98034',
@@ -2567,7 +2567,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'dakota.jackson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Dakota Jackson',
   '2065551049',
   'homeowner'::user_role,
@@ -2598,9 +2598,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'SJT5NQ6X',
+  '97900049',
   a.id,
-  'WA-98033-69583',
+  'WA-98033-42245',
   '7415 116th Ave NE',
   'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=1200&fit=crop&q=80',
   '7415 116th Ave NE, Kirkland, WA 98033',
@@ -2619,7 +2619,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'emery.brown@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Emery Brown',
   '2065551050',
   'homeowner'::user_role,
@@ -2650,9 +2650,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'RK5KJDCP',
+  '97900050',
   a.id,
-  'WA-98034-19355',
+  'WA-98034-72976',
   '14210 119th Ave NE',
   'https://images.unsplash.com/photo-1600573472592-401b489a3cdc?w=1200&fit=crop&q=80',
   '14210 119th Ave NE, Kirkland, WA 98034',
@@ -2671,7 +2671,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'casey.harris@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Casey Harris',
   '2065551051',
   'homeowner'::user_role,
@@ -2702,9 +2702,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'T848PB9P',
+  '97900051',
   a.id,
-  'WA-98029-46539',
+  'WA-98029-38442',
   '5214 230th Ave SE',
   'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=1200&fit=crop&q=80',
   '5214 230th Ave SE, Issaquah, WA 98029',
@@ -2723,7 +2723,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'riley.hall@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Riley Hall',
   '2065551052',
   'homeowner'::user_role,
@@ -2754,9 +2754,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'XCFCZUUW',
+  '97900052',
   a.id,
-  'WA-98027-86378',
+  'WA-98027-44857',
   '4115 212th Way SE',
   'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200&fit=crop&q=80',
   '4115 212th Way SE, Issaquah, WA 98027',
@@ -2775,7 +2775,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'val.jones@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Val Jones',
   '2065551053',
   'homeowner'::user_role,
@@ -2806,9 +2806,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'DKHQPNKF',
+  '97900053',
   a.id,
-  'WA-98027-50884',
+  'WA-98027-16888',
   '1412 Front St S',
   'https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=1200&fit=crop&q=80',
   '1412 Front St S, Issaquah, WA 98027',
@@ -2827,7 +2827,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'lane.scott@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Lane Scott',
   '2065551054',
   'homeowner'::user_role,
@@ -2858,9 +2858,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'CDCHQ2V8',
+  '97900054',
   a.id,
-  'WA-98029-43156',
+  'WA-98029-75255',
   '24510 SE 44th St',
   'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1200&fit=crop&q=80',
   '24510 SE 44th St, Issaquah, WA 98029',
@@ -2879,7 +2879,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'skyler.hall@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Skyler Hall',
   '2065551055',
   'homeowner'::user_role,
@@ -2910,9 +2910,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'ZDJZGSD4',
+  '97900055',
   a.id,
-  'WA-98027-84231',
+  'WA-98027-67161',
   '6215 220th Ave SE',
   'https://images.unsplash.com/photo-1600585153490-76fb20a32601?w=1200&fit=crop&q=80',
   '6215 220th Ave SE, Issaquah, WA 98027',
@@ -2931,7 +2931,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'emery.thomas@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Emery Thomas',
   '2065551056',
   'homeowner'::user_role,
@@ -2962,9 +2962,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '9QKSA7JA',
+  '97900056',
   a.id,
-  'WA-98407-98957',
+  'WA-98407-33583',
   '3412 N 26th St',
   'https://images.unsplash.com/photo-1600566752355-35792bedcfea?w=1200&fit=crop&q=80',
   '3412 N 26th St, Tacoma, WA 98407',
@@ -2983,7 +2983,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'noel.walker@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Noel Walker',
   '2065551057',
   'homeowner'::user_role,
@@ -3014,9 +3014,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '7TN5FC3P',
+  '97900057',
   a.id,
-  'WA-98405-22729',
+  'WA-98405-12709',
   '1515 S 19th St',
   'https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?w=1200&fit=crop&q=80',
   '1515 S 19th St, Tacoma, WA 98405',
@@ -3035,7 +3035,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jessie.nguyen@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jessie Nguyen',
   '2065551058',
   'homeowner'::user_role,
@@ -3066,9 +3066,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '5JEFHS23',
+  '97900058',
   a.id,
-  'WA-98407-23335',
+  'WA-98407-69634',
   '4210 N Huson St',
   'https://images.unsplash.com/photo-1600585154084-4e5fe7c39198?w=1200&fit=crop&q=80',
   '4210 N Huson St, Tacoma, WA 98407',
@@ -3087,7 +3087,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'parker.garcia@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Parker Garcia',
   '2065551059',
   'homeowner'::user_role,
@@ -3118,9 +3118,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '9MGKWK38',
+  '97900059',
   a.id,
-  'WA-98465-91780',
+  'WA-98465-25097',
   '5112 S 8th St',
   'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?w=1200&fit=crop&q=80',
   '5112 S 8th St, Tacoma, WA 98465',
@@ -3139,7 +3139,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'lane.martin@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Lane Martin',
   '2065551060',
   'homeowner'::user_role,
@@ -3170,9 +3170,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'Y3YK26RR',
+  '97900060',
   a.id,
-  'WA-98407-22302',
+  'WA-98407-65639',
   '2815 N Proctor St',
   'https://images.unsplash.com/photo-1600047509358-9dc75507daeb?w=1200&fit=crop&q=80',
   '2815 N Proctor St, Tacoma, WA 98407',
@@ -3191,7 +3191,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'hayden.robinson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Hayden Robinson',
   '2065551061',
   'homeowner'::user_role,
@@ -3222,9 +3222,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'A8ZNKB6L',
+  '97900061',
   a.id,
-  'WA-98405-42616',
+  'WA-98405-91510',
   '1214 S Washington St',
   'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?w=1200&fit=crop&q=80',
   '1214 S Washington St, Tacoma, WA 98405',
@@ -3243,7 +3243,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'blake.jones@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Blake Jones',
   '2065551062',
   'homeowner'::user_role,
@@ -3274,9 +3274,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'RR58T5L5',
+  '97900062',
   a.id,
-  'WA-98406-22613',
+  'WA-98406-34987',
   '3815 N 15th St',
   'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=1200&fit=crop&q=80',
   '3815 N 15th St, Tacoma, WA 98406',
@@ -3295,7 +3295,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'morgan.thomas@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Morgan Thomas',
   '2065551063',
   'homeowner'::user_role,
@@ -3326,9 +3326,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'UL7P5ZM2',
+  '97900063',
   a.id,
-  'WA-98409-67924',
+  'WA-98409-84057',
   '6412 S Puget Sound Ave',
   'https://images.unsplash.com/photo-1625602812206-5ec545ca1231?w=1200&fit=crop&q=80',
   '6412 S Puget Sound Ave, Tacoma, WA 98409',
@@ -3347,7 +3347,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'taylor.wilson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Taylor Wilson',
   '2065551064',
   'homeowner'::user_role,
@@ -3378,9 +3378,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GV5XPWSD',
+  '97900064',
   a.id,
-  'WA-98407-38462',
+  'WA-98407-48892',
   '4515 N Lexington St',
   'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=1200&fit=crop&q=80',
   '4515 N Lexington St, Tacoma, WA 98407',
@@ -3399,7 +3399,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'frankie.brown@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Frankie Brown',
   '2065551065',
   'homeowner'::user_role,
@@ -3430,9 +3430,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'P58RDUXW',
+  '97900065',
   a.id,
-  'WA-98405-31866',
+  'WA-98405-65336',
   '2115 S Tyler St',
   'https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=1200&fit=crop&q=80',
   '2115 S Tyler St, Tacoma, WA 98405',
@@ -3451,7 +3451,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'drew.lewis@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Drew Lewis',
   '2065551066',
   'homeowner'::user_role,
@@ -3482,9 +3482,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'P3QU9PGV',
+  '97900066',
   a.id,
-  'WA-98203-35320',
+  'WA-98203-94640',
   '4215 Colby Ave',
   'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&fit=crop&q=80',
   '4215 Colby Ave, Everett, WA 98203',
@@ -3503,7 +3503,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'lane.kim@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Lane Kim',
   '2065551067',
   'homeowner'::user_role,
@@ -3534,9 +3534,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '79ZAHNQL',
+  '97900067',
   a.id,
-  'WA-98203-13254',
+  'WA-98203-29999',
   '1512 73rd St SE',
   'https://images.unsplash.com/photo-1605146769289-440113cc3d00?w=1200&fit=crop&q=80',
   '1512 73rd St SE, Everett, WA 98203',
@@ -3555,7 +3555,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'parker.kim@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Parker Kim',
   '2065551068',
   'homeowner'::user_role,
@@ -3586,9 +3586,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'ZC3AHHDT',
+  '97900068',
   a.id,
-  'WA-98208-15997',
+  'WA-98208-64839',
   '2315 112th St SE',
   'https://images.unsplash.com/photo-1613977257365-aaae5a9817ff?w=1200&fit=crop&q=80',
   '2315 112th St SE, Everett, WA 98208',
@@ -3607,7 +3607,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'sam.walker@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Sam Walker',
   '2065551069',
   'homeowner'::user_role,
@@ -3638,9 +3638,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'H82H4BV7',
+  '97900069',
   a.id,
-  'WA-98203-83189',
+  'WA-98203-73211',
   '5412 Mukilteo Blvd',
   'https://images.unsplash.com/photo-1592595896616-c37162298647?w=1200&fit=crop&q=80',
   '5412 Mukilteo Blvd, Everett, WA 98203',
@@ -3659,7 +3659,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'casey.moore@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Casey Moore',
   '2065551070',
   'homeowner'::user_role,
@@ -3690,9 +3690,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'JQ97NP95',
+  '97900070',
   a.id,
-  'WA-98201-75989',
+  'WA-98201-93338',
   '3415 35th St',
   'https://images.unsplash.com/photo-1599809275671-b5942cabc7a2?w=1200&fit=crop&q=80',
   '3415 35th St, Everett, WA 98201',
@@ -3711,7 +3711,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jordan.nguyen@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jordan Nguyen',
   '2065551071',
   'homeowner'::user_role,
@@ -3742,9 +3742,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'W85FVVQ3',
+  '97900071',
   a.id,
-  'WA-98208-96330',
+  'WA-98208-70189',
   '8210 19th Ave SE',
   'https://images.unsplash.com/photo-1592595896551-12b371d546d5?w=1200&fit=crop&q=80',
   '8210 19th Ave SE, Everett, WA 98208',
@@ -3763,7 +3763,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jessie.white@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jessie White',
   '2065551072',
   'homeowner'::user_role,
@@ -3794,9 +3794,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'W4X6KB97',
+  '97900072',
   a.id,
-  'WA-98203-85626',
+  'WA-98203-26043',
   '4615 Grand Ave',
   'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=1200&fit=crop&q=80',
   '4615 Grand Ave, Everett, WA 98203',
@@ -3815,7 +3815,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'casey.young@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Casey Young',
   '2065551073',
   'homeowner'::user_role,
@@ -3846,9 +3846,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'FB323VGL',
+  '97900073',
   a.id,
-  'WA-98208-52310',
+  'WA-98208-13101',
   '1215 100th Pl SE',
   'https://images.unsplash.com/photo-1430285561322-7808604715df?w=1200&fit=crop&q=80',
   '1215 100th Pl SE, Everett, WA 98208',
@@ -3867,7 +3867,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'drew.kim@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Drew Kim',
   '2065551074',
   'homeowner'::user_role,
@@ -3898,9 +3898,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'N8LGW682',
+  '97900074',
   a.id,
-  'WA-98203-46411',
+  'WA-98203-70276',
   '6512 Fleming St',
   'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&fit=crop&q=80',
   '6512 Fleming St, Everett, WA 98203',
@@ -3919,7 +3919,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'taylor.miller@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Taylor Miller',
   '2065551075',
   'homeowner'::user_role,
@@ -3950,9 +3950,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'AM46RP9H',
+  '97900075',
   a.id,
-  'WA-98201-88503',
+  'WA-98201-38529',
   '2815 14th St',
   'https://images.unsplash.com/photo-1416331108676-a22ccb276e35?w=1200&fit=crop&q=80',
   '2815 14th St, Everett, WA 98201',
@@ -3971,7 +3971,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'riley.lewis@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Riley Lewis',
   '2065551076',
   'homeowner'::user_role,
@@ -4002,9 +4002,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'EGDX6CQA',
+  '97900076',
   a.id,
-  'WA-98290-76533',
+  'WA-98290-11136',
   '1412 21st St',
   'https://images.unsplash.com/photo-1510627489930-0c1b0bfb6785?w=1200&fit=crop&q=80',
   '1412 21st St, Snohomish, WA 98290',
@@ -4023,7 +4023,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'drew.jones@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Drew Jones',
   '2065551077',
   'homeowner'::user_role,
@@ -4054,9 +4054,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'E2RGJYYF',
+  '97900077',
   a.id,
-  'WA-98290-21199',
+  'WA-98290-56836',
   '5215 116th St SE',
   'https://images.unsplash.com/photo-1480074568708-e7b720bb3f09?w=1200&fit=crop&q=80',
   '5215 116th St SE, Snohomish, WA 98290',
@@ -4075,7 +4075,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'wren.scott@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Wren Scott',
   '2065551078',
   'homeowner'::user_role,
@@ -4106,9 +4106,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '9BY3HKRD',
+  '97900078',
   a.id,
-  'WA-98290-89811',
+  'WA-98290-39272',
   '13210 4th St',
   'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=1200&fit=crop&q=80',
   '13210 4th St, Snohomish, WA 98290',
@@ -4127,7 +4127,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'morgan.anderson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Morgan Anderson',
   '2065551079',
   'homeowner'::user_role,
@@ -4158,9 +4158,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'VJYLU2AB',
+  '97900079',
   a.id,
-  'WA-98296-77361',
+  'WA-98296-23072',
   '8415 160th St SE',
   'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&fit=crop&q=80',
   '8415 160th St SE, Snohomish, WA 98296',
@@ -4179,7 +4179,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'lane.young@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Lane Young',
   '2065551080',
   'homeowner'::user_role,
@@ -4210,9 +4210,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'FYVGDXTZ',
+  '97900080',
   a.id,
-  'WA-98290-64192',
+  'WA-98290-97232',
   '6112 120th Ave SE',
   'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=1200&fit=crop&q=80',
   '6112 120th Ave SE, Snohomish, WA 98290',
@@ -4231,7 +4231,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'cameron.chen@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Cameron Chen',
   '2065551081',
   'homeowner'::user_role,
@@ -4262,9 +4262,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'CAEAP7ME',
+  '97900081',
   a.id,
-  'WA-98208-75819',
+  'WA-98208-23060',
   '2415 108th St SE',
   'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?w=1200&fit=crop&q=80',
   '2415 108th St SE, Everett, WA 98208',
@@ -4283,7 +4283,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'drew.patel@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Drew Patel',
   '2065551082',
   'homeowner'::user_role,
@@ -4314,9 +4314,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '3JXAEXSH',
+  '97900082',
   a.id,
-  'WA-98036-80698',
+  'WA-98036-22575',
   '7210 200th St SW',
   'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1200&fit=crop&q=80',
   '7210 200th St SW, Lynnwood, WA 98036',
@@ -4335,7 +4335,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'riley.brown@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Riley Brown',
   '2065551083',
   'homeowner'::user_role,
@@ -4366,9 +4366,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '53FJB3SP',
+  '97900083',
   a.id,
-  'WA-98037-78541',
+  'WA-98037-76071',
   '4515 164th St SW',
   'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&fit=crop&q=80',
   '4515 164th St SW, Lynnwood, WA 98037',
@@ -4387,7 +4387,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'quinn.patel@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Quinn Patel',
   '2065551084',
   'homeowner'::user_role,
@@ -4418,9 +4418,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'DYQ5AJFC',
+  '97900084',
   a.id,
-  'WA-98026-42020',
+  'WA-98026-44940',
   '18210 72nd Ave W',
   'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=1200&fit=crop&q=80',
   '18210 72nd Ave W, Edmonds, WA 98026',
@@ -4439,7 +4439,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'drew.johnson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Drew Johnson',
   '2065551085',
   'homeowner'::user_role,
@@ -4470,9 +4470,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '67KGZGUX',
+  '97900085',
   a.id,
-  'WA-98020-25185',
+  'WA-98020-48198',
   '9415 220th St SW',
   'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1200&fit=crop&q=80',
   '9415 220th St SW, Edmonds, WA 98020',
@@ -4491,7 +4491,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'skyler.thomas@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Skyler Thomas',
   '2065551086',
   'homeowner'::user_role,
@@ -4522,9 +4522,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '3LJ55KMY',
+  '97900086',
   a.id,
-  'WA-98043-47975',
+  'WA-98043-49879',
   '21510 48th Ave W',
   'https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=1200&fit=crop&q=80',
   '21510 48th Ave W, Mountlake Terrace, WA 98043',
@@ -4543,7 +4543,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'skyler.patel@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Skyler Patel',
   '2065551087',
   'homeowner'::user_role,
@@ -4574,9 +4574,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'ZW5DA968',
+  '97900087',
   a.id,
-  'WA-98155-37330',
+  'WA-98155-69950',
   '15412 12th Ave NE',
   'https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=1200&fit=crop&q=80',
   '15412 12th Ave NE, Shoreline, WA 98155',
@@ -4595,7 +4595,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'sage.garcia@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Sage Garcia',
   '2065551088',
   'homeowner'::user_role,
@@ -4626,9 +4626,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '9JHAQARL',
+  '97900088',
   a.id,
-  'WA-98177-90776',
+  'WA-98177-60722',
   '18215 8th Ave NW',
   'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=1200&fit=crop&q=80',
   '18215 8th Ave NW, Shoreline, WA 98177',
@@ -4647,7 +4647,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'parker.singh@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Parker Singh',
   '2065551089',
   'homeowner'::user_role,
@@ -4678,9 +4678,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'NT2SJW97',
+  '97900089',
   a.id,
-  'WA-98034-52431',
+  'WA-98034-59373',
   '11210 NE 132nd St',
   'https://images.unsplash.com/photo-1600573472592-401b489a3cdc?w=1200&fit=crop&q=80',
   '11210 NE 132nd St, Kirkland, WA 98034',
@@ -4699,7 +4699,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'frankie.nguyen@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Frankie Nguyen',
   '2065551090',
   'homeowner'::user_role,
@@ -4730,9 +4730,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'TWK646P7',
+  '97900090',
   a.id,
-  'WA-98072-94904',
+  'WA-98072-49432',
   '14515 148th Ave NE',
   'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=1200&fit=crop&q=80',
   '14515 148th Ave NE, Woodinville, WA 98072',
@@ -4751,7 +4751,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jordan.johnson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jordan Johnson',
   '2065551091',
   'homeowner'::user_role,
@@ -4782,9 +4782,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '3294VZZD',
+  '97900091',
   a.id,
-  'WA-98072-89571',
+  'WA-98072-82575',
   '17210 140th Ave NE',
   'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200&fit=crop&q=80',
   '17210 140th Ave NE, Woodinville, WA 98072',
@@ -4803,7 +4803,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'quinn.lee@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Quinn Lee',
   '2065551092',
   'homeowner'::user_role,
@@ -4834,9 +4834,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'UN8VAG7T',
+  '97900092',
   a.id,
-  'WA-98011-50718',
+  'WA-98011-92669',
   '2115 NE 195th St',
   'https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=1200&fit=crop&q=80',
   '2115 NE 195th St, Bothell, WA 98011',
@@ -4855,7 +4855,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'skyler.lewis@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Skyler Lewis',
   '2065551093',
   'homeowner'::user_role,
@@ -4886,9 +4886,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '4UBSHPDT',
+  '97900093',
   a.id,
-  'WA-98031-50782',
+  'WA-98031-34825',
   '24015 112th Ave SE',
   'https://images.unsplash.com/photo-1605276374104-dee2a0ed3cd6?w=1200&fit=crop&q=80',
   '24015 112th Ave SE, Kent, WA 98031',
@@ -4907,7 +4907,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jessie.robinson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jessie Robinson',
   '2065551094',
   'homeowner'::user_role,
@@ -4938,9 +4938,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GHKY23JC',
+  '97900094',
   a.id,
-  'WA-98042-77784',
+  'WA-98042-84074',
   '13210 SE 272nd St',
   'https://images.unsplash.com/photo-1600585153490-76fb20a32601?w=1200&fit=crop&q=80',
   '13210 SE 272nd St, Kent, WA 98042',
@@ -4959,7 +4959,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'dakota.thomas@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Dakota Thomas',
   '2065551095',
   'homeowner'::user_role,
@@ -4990,9 +4990,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  '7U7NU3KZ',
+  '97900095',
   a.id,
-  'WA-98092-18941',
+  'WA-98092-94864',
   '31215 124th Ave SE',
   'https://images.unsplash.com/photo-1600566752355-35792bedcfea?w=1200&fit=crop&q=80',
   '31215 124th Ave SE, Auburn, WA 98092',
@@ -5011,7 +5011,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'parker.miller@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Parker Miller',
   '2065551096',
   'homeowner'::user_role,
@@ -5042,9 +5042,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'SE9B4HQE',
+  '97900096',
   a.id,
-  'WA-98001-62370',
+  'WA-98001-16732',
   '4512 S 300th St',
   'https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?w=1200&fit=crop&q=80',
   '4512 S 300th St, Auburn, WA 98001',
@@ -5063,7 +5063,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'jordan.wilson@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Jordan Wilson',
   '2065551097',
   'homeowner'::user_role,
@@ -5094,9 +5094,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'GGV5CYPP',
+  '97900097',
   a.id,
-  'WA-98042-64896',
+  'WA-98042-76765',
   '15210 SE 296th St',
   'https://images.unsplash.com/photo-1600585154084-4e5fe7c39198?w=1200&fit=crop&q=80',
   '15210 SE 296th St, Kent, WA 98042',
@@ -5115,7 +5115,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'lane.davis@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Lane Davis',
   '2065551098',
   'homeowner'::user_role,
@@ -5146,9 +5146,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'MNYLQRHQ',
+  '97900098',
   a.id,
-  'WA-98027-62172',
+  'WA-98027-46383',
   '2415 NW Sammamish Rd',
   'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?w=1200&fit=crop&q=80',
   '2415 NW Sammamish Rd, Issaquah, WA 98027',
@@ -5167,7 +5167,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'tatum.jones@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Tatum Jones',
   '2065551099',
   'homeowner'::user_role,
@@ -5198,9 +5198,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'DX5HN36E',
+  '97900099',
   a.id,
-  'WA-98075-33058',
+  'WA-98075-70431',
   '4112 228th Ave SE',
   'https://images.unsplash.com/photo-1600047509358-9dc75507daeb?w=1200&fit=crop&q=80',
   '4112 228th Ave SE, Sammamish, WA 98075',
@@ -5219,7 +5219,7 @@ INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id 
 INSERT INTO users (email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified, avatar_url)
 VALUES (
   'avery.scott@email.com',
-  '$2b$12$TEt6oCt46aMTyxCms82ei.mWPrTj1qyf2hKMPtOwKP8DL47ELuVK6',
+  '$2b$12$ZQ7wCVfnU30Fl63W8C79ke0Wj.cTQhT0AuHLyPsNE4b.6Ik2/pRsC',
   'Avery Scott',
   '2065551100',
   'homeowner'::user_role,
@@ -5250,9 +5250,9 @@ INSERT INTO properties (
   property_uid, account_id, passport_id, property_name, main_photo, address, address_line_1, city, state, zip
 )
 SELECT
-  'VK98BKS8',
+  '97900100',
   a.id,
-  'WA-98074-83665',
+  'WA-98074-77136',
   '1215 212th Ave SE',
   'https://images.unsplash.com/photo-1558036117-15d82a90b9b1?w=1200&fit=crop&q=80',
   '1215 212th Ave SE, Sammamish, WA 98074',
@@ -5266,234 +5266,5 @@ ON CONFLICT (property_uid) DO NOTHING;
 
 INSERT INTO property_users (property_id, user_id, role) SELECT p.id, u.id, 'owner'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.scott@email.com' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
 INSERT INTO property_users (property_id, user_id, role) SELECT p.id, (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1), 'editor'::property_role FROM properties p JOIN accounts a ON a.id = p.account_id JOIN users u ON u.email = 'avery.scott@email.com' WHERE a.url = 'demo-hw-100' ON CONFLICT DO NOTHING;
-
--- =============================================================================
--- Rich demo property fields, systems, maintenance, and analytics engagement
--- (scoped to homeowner demo accounts: accounts.url ~ ^demo-hw-)
--- =============================================================================
-
-UPDATE properties AS p SET
-  hps_score = 58 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 35),
-  tax_id = 'KING-' || LPAD((ABS(hashtext(COALESCE(p.passport_id, ''))) % 900000 + 100000)::text, 6, '0'),
-  county = 'King County',
-  address_line_2 = CASE (ABS(hashtext(COALESCE(p.property_uid, ''))) % 5)
-    WHEN 0 THEN NULL WHEN 1 THEN '' ELSE 'Unit ' || ((ABS(hashtext(COALESCE(p.property_uid, ''))) % 8) + 1)::text END,
-  owner_name = (SELECT u.name FROM property_users pu JOIN users u ON u.id = pu.user_id
-                WHERE pu.property_id = p.id AND pu.role = 'owner'::property_role LIMIT 1),
-  owner_name_2 = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 4) = 0 THEN NULL ELSE 'Co-owner' END,
-  owner_city = p.city,
-  occupant_name = (SELECT u.name FROM property_users pu JOIN users u ON u.id = pu.user_id
-                   WHERE pu.property_id = p.id AND pu.role = 'owner'::property_role LIMIT 1),
-  occupant_type = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 6) = 0 THEN 'Tenant' ELSE 'Owner' END,
-  owner_phone = (SELECT u.phone FROM property_users pu JOIN users u ON u.id = pu.user_id
-                 WHERE pu.property_id = p.id AND pu.role = 'owner'::property_role LIMIT 1),
-  phone_to_show = 'owner',
-  property_type = 'Residential',
-  sub_type = (ARRAY['Single Family', 'Townhouse', 'Condo', 'Multi-Family'])[1 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 4)],
-  roof_type = (ARRAY['Composition', 'Metal', 'Tile', 'Wood shake', 'Slate'])[1 + (ABS(hashtext(COALESCE(p.city, ''))) % 5)],
-  year_built = 1978 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 42),
-  effective_year_built = 1985 + (ABS(hashtext(COALESCE(p.passport_id, ''))) % 35),
-  effective_year_built_source = 'County assessor',
-  sq_ft_total = (2200 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2200))::numeric,
-  sq_ft_finished = (2000 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 1800))::numeric,
-  sq_ft_unfinished = (150 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 600))::numeric,
-  garage_sq_ft = (300 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 500))::numeric,
-  total_dwelling_sq_ft = (2100 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2000))::numeric,
-  sq_ft_source = 'Assessor',
-  lot_size = (0.12 + ((ABS(hashtext(COALESCE(p.property_uid, ''))) % 35)::numeric / 100))::text || ' ac',
-  lot_size_source = 'Parcel record',
-  lot_dim = (ARRAY['80x120', '75x110', '90x105', '60x130'])[1 + (ABS(hashtext(COALESCE(p.zip, ''))) % 4)],
-  price_per_sq_ft = (280 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 220))::text,
-  total_price_per_sq_ft = (265 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 200))::text,
-  bed_count = 3 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 4),
-  bath_count = 2 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
-  full_baths = 2 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2),
-  three_quarter_baths = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3) = 0 THEN 1 ELSE 0 END,
-  half_baths = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2) = 0 THEN 1 ELSE 0 END,
-  number_of_showers = 2 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
-  number_of_bathtubs = 1 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 2),
-  fireplaces = (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
-  fireplace_types = CASE WHEN (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3) = 0 THEN NULL ELSE 'Gas insert' END,
-  basement = (ARRAY['Full unfinished', 'Partial finished', 'Crawl space', 'None'])[1 + (ABS(hashtext(COALESCE(p.state, ''))) % 4)],
-  parking_type = (ARRAY['Attached garage', 'Detached garage', 'Carport', 'Driveway'])[1 + (ABS(hashtext(COALESCE(p.zip, ''))) % 4)],
-  total_covered_parking = 2 + (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
-  total_uncovered_parking = (ABS(hashtext(COALESCE(p.property_uid, ''))) % 3),
-  school_district = COALESCE(p.city, 'Local') || ' School District',
-  elementary_school = COALESCE(p.city, 'North') || ' Elementary',
-  junior_high_school = COALESCE(p.city, 'Central') || ' Middle School',
-  senior_high_school = COALESCE(p.city, 'Regional') || ' High School',
-  school_district_websites = 'https://www.k12.wa.us',
-  list_date = DATE '2024-03-01' + ((ABS(hashtext(COALESCE(p.property_uid, ''))) % 60) * INTERVAL '1 day'),
-  expire_date = DATE '2025-12-31',
-  identity_data_source = 'attom',
-  identity_lookup_populated_keys = '["address","city","state","zip","county","yearBuilt","sqFtTotal","bedCount","bathCount","ownerName"]'::jsonb,
-  updated_at = NOW()
-FROM accounts AS a
-WHERE p.account_id = a.id AND a.url ~ '^demo-hw-[0-9]+$';
-
-INSERT INTO property_systems (property_id, system_key, data, next_service_date, included)
-SELECT
-  p.id,
-  sk.system_key,
-  jsonb_build_object(
-    'brand', 'DemoPro',
-    'model', 'DP-' || (ABS(hashtext(p.property_uid || sk.system_key)) % 900 + 100),
-    'installedYear', (1992 + (ABS(hashtext(p.property_uid)) % 28))::text,
-    'warrantyExpires', to_char(CURRENT_DATE + interval '2 years', 'YYYY-MM-DD'),
-    'lastNote', 'Demo seed: typical residential system profile.'
-  ),
-  CURRENT_DATE + ((ABS(hashtext(p.property_uid || sk.system_key)) % 200) * INTERVAL '1 day'),
-  true
-FROM properties p
-JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
-CROSS JOIN (VALUES
-  ('roof'), ('gutters'), ('foundation'), ('exterior'), ('windows'),
-  ('heating'), ('ac'), ('waterHeating'), ('electrical'), ('plumbing'), ('safety'), ('inspections')
-) AS sk(system_key)
-ON CONFLICT (property_id, system_key) DO UPDATE SET
-  data = EXCLUDED.data,
-  next_service_date = EXCLUDED.next_service_date,
-  included = EXCLUDED.included,
-  updated_at = NOW();
-
-INSERT INTO property_maintenance (property_id, system_key, completed_at, next_service_date, data, status, record_status)
-SELECT
-  p.id,
-  pm.system_key,
-  CASE WHEN (ABS(hashtext(p.property_uid || pm.system_key)) % 2) = 0
-    THEN NOW() - ((10 + (ABS(hashtext(p.property_uid)) % 40)) * INTERVAL '1 day') ELSE NULL END,
-  NOW() + ((15 + (ABS(hashtext(p.property_uid || pm.system_key)) % 60)) * INTERVAL '1 day'),
-  jsonb_build_object(
-    'summary', CASE pm.system_key
-      WHEN 'heating' THEN 'Annual furnace service'
-      WHEN 'roof' THEN 'Shingle inspection and minor repair'
-      ELSE 'Routine system check' END,
-    'vendor', 'Northwest Home Services',
-    'cost', 85 + (ABS(hashtext(p.property_uid || pm.system_key)) % 400),
-    'priority', CASE WHEN (ABS(hashtext(p.property_uid)) % 5) = 0 THEN 'high' ELSE 'normal' END
-  ),
-  CASE WHEN (ABS(hashtext(p.property_uid || pm.system_key)) % 2) = 0 THEN 'completed' ELSE 'pending' END,
-  CASE WHEN (ABS(hashtext(p.property_uid || pm.system_key)) % 2) = 0 THEN 'user_completed' ELSE 'draft' END
-FROM properties p
-JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
-CROSS JOIN (VALUES ('heating'), ('roof'), ('plumbing')) AS pm(system_key);
-
-INSERT INTO maintenance_events (
-  property_id, system_key, system_name, scheduled_date, scheduled_time,
-  status, event_type, timezone, email_reminder, created_by
-)
-SELECT
-  p.id,
-  CASE g.n WHEN 1 THEN 'heating' ELSE 'inspections' END,
-  CASE g.n WHEN 1 THEN 'Seasonal HVAC tune-up' ELSE 'Annual property inspection' END,
-  CURRENT_DATE + (g.n * 18 + (ABS(hashtext(p.property_uid)) % 10)),
-  CASE g.n WHEN 1 THEN TIME '09:00' ELSE NULL END,
-  'scheduled',
-  CASE g.n WHEN 1 THEN 'maintenance'::text ELSE 'inspection'::text END,
-  'America/Los_Angeles',
-  true,
-  CASE g.n WHEN 1
-    THEN (SELECT pu.user_id FROM property_users pu WHERE pu.property_id = p.id AND pu.role = 'owner'::property_role LIMIT 1)
-    ELSE (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1) END
-FROM properties p
-JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
-CROSS JOIN generate_series(1, 2) AS g(n);
-
--- Logins (agent + each demo homeowner) for activity / session analytics
-INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
-SELECT u.id, 'login', '{}'::jsonb,
-  NOW() - (gs * INTERVAL '14 hours') - (random() * INTERVAL '5 days')
-FROM (
-  SELECT id FROM users WHERE email = 'agent@opsy.com'
-  UNION
-  SELECT u2.id FROM users u2
-  JOIN accounts a2 ON a2.owner_user_id = u2.id AND a2.url ~ '^demo-hw-[0-9]+$'
-) AS u
-CROSS JOIN generate_series(1, 7) AS gs;
-
--- Agent page views on portfolio properties (path matches property analytics regex)
-INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
-SELECT
-  (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1),
-  'page_view',
-  jsonb_build_object(
-    'path', '/' || a.url || '/properties/' || p.property_uid,
-    'propertyId', p.property_uid
-  ),
-  NOW() - (random() * INTERVAL '27 days')
-FROM properties p
-JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
-CROSS JOIN generate_series(1, 6) AS gv;
-
--- Homeowner page views (same paths; role = homeowner for visit breakdown)
-INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
-SELECT
-  hw.id,
-  'page_view',
-  jsonb_build_object(
-    'path', '/' || a.url || '/properties/' || p.property_uid,
-    'propertyId', p.property_uid
-  ),
-  NOW() - (random() * INTERVAL '27 days')
-FROM properties p
-JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
-JOIN property_users pu ON pu.property_id = p.id AND pu.role = 'owner'::property_role
-JOIN users hw ON hw.id = pu.user_id
-CROSS JOIN generate_series(1, 5) AS gv;
-
--- Extra routes for “top pages” / path analytics
-INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
-SELECT
-  hw.id,
-  'page_view',
-  jsonb_build_object('path', '/' || a.url || '/home'),
-  NOW() - (random() * INTERVAL '14 days')
-FROM accounts a
-JOIN users hw ON hw.id = a.owner_user_id
-CROSS JOIN generate_series(1, 3) AS gv
-WHERE a.url ~ '^demo-hw-[0-9]+$';
-
-INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
-SELECT
-  (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1),
-  'page_view',
-  jsonb_build_object('path', '/demo-agent/home'),
-  NOW() - (random() * INTERVAL '14 days')
-FROM generate_series(1, 12) AS gv;
-
--- Engagement event types used in dashboards / counts
-INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
-SELECT
-  hw.id,
-  'maintenance_logged',
-  jsonb_build_object('propertyId', p.property_uid, 'systemKey', 'heating'),
-  NOW() - (random() * INTERVAL '20 days')
-FROM properties p
-JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
-JOIN property_users pu ON pu.property_id = p.id AND pu.role = 'owner'::property_role
-JOIN users hw ON hw.id = pu.user_id
-WHERE (ABS(hashtext(p.property_uid)) % 2) = 0;
-
-INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
-SELECT
-  hw.id,
-  'document_uploaded',
-  jsonb_build_object('propertyId', p.property_uid, 'documentType', 'warranty'),
-  NOW() - (random() * INTERVAL '20 days')
-FROM properties p
-JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
-JOIN property_users pu ON pu.property_id = p.id AND pu.role = 'owner'::property_role
-JOIN users hw ON hw.id = pu.user_id
-WHERE (ABS(hashtext(p.property_uid)) % 3) = 0;
-
-INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
-SELECT
-  (SELECT id FROM users WHERE email = 'agent@opsy.com' LIMIT 1),
-  'property_updated',
-  jsonb_build_object('propertyId', p.property_uid),
-  NOW() - (random() * INTERVAL '25 days')
-FROM properties p
-JOIN accounts a ON a.id = p.account_id AND a.url ~ '^demo-hw-[0-9]+$'
-WHERE (ABS(hashtext(p.property_uid)) % 4) = 0;
 
 COMMIT;

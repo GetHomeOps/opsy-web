@@ -14,9 +14,24 @@ const databaseUri = getDatabaseUri();
 
 const isRemoteDb = databaseUri.includes("supabase") || databaseUri.includes("railway") || process.env.DB_SSL === "true";
 
+/** Supavisor session pooler (*.pooler.supabase.com) caps concurrent clients (MaxClientsInSessionMode).
+ *  Keep the app pool at or below that cap; use direct db.*:5432 or transaction pooler :6543 if you need more. */
+function resolvePoolMax(uri) {
+  const requested = parseInt(process.env.DB_POOL_MAX, 10);
+  const fallback = Number.isFinite(requested) && requested > 0 ? requested : 10;
+  const sessionCap = parseInt(process.env.DB_POOL_MAX_SUPABASE_SESSION, 10);
+  const cap = Number.isFinite(sessionCap) && sessionCap > 0 ? sessionCap : 5;
+  if (uri.includes("pooler.supabase.com")) {
+    return Math.min(fallback, cap);
+  }
+  return fallback;
+}
+
+const poolMax = resolvePoolMax(databaseUri);
+
 const db = new Pool({
   connectionString: databaseUri,
-  max: parseInt(process.env.DB_POOL_MAX, 10) || 10,
+  max: poolMax,
   idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT_MS, 10) || 30000,
   connectionTimeoutMillis: parseInt(process.env.DB_POOL_CONNECT_TIMEOUT_MS, 10) || 5000,
   ...(isRemoteDb && { ssl: { rejectUnauthorized: false } }),
@@ -40,7 +55,7 @@ async function connectDb() {
       }
     }
     client.release();
-    log(`Connected to ${databaseUri} (pool max: ${db.options.max})`);
+    log(`Connected to ${databaseUri} (pool max: ${poolMax})`);
   } catch (err) {
     error(`Couldn't connect to ${databaseUri}`, err.message);
     process.exit(1);
