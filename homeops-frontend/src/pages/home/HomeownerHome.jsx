@@ -1306,8 +1306,8 @@ function HomeownerHome() {
                   role="button"
                   tabIndex={0}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-start justify-between gap-2 mb-3 min-w-0">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
                         {pro.profile_photo_url ? (
                           <img
