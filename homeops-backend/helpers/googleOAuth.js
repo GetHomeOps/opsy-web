@@ -14,9 +14,10 @@ const {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
 } = require("../config");
+const { GOOGLE_SIGN_IN_SCOPES } = require("./googleOAuthAppScopes");
 
 const GOOGLE_AUTH_BASE = "https://accounts.google.com/o/oauth2/v2/auth";
-const SCOPES = ["openid", "email", "profile"];
+const SCOPES = GOOGLE_SIGN_IN_SCOPES;
 
 // Singleton verify client — caches Google's JWKS public keys across requests
 let _verifyClient = null;

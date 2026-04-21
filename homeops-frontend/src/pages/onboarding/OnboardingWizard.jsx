@@ -596,8 +596,22 @@ function Step3Confirmation({role, plan, selectedPlan}) {
 export default function OnboardingWizard() {
   const navigate = useNavigate();
   const {currentUser, refreshCurrentUser, logout} = useAuth();
-  const [step, setStep] = useState(1);
-  const [role, setRole] = useState(null);
+
+  /* When admins create users, the user record is flagged role_locked=true.
+     In that case we skip step 1 (role picker) entirely and force the wizard
+     to only show plans for the role the admin chose — an agent can't see
+     or select homeowner plans, and vice versa. Self-signup users keep the
+     existing behavior of picking their role in step 1. */
+  const lockedRole =
+    currentUser?.roleLocked === true &&
+    (currentUser?.role === "homeowner" || currentUser?.role === "agent")
+      ? currentUser.role
+      : null;
+  const initialStep = lockedRole ? 2 : 1;
+  const totalSteps = lockedRole ? 2 : 3;
+
+  const [step, setStep] = useState(initialStep);
+  const [role, setRole] = useState(lockedRole);
   const [plan, setPlan] = useState(null);
   const [billingInterval, setBillingInterval] = useState("month");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -659,6 +673,11 @@ export default function OnboardingWizard() {
 
   const canContinue =
     (step === 1 && role) || (step === 2 && plan) || step === 3;
+  /* Display step (1-based) reflects what the user actually sees in the
+     indicator. When the role picker is skipped, the Plan screen is "Step 1
+     of 2" instead of "Step 2 of 3". */
+  const displayStep = lockedRole ? Math.max(1, step - 1) : step;
+  const minStep = lockedRole ? 2 : 1;
 
   async function handleComplete() {
     setError(null);
@@ -720,10 +739,12 @@ export default function OnboardingWizard() {
           alt="Opsy"
           className="w-36 h-auto mb-6 object-contain"
         />
-        <StepIndicator currentStep={step} totalSteps={3} />
+        <StepIndicator currentStep={displayStep} totalSteps={totalSteps} />
 
         <div className={`w-full ${step === 2 ? "max-w-7xl" : "max-w-2xl"}`}>
-          {step === 1 && <Step1Role role={role} onSelect={setRole} />}
+          {step === 1 && !lockedRole && (
+            <Step1Role role={role} onSelect={setRole} />
+          )}
           {step === 2 && (
             <Step2Plan
               role={role}
@@ -760,7 +781,7 @@ export default function OnboardingWizard() {
             <button
               type="button"
               onClick={() => {
-                if (step > 1) {
+                if (step > minStep) {
                   setStep((s) => s - 1);
                 } else {
                   logout();
@@ -768,7 +789,7 @@ export default function OnboardingWizard() {
                 }
               }}
               className={
-                step > 1
+                step > minStep
                   ? "btn bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
                   : "flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               }

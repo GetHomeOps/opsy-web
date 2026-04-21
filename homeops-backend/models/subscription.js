@@ -49,14 +49,20 @@ class Subscription {
               u.role AS "ownerRole",
               s.subscription_product_id AS "subscriptionProductId",
               sp.name AS "productName",
-              COALESCE(
-                CASE WHEN pp.unit_amount IS NOT NULL THEN pp.unit_amount::numeric / 100 END,
-                (SELECT ppm.unit_amount::numeric / 100 FROM plan_prices ppm
-                 WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
-                   AND (ppm.is_active IS NULL OR ppm.is_active = true)
-                 LIMIT 1),
-                sp.price
-              ) AS "productPrice",
+              CASE
+                /* Free / beta / comp subscribers are not billed via Stripe — never invent a paid amount from the catalog. */
+                WHEN s.stripe_subscription_id IS NULL THEN 0
+                /* Use the exact unit_amount cached for the price ID this subscriber is on. */
+                WHEN pp.unit_amount IS NOT NULL THEN pp.unit_amount::numeric / 100
+                /* Fallback: active monthly price from plan_prices (Super Admin > Products & Plans → Stripe), not plans.json / sp.price. */
+                ELSE COALESCE(
+                  (SELECT ppm.unit_amount::numeric / 100 FROM plan_prices ppm
+                   WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
+                     AND (ppm.is_active IS NULL OR ppm.is_active = true)
+                   LIMIT 1),
+                  0
+                )
+              END AS "productPrice",
               sp.target_role AS "targetRole",
               s.stripe_subscription_id AS "stripeSubscriptionId",
               s.status,
@@ -100,14 +106,20 @@ class Subscription {
               u.role AS "ownerRole",
               s.subscription_product_id AS "subscriptionProductId",
               sp.name AS "productName",
-              COALESCE(
-                CASE WHEN pp.unit_amount IS NOT NULL THEN pp.unit_amount::numeric / 100 END,
-                (SELECT ppm.unit_amount::numeric / 100 FROM plan_prices ppm
-                 WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
-                   AND (ppm.is_active IS NULL OR ppm.is_active = true)
-                 LIMIT 1),
-                sp.price
-              ) AS "productPrice",
+              CASE
+                /* Free / beta / comp subscribers are not billed via Stripe — never invent a paid amount from the catalog. */
+                WHEN s.stripe_subscription_id IS NULL THEN 0
+                /* Use the exact unit_amount cached for the price ID this subscriber is on. */
+                WHEN pp.unit_amount IS NOT NULL THEN pp.unit_amount::numeric / 100
+                /* Fallback: active monthly price from plan_prices (Super Admin > Products & Plans → Stripe), not plans.json / sp.price. */
+                ELSE COALESCE(
+                  (SELECT ppm.unit_amount::numeric / 100 FROM plan_prices ppm
+                   WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
+                     AND (ppm.is_active IS NULL OR ppm.is_active = true)
+                   LIMIT 1),
+                  0
+                )
+              END AS "productPrice",
               sp.target_role AS "targetRole",
               s.status,
               s.current_period_start AS "currentPeriodStart",
@@ -169,7 +181,7 @@ class Subscription {
   }
 
   /** Ensure account has at least one active subscription. Creates free tier if none exists.
-   * @param {{ planCode?: string }} [options] — e.g. { planCode: "homeowner_beta" } for promotional tiers */
+   * @param {{ planCode?: string }} [options] — e.g. { planCode: "homeowner_beta" | "agent_beta" } for promotional tiers */
   static async ensureDefaultForAccount(accountId, userRole = "homeowner", options = {}) {
     const existing = await db.query(
       `SELECT id FROM account_subscriptions WHERE account_id = $1 AND status = 'active' LIMIT 1`,

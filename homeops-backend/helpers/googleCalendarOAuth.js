@@ -13,12 +13,10 @@ const {
   GOOGLE_CLIENT_SECRET,
   GOOGLE_CALENDAR_REDIRECT_URI,
 } = require("../config");
+const { GOOGLE_CALENDAR_SCOPES } = require("./googleOAuthAppScopes");
 
 const GOOGLE_AUTH_BASE = "https://accounts.google.com/o/oauth2/v2/auth";
-const CALENDAR_SCOPES = [
-  "https://www.googleapis.com/auth/calendar",
-  "https://www.googleapis.com/auth/calendar.events",
-];
+const CALENDAR_SCOPES = GOOGLE_CALENDAR_SCOPES;
 
 /**
  * Build Google Calendar OAuth authorization URL.

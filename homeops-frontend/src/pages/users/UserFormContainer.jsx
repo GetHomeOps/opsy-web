@@ -415,6 +415,7 @@ function UsersFormContainer() {
       password: randomPassword,
       is_active: false,
       image: state.formData.image || undefined,
+      accountId: currentAccount?.id,
     };
 
     dispatch({type: "SET_SUBMITTING", payload: true});
@@ -422,11 +423,11 @@ function UsersFormContainer() {
     try {
       const res = await createUser(userData);
 
+      const invitationEmailSent = res?.invitationEmailSent === true;
+
       if (res && res.id) {
-        // Update state with new user
         dispatch({type: "SET_USER", payload: res});
 
-        // Navigate to the new user with navigation state
         navigate(`/${accountUrl}/users/${res.id}`, {
           state: {
             currentIndex: users.length + 1,
@@ -435,15 +436,25 @@ function UsersFormContainer() {
           },
         });
 
-        // Show success banner
+        const successBase = t("userCreatedSuccessfullyMessage", {
+          defaultValue: "User created successfully",
+        });
+        const inviteSuffix = invitationEmailSent
+          ? ` ${t("invitationEmailSentSuffix", {
+              defaultValue:
+                "An invitation email has been sent to set up their account.",
+            })}`
+          : ` ${t("invitationEmailNotSentSuffix", {
+              defaultValue:
+                "Invitation email could not be sent — use “Resend invitation email” to retry.",
+            })}`;
+
         dispatch({
           type: "SET_BANNER",
           payload: {
             open: true,
-            type: "success",
-            message:
-              t("userCreatedSuccessfullyMessage") ||
-              "User created successfully",
+            type: invitationEmailSent ? "success" : "warning",
+            message: `${successBase}.${inviteSuffix}`,
           },
         });
       }

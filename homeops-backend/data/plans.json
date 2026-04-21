@@ -107,6 +107,31 @@
       ]
     },
     {
+      "code": "agent_beta",
+      "name": "Beta",
+      "description": "Promotional agent access for pilots and testers. Zero-cost; limits set in Super Admin.",
+      "targetRole": "agent",
+      "price": 0,
+      "priceYear": null,
+      "sortOrder": 98,
+      "trialDays": null,
+      "popular": false,
+      "limits": {
+        "maxProperties": 5,
+        "maxContacts": 100,
+        "maxViewers": 5,
+        "maxTeamMembers": 10,
+        "aiTokenMonthlyQuota": 25000,
+        "maxDocumentsPerSystem": 3,
+        "aiFeaturesEnabled": true,
+        "otherLimits": { "storageGb": 10 }
+      },
+      "features": [
+        { "id": "properties", "label": "Up to 5 properties", "included": true },
+        { "id": "beta", "label": "Promotional / pilot tier", "included": true }
+      ]
+    },
+    {
       "code": "agent_basic",
       "name": "Maintain",
       "description": "Stay organized. Maintenance tracking, branded communications, limited homeowner invites.",

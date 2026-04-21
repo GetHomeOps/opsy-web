@@ -120,6 +120,14 @@ async function upsertPlanPrice(productId, billingInterval, stripePriceId) {
        currency = EXCLUDED.currency`,
     [productId, normalizedPriceId, billingInterval, unitAmount, currency]
   );
+
+  /* Keep subscription_products.price aligned with Stripe for list/sort; Products & Plans is the source of truth. */
+  if (billingInterval === "month" && unitAmount != null) {
+    await db.query(
+      `UPDATE subscription_products SET price = $1::numeric / 100, updated_at = NOW() WHERE id = $2`,
+      [unitAmount, productId]
+    );
+  }
 }
 
 async function getLimitsForProduct(productId) {

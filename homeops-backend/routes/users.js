@@ -26,19 +26,30 @@ const {
 } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const User = require("../models/user");
+const Account = require("../models/account");
 const userUpdateSchema = require("../schemas/userUpdate.json");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
 const db = require("../db");
 const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
+const { createAccountInvitation } = require("../services/invitationService");
 
 const router = express.Router();
 
-/** POST / - Admin-created user. Creates user as pending (is_active=false).
- *  Account linking and activation happen when the user accepts their invitation. */
+/** POST / - Admin-created user. Creates user as pending (is_active=false,
+ *  onboarding_completed=false) and immediately sends an invitation email so
+ *  the invitee can set a password and run through the onboarding/payment
+ *  workflow on their own. Account linking, activation, and onboarding
+ *  completion happen when the user accepts the invitation and finishes
+ *  picking a plan. */
 router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
   try {
-    const { name, email, password, phone, role, contact, image } = req.body;
+    const { name, email, password, phone, role, contact, image, accountId } = req.body;
 
+    /* Lock the role for admin-created homeowner/agent users so they can
+       only see plans matching the role the admin chose during onboarding,
+       and so the role can't be tampered with via the API. Internal roles
+       (admin/super_admin) don't need locking. */
+    const isLockableRole = role === "homeowner" || role === "agent";
     const newUser = await User.register({
       name,
       email,
@@ -47,6 +58,8 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       role,
       contact,
       is_active: false,
+      onboarding_completed: false,
+      role_locked: isLockableRole,
     });
 
     if (image) {
@@ -61,8 +74,40 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       source: "admin_created_user",
     }).catch((e) => console.error("[opsTeamNotify] admin create user:", e.message));
 
+    const inviterUserId = res.locals.user?.id;
+    let resolvedAccountId = accountId ? Number(accountId) : null;
+    if (!resolvedAccountId && inviterUserId) {
+      try {
+        const inviterAccounts = await Account.getUserAccounts(inviterUserId);
+        resolvedAccountId = inviterAccounts?.[0]?.id || null;
+      } catch (acctErr) {
+        console.error("[users.create] inviter account lookup:", acctErr.message);
+      }
+    }
+
+    let invitation = null;
+    let invitationEmailSent = false;
+    if (resolvedAccountId) {
+      try {
+        const inviteResult = await createAccountInvitation({
+          inviterUserId,
+          inviteeEmail: newUser.email,
+          accountId: resolvedAccountId,
+          intendedRole: "member",
+        });
+        invitation = inviteResult?.invitation || null;
+        invitationEmailSent = !!invitation;
+      } catch (inviteErr) {
+        console.error("[users.create] failed to send invitation email:", inviteErr.message);
+      }
+    } else {
+      console.warn(
+        `[users.create] No accountId resolved for invitation to ${newUser.email}; skipping auto-invite.`
+      );
+    }
+
     const user = await User.getById(newUser.id);
-    return res.status(201).json({ user });
+    return res.status(201).json({ user, invitation, invitationEmailSent });
   } catch (err) {
     return next(err);
   }

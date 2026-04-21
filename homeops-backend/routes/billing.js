@@ -74,10 +74,31 @@ router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function
     }
 
     const userRes = await db.query(
-      `SELECT email, name FROM users WHERE id = $1`,
+      `SELECT email, name, role, COALESCE(role_locked, false) AS role_locked
+       FROM users WHERE id = $1`,
       [userId]
     );
     const user = userRes.rows[0];
+
+    /* Reject checkout for plans that don't match the user's locked role.
+       This is the server-side counterpart to the wizard hiding the wrong
+       set of plans for admin-created users — protects against a tampered
+       client posting an `agent_*` planCode for a locked homeowner, etc. */
+    if (
+      user?.role_locked === true &&
+      (user?.role === "homeowner" || user?.role === "agent")
+    ) {
+      const planTargetRole = await db.query(
+        `SELECT target_role FROM subscription_products WHERE code = $1 LIMIT 1`,
+        [planCode]
+      );
+      const targetRole = planTargetRole.rows[0]?.target_role || null;
+      if (targetRole && targetRole !== user.role && (targetRole === "homeowner" || targetRole === "agent")) {
+        throw new ForbiddenError(
+          `Plan "${planCode}" is for ${targetRole}s. Your account is registered as ${user.role}.`
+        );
+      }
+    }
 
     let resolvedPromoCodeId;
     if (couponCode) {

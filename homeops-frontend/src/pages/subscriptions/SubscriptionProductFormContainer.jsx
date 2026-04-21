@@ -138,6 +138,7 @@ const PLAN_CODE_OPTIONS_BY_ROLE = {
     {value: "homeowner_beta", label: "Beta / promotional (zero-cost)"},
   ],
   agent: [
+    {value: "agent_beta", label: "Beta / promotional (zero-cost)"},
     {value: "agent_basic", label: "Basic"},
     {value: "agent_pro", label: "Pro (Growth)"},
     {value: "agent_premium", label: "Premium (Win)"},
@@ -1472,9 +1473,13 @@ function SubscriptionProductFormContainer() {
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           Fixed list aligned with signup and Stripe. Display
                           name above can differ (e.g. “Maintain”); this code is
-                          what the API uses. Beta comp plans: use{" "}
+                          what the API uses.                           Beta / comp: homeowners use{" "}
                           <code className="text-[11px] bg-gray-100 dark:bg-gray-700 px-1 rounded">
                             homeowner_beta
+                          </code>
+                          ; agents use{" "}
+                          <code className="text-[11px] bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                            agent_beta
                           </code>
                           .
                         </p>

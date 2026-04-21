@@ -77,18 +77,18 @@ async function ensureStripePlans() {
     let productId;
     if (existing.rows.length > 0) {
       productId = existing.rows[0].id;
-      // Update product fields but preserve admin-edited values (features, popular, is_active)
+      // Update product fields but preserve admin-edited values (features, popular, is_active).
+      // Do not overwrite `price`: dollar amounts come from Super Admin → Stripe (`plan_prices`) or upsertPlanPrice sync, not data/plans.json.
       await db.query(
         `UPDATE subscription_products
-         SET name = $1, description = $2, target_role = $3, price = $4, sort_order = $5,
-             trial_days = $6, max_properties = $7, max_contacts = $8, max_viewers = $9, max_team_members = $10,
+         SET name = $1, description = $2, target_role = $3, sort_order = $4,
+             trial_days = $5, max_properties = $6, max_contacts = $7, max_viewers = $8, max_team_members = $9,
              updated_at = NOW()
-         WHERE id = $11`,
+         WHERE id = $10`,
         [
           name,
           description || `${name} plan for ${targetRole}s`,
           targetRole,
-          price ?? 0,
           sortOrder ?? 99,
           trialDays,
           limits?.maxProperties ?? 1,

@@ -827,6 +827,8 @@
   "url": "URL",
   "urlValidationErrorMessage": "La URL es obligatoria",
   "userCreatedSuccessfullyMessage": "Usuario creado correctamente",
+  "invitationEmailSentSuffix": "Se ha enviado un correo de invitación para configurar su cuenta.",
+  "invitationEmailNotSentSuffix": "No se pudo enviar el correo de invitación — usa «Reenviar correo de invitación» para volver a intentarlo.",
   "userDeleteConfirmationMessage": "¿Estás seguro de que quieres eliminar este usuario?",
   "userDeletedSuccessfullyMessage": "Usuario eliminado correctamente",
   "userBulkDeleteFailedMessage": "No se pudieron eliminar los usuarios. Inténtalo de nuevo.",

@@ -345,6 +345,13 @@ class AppApi {
 
   static async adminCreateUser(data) {
     let res = await this.request(`users`, data, "POST");
+    if (res?.user) {
+      return {
+        ...res.user,
+        invitationEmailSent: res.invitationEmailSent === true,
+        invitation: res.invitation || null,
+      };
+    }
     return res.user;
   }
 

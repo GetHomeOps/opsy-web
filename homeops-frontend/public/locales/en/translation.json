@@ -827,6 +827,8 @@
   "url": "URL",
   "urlValidationErrorMessage": "URL is required",
   "userCreatedSuccessfullyMessage": "User created successfully",
+  "invitationEmailSentSuffix": "An invitation email has been sent to set up their account.",
+  "invitationEmailNotSentSuffix": "Invitation email could not be sent — use \"Resend invitation email\" to retry.",
   "userDeleteConfirmationMessage": "Are you sure you want to delete this user?",
   "userDeletedSuccessfullyMessage": "User deleted successfully",
   "userBulkDeleteFailedMessage": "Could not delete users. Please try again.",

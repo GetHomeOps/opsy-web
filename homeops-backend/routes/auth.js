@@ -69,6 +69,7 @@ const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
   homeowner_beta: "homeowner_beta",
   /** @deprecated Legacy alias; normalize to homeowner_beta */
   beta_homeowner: "homeowner_beta",
+  agent_beta: "agent_beta",
   agent_basic: "basic",
   agent_pro: "pro",
   agent_growth: "growth",
@@ -697,7 +698,7 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     if (!userId) throw new BadRequestError("User authentication required");
 
     const {
-      role,
+      role: requestedRole,
       subscriptionTier: rawSubscriptionTier,
       planCode: rawPlanCode,
       billingInterval = "month",
@@ -712,6 +713,34 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     const planCode = typeof rawPlanCode === "string" && rawPlanCode.trim()
       ? rawPlanCode.trim()
       : SUBSCRIPTION_TIER_TO_DEFAULT_PLAN_CODE[subscriptionTier] || null;
+    /* When admins create users, the role is set deliberately and the user
+       record is marked role_locked. In that case we ignore any role in the
+       request body and force the existing DB role so the client can't escape
+       the homeowner/agent tier the admin chose. Self-signups (role_locked
+       false) keep the existing behavior of letting the user pick a role in
+       the onboarding wizard. */
+    const currentRoleRow = await db.query(
+      `SELECT role, COALESCE(role_locked, false) AS role_locked
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    const currentDbRole = currentRoleRow.rows[0]?.role || null;
+    const isRoleLocked = currentRoleRow.rows[0]?.role_locked === true;
+    let role = requestedRole;
+    if (
+      isRoleLocked &&
+      (currentDbRole === "homeowner" || currentDbRole === "agent")
+    ) {
+      if (
+        requestedRole &&
+        requestedRole !== currentDbRole
+      ) {
+        throw new ForbiddenError(
+          `Your account is registered as ${currentDbRole}. Please contact support to change roles.`
+        );
+      }
+      role = currentDbRole;
+    }
     if (!role || !["homeowner", "agent"].includes(role)) {
       throw new BadRequestError("Valid role (homeowner or agent) is required");
     }
@@ -729,7 +758,7 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
         subscriptionTier,
       ]
     );
-    const ALWAYS_VALID_TIERS = ["free", "homeowner_beta"];
+    const ALWAYS_VALID_TIERS = ["free", "homeowner_beta", "agent_beta"];
     if (tierCheckRes.rows.length === 0 && !ALWAYS_VALID_TIERS.includes(subscriptionTier)) {
       throw new BadRequestError(`Invalid subscriptionTier "${subscriptionTier}" for role "${role}"`);
     }
@@ -743,7 +772,7 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     }
 
     /** Tiers that can complete onboarding without Stripe. If checkout returns a session_id, we still verify below. */
-    const FREE_TIERS = ["free", "homeowner_beta"];
+    const FREE_TIERS = ["free", "homeowner_beta", "agent_beta"];
     let isPaidTier = !FREE_TIERS.includes(subscriptionTier);
     if (isPaidTier && planCode) {
       const isZeroCost = await isPlanCodeZeroCost(planCode, billingInterval);
@@ -819,9 +848,18 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
     const userRole = existingUser?.role || role;
     if (accountResult.rows[0] && !isPaidTier && !SKIP_SUBSCRIPTION_ROLES.includes(userRole)) {
       try {
-        const selectedFreePlanCode =
-          planCode ||
-          (subscriptionTier === "homeowner_beta" ? "homeowner_beta" : "homeowner_free");
+        let selectedFreePlanCode = planCode;
+        if (!selectedFreePlanCode) {
+          if (subscriptionTier === "homeowner_beta") {
+            selectedFreePlanCode = "homeowner_beta";
+          } else if (subscriptionTier === "agent_beta") {
+            selectedFreePlanCode = "agent_beta";
+          } else if (role === "agent") {
+            selectedFreePlanCode = "agent_basic";
+          } else {
+            selectedFreePlanCode = "homeowner_free";
+          }
+        }
         await Subscription.ensureAccountOnPlanCode(
           accountResult.rows[0].account_id,
           selectedFreePlanCode

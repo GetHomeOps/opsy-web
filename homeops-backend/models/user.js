@@ -85,7 +85,7 @@ class User {
  *
  * Throws BadRequestError on duplicates.
  **/
-  static async register({ name, email, password, phone = null, role = 'homeowner', contact = 0, is_active = false, onboarding_completed }) {
+  static async register({ name, email, password, phone = null, role = 'homeowner', contact = 0, is_active = false, onboarding_completed, role_locked }) {
     if (name == null || (typeof name === 'string' && name.trim() === '')) {
       throw new BadRequestError("Name is required");
     }
@@ -112,19 +112,24 @@ class User {
     // Ensure contact is an integer, defaulting to 0 if null/undefined
     const contactId = contact === null || contact === undefined ? 0 : parseInt(contact, 10) || 0;
 
-    const includeOnboarding = onboarding_completed === false;
-    const cols = includeOnboarding
-      ? "email, password_hash, name, phone, role, contact_id, is_active, onboarding_completed, auth_provider, email_verified"
-      : "email, password_hash, name, phone, role, contact_id, is_active, auth_provider, email_verified";
-    const vals = includeOnboarding ? "$1,$2,$3,$4,$5,$6,$7,$8,$9,$10" : "$1,$2,$3,$4,$5,$6,$7,$8,$9";
-    const params = [email, hashedPassword, name, phone, role, contactId, is_active];
-    if (includeOnboarding) params.push(false);
+    const baseCols = ["email", "password_hash", "name", "phone", "role", "contact_id", "is_active"];
+    const baseVals = [email, hashedPassword, name, phone, role, contactId, is_active];
+    if (onboarding_completed === false) {
+      baseCols.push("onboarding_completed");
+      baseVals.push(false);
+    }
+    if (role_locked === true) {
+      baseCols.push("role_locked");
+      baseVals.push(true);
+    }
+    baseCols.push("auth_provider", "email_verified");
     // Bootstrap super admin (npm start) has no inbox to verify
-    params.push("local", role === "super_admin");
+    baseVals.push("local", role === "super_admin");
 
+    const placeholders = baseVals.map((_, i) => `$${i + 1}`).join(",");
     const result = await db.query(`
-        INSERT INTO users (${cols})
-        VALUES (${vals})
+        INSERT INTO users (${baseCols.join(", ")})
+        VALUES (${placeholders})
         RETURNING
               id,
               email,
@@ -132,7 +137,7 @@ class User {
               phone,
               role,
               contact_id AS "contact",
-              is_active`, params
+              is_active`, baseVals
     );
 
     const user = result.rows[0];
@@ -163,6 +168,7 @@ class User {
              mfa_enrolled_at AS "mfaEnrolledAt",
              subscription_tier AS "subscriptionTier",
              onboarding_completed AS "onboardingCompleted",
+             COALESCE(role_locked, false) AS "roleLocked",
              welcome_modal_dismissed AS "welcomeModalDismissed"
        FROM users
        WHERE id = $1`,
@@ -181,6 +187,7 @@ class User {
               email_verified AS "emailVerified",
               subscription_tier AS "subscriptionTier",
               onboarding_completed AS "onboardingCompleted",
+              COALESCE(role_locked, false) AS "roleLocked",
               welcome_modal_dismissed AS "welcomeModalDismissed"
        FROM users WHERE google_sub = $1`,
       [googleSub]
@@ -198,6 +205,7 @@ class User {
               email_verified AS "emailVerified",
               subscription_tier AS "subscriptionTier",
               onboarding_completed AS "onboardingCompleted",
+              COALESCE(role_locked, false) AS "roleLocked",
               welcome_modal_dismissed AS "welcomeModalDismissed"
        FROM users WHERE email = $1`,
       [email]
@@ -227,6 +235,7 @@ class User {
                  email_verified AS "emailVerified",
                  subscription_tier AS "subscriptionTier",
                  onboarding_completed AS "onboardingCompleted",
+                 COALESCE(role_locked, false) AS "roleLocked",
                  welcome_modal_dismissed AS "welcomeModalDismissed"`,
       [email, name, googleSub, avatarUrl || null, emailVerified ?? true]
     );
@@ -247,6 +256,7 @@ class User {
                  email_verified AS "emailVerified",
                  subscription_tier AS "subscriptionTier",
                  onboarding_completed AS "onboardingCompleted",
+                 COALESCE(role_locked, false) AS "roleLocked",
                  welcome_modal_dismissed AS "welcomeModalDismissed"`,
       [googleSub, userId, ev]
     );
@@ -288,6 +298,7 @@ class User {
                mfa_enrolled_at AS "mfaEnrolledAt",
                subscription_tier AS "subscriptionTier",
                onboarding_completed AS "onboardingCompleted",
+               COALESCE(role_locked, false) AS "roleLocked",
                welcome_modal_dismissed AS "welcomeModalDismissed"
         FROM users
         WHERE email=$1`,
@@ -401,7 +412,8 @@ class User {
                latest_sub.updated_at AS "latestSubscriptionUpdatedAt",
                CASE
                  WHEN u.onboarding_completed = false THEN false
-                 WHEN u.role = 'agent' THEN true
+                 WHEN u.role = 'agent'
+                  AND (u.subscription_tier IS NULL OR u.subscription_tier <> 'agent_beta') THEN true
                 WHEN u.role = 'homeowner'
                   AND u.subscription_tier IS NOT NULL
                   AND u.subscription_tier NOT IN ('free', 'homeowner_beta', 'beta_homeowner') THEN true
@@ -414,7 +426,8 @@ class User {
                  WHEN (
                    CASE
                      WHEN u.onboarding_completed = false THEN false
-                     WHEN u.role = 'agent' THEN true
+                     WHEN u.role = 'agent'
+                      AND (u.subscription_tier IS NULL OR u.subscription_tier <> 'agent_beta') THEN true
                     WHEN u.role = 'homeowner'
                       AND u.subscription_tier IS NOT NULL
                       AND u.subscription_tier NOT IN ('free', 'homeowner_beta', 'beta_homeowner') THEN true
@@ -653,6 +666,62 @@ class User {
             [account.id]
           );
         }
+      }
+
+      /* Clear any remaining invitation references to this user that the
+         account-cleanup pass above didn't catch (e.g. invitations the user
+         sent in accounts they don't own, or invitations they accepted in
+         someone else's account). `accepted_by_user_id` is nullable so we
+         preserve the historical record; `inviter_user_id` is NOT NULL so
+         the only safe option is to drop those rows. */
+      await client.query(
+        `UPDATE invitations
+         SET accepted_by_user_id = NULL
+         WHERE accepted_by_user_id = $1`,
+        [id]
+      );
+      await client.query(
+        `DELETE FROM invitations
+         WHERE inviter_user_id = $1`,
+        [id]
+      );
+
+      /* Other tables reference users(id) without an explicit ON DELETE
+         clause (so they default to NO ACTION and would block the delete).
+         For nullable audit/provenance columns we just set NULL so the
+         historical row survives; for NOT NULL references we delete the
+         dependent row. We only run a statement if the target table exists
+         in the current schema — querying a missing table inside the outer
+         transaction would put it into an aborted state ("current
+         transaction is aborted") which would break every subsequent
+         statement, including the user DELETE itself. */
+      async function tableExists(tableName) {
+        const r = await client.query(
+          `SELECT to_regclass($1) AS regclass`,
+          [tableName]
+        );
+        return r.rows[0]?.regclass != null;
+      }
+
+      const nullableUserRefs = [
+        { table: "inspection_invitations", column: "created_by" },
+        { table: "maintenance_events", column: "created_by" },
+        { table: "inspection_checklist_items", column: "completed_by" },
+        { table: "coupons", column: "created_by" },
+      ];
+      for (const { table, column } of nullableUserRefs) {
+        if (await tableExists(table)) {
+          await client.query(
+            `UPDATE ${table} SET ${column} = NULL WHERE ${column} = $1`,
+            [id]
+          );
+        }
+      }
+      if (await tableExists("coupon_redemptions")) {
+        await client.query(
+          `DELETE FROM coupon_redemptions WHERE user_id = $1`,
+          [id]
+        );
       }
 
       const result = await client.query(

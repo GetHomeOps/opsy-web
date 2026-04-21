@@ -41,7 +41,7 @@ function PrivacyPolicy() {
               Privacy Policy
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">
-              Last updated: March 9, 2026
+              Last updated: April 20, 2026
             </p>
 
             <section className="mb-8">
@@ -76,6 +76,12 @@ function PrivacyPolicy() {
                 <li>Name</li>
                 <li>Email address</li>
                 <li>Account login information</li>
+                <li>
+                  Information from Google when you use Sign in with Google or connect Google
+                  Calendar, such as your Google account identifier, verified email address, display
+                  name, profile picture, and (if you enable calendar sync) OAuth tokens and calendar
+                  data needed to sync maintenance events you choose to sync
+                </li>
                 <li>Billing information</li>
                 <li>Payment details (processed through third-party payment providers)</li>
               </ul>
@@ -169,7 +175,74 @@ function PrivacyPolicy() {
 
             <section className="mb-8">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                6. Cookies and Tracking Technologies
+                6. Google user data — sharing, transfer, and disclosure
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
+                This section describes how we handle information we receive from Google when you use
+                Sign in with Google, Sign up with Google, or connect Google Calendar (collectively,
+                &quot;Google user data&quot; for purposes of this policy).
+              </p>
+              <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-2">
+                What we receive
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
+                Depending on the feature, Google may provide data such as your Google account
+                subject identifier, verified email address, display name, profile picture, and—if you
+                connect Google Calendar—OAuth tokens and calendar content or metadata needed to
+                create, read, update, or delete calendar events you sync from our services.
+              </p>
+              <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-2">
+                With whom we share Google user data
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
+                We do not sell Google user data. We use Google user data only to provide the features
+                you request (account access, profile information in the product, and calendar
+                synchronization you initiate).
+              </p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
+                We may share Google user data with <strong>service providers and subprocessors</strong>{" "}
+                that process personal information on our behalf under contract—for example, cloud
+                hosting and database providers (such as Amazon Web Services and Supabase), providers
+                that help us operate and secure our application, email delivery services, and other
+                categories listed under <strong>Third-Party Services</strong> above. These parties may
+                access Google user data only to perform services for us and must protect it in line
+                with their agreements and applicable law; they are not permitted to use it for their
+                own independent marketing purposes.
+              </p>
+              <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-2">
+                Transfer and other disclosure
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
+                We may <strong>disclose</strong> Google user data, including to regulators or law
+                enforcement, if we believe in good faith that disclosure is required by applicable
+                law, regulation, legal process, or governmental request, or is necessary to protect the
+                rights, property, or safety of HomeOps, our users, or the public.
+              </p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
+                If HomeOps is involved in a <strong>business transaction</strong> such as a merger,
+                acquisition, financing, reorganization, bankruptcy, or sale of assets, Google user
+                data may be transferred as part of that transaction. We will provide notice as
+                required by applicable law.
+              </p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
+                You can review and revoke our access to your Google account at any time in your Google
+                Account settings (
+                <a
+                  href="https://myaccount.google.com/permissions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#6E8276] hover:text-[#456564] dark:text-[#7aa3a2] dark:hover:text-[#9cb8b7] underline"
+                >
+                  myaccount.google.com/permissions
+                </a>
+                ). You may also disconnect Google Calendar inside our product where that option is
+                available.
+              </p>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                7. Cookies and Tracking Technologies
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-2">
                 We may use cookies and similar technologies to:
@@ -187,7 +260,7 @@ function PrivacyPolicy() {
 
             <section className="mb-8">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                7. Data Security
+                8. Data Security
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
                 We implement reasonable administrative, technical, and organizational measures to protect your information from unauthorized access, disclosure, alteration, or destruction.
@@ -199,7 +272,7 @@ function PrivacyPolicy() {
 
             <section className="mb-8">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                8. Data Retention
+                9. Data Retention
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-2">
                 We retain personal information only as long as necessary to:
@@ -217,7 +290,7 @@ function PrivacyPolicy() {
 
             <section className="mb-8">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                9. Your Rights
+                10. Your Rights
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-2">
                 Depending on your location, you may have rights regarding your personal data, including:
@@ -235,7 +308,7 @@ function PrivacyPolicy() {
 
             <section className="mb-8">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                10. Children's Privacy
+                11. Children's Privacy
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
                 Our services are not intended for individuals under the age of 13 (or the minimum legal age in your jurisdiction). We do not knowingly collect personal information from children.
@@ -247,7 +320,7 @@ function PrivacyPolicy() {
 
             <section className="mb-8">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                11. Changes to This Privacy Policy
+                12. Changes to This Privacy Policy
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
                 We may update this Privacy Policy from time to time. When we do, we will update the "Last updated" date at the top of this page.
@@ -259,7 +332,7 @@ function PrivacyPolicy() {
 
             <section className="mb-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                12. Contact Us
+                13. Contact Us
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed mb-4">
                 If you have any questions about this Privacy Policy, you may contact us at:

@@ -30,10 +30,14 @@ function ProtectedRoute({children}) {
     !!currentUser &&
     currentUser.onboardingCompleted !== false &&
     !["super_admin", "admin"].includes(currentUser.role) &&
-    (currentUser.role === "agent" ||
+    ((currentUser.role === "agent" &&
+      (!currentUser.subscriptionTier ||
+        currentUser.subscriptionTier !== "agent_beta")) ||
       (currentUser.role === "homeowner" &&
         currentUser.subscriptionTier &&
-        currentUser.subscriptionTier !== "free"));
+        !["free", "homeowner_beta", "beta_homeowner"].includes(
+          currentUser.subscriptionTier,
+        )));
 
   useEffect(() => {
     let cancelled = false;

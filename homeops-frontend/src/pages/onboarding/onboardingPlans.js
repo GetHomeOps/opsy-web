@@ -88,6 +88,31 @@ export const HOMEOWNER_PLANS = [
  */
 export const AGENT_PLANS = [
   {
+    id: "agent_beta",
+    code: "agent_beta",
+    name: "Beta",
+    price: 0,
+    description: "Promotional / pilot access",
+    popular: false,
+    tier: "standard",
+    features: {
+      core: [
+        {label: "Properties", value: "Limited (see plan limits)"},
+        {label: "Users", value: "Per plan"},
+        {label: "Branding", value: "Per plan"},
+        {label: "Onboarding", value: "Per plan"},
+      ],
+      advanced: [
+        {label: "AI", value: "Per plan"},
+        {label: "Data ingestion", value: "Per plan"},
+        {label: "Export", value: "Per plan"},
+        {label: "Support", value: "Per plan"},
+        {label: "Integrations", value: "Per plan"},
+        {label: "Leads", value: "Per plan"},
+      ],
+    },
+  },
+  {
     id: "agent_basic",
     code: "agent_basic",
     name: "Basic",
@@ -176,6 +201,7 @@ export const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
   homeowner_beta: "homeowner_beta",
   /** @deprecated Legacy plan code / tier; maps to unified homeowner_beta */
   beta_homeowner: "homeowner_beta",
+  agent_beta: "agent_beta",
   agent_basic: "basic",
   agent_pro: "pro",
   agent_growth: "growth",
@@ -219,6 +245,12 @@ export const PLAN_LIMITS = {
     },
   },
   agent: {
+    agent_beta: {
+      properties: 5,
+      contacts: "—",
+      maxDocumentsPerSystem: 5,
+      aiFeaturesEnabled: true,
+    },
     agent_basic: {
       properties: 5,
       contacts: "—",
