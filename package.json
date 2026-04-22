@@ -4,8 +4,5 @@
   "description": "HomeOps monorepo - backend serves frontend",
   "scripts": {
     "start": "cd homeops-backend && npm run build:start"
-  },
-  "dependencies": {
-    "@dnd-kit/core": "^6.3.1"
   }
 }
