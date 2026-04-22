@@ -5,7 +5,8 @@ const { NotFoundError, BadRequestError } = require("../expressError");
 
 const COLS = `id, account_id AS "accountId", name, logo_key AS "logoKey",
   primary_color AS "primaryColor", secondary_color AS "secondaryColor",
-  footer_text AS "footerText", is_default AS "isDefault",
+  footer_text AS "footerText", brand_name AS "brandName",
+  social_links AS "socialLinks", is_default AS "isDefault",
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 class CommTemplate {
@@ -43,7 +44,15 @@ class CommTemplate {
   }
 
   static async update(id, data) {
-    const allowed = ["name", "logo_key", "primary_color", "secondary_color", "footer_text"];
+    const allowed = [
+      "name",
+      "logo_key",
+      "primary_color",
+      "secondary_color",
+      "footer_text",
+      "brand_name",
+      "social_links",
+    ];
     const sets = [];
     const values = [];
     let idx = 1;
@@ -52,7 +61,9 @@ class CommTemplate {
       const camel = col.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
       if (data[camel] !== undefined) {
         sets.push(`${col} = $${idx}`);
-        values.push(data[camel]);
+        values.push(
+          col === "social_links" ? JSON.stringify(data[camel]) : data[camel]
+        );
         idx++;
       }
     }

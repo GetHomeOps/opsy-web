@@ -670,9 +670,7 @@ async function runAnalysis(jobId) {
 
   const condition = parsed.condition || {};
   const conditionRating = (condition.rating || "unknown").toLowerCase();
-  const validCondition = ["excellent", "good", "fair", "poor"].includes(conditionRating)
-    ? conditionRating
-    : "unknown";
+  const hasValidCondition = ["excellent", "good", "fair", "poor"].includes(conditionRating);
 
   const systemsDetectedSeen = new Set();
   const systemsDetected = (parsed.systemsDetected || [])
@@ -740,12 +738,35 @@ async function runAnalysis(jobId) {
     deduplicateFindingsByEvidence(rawNeedsAttention, severityScore)
   );
 
+  // If the AI couldn't determine a condition AND found no actionable content,
+  // the document almost certainly isn't an inspection report (or is unreadable).
+  // Fail with a clear, user-facing message instead of inserting "unknown" — which
+  // the DB constraint rejects, causing a silent, confusing failure.
+  const hasAnyFindings =
+    systemsDetected.length > 0 ||
+    needsAttention.length > 0 ||
+    maintenanceSuggestions.length > 0 ||
+    suggestedSystemsToAdd.length > 0;
+
+  if (!hasValidCondition && !hasAnyFindings) {
+    await InspectionAnalysisJob.updateStatus(jobId, {
+      status: "failed",
+      error_message:
+        "We couldn't find any property inspection findings in this document. Please verify it's a complete inspection report (PDF) and try again.",
+    });
+    return;
+  }
+
+  // Findings exist but the AI didn't give us a usable overall rating — default to "fair"
+  // so we can persist the analysis (DB constraint only allows excellent/good/fair/poor).
+  const validCondition = hasValidCondition ? conditionRating : "fair";
+
   try {
     const result = await InspectionAnalysisResult.create({
       job_id: jobId,
       property_id: job.property_id,
       condition_rating: validCondition,
-      condition_confidence: validCondition === "unknown" ? null : (condition.confidence ?? null),
+      condition_confidence: hasValidCondition ? (condition.confidence ?? null) : null,
       condition_rationale: condition.rationale ?? null,
       systems_detected: systemsDetected,
       needs_attention: needsAttention,
@@ -768,9 +789,15 @@ async function runAnalysis(jobId) {
     );
   } catch (err) {
     console.error("[inspectionAnalysis] Save result error:", err);
+    const isConditionConstraint =
+      err?.code === "23514" &&
+      typeof err?.constraint === "string" &&
+      err.constraint.includes("condition_rating");
     await InspectionAnalysisJob.updateStatus(jobId, {
       status: "failed",
-      error_message: "Failed to save analysis result",
+      error_message: isConditionConstraint
+        ? "We couldn't determine the property condition from this document. Please verify it's a complete inspection report and try again."
+        : "Failed to save analysis result",
     });
   }
 }

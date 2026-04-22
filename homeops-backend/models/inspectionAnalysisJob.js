@@ -81,6 +81,18 @@ class InspectionAnalysisJob {
     return result.rows[0] || null;
   }
 
+  /** Count finished analysis jobs for a property (each successful run completes one job). */
+  static async countCompletedByProperty(propertyId) {
+    if (!propertyId) return 0;
+    const result = await db.query(
+      `SELECT COUNT(*)::int AS c
+       FROM inspection_analysis_jobs
+       WHERE property_id = $1 AND status = 'completed'`,
+      [propertyId]
+    );
+    return result.rows[0]?.c ?? 0;
+  }
+
   /** Get latest result for a property (if any). */
   static async getLatestResultByProperty(propertyId) {
     const result = await db.query(

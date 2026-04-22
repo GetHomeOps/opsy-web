@@ -123,6 +123,38 @@ class PropertyDocument {
     return result.rows[0]?.n ?? 0;
   }
 
+  /** Patch one or more updatable fields of a property document.
+   *
+   * Allowed: document_name, document_date, document_type, system_key.
+   * Updates updated_at to NOW(). Returns the updated row.
+   */
+  static async update(id, data) {
+    const allowed = ["document_name", "document_date", "document_type", "system_key"];
+    const fields = [];
+    const values = [];
+    let i = 1;
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(data, key) && data[key] !== undefined) {
+        fields.push(`${key} = $${i++}`);
+        values.push(data[key]);
+      }
+    }
+    if (!fields.length) return this.get(id);
+    fields.push(`updated_at = NOW()`);
+    values.push(id);
+    const result = await db.query(
+      `UPDATE property_documents
+       SET ${fields.join(", ")}
+       WHERE id = $${i}
+       RETURNING id, property_id, document_name, document_date, document_key,
+                 document_type, system_key, maintenance_record_id, created_at, updated_at`,
+      values,
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError(`No property document with id: ${id}`);
+    return row;
+  }
+
   /** Delete a property document by id.
    *
    * Returns { deleted: id }.

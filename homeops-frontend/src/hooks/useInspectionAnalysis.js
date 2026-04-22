@@ -13,7 +13,9 @@ import {
 import {
   getInspectionFlowState,
   inspectionFlowProgressMessage,
+  clearInspectionFlowState,
   INSPECTION_FLOW_EVENT,
+  emitPropertyDocumentsChanged,
 } from "../pages/properties/helpers/inspectionFlowSession";
 
 const POLL_INTERVAL_MS = 2500;
@@ -30,6 +32,7 @@ function emitInspectionAnalysisDerivedUpdates(propertyId) {
       detail: { propertyId: String(propertyId) },
     }),
   );
+  emitPropertyDocumentsChanged(propertyId);
 }
 
 function isInspectionReport(doc) {
@@ -42,9 +45,42 @@ function isInspectionReport(doc) {
   );
 }
 
+function normalizeDocS3Key(doc) {
+  const k = doc?.document_key ?? doc?.documentKey;
+  if (k == null || typeof k !== "string") return "";
+  const t = k.trim();
+  return t;
+}
+
+function documentsHasS3Key(documents, rawKey) {
+  if (!rawKey || typeof rawKey !== "string") return false;
+  const want = rawKey.trim();
+  if (!want) return false;
+  return documents.some((d) => normalizeDocS3Key(d) === want);
+}
+
+/** Only resume an in-flight job if the file is (or will imminently be) on the property. */
+function canResumePendingAnalysisJob(documents, pendingJob, propertyId) {
+  const jobKey =
+    pendingJob?.s3Key != null ? String(pendingJob.s3Key).trim() : "";
+  if (!jobKey || pendingJob.jobId == null) return false;
+  if (documentsHasS3Key(documents, jobKey)) return true;
+
+  const flow = getInspectionFlowState(propertyId);
+  const flowKey = flow?.s3Key != null ? String(flow.s3Key).trim() : "";
+  if (!flow || flowKey !== jobKey) return false;
+  return (
+    flow.phase === "uploading" ||
+    flow.phase === "saving" ||
+    flow.phase === "starting_analysis"
+  );
+}
+
 function getMostRecentInspectionReport(documents) {
   if (!Array.isArray(documents)) return null;
-  const reports = documents.filter(isInspectionReport);
+  const reports = documents.filter(
+    (d) => isInspectionReport(d) && normalizeDocS3Key(d) !== "",
+  );
   if (reports.length === 0) return null;
   reports.sort((a, b) => {
     const da = new Date(a.document_date ?? a.created_at ?? 0);
@@ -55,8 +91,10 @@ function getMostRecentInspectionReport(documents) {
 }
 
 function metaFromReport(report) {
+  const raw = report.document_key ?? report.documentKey;
+  const s3Key = typeof raw === "string" ? raw.trim() : "";
   return {
-    s3Key: report.document_key ?? report.documentKey,
+    s3Key,
     fileName: report.document_name ?? report.name,
     mimeType: report.mime_type ?? "application/pdf",
     document_date: report.document_date ?? report.created_at,
@@ -86,15 +124,27 @@ export function useInspectionAnalysis(propertyId) {
   const [error, setError] = useState(null);
   const [reportMeta, setReportMeta] = useState(null);
   const [analysisProgress, setAnalysisProgress] = useState(null);
+  const [completedRunCount, setCompletedRunCount] = useState(0);
+  const [maxAnalysisRuns, setMaxAnalysisRuns] = useState(2);
 
   const cacheRef = useRef(new Map());
   const abortRef = useRef(null);
   const pollGenerationRef = useRef(0);
   const statusRef = useRef(status);
+  const dataRef = useRef(null);
 
   useLayoutEffect(() => {
     statusRef.current = status;
   }, [status]);
+
+  useLayoutEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  useEffect(() => {
+    setCompletedRunCount(0);
+    setMaxAnalysisRuns(2);
+  }, [propertyId]);
 
   useEffect(() => {
     if (!propertyId || typeof window === "undefined") return;
@@ -158,7 +208,18 @@ export function useInspectionAnalysis(propertyId) {
           setData(job.result);
           setStatus("ready");
           setAnalysisProgress(null);
-          cacheRef.current.set(cacheKey, { data: job.result, reportMeta: meta });
+          setCompletedRunCount((prev) => {
+            const next = prev + 1;
+            const prevEntry = cacheRef.current.get(cacheKey) ?? {};
+            cacheRef.current.set(cacheKey, {
+              ...prevEntry,
+              data: job.result,
+              reportMeta: meta,
+              completedRunCount: next,
+              maxAnalysisRuns: prevEntry.maxAnalysisRuns ?? 2,
+            });
+            return next;
+          });
           emitInspectionAnalysisDerivedUpdates(propertyId);
           return;
         }
@@ -183,6 +244,8 @@ export function useInspectionAnalysis(propertyId) {
       setData(null);
       setError(null);
       setAnalysisProgress(null);
+      setCompletedRunCount(0);
+      setMaxAnalysisRuns(2);
       return;
     }
 
@@ -191,6 +254,8 @@ export function useInspectionAnalysis(propertyId) {
     if (cached?.data) {
       setData(cached.data);
       setReportMeta(cached.reportMeta ?? null);
+      setCompletedRunCount(cached.completedRunCount ?? 0);
+      setMaxAnalysisRuns(cached.maxAnalysisRuns ?? 2);
       setStatus("ready");
       setError(null);
       setAnalysisProgress(null);
@@ -213,14 +278,38 @@ export function useInspectionAnalysis(propertyId) {
         );
         const documents = docsRes ?? [];
         const report = getMostRecentInspectionReport(documents);
-        const reportS3Key = report?.document_key ?? report?.documentKey ?? null;
-        const { analysis: analysisRes, pendingJob } =
-          await fetchInspectionAnalysisState(propertyId, reportS3Key);
-        return { documents, report, reportS3Key, analysisRes, pendingJob };
+        const reportS3Key = report ? normalizeDocS3Key(report) : null;
+        const {
+          analysis: analysisRes,
+          pendingJob,
+          completedRunCount: runCount,
+          maxAnalysisRuns: runMax,
+        } = await fetchInspectionAnalysisState(propertyId, reportS3Key);
+        return {
+          documents,
+          report,
+          reportS3Key,
+          analysisRes,
+          pendingJob,
+          completedRunCount: runCount,
+          maxAnalysisRuns: runMax,
+        };
       };
 
-      let { report, reportS3Key, analysisRes, pendingJob } =
-        await fetchDocsAndState();
+      let {
+        documents,
+        report,
+        reportS3Key,
+        analysisRes,
+        pendingJob,
+        completedRunCount,
+        maxAnalysisRuns,
+      } = await fetchDocsAndState();
+
+      const syncRunLimits = (c, m) => {
+        setCompletedRunCount(c ?? 0);
+        setMaxAnalysisRuns(m ?? 2);
+      };
 
       if (loadRunGen !== pollGenerationRef.current) return;
 
@@ -245,10 +334,13 @@ export function useInspectionAnalysis(propertyId) {
           await sleep(2000);
           if (loadRunGen !== pollGenerationRef.current) return;
           ({
+            documents,
             report,
             reportS3Key,
             analysisRes,
             pendingJob,
+            completedRunCount,
+            maxAnalysisRuns,
           } = await fetchDocsAndState());
           if (loadRunGen !== pollGenerationRef.current) return;
           if (analysisRes || pendingJob || report) break;
@@ -262,21 +354,28 @@ export function useInspectionAnalysis(propertyId) {
       if (!analysisRes && !pendingJob && !report) {
         flow = getInspectionFlowState(propertyId);
         if (flow?.phase === "analyzing" && flow.jobId && flow.s3Key) {
-          const meta = {
-            s3Key: flow.s3Key,
-            fileName: flow.fileName ?? null,
-            mimeType: flow.mimeType ?? "application/pdf",
-            document_date: null,
-          };
-          setReportMeta(meta);
-          setStatus("loading");
-          setAnalysisProgress(
-            inspectionFlowProgressMessage(flow) ||
-              "Resuming analysis — still running in the background…",
-          );
-          await pollJobUntilTerminal(flow.jobId, meta);
-          return;
+          const flowKey = String(flow.s3Key).trim();
+          if (!documentsHasS3Key(documents, flowKey)) {
+            clearInspectionFlowState(propertyId);
+          } else {
+            const meta = {
+              s3Key: flowKey,
+              fileName: flow.fileName ?? null,
+              mimeType: flow.mimeType ?? "application/pdf",
+              document_date: null,
+            };
+            setReportMeta(meta);
+            setStatus("loading");
+            setAnalysisProgress(
+              inspectionFlowProgressMessage(flow) ||
+                "Resuming analysis — still running in the background…",
+            );
+            syncRunLimits(completedRunCount, maxAnalysisRuns);
+            await pollJobUntilTerminal(flow.jobId, meta);
+            return;
+          }
         }
+        syncRunLimits(completedRunCount, maxAnalysisRuns);
         setStatus("empty");
         setReportMeta(null);
         setData(null);
@@ -287,12 +386,13 @@ export function useInspectionAnalysis(propertyId) {
         const meta = report
           ? metaFromReport(report)
           : {
-              s3Key: reportS3Key || pendingJob?.s3Key || "",
+              s3Key: (reportS3Key || pendingJob?.s3Key || "").trim(),
               fileName: pendingJob?.fileName ?? null,
               mimeType: pendingJob?.mimeType ?? "application/pdf",
               document_date: null,
             };
         if (!meta.s3Key) {
+          syncRunLimits(completedRunCount, maxAnalysisRuns);
           setStatus("error");
           setError("Analysis is available but the report file could not be resolved.");
           return;
@@ -300,20 +400,30 @@ export function useInspectionAnalysis(propertyId) {
         setReportMeta(meta);
         setData(analysisRes);
         setStatus("ready");
-        cacheRef.current.set(cacheKey, { data: analysisRes, reportMeta: meta });
+        syncRunLimits(completedRunCount, maxAnalysisRuns);
+        cacheRef.current.set(cacheKey, {
+          data: analysisRes,
+          reportMeta: meta,
+          completedRunCount,
+          maxAnalysisRuns,
+        });
         return;
       }
 
-      if (pendingJob?.jobId != null) {
+      if (
+        pendingJob?.jobId != null &&
+        canResumePendingAnalysisJob(documents, pendingJob, propertyId)
+      ) {
         const meta = report
           ? metaFromReport(report)
           : {
-              s3Key: pendingJob.s3Key,
+              s3Key: String(pendingJob.s3Key).trim(),
               fileName: pendingJob.fileName ?? null,
               mimeType: pendingJob.mimeType ?? "application/pdf",
               document_date: report?.document_date ?? report?.created_at ?? null,
             };
         if (!meta.s3Key) {
+          syncRunLimits(completedRunCount, maxAnalysisRuns);
           setStatus("error");
           setError("Analysis is running but file information is missing.");
           return;
@@ -324,6 +434,7 @@ export function useInspectionAnalysis(propertyId) {
           pendingJob.progress ||
             "Resuming analysis — still running in the background…",
         );
+        syncRunLimits(completedRunCount, maxAnalysisRuns);
         await pollJobUntilTerminal(pendingJob.jobId, meta);
         return;
       }
@@ -331,6 +442,7 @@ export function useInspectionAnalysis(propertyId) {
       if (report && reportS3Key) {
         const meta = metaFromReport(report);
         if (!meta.s3Key) {
+          syncRunLimits(completedRunCount, maxAnalysisRuns);
           setStatus("empty");
           setReportMeta(null);
           setError("Report has no file key");
@@ -338,9 +450,11 @@ export function useInspectionAnalysis(propertyId) {
         }
         setReportMeta(meta);
         setStatus("ready_to_analyze");
+        syncRunLimits(completedRunCount, maxAnalysisRuns);
         return;
       }
 
+      syncRunLimits(completedRunCount, maxAnalysisRuns);
       setStatus("empty");
       setReportMeta(null);
       setData(null);
@@ -353,6 +467,8 @@ export function useInspectionAnalysis(propertyId) {
       setError(err?.message ?? "Failed to load analysis");
       setData(null);
       setAnalysisProgress(null);
+      setCompletedRunCount(0);
+      setMaxAnalysisRuns(2);
     }
   }, [propertyId, pollJobUntilTerminal]);
 
@@ -371,8 +487,26 @@ export function useInspectionAnalysis(propertyId) {
   /** Start analysis when user clicks "Run AI Analysis". Suppresses TierLimitBanner so only one message shows. */
   const startAnalysis = useCallback(async () => {
     if (!propertyId || !reportMeta?.s3Key) return;
+    const key = String(reportMeta.s3Key).trim();
+    if (!key) return;
+
+    let docsForVerify = [];
+    try {
+      docsForVerify = (await AppApi.getPropertyDocuments(propertyId)) ?? [];
+    } catch {
+      docsForVerify = [];
+    }
+    if (!documentsHasS3Key(docsForVerify, key)) {
+      setStatus("error");
+      setReportMeta(null);
+      setError(
+        "No inspection report file is on file for this property. Upload a report before running analysis.",
+      );
+      return;
+    }
+
     const cacheKey = String(propertyId);
-    const meta = reportMeta;
+    const meta = {...reportMeta, s3Key: key};
 
     setStatus("loading");
     setError(null);
@@ -390,9 +524,17 @@ export function useInspectionAnalysis(propertyId) {
       const isQuotaError =
         err?.status === 403 &&
         err?.message?.toLowerCase().includes("quota");
-      setStatus(isQuotaError ? "quota_exceeded" : "ready_to_analyze");
+      const preserveOnFail = dataRef.current != null;
+      if (isQuotaError) {
+        setStatus("quota_exceeded");
+        setData(null);
+      } else if (preserveOnFail) {
+        setStatus("ready");
+      } else {
+        setStatus("ready_to_analyze");
+        setData(null);
+      }
       setError(err?.message ?? "Failed to load analysis");
-      setData(null);
       setAnalysisProgress(null);
     } finally {
       AppApi._suppressTierEmit = prevSuppress;
@@ -405,6 +547,8 @@ export function useInspectionAnalysis(propertyId) {
     error,
     reportMeta,
     analysisProgress,
+    completedRunCount,
+    maxAnalysisRuns,
     refresh,
     load,
     startAnalysis,

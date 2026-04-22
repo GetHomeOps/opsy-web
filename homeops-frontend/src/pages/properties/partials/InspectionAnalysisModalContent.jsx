@@ -19,6 +19,8 @@ import {
   Sparkles,
   Building,
   ChevronRight,
+  X,
+  RefreshCw,
 } from "lucide-react";
 import {useInspectionAnalysis} from "../../../hooks/useInspectionAnalysis";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
@@ -62,6 +64,29 @@ function parseQuotaFromError(errorMsg) {
   return {used: parseInt(m[1], 10), quota: parseInt(m[2], 10)};
 }
 
+function AnalysisModalHeader({onClose, children}) {
+  return (
+    <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-700 shrink-0">
+      <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+        Inspection Report Analysis
+      </span>
+      <div className="flex items-center gap-1">
+        {children}
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:text-neutral-400 dark:hover:bg-neutral-800"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 const AI_ANALYSIS_FEATURES = [
   {
     icon: Sparkles,
@@ -88,6 +113,7 @@ const AI_ANALYSIS_FEATURES = [
 export default function InspectionAnalysisModalContent({
   propertyId,
   isOpen,
+  onClose,
   onScheduleMaintenance,
   onTierRestriction,
   onUploadReport,
@@ -100,9 +126,46 @@ export default function InspectionAnalysisModalContent({
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
     : "/professionals";
-  const {status, data, error, refresh, load, startAnalysis, analysisProgress} =
-    useInspectionAnalysis(propertyId);
+  const {
+    status,
+    data,
+    error,
+    refresh,
+    load,
+    startAnalysis,
+    analysisProgress,
+    reportMeta,
+    completedRunCount,
+    maxAnalysisRuns,
+  } = useInspectionAnalysis(propertyId);
   const [missingSystems, setMissingSystems] = useState([]);
+  const [rerunNotice, setRerunNotice] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) setRerunNotice(null);
+  }, [isOpen]);
+
+  const atRunLimit = completedRunCount >= maxAnalysisRuns;
+
+  const handleRerunClick = () => {
+    setRerunNotice(null);
+    if (atRunLimit) {
+      setRerunNotice({
+        type: "limit",
+        text: `This property has already used all ${maxAnalysisRuns} analysis runs.`,
+      });
+      return;
+    }
+    const key = reportMeta?.s3Key != null ? String(reportMeta.s3Key).trim() : "";
+    if (!key) {
+      setRerunNotice({
+        type: "report",
+        text: "Add an inspection report before rerunning analysis.",
+      });
+      return;
+    }
+    startAnalysis();
+  };
 
   useEffect(() => {
     if (isOpen && propertyId) {
@@ -135,11 +198,14 @@ export default function InspectionAnalysisModalContent({
 
   if (!propertyId) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Save the property first to analyze reports.
-        </p>
-      </div>
+      <>
+        <AnalysisModalHeader onClose={onClose} />
+        <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Save the property first to analyze reports.
+          </p>
+        </div>
+      </>
     );
   }
 
@@ -148,7 +214,9 @@ export default function InspectionAnalysisModalContent({
       analysisProgress ||
       (status === "idle" ? "Loading…" : "Preparing inspection analysis…");
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6 max-w-lg mx-auto text-center">
+      <>
+        <AnalysisModalHeader onClose={onClose} />
+        <div className="flex flex-col items-center justify-center py-12 px-6 max-w-lg mx-auto text-center">
         <div className="animate-pulse space-y-4 w-full max-w-md">
           <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
           <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-full" />
@@ -167,6 +235,7 @@ export default function InspectionAnalysisModalContent({
           </p>
         )}
       </div>
+      </>
     );
   }
 
@@ -200,7 +269,9 @@ export default function InspectionAnalysisModalContent({
     ];
 
     return (
-      <div className="flex flex-col min-h-[60vh] p-8 sm:p-10">
+      <>
+        <AnalysisModalHeader onClose={onClose} />
+        <div className="flex flex-col min-h-[60vh] p-8 sm:p-10">
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center mb-4">
             <ArrowUpCircle className="w-8 h-8 text-amber-500 dark:text-amber-400" />
@@ -243,12 +314,15 @@ export default function InspectionAnalysisModalContent({
           ))}
         </div>
       </div>
+      </>
     );
   }
 
   if (status === "error") {
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+      <>
+        <AnalysisModalHeader onClose={onClose} />
+        <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
         <AlertCircle className="w-12 h-12 text-amber-500 dark:text-amber-400 mb-3" />
         <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
           Something went wrong
@@ -256,14 +330,27 @@ export default function InspectionAnalysisModalContent({
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm">
           {error}
         </p>
-        <button
-          type="button"
-          onClick={refresh}
-          className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium"
-        >
-          Retry
-        </button>
+        <div className="mt-4 flex flex-col sm:flex-row items-center gap-3">
+          <button
+            type="button"
+            onClick={refresh}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium"
+          >
+            Retry
+          </button>
+          {onUploadReport ? (
+            <button
+              type="button"
+              onClick={onUploadReport}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-700/80 transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              Upload inspection report
+            </button>
+          ) : null}
+        </div>
       </div>
+      </>
     );
   }
 
@@ -291,7 +378,9 @@ export default function InspectionAnalysisModalContent({
       },
     ];
     return (
-      <div className="flex flex-col min-h-[60vh] p-8 sm:p-10">
+      <>
+        <AnalysisModalHeader onClose={onClose} />
+        <div className="flex flex-col min-h-[60vh] p-8 sm:p-10">
         <div className="flex flex-col items-center text-center mb-10">
           <div className="w-16 h-16 rounded-2xl bg-[#456564]/10 dark:bg-[#456564]/20 flex items-center justify-center mb-5">
             <FileCheck className="w-8 h-8 text-[#456564] dark:text-[#5a7a78]" />
@@ -303,6 +392,19 @@ export default function InspectionAnalysisModalContent({
             You have an inspection report. Run AI analysis to extract condition
             ratings, system findings, and maintenance recommendations.
           </p>
+          {error && (
+            <div className="mt-5 max-w-xl w-full flex items-start gap-2 px-4 py-3 rounded-lg border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/20 text-left">
+              <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-red-700 dark:text-red-300">
+                  Last analysis attempt failed
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 leading-relaxed">
+                  {error}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10 flex-1">
           {features.map(({icon: Icon, title, desc}) => (
@@ -324,21 +426,38 @@ export default function InspectionAnalysisModalContent({
             </div>
           ))}
         </div>
-        <div className="flex justify-center pt-4">
+        <div className="flex flex-col sm:flex-row justify-center items-center pt-4 gap-3">
           <button
             type="button"
             onClick={startAnalysis}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#456564] hover:bg-[#34514f] text-white text-sm font-semibold transition-colors shadow-sm"
+            disabled={atRunLimit}
+            title={
+              atRunLimit
+                ? `Analysis can be run at most ${maxAnalysisRuns} times per property.`
+                : undefined
+            }
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#456564] hover:bg-[#34514f] text-white text-sm font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:pointer-events-none"
           >
             <Sparkles className="w-5 h-5" />
-            Run AI Analysis
+            {error ? "Retry AI Analysis" : "Run AI Analysis"}
           </button>
+          {onUploadReport ? (
+            <button
+              type="button"
+              onClick={onUploadReport}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 text-sm font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-700/80 transition-colors"
+            >
+              <Upload className="w-5 h-5" />
+              {error ? "Replace report" : "Upload or replace report"}
+            </button>
+          ) : null}
         </div>
       </div>
+      </>
     );
   }
 
-  if (status === "empty" || status === "ready_to_analyze") {
+  if (status === "empty") {
     const features = [
       {
         icon: Sparkles,
@@ -361,20 +480,21 @@ export default function InspectionAnalysisModalContent({
         desc: "Prioritized maintenance suggestions with suggested schedules you can add to your calendar.",
       },
     ];
-    const hasReport = status === "ready_to_analyze";
     return (
-      <div className="flex flex-col min-h-[60vh] p-8 sm:p-10">
+      <>
+        <AnalysisModalHeader onClose={onClose} />
+        <div className="flex flex-col min-h-[60vh] p-8 sm:p-10">
         <div className="flex flex-col items-center text-center mb-10">
           <div className="w-16 h-16 rounded-2xl bg-[#456564]/10 dark:bg-[#456564]/20 flex items-center justify-center mb-5">
             <FileCheck className="w-8 h-8 text-[#456564] dark:text-[#5a7a78]" />
           </div>
           <h3 className="text-xl font-semibold text-neutral-800 dark:text-neutral-100 mb-2">
-            {hasReport ? "Ready to analyze" : "No analysis available yet"}
+            No inspection report on file
           </h3>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-xl">
-            {hasReport
-              ? "Your inspection report is uploaded. Click below to run AI analysis and get condition ratings, system findings, and maintenance recommendations."
-              : "Upload your inspection report (PDF) and our AI will analyze it to extract condition ratings, system findings, maintenance recommendations, and more."}
+            Upload your inspection report (PDF). Our AI will analyze it to
+            extract condition ratings, system findings, maintenance
+            recommendations, and more.
           </p>
         </div>
 
@@ -400,16 +520,7 @@ export default function InspectionAnalysisModalContent({
         </div>
 
         <div className="flex justify-center pt-4 gap-3">
-          {hasReport ? (
-            <button
-              type="button"
-              onClick={startAnalysis}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#456564] hover:bg-[#34514f] text-white text-sm font-semibold transition-colors shadow-sm"
-            >
-              <Sparkles className="w-5 h-5" />
-              Run AI Analysis
-            </button>
-          ) : onUploadReport ? (
+          {onUploadReport ? (
             <button
               type="button"
               onClick={onUploadReport}
@@ -421,6 +532,7 @@ export default function InspectionAnalysisModalContent({
           ) : null}
         </div>
       </div>
+      </>
     );
   }
 
@@ -461,7 +573,53 @@ export default function InspectionAnalysisModalContent({
     });
 
     return (
-      <div className="p-6 space-y-6">
+      <>
+        <AnalysisModalHeader onClose={onClose}>
+          <button
+            type="button"
+            onClick={handleRerunClick}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            title={
+              atRunLimit
+                ? `Analysis can be run at most ${maxAnalysisRuns} times per property.`
+                : "Run analysis again on the current report"
+            }
+          >
+            <RefreshCw className="w-4 h-4 shrink-0" />
+            Rerun analysis
+          </button>
+        </AnalysisModalHeader>
+        {rerunNotice ? (
+          <div className="mx-6 mt-3 flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50/90 dark:bg-amber-900/20 px-3 py-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-amber-900 dark:text-amber-100/90 leading-relaxed">
+                {rerunNotice.text}
+              </p>
+              {rerunNotice.type === "report" && onUploadReport ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRerunNotice(null);
+                    onUploadReport();
+                  }}
+                  className="mt-2 text-xs font-semibold text-[#456564] dark:text-[#7aa3a2] hover:underline"
+                >
+                  Add inspection report
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        {error ? (
+          <div className="mx-6 mt-3 flex items-start gap-2 rounded-lg border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/20 px-3 py-2.5">
+            <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+              {error}
+            </p>
+          </div>
+        ) : null}
+        <div className="p-6 space-y-6">
         {/* Summary */}
         <section>
           <h3 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2">
@@ -669,7 +827,8 @@ export default function InspectionAnalysisModalContent({
             </button>
           </section>
         )}
-      </div>
+        </div>
+      </>
     );
   }
 

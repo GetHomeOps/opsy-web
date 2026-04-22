@@ -4063,19 +4063,6 @@ function PropertyFormContainer() {
         contentClassName="max-w-6xl min-h-[80vh]"
         ignoreClickRef={blankModalButtonRef}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-700">
-          <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-            Inspection Report Analysis
-          </span>
-          <button
-            type="button"
-            onClick={() => setBlankModalOpen(false)}
-            className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:text-neutral-400 dark:hover:bg-neutral-800"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
         <InspectionAnalysisModalContent
           propertyId={
             uid !== "new"
@@ -4083,6 +4070,7 @@ function PropertyFormContainer() {
               : null
           }
           isOpen={blankModalOpen}
+          onClose={() => setBlankModalOpen(false)}
           onScheduleMaintenance={(prefill) => {
             setScheduleFromAiPrefill(prefill);
             setScheduleFromAiModalOpen(true);
@@ -4096,36 +4084,33 @@ function PropertyFormContainer() {
             );
             setUpgradePromptOpen(true);
           }}
-          onUploadReport={
-            uid !== "new"
-              ? () => {
-                  if (!isAdmin && !aiFeaturesEnabled) {
-                    setUpgradePromptTitle(
-                      "AI inspection analysis not included",
-                    );
-                    setUpgradePromptMsg(
-                      "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features.",
-                    );
-                    setUpgradePromptOpen(true);
-                    setBlankModalOpen(false);
-                    return;
-                  }
-                  if (!isPaidUser) {
-                    setUpgradePromptTitle("Inspection Analysis not included");
-                    setUpgradePromptMsg(
-                      "Your plan doesn't support AI inspection report analysis. Upgrade to analyze inspection reports with AI.",
-                    );
-                    setUpgradePromptOpen(true);
-                    setBlankModalOpen(false);
-                    return;
-                  }
-                  setBlankModalOpen(false);
-                  setSystemsSetupOnlyStep("inspection");
-                  setSystemsSetupInitialStep("inspection");
-                  setSystemsSetupModalOpen(true);
-                }
-              : undefined
-          }
+          onUploadReport={() => {
+            if (!isAdmin && !aiFeaturesEnabled) {
+              setUpgradePromptTitle("AI inspection analysis not included");
+              setUpgradePromptMsg(
+                "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features.",
+              );
+              setUpgradePromptOpen(true);
+              setBlankModalOpen(false);
+              return;
+            }
+            if (!isPaidUser) {
+              setUpgradePromptTitle("Inspection Analysis not included");
+              setUpgradePromptMsg(
+                "Your plan doesn't support AI inspection report analysis. Upgrade to analyze inspection reports with AI.",
+              );
+              setUpgradePromptOpen(true);
+              setBlankModalOpen(false);
+              return;
+            }
+            // Route to the Documents tab so the user can manage (delete + re-upload)
+            // their inspection report. The backend enforces a single inspection
+            // report per property, so SystemsSetupModal's upload-only step would
+            // fail when one already exists. The Documents tab handles both cases.
+            setBlankModalOpen(false);
+            dispatch({type: "SET_ACTIVE_TAB", payload: "documents"});
+            setDocumentsUploadModalRequested(true);
+          }}
           propertySystems={state.systems ?? []}
           customSystemNames={state.formData.systems?.customSystemNames ?? []}
           onContinueToSystems={(suggested) => {

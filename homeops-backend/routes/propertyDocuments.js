@@ -93,15 +93,19 @@ router.post("/", ensureLoggedIn, ensurePropertyAccess({ fromBody: "property_id",
       }).catch((err) => console.error("[propertyDocuments] logStorageUsage:", err.message));
     }
 
-    documentRagService.ingestDocument(propertyId, document.id).catch((err) => {
-      if (!err?.message?.includes("pgvector not available")) {
-        console.error("[documentRag] Ingest on upload failed:", err.message);
-      }
-    });
-    // Trigger AI reanalysis when new document is added (async, non-blocking)
-    triggerReanalysisOnDocument(propertyId, document.id).catch((err) => {
-      console.error("[propertyReanalysis] Document trigger failed:", err.message);
-    });
+    // RAG ingestion is reserved for inspection reports (the only doc type used
+    // by the AI inspection-analysis flow). Other documents are stored without
+    // embeddings to keep bulk uploads fast and cheap.
+    if (systemKey === "inspectionReport") {
+      documentRagService.ingestDocument(propertyId, document.id).catch((err) => {
+        if (!err?.message?.includes("pgvector not available")) {
+          console.error("[documentRag] Ingest on upload failed:", err.message);
+        }
+      });
+      triggerReanalysisOnDocument(propertyId, document.id).catch((err) => {
+        console.error("[propertyReanalysis] Document trigger failed:", err.message);
+      });
+    }
     return res.status(201).json({ document });
   } catch (err) {
     return next(err);
@@ -123,6 +127,59 @@ router.get("/:id", ensureLoggedIn, loadPropertyIdFromDocument, ensurePropertyAcc
   try {
     const document = await PropertyDocument.get(req.params.id);
     return res.json({ document });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * PATCH /:id - Update a filed document.
+ * Body may include: document_name, document_date, document_type, system_key.
+ *
+ * When system_key changes (drag-to-move between folders) we re-validate
+ * the inspection-report singleton and the per-system tier limit so the
+ * UI cannot bypass either rule.
+ */
+router.patch("/:id", ensureLoggedIn, loadPropertyIdFromDocument, ensurePropertyAccess({ param: "propertyId" }), async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const existing = await PropertyDocument.get(id);
+    const { system_key, document_type, document_name, document_date } = req.body || {};
+
+    const targetSystemKey = system_key ?? existing.system_key;
+    const userRole = res.locals.user?.role;
+
+    if (system_key && system_key !== existing.system_key && targetSystemKey === "inspectionReport") {
+      const n = await PropertyDocument.countByPropertyAndSystemKey(existing.property_id, "inspectionReport");
+      if (n >= 1) {
+        throw new BadRequestError(
+          "This property already has an inspection report. Delete it before moving another into this folder.",
+        );
+      }
+    }
+
+    if (system_key && system_key !== existing.system_key && userRole !== "super_admin" && userRole !== "admin") {
+      const accRes = await db.query(
+        `SELECT account_id FROM properties WHERE id = $1`,
+        [existing.property_id],
+      );
+      const accountId = accRes.rows[0]?.account_id;
+      if (accountId) {
+        const tierCheck = await canUploadDocumentToSystem(accountId, existing.property_id, targetSystemKey, userRole);
+        if (!tierCheck.allowed) {
+          throw new ForbiddenError(`Document limit reached for this system (${tierCheck.current}/${tierCheck.max}). Upgrade your plan.`);
+        }
+      }
+    }
+
+    const updated = await PropertyDocument.update(id, {
+      document_name,
+      document_date,
+      document_type,
+      system_key,
+    });
+
+    return res.json({ document: updated });
   } catch (err) {
     return next(err);
   }

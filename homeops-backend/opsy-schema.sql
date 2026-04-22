@@ -411,6 +411,34 @@ CREATE TABLE property_documents (
 
 CREATE INDEX idx_property_documents_maintenance ON property_documents(maintenance_record_id);
 
+-- ============================================================
+-- Staged Documents
+-- Inbox / staging area for the Documents tab. Files are uploaded to
+-- S3 immediately, then live here until the user files them into a
+-- system folder (which moves them into property_documents).
+-- ============================================================
+CREATE TABLE staged_documents (
+    id SERIAL PRIMARY KEY,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    document_key VARCHAR(512) NOT NULL,
+    original_name VARCHAR(512) NOT NULL,
+    file_size_bytes BIGINT NOT NULL DEFAULT 0,
+    mime_type VARCHAR(100),
+    proposed_system_key VARCHAR(50),
+    proposed_document_type VARCHAR(50),
+    proposed_document_name VARCHAR(255),
+    proposed_document_date DATE,
+    upload_status VARCHAR(20) NOT NULL DEFAULT 'uploaded',
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_staged_documents_property ON staged_documents(property_id);
+CREATE INDEX idx_staged_documents_user ON staged_documents(user_id);
+CREATE INDEX idx_staged_documents_created ON staged_documents(created_at);
+
 -- Document chunks with embeddings for RAG over property documents
 CREATE TABLE document_chunks (
     id SERIAL PRIMARY KEY,
@@ -905,6 +933,8 @@ CREATE TABLE comm_templates (
     primary_color VARCHAR(7) DEFAULT '#456564',
     secondary_color VARCHAR(7) DEFAULT '#f9fafb',
     footer_text TEXT DEFAULT '',
+    brand_name VARCHAR(120) DEFAULT 'Opsy',
+    social_links JSONB DEFAULT '[]'::jsonb,
     is_default BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

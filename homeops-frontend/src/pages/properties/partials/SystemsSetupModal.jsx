@@ -38,6 +38,7 @@ import {
   toDisplaySystemName,
   mapAiSystemTypeToIds,
 } from "../helpers/aiSystemNormalization";
+import {emitPropertyDocumentsChanged} from "../helpers/inspectionFlowSession";
 import {
   setInspectionFlowState,
   clearInspectionFlowState,
@@ -387,6 +388,7 @@ function SystemsSetupModal({
   const [inspectionReportAvailable, setInspectionReportAvailable] =
     useState(null);
   const [uploadedDocs, setUploadedDocs] = useState([]);
+  const [documentSaveError, setDocumentSaveError] = useState(null);
   const [analysisJobId, setAnalysisJobId] = useState(null);
   const [analysisStatus, setAnalysisStatus] = useState(null);
   const [analysisProgress, setAnalysisProgress] = useState(null);
@@ -487,6 +489,7 @@ function SystemsSetupModal({
     setHasPredicted(false);
     setInspectionReportAvailable(onlyStep === "inspection" ? true : null);
     setUploadedDocs([]);
+    setDocumentSaveError(null);
     setAnalysisJobId(null);
     setAnalysisStatus(null);
     setAnalysisProgress(null);
@@ -950,135 +953,94 @@ function SystemsSetupModal({
     );
   };
 
+  const processInspectionFiles = useCallback(
+    async (files) => {
+      if (!propertyId || files.length === 0) return;
+      setDocumentSaveError(null);
+      for (const file of files) {
+        setInspectionFlowState(propertyId, {
+          phase: "uploading",
+          fileName: file.name,
+          progress: 0,
+        });
+        const result = await uploadDocument(file);
+        if (!result?.key) {
+          clearInspectionFlowState(propertyId);
+          continue;
+        }
+        setInspectionFlowState(propertyId, {
+          phase: "saving",
+          fileName: file.name,
+          s3Key: result.key,
+          mimeType: file.type || "application/pdf",
+        });
+        try {
+          AppApi._suppressTierEmit = true;
+          const docDate = new Date().toISOString().slice(0, 10);
+          await AppApi.createPropertyDocument({
+            property_id: propertyId,
+            document_name: "Inspection Report",
+            document_date: docDate,
+            document_key: result.key,
+            document_type: "inspection",
+            system_key: "inspectionReport",
+            file_size_bytes: file.size,
+          });
+          emitPropertyDocumentsChanged(propertyId);
+          setUploadedDocs((prev) => [
+            ...prev,
+            {key: result.key, name: file.name, type: file.type},
+          ]);
+          if (file.type === "application/pdf") {
+            await startAnalysisForDoc(result.key, file.name, file.type);
+            break;
+          }
+          clearInspectionFlowState(propertyId);
+        } catch (docErr) {
+          clearInspectionFlowState(propertyId);
+          if (isTierError(docErr)) {
+            setUploadedDocs((prev) => [
+              ...prev,
+              {key: result.key, name: file.name, type: file.type},
+            ]);
+            setPlanRestrictionForAnalysis(true);
+          } else {
+            const msg =
+              docErr?.message ||
+              "Failed to save inspection report. Please try again.";
+            setDocumentSaveError(msg);
+          }
+          break;
+        } finally {
+          AppApi._suppressTierEmit = false;
+        }
+      }
+    },
+    [propertyId, uploadDocument, startAnalysisForDoc],
+  );
+
   const handleInspectionFileDrop = useCallback(
     async (e) => {
       e.preventDefault();
       const files = Array.from(e.dataTransfer?.files ?? []).filter(
         (f) => f.type === "application/pdf" || f.type.startsWith("image/"),
       );
-      if (!propertyId || files.length === 0) return;
-      for (const file of files) {
-        setInspectionFlowState(propertyId, {
-          phase: "uploading",
-          fileName: file.name,
-          progress: 0,
-        });
-        const result = await uploadDocument(file);
-        if (!result?.key) {
-          clearInspectionFlowState(propertyId);
-          continue;
-        }
-        setInspectionFlowState(propertyId, {
-          phase: "saving",
-          fileName: file.name,
-          s3Key: result.key,
-          mimeType: file.type || "application/pdf",
-        });
-        try {
-          AppApi._suppressTierEmit = true;
-          const docDate = new Date().toISOString().slice(0, 10);
-          await AppApi.createPropertyDocument({
-            property_id: propertyId,
-            document_name: "Inspection Report",
-            document_date: docDate,
-            document_key: result.key,
-            document_type: "inspection",
-            system_key: "inspectionReport",
-            file_size_bytes: file.size,
-          });
-          setUploadedDocs((prev) => [
-            ...prev,
-            {key: result.key, name: file.name, type: file.type},
-          ]);
-          if (file.type === "application/pdf") {
-            await startAnalysisForDoc(result.key, file.name, file.type);
-            break;
-          }
-          clearInspectionFlowState(propertyId);
-        } catch (docErr) {
-          if (isTierError(docErr)) {
-            setUploadedDocs((prev) => [
-              ...prev,
-              {key: result.key, name: file.name, type: file.type},
-            ]);
-            setPlanRestrictionForAnalysis(true);
-          } else {
-            clearInspectionFlowState(propertyId);
-            throw docErr;
-          }
-          break;
-        } finally {
-          AppApi._suppressTierEmit = false;
-        }
-      }
+      await processInspectionFiles(files);
     },
-    [propertyId, uploadDocument, startAnalysisForDoc],
+    [processInspectionFiles],
   );
 
   const handleInspectionFileSelect = useCallback(
     async (e) => {
       const files = Array.from(e.target?.files ?? []);
       e.target.value = "";
-      if (!propertyId || files.length === 0) return;
-      for (const file of files) {
-        setInspectionFlowState(propertyId, {
-          phase: "uploading",
-          fileName: file.name,
-          progress: 0,
-        });
-        const result = await uploadDocument(file);
-        if (!result?.key) {
-          clearInspectionFlowState(propertyId);
-          continue;
-        }
-        setInspectionFlowState(propertyId, {
-          phase: "saving",
-          fileName: file.name,
-          s3Key: result.key,
-          mimeType: file.type || "application/pdf",
-        });
-        try {
-          AppApi._suppressTierEmit = true;
-          const docDate = new Date().toISOString().slice(0, 10);
-          await AppApi.createPropertyDocument({
-            property_id: propertyId,
-            document_name: "Inspection Report",
-            document_date: docDate,
-            document_key: result.key,
-            document_type: "inspection",
-            system_key: "inspectionReport",
-            file_size_bytes: file.size,
-          });
-          setUploadedDocs((prev) => [
-            ...prev,
-            {key: result.key, name: file.name, type: file.type},
-          ]);
-          if (file.type === "application/pdf") {
-            await startAnalysisForDoc(result.key, file.name, file.type);
-            break;
-          }
-          clearInspectionFlowState(propertyId);
-        } catch (docErr) {
-          if (isTierError(docErr)) {
-            setUploadedDocs((prev) => [
-              ...prev,
-              {key: result.key, name: file.name, type: file.type},
-            ]);
-            setPlanRestrictionForAnalysis(true);
-          } else {
-            clearInspectionFlowState(propertyId);
-            throw docErr;
-          }
-          break;
-        } finally {
-          AppApi._suppressTierEmit = false;
-        }
-      }
+      await processInspectionFiles(files);
     },
-    [propertyId, uploadDocument, startAnalysisForDoc],
+    [processInspectionFiles],
   );
 
   const removeInspectionFile = (index) => {
+    setDocumentSaveError(null);
     setUploadedDocs((prev) => {
       const next = prev.filter((_, i) => i !== index);
       if (next.length === 0) {
@@ -2007,6 +1969,27 @@ function SystemsSetupModal({
                         <p className="text-xs text-red-500 dark:text-red-400 mt-2">
                           {uploadError}
                         </p>
+                      )}
+                      {documentSaveError && (
+                        <div className="mt-3 w-full max-w-sm flex items-start gap-2 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/20">
+                          <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-red-700 dark:text-red-300">
+                              {documentSaveError}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDocumentSaveError(null);
+                            }}
+                            className="p-0.5 rounded text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex-shrink-0"
+                            aria-label="Dismiss error"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                       {uploadedDocs.length > 0 && (
                         <div className="w-full max-w-sm space-y-2 mt-4">

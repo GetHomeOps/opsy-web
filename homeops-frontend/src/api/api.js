@@ -1018,6 +1018,63 @@ class AppApi {
     await this.request(`propertyDocuments/${id}`, {}, "DELETE");
   }
 
+  /** PATCH a property document. data: { document_name, document_date, document_type, system_key } */
+  static async updatePropertyDocument(id, data) {
+    const prev = AppApi._suppressTierEmit;
+    AppApi._suppressTierEmit = true;
+    try {
+      const res = await this.request(`propertyDocuments/${id}`, data, "PATCH");
+      return res.document;
+    } finally {
+      AppApi._suppressTierEmit = prev;
+    }
+  }
+
+  /* --------- Staged Documents (Documents inbox) --------- */
+
+  static async listStagedDocuments(propertyId) {
+    const res = await this.request(`stagedDocuments/property/${propertyId}`);
+    return res.stagedDocuments ?? [];
+  }
+
+  static async createStagedDocument(data) {
+    const res = await this.request("stagedDocuments", data, "POST");
+    return res.stagedDocument;
+  }
+
+  static async updateStagedDocument(id, data) {
+    const res = await this.request(`stagedDocuments/${id}`, data, "PATCH");
+    return res.stagedDocument;
+  }
+
+  static async deleteStagedDocument(id) {
+    await this.request(`stagedDocuments/${id}`, {}, "DELETE");
+  }
+
+  /** File a single staged doc into a system. data: { system_key, document_type, document_name, document_date } */
+  static async fileStagedDocument(id, data) {
+    const prev = AppApi._suppressTierEmit;
+    AppApi._suppressTierEmit = true;
+    try {
+      const res = await this.request(`stagedDocuments/${id}/file`, data, "POST");
+      return res.document;
+    } finally {
+      AppApi._suppressTierEmit = prev;
+    }
+  }
+
+  /** Bulk-file. items: [{ id, system_key, document_type, document_name, document_date }] */
+  static async fileStagedDocumentsBulk(items) {
+    const prev = AppApi._suppressTierEmit;
+    AppApi._suppressTierEmit = true;
+    try {
+      const res = await this.request("stagedDocuments/file-bulk", { items }, "POST");
+      return res;
+    } finally {
+      AppApi._suppressTierEmit = prev;
+    }
+  }
+
   /* --------- Subscriptions --------- */
 
   static async getAllSubscriptions(filters = {}) {

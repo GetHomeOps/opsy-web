@@ -75,3 +75,15 @@ export function inspectionFlowProgressMessage(flow) {
       return null;
   }
 }
+
+/** Fired when property documents need re-fetch (e.g. inspection save from setup modal, analysis completed). */
+export const PROPERTY_DOCUMENTS_CHANGED_EVENT = "opsy:property-documents-changed";
+
+export function emitPropertyDocumentsChanged(propertyId) {
+  if (!propertyId || typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(PROPERTY_DOCUMENTS_CHANGED_EVENT, {
+      detail: { propertyId: String(propertyId) },
+    }),
+  );
+}

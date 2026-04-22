@@ -61,7 +61,15 @@ export async function fetchInspectionAnalysisState(propertyId, reportS3Key) {
           mimeType: pj.mimeType ?? pj.mime_type ?? null,
         }
       : null;
-  return { analysis, pendingJob };
+  const completedRunCount =
+    typeof envelope?.completedRunCount === "number"
+      ? envelope.completedRunCount
+      : 0;
+  const maxAnalysisRuns =
+    typeof envelope?.maxAnalysisRuns === "number"
+      ? envelope.maxAnalysisRuns
+      : 2;
+  return { analysis, pendingJob, completedRunCount, maxAnalysisRuns };
 }
 
 /**

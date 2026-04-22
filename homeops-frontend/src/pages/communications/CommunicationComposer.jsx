@@ -9,7 +9,6 @@ import {useAuth} from "../../context/AuthContext";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
-import {PAGE_LAYOUT} from "../../constants/layout";
 import ComposeSection from "./partials/ComposeSection";
 import AudienceSection from "./partials/AudienceSection";
 import DeliverySection from "./partials/DeliverySection";
@@ -21,7 +20,6 @@ import {
   Clock,
   Save,
   Loader2,
-  Eye,
   Copy,
   Plus,
   Settings,
@@ -63,7 +61,6 @@ function CommunicationComposer() {
   const [estimatedCount, setEstimatedCount] = useState(null);
   const [template, setTemplate] = useState(null);
   const [sendModalOpen, setSendModalOpen] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [actionsDropdownOpen, setActionsDropdownOpen] = useState(false);
   const lastSavedRef = useRef(null);
   const sendButtonRef = useRef(null);
@@ -309,7 +306,7 @@ function CommunicationComposer() {
       <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="flex-1 overflow-y-auto">
-          <div className={showPreview ? "px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[90rem] mx-auto" : PAGE_LAYOUT.form}>
+          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             {/* Top bar */}
             <div className="flex items-center justify-between mb-8">
               <button
@@ -390,18 +387,6 @@ function CommunicationComposer() {
                     </div>
                   </>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setShowPreview((p) => !p)}
-                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
-                    showPreview
-                      ? "border-[#456564] bg-[#456564]/10 text-[#456564] dark:text-[#5a7a78]"
-                      : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  }`}
-                >
-                  <Eye className="w-4 h-4" />
-                  Preview
-                </button>
               </div>
             </div>
 
@@ -417,11 +402,9 @@ function CommunicationComposer() {
             </div>
 
             {/* Main layout: form + preview */}
-            <div className="flex gap-6">
+            <div className="flex flex-col lg:flex-row gap-6">
               {/* Left: Sections */}
-              <div
-                className={`flex-1 min-w-0 space-y-6 ${showPreview ? "max-w-[55%]" : ""}`}
-              >
+              <div className="flex-1 min-w-0 space-y-6 lg:max-w-[55%]">
                 {/* 1. Compose */}
                 <ComposeSection
                   form={form}
@@ -529,11 +512,28 @@ function CommunicationComposer() {
               </div>
 
               {/* Right: Live preview */}
-              {showPreview && (
-                <div className="w-[45%] min-w-[400px] max-w-[560px] shrink-0 sticky top-0 self-start max-h-[calc(100vh-6rem)]">
-                  <LivePreview form={form} template={template} />
-                </div>
-              )}
+              <div className="w-full lg:w-[45%] lg:min-w-[420px] lg:max-w-[640px] lg:shrink-0 lg:sticky lg:top-0 lg:self-start h-[70vh] lg:h-[calc(100vh-6rem)]">
+                <LivePreview
+                  form={form}
+                  template={template}
+                  editable={!isSent}
+                  onUpdateTemplate={async (patch) => {
+                    if (!template?.id) return;
+                    try {
+                      const updated = await AppApi.updateCommTemplate(
+                        template.id,
+                        patch,
+                      );
+                      setTemplate(updated);
+                    } catch (err) {
+                      showBanner(
+                        "error",
+                        err?.message || "Template update failed.",
+                      );
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
         </main>

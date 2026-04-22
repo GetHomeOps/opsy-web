@@ -224,6 +224,22 @@ function ComposeSection({ form, updateForm, disabled, template, setTemplate, acc
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Brand name
+              </label>
+              <input
+                type="text"
+                value={template.brandName || ""}
+                onChange={(e) => handleTemplateUpdate("brandName", e.target.value)}
+                placeholder="Opsy"
+                className="form-input w-full text-sm"
+                disabled={disabled}
+              />
+              <p className="text-[10px] text-gray-400 mt-1">
+                Tip: you can also click the brand text directly in the preview to edit it.
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Footer text
               </label>
               <input
@@ -243,7 +259,7 @@ function ComposeSection({ form, updateForm, disabled, template, setTemplate, acc
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Layout
           </label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {LAYOUTS.map((layout) => {
               const currentLayout = form.content?.layout || "classic";
               const isSelected = currentLayout === layout.id;

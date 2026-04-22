@@ -5,7 +5,10 @@ import DatePickerInput from "../../../components/DatePickerInput";
 import AppApi from "../../../api/api";
 import useDocumentUpload from "../../../hooks/useDocumentUpload";
 import { S3_UPLOAD_FOLDER } from "../../../constants/s3UploadFolders";
-import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../../constants/documentUpload";
+import {
+  MAX_DOCUMENT_UPLOAD_LABEL,
+  defaultDocumentLabelFromFile,
+} from "../../../constants/documentUpload";
 import UpgradePrompt from "../../../components/UpgradePrompt";
 
 const documentTypes = [
@@ -320,6 +323,12 @@ function UploadDocumentModal({
               const files = Array.from(e.target.files || []);
               setUploadFiles(files);
               setUploadError(null);
+              if (files.length > 0) {
+                setDocumentName((prev) => {
+                  if (prev.trim()) return prev;
+                  return defaultDocumentLabelFromFile(files[0]);
+                });
+              }
               e.target.value = "";
             }}
           />

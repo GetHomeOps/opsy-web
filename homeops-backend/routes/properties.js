@@ -26,6 +26,9 @@ const { isAllowedInspectionAnalysisS3Key } = require("../constants/s3Upload");
 
 const router = new express.Router();
 
+/** Successful inspection analyses per property (initial run + one rerun). */
+const MAX_INSPECTION_ANALYSIS_RUNS_PER_PROPERTY = 2;
+
 /** HomeOps internal platform roles: omit from team lists for non-internal viewers. */
 const INTERNAL_TEAM_PLATFORM_ROLES = new Set(["admin", "super_admin"]);
 
@@ -344,6 +347,13 @@ router.post(
         throw new BadRequestError("Invalid s3Key");
       }
 
+      const completedRuns = await InspectionAnalysisJob.countCompletedByProperty(propertyId);
+      if (completedRuns >= MAX_INSPECTION_ANALYSIS_RUNS_PER_PROPERTY) {
+        throw new ForbiddenError(
+          `Inspection analysis can be run at most ${MAX_INSPECTION_ANALYSIS_RUNS_PER_PROPERTY} times per property.`
+        );
+      }
+
       const job = await InspectionAnalysisJob.create({
         property_id: propertyId,
         user_id: userId,
@@ -371,6 +381,13 @@ router.get(
     try {
       const propertyId = req.params.propertyId;
       const reportS3Key = (req.query.reportS3Key || "").trim();
+      const completedRunCount = await InspectionAnalysisJob.countCompletedByProperty(
+        propertyId
+      );
+      const runLimitPayload = {
+        completedRunCount,
+        maxAnalysisRuns: MAX_INSPECTION_ANALYSIS_RUNS_PER_PROPERTY,
+      };
       const result = await InspectionAnalysisResult.getByPropertyId(propertyId);
       if (!result) {
         let pendingJob = null;
@@ -395,7 +412,7 @@ router.get(
             mimeType: row.mime_type,
           };
         }
-        return res.json({ analysis: null, pendingJob });
+        return res.json({ analysis: null, pendingJob, ...runLimitPayload });
       }
       const payload = {
         analysis: {
@@ -411,6 +428,7 @@ router.get(
           createdAt: result.created_at,
         },
         pendingJob: null,
+        ...runLimitPayload,
       };
       return res.json(payload);
     } catch (err) {

@@ -3,7 +3,7 @@ import AppApi from "../../../api/api";
 import { Monitor, Smartphone } from "lucide-react";
 import { LAYOUT_COMPONENTS } from "./templateLayouts";
 
-function LivePreview({ form, template }) {
+function LivePreview({ form, template, onUpdateTemplate, editable = true }) {
   const [viewMode, setViewMode] = useState("desktop");
   const primaryColor = template?.primaryColor || "#456564";
   const bgColor = template?.secondaryColor || "#f9fafb";
@@ -90,6 +90,8 @@ function LivePreview({ form, template }) {
               previewImageUrl={previewImageUrl}
               attachmentUrls={attachmentUrls}
               viewMode={viewMode}
+              editable={editable}
+              onUpdateTemplate={onUpdateTemplate}
             />
           </DesktopFrame>
         ) : (
@@ -103,6 +105,8 @@ function LivePreview({ form, template }) {
               previewImageUrl={previewImageUrl}
               attachmentUrls={attachmentUrls}
               viewMode={viewMode}
+              editable={editable}
+              onUpdateTemplate={onUpdateTemplate}
             />
           </MobileFrame>
         )}
@@ -113,30 +117,23 @@ function LivePreview({ form, template }) {
 
 function DesktopFrame({ children }) {
   return (
-    <div className="rounded-xl overflow-hidden border border-gray-300 dark:border-gray-600 shadow-md bg-white">
-      {/* Browser chrome */}
-      <div className="flex items-center gap-1.5 px-3 py-2 bg-gray-200 dark:bg-gray-700 border-b border-gray-300 dark:border-gray-600">
-        <span className="w-2.5 h-2.5 rounded-full bg-red-400/70" />
-        <span className="w-2.5 h-2.5 rounded-full bg-yellow-400/70" />
-        <span className="w-2.5 h-2.5 rounded-full bg-green-400/70" />
-        <div className="ml-3 flex-1 h-5 rounded bg-gray-300 dark:bg-gray-600" />
-      </div>
-      <div className="overflow-y-auto max-h-[60vh]">{children}</div>
+    <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 shadow-md bg-white flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto min-h-0">{children}</div>
     </div>
   );
 }
 
 function MobileFrame({ children }) {
   return (
-    <div className="mx-auto" style={{ maxWidth: 375 }}>
-      <div className="rounded-[2rem] overflow-hidden border-[3px] border-gray-800 dark:border-gray-500 shadow-lg bg-white">
+    <div className="mx-auto h-full flex flex-col" style={{ maxWidth: 375 }}>
+      <div className="rounded-[2rem] overflow-hidden border-[3px] border-gray-800 dark:border-gray-500 shadow-lg bg-white flex flex-col flex-1 min-h-0">
         {/* Notch / status bar */}
-        <div className="flex items-center justify-center py-1.5 bg-gray-800 dark:bg-gray-500">
+        <div className="flex items-center justify-center py-1.5 bg-gray-800 dark:bg-gray-500 shrink-0">
           <div className="w-20 h-4 rounded-b-xl bg-gray-900 dark:bg-gray-600" />
         </div>
-        <div className="overflow-y-auto max-h-[56vh]">{children}</div>
+        <div className="flex-1 overflow-y-auto min-h-0">{children}</div>
         {/* Home indicator */}
-        <div className="flex justify-center py-2 bg-gray-50">
+        <div className="flex justify-center py-2 bg-gray-50 shrink-0">
           <div className="w-28 h-1 rounded-full bg-gray-300" />
         </div>
       </div>
