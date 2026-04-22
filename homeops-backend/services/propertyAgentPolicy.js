@@ -4,21 +4,27 @@
  * Property Agent Policy
  *
  * Enforces "only one agent per property" across invitation creation and direct
- * team updates. An "agent" here is any user whose platform role is agent,
- * admin, or super_admin (matches propertyMissingAgentNotifications + the
- * frontend hasAgent rule in SharePropertyModal).
+ * team updates. An "agent" here is strictly a user whose platform role is
+ * `agent` — admin and super_admin platform roles (e.g. HomeOps internal users)
+ * are treated as admins, not agents, so a property created/owned by an admin
+ * still has an open agent slot and can receive an agent invitation.
+ *
+ * Pending agents (role=agent, is_active=false because they haven't accepted
+ * their account invite, or with no active paid subscription yet) still count
+ * as agents for the uniqueness rule, so they can be invited without a second
+ * agent slipping in beside them.
  */
 
 const db = require("../db");
 const { BadRequestError } = require("../expressError");
 
-const AGENT_PLATFORM_ROLES = ["agent", "admin", "super_admin"];
+const AGENT_PLATFORM_ROLES = ["agent"];
 
-/** Does the invitee (by email) currently exist as an active agent-role user? */
+/** Does the invitee (by email) currently exist as an agent-role user (active or pending)? */
 async function isEmailAnActiveAgentUser(emailLower) {
   if (!emailLower) return false;
   const r = await db.query(
-    `SELECT role FROM users WHERE LOWER(TRIM(email)) = $1 AND is_active = true`,
+    `SELECT role FROM users WHERE LOWER(TRIM(email)) = $1`,
     [emailLower]
   );
   if (r.rows.length === 0) return false;
@@ -44,14 +50,12 @@ async function propertyHasAgentMemberOrPendingAgentInvitation(
     ? `SELECT 1 FROM property_users pu
        INNER JOIN users u ON u.id = pu.user_id
        WHERE pu.property_id = $1
-         AND u.is_active = true
          AND u.role::text = ANY($2::text[])
          AND u.id != $3
        LIMIT 1`
     : `SELECT 1 FROM property_users pu
        INNER JOIN users u ON u.id = pu.user_id
        WHERE pu.property_id = $1
-         AND u.is_active = true
          AND u.role::text = ANY($2::text[])
        LIMIT 1`;
   const memberParams = excludeUserId
@@ -65,7 +69,6 @@ async function propertyHasAgentMemberOrPendingAgentInvitation(
        INNER JOIN users u ON LOWER(TRIM(u.email)) = LOWER(TRIM(i.invitee_email))
        WHERE i.property_id = $1
          AND i.status = 'pending'
-         AND u.is_active = true
          AND u.role::text = ANY($2::text[])
          AND i.id != $3
        LIMIT 1`
@@ -73,7 +76,6 @@ async function propertyHasAgentMemberOrPendingAgentInvitation(
        INNER JOIN users u ON LOWER(TRIM(u.email)) = LOWER(TRIM(i.invitee_email))
        WHERE i.property_id = $1
          AND i.status = 'pending'
-         AND u.is_active = true
          AND u.role::text = ANY($2::text[])
        LIMIT 1`;
   const pendingParams = excludeInvitationId
@@ -119,7 +121,6 @@ async function assertAtMostOneAgentOnProperty(propertyId, userIds, { isSync = fa
   const r = await db.query(
     `SELECT id FROM users
      WHERE id = ANY($1::int[])
-       AND is_active = true
        AND role::text = ANY($2::text[])`,
     [ids, AGENT_PLATFORM_ROLES]
   );

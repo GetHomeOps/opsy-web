@@ -53,7 +53,8 @@ const AGENT_ASSIGNMENT_FILTERS = [
   {value: "without_agent", labelKey: "filterWithoutAgent"},
 ];
 
-/** Opsy list payload includes has_opsy_agent when the team has agent/admin/super_admin. */
+/** Opsy list payload includes has_opsy_agent when the team has a platform role=`agent` user.
+ *  admin/super_admin (HomeOps internal users) don't count as the property's agent. */
 function propertyHasOpsyAgent(property) {
   return (
     property?.has_opsy_agent === true || property?.hasOpsyAgent === true

@@ -60,13 +60,15 @@ const PROPERTY_LIST_COLUMNS = `
   p.school_district, p.elementary_school,
   p.junior_high_school, p.senior_high_school`;
 
-/** True when the property team includes a user whose platform role is agent, admin, or super_admin (Opsy agent). */
+/** True when the property team includes a user whose platform role is `agent`.
+ *  Admin and super_admin (HomeOps internal users) do not satisfy this — every
+ *  property still needs a real agent on its team. */
 const PROPERTY_LIST_HAS_OPSY_AGENT = `EXISTS (
   SELECT 1
   FROM property_users pu_has_opsy_agent
   INNER JOIN users u_has_opsy_agent ON u_has_opsy_agent.id = pu_has_opsy_agent.user_id
   WHERE pu_has_opsy_agent.property_id = p.id
-    AND u_has_opsy_agent.role IN ('agent', 'admin', 'super_admin')
+    AND u_has_opsy_agent.role = 'agent'
 ) AS has_opsy_agent`;
 
 /** Insertable columns for properties (matches opsy-schema.sql; excludes id, created_at, updated_at) */

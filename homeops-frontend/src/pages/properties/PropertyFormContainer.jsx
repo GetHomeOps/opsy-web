@@ -129,7 +129,7 @@ import InviteAgentBenefitsModal from "./partials/InviteAgentBenefitsModal";
 import ModalBlank from "../../components/ModalBlank";
 import InspectionAnalysisModalContent from "./partials/InspectionAnalysisModalContent";
 import useImageUpload from "../../hooks/useImageUpload";
-import { S3_UPLOAD_FOLDER } from "../../constants/s3UploadFolders";
+import {S3_UPLOAD_FOLDER} from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import useGooglePlacesAutocomplete from "../../hooks/useGooglePlacesAutocomplete";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
@@ -889,18 +889,19 @@ function PropertyFormContainer() {
   ]);
 
   /* True when an agent is on the team or any invitation is still pending (API pending rows use
-   * editor/viewer, not role "agent", so _pending is required). Used only to suppress the floating CTA. */
+   * editor/viewer, not role "agent", so _pending is required). Used only to suppress the floating
+   * CTA. Only platform role `agent` counts — admin/super_admin are HomeOps internal users. */
   const hasAgentOrPendingInvitation = useMemo(() => {
     return (homeopsTeam ?? []).some((m) => {
       if (m._pending === true) return true;
-      const r = (m.role ?? "").toLowerCase();
-      return ["agent", "admin", "super_admin"].includes(r);
+      return (m.role ?? "").toLowerCase() === "agent";
     });
   }, [homeopsTeam]);
 
-  const isCurrentUserAgent = ["agent", "admin", "super_admin"].includes(
-    (currentUser?.role ?? "").toLowerCase(),
-  );
+  /* Only platform role `agent` counts — admins/super_admins should still see
+     the "invite an agent" CTA on properties they own/created. */
+  const isCurrentUserAgent =
+    (currentUser?.role ?? "").toLowerCase() === "agent";
 
   // Invitation mode is only enabled when the invitation belongs to the
   // current user and targets the currently viewed property.
@@ -3556,7 +3557,9 @@ function PropertyFormContainer() {
                       setInspectionReportModalOpen(true);
                       if (propertyIdForApi) {
                         AppApi.getInspectionAnalysisByProperty(propertyIdForApi)
-                          .then((res) => setInspectionAnalysis(res?.analysis ?? null))
+                          .then((res) =>
+                            setInspectionAnalysis(res?.analysis ?? null),
+                          )
                           .catch(() => {});
                       }
                     }}

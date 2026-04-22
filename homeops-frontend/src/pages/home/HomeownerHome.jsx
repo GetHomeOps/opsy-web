@@ -173,8 +173,9 @@ function HomeownerHome() {
   const totalProperties = properties?.length || 0;
   const activeProperty = totalProperties > 0 ? properties[activeIndex] : null;
 
-  const [propertyPhotoPresignedUrls, setPropertyPhotoPresignedUrls] =
-    useState({});
+  const [propertyPhotoPresignedUrls, setPropertyPhotoPresignedUrls] = useState(
+    {},
+  );
   const fetchedPropertyPhotoKeysRef = useRef(new Set());
 
   useEffect(() => {
@@ -487,14 +488,11 @@ function HomeownerHome() {
 
   // ─── Computed values for active property ─────────────────────────────────────
   const activePropertyUid = activeProperty
-    ? activeProperty.property_uid ?? activeProperty.id
+    ? (activeProperty.property_uid ?? activeProperty.id)
     : null;
   const agentTeamReady =
     activePropertyUid == null ||
-    Object.prototype.hasOwnProperty.call(
-      propertyTeams,
-      activePropertyUid,
-    );
+    Object.prototype.hasOwnProperty.call(propertyTeams, activePropertyUid);
   const currentAgent = getAgent(activeProperty);
   const currentScore = getHpsScore(activeProperty);
   const currentScoreLabel = getScoreLabel(currentScore);
@@ -622,9 +620,7 @@ function HomeownerHome() {
                 disabled={addPropertyChecking}
                 className="inline-flex items-center justify-center px-8 py-4 rounded-xl bg-[#d49b5b] hover:bg-[#c18a4a] border border-[#c18a4a] text-white text-base font-semibold transition-colors shadow-lg hover:shadow-xl disabled:opacity-70"
               >
-                {addPropertyChecking
-                  ? "…"
-                  : t("homeownerHome.getOpsymized")}
+                {addPropertyChecking ? "…" : t("homeownerHome.getOpsymized")}
               </button>
               <div className="relative inline-flex items-center justify-center w-10 h-10 mt-1 text-[#d49b5b]">
                 <Shield className="w-8 h-8 absolute" />
@@ -927,9 +923,7 @@ function HomeownerHome() {
                     Reminders
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {eventsLoading
-                      ? "…"
-                      : `${displayReminders.length} pending`}
+                    {eventsLoading ? "…" : `${displayReminders.length} pending`}
                   </p>
                 </div>
               </div>
@@ -1687,7 +1681,9 @@ function HomeownerHome() {
         isOpen={agentModalOpen}
         initialTab={agentModalTab}
         propertyUid={
-          activeProperty ? activeProperty.property_uid ?? activeProperty.id : null
+          activeProperty
+            ? (activeProperty.property_uid ?? activeProperty.id)
+            : null
         }
         accountId={
           activeProperty?.account_id ??

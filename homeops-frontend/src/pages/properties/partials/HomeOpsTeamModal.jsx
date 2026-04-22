@@ -1,5 +1,16 @@
 import React, {useEffect, useMemo, useState} from "react";
-import {UserPlus, X, UserCog, Home, Users, Mail, Send, Check, AlertCircle, RefreshCw} from "lucide-react";
+import {
+  UserPlus,
+  X,
+  UserCog,
+  Home,
+  Users,
+  Mail,
+  Send,
+  Check,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import SelectDropdown from "../../contacts/SelectDropdown";
 import {useTranslation} from "react-i18next";
@@ -46,13 +57,13 @@ function HomeOpsTeamModal({
   const {currentAccount} = useCurrentAccount();
   const {t} = useTranslation();
 
-  /* Current agent from team (for read-only display when homeowner has no user list access) */
+  /* Current agent from team (for read-only display when homeowner has no user list access).
+     Only platform-role `agent` counts here — admin/super_admin are HomeOps internal users,
+     not the property's agent. */
   const currentAgentMember = useMemo(
     () =>
       teamMembers.find(
-        (m) =>
-          (m.role ?? "").toLowerCase() === "agent" ||
-          (m.role ?? "").toLowerCase() === "admin",
+        (m) => (m.role ?? "").toLowerCase() === "agent",
       ),
     [teamMembers],
   );
@@ -68,20 +79,14 @@ function HomeOpsTeamModal({
   )?.id;
   const isOnlyMember = teamMembers.length === 1;
   const isAgentSlotLocked =
-    (Boolean(creatorId && creatorMember) &&
-      (creatorRoleLower === "agent" || creatorRoleLower === "admin")) ||
+    (Boolean(creatorId && creatorMember) && creatorRoleLower === "agent") ||
     (selectedAgentId &&
       (String(selectedAgentId) === String(propertyAdminId) || isOnlyMember));
 
-  /* Filters the users to only include agents */
+  /* Only platform role `agent` is a real agent here. admin/super_admin are
+     HomeOps internal users and should not occupy the property's agent slot. */
   const agents = useMemo(
-    () =>
-      users.filter(
-        (u) =>
-          (u.role ?? "").toLowerCase() === "agent" ||
-          (u.role ?? "").toLowerCase() === "admin" ||
-          (u.role ?? "").toLowerCase() === "super_admin",
-      ),
+    () => users.filter((u) => (u.role ?? "").toLowerCase() === "agent"),
     [users],
   );
 
@@ -101,11 +106,21 @@ function HomeOpsTeamModal({
   const agentOptionsFiltered = useMemo(() => {
     const alreadyInTeam = new Set([
       ...homeownerSlots.filter(Boolean).map(String),
-      ...additionalMembers.map((m) => m.userId).filter(Boolean).map(String),
+      ...additionalMembers
+        .map((m) => m.userId)
+        .filter(Boolean)
+        .map(String),
     ]);
-    const filtered = agentOptions.filter((o) => !alreadyInTeam.has(String(o.id)));
-    if (selectedAgentId && !filtered.some((o) => String(o.id) === String(selectedAgentId))) {
-      const current = agentOptions.find((o) => String(o.id) === String(selectedAgentId));
+    const filtered = agentOptions.filter(
+      (o) => !alreadyInTeam.has(String(o.id)),
+    );
+    if (
+      selectedAgentId &&
+      !filtered.some((o) => String(o.id) === String(selectedAgentId))
+    ) {
+      const current = agentOptions.find(
+        (o) => String(o.id) === String(selectedAgentId),
+      );
       if (current) filtered.push(current);
     }
     return filtered;
@@ -145,9 +160,7 @@ function HomeOpsTeamModal({
   useEffect(() => {
     if (!modalOpen) return;
     const agent = teamMembers.find(
-      (m) =>
-        (m.role ?? "").toLowerCase() === "agent" ||
-        (m.role ?? "").toLowerCase() === "admin",
+      (m) => (m.role ?? "").toLowerCase() === "agent",
     );
     const h = teamMembers.filter(
       (m) => (m.role ?? "").toLowerCase() === "homeowner",
@@ -155,7 +168,6 @@ function HomeOpsTeamModal({
     const others = teamMembers.filter(
       (m) =>
         (m.role ?? "").toLowerCase() !== "agent" &&
-        (m.role ?? "").toLowerCase() !== "admin" &&
         (m.role ?? "").toLowerCase() !== "homeowner",
     );
     setSelectedAgentId(agent?.id ?? "");
@@ -180,7 +192,11 @@ function HomeOpsTeamModal({
     setInviteError(null);
     if (propertyId) {
       AppApi.getPropertyInvitations(propertyId)
-        .then((invs) => setPendingInvitations((invs || []).filter((i) => i.status === "pending")))
+        .then((invs) =>
+          setPendingInvitations(
+            (invs || []).filter((i) => i.status === "pending"),
+          ),
+        )
         .catch(() => setPendingInvitations([]));
     }
   }, [modalOpen, propertyId]);
@@ -193,11 +209,15 @@ function HomeOpsTeamModal({
       return mEmail && mEmail === emailLower;
     });
     const alreadyPending = (pendingInvitations ?? []).some((i) => {
-      const iEmail = (i.invitee_email ?? i.inviteeEmail ?? "").trim().toLowerCase();
+      const iEmail = (i.invitee_email ?? i.inviteeEmail ?? "")
+        .trim()
+        .toLowerCase();
       return iEmail && iEmail === emailLower;
     });
     if (alreadyInTeam || alreadyPending) {
-      setInviteError("This person is already on the team or has a pending invitation.");
+      setInviteError(
+        "This person is already on the team or has a pending invitation.",
+      );
       return;
     }
     setInviteSending(true);
@@ -229,10 +249,16 @@ function HomeOpsTeamModal({
     setInviteError(null);
     try {
       await AppApi.resendInvitation(inv.id);
-      setInviteSuccess(inv.invitee_email || inv.inviteeEmail || "Invitation resent");
+      setInviteSuccess(
+        inv.invitee_email || inv.inviteeEmail || "Invitation resent",
+      );
       setTimeout(() => setInviteSuccess(null), 3000);
     } catch (err) {
-      setInviteError(err?.message || (t("invitations.resendError") || "Error resending invitation"));
+      setInviteError(
+        err?.message ||
+          t("invitations.resendError") ||
+          "Error resending invitation",
+      );
     } finally {
       setResendingId(null);
     }
@@ -302,7 +328,11 @@ function HomeOpsTeamModal({
     });
 
     /* Ensure creator is never dropped (e.g. when creatorId is set on new property) */
-    if (creatorId && creatorMember && !team.some((m) => String(m.id) === String(creatorId))) {
+    if (
+      creatorId &&
+      creatorMember &&
+      !team.some((m) => String(m.id) === String(creatorId))
+    ) {
       team.unshift(creatorMember);
     }
 
@@ -449,36 +479,36 @@ function HomeOpsTeamModal({
                 autoComplete="name"
                 className="form-input w-full text-sm max-w-md"
               />
-            <div className="flex gap-2 items-start flex-wrap">
-              <div className="flex-1 min-w-[200px]">
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="Enter email address"
-                  className="form-input w-full text-sm"
-                />
-              </div>
-              <div className="w-32 shrink-0">
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                  className="form-select w-full text-sm"
+              <div className="flex gap-2 items-start flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="Enter email address"
+                    className="form-input w-full text-sm"
+                  />
+                </div>
+                <div className="w-32 shrink-0">
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    className="form-select w-full text-sm"
+                  >
+                    <option value="editor">Editor</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSendInvite}
+                  disabled={inviteSending || !inviteEmail}
+                  className="btn-sm bg-[#456654] hover:bg-[#34514f] text-white transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
-                </select>
+                  <Send className="w-4 h-4" />
+                  {inviteSending ? "Sending..." : "Invite"}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleSendInvite}
-                disabled={inviteSending || !inviteEmail}
-                className="btn-sm bg-[#456654] hover:bg-[#34514f] text-white transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                {inviteSending ? "Sending..." : "Invite"}
-              </button>
-            </div>
             </div>
             {inviteSuccess && (
               <div className="flex items-center gap-1.5 mt-2 text-xs text-emerald-600 dark:text-emerald-400">
@@ -520,7 +550,8 @@ function HomeOpsTeamModal({
                         ) : (
                           <RefreshCw className="w-3 h-3" />
                         )}
-                        {t("invitations.resendInvitationEmail") || "Resend Invitation Email"}
+                        {t("invitations.resendInvitationEmail") ||
+                          "Resend Invitation Email"}
                       </button>
                     </div>
                   ))}

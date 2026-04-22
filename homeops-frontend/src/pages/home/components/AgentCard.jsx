@@ -7,7 +7,8 @@ function AgentAvatar({agent, size = "md"}) {
     md: "w-[84px] h-[84px]",
     lg: "w-16 h-16",
   };
-  const textSize = size === "md" ? "text-xl" : size === "lg" ? "text-lg" : "text-xs";
+  const textSize =
+    size === "md" ? "text-xl" : size === "lg" ? "text-lg" : "text-xs";
 
   const initials =
     agent.name
@@ -86,9 +87,7 @@ function AgentCard({agent, onOpenModal}) {
       </div>
 
       {/* ── Desktop: full card ── */}
-      <div
-        className="hidden lg:block group relative text-left overflow-hidden bg-gradient-to-br from-white/20 via-white/[.13] to-white/[.08] hover:from-white/25 hover:via-white/[.17] hover:to-white/[.12] backdrop-blur-2xl rounded-2xl px-5 py-4 shadow-[0_8px_32px_rgba(0,0,0,.18)] border border-white/20 hover:border-white/30 transition-all duration-200 lg:min-w-[340px] lg:max-w-[440px]"
-      >
+      <div className="hidden lg:block group relative text-left overflow-hidden bg-gradient-to-br from-white/20 via-white/[.13] to-white/[.08] hover:from-white/25 hover:via-white/[.17] hover:to-white/[.12] backdrop-blur-2xl rounded-2xl px-5 py-4 shadow-[0_8px_32px_rgba(0,0,0,.18)] border border-white/20 hover:border-white/30 transition-all duration-200 lg:min-w-[340px] lg:max-w-[440px]">
         <div className="absolute -top-6 -right-6 w-28 h-28 bg-white/[.06] rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-white/[.04] rounded-full blur-xl pointer-events-none" />
 

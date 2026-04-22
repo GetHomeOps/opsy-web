@@ -262,6 +262,18 @@ function AgentSearchField({
 
                 const imgUrl =
                   item.image_url || item.avatarUrl || item.avatar_url;
+                const access = (item.accessState || "active").toLowerCase();
+                /* "Pending" covers agents who haven't accepted their account
+                   invite yet (onboarding_pending) and agents whose paid
+                   subscription is not active. They can still receive a
+                   property invitation; it'll be waiting in their inbox once
+                   they finish signup / payment. */
+                const pendingLabel =
+                  access === "onboarding_pending"
+                    ? "Invite pending"
+                    : access === "payment_pending"
+                      ? "Subscription pending"
+                      : null;
                 return (
                   <li
                     key={item.id || idx}
@@ -304,9 +316,19 @@ function AgentSearchField({
                         {item.email?.trim()}
                       </p>
                     </div>
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#456564]/10 dark:bg-[#5a7a78]/20 text-[#456564] dark:text-[#5a7a78] shrink-0">
-                      Agent
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {pendingLabel && (
+                        <span
+                          className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                          title="This agent will see your invitation once they finish signing up."
+                        >
+                          {pendingLabel}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#456564]/10 dark:bg-[#5a7a78]/20 text-[#456564] dark:text-[#5a7a78]">
+                        Agent
+                      </span>
+                    </div>
                   </li>
                 );
               })

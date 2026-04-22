@@ -26,6 +26,24 @@ const { isAllowedInspectionAnalysisS3Key } = require("../constants/s3Upload");
 
 const router = new express.Router();
 
+/** HomeOps internal platform roles: omit from team lists for non-internal viewers. */
+const INTERNAL_TEAM_PLATFORM_ROLES = new Set(["admin", "super_admin"]);
+
+/**
+ * @param {Array<Record<string, unknown>>} members
+ * @param {string | undefined} viewerPlatformRole
+ */
+function filterPropertyTeamForViewer(members, viewerPlatformRole) {
+  if (viewerPlatformRole === "admin" || viewerPlatformRole === "super_admin") {
+    return members;
+  }
+  return members.filter(
+    (m) =>
+      m._pending ||
+      !INTERNAL_TEAM_PLATFORM_ROLES.has(m.role)
+  );
+}
+
 /** POST / - Create property, add creator as owner. Enforces tier limit. */
 router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async function (req, res, next) {
   try {
@@ -157,8 +175,8 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
       throw new BadRequestError("Valid property uid required");
     }
     const property = await Property.get(uid);
-    const property_users = await Property.getPropertyTeam(property.id);
-    const property_users_with_urls = await addPresignedUrlsToItems(property_users, "image", "image_url");
+    const teamRows = await Property.getPropertyTeam(property.id);
+    const property_users_with_urls = await addPresignedUrlsToItems(teamRows, "image", "image_url");
 
     // Use avatar_url (e.g. Google OAuth profile pic) as fallback when image/image_url is null
     const property_users_with_avatars = property_users_with_urls.map((u) => ({
@@ -178,7 +196,9 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
     }));
 
     const allMembers = [...property_users_with_avatars, ...pendingMembers];
-    return res.json({ property_users: allMembers });
+    const viewerRole = res.locals.user?.role;
+    const property_users = filterPropertyTeamForViewer(allMembers, viewerRole);
+    return res.json({ property_users });
   } catch (err) {
     return next(err);
   }

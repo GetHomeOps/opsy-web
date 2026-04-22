@@ -148,7 +148,8 @@ async function createPropertyInvitation({
     throw new BadRequestError("An invitation has already been sent to this email address.");
   }
 
-  /* Only one agent per property (platform role agent/admin/super_admin). */
+  /* Only one agent per property (platform role `agent` only — admin and
+     super_admin are HomeOps internal users and don't occupy the agent slot). */
   await assertPropertyCanAcceptAgentInvite(propertyId, emailLower);
 
   await ensureInviteeContactAutoCreated({
@@ -174,12 +175,17 @@ async function createPropertyInvitation({
     expiresAt,
   });
 
-  // If invitee is an existing user, create in-app notification for bell icon
-  const existingUser = await db.query(
-    `SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 AND is_active = true`,
+  /* Pending invitees (is_active=false, e.g. agents not yet onboarded) still
+     get an in-app notification queued so it's waiting on first login. The
+     email URL flow needs the new-account confirm path though, so the email
+     side treats only is_active=true users as "has existing account". */
+  const existingUserAny = await db.query(
+    `SELECT id, is_active FROM users WHERE LOWER(TRIM(email)) = $1`,
     [emailLower]
   );
-  const inviteeUserId = existingUser.rows[0]?.id ?? null;
+  const inviteeUserRow = existingUserAny.rows[0] ?? null;
+  const inviteeUserId = inviteeUserRow?.id ?? null;
+  const inviteeUserIsActive = inviteeUserRow?.is_active === true;
   if (inviteeUserId != null) {
     try {
       await Notification.create({
@@ -199,7 +205,7 @@ async function createPropertyInvitation({
       token,
       inviterUserId,
       type: "property",
-      inviteeUserId,
+      inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
     });
   } catch (err) {
     console.error("[invitationService] Failed to send invitation email:", err.message);
@@ -366,11 +372,20 @@ async function createBulkPropertyInvitations({
     createdRows.push({ invitation, token, propertyId });
   }
 
-  const existingUser = await db.query(
-    `SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 AND is_active = true`,
+  /* Look up the existing user (active or pending). Pending agents
+     (is_active=false because they haven't accepted their account invite yet,
+     or active agents whose subscription isn't paid) still get in-app
+     notifications queued so they're waiting in the bell on first login —
+     but the email link must still be the new-account confirm flow because
+     they don't have a usable session yet, so we surface them as "no existing
+     account" to buildPropertyInviteUrl. */
+  const existingUserAny = await db.query(
+    `SELECT id, is_active FROM users WHERE LOWER(TRIM(email)) = $1`,
     [emailLower]
   );
-  const inviteeUserId = existingUser.rows[0]?.id ?? null;
+  const inviteeUserRow = existingUserAny.rows[0] ?? null;
+  const inviteeUserId = inviteeUserRow?.id ?? null;
+  const inviteeUserIsActive = inviteeUserRow?.is_active === true;
   if (inviteeUserId != null) {
     await Promise.all(
       createdRows.map(({ invitation }) =>
@@ -390,7 +405,7 @@ async function createBulkPropertyInvitations({
     await sendBulkInvitationEmailForPropertyInvites({
       invitationsWithTokens: createdRows.map(({ invitation, token }) => ({ invitation, token })),
       inviterUserId,
-      inviteeUserId,
+      inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
     });
   } catch (err) {
     console.error("[invitationService] Failed to send bulk invitation email:", err.message);
@@ -492,10 +507,10 @@ async function sendInvitationEmailForInvitation({ invitation, token, inviterUser
     usage:
       invitation.accountId && inviterUserId
         ? {
-            accountId: invitation.accountId,
-            userId: inviterUserId,
-            emailType,
-          }
+          accountId: invitation.accountId,
+          userId: inviterUserId,
+          emailType,
+        }
         : undefined,
   });
 }
@@ -579,10 +594,10 @@ async function sendBulkInvitationEmailForPropertyInvites({
     usage:
       firstInv.accountId && inviterUserId
         ? {
-            accountId: firstInv.accountId,
-            userId: inviterUserId,
-            emailType,
-          }
+          accountId: firstInv.accountId,
+          userId: inviterUserId,
+          emailType,
+        }
         : undefined,
   });
 }
@@ -684,27 +699,27 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
         }
       } else {
         if (!password || !name) {
-        throw new BadRequestError("Name and password are required for new users");
-      }
-      const newUser = await User.register({
-        name,
-        email: invitation.inviteeEmail,
-        password,
-        role: 'homeowner',
-        is_active: true,
-      });
-      user = newUser;
-      createdNewUserViaInvite = true;
-      const newAccount = await Account.linkNewUserToAccount({ name, userId: user.id });
-
-      // New invited users get homeowner role; only create subscription for non-internal roles
-      if (user.role !== "super_admin" && user.role !== "admin") {
-        try {
-          await Subscription.ensureDefaultForAccount(newAccount.id, user.role || "homeowner");
-        } catch (subErr) {
-          console.error("Warning: failed to auto-create subscription for invited user account", newAccount.id, subErr.message);
+          throw new BadRequestError("Name and password are required for new users");
         }
-      }
+        const newUser = await User.register({
+          name,
+          email: invitation.inviteeEmail,
+          password,
+          role: 'homeowner',
+          is_active: true,
+        });
+        user = newUser;
+        createdNewUserViaInvite = true;
+        const newAccount = await Account.linkNewUserToAccount({ name, userId: user.id });
+
+        // New invited users get homeowner role; only create subscription for non-internal roles
+        if (user.role !== "super_admin" && user.role !== "admin") {
+          try {
+            await Subscription.ensureDefaultForAccount(newAccount.id, user.role || "homeowner");
+          } catch (subErr) {
+            console.error("Warning: failed to auto-create subscription for invited user account", newAccount.id, subErr.message);
+          }
+        }
 
         const contact = await Contact.create({
           name,

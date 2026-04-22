@@ -2,15 +2,16 @@
 
 /**
  * Notify platform admin/super_admin when a property has no Opsy team member
- * whose user role is agent, admin, or super_admin (matches frontend hasAgent).
- * Sync removes alerts when an Opsy agent is added to the property team.
+ * whose user role is `agent`. Admins and super_admins (HomeOps internal users)
+ * do NOT satisfy the "has agent" requirement — every property still needs a
+ * real agent on its team. Sync removes alerts when an agent joins the team.
  */
 
 const db = require("../db");
 const Notification = require("../models/notification");
 const { notifyPropertyMissingAgent } = require("./opsTeamNotifyService");
 
-const OPSY_AGENT_USER_ROLES = ["agent", "admin", "super_admin"];
+const OPSY_AGENT_USER_ROLES = ["agent"];
 
 async function propertyHasOpsyAgentUser(propertyId) {
   const r = await db.query(

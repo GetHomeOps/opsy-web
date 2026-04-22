@@ -28,9 +28,24 @@ function HomeOpsTeam({
   const isPropertyOwner = (m) =>
     !m?._pending && (m.property_role ?? "").toLowerCase() === "owner";
 
+  /* HomeOps internal staff (platform role admin / super_admin) should only be
+     visible to other admins/super_admins. Agents and homeowners viewing the
+     property never see HomeOps staff in the team list. */
+  const viewerIsAdmin = ["admin", "super_admin"].includes(
+    (currentUser?.role ?? "").toLowerCase(),
+  );
+  const visibleMembers = useMemo(() => {
+    const all = teamMembers ?? [];
+    if (viewerIsAdmin) return all;
+    return all.filter((m) => {
+      const r = (m?.role ?? "").toLowerCase();
+      return r !== "admin" && r !== "super_admin";
+    });
+  }, [teamMembers, viewerIsAdmin]);
+
   /* Sort so owner(s) appear first, then pending, then others */
   const sortedMembers = useMemo(() => {
-    const list = [...(teamMembers ?? [])];
+    const list = [...visibleMembers];
     return list.sort((a, b) => {
       const aPending = a._pending === true;
       const bPending = b._pending === true;
@@ -40,7 +55,7 @@ function HomeOpsTeam({
       if (!isPropertyOwner(a) && isPropertyOwner(b)) return 1;
       return 0;
     });
-  }, [teamMembers]);
+  }, [visibleMembers]);
 
   const owner = useMemo(
     () => sortedMembers.find(isPropertyOwner),
@@ -122,8 +137,7 @@ function HomeOpsTeam({
             const memberTab = (() => {
               const platform = platformLower;
               const prop = propLower;
-              if (["agent", "admin", "super_admin"].includes(platform))
-                return "agent";
+              if (platform === "agent") return "agent";
               if (platform === "homeowner" || platform === "owner")
                 return "homeowner";
               if (
@@ -219,8 +233,7 @@ function HomeOpsTeam({
                     <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate leading-tight">
                       {(() => {
                         const r = platformLower;
-                        if (["agent", "admin", "super_admin"].includes(r))
-                          return "Agent";
+                        if (r === "agent") return "Agent";
                         if (r === "homeowner" || r === "owner")
                           return "Homeowner";
                         if (

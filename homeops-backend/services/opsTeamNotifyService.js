@@ -83,7 +83,7 @@ async function notifyPropertyMissingAgent(prop) {
       ? `${base}/${accountUrl}/properties/${encodeURIComponent(uid)}`
       : base || "";
   const inner = `
-      <p style="font-size: 15px; color: #111827;">A property has no Opsy team member with an agent, admin, or super_admin role.</p>
+      <p style="font-size: 15px; color: #111827;">A property has no Opsy team member with the agent role.</p>
       ${detailsTable([
         ["Property", label],
         ["Property ID", prop.id != null ? String(prop.id) : ""],

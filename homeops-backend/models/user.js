@@ -375,13 +375,40 @@ class User {
     }
   }
 
-  /** Return all active users with the agent role only (excludes admin, super_admin). */
+  /**
+   * Return all users with the agent role (excludes admin, super_admin).
+   *
+   * Includes pending agents — those who haven't accepted their account
+   * invite (is_active=false) and those whose subscription isn't active yet —
+   * so admins can pre-invite them to properties. Each row carries an
+   * `accessState` of 'active' | 'onboarding_pending' | 'payment_pending' |
+   * 'disabled' for the UI to surface their status.
+   */
   static async getAgents() {
     const result = await db.query(`
-      SELECT id, email, name, image, avatar_url AS "avatarUrl"
-      FROM users
-      WHERE role = 'agent' AND is_active = true
-      ORDER BY name`);
+      SELECT u.id, u.email, u.name, u.image, u.avatar_url AS "avatarUrl",
+             u.is_active AS "isActive",
+             u.onboarding_completed AS "onboardingCompleted",
+             u.subscription_tier AS "subscriptionTier",
+             (paid_active.has_paid IS NOT NULL) AS "hasActivePaidSubscription",
+             CASE
+               WHEN u.is_active IS NOT TRUE THEN 'onboarding_pending'
+               WHEN u.onboarding_completed = false THEN 'onboarding_pending'
+               WHEN (u.subscription_tier IS NULL OR u.subscription_tier <> 'agent_beta')
+                AND paid_active.has_paid IS NULL THEN 'payment_pending'
+               ELSE 'active'
+             END AS "accessState"
+      FROM users u
+      LEFT JOIN LATERAL (
+        SELECT 1 AS has_paid
+        FROM account_users au
+        JOIN account_subscriptions asub ON asub.account_id = au.account_id
+        WHERE au.user_id = u.id
+          AND asub.status IN ('active', 'trialing')
+        LIMIT 1
+      ) paid_active ON TRUE
+      WHERE u.role = 'agent'
+      ORDER BY u.name`);
     return result.rows;
   }
 

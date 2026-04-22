@@ -60,11 +60,13 @@ const TABS = [
   },
 ];
 
-/** Maps a team member's role to the corresponding tab id (platform `role` vs property access `property_role`) */
+/** Maps a team member's role to the corresponding tab id (platform `role` vs property access `property_role`).
+ *  Only platform role `agent` is shown in the agent tab — admin/super_admin (HomeOps internal users)
+ *  fall back to the homeowner/property-role categorization below. */
 function memberRoleToTab(m) {
   const platform = (m.role ?? "").toLowerCase();
   const prop = (m.property_role ?? "").toLowerCase();
-  if (["agent", "admin", "super_admin"].includes(platform)) return "agent";
+  if (platform === "agent") return "agent";
   if (platform === "homeowner" || platform === "owner") return "homeowner";
   if (["insurer", "insurance", "insurance agent"].includes(platform))
     return "insurance";
@@ -78,11 +80,12 @@ function memberRoleToTab(m) {
   return "homeowner";
 }
 
-/** Human-readable platform role for team lists (users.role — Agent, Homeowner, etc.) */
+/** Human-readable platform role for team lists (users.role — Agent, Homeowner, etc.).
+ *  Only platform role `agent` is labeled "Agent" — admin/super_admin keep their own label. */
 function getPlatformTeamRoleLabel(m) {
   if (!m) return null;
   const r = (m.role ?? "").toLowerCase();
-  if (["agent", "admin", "super_admin"].includes(r)) return "Agent";
+  if (r === "agent") return "Agent";
   if (["homeowner", "owner"].includes(r)) return "Homeowner";
   if (["insurer", "insurance", "insurance agent"].includes(r))
     return "Insurance";
@@ -873,7 +876,9 @@ function SharePropertyModal({
 
   /* Homeowner slot limits by plan */
   const currentRole = (currentUser?.role ?? "").toLowerCase();
-  const isAgent = ["agent", "admin", "super_admin"].includes(currentRole);
+  /* Only platform role `agent` qualifies for the agent tab — admin/super_admin
+     are HomeOps internal users, not the property's agent. */
+  const isAgent = currentRole === "agent";
   const isAdminOrSuperAdmin = ["admin", "super_admin"].includes(currentRole);
 
   /* For admin/super_admin only: merge existing users (with emails) into contacts for the email field */
@@ -922,10 +927,19 @@ function SharePropertyModal({
   }, [teamMembers]);
   const atViewerLimit = maxViewers != null && viewerCount >= maxViewers;
 
-  /* Group team members by tab for display */
+  /* Group team members by tab for display.
+     HomeOps internal staff (platform role admin / super_admin) are hidden
+     from non-admin viewers (agents and homeowners only see homeowners,
+     agents, insurance, and mortgage members). */
   const membersByTab = useMemo(() => {
     const groups = {agent: [], homeowner: [], insurance: [], mortgage: []};
-    (teamMembers ?? []).forEach((m) => {
+    const visible = isAdminOrSuperAdmin
+      ? teamMembers ?? []
+      : (teamMembers ?? []).filter((m) => {
+          const r = (m?.role ?? "").toLowerCase();
+          return r !== "admin" && r !== "super_admin";
+        });
+    visible.forEach((m) => {
       const tab = memberRoleToTab(m);
       if (groups[tab]) groups[tab].push(m);
       else groups.homeowner.push(m);
@@ -949,7 +963,7 @@ function SharePropertyModal({
       }
     }
     return groups;
-  }, [teamMembers, currentUser?.id, isAgent, isHomeowner]);
+  }, [teamMembers, currentUser?.id, isAgent, isHomeowner, isAdminOrSuperAdmin]);
 
   /* Only one agent per property - block adding when one already exists */
   const hasAgent = useMemo(
