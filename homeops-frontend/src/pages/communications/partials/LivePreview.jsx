@@ -2,12 +2,39 @@ import React, { useState, useEffect } from "react";
 import AppApi from "../../../api/api";
 import { Monitor, Smartphone } from "lucide-react";
 import { LAYOUT_COMPONENTS } from "./templateLayouts";
+import { getEffectiveTemplateTheme } from "./commTemplateContent";
 
-function LivePreview({ form, template, onUpdateTemplate, editable = true }) {
-  const [viewMode, setViewMode] = useState("desktop");
-  const primaryColor = template?.primaryColor || "#456564";
-  const bgColor = template?.secondaryColor || "#f9fafb";
-  const footerText = template?.footerText || "";
+function LivePreview({
+  form,
+  template,
+  onUpdateTemplate,
+  onUpdateContent,
+  editable = true,
+}) {
+  // Default to mobile view on narrow screens (where preview is accessed via Preview tab);
+  // desktop users still see the desktop frame by default.
+  const [viewMode, setViewMode] = useState(() =>
+    typeof window !== "undefined" && window.innerWidth < 1280
+      ? "mobile"
+      : "desktop",
+  );
+  const theme = getEffectiveTemplateTheme(form.content, template);
+  const { primaryColor, secondaryColor: bgColor, footerText } = theme;
+  const layoutTemplate = template
+    ? {
+        ...template,
+        brandName: theme.brandName,
+        footerText: theme.footerText,
+        primaryColor,
+        secondaryColor: bgColor,
+      }
+    : {
+        brandName: theme.brandName,
+        footerText: theme.footerText,
+        primaryColor,
+        secondaryColor: bgColor,
+        socialLinks: [],
+      };
   const layout = form.content?.layout || "classic";
 
   const [previewImageUrl, setPreviewImageUrl] = useState(null);
@@ -78,12 +105,12 @@ function LivePreview({ form, template, onUpdateTemplate, editable = true }) {
       </div>
 
       {/* Frame area */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-100/50 dark:bg-gray-900/30">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gray-100/50 dark:bg-gray-900/30">
         {viewMode === "desktop" ? (
           <DesktopFrame>
             <LayoutComponent
               form={form}
-              template={template}
+              template={layoutTemplate}
               primaryColor={primaryColor}
               bgColor={bgColor}
               footerText={footerText}
@@ -92,13 +119,14 @@ function LivePreview({ form, template, onUpdateTemplate, editable = true }) {
               viewMode={viewMode}
               editable={editable}
               onUpdateTemplate={onUpdateTemplate}
+              onUpdateContent={onUpdateContent}
             />
           </DesktopFrame>
         ) : (
           <MobileFrame>
             <LayoutComponent
               form={form}
-              template={template}
+              template={layoutTemplate}
               primaryColor={primaryColor}
               bgColor={bgColor}
               footerText={footerText}
@@ -107,6 +135,7 @@ function LivePreview({ form, template, onUpdateTemplate, editable = true }) {
               viewMode={viewMode}
               editable={editable}
               onUpdateTemplate={onUpdateTemplate}
+              onUpdateContent={onUpdateContent}
             />
           </MobileFrame>
         )}

@@ -1,37 +1,16 @@
 import React, {useState, useEffect, useCallback} from "react";
 import {useParams, useNavigate} from "react-router-dom";
-import {
-  ArrowLeft,
-  Loader2,
-  FileUp,
-  Video,
-  Link,
-  ExternalLink,
-} from "lucide-react";
+import {ArrowLeft, Loader2} from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
-import {getVideoThumbnailSync} from "../../utils/videoThumbnail";
-
-/** Ensure HTML renders correctly (handles escaped entities and content shape). */
-function getBodyHtml(content) {
-  const raw =
-    typeof content?.body === "string"
-      ? content.body
-      : typeof content === "string"
-        ? content
-        : "";
-  if (!raw) return "";
-  if (raw.includes("&lt;") || raw.includes("&gt;") || raw.includes("&amp;")) {
-    const el = document.createElement("div");
-    el.innerHTML = raw;
-    return el.innerHTML;
-  }
-  return raw;
-}
+import {LAYOUT_COMPONENTS} from "./partials/templateLayouts";
+import {getEffectiveTemplateTheme} from "./partials/commTemplateContent";
 
 /**
  * CommunicationViewer — Renders a communication for viewing by recipients.
- * Used when a recipient clicks a communication from the Discover feed on the Home page.
+ * Uses the same LAYOUT_COMPONENTS as the composer's live preview so the
+ * recipient sees the communication with the author's chosen template
+ * styling (colors, brand, footer) and layout.
  */
 function CommunicationViewer() {
   const {id} = useParams();
@@ -40,6 +19,7 @@ function CommunicationViewer() {
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
   const [communication, setCommunication] = useState(null);
+  const [template, setTemplate] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [attachmentUrls, setAttachmentUrls] = useState({});
   const [communicationsList, setCommunicationsList] = useState([]);
@@ -54,6 +34,7 @@ function CommunicationViewer() {
       const res = await AppApi.getCommunicationView(id);
       setCommunication(res.communication);
       setAttachments(res.attachments || []);
+      setTemplate(res.template || null);
     } catch (err) {
       setError(err?.message ?? "Failed to load communication");
     } finally {
@@ -97,18 +78,19 @@ function CommunicationViewer() {
   }, [attachments]);
 
   const previewImageKey = communication?.imageKey;
+  const [previewImageUrl, setPreviewImageUrl] = useState(null);
   useEffect(() => {
-    if (!previewImageKey) return;
+    if (!previewImageKey) {
+      setPreviewImageUrl(null);
+      return;
+    }
     AppApi.getInlineImageUrl(previewImageKey)
-      .then((url) =>
-        setAttachmentUrls((prev) => ({...prev, [previewImageKey]: url})),
-      )
-      .catch(() => {});
+      .then(setPreviewImageUrl)
+      .catch(() => setPreviewImageUrl(null));
   }, [previewImageKey]);
 
   const handleBack = () => navigate(`/${accountUrl}/home`);
 
-  // Prev/next navigation
   const currentId = id ? parseInt(id, 10) : null;
   const sortedComms = [...communicationsList].sort((a, b) => {
     const aAt = a.sentAt || a.sent_at || a.createdAt || 0;
@@ -135,18 +117,40 @@ function CommunicationViewer() {
     navigate(`/${accountUrl}/communications/${nextId}/view`);
   };
 
-  const bodyHtml = communication ? getBodyHtml(communication.content) : "";
-  const firstImageAtt = attachments.find(
-    (a) => a.type === "image" && a.fileKey,
-  );
-  const thumbnailUrl = previewImageKey
-    ? attachmentUrls[previewImageKey] || null
-    : firstImageAtt
-      ? attachmentUrls[firstImageAtt.fileKey]
-      : null;
+  // Build the form-shaped object consumed by the layout components.
+  const form = communication
+    ? {
+        subject: communication.subject || "",
+        content: communication.content || {body: ""},
+        imageKey: communication.imageKey || null,
+        attachments: attachments || [],
+      }
+    : null;
+
+  const layoutId = form?.content?.layout || "classic";
+  const LayoutComponent = LAYOUT_COMPONENTS[layoutId] || LAYOUT_COMPONENTS.classic;
+  const theme = getEffectiveTemplateTheme(form?.content, template, {
+    preferContentSnapshot: true,
+  });
+  const {primaryColor, secondaryColor: bgColor, footerText} = theme;
+  const layoutTemplate = template
+    ? {
+        ...template,
+        brandName: theme.brandName,
+        footerText: theme.footerText,
+        primaryColor,
+        secondaryColor: bgColor,
+      }
+    : {
+        brandName: theme.brandName,
+        footerText: theme.footerText,
+        primaryColor,
+        secondaryColor: bgColor,
+        socialLinks: [],
+      };
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-3xl mx-auto">
       {/* Top bar: back + prev/next */}
       <div className="flex items-center justify-between mb-6">
         <button
@@ -228,132 +232,20 @@ function CommunicationViewer() {
         </div>
       )}
 
-      {communication && !loading && (
-        <article className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-          {thumbnailUrl && (
-            <div className="px-4 pt-4 sm:px-6 sm:pt-6">
-              <div className="max-w-md mx-auto rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
-                <img
-                  src={thumbnailUrl}
-                  alt={communication.subject || ""}
-                  className="w-full h-auto max-h-40 sm:max-h-44 object-cover"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="p-6">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              {communication.subject || "Untitled"}
-            </h1>
-
-            {bodyHtml && (
-              <div
-                className="prose prose-sm dark:prose-invert max-w-none mb-6 text-gray-700 dark:text-gray-300 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg"
-                dangerouslySetInnerHTML={{__html: bodyHtml}}
-              />
-            )}
-
-            {attachments.length > 0 && (
-              <div className="space-y-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-600">
-                {attachments.map((att, idx) => {
-                  if (att.type === "image") {
-                    const url = att.fileKey
-                      ? attachmentUrls[att.fileKey]
-                      : null;
-                    return url ? (
-                      <a
-                        key={idx}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block rounded-lg overflow-hidden"
-                      >
-                        <img
-                          src={url}
-                          alt=""
-                          className="w-full rounded-lg object-cover max-h-60 hover:opacity-90 transition-opacity cursor-pointer"
-                        />
-                      </a>
-                    ) : null;
-                  }
-                  if (att.type === "pdf") {
-                    const url = att.fileKey
-                      ? attachmentUrls[att.fileKey]
-                      : null;
-                    return (
-                      <a
-                        key={idx}
-                        href={url || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-600 transition-colors ${
-                          url
-                            ? "bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-800/50 cursor-pointer"
-                            : "bg-gray-50 dark:bg-gray-900/50 opacity-75 cursor-not-allowed pointer-events-none"
-                        }`}
-                        onClick={(e) => !url && e.preventDefault()}
-                      >
-                        <FileUp className="w-5 h-5 text-red-500" />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          {att.filename || "Document.pdf"}
-                        </span>
-                        {url && (
-                          <ExternalLink className="w-4 h-4 shrink-0 text-gray-400" />
-                        )}
-                      </a>
-                    );
-                  }
-                  if (att.type === "video_link" && att.url) {
-                    const thumb = getVideoThumbnailSync(att.url);
-                    return (
-                      <div
-                        key={idx}
-                        className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/50"
-                      >
-                        {thumb && (
-                          <img
-                            src={thumb}
-                            alt=""
-                            className="w-full h-40 object-cover"
-                          />
-                        )}
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 p-3 text-[#456564] dark:text-emerald-400 hover:underline"
-                        >
-                          <Video className="w-5 h-5 shrink-0" />
-                          <span className="text-sm truncate">{att.url}</span>
-                          <ExternalLink className="w-4 h-4 shrink-0" />
-                        </a>
-                      </div>
-                    );
-                  }
-                  if (att.type === "web_link" && att.url) {
-                    return (
-                      <a
-                        key={idx}
-                        href={att.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
-                      >
-                        <Link className="w-5 h-5 shrink-0 text-[#456564] dark:text-emerald-400" />
-                        <span className="text-sm truncate flex-1">
-                          {att.url}
-                        </span>
-                        <ExternalLink className="w-4 h-4 shrink-0 text-gray-400" />
-                      </a>
-                    );
-                  }
-                  return null;
-                })}
-              </div>
-            )}
-          </div>
-        </article>
+      {form && !loading && (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+          <LayoutComponent
+            form={form}
+            template={layoutTemplate}
+            primaryColor={primaryColor}
+            bgColor={bgColor}
+            footerText={footerText}
+            previewImageUrl={previewImageUrl}
+            attachmentUrls={attachmentUrls}
+            viewMode="desktop"
+            editable={false}
+          />
+        </div>
       )}
     </div>
   );

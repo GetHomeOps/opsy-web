@@ -160,7 +160,17 @@ router.get("/:id/view", ensureLoggedIn, async (req, res, next) => {
       return res.status(404).json({ error: { message: "Communication not found." } });
     }
     const attachments = await CommAttachment.listForComm(comm.id);
-    return res.json({ communication: comm, attachments });
+    let template = null;
+    try {
+      if (comm.templateId) {
+        template = await CommTemplate.getById(comm.templateId);
+      } else if (comm.accountId) {
+        template = await CommTemplate.getOrCreateDefault(comm.accountId);
+      }
+    } catch (_e) {
+      template = null;
+    }
+    return res.json({ communication: comm, attachments, template });
   } catch (err) {
     return next(err);
   }

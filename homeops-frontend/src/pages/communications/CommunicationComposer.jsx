@@ -13,6 +13,7 @@ import ComposeSection from "./partials/ComposeSection";
 import AudienceSection from "./partials/AudienceSection";
 import DeliverySection from "./partials/DeliverySection";
 import LivePreview from "./partials/LivePreview";
+import {buildTemplateThemeSnapshot} from "./partials/commTemplateContent";
 import Transition from "../../utils/Transition";
 import {
   ArrowLeft,
@@ -23,6 +24,8 @@ import {
   Copy,
   Plus,
   Settings,
+  Pencil,
+  Eye,
 } from "lucide-react";
 
 const INITIAL_FORM = {
@@ -62,6 +65,8 @@ function CommunicationComposer() {
   const [template, setTemplate] = useState(null);
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [actionsDropdownOpen, setActionsDropdownOpen] = useState(false);
+  // On screens below xl, only one pane is visible at a time. On xl+ both render side-by-side.
+  const [viewTab, setViewTab] = useState("edit");
   const lastSavedRef = useRef(null);
   const sendButtonRef = useRef(null);
   const actionsTriggerRef = useRef(null);
@@ -101,13 +106,29 @@ function CommunicationComposer() {
   const isSent = form.status === "sent";
   const isScheduled = form.status === "scheduled";
 
-  // Load template
+  // Load default template (account-level); overridden below when a comm has a specific templateId
   useEffect(() => {
     if (!accountId) return;
     AppApi.getCommDefaultTemplate(accountId)
       .then(setTemplate)
       .catch(() => setTemplate(null));
   }, [accountId]);
+
+  // When editing, load the template row for this comm so colors match what will be sent
+  useEffect(() => {
+    if (!accountId || isNew || !form.templateId) return;
+    let cancelled = false;
+    AppApi.getCommTemplates(accountId)
+      .then((list) => {
+        if (cancelled) return;
+        const match = (list || []).find((t) => t.id === form.templateId);
+        if (match) setTemplate(match);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, isNew, form.templateId]);
 
   // Load recipient options
   useEffect(() => {
@@ -184,21 +205,28 @@ function CommunicationComposer() {
 
   const updateForm = (patch) => setForm((prev) => ({...prev, ...patch}));
 
-  const buildPayload = (overrides = {}) => ({
-    accountId,
-    subject: form.subject?.trim() || "",
-    content: form.content,
-    imageKey: form.imageKey || null,
-    templateId: form.templateId || template?.id || null,
-    recipientMode:
-      form.deliveryMode === "auto_send" ? null : form.recipientMode || null,
-    recipientIds:
-      form.deliveryMode === "auto_send" ? [] : form.recipientIds || [],
-    deliveryChannel: "in_app",
-    attachments: form.attachments || [],
-    rules: form.deliveryMode === "auto_send" ? form.rules || [] : [],
-    ...overrides,
-  });
+  const buildPayload = (overrides = {}) => {
+    const contentBase = {...(form.content || {body: ""})};
+    const snap = buildTemplateThemeSnapshot(template);
+    if (snap) {
+      contentBase.templateTheme = snap;
+    }
+    return {
+      accountId,
+      subject: form.subject?.trim() || "",
+      content: contentBase,
+      imageKey: form.imageKey || null,
+      templateId: form.templateId || template?.id || null,
+      recipientMode:
+        form.deliveryMode === "auto_send" ? null : form.recipientMode || null,
+      recipientIds:
+        form.deliveryMode === "auto_send" ? [] : form.recipientIds || [],
+      deliveryChannel: "in_app",
+      attachments: form.attachments || [],
+      rules: form.deliveryMode === "auto_send" ? form.rules || [] : [],
+      ...overrides,
+    };
+  };
 
   const handleSaveDraft = async () => {
     if (!form.subject?.trim()) {
@@ -306,16 +334,18 @@ function CommunicationComposer() {
       <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="flex-1 overflow-y-auto">
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
+          <div className="px-4 sm:px-4 lg:px-5 xxl:px-12 py-4 sm:py-8 w-full max-w-[96rem] mx-auto pb-28 xl:pb-8">
             {/* Top bar */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
               <button
                 type="button"
                 onClick={() => navigate(`/${accountUrl}/communications`)}
-                className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors min-w-0"
               >
-                <ArrowLeft className="w-5 h-5" />
-                <span className="text-lg font-medium">Communications</span>
+                <ArrowLeft className="w-5 h-5 shrink-0" />
+                <span className="text-base sm:text-lg font-medium truncate">
+                  Communications
+                </span>
               </button>
               <div className="flex items-center gap-2">
                 {!isNew && (
@@ -325,10 +355,11 @@ function CommunicationComposer() {
                       onClick={() =>
                         navigate(`/${accountUrl}/communications/new`)
                       }
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm transition-colors"
+                      className="inline-flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm transition-colors"
+                      aria-label="New communication"
                     >
-                      <Plus className="w-4 h-4" />
-                      New
+                      <Plus className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline">New</span>
                     </button>
                     <div className="relative inline-flex">
                       <button
@@ -401,10 +432,52 @@ function CommunicationComposer() {
               </Banner>
             </div>
 
+            {/* Mobile/tablet Edit|Preview segmented control (below xl, both panes show side-by-side) */}
+            <div className="xl:hidden mb-4">
+              <div
+                role="tablist"
+                aria-label="Composer view"
+                className="inline-flex w-full sm:w-auto items-center gap-1 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-1"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewTab === "edit"}
+                  onClick={() => setViewTab("edit")}
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    viewTab === "edit"
+                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewTab === "preview"}
+                  onClick={() => setViewTab("preview")}
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    viewTab === "preview"
+                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <Eye className="w-4 h-4" />
+                  Preview
+                </button>
+              </div>
+            </div>
+
             {/* Main layout: form + preview */}
-            <div className="flex flex-col lg:flex-row gap-6">
-              {/* Left: Sections */}
-              <div className="flex-1 min-w-0 space-y-6 lg:max-w-[55%]">
+            <div className="flex flex-col xl:flex-row gap-6">
+              {/* Left: Sections — hidden on smaller screens when Preview tab is active */}
+              <div
+                className={`flex-1 min-w-0 space-y-4 sm:space-y-6 xl:max-w-[55%] ${
+                  viewTab === "edit" ? "block" : "hidden xl:block"
+                }`}
+              >
                 {/* 1. Compose */}
                 <ComposeSection
                   form={form}
@@ -432,8 +505,8 @@ function CommunicationComposer() {
                   disabled={isSent}
                 />
 
-                {/* Action bar */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                {/* Action bar (desktop / inline). On smaller screens a sticky action bar is rendered below instead. */}
+                <div className="hidden xl:block bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                       {isSent && "This communication has been sent."}
@@ -511,12 +584,19 @@ function CommunicationComposer() {
                 </div>
               </div>
 
-              {/* Right: Live preview */}
-              <div className="w-full lg:w-[45%] lg:min-w-[420px] lg:max-w-[640px] lg:shrink-0 lg:sticky lg:top-0 lg:self-start h-[70vh] lg:h-[calc(100vh-6rem)]">
+              {/* Right: Live preview — hidden on smaller screens when Edit tab is active */}
+              <div
+                className={`w-full xl:w-[45%] xl:min-w-[420px] xl:max-w-[640px] xl:shrink-0 xl:sticky xl:top-0 xl:self-start h-[calc(100dvh-12rem)] xl:h-[calc(100vh-6rem)] ${
+                  viewTab === "preview" ? "block" : "hidden xl:block"
+                }`}
+              >
                 <LivePreview
                   form={form}
                   template={template}
                   editable={!isSent}
+                  onUpdateContent={(patch) =>
+                    updateForm({ content: { ...form.content, ...patch } })
+                  }
                   onUpdateTemplate={async (patch) => {
                     if (!template?.id) return;
                     try {
@@ -533,6 +613,92 @@ function CommunicationComposer() {
                     }
                   }}
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Sticky mobile/tablet action bar (below xl). Stays reachable while scrolling. */}
+          <div className="xl:hidden sticky bottom-0 left-0 right-0 z-30 border-t border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-800/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 supports-[backdrop-filter]:dark:bg-gray-800/80">
+            <div className="px-4 py-3 flex items-center justify-between gap-3 max-w-[96rem] mx-auto">
+              <div className="text-xs text-gray-500 dark:text-gray-400 min-w-0 truncate">
+                {isSent && "This communication has been sent."}
+                {isScheduled &&
+                  `Scheduled for ${new Date(form.scheduledAt).toLocaleString()}`}
+                {!isSent &&
+                  !isScheduled &&
+                  (form.deliveryMode === "auto_send"
+                    ? `${form.rules?.length || 0} auto-send rule${(form.rules?.length || 0) !== 1 ? "s" : ""}`
+                    : estimatedCount != null
+                      ? `${estimatedCount} recipient${estimatedCount !== 1 ? "s" : ""}`
+                      : "")}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {!isSent && !isScheduled && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={submitting || !form.subject?.trim()}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span className="hidden xs:inline">
+                        {submitting ? "Saving…" : "Save"}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSendModalOpen(true)}
+                      disabled={submitting || !canSend}
+                      title={
+                        !canSend
+                          ? "Add a subject and select an audience to send"
+                          : undefined
+                      }
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {form.deliveryMode === "schedule" ? (
+                        <>
+                          <Clock className="w-4 h-4" />
+                          Schedule
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          Send
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+                {isScheduled && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await AppApi.cancelScheduleCommunication(id);
+                        showBanner("success", "Schedule cancelled.");
+                        fetchComm();
+                      } catch (err) {
+                        showBanner("error", err?.message || "Failed");
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium transition-colors"
+                  >
+                    Cancel Schedule
+                  </button>
+                )}
+                {isSent && (
+                  <button
+                    type="button"
+                    onClick={handleDuplicate}
+                    disabled={submitting}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Duplicate
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -13,7 +13,9 @@ import { getVideoThumbnailSync } from "../../../utils/videoThumbnail";
 import {
   EditableInline,
   EditableSocialLinks,
+  EditableStatCards,
 } from "./templateEditables";
+import { getMergedCommContent } from "./commTemplateContent";
 
 /** Decode HTML entities if content was stored escaped. */
 export function getBodyHtml(content) {
@@ -216,11 +218,28 @@ function FileAttachments({ attachments, attachmentUrls }) {
             </div>
           );
         }
+        const pdfUrl = att.fileKey ? attachmentUrls[att.fileKey] : null;
+        const pdfClasses =
+          "flex items-center gap-2 p-2.5 rounded-lg bg-white border border-gray-200";
+        if (pdfUrl) {
+          return (
+            <a
+              key={idx}
+              href={pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${pdfClasses} hover:bg-gray-50 transition-colors`}
+            >
+              <FileUp className="w-4 h-4 text-red-500" />
+              <span className="text-xs font-medium text-gray-700 truncate">
+                {att.filename || "Document.pdf"}
+              </span>
+              <ExternalLink className="w-3.5 h-3.5 text-gray-400 shrink-0 ml-auto" />
+            </a>
+          );
+        }
         return (
-          <div
-            key={idx}
-            className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-gray-200"
-          >
+          <div key={idx} className={pdfClasses}>
             <FileUp className="w-4 h-4 text-red-500" />
             <span className="text-xs font-medium text-gray-700">
               {att.filename || "Document.pdf"}
@@ -266,6 +285,8 @@ function RichFooter({
   template,
   editable = false,
   onUpdateTemplate,
+  showSocialAdd = true,
+  onSetShowSocialAdd = null,
 }) {
   const brandName = template?.brandName || "Opsy";
   return (
@@ -288,6 +309,8 @@ function RichFooter({
           primaryColor={primaryColor}
           editable={editable}
           onChange={(next) => onUpdateTemplate?.({ socialLinks: next })}
+          showAddControl={showSocialAdd}
+          onSetShowAddControl={onSetShowSocialAdd || undefined}
         />
       </div>
       <p className="text-[11px] text-gray-500 leading-relaxed">
@@ -387,39 +410,6 @@ function FeatureCard({ att, primaryColor, attachmentUrls, index }) {
           </a>
         )}
       </div>
-    </div>
-  );
-}
-
-function StatsRow({ primaryColor, viewMode }) {
-  const stats = [
-    { label: "Updates", value: "12" },
-    { label: "Featured", value: "3" },
-    { label: "New", value: "5" },
-  ];
-  return (
-    <div
-      className={`grid gap-2 mt-5 ${
-        viewMode === "mobile" ? "grid-cols-3" : "grid-cols-3"
-      }`}
-    >
-      {stats.map((s) => (
-        <div
-          key={s.label}
-          className="text-center p-3 rounded-xl"
-          style={{ backgroundColor: `${primaryColor}10` }}
-        >
-          <div
-            className="text-lg font-bold leading-none"
-            style={{ color: primaryColor }}
-          >
-            {s.value}
-          </div>
-          <div className="text-[10px] uppercase tracking-wider text-gray-500 mt-1">
-            {s.label}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -637,7 +627,9 @@ export function AnnouncementLayout({
   viewMode,
   editable,
   onUpdateTemplate,
+  onUpdateContent,
 }) {
+  const c = getMergedCommContent(form.content);
   const linkAtts = (form.attachments || []).filter(
     (a) => a.type === "video_link" || a.type === "web_link",
   );
@@ -676,7 +668,19 @@ export function AnnouncementLayout({
 
           <div className="p-5">
             <div className="mb-3">
-              <BadgePill primaryColor={primaryColor}>Announcement</BadgePill>
+              <BadgePill primaryColor={primaryColor}>
+                <EditableInline
+                  value={c.announcementBadge}
+                  placeholder="Announcement"
+                  editable={editable}
+                  hintLabel="Badge text"
+                  onSave={(v) =>
+                    onUpdateContent?.({
+                      announcementBadge: v || "Announcement",
+                    })
+                  }
+                />
+              </BadgePill>
             </div>
             {/* Title */}
             <h2
@@ -742,7 +746,9 @@ export function NewsletterLayout({
   viewMode,
   editable,
   onUpdateTemplate,
+  onUpdateContent,
 }) {
+  const c = getMergedCommContent(form.content);
   const linkAtts = (form.attachments || []).filter(
     (a) => a.type === "video_link" || a.type === "web_link",
   );
@@ -771,10 +777,16 @@ export function NewsletterLayout({
           className="text-2xl font-bold leading-tight"
           style={{ color: "#111827" }}
         >
-          {form.subject || "This week at Opsy"}
+          {form.subject || `This week at ${template?.brandName || "Opsy"}`}
         </h1>
         <p className="text-xs text-gray-500 mt-1">
-          Curated updates, news, and resources for you
+          <EditableInline
+            value={c.newsletterTagline}
+            placeholder="A roundup of updates and resources"
+            editable={editable}
+            hintLabel="Tagline"
+            onSave={(v) => onUpdateContent?.({ newsletterTagline: v })}
+          />
         </p>
       </div>
 
@@ -788,7 +800,22 @@ export function NewsletterLayout({
       )}
 
       <div className="px-5 py-5">
-        <SectionDivider primaryColor={primaryColor} label="In this issue" />
+        <SectionDivider
+          primaryColor={primaryColor}
+          label={
+            <EditableInline
+              value={c.newsletterInThisIssueLabel}
+              placeholder="In this issue"
+              editable={editable}
+              hintLabel="Section label"
+              onSave={(v) =>
+                onUpdateContent?.({
+                  newsletterInThisIssueLabel: v || "In this issue",
+                })
+              }
+            />
+          }
+        />
 
         <BodyContent content={form.content} viewMode={viewMode} />
 
@@ -797,7 +824,19 @@ export function NewsletterLayout({
           <>
             <SectionDivider
               primaryColor={primaryColor}
-              label="Featured"
+              label={
+                <EditableInline
+                  value={c.newsletterFeaturedLabel}
+                  placeholder="Featured"
+                  editable={editable}
+                  hintLabel="Section label"
+                  onSave={(v) =>
+                    onUpdateContent?.({
+                      newsletterFeaturedLabel: v || "Featured",
+                    })
+                  }
+                />
+              }
             />
             <div className="space-y-3">
               {featuredItems.map((att, idx) => (
@@ -825,6 +864,15 @@ export function NewsletterLayout({
         template={template}
         editable={editable}
         onUpdateTemplate={onUpdateTemplate}
+        showSocialAdd={c.editorUi?.showSocialAdd !== false}
+        onSetShowSocialAdd={
+          onUpdateContent
+            ? (v) =>
+                onUpdateContent({
+                  editorUi: { ...c.editorUi, showSocialAdd: v },
+                })
+            : null
+        }
       />
     </div>
   );
@@ -842,7 +890,9 @@ export function PromotionalLayout({
   viewMode,
   editable,
   onUpdateTemplate,
+  onUpdateContent,
 }) {
+  const c = getMergedCommContent(form.content);
   const linkAtts = (form.attachments || []).filter(
     (a) => a.type === "video_link" || a.type === "web_link",
   );
@@ -876,7 +926,15 @@ export function PromotionalLayout({
             />
           </div>
           <span className="inline-block px-3 py-1 rounded-full bg-white/20 text-white text-[10px] font-semibold uppercase tracking-widest mb-3">
-            Special offer
+            <EditableInline
+              value={c.promotionalBadge}
+              placeholder="Limited time"
+              editable={editable}
+              hintLabel="Badge text"
+              onSave={(v) =>
+                onUpdateContent?.({ promotionalBadge: v || "Limited time" })
+              }
+            />
           </span>
           <h1 className="text-2xl font-bold text-white leading-tight max-w-[85%] mx-auto">
             {form.subject || "Your big offer headline"}
@@ -900,7 +958,21 @@ export function PromotionalLayout({
       <div className="px-5 py-6">
         <BodyContent content={form.content} viewMode={viewMode} />
 
-        <StatsRow primaryColor={primaryColor} viewMode={viewMode} />
+        <EditableStatCards
+          cards={c.statCards}
+          primaryColor={primaryColor}
+          editable={editable}
+          onChange={(next) => onUpdateContent?.({ statCards: next })}
+          showAddControl={c.editorUi?.showStatAdd !== false}
+          onSetShowAddControl={
+            onUpdateContent
+              ? (v) =>
+                  onUpdateContent({
+                    editorUi: { ...c.editorUi, showStatAdd: v },
+                  })
+              : undefined
+          }
+        />
 
         {/* Big CTA */}
         {primaryCta && (
@@ -912,7 +984,13 @@ export function PromotionalLayout({
               fullWidth
             />
             <p className="text-center text-[10px] text-gray-400 mt-2">
-              Limited time. Don't miss out.
+              <EditableInline
+                value={c.promotionalCtaNote}
+                placeholder="Takes less than a minute"
+                editable={editable}
+                hintLabel="CTA note"
+                onSave={(v) => onUpdateContent?.({ promotionalCtaNote: v })}
+              />
             </p>
           </div>
         )}
@@ -937,6 +1015,15 @@ export function PromotionalLayout({
         template={template}
         editable={editable}
         onUpdateTemplate={onUpdateTemplate}
+        showSocialAdd={c.editorUi?.showSocialAdd !== false}
+        onSetShowSocialAdd={
+          onUpdateContent
+            ? (v) =>
+                onUpdateContent({
+                  editorUi: { ...c.editorUi, showSocialAdd: v },
+                })
+            : null
+        }
       />
     </div>
   );
@@ -954,7 +1041,9 @@ export function DigestLayout({
   viewMode,
   editable,
   onUpdateTemplate,
+  onUpdateContent,
 }) {
+  const c = getMergedCommContent(form.content);
   const linkAtts = (form.attachments || []).filter(
     (a) => a.type === "video_link" || a.type === "web_link",
   );
@@ -973,7 +1062,15 @@ export function DigestLayout({
           onUpdateTemplate={onUpdateTemplate}
         />
         <span className="text-[10px] font-semibold uppercase tracking-widest text-white/80">
-          Digest
+          <EditableInline
+            value={c.digestHeaderLabel}
+            placeholder="This week"
+            editable={editable}
+            hintLabel="Header label"
+            onSave={(v) =>
+              onUpdateContent?.({ digestHeaderLabel: v || "This week" })
+            }
+          />
         </span>
       </div>
 
@@ -986,7 +1083,14 @@ export function DigestLayout({
           {form.subject || "Your weekly digest"}
         </h1>
         <p className="text-xs text-gray-500 mt-1">
-          Everything worth knowing, in one place
+          <EditableInline
+            value={c.digestSubtitle}
+            placeholder="Everything worth knowing, in one place"
+            editable={editable}
+            hintLabel="Subtitle"
+            multiline
+            onSave={(v) => onUpdateContent?.({ digestSubtitle: v })}
+          />
         </p>
       </div>
 
@@ -1067,6 +1171,15 @@ export function DigestLayout({
         template={template}
         editable={editable}
         onUpdateTemplate={onUpdateTemplate}
+        showSocialAdd={c.editorUi?.showSocialAdd !== false}
+        onSetShowSocialAdd={
+          onUpdateContent
+            ? (v) =>
+                onUpdateContent({
+                  editorUi: { ...c.editorUi, showSocialAdd: v },
+                })
+            : null
+        }
       />
     </div>
   );
@@ -1084,7 +1197,9 @@ export function MinimalLayout({
   viewMode,
   editable,
   onUpdateTemplate,
+  onUpdateContent,
 }) {
+  const c = getMergedCommContent(form.content);
   const linkAtts = (form.attachments || []).filter(
     (a) => a.type === "video_link" || a.type === "web_link",
   );
@@ -1178,6 +1293,15 @@ export function MinimalLayout({
           primaryColor={primaryColor}
           editable={editable}
           onChange={(next) => onUpdateTemplate?.({ socialLinks: next })}
+          showAddControl={c.editorUi?.showSocialAdd !== false}
+          onSetShowAddControl={
+            onUpdateContent
+              ? (v) =>
+                  onUpdateContent({
+                    editorUi: { ...c.editorUi, showSocialAdd: v },
+                  })
+              : undefined
+          }
         />
         <p className="text-[10px] uppercase tracking-[0.25em] text-gray-400">
           <EditableInline
