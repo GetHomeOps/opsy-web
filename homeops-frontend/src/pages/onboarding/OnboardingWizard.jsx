@@ -698,6 +698,12 @@ export default function OnboardingWizard() {
           : buildFallbackPlans(role, subscriptionProducts),
       )
     : [];
+  const step2SinglePlan = step === 2 && availablePlans.length === 1;
+  const stepContentMaxClass = step2SinglePlan
+    ? "max-w-md"
+    : step === 2
+      ? "max-w-7xl"
+      : "max-w-2xl";
   const selectedPlan = availablePlans.find((p) => (p.code || p.id) === plan);
   const isFreePlan =
     Boolean(plan) && isZeroCostPlan(selectedPlan, billingInterval);
@@ -772,7 +778,7 @@ export default function OnboardingWizard() {
         />
         <StepIndicator currentStep={displayStep} totalSteps={totalSteps} />
 
-        <div className={`w-full ${step === 2 ? "max-w-7xl" : "max-w-2xl"}`}>
+        <div className={`w-full ${stepContentMaxClass}`}>
           {step === 1 && !lockedRole && (
             <Step1Role role={role} onSelect={setRole} />
           )}
@@ -807,7 +813,7 @@ export default function OnboardingWizard() {
         )}
 
         <div
-          className={`flex items-center justify-between w-full mt-10 ${step === 2 ? "max-w-7xl" : "max-w-2xl"}`}
+          className={`flex items-center justify-between w-full mt-10 ${stepContentMaxClass}`}
         >
           <div className="flex items-center gap-4">
             <button
