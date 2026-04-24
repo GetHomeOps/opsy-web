@@ -196,8 +196,16 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
     if (uid == null || uid === "null" || uid === "undefined" || String(uid).trim() === "") {
       throw new BadRequestError("Valid property uid required");
     }
-    const property = await Property.get(uid);
-    const teamRows = await Property.getPropertyTeam(property.id);
+    /* Middleware already resolved (and cached) uid → id; reuse it instead of
+       re-querying the properties table. */
+    const propertyId = res.locals.resolvedPropertyId;
+
+    /* Team rows + pending invitations are independent — fetch in parallel. */
+    const [teamRows, pendingInvitations] = await Promise.all([
+      Property.getPropertyTeam(propertyId),
+      Invitation.getByProperty(propertyId, { status: "pending" }),
+    ]);
+
     const property_users_with_urls = await addPresignedUrlsToItems(teamRows, "image", "image_url");
 
     // Use avatar_url (e.g. Google OAuth profile pic) as fallback when image/image_url is null
@@ -206,8 +214,6 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
       image_url: u.image_url ?? u.avatar_url ?? null,
     }));
 
-    // Include pending invitations as team members with _pending flag (excludes accepted)
-    const pendingInvitations = await Invitation.getByProperty(property.id, { status: "pending" });
     const pendingMembers = pendingInvitations.map((inv) => ({
       email: inv.inviteeEmail,
       name: inv.inviteeEmail,

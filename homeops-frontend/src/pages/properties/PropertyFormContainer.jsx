@@ -1512,7 +1512,11 @@ function PropertyFormContainer() {
     return () => {
       cancelled = true;
     };
-  }, [uid, currentUser?.id, state.property]);
+    /* Depend on the stable property id rather than the whole `state.property`
+       object — `SET_PROPERTY` runs up to 3x per navigation (preloaded create
+       payload, optimistic list-state, full fetch) and each new object reference
+       was retriggering this effect, kicking off duplicate /team/:uid fetches. */
+  }, [uid, currentUser?.id, state.property?.identity?.id ?? state.property?.id]);
 
   /* Handles the change of the property */
   const handleChange = (event) => {

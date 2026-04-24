@@ -206,9 +206,13 @@ function ensurePropertyAccess(options = {}) {
       } else {
         throw new ForbiddenError("Property not found.");
       }
+      /* Always expose the resolved numeric property id so downstream handlers
+         can skip a redundant property lookup. When the route's param is the
+         numeric id (propertyId/PropertyId), also overwrite req.params so models
+         that expect an int receive one. */
+      res.locals.resolvedPropertyId = propertyId;
       if (paramExpectsNumericId) {
         req.params[param] = propertyId;
-        res.locals.resolvedPropertyId = propertyId;
       }
 
       if (user.role === "super_admin" || user.role === "admin") return next();
