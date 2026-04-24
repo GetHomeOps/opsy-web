@@ -6,9 +6,9 @@
  * On a completely empty `subscription_products` table, inserts every plan from data/plans.json
  * (including the free tier `homeowner_free` if present there).
  *
- * Once any product exists, startup only **updates** rows whose `code` matches plans.json.
- * Products you delete in the admin UI are not re-created on restart. To add tiers from JSON
- * to an existing database, use the admin UI or run the seed script with a one-time empty DB.
+ * Once any product exists, startup does **not** overwrite catalog fields from plans.json
+ * (Super Admin is source of truth). New codes are inserted only when `subscription_products`
+ * is still empty. Products you delete in the admin UI are not re-created on restart.
  *
  * Price IDs: STRIPE_PRICE_IDS env (JSON) or Super Admin UI. No hardcoded price IDs in code.
  */
@@ -77,27 +77,11 @@ async function ensureStripePlans() {
     let productId;
     if (existing.rows.length > 0) {
       productId = existing.rows[0].id;
-      // Update product fields but preserve admin-edited values (features, popular, is_active).
-      // Do not overwrite `price`: dollar amounts come from Super Admin → Stripe (`plan_prices`) or upsertPlanPrice sync, not data/plans.json.
-      await db.query(
-        `UPDATE subscription_products
-         SET name = $1, description = $2, target_role = $3, sort_order = $4,
-             trial_days = $5, max_properties = $6, max_contacts = $7, max_viewers = $8, max_team_members = $9,
-             updated_at = NOW()
-         WHERE id = $10`,
-        [
-          name,
-          description || `${name} plan for ${targetRole}s`,
-          targetRole,
-          sortOrder ?? 99,
-          trialDays,
-          limits?.maxProperties ?? 1,
-          limits?.maxContacts ?? 25,
-          limits?.maxViewers ?? 2,
-          limits?.maxTeamMembers ?? 5,
-          productId,
-        ]
-      );
+      /* Do not UPDATE subscription_products from plans.json for existing rows.
+         Super Admin (Subscriptions → Products & Plans) is the source of truth for
+         name, description, role, sort order, trial days, and legacy limit columns.
+         Previously every server start reset those fields from JSON, so plan picker
+         UIs kept showing stale copy from data/plans.json. */
     } else if (allowInsertNewCodes) {
       const ins = await db.query(
         `INSERT INTO subscription_products
@@ -134,16 +118,7 @@ async function ensureStripePlans() {
       `INSERT INTO plan_limits
         (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, max_documents_per_system, ai_features_enabled, other_limits, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true), $9, NOW())
-       ON CONFLICT (subscription_product_id) DO UPDATE SET
-         max_properties = EXCLUDED.max_properties,
-         max_contacts = EXCLUDED.max_contacts,
-         max_viewers = EXCLUDED.max_viewers,
-         max_team_members = EXCLUDED.max_team_members,
-         ai_token_monthly_quota = EXCLUDED.ai_token_monthly_quota,
-         max_documents_per_system = EXCLUDED.max_documents_per_system,
-         ai_features_enabled = COALESCE(EXCLUDED.ai_features_enabled, plan_limits.ai_features_enabled),
-         other_limits = EXCLUDED.other_limits,
-         updated_at = NOW()`,
+       ON CONFLICT (subscription_product_id) DO NOTHING`,
       [
         productId,
         limits?.maxProperties ?? 1,
