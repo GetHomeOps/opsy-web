@@ -189,7 +189,15 @@ async function canAddTeamMember(accountId, propertyId, userRole, options = {}) {
   if (isAdminRole(userRole)) return { allowed: true, current: 0, max: 999999 };
   const limits = options.limits ?? (await getAccountLimits(accountId));
   const countRes = await db.query(
-    `SELECT COUNT(*)::int AS count FROM property_users WHERE property_id = $1 AND role != 'viewer'`,
+    `SELECT
+       (SELECT COUNT(*)::int FROM property_users
+          WHERE property_id = $1 AND role != 'viewer')
+       +
+       (SELECT COUNT(*)::int FROM invitations
+          WHERE property_id = $1
+            AND status = 'pending'
+            AND COALESCE(intended_role, 'editor') != 'viewer')
+       AS count`,
     [propertyId]
   );
   const current = countRes.rows[0].count;
@@ -212,8 +220,19 @@ async function getTeamMemberInviteEligibilityByProperty(accountId, propertyIds, 
   const limits = await getAccountLimits(accountId);
   const max = limits.maxTeamMembers;
   const countRes = await db.query(
-    `SELECT property_id, COUNT(*)::int AS count FROM property_users
-     WHERE property_id = ANY($1::int[]) AND role != 'viewer'
+    `SELECT property_id, SUM(count)::int AS count FROM (
+       SELECT property_id, COUNT(*)::int AS count
+         FROM property_users
+         WHERE property_id = ANY($1::int[]) AND role != 'viewer'
+         GROUP BY property_id
+       UNION ALL
+       SELECT property_id, COUNT(*)::int AS count
+         FROM invitations
+         WHERE property_id = ANY($1::int[])
+           AND status = 'pending'
+           AND COALESCE(intended_role, 'editor') != 'viewer'
+         GROUP BY property_id
+     ) t
      GROUP BY property_id`,
     [propertyIds]
   );

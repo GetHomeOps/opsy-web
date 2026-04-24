@@ -110,15 +110,6 @@ const PERMISSION_OPTIONS = [
   {id: "none", label: "None"},
 ];
 
-/** Max homeowner/household slots per plan (owner + co-owners + view-only). Free: 1 owner only; Maintain: 2; Win: unlimited. */
-const HOMEOWNER_SLOT_LIMITS = {
-  free: 1,
-  maintain: 2,
-  win: null /* unlimited */,
-  homeowner_beta: 2,
-  beta_homeowner: 2, // legacy users.subscription_tier
-};
-
 const HOMEOWNER_INVITE_TYPES = [
   {id: "co_owner", label: "Co-owner", description: "Full edit access"},
   {
@@ -922,16 +913,10 @@ function SharePropertyModal({
   /* Homeowner tab (agent adding homeowner): restrictions are read-only, default edit */
   const homeownerRestrictionsReadOnly =
     activeTab === "homeowner" && !isHomeowner;
-  const subscriptionTier = (
-    currentUser?.subscriptionTier ??
-    currentUser?.subscription_tier ??
-    "free"
-  ).toLowerCase();
-  const maxHomeownerSlots =
-    HOMEOWNER_SLOT_LIMITS[subscriptionTier] ?? HOMEOWNER_SLOT_LIMITS.free;
+  const maxHomeownerSlots = billingLimits?.maxTeamMembers ?? null;
   const homeownerCount = useMemo(() => {
     return (teamMembers ?? []).filter(
-      (m) => (m.role ?? "").toLowerCase() === "homeowner" || m._pending,
+      (m) => (m.role ?? "").toLowerCase() === "homeowner",
     ).length;
   }, [teamMembers]);
   const atHomeownerLimit =

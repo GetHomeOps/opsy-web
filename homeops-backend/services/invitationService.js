@@ -682,35 +682,41 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
     invitation = await Invitation.validateToken(rawToken);
   }
 
-  /* Re-check plan viewer capacity at acceptance time to prevent pending
+  /* Re-check plan capacity at acceptance time to prevent pending
      invitations issued before an upgrade/downgrade or before sibling invites
      from pushing the property over its plan limit. */
   if (
     invitation?.type === "property" &&
     invitation.propertyId &&
-    invitation.accountId &&
-    (invitation.intendedRole || "").toLowerCase() === "viewer"
+    invitation.accountId
   ) {
     const limits = await getAccountLimits(invitation.accountId);
-    const max = limits.maxViewers;
+    const intendedRole = (invitation.intendedRole || "editor").toLowerCase();
+    const isViewerInvite = intendedRole === "viewer";
+    const max = isViewerInvite ? limits.maxViewers : limits.maxTeamMembers;
     if (max != null) {
+      const memberRolePredicate = isViewerInvite ? "role = 'viewer'" : "role != 'viewer'";
+      const inviteRolePredicate = isViewerInvite
+        ? "COALESCE(intended_role, 'editor') = 'viewer'"
+        : "COALESCE(intended_role, 'editor') != 'viewer'";
       const cntRes = await db.query(
         `SELECT
            (SELECT COUNT(*)::int FROM property_users
-              WHERE property_id = $1 AND role = 'viewer')
+              WHERE property_id = $1 AND ${memberRolePredicate})
            +
            (SELECT COUNT(*)::int FROM invitations
               WHERE property_id = $1
                 AND status = 'pending'
-                AND intended_role = 'viewer'
+                AND ${inviteRolePredicate}
                 AND id != $2)
            AS count`,
         [invitation.propertyId, invitation.id]
       );
       const current = cntRes.rows[0].count;
       if (current >= max) {
+        const label = isViewerInvite ? "View-only user" : "Home owner";
         throw new ForbiddenError(
-          `View-only user limit reached (${current}/${max}) for this property. Ask the property owner to upgrade the plan before accepting.`
+          `${label} limit reached (${current}/${max}) for this property. Ask the property owner to upgrade the plan before accepting.`
         );
       }
     }
