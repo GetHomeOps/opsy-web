@@ -87,6 +87,11 @@ async function createCheckoutSession({ accountId, userId, planCode, billingInter
     mode: "subscription",
     customer: customer.id,
     payment_method_types: ["card"],
+    // Stripe Tax: Dashboard "Tax" settings alone do not apply to API-created checkouts/subs.
+    automatic_tax: { enabled: true },
+    // Existing customers often have no address; collect billing location and copy to Customer for renewals.
+    billing_address_collection: "required",
+    customer_update: { address: "auto", name: "auto" },
     line_items: [{
       price: plan.rows[0].stripe_price_id,
       quantity: 1,
@@ -709,6 +714,7 @@ async function downgradeToZeroCostPlan({ accountId, userId, planCode, expectedAu
     for (const row of stripeSubs) {
       const updated = await stripe.subscriptions.update(row.stripe_subscription_id, {
         cancel_at_period_end: true,
+        automatic_tax: { enabled: true },
         metadata: { pending_downgrade_plan: planCode },
       });
       const dates = getSubscriptionPeriodDates(updated);
@@ -777,6 +783,7 @@ async function reactivateSubscription(accountId, userId) {
 
   await stripe.subscriptions.update(stripeSubId, {
     cancel_at_period_end: false,
+    automatic_tax: { enabled: true },
     metadata: { pending_downgrade_plan: "" },
   });
 

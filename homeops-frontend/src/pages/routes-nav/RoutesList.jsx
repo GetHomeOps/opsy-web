@@ -27,6 +27,7 @@ import ResetPassword from "../auth/ResetPassword";
 import VerifyEmail from "../auth/VerifyEmail";
 import ContractorReportPage from "../properties/ContractorReportPage";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
+import TermsOfService from "../legal/TermsOfService";
 
 // Private pages (sidebar/navbar only when authenticated, guarded by ProtectedRoute)
 import Account from "../accountSettings/Account";
@@ -123,11 +124,14 @@ function RoutesList() {
   const location = useLocation();
 
   // Let the OAuth callback render immediately — it has its own loading UI.
+  // Legal pages render without waiting so logged-in users (e.g. onboarding) can open them.
   // All other routes wait for AuthContext to finish initialising.
   if (
     isLoading &&
     location.pathname !== "/auth/callback" &&
-    location.pathname !== "/verify-email"
+    location.pathname !== "/verify-email" &&
+    location.pathname !== "/privacy-policy" &&
+    location.pathname !== "/terms-of-service"
   ) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -180,14 +184,10 @@ function RoutesList() {
           </PublicRoute>
         }
       />
-      <Route
-        path="/privacy-policy"
-        element={
-          <PublicRoute>
-            <PrivacyPolicy />
-          </PublicRoute>
-        }
-      />
+      {/* No PublicRoute: that wrapper redirects logged-in users to app home, which
+          sends incomplete onboarding back here — so Terms/Privacy would never show. */}
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/terms-of-service" element={<TermsOfService />} />
       {/* Public contractor report page — accessed via token link, no auth needed */}
       <Route path="/contractor-report" element={<ContractorReportPage />} />
       {/* Invite confirmation: allow both logged-in and logged-out users (invitee may be testing while logged in) */}

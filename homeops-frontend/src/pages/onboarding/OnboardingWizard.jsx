@@ -1,5 +1,5 @@
 import {useState, useEffect, useCallback} from "react";
-import {useNavigate} from "react-router-dom";
+import {Link, useNavigate} from "react-router-dom";
 import {
   Home,
   Briefcase,
@@ -536,7 +536,7 @@ function Step2Plan({
   );
 }
 
-function Step3Confirmation({role, plan, selectedPlan}) {
+function Step3Confirmation({role, plan, selectedPlan, isFreePlan}) {
   const roleLabel = role === "homeowner" ? "Homeowner" : "Agent";
 
   const planLabel = selectedPlan?.name ?? plan;
@@ -589,6 +589,37 @@ function Step3Confirmation({role, plan, selectedPlan}) {
           </ul>
         </div>
       </div>
+      <p className="text-xs text-center text-gray-500 dark:text-gray-400 max-w-md mx-auto leading-relaxed px-2">
+        {isFreePlan ? (
+          <>
+            By continuing, you agree to our{" "}
+            <Link
+              to="/terms-of-service"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-700 dark:text-emerald-400 underline underline-offset-2 hover:text-emerald-800 dark:hover:text-emerald-300"
+            >
+              Terms of Service
+            </Link>
+            .
+          </>
+        ) : (
+          <>
+            By continuing to payment, you agree to our{" "}
+            <Link
+              to="/terms-of-service"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-700 dark:text-emerald-400 underline underline-offset-2 hover:text-emerald-800 dark:hover:text-emerald-300"
+            >
+              Terms of Service
+            </Link>
+            . Subscription fees are non-refundable; if you cancel, you keep
+            access to paid features through the end of your current billing
+            period, except where a stronger right applies by law.
+          </>
+        )}
+      </p>
     </div>
   );
 }
@@ -764,6 +795,7 @@ export default function OnboardingWizard() {
               role={role}
               plan={plan}
               selectedPlan={selectedPlan}
+              isFreePlan={isFreePlan}
             />
           )}
         </div>
