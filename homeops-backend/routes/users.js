@@ -36,14 +36,32 @@ const { createAccountInvitation } = require("../services/invitationService");
 const router = express.Router();
 
 /** POST / - Admin-created user. Creates user as pending (is_active=false,
- *  onboarding_completed=false) and immediately sends an invitation email so
- *  the invitee can set a password and run through the onboarding/payment
- *  workflow on their own. Account linking, activation, and onboarding
- *  completion happen when the user accepts the invitation and finishes
- *  picking a plan. */
+ *  onboarding_completed=false) and, by default, immediately sends an invitation
+ *  email so the invitee can set a password and run through the onboarding /
+ *  payment workflow on their own. Account linking, activation, and onboarding
+ *  completion happen when the user accepts the invitation and finishes picking
+ *  a plan.
+ *
+ *  Pass `sendInvite: false` (or `sendInvitationEmail: false`) in the body to
+ *  skip the invitation email — useful when bulk-creating users who shouldn't be
+ *  contacted yet. The invitation can still be sent later via the existing
+ *  "Resend invitation email" action in the user form. */
 router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
   try {
-    const { name, email, password, phone, role, contact, image, accountId } = req.body;
+    const {
+      name,
+      email,
+      password,
+      phone,
+      role,
+      contact,
+      image,
+      accountId,
+      sendInvite,
+      sendInvitationEmail,
+    } = req.body;
+    const shouldSendInvite =
+      sendInvite === false || sendInvitationEmail === false ? false : true;
 
     /* Lock the role for admin-created homeowner/agent users so they can
        only see plans matching the role the admin chose during onboarding,
@@ -87,7 +105,13 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
 
     let invitation = null;
     let invitationEmailSent = false;
-    if (resolvedAccountId) {
+    let invitationSkipped = false;
+    if (!shouldSendInvite) {
+      invitationSkipped = true;
+      console.info(
+        `[users.create] sendInvite=false; skipping invitation email for ${newUser.email}.`
+      );
+    } else if (resolvedAccountId) {
       try {
         const inviteResult = await createAccountInvitation({
           inviterUserId,
@@ -107,7 +131,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
     }
 
     const user = await User.getById(newUser.id);
-    return res.status(201).json({ user, invitation, invitationEmailSent });
+    return res.status(201).json({ user, invitation, invitationEmailSent, invitationSkipped });
   } catch (err) {
     return next(err);
   }

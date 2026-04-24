@@ -1,4 +1,4 @@
-import React, {useCallback, useId, useRef, useState} from "react";
+import React, {useCallback, useEffect, useId, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {
   Home,
@@ -566,6 +566,10 @@ function getFieldValue(propertyData, fieldName) {
   }
   return undefined;
 }
+
+/* The ATTOM "Pull property data" action was moved to the PropertyFormContainer
+ * actions dropdown. State + polling live in hooks/useAttomRefresh.js; the confirm
+ * dialog lives in partials/AttomRefreshConfirmDialog.jsx. */
 
 function IdentityTab({
   propertyData,

@@ -50,16 +50,15 @@ class Subscription {
               s.subscription_product_id AS "subscriptionProductId",
               sp.name AS "productName",
               CASE
-                /* Free / beta / comp subscribers are not billed via Stripe — never invent a paid amount from the catalog. */
-                WHEN s.stripe_subscription_id IS NULL THEN 0
-                /* Use the exact unit_amount cached for the price ID this subscriber is on. */
+                /* Prefer the exact Stripe price attached to this subscription when available. */
                 WHEN pp.unit_amount IS NOT NULL THEN pp.unit_amount::numeric / 100
-                /* Fallback: active monthly price from plan_prices (Super Admin > Products & Plans → Stripe), not plans.json / sp.price. */
+                /* Otherwise reflect the selected product's configured monthly/catalog price. */
                 ELSE COALESCE(
                   (SELECT ppm.unit_amount::numeric / 100 FROM plan_prices ppm
                    WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
                      AND (ppm.is_active IS NULL OR ppm.is_active = true)
                    LIMIT 1),
+                  sp.price::numeric,
                   0
                 )
               END AS "productPrice",
@@ -107,16 +106,15 @@ class Subscription {
               s.subscription_product_id AS "subscriptionProductId",
               sp.name AS "productName",
               CASE
-                /* Free / beta / comp subscribers are not billed via Stripe — never invent a paid amount from the catalog. */
-                WHEN s.stripe_subscription_id IS NULL THEN 0
-                /* Use the exact unit_amount cached for the price ID this subscriber is on. */
+                /* Prefer the exact Stripe price attached to this subscription when available. */
                 WHEN pp.unit_amount IS NOT NULL THEN pp.unit_amount::numeric / 100
-                /* Fallback: active monthly price from plan_prices (Super Admin > Products & Plans → Stripe), not plans.json / sp.price. */
+                /* Otherwise reflect the selected product's configured monthly/catalog price. */
                 ELSE COALESCE(
                   (SELECT ppm.unit_amount::numeric / 100 FROM plan_prices ppm
                    WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
                      AND (ppm.is_active IS NULL OR ppm.is_active = true)
                    LIMIT 1),
+                  sp.price::numeric,
                   0
                 )
               END AS "productPrice",

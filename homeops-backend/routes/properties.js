@@ -16,6 +16,8 @@ const { assertAtMostOneAgentOnProperty } = require("../services/propertyAgentPol
 const InspectionAnalysisJob = require("../models/inspectionAnalysisJob");
 const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const { enqueue } = require("../services/inspectionAnalysisQueue");
+const AttomLookupJob = require("../models/attomLookupJob");
+const { enqueue: enqueueAttomLookup } = require("../services/attomLookupQueue");
 const Contact = require("../models/contact");
 const SavedProfessional = require("../models/savedProfessional");
 const Invitation = require("../models/invitation");
@@ -78,6 +80,23 @@ router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async fun
         user_id: creatorId,
         role: 'owner',
       });
+    }
+
+    /* Bulk-import path enqueues an async ATTOM public-records lookup. The queue
+     * throttles calls (ATTOM_MIN_DELAY_MS) and retries transient failures, so
+     * large imports never overwhelm ATTOM's rate limit. */
+    if (req.body.enqueueAttomLookup === true) {
+      try {
+        const job = await AttomLookupJob.create({
+          property_id: property.id,
+          account_id: accountId,
+          user_id: creatorId || null,
+          trigger: "bulk_import",
+        });
+        enqueueAttomLookup(job.id);
+      } catch (attomErr) {
+        console.error("[attomLookup] enqueue-on-create failed:", attomErr?.message);
+      }
     }
 
     let isFirstPropertyForUser = false;
@@ -431,6 +450,197 @@ router.get(
         ...runLimitPayload,
       };
       return res.json(payload);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** POST /attom-lookup/statuses — Batch latest-ATTOM-job lookup for the given property ids.
+ *
+ * Body: { account_id: number|string, ids: Array<number|string> }
+ *
+ * Used by the bulk-import "Review & confirm" screen to poll per-row ATTOM
+ * progress without making one HTTP request per property. We scope the query to
+ * a single account (checked via middleware) and only return rows whose
+ * `account_id` matches, so the caller cannot exfiltrate jobs from other
+ * accounts by listing ids they don't own.
+ *
+ * Response shape: { statuses: Record<propertyId, JobSummary | null> } where
+ * JobSummary matches the single-property endpoint's `job` shape; properties
+ * with no ATTOM job yet return `null`. */
+router.post(
+  "/attom-lookup/statuses",
+  ensureLoggedIn,
+  ensureUserCanAccessAccountFromBody(),
+  async function (req, res, next) {
+    try {
+      const accountId = req.body?.account_id;
+      const rawIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+      const ids = rawIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+      if (ids.length === 0) {
+        return res.json({ statuses: {} });
+      }
+
+      const rows = await AttomLookupJob.getLatestForProperties(ids);
+      const scoped = rows.filter(
+        (r) => String(r.account_id) === String(accountId)
+      );
+
+      const statuses = {};
+      for (const id of ids) statuses[id] = null;
+
+      for (const job of scoped) {
+        let populatedKeys = [];
+        if (Array.isArray(job.populated_keys)) {
+          populatedKeys = job.populated_keys;
+        } else if (
+          typeof job.populated_keys === "string" &&
+          job.populated_keys.trim() !== ""
+        ) {
+          try {
+            const parsed = JSON.parse(job.populated_keys);
+            if (Array.isArray(parsed)) populatedKeys = parsed;
+          } catch {
+            populatedKeys = [];
+          }
+        }
+        statuses[job.property_id] = {
+          id: job.id,
+          status: job.status,
+          trigger: job.trigger,
+          attempts: job.attempts,
+          maxAttempts: job.max_attempts,
+          errorCode: job.error_code,
+          errorMessage: job.error_message,
+          populatedKeys,
+          runAfter: job.run_after,
+          createdAt: job.created_at,
+          updatedAt: job.updated_at,
+        };
+      }
+
+      return res.json({ statuses });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** POST /:propertyId/attom-lookup — Enqueue a manual ATTOM refresh for this property.
+ *
+ * Returns 202 with the new job id. Processing is serial and throttled by
+ * services/attomLookupQueue.js; clients should poll GET
+ * /:propertyId/attom-lookup/latest for status. If there's already an active
+ * job (queued/processing), reuses it instead of creating a duplicate. */
+router.post(
+  "/:propertyId/attom-lookup",
+  ensureLoggedIn,
+  resolvePropertyIdForInspection,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      const propertyId = req.params.propertyId;
+      const userId = res.locals.user?.id || null;
+
+      const existing = await AttomLookupJob.getLatestActiveForProperty(propertyId);
+      if (existing) {
+        return res.status(202).json({
+          job: {
+            id: existing.id,
+            status: existing.status,
+            attempts: existing.attempts,
+            maxAttempts: existing.max_attempts,
+            runAfter: existing.run_after,
+            createdAt: existing.created_at,
+          },
+          reused: true,
+        });
+      }
+
+      const propRes = await db.query(
+        `SELECT account_id FROM properties WHERE id = $1`,
+        [propertyId]
+      );
+      if (propRes.rows.length === 0) {
+        throw new BadRequestError("Property not found.");
+      }
+      const accountId = propRes.rows[0].account_id;
+
+      const job = await AttomLookupJob.create({
+        property_id: propertyId,
+        account_id: accountId,
+        user_id: userId,
+        trigger: "manual_refresh",
+      });
+      enqueueAttomLookup(job.id);
+
+      return res.status(202).json({
+        job: {
+          id: job.id,
+          status: job.status,
+          attempts: job.attempts,
+          maxAttempts: job.max_attempts,
+          runAfter: job.run_after,
+          createdAt: job.created_at,
+        },
+        reused: false,
+      });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** GET /:propertyId/attom-lookup/latest — Latest ATTOM lookup job status for UI polling.
+ *
+ * Returns `{ job: null }` if no job has ever been created. Used by the
+ * IdentityTab "Refresh property data" button to show Queued / Looking up /
+ * Updated / Failed chips. */
+router.get(
+  "/:propertyId/attom-lookup/latest",
+  ensureLoggedIn,
+  resolvePropertyIdForInspection,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      const propertyId = req.params.propertyId;
+      const job = await AttomLookupJob.getLatestForProperty(propertyId);
+      if (!job) return res.json({ job: null });
+
+      let populatedKeys = [];
+      if (Array.isArray(job.populated_keys)) {
+        populatedKeys = job.populated_keys;
+      } else if (
+        typeof job.populated_keys === "string" &&
+        job.populated_keys.trim() !== ""
+      ) {
+        try {
+          const parsed = JSON.parse(job.populated_keys);
+          if (Array.isArray(parsed)) populatedKeys = parsed;
+        } catch {
+          populatedKeys = [];
+        }
+      }
+
+      return res.json({
+        job: {
+          id: job.id,
+          status: job.status,
+          trigger: job.trigger,
+          attempts: job.attempts,
+          maxAttempts: job.max_attempts,
+          errorCode: job.error_code,
+          errorMessage: job.error_message,
+          populatedKeys,
+          runAfter: job.run_after,
+          createdAt: job.created_at,
+          updatedAt: job.updated_at,
+        },
+      });
     } catch (err) {
       return next(err);
     }

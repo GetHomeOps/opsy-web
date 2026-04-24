@@ -1,10 +1,15 @@
-import React, { useState, useCallback, useMemo, useRef, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import React, {useState, useCallback, useMemo, useRef, useContext} from "react";
+import {useNavigate} from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
   USER_IMPORT_KEYS,
   USER_IMPORT_FIELDS,
+  USER_IMPORT_ROLE_VALUES,
+  USER_IMPORT_ROLE_SET,
+  USER_IMPORT_ROLE_COLUMN_1_BASED,
   normalizeHeader,
+  normalizeUserImportRole,
+  toApiUserImportRole,
   getTemplateRow,
   getTemplateHeaders,
 } from "../../data/userImportSchema";
@@ -24,6 +29,7 @@ import {
   FileCheck,
   ArrowLeft,
   Users,
+  Mail,
 } from "lucide-react";
 
 const PREVIEW_PAGE_SIZE = 50;
@@ -31,7 +37,8 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Generate a random password (min 5 chars for backend schema). */
 function randomPassword() {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const chars =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let s = "";
   for (let i = 0; i < 10; i++) {
     s += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -41,7 +48,7 @@ function randomPassword() {
 
 function isEmptyRow(cellValues) {
   return Object.values(cellValues).every(
-    (v) => v == null || String(v).trim() === ""
+    (v) => v == null || String(v).trim() === "",
   );
 }
 
@@ -63,7 +70,7 @@ function normalizeRow(rawRow, headerMap) {
 function validateRow(row, rowIndex, emailSet) {
   const errors = [];
   const requiredKeys = USER_IMPORT_FIELDS.filter((f) => f.required).map(
-    (f) => f.key
+    (f) => f.key,
   );
   for (const key of requiredKeys) {
     const val = (row[key] ?? "").trim();
@@ -77,6 +84,15 @@ function validateRow(row, rowIndex, emailSet) {
     errors.push("Duplicate email in file");
   }
   if (email) emailSet.add(email.toLowerCase());
+  const rolePart = (row.role ?? "").trim();
+  if (rolePart) {
+    const n = normalizeUserImportRole(rolePart);
+    if (!USER_IMPORT_ROLE_SET.has(n)) {
+      errors.push(
+        `Invalid role. Use one of: ${USER_IMPORT_ROLE_VALUES.join(", ")}`,
+      );
+    }
+  }
   return errors;
 }
 
@@ -93,9 +109,9 @@ function parseFile(file) {
         });
         const firstSheet = wb.SheetNames[0];
         const ws = wb.Sheets[firstSheet];
-        const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
+        const json = XLSX.utils.sheet_to_json(ws, {defval: "", raw: false});
         if (!json.length) {
-          resolve({ rows: [], headerMap: new Map() });
+          resolve({rows: [], headerMap: new Map()});
           return;
         }
         const rawHeaders = Object.keys(json[0]);
@@ -107,7 +123,7 @@ function parseFile(file) {
         const rows = json
           .map((raw) => normalizeRow(raw, headerMap))
           .filter((r) => !isEmptyRow(r));
-        resolve({ rows, headerMap });
+        resolve({rows, headerMap});
       } catch (err) {
         reject(err);
       }
@@ -121,33 +137,28 @@ function parseFile(file) {
   });
 }
 
-function buildWorkbookForDownload() {
-  const row = getTemplateRow();
-  const ws = XLSX.utils.json_to_sheet([
-    Object.fromEntries(
-      USER_IMPORT_FIELDS.map((f) => [f.label, row[f.key]])
-    ),
-  ]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Users");
-  return wb;
-}
-
-function downloadXlsxTemplate() {
-  const wb = buildWorkbookForDownload();
-  XLSX.writeFile(wb, "user_import_template.xlsx");
+/** Excel column letter from 1-based index (1 → A, 4 → D). */
+function excelColumnLetterFromIndex1Based(n) {
+  let s = "";
+  let k = n;
+  while (k > 0) {
+    k -= 1;
+    s = String.fromCharCode(65 + (k % 26)) + s;
+    k = Math.floor(k / 26);
+  }
+  return s || "A";
 }
 
 const STEPS = [
-  { id: 1, label: "Get template", short: "Template" },
-  { id: 2, label: "Upload & import", short: "Upload" },
-  { id: 3, label: "Review & confirm", short: "Review" },
+  {id: 1, label: "Get template", short: "Template"},
+  {id: 2, label: "Upload & import", short: "Upload"},
+  {id: 3, label: "Review & confirm", short: "Review"},
 ];
 
 function UsersImport() {
   const navigate = useNavigate();
-  const { currentAccount } = useCurrentAccount();
-  const { createUser } = useContext(UserContext);
+  const {currentAccount} = useCurrentAccount();
+  const {createUser} = useContext(UserContext);
   const accountUrl = currentAccount?.url || "";
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -164,6 +175,9 @@ function UsersImport() {
   const [importSuccessCount, setImportSuccessCount] = useState(null);
   const [previewFilter, setPreviewFilter] = useState("all");
   const [showAllRows, setShowAllRows] = useState(false);
+  const [templateError, setTemplateError] = useState("");
+  const [isTemplateDownloading, setIsTemplateDownloading] = useState(false);
+  const [sendInviteOnImport, setSendInviteOnImport] = useState(true);
   const previewSectionRef = useRef(null);
 
   const currentStep = allRows.length > 0 ? 3 : pendingFile ? 2 : 1;
@@ -172,15 +186,13 @@ function UsersImport() {
     return allRows.map((row, i) => {
       const valid = validRows.some((r) => r === row);
       const errors = rowErrors[i] || [];
-      return { row, index: i, valid, errors };
+      return {row, index: i, valid, errors};
     });
   }, [allRows, validRows, rowErrors]);
 
   const filteredDisplayRows = useMemo(() => {
-    if (previewFilter === "valid")
-      return displayRows.filter((d) => d.valid);
-    if (previewFilter === "invalid")
-      return displayRows.filter((d) => !d.valid);
+    if (previewFilter === "valid") return displayRows.filter((d) => d.valid);
+    if (previewFilter === "invalid") return displayRows.filter((d) => !d.valid);
     return displayRows;
   }, [displayRows, previewFilter]);
 
@@ -208,10 +220,10 @@ function UsersImport() {
     setIsParsing(true);
     const fileToParse = pendingFile;
     parseFile(fileToParse)
-      .then(({ rows }) => {
+      .then(({rows}) => {
         if (rows.length === 0) {
           setParseError(
-            "No data rows found. Your file needs a header row (Name, Email) and at least one data row."
+            "No data rows found. Your file needs a header row (Name, Email) and at least one data row.",
           );
           setIsParsing(false);
           return;
@@ -236,7 +248,10 @@ function UsersImport() {
         setPendingFile(null);
         setIsParsing(false);
         requestAnimationFrame(() => {
-          previewSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          previewSectionRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
         });
       })
       .catch((err) => {
@@ -274,7 +289,7 @@ function UsersImport() {
       const f = e.dataTransfer?.files?.[0];
       if (f) handleFileSelect(f);
     },
-    [handleFileSelect]
+    [handleFileSelect],
   );
 
   const handleDragOver = useCallback((e) => {
@@ -288,8 +303,67 @@ function UsersImport() {
       if (f) handleFileSelect(f);
       e.target.value = "";
     },
-    [handleFileSelect]
+    [handleFileSelect],
   );
+
+  const handleDownloadTemplate = useCallback(async () => {
+    setTemplateError("");
+    setIsTemplateDownloading(true);
+    try {
+      // Use bare "exceljs" so Vite's resolve.alias (→ dist/exceljs.min.js) applies;
+      // "exceljs/dist/..." is not a valid pnpm/exports subpath and fails to resolve in dev.
+      const ExcelJS = (await import("exceljs")).default;
+      const roleLetter = excelColumnLetterFromIndex1Based(
+        USER_IMPORT_ROLE_COLUMN_1_BASED,
+      );
+      const listFormula = `"${USER_IMPORT_ROLE_VALUES.join(",")}"`;
+
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Users");
+      ws.addRow(getTemplateHeaders());
+      const example = {...getTemplateRow(), role: "homeowner"};
+      ws.addRow(USER_IMPORT_FIELDS.map((f) => example[f.key]));
+
+      ws.views = [{state: "frozen", ySplit: 1, activeCell: "A2"}];
+
+      USER_IMPORT_FIELDS.forEach((f, i) => {
+        const col = ws.getColumn(i + 1);
+        if (f.key === "name") col.width = 28;
+        else if (f.key === "email") col.width = 36;
+        else if (f.key === "phone") col.width = 16;
+        else if (f.key === "role") col.width = 16;
+      });
+
+      ws.dataValidations.add(`${roleLetter}2:${roleLetter}10000`, {
+        type: "list",
+        allowBlank: true,
+        formulae: [listFormula],
+        showErrorMessage: true,
+        errorStyle: "error",
+        errorTitle: "Invalid role",
+        error: "Select a value from the list. Roles must use the exact spelling shown.",
+        showInputMessage: true,
+        promptTitle: "Role",
+        prompt:
+          "Choose a role, or clear the cell to use the default (homeowner) on import.",
+      });
+
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "user_import_template.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setTemplateError(e?.message || "Could not build the template file.");
+    } finally {
+      setIsTemplateDownloading(false);
+    }
+  }, []);
 
   const handleChangeFile = useCallback(() => {
     setPendingFile(null);
@@ -303,35 +377,44 @@ function UsersImport() {
     setConfirmed(false);
   }, []);
 
-  const handleRemoveRow = useCallback((index) => {
-    const nextRows = allRows.filter((_, i) => i !== index);
-    setAllRows(nextRows);
-    if (nextRows.length === 0) {
-      setValidRows([]);
-      setInvalidRows([]);
-      setRowErrors({});
-      return;
-    }
-    const emailSet = new Set();
-    const valid = [];
-    const invalid = [];
-    const errorsByIndex = {};
-    nextRows.forEach((row, i) => {
-      const errs = validateRow(row, i, emailSet);
-      if (errs.length) {
-        invalid.push(row);
-        errorsByIndex[i] = errs;
-      } else {
-        valid.push(row);
+  const handleRemoveRow = useCallback(
+    (index) => {
+      const nextRows = allRows.filter((_, i) => i !== index);
+      setAllRows(nextRows);
+      if (nextRows.length === 0) {
+        setValidRows([]);
+        setInvalidRows([]);
+        setRowErrors({});
+        return;
       }
-    });
-    setValidRows(valid);
-    setInvalidRows(invalid);
-    setRowErrors(errorsByIndex);
-  }, [allRows]);
+      const emailSet = new Set();
+      const valid = [];
+      const invalid = [];
+      const errorsByIndex = {};
+      nextRows.forEach((row, i) => {
+        const errs = validateRow(row, i, emailSet);
+        if (errs.length) {
+          invalid.push(row);
+          errorsByIndex[i] = errs;
+        } else {
+          valid.push(row);
+        }
+      });
+      setValidRows(valid);
+      setInvalidRows(invalid);
+      setRowErrors(errorsByIndex);
+    },
+    [allRows],
+  );
 
   const handleConfirmImport = useCallback(async () => {
-    if (validRows.length < 1 || isSubmitting || !createUser || importSuccessCount != null) return;
+    if (
+      validRows.length < 1 ||
+      isSubmitting ||
+      !createUser ||
+      importSuccessCount != null
+    )
+      return;
     setImportError(null);
     setIsSubmitting(true);
     let successCount = 0;
@@ -341,9 +424,10 @@ function UsersImport() {
           name: (row.name || "").trim(),
           email: (row.email || "").trim(),
           phone: (row.phone || "").trim() || undefined,
-          role: (row.role || "").trim() || undefined,
+          role: toApiUserImportRole(row.role),
           password: randomPassword(),
           is_active: false,
+          sendInvite: sendInviteOnImport,
         };
         await createUser(userData);
         successCount += 1;
@@ -351,13 +435,21 @@ function UsersImport() {
       setImportSuccessCount(successCount);
       setConfirmed(true);
     } catch (err) {
-      const message = Array.isArray(err) ? err.join(" ") : (err?.message || "Import failed.");
+      const message = Array.isArray(err)
+        ? err.join(" ")
+        : err?.message || "Import failed.";
       setImportError(message);
       setImportSuccessCount(successCount > 0 ? successCount : null);
     } finally {
       setIsSubmitting(false);
     }
-  }, [validRows, isSubmitting, createUser, importSuccessCount]);
+  }, [
+    validRows,
+    isSubmitting,
+    createUser,
+    importSuccessCount,
+    sendInviteOnImport,
+  ]);
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
@@ -385,7 +477,9 @@ function UsersImport() {
                 Bulk User Import
               </h1>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Download a template, fill in name and email (required). A temporary password is generated; users can set their own after accepting the invitation.
+                Download a template, fill in name and email (required). A
+                temporary password is generated; users can set their own after
+                accepting the invitation.
               </p>
             </div>
 
@@ -433,18 +527,37 @@ function UsersImport() {
                     1. Get the template
                   </h2>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Required: Name, Email.
+                    Required: Name, Email. The Role column uses a dropdown in the
+                    .xlsx file so values match the system exactly.
                   </p>
                 </div>
-                <div className="p-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={downloadXlsxTemplate}
-                    className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white inline-flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4 shrink-0" />
-                    Download .xlsx
-                  </button>
+                <div className="p-4 flex flex-col gap-3">
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={handleDownloadTemplate}
+                      disabled={isTemplateDownloading}
+                      className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isTemplateDownloading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                          Preparing…
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 shrink-0" />
+                          Download .xlsx
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {templateError && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      {templateError}
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
@@ -456,7 +569,8 @@ function UsersImport() {
                     2. Upload your file
                   </h2>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    .xlsx or .csv. After selecting a file, click Import to preview rows.
+                    .xlsx or .csv. After selecting a file, click Import to
+                    preview rows.
                   </p>
                 </div>
                 <div className="p-4">
@@ -584,7 +698,8 @@ function UsersImport() {
                         3. Review and confirm
                       </h2>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        Fix or remove invalid rows. Only valid rows will be imported.
+                        Fix or remove invalid rows. Only valid rows will be
+                        imported.
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -607,10 +722,10 @@ function UsersImport() {
 
                   <div className="px-4 pt-3 flex flex-wrap gap-2 border-b border-gray-100 dark:border-gray-700/50">
                     {[
-                      { id: "all", label: "All rows", count: totalRows },
-                      { id: "valid", label: "Valid", count: validCount },
-                      { id: "invalid", label: "Invalid", count: invalidCount },
-                    ].map(({ id, label, count }) => (
+                      {id: "all", label: "All rows", count: totalRows},
+                      {id: "valid", label: "Valid", count: validCount},
+                      {id: "invalid", label: "Invalid", count: invalidCount},
+                    ].map(({id, label, count}) => (
                       <button
                         key={id}
                         type="button"
@@ -631,7 +746,9 @@ function UsersImport() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-gray-50 dark:bg-gray-800/80">
-                            <th className="text-left py-2.5 px-3 font-semibold text-gray-700 dark:text-gray-300 w-10 text-xs">#</th>
+                            <th className="text-left py-2.5 px-3 font-semibold text-gray-700 dark:text-gray-300 w-10 text-xs">
+                              #
+                            </th>
                             {USER_IMPORT_FIELDS.map((f) => (
                               <th
                                 key={f.key}
@@ -640,21 +757,28 @@ function UsersImport() {
                                 {f.label}
                               </th>
                             ))}
-                            <th className="text-left py-2.5 px-3 font-semibold text-gray-700 dark:text-gray-300 text-xs">Status</th>
+                            <th className="text-left py-2.5 px-3 font-semibold text-gray-700 dark:text-gray-300 text-xs">
+                              Status
+                            </th>
                             <th className="w-10" />
                           </tr>
                         </thead>
                         <tbody>
-                          {visibleRows.map(({ row, index, valid, errors }, i) => (
+                          {visibleRows.map(({row, index, valid, errors}, i) => (
                             <tr
                               key={index}
                               className={`border-t border-gray-100 dark:border-gray-700/50 ${
                                 valid
-                                  ? (i % 2 === 0 ? "bg-white dark:bg-gray-800/30" : "bg-gray-50/80 dark:bg-gray-800/50") + " hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                                  ? (i % 2 === 0
+                                      ? "bg-white dark:bg-gray-800/30"
+                                      : "bg-gray-50/80 dark:bg-gray-800/50") +
+                                    " hover:bg-gray-50 dark:hover:bg-gray-800/50"
                                   : "bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20"
                               }`}
                             >
-                              <td className="py-2 px-3 text-gray-500 font-medium text-xs">{index + 1}</td>
+                              <td className="py-2 px-3 text-gray-500 font-medium text-xs">
+                                {index + 1}
+                              </td>
                               {USER_IMPORT_FIELDS.map((f) => (
                                 <td
                                   key={f.key}
@@ -708,11 +832,56 @@ function UsersImport() {
                       </div>
                     )}
 
+                    {importSuccessCount == null && (
+                      <div className="mt-4 flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Mail className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                              Send invitation email to each new user
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              {sendInviteOnImport
+                                ? "Each user will get an invitation email to set a password and finish onboarding."
+                                : "Users will be created without emails. You can send invitations later from each user page."}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={sendInviteOnImport}
+                          aria-label="Send invitation email to each new user"
+                          onClick={() =>
+                            setSendInviteOnImport(!sendInviteOnImport)
+                          }
+                          disabled={isSubmitting}
+                          className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                            sendInviteOnImport
+                              ? "bg-[#456564]"
+                              : "bg-gray-300 dark:bg-gray-600"
+                          } ${
+                            isSubmitting ? "opacity-60 cursor-not-allowed" : ""
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                              sendInviteOnImport ? "left-6" : "left-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3">
                       {importSuccessCount != null ? (
                         <button
                           type="button"
-                          onClick={() => navigate(accountUrl ? `/${accountUrl}/users` : "/users")}
+                          onClick={() =>
+                            navigate(
+                              accountUrl ? `/${accountUrl}/users` : "/users",
+                            )
+                          }
                           className="btn bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white inline-flex items-center gap-2"
                         >
                           Finish
@@ -727,12 +896,14 @@ function UsersImport() {
                           {isSubmitting ? (
                             <>
                               <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                              Creating {validCount} user{validCount !== 1 ? "s" : ""}…
+                              Creating {validCount} user
+                              {validCount !== 1 ? "s" : ""}…
                             </>
                           ) : (
                             <>
                               Confirm import
-                              {validCount > 0 && ` (${validCount} user${validCount !== 1 ? "s" : ""})`}
+                              {validCount > 0 &&
+                                ` (${validCount} user${validCount !== 1 ? "s" : ""})`}
                             </>
                           )}
                         </button>
@@ -751,10 +922,15 @@ function UsersImport() {
                       {importSuccessCount != null && (
                         <span className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400 font-medium">
                           <CheckCircle className="w-4 h-4" />
-                          {importSuccessCount} user{importSuccessCount !== 1 ? "s" : ""} created.
+                          {importSuccessCount} user
+                          {importSuccessCount !== 1 ? "s" : ""} created.
                           <button
                             type="button"
-                            onClick={() => navigate(accountUrl ? `/${accountUrl}/users` : "/users")}
+                            onClick={() =>
+                              navigate(
+                                accountUrl ? `/${accountUrl}/users` : "/users",
+                              )
+                            }
                             className="underline hover:no-underline"
                           >
                             View users

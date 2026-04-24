@@ -20,6 +20,7 @@ const Account = require('./models/account');
 const SubscriptionProduct = require('./models/subscriptionProduct');
 const { ensureStripePlans } = require('./services/planSeedService');
 const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
+const { recoverPendingJobs: recoverAttomLookupJobs } = require('./services/attomLookupQueue');
 const fs = require('fs');
 
 const app = require('./app.js');
@@ -97,6 +98,12 @@ async function startServer() {
       await ensureProfessionalCategories();
     } catch (catErr) {
       console.warn('[startup] Professional categories seed failed:', catErr.message);
+    }
+
+    try {
+      await recoverAttomLookupJobs();
+    } catch (attomErr) {
+      console.warn('[startup] ATTOM lookup queue recovery failed:', attomErr.message);
     }
 
     app.listen(PORT, '0.0.0.0', () => {

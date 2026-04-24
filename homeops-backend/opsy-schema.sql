@@ -1321,3 +1321,37 @@ CREATE TABLE coupon_redemptions (
 
 CREATE INDEX idx_coupon_redemptions_coupon ON coupon_redemptions(coupon_id);
 CREATE INDEX idx_coupon_redemptions_account ON coupon_redemptions(account_id);
+
+-- ============================================================
+-- ATTOM Lookup Jobs (background enrichment of properties from ATTOM public records)
+-- ============================================================
+-- Two triggers write rows here:
+--   * 'bulk_import'    -> one job per property created from the Bulk Property Import UI
+--   * 'manual_refresh' -> one job per click of the IdentityTab "Refresh property data" button
+--
+-- Jobs are processed serially by services/attomLookupQueue.js with configurable
+-- throttling (ATTOM_MIN_DELAY_MS) and exponential backoff on 429/transient errors.
+-- See services/attomLookupService.js runAttomLookupJob for merge semantics
+-- (non-destructive: only fills in empty property columns).
+
+CREATE TABLE attom_lookup_jobs (
+    id SERIAL PRIMARY KEY,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    trigger VARCHAR(30) NOT NULL CHECK (trigger IN ('bulk_import', 'manual_refresh')),
+    status VARCHAR(30) NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'processing', 'completed', 'failed', 'skipped')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 3,
+    error_code VARCHAR(40),
+    error_message TEXT,
+    populated_keys JSONB,
+    run_after TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_attom_lookup_jobs_status ON attom_lookup_jobs(status, run_after);
+CREATE INDEX idx_attom_lookup_jobs_property ON attom_lookup_jobs(property_id);
+CREATE INDEX idx_attom_lookup_jobs_created ON attom_lookup_jobs(created_at DESC);

@@ -349,6 +349,7 @@ class AppApi {
       return {
         ...res.user,
         invitationEmailSent: res.invitationEmailSent === true,
+        invitationSkipped: res.invitationSkipped === true,
         invitation: res.invitation || null,
       };
     }
@@ -1315,6 +1316,38 @@ class AppApi {
 
   static async lookupPropertyDetails(propertyInfo) {
     let res = await this.request("predict/property-details", propertyInfo, "POST");
+    return res;
+  }
+
+  /** Enqueue a background ATTOM lookup for an existing property.
+   *  Returns `{ job, reused }` where `reused: true` means there was already an
+   *  active job and we're polling that one instead of creating a duplicate. */
+  static async refreshPropertyAttomLookup(propertyId) {
+    const res = await this.request(
+      `properties/${propertyId}/attom-lookup`,
+      {},
+      "POST"
+    );
+    return res;
+  }
+
+  /** Poll the status of the most recent ATTOM lookup job for a property.
+   *  Returns `{ job: null }` if there is no job yet. */
+  static async getPropertyAttomLookupStatus(propertyId) {
+    const res = await this.request(`properties/${propertyId}/attom-lookup/latest`);
+    return res;
+  }
+
+  /** Batch ATTOM job status for a set of properties in a single account. Used
+   *  by the bulk-import review screen to poll per-row progress without firing
+   *  one request per property. Scoped server-side to the given account.
+   *  Returns `{ statuses: { [propertyId]: jobSummary | null } }`. */
+  static async getAttomLookupStatuses({ accountId, propertyIds }) {
+    const res = await this.request(
+      "properties/attom-lookup/statuses",
+      { account_id: accountId, ids: propertyIds },
+      "POST"
+    );
     return res;
   }
 

@@ -121,8 +121,12 @@ import {
   Check,
   UserPlus,
   Briefcase,
+  RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
+import AttomRefreshConfirmDialog from "./partials/AttomRefreshConfirmDialog";
+import {useAttomRefresh} from "./hooks/useAttomRefresh";
 import {getPropertyAssistantHeaderLines} from "./helpers/propertyAssistantHeader";
 import InspectionReportModal from "./partials/InspectionReportModal";
 import InviteAgentBenefitsModal from "./partials/InviteAgentBenefitsModal";
@@ -1270,6 +1274,94 @@ function PropertyFormContainer() {
       cancelled = true;
     };
   }, [effectivePropertyId]);
+
+  /** Called by IdentityTab after a background ATTOM lookup completes. Refetches
+   *  the property, reapplies identity fields to the form (without marking it
+   *  dirty), and shows a success banner. No-op if the user has unsaved edits —
+   *  we don't want to stomp on changes they're mid-editing. */
+  const handleAttomRefreshComplete = useCallback(async () => {
+    if (!effectivePropertyId || uid === "new") return;
+    if (state.formDataChanged) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "info",
+          message:
+            "Property data was refreshed from ATTOM. Save or discard your current edits to see the new values.",
+        },
+      });
+      return;
+    }
+    try {
+      const refreshed = await getPropertyById(uid);
+      if (!refreshed) return;
+      const systemsRes = await getSystemsByPropertyId(effectivePropertyId).catch(
+        () => null,
+      );
+      const systemsFromBackend = systemsRes?.systems ?? systemsRes ?? state.systems ?? [];
+      const propertyPayload = {
+        ...buildPropertyPayloadFromRefresh(refreshed, systemsFromBackend ?? [], refreshed),
+        maintenanceRecords: state.formData.maintenanceRecords ?? [],
+      };
+      const scrollEl = document.querySelector(".flex-1.overflow-y-auto");
+      const scrollPos = scrollEl?.scrollTop ?? window.scrollY ?? 0;
+      dispatch({
+        type: "SAVE_COMPLETED",
+        payload: {
+          propertyPayload,
+          systems: systemsFromBackend ?? state.systems,
+          banner: {
+            open: true,
+            type: "success",
+            message: "Missing property details filled from ATTOM public records.",
+          },
+        },
+      });
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el = document.querySelector(".flex-1.overflow-y-auto");
+          if (el) el.scrollTop = scrollPos;
+          else if (scrollPos) window.scrollTo(0, scrollPos);
+        });
+      });
+    } catch (err) {
+      console.error("[PropertyForm] handleAttomRefreshComplete error:", err);
+    }
+  }, [
+    effectivePropertyId,
+    uid,
+    state.formDataChanged,
+    state.systems,
+    state.formData.maintenanceRecords,
+    getPropertyById,
+    getSystemsByPropertyId,
+    dispatch,
+  ]);
+
+  const handleAttomRefreshFailed = useCallback(
+    (message) => {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message:
+            message ||
+            "ATTOM lookup failed. Double-check the address and try again.",
+        },
+      });
+    },
+    [dispatch],
+  );
+
+  const attomRefresh = useAttomRefresh(
+    uid !== "new" ? effectivePropertyId : null,
+    {
+      onComplete: handleAttomRefreshComplete,
+      onFail: handleAttomRefreshFailed,
+    },
+  );
 
   const refreshPropertySystems = useCallback(async () => {
     if (!effectivePropertyId) return;
@@ -2719,6 +2811,36 @@ function PropertyFormContainer() {
                         </span>
                       </button>
                     </li>
+                    {uid !== "new" && (
+                      <li>
+                        <button
+                          type="button"
+                          disabled={attomRefresh.isActive}
+                          className="w-full flex items-center justify-start text-left cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-70"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActionsDropdownOpen(false);
+                            attomRefresh.openConfirm();
+                          }}
+                        >
+                          {attomRefresh.isActive ? (
+                            <Loader2 className="w-5 h-5 shrink-0 text-neutral-500 dark:text-neutral-400 animate-spin" />
+                          ) : attomRefresh.jobStatus === "completed" &&
+                            !attomRefresh.jobError ? (
+                            <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500 dark:text-emerald-400" />
+                          ) : (
+                            <RefreshCw className="w-5 h-5 shrink-0 text-neutral-500 dark:text-neutral-400" />
+                          )}
+                          <span className="text-sm font-medium ml-2 min-w-0 text-left">
+                            {attomRefresh.jobStatus === "queued"
+                              ? "Queued…"
+                              : attomRefresh.jobStatus === "processing"
+                                ? "Pulling property data…"
+                                : "Pull property data"}
+                          </span>
+                        </button>
+                      </li>
+                    )}
                     {identityDataSource === "rentcast" && (
                       <li>
                         <button
@@ -3995,6 +4117,17 @@ function PropertyFormContainer() {
           </button>
         </div>
       </ModalBlank>
+
+      {attomRefresh.confirmOpen && (
+        <AttomRefreshConfirmDialog
+          modalView={attomRefresh.modalView}
+          jobStatus={attomRefresh.jobStatus}
+          jobError={attomRefresh.jobError}
+          populatedKeys={attomRefresh.populatedKeys}
+          onCancel={attomRefresh.closeConfirm}
+          onConfirm={attomRefresh.startRefresh}
+        />
+      )}
 
       {/* Inspection Report modal (legacy - for Systems/Documents tabs) */}
       {uid !== "new" && (

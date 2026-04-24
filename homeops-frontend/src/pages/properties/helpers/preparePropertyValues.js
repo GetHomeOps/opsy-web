@@ -202,6 +202,13 @@ function toCamelCase(key) {
   return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
+function deriveStreetFromAddress(address) {
+  if (typeof address !== "string") return "";
+  const trimmed = address.trim();
+  if (!trimmed) return "";
+  return trimmed.split(",")[0].trim();
+}
+
 /**
  * Maps API property (snake_case keys) to form shape (camelCase) so the form displays correctly.
  * @param {Object} apiProperty - Property from API (may have snake_case keys)
@@ -240,6 +247,14 @@ export function mapPropertyFromBackend(apiProperty) {
       out[camelKey] = value;
     }
   }
+
+  if (!deriveStreetFromAddress(out.addressLine1)) {
+    out.addressLine1 =
+      deriveStreetFromAddress(out.address) ||
+      deriveStreetFromAddress(out.fullAddress) ||
+      "";
+  }
+
   return out;
 }
 

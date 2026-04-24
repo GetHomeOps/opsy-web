@@ -1,5 +1,9 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Backend API proxy target (default 3000; backend must run on this port for proxy to work)
 const API_PROXY_TARGET = process.env.VITE_API_PROXY_TARGET || 'http://localhost:3000';
@@ -15,6 +19,14 @@ export default defineConfig({
   resolve: {
     // Single React instance — avoids duplicate context (e.g. useAuth sees no provider)
     dedupe: ['react', 'react-dom'],
+    // exceljs main entry is Node-oriented; the browser dist works in the client and
+    // avoids Vite / optimizeDeps pre-bundle failures (Failed to fetch module).
+    alias: {
+      exceljs: path.resolve(__dirname, 'node_modules/exceljs/dist/exceljs.min.js'),
+    },
+  },
+  optimizeDeps: {
+    include: ['exceljs'],
   },
   plugins: [react()],
   server: {

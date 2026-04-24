@@ -160,23 +160,23 @@ function HomeOpsTeam({
               return "homeowner";
             })();
 
-            const handleMemberClick =
-              onMemberClick && !isPending
-                ? (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onMemberClick(memberTab);
-                  }
-                : undefined;
+            const isClickable = Boolean(onMemberClick);
+            const handleMemberClick = isClickable
+              ? (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onMemberClick(memberTab);
+                }
+              : undefined;
 
             return (
               <div
                 key={member.id ?? `pending-${member.email}`}
-                role={onMemberClick && !isPending ? "button" : undefined}
-                tabIndex={onMemberClick && !isPending ? 0 : undefined}
+                role={isClickable ? "button" : undefined}
+                tabIndex={isClickable ? 0 : undefined}
                 onClick={handleMemberClick}
                 onKeyDown={
-                  onMemberClick && !isPending
+                  isClickable
                     ? (e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -186,12 +186,12 @@ function HomeOpsTeam({
                     : undefined
                 }
                 className={`flex items-center gap-3 py-3 pl-3 pr-5 rounded-xl transition-colors duration-150 ${
-                  onMemberClick && !isPending
-                    ? "cursor-pointer"
-                    : "cursor-default"
+                  isClickable ? "cursor-pointer" : "cursor-default"
                 } ${
                   isPending
-                    ? "bg-neutral-100/80 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-600/60 opacity-75"
+                    ? isClickable
+                      ? "bg-neutral-100/80 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-600/60 hover:bg-neutral-100 dark:hover:bg-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#456564]/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900"
+                      : "bg-neutral-100/80 dark:bg-neutral-800/50 border border-neutral-200 dark:border-neutral-600/60 opacity-75"
                     : "bg-neutral-50/80 dark:bg-neutral-800/50 hover:bg-neutral-100 dark:hover:bg-neutral-700/50 border border-neutral-200/60 dark:border-neutral-700/50"
                 }`}
               >

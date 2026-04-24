@@ -4,6 +4,11 @@ import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 
 const API_KEY = import.meta.env.VITE_GOOGLE_PLACES_API_KEY || "";
 const DEBOUNCE_MS = 300;
+/** Match .places-autocomplete-dropdown max-height cap in style.css */
+const DROPDOWN_MAX_HEIGHT_CAP_PX = 300;
+const DROPDOWN_VIEWPORT_MARGIN_PX = 8;
+/** If free space below the input is less than this, prefer opening upward when space above is larger */
+const DROPDOWN_FLIP_MIN_SPACE_BELOW_PX = 96;
 
 /**
  * Parses address components from the new Place class format (addressComponents with longText/shortText).
@@ -288,11 +293,34 @@ export default function useGooglePlacesAutocomplete({
     const el = inputRef.current;
     if (!el || suggestionsRef.current.length === 0) return;
     const rect = el.getBoundingClientRect();
-    setDropdownPosition({
-      top: rect.bottom,
-      left: rect.left,
-      width: rect.width,
-    });
+    const m = DROPDOWN_VIEWPORT_MARGIN_PX;
+    const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - m);
+    const spaceAbove = Math.max(0, rect.top - m);
+    const openUpward =
+      spaceBelow < DROPDOWN_FLIP_MIN_SPACE_BELOW_PX &&
+      spaceAbove > spaceBelow;
+    const maxHeight = Math.min(
+      DROPDOWN_MAX_HEIGHT_CAP_PX,
+      openUpward ? spaceAbove : spaceBelow
+    );
+
+    if (openUpward) {
+      setDropdownPosition({
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+        placement: "above",
+        bottom: window.innerHeight - rect.top + m,
+      });
+    } else {
+      setDropdownPosition({
+        top: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+        placement: "below",
+      });
+    }
   }, []);
 
   useLayoutEffect(() => {
@@ -331,9 +359,13 @@ export default function useGooglePlacesAutocomplete({
             aria-label="Address suggestions"
             style={{
               position: "fixed",
-              top: pos.top,
               left: pos.left,
               width: pos.width,
+              maxHeight: pos.maxHeight,
+              overflowY: "auto",
+              ...(pos.placement === "above"
+                ? {bottom: pos.bottom, top: "auto"}
+                : {top: pos.top, bottom: "auto"}),
             }}
           >
             {currentSuggestions.map((suggestion, i) => {

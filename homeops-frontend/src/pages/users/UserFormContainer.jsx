@@ -59,6 +59,7 @@ const initialState = {
   isInitialLoad: true,
   isActive: false,
   ownershipTransferModalOpen: false,
+  sendInviteOnCreate: true,
 };
 
 function reducer(state, action) {
@@ -112,6 +113,8 @@ function reducer(state, action) {
         formDataChanged: action.payload,
         isInitialLoad: false,
       };
+    case "SET_SEND_INVITE_ON_CREATE":
+      return {...state, sendInviteOnCreate: !!action.payload};
     default:
       return state;
   }
@@ -416,6 +419,7 @@ function UsersFormContainer() {
       is_active: false,
       image: state.formData.image || undefined,
       accountId: currentAccount?.id,
+      sendInvite: state.sendInviteOnCreate,
     };
 
     dispatch({type: "SET_SUBMITTING", payload: true});
@@ -424,6 +428,7 @@ function UsersFormContainer() {
       const res = await createUser(userData);
 
       const invitationEmailSent = res?.invitationEmailSent === true;
+      const invitationSkipped = res?.invitationSkipped === true;
 
       if (res && res.id) {
         dispatch({type: "SET_USER", payload: res});
@@ -439,21 +444,33 @@ function UsersFormContainer() {
         const successBase = t("userCreatedSuccessfullyMessage", {
           defaultValue: "User created successfully",
         });
-        const inviteSuffix = invitationEmailSent
-          ? ` ${t("invitationEmailSentSuffix", {
-              defaultValue:
-                "An invitation email has been sent to set up their account.",
-            })}`
-          : ` ${t("invitationEmailNotSentSuffix", {
-              defaultValue:
-                "Invitation email could not be sent — use “Resend invitation email” to retry.",
-            })}`;
+        let inviteSuffix;
+        let bannerType;
+        if (invitationSkipped) {
+          inviteSuffix = ` ${t("invitationEmailSkippedSuffix", {
+            defaultValue:
+              "No invitation email was sent. Use “Resend invitation email” when you're ready.",
+          })}`;
+          bannerType = "success";
+        } else if (invitationEmailSent) {
+          inviteSuffix = ` ${t("invitationEmailSentSuffix", {
+            defaultValue:
+              "An invitation email has been sent to set up their account.",
+          })}`;
+          bannerType = "success";
+        } else {
+          inviteSuffix = ` ${t("invitationEmailNotSentSuffix", {
+            defaultValue:
+              "Invitation email could not be sent — use “Resend invitation email” to retry.",
+          })}`;
+          bannerType = "warning";
+        }
 
         dispatch({
           type: "SET_BANNER",
           payload: {
             open: true,
-            type: invitationEmailSent ? "success" : "warning",
+            type: bannerType,
             message: `${successBase}.${inviteSuffix}`,
           },
         });
@@ -1548,6 +1565,54 @@ function UsersFormContainer() {
                       />
                     </div>
                   </div>
+
+                  {/* Send invitation toggle (new user only) */}
+                  {state.isNew && (
+                    <div className="mt-6 flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Mail className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                            {t("sendInvitationEmailOnCreate") ||
+                              "Send invitation email on create"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {state.sendInviteOnCreate
+                              ? t("sendInvitationEmailOnCreateHelperOn") ||
+                                "The user will get an email to set their password and finish onboarding."
+                              : t("sendInvitationEmailOnCreateHelperOff") ||
+                                "Create this user without emailing them. You can send an invitation later."}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={state.sendInviteOnCreate}
+                        aria-label={
+                          t("sendInvitationEmailOnCreate") ||
+                          "Send invitation email on create"
+                        }
+                        onClick={() =>
+                          dispatch({
+                            type: "SET_SEND_INVITE_ON_CREATE",
+                            payload: !state.sendInviteOnCreate,
+                          })
+                        }
+                        className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                          state.sendInviteOnCreate
+                            ? "bg-[#456564]"
+                            : "bg-gray-300 dark:bg-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            state.sendInviteOnCreate ? "left-6" : "left-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

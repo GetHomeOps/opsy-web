@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef, useContext } from "react";
+import React, { useState, useCallback, useMemo, useRef, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
@@ -24,9 +24,36 @@ import {
   FileCheck,
   Home,
   ArrowLeft,
+  Clock,
+  Search,
 } from "lucide-react";
 
 const PREVIEW_PAGE_SIZE = 50;
+
+/** ATTOM job statuses that represent a terminal result (no further polling). */
+const ATTOM_TERMINAL_STATUSES = new Set(["completed", "failed", "skipped"]);
+
+/** How often we re-poll ATTOM status for still-pending imported properties.
+ *  The backend queue throttles calls to ~1/sec, so polling faster than this
+ *  just wastes requests. */
+const ATTOM_POLL_INTERVAL_MS = 4000;
+
+/** Table column layout: address & city get more horizontal space; state/zip stay compact. */
+const IMPORT_COLUMN_TH_CLASS = {
+  property_name: "min-w-[12rem] lg:min-w-[14rem] max-w-[20rem]",
+  address: "min-w-[20rem] sm:min-w-[24rem] lg:min-w-[28rem]",
+  city: "min-w-[11rem] sm:min-w-[13rem] lg:min-w-[16rem] max-w-[20rem]",
+  state: "min-w-20 w-24",
+  zip: "min-w-24 w-32",
+};
+
+const IMPORT_COLUMN_TD_CLASS = {
+  property_name: "align-top break-words min-w-0",
+  address: "align-top break-words min-w-0",
+  city: "align-top break-words min-w-0",
+  state: "align-top whitespace-nowrap",
+  zip: "align-top whitespace-nowrap",
+};
 
 function rowToPropertyPayload(row, accountId) {
   const payload = {
@@ -34,6 +61,10 @@ function rowToPropertyPayload(row, accountId) {
     city: (row.city || "").trim(),
     state: (row.state || "").trim(),
     zip: (row.zip || "").trim(),
+    // Ask the backend to enqueue an ATTOM public-records lookup for this new
+    // property. The queue throttles ATTOM calls so bulk imports of any size
+    // stay within rate limits; status is surfaced per-property on IdentityTab.
+    enqueueAttomLookup: true,
   };
   const propertyName = (row.property_name || "").trim();
   if (propertyName) payload.property_name = propertyName;
@@ -138,6 +169,185 @@ const STEPS = [
   { id: 3, label: "Review & confirm", short: "Review" },
 ];
 
+/** Compute the row-level visual theme for a preview-table row.
+ *
+ *  Returns Tailwind classes for the row background, a left stripe on the first
+ *  cell, and a small leading marker next to the row number (dot or check).
+ *  Rows that finished with public-records data use a green check only — no
+ *  full-row green tint — so success reads clearly without fighting zebra rows. */
+function getRowTheme({ valid, postImport, entry, zebra }) {
+  const zebraBg = zebra
+    ? "bg-gray-50/80 dark:bg-gray-800/50"
+    : "bg-white dark:bg-gray-800/30";
+  const zebraHover = "hover:bg-gray-50 dark:hover:bg-gray-800/50";
+
+  if (!postImport) {
+    if (valid) {
+      return {
+        rowClass: `${zebraBg} ${zebraHover}`,
+        stripeClass: "border-l-4 border-transparent",
+        leading: null,
+      };
+    }
+    return {
+      rowClass:
+        "bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20",
+      stripeClass: "border-l-4 border-amber-400 dark:border-amber-500/70",
+      leading: { kind: "dot", className: "bg-amber-500", pulse: false },
+    };
+  }
+
+  // Post-import. Invalid rows were not imported at all.
+  if (!valid) {
+    return {
+      rowClass: "bg-gray-50/40 dark:bg-gray-800/30 text-gray-400",
+      stripeClass: "border-l-4 border-gray-300 dark:border-gray-600",
+      leading: { kind: "dot", className: "bg-gray-300 dark:bg-gray-600", pulse: false },
+    };
+  }
+
+  const status = entry?.status ?? null;
+
+  if (status === "create_failed") {
+    return {
+      rowClass: "bg-red-50/70 dark:bg-red-900/15",
+      stripeClass: "border-l-4 border-red-500",
+      leading: { kind: "dot", className: "bg-red-500", pulse: false },
+    };
+  }
+
+  if (status === "failed") {
+    return {
+      rowClass: "bg-amber-50/60 dark:bg-amber-900/15",
+      stripeClass: "border-l-4 border-amber-500",
+      leading: { kind: "dot", className: "bg-amber-500", pulse: false },
+    };
+  }
+
+  if (status === "completed") {
+    const filled = (entry?.populatedKeys?.length ?? 0) > 0;
+    if (filled) {
+      return {
+        rowClass: `${zebraBg} ${zebraHover}`,
+        stripeClass: "border-l-4 border-transparent",
+        leading: { kind: "check" },
+      };
+    }
+    return {
+      rowClass: zebraBg,
+      stripeClass: "border-l-4 border-gray-300 dark:border-gray-600",
+      leading: { kind: "dot", className: "bg-gray-400 dark:bg-gray-500", pulse: false },
+    };
+  }
+
+  if (status === "skipped") {
+    return {
+      rowClass: zebraBg,
+      stripeClass: "border-l-4 border-gray-300 dark:border-gray-600",
+      leading: { kind: "dot", className: "bg-gray-400 dark:bg-gray-500", pulse: false },
+    };
+  }
+
+  // "queued", "processing", or null (no job row yet): loading state.
+  return {
+    rowClass: "bg-blue-50/50 dark:bg-blue-900/15",
+    stripeClass: "border-l-4 border-blue-500 dark:border-blue-400",
+    leading: {
+      kind: "dot",
+      className: "bg-blue-500 dark:bg-blue-400",
+      pulse: true,
+    },
+  };
+}
+
+/** Status cell rendered per-row in the review table after the user clicks
+ *  "Confirm import". Shows live ATTOM enrichment progress (queued → looking
+ *  up → filled / not found / failed) for a single imported property, so the
+ *  user sees exactly which rows got data and which didn't. */
+function AttomRowStatus({ entry }) {
+  if (!entry) return null;
+
+  if (entry.status === "create_failed") {
+    const detail = (entry.errorMessage || "").trim();
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-red-700 dark:text-red-300 text-sm font-medium"
+        title={detail || "Couldn't create this property"}
+      >
+        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+        Couldn&apos;t create
+      </span>
+    );
+  }
+
+  if (entry.status === "processing") {
+    return (
+      <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 text-sm font-medium">
+        <Search className="w-3.5 h-3.5 animate-pulse shrink-0" />
+        Looking up…
+      </span>
+    );
+  }
+
+  if (entry.status === "completed") {
+    const count = entry.populatedKeys?.length ?? 0;
+    if (count > 0) {
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-green-700 dark:text-green-400 text-sm font-medium"
+          title={`Filled ${count} field${count !== 1 ? "s" : ""} from public records`}
+        >
+          <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+          Details filled
+          <span className="text-xs font-normal text-green-600/80 dark:text-green-300/70">
+            ({count})
+          </span>
+        </span>
+      );
+    }
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 text-sm"
+        title="No new public-records data was available for this address"
+      >
+        <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+        No new details
+      </span>
+    );
+  }
+
+  if (entry.status === "failed") {
+    const detail = (entry.errorMessage || "").trim();
+    const message = detail || "Property could not be found. Please verify the address and try again.";
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 text-sm font-medium"
+        title={message}
+      >
+        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+        No data was found for this property
+      </span>
+    );
+  }
+
+  if (entry.status === "skipped") {
+    return (
+      <span className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400 text-sm">
+        <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+        Skipped
+      </span>
+    );
+  }
+
+  /* "queued" or null (no job row yet — first poll hasn't landed). */
+  return (
+    <span className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-400 text-sm">
+      <Clock className="w-3.5 h-3.5 shrink-0" />
+      Queued…
+    </span>
+  );
+}
+
 function PropertiesImport() {
   const navigate = useNavigate();
   const { currentAccount } = useCurrentAccount();
@@ -158,6 +368,24 @@ function PropertiesImport() {
   const [previewFilter, setPreviewFilter] = useState("all");
   const [showAllRows, setShowAllRows] = useState(false);
   const previewSectionRef = useRef(null);
+
+  /* After the user clicks "Confirm import", we track per-row outcome here.
+   * Keyed by the row's index in `allRows` so the preview table can swap its
+   * validation status cell for a live ATTOM progress chip on the exact same
+   * row the user already sees.
+   *
+   * Shape: { [rowIndex]: {
+   *   propertyId: number | null,  // null => create failed
+   *   status: "queued" | "processing" | "completed" | "failed" | "skipped" | "create_failed" | null,
+   *   errorMessage: string | null,
+   *   populatedKeys: string[],
+   *   updatedAt: string | null,
+   * } } */
+  const [importedStatuses, setImportedStatuses] = useState({});
+  const importedStatusesRef = useRef(importedStatuses);
+  useEffect(() => {
+    importedStatusesRef.current = importedStatuses;
+  }, [importedStatuses]);
 
   const currentStep = allRows.length > 0 ? 3 : pendingFile ? 2 : 1;
 
@@ -197,6 +425,7 @@ function PropertiesImport() {
     setParseError("");
     setImportError(null);
     setImportSuccessCount(null);
+    setImportedStatuses({});
     setIsParsing(true);
     const fileToParse = pendingFile;
     parseFile(fileToParse)
@@ -250,6 +479,7 @@ function PropertiesImport() {
     setParseError("");
     setImportError(null);
     setImportSuccessCount(null);
+    setImportedStatuses({});
     setPendingFile(fileObj);
     setAllRows([]);
     setValidRows([]);
@@ -286,6 +516,7 @@ function PropertiesImport() {
     setParseError("");
     setImportError(null);
     setImportSuccessCount(null);
+    setImportedStatuses({});
     setAllRows([]);
     setValidRows([]);
     setInvalidRows([]);
@@ -328,20 +559,176 @@ function PropertiesImport() {
       setIsSubmitting(false);
       return;
     }
-    const payloads = validRows.map((row) => rowToPropertyPayload(row, accountId));
-    try {
-      await Promise.all(
-        payloads.map((payload) => AppApi.createProperty(payload))
+
+    /* Map each valid row back to its index in allRows so the preview table
+     * can swap its status cell in place once results come back. We freeze the
+     * list here — later removals would break row-index alignment with the
+     * results we're about to receive. */
+    const items = validRows.map((row) => ({
+      row,
+      rowIndex: allRows.indexOf(row),
+      payload: rowToPropertyPayload(row, accountId),
+    }));
+
+    /* allSettled so one bad row doesn't abort the whole batch. The UI marks
+     * failed creates per-row ("Couldn't create") while still showing ATTOM
+     * progress for the successful ones. */
+    const results = await Promise.allSettled(
+      items.map((item) => AppApi.createProperty(item.payload))
+    );
+
+    const nextStatuses = {};
+    let successCount = 0;
+    const firstError = [];
+    results.forEach((result, i) => {
+      const { rowIndex } = items[i];
+      if (result.status === "fulfilled") {
+        successCount += 1;
+        nextStatuses[rowIndex] = {
+          propertyId: result.value?.id ?? null,
+          status: "queued",
+          errorMessage: null,
+          populatedKeys: [],
+          updatedAt: null,
+        };
+      } else {
+        const err = result.reason;
+        const message = Array.isArray(err)
+          ? err.join(" ")
+          : err?.message || "Couldn't create this property.";
+        if (firstError.length === 0) firstError.push(message);
+        nextStatuses[rowIndex] = {
+          propertyId: null,
+          status: "create_failed",
+          errorMessage: message,
+          populatedKeys: [],
+          updatedAt: null,
+        };
+      }
+    });
+
+    setImportedStatuses(nextStatuses);
+    setImportSuccessCount(successCount);
+    setPreviewFilter("all");
+    setIsSubmitting(false);
+
+    if (successCount < items.length && firstError.length > 0) {
+      const failed = items.length - successCount;
+      setImportError(
+        `${failed} of ${items.length} propert${failed !== 1 ? "ies" : "y"} couldn't be created. First error: ${firstError[0]}`
       );
-      setImportSuccessCount(payloads.length);
-      await refreshProperties?.();
-    } catch (err) {
-      const message = Array.isArray(err) ? err.join(" ") : (err?.message || "Import failed.");
-      setImportError(message);
-    } finally {
-      setIsSubmitting(false);
     }
-  }, [validRows, currentAccount?.id, isSubmitting, importSuccessCount, refreshProperties]);
+
+    if (successCount > 0) {
+      try {
+        await refreshProperties?.();
+      } catch (_) {
+        /* non-fatal — the property list page will reload on next visit. */
+      }
+    }
+  }, [validRows, allRows, currentAccount?.id, isSubmitting, importSuccessCount, refreshProperties]);
+
+  /* Poll ATTOM status for imported properties until every one reaches a
+   * terminal state. We batch all pending ids into a single request so a
+   * 50-property import makes one HTTP call per tick instead of 50. The
+   * effect re-arms itself based on `importSuccessCount` and
+   * `currentAccount?.id` only — the interval reads fresh statuses from the
+   * ref on every tick, so state updates don't restart polling. */
+  useEffect(() => {
+    if (importSuccessCount == null) return undefined;
+    const accountId = currentAccount?.id ?? null;
+    if (!accountId) return undefined;
+
+    let cancelled = false;
+
+    const pendingPropertyIds = () => {
+      const out = [];
+      for (const entry of Object.values(importedStatusesRef.current)) {
+        if (!entry?.propertyId) continue;
+        if (ATTOM_TERMINAL_STATUSES.has(entry.status)) continue;
+        out.push(entry.propertyId);
+      }
+      return out;
+    };
+
+    const tick = async () => {
+      const ids = pendingPropertyIds();
+      if (ids.length === 0) return;
+      try {
+        const { statuses } = await AppApi.getAttomLookupStatuses({
+          accountId,
+          propertyIds: ids,
+        });
+        if (cancelled || !statuses) return;
+        setImportedStatuses((prev) => {
+          const next = { ...prev };
+          let changed = false;
+          for (const [rowIndex, entry] of Object.entries(prev)) {
+            if (!entry?.propertyId) continue;
+            const job = statuses[entry.propertyId];
+            if (!job) continue;
+            const nextStatus = job.status || entry.status;
+            if (
+              nextStatus === entry.status &&
+              job.updatedAt === entry.updatedAt &&
+              (job.populatedKeys?.length ?? 0) === entry.populatedKeys.length
+            ) {
+              continue;
+            }
+            next[rowIndex] = {
+              ...entry,
+              status: nextStatus,
+              errorMessage: job.errorMessage ?? entry.errorMessage,
+              populatedKeys: Array.isArray(job.populatedKeys)
+                ? job.populatedKeys
+                : entry.populatedKeys,
+              updatedAt: job.updatedAt ?? entry.updatedAt,
+            };
+            changed = true;
+          }
+          return changed ? next : prev;
+        });
+      } catch (_) {
+        /* transient network/server errors: retry on the next tick. */
+      }
+    };
+
+    tick();
+    const intervalId = setInterval(() => {
+      if (pendingPropertyIds().length === 0) return;
+      tick();
+    }, ATTOM_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [importSuccessCount, currentAccount?.id]);
+
+  /* Live progress stats for the summary banner and row-count chips. */
+  const attomProgress = useMemo(() => {
+    const entries = Object.values(importedStatuses);
+    let total = 0;
+    let complete = 0;
+    let filled = 0;
+    let failed = 0;
+    let createFailed = 0;
+    for (const e of entries) {
+      total += 1;
+      if (e.status === "create_failed") {
+        createFailed += 1;
+        continue;
+      }
+      if (ATTOM_TERMINAL_STATUSES.has(e.status)) {
+        complete += 1;
+        if (e.status === "completed" && e.populatedKeys.length > 0) filled += 1;
+        if (e.status === "failed") failed += 1;
+      }
+    }
+    const importedTotal = total - createFailed;
+    const allDone = importSuccessCount != null && complete === importedTotal;
+    return { total, complete, filled, failed, createFailed, importedTotal, allDone };
+  }, [importedStatuses, importSuccessCount]);
 
   return (
     <div className="flex h-[100dvh] overflow-hidden">
@@ -350,7 +737,7 @@ function PropertiesImport() {
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="grow">
-          <div className="px-0 sm:px-6 lg:px-8 xxl:px-16 py-6 w-full max-w-5xl mx-auto">
+          <div className="px-0 sm:px-6 lg:px-8 xxl:px-16 py-6 w-full max-w-7xl mx-auto">
             <nav className="mb-6">
               <button
                 type="button"
@@ -564,117 +951,209 @@ function PropertiesImport() {
                   <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                        3. Review and confirm
+                        {importSuccessCount != null
+                          ? attomProgress.allDone
+                            ? "Import complete"
+                            : "Importing…"
+                          : "3. Review and confirm"}
                       </h2>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        Fix or remove invalid rows. Only valid rows will be imported.
+                        {importSuccessCount != null
+                          ? attomProgress.allDone
+                            ? "Each row below shows whether public-records data was filled."
+                            : "Each row below updates live as public-records data arrives."
+                          : "Fix or remove invalid rows. Only valid rows will be imported."}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300">
-                        <Home className="w-3.5 h-3.5" />
-                        {totalRows} total
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        {validCount} valid
-                      </span>
-                      {invalidCount > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/30 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300">
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          {invalidCount} invalid
-                        </span>
+                      {importSuccessCount != null ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300">
+                            <Home className="w-3.5 h-3.5" />
+                            {importSuccessCount} imported
+                          </span>
+                          {attomProgress.filled > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              {attomProgress.filled} details filled
+                            </span>
+                          )}
+                          {!attomProgress.allDone && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 dark:bg-blue-900/30 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              {Math.max(attomProgress.importedTotal - attomProgress.complete, 0)} pending
+                            </span>
+                          )}
+                          {attomProgress.failed > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/30 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              {attomProgress.failed} failed
+                            </span>
+                          )}
+                          {attomProgress.createFailed > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 dark:bg-red-900/30 px-2.5 py-0.5 text-xs font-medium text-red-800 dark:text-red-300">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              {attomProgress.createFailed} not created
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300">
+                            <Home className="w-3.5 h-3.5" />
+                            {totalRows} total
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {validCount} valid
+                          </span>
+                          {invalidCount > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/30 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              {invalidCount} invalid
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
 
-                  <div className="px-4 pt-3 flex flex-wrap gap-2 border-b border-gray-100 dark:border-gray-700/50">
-                    {[
-                      { id: "all", label: "All rows", count: totalRows },
-                      { id: "valid", label: "Valid", count: validCount },
-                      { id: "invalid", label: "Invalid", count: invalidCount },
-                    ].map(({ id, label, count }) => (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => setPreviewFilter(id)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                          previewFilter === id
-                            ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
-                            : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                        }`}
-                      >
-                        {label} ({count})
-                      </button>
-                    ))}
-                  </div>
+                  {importSuccessCount == null && (
+                    <div className="px-4 pt-3 flex flex-wrap gap-2 border-b border-gray-100 dark:border-gray-700/50">
+                      {[
+                        { id: "all", label: "All rows", count: totalRows },
+                        { id: "valid", label: "Valid", count: validCount },
+                        { id: "invalid", label: "Invalid", count: invalidCount },
+                      ].map(({ id, label, count }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setPreviewFilter(id)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                            previewFilter === id
+                              ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                              : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                          }`}
+                        >
+                          {label} ({count})
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-                  <div className="p-4 overflow-x-auto">
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                      <table className="w-full text-sm">
+                  <div className="p-4">
+                    <div className="overflow-x-auto [scrollbar-gutter:stable]">
+                      <div className="inline-block min-w-full rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden align-top">
+                        <table className="w-max min-w-full text-sm table-auto">
                         <thead>
                           <tr className="bg-gray-50 dark:bg-gray-800/80">
-                            <th className="text-left py-2.5 px-3 font-semibold text-gray-700 dark:text-gray-300 w-10 text-xs">#</th>
+                            <th className="text-left py-2.5 pl-3 pr-2 font-semibold text-gray-700 dark:text-gray-300 w-12 text-xs">
+                              #
+                            </th>
                             {PROPERTY_IMPORT_FIELDS.map((f) => (
                               <th
                                 key={f.key}
-                                className="text-left py-2.5 px-3 font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs"
+                                className={`text-left py-2.5 px-4 font-semibold text-gray-700 dark:text-gray-300 text-xs ${IMPORT_COLUMN_TH_CLASS[f.key] ?? ""}`}
                               >
                                 {f.label}
                               </th>
                             ))}
-                            <th className="text-left py-2.5 px-3 font-semibold text-gray-700 dark:text-gray-300 text-xs">Status</th>
-                            <th className="w-10" />
+                            <th className="text-left py-2.5 px-4 font-semibold text-gray-700 dark:text-gray-300 text-xs min-w-[10rem] sm:min-w-[12rem]">
+                              {importSuccessCount != null ? "Public records" : "Status"}
+                            </th>
+                            <th className="w-10 shrink-0" />
                           </tr>
                         </thead>
                         <tbody>
-                          {visibleRows.map(({ row, index, valid, errors }, i) => (
-                            <tr
-                              key={index}
-                              className={`border-t border-gray-100 dark:border-gray-700/50 ${
-                                valid
-                                  ? (i % 2 === 0 ? "bg-white dark:bg-gray-800/30" : "bg-gray-50/80 dark:bg-gray-800/50") + " hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                                  : "bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20"
-                              }`}
-                            >
-                              <td className="py-2 px-3 text-gray-500 font-medium text-xs">{index + 1}</td>
-                              {PROPERTY_IMPORT_FIELDS.map((f) => (
-                                <td
-                                  key={f.key}
-                                  className="py-2 px-3 text-gray-800 dark:text-gray-200 max-w-[160px] truncate text-xs"
-                                  title={row[f.key]}
-                                >
-                                  {row[f.key] || "—"}
+                          {visibleRows.map(({ row, index, valid, errors }, i) => {
+                            const postImport = importSuccessCount != null;
+                            const theme = getRowTheme({
+                              valid,
+                              postImport,
+                              entry: importedStatuses[index],
+                              zebra: i % 2 !== 0,
+                            });
+                            return (
+                              <tr
+                                key={index}
+                                className={`border-t border-gray-100 dark:border-gray-700/50 transition-colors duration-500 ${theme.rowClass}`}
+                              >
+                                <td className={`py-2.5 pl-2 pr-2 text-gray-500 font-medium text-xs tabular-nums align-top ${theme.stripeClass}`}>
+                                  <div className="flex items-start gap-2">
+                                    {theme.leading?.kind === "check" && (
+                                      <CheckCircle
+                                        className="w-3.5 h-3.5 shrink-0 mt-0.5 text-green-600 dark:text-green-400"
+                                        aria-hidden
+                                      />
+                                    )}
+                                    {theme.leading?.kind === "dot" && (
+                                      <span
+                                        className={`relative inline-flex h-2.5 w-2.5 rounded-full mt-1 shrink-0 ${theme.leading.className}`}
+                                        aria-hidden="true"
+                                      >
+                                        {theme.leading.pulse && (
+                                          <span
+                                            className={`absolute inset-0 rounded-full ${theme.leading.className} opacity-75 animate-ping`}
+                                          />
+                                        )}
+                                      </span>
+                                    )}
+                                    <span>{index + 1}</span>
+                                  </div>
                                 </td>
-                              ))}
-                              <td className="py-2 px-3">
-                                {valid ? (
-                                  <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-xs font-medium">
-                                    <CheckCircle className="w-3.5 h-3.5" /> OK
-                                  </span>
-                                ) : (
-                                  <span
-                                    className="text-amber-600 dark:text-amber-400 text-xs max-w-[200px] truncate block"
-                                    title={errors.join(", ")}
+                                {PROPERTY_IMPORT_FIELDS.map((f) => (
+                                  <td
+                                    key={f.key}
+                                    className={`py-2.5 px-4 text-gray-800 dark:text-gray-200 text-sm ${IMPORT_COLUMN_TD_CLASS[f.key] ?? ""}`}
+                                    title={String(row[f.key] || "")}
                                   >
-                                    {errors[0] || "Invalid"}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveRow(index)}
-                                  className="p-1 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                                  title="Remove row"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                                    {row[f.key] || "—"}
+                                  </td>
+                                ))}
+                                <td className="py-2.5 px-4 min-w-[10rem] sm:min-w-[12rem] max-w-md align-top">
+                                  {importSuccessCount != null ? (
+                                    valid ? (
+                                      <AttomRowStatus entry={importedStatuses[index]} />
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center gap-1 text-gray-400 dark:text-gray-500 text-sm"
+                                        title="This row was invalid and wasn't imported"
+                                      >
+                                        <X className="w-3.5 h-3.5 shrink-0" />
+                                        Not imported
+                                      </span>
+                                    )
+                                  ) : valid ? (
+                                    <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-sm font-medium">
+                                      <CheckCircle className="w-3.5 h-3.5" /> OK
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="text-amber-600 dark:text-amber-400 text-sm break-words"
+                                      title={errors.join(", ")}
+                                    >
+                                      {errors[0] || "Invalid"}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-2">
+                                  {importSuccessCount == null && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveRow(index)}
+                                      className="p-1 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                      title="Remove row"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </div>
 
                     {hasMore && (
@@ -691,6 +1170,73 @@ function PropertiesImport() {
                       </div>
                     )}
 
+                    {importSuccessCount != null && (
+                      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        {attomProgress.allDone ? (
+                          <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                            <CheckCircle className="w-5 h-5 mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                                All done.{" "}
+                                {importSuccessCount} propert{importSuccessCount !== 1 ? "ies" : "y"} created
+                                {attomProgress.filled > 0 && (
+                                  <>
+                                    {" "}— public-records data filled for {attomProgress.filled} of {attomProgress.importedTotal}.
+                                  </>
+                                )}
+                                {attomProgress.filled === 0 && attomProgress.importedTotal > 0 && (
+                                  <> — no additional public-records data was available.</>
+                                )}
+                              </p>
+                              {(attomProgress.failed > 0 || attomProgress.createFailed > 0) && (
+                                <p className="mt-1 text-xs text-green-700/80 dark:text-green-300/80">
+                                  {attomProgress.createFailed > 0 && (
+                                    <>
+                                      {attomProgress.createFailed} couldn't be created.
+                                      {" "}
+                                    </>
+                                  )}
+                                  {attomProgress.failed > 0 && (
+                                    <>
+                                      {attomProgress.failed} public-records lookup
+                                      {attomProgress.failed !== 1 ? "s" : ""} failed — you can retry
+                                      from the property's actions menu.
+                                    </>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                            <Loader2 className="w-5 h-5 mt-0.5 shrink-0 animate-spin text-blue-600 dark:text-blue-400" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                                Filling public-records data… {attomProgress.complete} of {attomProgress.importedTotal} complete.
+                              </p>
+                              <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-300/80">
+                                Watch each row's status update below. You can leave this page —
+                                data will keep loading in the background and you can also refresh
+                                any property manually from its actions menu.
+                              </p>
+                              {attomProgress.importedTotal > 0 && (
+                                <div className="mt-2 h-1.5 w-full rounded-full bg-blue-100 dark:bg-blue-900/40 overflow-hidden">
+                                  <div
+                                    className="h-full bg-blue-500 dark:bg-blue-400 transition-all duration-500"
+                                    style={{
+                                      width: `${Math.round(
+                                        (attomProgress.complete / attomProgress.importedTotal) * 100
+                                      )}%`,
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3">
                       {importSuccessCount != null ? (
                         <button
@@ -698,7 +1244,7 @@ function PropertiesImport() {
                           onClick={() => navigate(`/${accountUrl}/properties`)}
                           className="btn bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white inline-flex items-center gap-2"
                         >
-                          Finish
+                          {attomProgress.allDone ? "Finish" : "Finish (keep loading in background)"}
                         </button>
                       ) : (
                         <button
@@ -720,7 +1266,7 @@ function PropertiesImport() {
                           )}
                         </button>
                       )}
-                      {validCount < 1 && totalRows > 0 && (
+                      {validCount < 1 && totalRows > 0 && importSuccessCount == null && (
                         <span className="text-sm text-gray-500 dark:text-gray-400">
                           Fix or remove invalid rows to enable import.
                         </span>
@@ -730,19 +1276,6 @@ function PropertiesImport() {
                           <AlertCircle className="w-4 h-4 shrink-0" />
                           {importError}
                         </div>
-                      )}
-                      {importSuccessCount != null && (
-                        <span className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400 font-medium">
-                          <CheckCircle className="w-4 h-4" />
-                          {importSuccessCount} propert{importSuccessCount !== 1 ? "ies" : "y"} created.
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/${accountUrl}/properties`)}
-                            className="underline hover:no-underline"
-                          >
-                            View properties
-                          </button>
-                        </span>
                       )}
                     </div>
                   </div>
