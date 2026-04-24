@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseAddressFromPlace } from "./useGooglePlacesAutocomplete";
+import {
+  parseAddressFromPlace,
+  buildUsFormattedAddressLine,
+  getIdentityAddressInputDisplayValue,
+} from "./useGooglePlacesAutocomplete";
 
 describe("parseAddressFromPlace", () => {
   it("parses address components into the expected form shape", () => {
@@ -109,5 +113,76 @@ describe("parseAddressFromPlace", () => {
     expect(result.formattedAddress).toBe(
       "456 Oak Ave, Portland, OR 97201, USA"
     );
+  });
+
+  it("appends city, state, zip when the API returns a street-only formattedAddress", () => {
+    const place = {
+      formattedAddress: "18411 22nd Dr SE",
+      addressComponents: [
+        { types: ["street_number"], longText: "18411", shortText: "18411" },
+        { types: ["route"], longText: "22nd Dr SE", shortText: "22nd Dr SE" },
+        { types: ["locality"], longText: "Bothell", shortText: "Bothell" },
+        {
+          types: ["administrative_area_level_1"],
+          longText: "Washington",
+          shortText: "WA",
+        },
+        { types: ["postal_code"], longText: "98012", shortText: "98012" },
+      ],
+    };
+
+    const result = parseAddressFromPlace(place);
+    expect(result.formattedAddress).toBe("18411 22nd Dr SE, Bothell, WA 98012");
+  });
+});
+
+describe("buildUsFormattedAddressLine", () => {
+  it("joins line1, line2, city, and state+zip in US form", () => {
+    expect(
+      buildUsFormattedAddressLine({
+        addressLine1: "123 Main St",
+        addressLine2: "Apt 4",
+        city: "Seattle",
+        state: "WA",
+        zip: "98101",
+      })
+    ).toBe("123 Main St, Apt 4, Seattle, WA 98101");
+  });
+
+  it("treats null/undefined line2 as empty, not the literal 'null'", () => {
+    expect(
+      buildUsFormattedAddressLine({
+        addressLine1: "18411 22nd Drive Southeast",
+        addressLine2: null,
+        city: "Bothell",
+        state: "WA",
+        zip: "98012",
+      })
+    ).toBe("18411 22nd Drive Southeast, Bothell, WA 98012");
+  });
+});
+
+describe("getIdentityAddressInputDisplayValue", () => {
+  it("prefers structured fields over a legacy street-only address", () => {
+    const v = getIdentityAddressInputDisplayValue({
+      address: "4150 86th Ave SE",
+      addressLine1: "18411 22nd Dr. SE",
+      city: "Bothell",
+      state: "WA",
+      zip: "98012",
+    });
+    expect(v).toBe("18411 22nd Dr. SE, Bothell, WA 98012");
+  });
+
+  it("does not show the literal word null when addressLine2 is null (DB/JSON null)", () => {
+    const v = getIdentityAddressInputDisplayValue({
+      address: "18411 22nd Drive Southeast, null, Bothell, WA 98012",
+      addressLine1: "18411 22nd Drive Southeast",
+      addressLine2: null,
+      city: "Bothell",
+      state: "WA",
+      zip: "98012",
+    });
+    expect(v).toBe("18411 22nd Drive Southeast, Bothell, WA 98012");
   });
 });

@@ -755,6 +755,7 @@ function PropertyFormContainer() {
       type: "SET_IDENTITY_FORM_DATA",
       payload: {
         address: parsed.formattedAddress,
+        fullAddress: parsed.formattedAddress,
         addressLine1: parsed.addressLine1,
         addressLine2: parsed.addressLine2,
         city: parsed.city,
@@ -2400,6 +2401,9 @@ function PropertyFormContainer() {
         teamMembers={homeopsTeam}
         currentUser={currentUser}
         currentAccount={currentAccount}
+        accountIdForProperty={
+          savedMergedPropertyData?.accountId ?? currentAccount?.id ?? null
+        }
         propertyId={
           uid !== "new"
             ? (state.property?.identity?.id ?? state.property?.id ?? uid)
@@ -2470,16 +2474,18 @@ function PropertyFormContainer() {
             permissions: permissions ?? {},
             _pending: true,
           };
+          const inviteAccountId =
+            savedMergedPropertyData?.accountId ?? currentAccount?.id;
           if (
             propertyId &&
-            currentAccount?.id &&
+            inviteAccountId &&
             typeof AppApi.createInvitation === "function"
           ) {
             const res = await AppApi.createInvitation({
               type: "property",
               inviteeEmail: inviteEmail,
               inviteeName: (inviteDisplayName || "").trim() || undefined,
-              accountId: currentAccount.id,
+              accountId: inviteAccountId,
               propertyId,
               intendedRole,
               skipInviteEmail: skipInviteEmail === true,

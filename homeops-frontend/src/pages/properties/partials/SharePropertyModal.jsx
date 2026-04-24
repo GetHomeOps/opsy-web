@@ -788,6 +788,8 @@ function SharePropertyModal({
   teamMembers = [],
   currentUser,
   currentAccount,
+  /** DB account that owns this property — prefer over currentAccount for API calls scoped by property */
+  accountIdForProperty = null,
   propertyId,
   systems = [],
   limits: billingLimits = {},
@@ -819,6 +821,7 @@ function SharePropertyModal({
   const [linkJustCopied, setLinkJustCopied] = useState(false);
   const [personalizeInviteOpen, setPersonalizeInviteOpen] = useState(false);
   const emailDropdownRef = useRef(null);
+  const inviteEmailAccountId = accountIdForProperty ?? currentAccount?.id ?? null;
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -1160,11 +1163,14 @@ function SharePropertyModal({
           (m._pending ? "Pending invitation" : "Team member");
         const label = `${name} · ${roleLabel}`;
         const isAgent = (m.role ?? "").toLowerCase() === "agent";
+        const image_url =
+          m.image_url || m.avatarUrl || m.avatar_url || m.photo_url || null;
         return {
           value: email,
           label,
           sortKey: label.toLowerCase(),
           isAgent,
+          image_url,
         };
       })
       .filter(Boolean);
@@ -1172,7 +1178,11 @@ function SharePropertyModal({
       if (a.isAgent !== b.isAgent) return a.isAgent ? -1 : 1;
       return a.sortKey.localeCompare(b.sortKey);
     });
-    return rows.map(({value, label}) => ({value, label}));
+    return rows.map(({value, label, image_url}) => ({
+      value,
+      label,
+      ...(image_url ? {image_url} : {}),
+    }));
   }, [teamMembers, effectiveEmail]);
 
   const handleCopyInviteLink = async () => {
@@ -2057,7 +2067,7 @@ function SharePropertyModal({
         inviteeName={inviteeName}
         propertyLine={propertyAddress}
         propertyId={propertyId}
-        accountId={currentAccount?.id ?? null}
+        accountId={inviteEmailAccountId}
         showCcField={isSuperAdmin}
         suggestedCcEmail={propertyAgentCcSuggestion}
         ccTeamPickOptions={ccTeamPickOptions}

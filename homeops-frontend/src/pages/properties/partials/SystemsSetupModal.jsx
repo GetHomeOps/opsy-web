@@ -24,7 +24,9 @@ import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 
 /** Systems available in setup modal (excludes Inspections - add via Maintenance tab) */
 const SETUP_SYSTEMS = PROPERTY_SYSTEMS.filter((s) => s.id !== "inspections");
-import useGooglePlacesAutocomplete from "../../../hooks/useGooglePlacesAutocomplete";
+import useGooglePlacesAutocomplete, {
+  getIdentityAddressInputDisplayValue,
+} from "../../../hooks/useGooglePlacesAutocomplete";
 import useDocumentUpload from "../../../hooks/useDocumentUpload";
 import { S3_UPLOAD_FOLDER } from "../../../constants/s3UploadFolders";
 import AppApi from "../../../api/api";
@@ -429,6 +431,7 @@ function SystemsSetupModal({
     setIdentityFields((prev) => ({
       ...prev,
       address: parsed.formattedAddress,
+      fullAddress: parsed.formattedAddress,
       addressLine1: parsed.addressLine1,
       addressLine2: parsed.addressLine2 || prev.addressLine2,
       city: parsed.city,
@@ -455,13 +458,7 @@ function SystemsSetupModal({
     setStep(initialStep ?? defaultStep);
     setIdentityFields({
       propertyName: formData?.propertyName ?? "",
-      address:
-        formData?.address ||
-        formData?.fullAddress ||
-        [formData?.address, formData?.city, formData?.state, formData?.zip]
-          .filter(Boolean)
-          .join(", ") ||
-        "",
+      address: getIdentityAddressInputDisplayValue(formData) || "",
       addressLine1: formData?.addressLine1 ?? "",
       addressLine2: formData?.addressLine2 ?? "",
       city: formData?.city ?? "",

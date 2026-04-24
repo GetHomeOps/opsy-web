@@ -23,6 +23,7 @@ import {
   RENTCAST_VERIFIED_TOOLTIP,
 } from "./constants/rentcastFields";
 import Tooltip from "../../utils/Tooltip";
+import {getIdentityAddressInputDisplayValue} from "../../hooks/useGooglePlacesAutocomplete";
 
 function SubtleLockIcon({className = ""}) {
   return (
@@ -633,19 +634,7 @@ function IdentityTab({
                   uncontrolled
                   label="Address"
                   name="address"
-                  value={
-                    propertyData.address ||
-                    propertyData.fullAddress ||
-                    [
-                      propertyData.address,
-                      propertyData.city,
-                      propertyData.state,
-                      propertyData.zip,
-                    ]
-                      .filter(Boolean)
-                      .join(", ") ||
-                    ""
-                  }
+                  value={getIdentityAddressInputDisplayValue(propertyData)}
                   placeholder="Start typing an address to search..."
                   required
                   error={errors.address || placesError}
@@ -658,19 +647,7 @@ function IdentityTab({
                 uncontrolled
                 label="Address"
                 name="address"
-                value={
-                  propertyData.address ||
-                  propertyData.fullAddress ||
-                  [
-                    propertyData.address,
-                    propertyData.city,
-                    propertyData.state,
-                    propertyData.zip,
-                  ]
-                    .filter(Boolean)
-                    .join(", ") ||
-                  ""
-                }
+                value={getIdentityAddressInputDisplayValue(propertyData)}
                 placeholder="Start typing an address to search..."
                 required
                 error={errors.address || placesError}

@@ -11,6 +11,77 @@ const DROPDOWN_VIEWPORT_MARGIN_PX = 8;
 const DROPDOWN_FLIP_MIN_SPACE_BELOW_PX = 96;
 
 /**
+ * Trims a single address part; `null`/`undefined` must not become the literal "null" (String(null) would).
+ * Also drops JSON-ish placeholder strings if they ever come from the API.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function trimAddressPart(value) {
+  if (value == null) return "";
+  const s = String(value).trim();
+  if (s === "" || s === "null" || s === "undefined") return "";
+  return s;
+}
+
+/**
+ * Single-line US-style address for display in the address search field.
+ * @param {Object} [parts]
+ * @param {string} [parts.addressLine1]
+ * @param {string} [parts.addressLine2]
+ * @param {string} [parts.city]
+ * @param {string} [parts.state]
+ * @param {string} [parts.zip]
+ * @returns {string}
+ */
+export function buildUsFormattedAddressLine({
+  addressLine1 = "",
+  addressLine2 = "",
+  city = "",
+  state = "",
+  zip = "",
+} = {}) {
+  const line1 = trimAddressPart(addressLine1);
+  const line2 = trimAddressPart(addressLine2);
+  const c = trimAddressPart(city);
+  const s = trimAddressPart(state);
+  const z = trimAddressPart(zip);
+  const line12 = [line1, line2].filter(Boolean).join(", ");
+  const stateZip = [s, z].filter(Boolean).join(" ");
+  const cityStateZip = [c, stateZip].filter(Boolean).join(", ");
+  if (!line12 && !cityStateZip) return "";
+  if (!cityStateZip) return line12;
+  if (!line12) return cityStateZip;
+  return `${line12}, ${cityStateZip}`;
+}
+
+/**
+ * Value for the Identity "Address" autocomplete input. Prefers a full one-line
+ * string: backend `fullAddress`, or structured line1+line2+city+state+zip.
+ * The legacy `address` column is often street-only, so it is not preferred when
+ * structured parts can build a full line.
+ *
+ * @param {Object} [identity]
+ * @returns {string}
+ */
+export function getIdentityAddressInputDisplayValue(identity) {
+  if (!identity || typeof identity !== "object") return "";
+  const full = trimAddressPart(identity.fullAddress);
+  if (full) return full;
+  const fromStruct = buildUsFormattedAddressLine({
+    addressLine1: identity.addressLine1,
+    addressLine2: identity.addressLine2,
+    city: identity.city,
+    state: identity.state,
+    zip: identity.zip,
+  });
+  if (fromStruct) return fromStruct;
+  const raw = trimAddressPart(identity.address);
+  if (!raw) return "";
+  if (raw.includes(",")) return raw;
+  return raw;
+}
+
+/**
  * Parses address components from the new Place class format (addressComponents with longText/shortText).
  * Used when fetching place details via place.fetchFields({ fields: ['addressComponents'] }).
  *
@@ -27,7 +98,7 @@ export function parseAddressFromPlace(place) {
     state: "",
     zip: "",
     county: "",
-    formattedAddress: place.formattedAddress || "",
+    formattedAddress: (place.formattedAddress && String(place.formattedAddress).trim()) || "",
   };
 
   const components = place.addressComponents || [];
@@ -59,14 +130,43 @@ export function parseAddressFromPlace(place) {
     .filter(Boolean)
     .join(" ");
 
+  const line2 = result.subpremise || "";
+  const fromParts = buildUsFormattedAddressLine({
+    addressLine1,
+    addressLine2: line2,
+    city: result.city,
+    state: result.state,
+    zip: result.zip,
+  });
+
+  let formattedAddress = result.formattedAddress;
+  if (!formattedAddress) {
+    formattedAddress = fromParts;
+  } else if (
+    !formattedAddress.includes(",") &&
+    fromParts &&
+    (result.city || result.state || result.zip)
+  ) {
+    const tail = buildUsFormattedAddressLine({
+      addressLine1: "",
+      addressLine2: "",
+      city: result.city,
+      state: result.state,
+      zip: result.zip,
+    });
+    if (tail) {
+      formattedAddress = `${formattedAddress}, ${tail}`;
+    }
+  }
+
   return {
     addressLine1,
-    addressLine2: result.subpremise || "",
+    addressLine2: line2,
     city: result.city,
     state: result.state,
     zip: result.zip,
     county: result.county,
-    formattedAddress: result.formattedAddress,
+    formattedAddress,
   };
 }
 
