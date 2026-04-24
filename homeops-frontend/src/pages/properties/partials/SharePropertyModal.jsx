@@ -26,10 +26,12 @@ import {
   X,
   Search,
   AlertTriangle,
+  Link2,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import SelectDropdown from "../../contacts/SelectDropdown";
 import ContactSearchModal from "./ContactSearchModal";
+import InviteEmailPersonalizeModal from "./InviteEmailPersonalizeModal";
 import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
 import AppApi from "../../../api/api";
 import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
@@ -802,7 +804,8 @@ function SharePropertyModal({
   const [homeownerInviteType, setHomeownerInviteType] = useState("co_owner");
   const [permissions, setPermissions] = useState({});
   const [emailError, setEmailError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  /** null | "send" | "copy" — avoids showing "Sending…" on Send when Copy link is in progress */
+  const [inviteBusyAction, setInviteBusyAction] = useState(null);
   const [successType, setSuccessType] = useState(null);
   const [transferOwnershipOpen, setTransferOwnershipOpen] = useState(false);
   const [selectedNewOwnerId, setSelectedNewOwnerId] = useState("");
@@ -813,6 +816,8 @@ function SharePropertyModal({
   const [removeConfirmMember, setRemoveConfirmMember] = useState(null);
   const [removingMember, setRemovingMember] = useState(false);
   const [searchMoreModalOpen, setSearchMoreModalOpen] = useState(false);
+  const [linkJustCopied, setLinkJustCopied] = useState(false);
+  const [personalizeInviteOpen, setPersonalizeInviteOpen] = useState(false);
   const emailDropdownRef = useRef(null);
 
   useEffect(() => {
@@ -870,6 +875,9 @@ function SharePropertyModal({
       setSuccessType(null);
       setTransferOwnershipOpen(false);
       setSelectedNewOwnerId("");
+      setLinkJustCopied(false);
+      setInviteBusyAction(null);
+      setPersonalizeInviteOpen(false);
     }
   }, [modalOpen, initialTab]);
 
@@ -887,6 +895,7 @@ function SharePropertyModal({
      are HomeOps internal users, not the property's agent. */
   const isAgent = currentRole === "agent";
   const isAdminOrSuperAdmin = ["admin", "super_admin"].includes(currentRole);
+  const isSuperAdmin = currentRole === "super_admin";
 
   /* For admin/super_admin only: merge existing users (with emails) into contacts for the email field */
   const effectiveContacts = useMemo(() => {
@@ -1032,20 +1041,143 @@ function SharePropertyModal({
     setModalOpen(false);
   }, [hasAgent, membersByTab, onUpdateAgentPermissions, getPermission]);
 
-  const handleInvite = async () => {
-    if (!canSubmit || isSubmitting) return;
-    if (
-      activeTab === "homeowner" &&
+  const buildInviteRequestPayload = useCallback(() => {
+    const perSystemPerms = {};
+    const isViewOnly =
+      activeTab === "homeowner" && homeownerInviteType === "view_only";
+    const isHomeownerEditDefault = activeTab === "homeowner" && !isHomeowner;
+    if (isViewOnly) {
+      ACCESS_SECTIONS.forEach((s) => {
+        perSystemPerms[s.id] = "view";
+      });
+      allSystemIds.forEach((id) => {
+        perSystemPerms[id] = "view";
+      });
+    } else if (isHomeownerEditDefault) {
+      ACCESS_SECTIONS.forEach((s) => {
+        perSystemPerms[s.id] = "edit";
+      });
+      allSystemIds.forEach((id) => {
+        perSystemPerms[id] = "edit";
+      });
+    } else {
+      ACCESS_SECTIONS.forEach((s) => {
+        perSystemPerms[s.id] = getPermission(s.id);
+      });
+      allSystemIds.forEach((id) => {
+        perSystemPerms[id] = getPermission("systems");
+      });
+    }
+    return {
+      email: effectiveEmail,
+      name: inviteeName.trim() || undefined,
+      role,
+      homeownerInviteType:
+        activeTab === "homeowner" ? homeownerInviteType : undefined,
+      permissions: perSystemPerms,
+    };
+  }, [
+    activeTab,
+    homeownerInviteType,
+    isHomeowner,
+    allSystemIds,
+    getPermission,
+    effectiveEmail,
+    inviteeName,
+    role,
+  ]);
+
+  const inviteSubmitBlocked =
+    (activeTab === "homeowner" &&
       homeownerInviteType !== "view_only" &&
-      atHomeownerLimit
-    )
-      return;
-    if (
-      activeTab === "homeowner" &&
+      atHomeownerLimit) ||
+    (activeTab === "homeowner" &&
       homeownerInviteType === "view_only" &&
-      atViewerLimit
-    )
-      return;
+      atViewerLimit);
+
+  const inviteActionBusy = inviteBusyAction !== null;
+
+  /** @returns {Promise<boolean>} true if the invitation was created and email flow succeeded */
+  const completeInviteSend = async (emailExtras = {}) => {
+    if (!canSubmit || inviteActionBusy) return false;
+    if (inviteSubmitBlocked) return false;
+    setEmailError("");
+
+    const emailLower = (effectiveEmail || "").trim().toLowerCase();
+    const alreadyInTeam = (teamMembers ?? []).some((m) => {
+      const mEmail = (m.email ?? m.inviteeEmail ?? "").trim().toLowerCase();
+      return mEmail && mEmail === emailLower;
+    });
+    if (alreadyInTeam) {
+      setEmailError(
+        "This person is already on the team or has a pending invitation.",
+      );
+      return false;
+    }
+
+    setInviteBusyAction("send");
+    try {
+      await onInvite?.({
+        ...buildInviteRequestPayload(),
+        ...emailExtras,
+      });
+      setSuccessType("invite");
+      setTimeout(() => {
+        setModalOpen(false);
+      }, 1200);
+      return true;
+    } catch (err) {
+      console.error(err);
+      setEmailError(err?.message || "Failed to send invite. Please try again.");
+      return false;
+    } finally {
+      setInviteBusyAction(null);
+    }
+  };
+
+  const handleInvite = async () => {
+    await completeInviteSend();
+  };
+
+  const propertyAgentCcSuggestion = useMemo(() => {
+    const agent = (membersByTab.agent ?? [])[0];
+    const em = (agent?.email ?? agent?.inviteeEmail ?? "").trim();
+    return em || "";
+  }, [membersByTab]);
+
+  /** Emails + labels for super-admin CC picker (everyone on the property except the current invitee). */
+  const ccTeamPickOptions = useMemo(() => {
+    const inviteeLower = (effectiveEmail || "").trim().toLowerCase();
+    const rows = (teamMembers ?? [])
+      .map((m) => {
+        if (!m) return null;
+        const email = (m.email ?? m.inviteeEmail ?? "").trim();
+        if (!email || email.toLowerCase() === inviteeLower) return null;
+        const name = (m.name ?? "").trim() || email.split("@")[0];
+        const roleLabel =
+          getPlatformTeamRoleLabel(m) ||
+          (m.role ? String(m.role) : "") ||
+          (m._pending ? "Pending invitation" : "Team member");
+        const label = `${name} · ${roleLabel}`;
+        const isAgent = (m.role ?? "").toLowerCase() === "agent";
+        return {
+          value: email,
+          label,
+          sortKey: label.toLowerCase(),
+          isAgent,
+        };
+      })
+      .filter(Boolean);
+    rows.sort((a, b) => {
+      if (a.isAgent !== b.isAgent) return a.isAgent ? -1 : 1;
+      return a.sortKey.localeCompare(b.sortKey);
+    });
+    return rows.map(({value, label}) => ({value, label}));
+  }, [teamMembers, effectiveEmail]);
+
+  const handleCopyInviteLink = async () => {
+    if (!canSubmit || inviteActionBusy) return;
+    if (inviteSubmitBlocked) return;
     setEmailError("");
 
     const emailLower = (effectiveEmail || "").trim().toLowerCase();
@@ -1060,51 +1192,38 @@ function SharePropertyModal({
       return;
     }
 
-    setIsSubmitting(true);
+    setInviteBusyAction("copy");
     try {
-      const perSystemPerms = {};
-      const isViewOnly =
-        activeTab === "homeowner" && homeownerInviteType === "view_only";
-      const isHomeownerEditDefault = activeTab === "homeowner" && !isHomeowner;
-      if (isViewOnly) {
-        ACCESS_SECTIONS.forEach((s) => {
-          perSystemPerms[s.id] = "view";
-        });
-        allSystemIds.forEach((id) => {
-          perSystemPerms[id] = "view";
-        });
-      } else if (isHomeownerEditDefault) {
-        ACCESS_SECTIONS.forEach((s) => {
-          perSystemPerms[s.id] = "edit";
-        });
-        allSystemIds.forEach((id) => {
-          perSystemPerms[id] = "edit";
-        });
-      } else {
-        ACCESS_SECTIONS.forEach((s) => {
-          perSystemPerms[s.id] = getPermission(s.id);
-        });
-        allSystemIds.forEach((id) => {
-          perSystemPerms[id] = getPermission("systems");
-        });
-      }
-      await onInvite?.({
-        email: effectiveEmail,
-        name: inviteeName.trim() || undefined,
-        role,
-        homeownerInviteType:
-          activeTab === "homeowner" ? homeownerInviteType : undefined,
-        permissions: perSystemPerms,
+      const res = await onInvite?.({
+        ...buildInviteRequestPayload(),
+        skipInviteEmail: true,
       });
-      setSuccessType("invite");
-      setTimeout(() => {
-        setModalOpen(false);
-      }, 1200);
+      const url = res?.inviteUrl;
+      if (!url) {
+        setEmailError(
+          res == null
+            ? "Save the property before sharing an invite link."
+            : "Could not get invite link. Try again.",
+        );
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        setEmailError(
+          "Could not copy to clipboard. Check browser permissions and try again.",
+        );
+        return;
+      }
+      setLinkJustCopied(true);
+      setTimeout(() => setLinkJustCopied(false), 2500);
     } catch (err) {
       console.error(err);
-      setEmailError(err?.message || "Failed to send invite. Please try again.");
+      setEmailError(
+        err?.message || "Failed to create invite link. Please try again.",
+      );
     } finally {
-      setIsSubmitting(false);
+      setInviteBusyAction(null);
     }
   };
 
@@ -1114,6 +1233,9 @@ function SharePropertyModal({
     activeTab === "agent" ||
     activeTab === "insurance" ||
     activeTab === "mortgage";
+
+  const showCopyInviteLink =
+    !isInsuranceOrMortgageComingSoon && !(activeTab === "agent" && hasAgent);
 
   /* Property owner is only the explicit owner on this property team. */
   const propertyOwner = useMemo(() => {
@@ -1782,55 +1904,90 @@ function SharePropertyModal({
               </div>
 
               {showInviteActions && (
-                <div className="p-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex gap-3 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-                  >
-                    Cancel
-                  </button>
-                  {activeTab === "agent" &&
-                  hasAgent &&
-                  onUpdateAgentPermissions ? (
-                    <button
-                      type="button"
-                      onClick={handleUpdateAgentPermissions}
-                      className="btn bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white"
-                    >
-                      Accept
-                    </button>
-                  ) : null}
-                  {!(activeTab === "agent" && hasAgent) &&
-                    !isInsuranceOrMortgageComingSoon && (
+                <div className="p-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                  <div className="min-w-0">
+                    {showCopyInviteLink ? (
                       <button
                         type="button"
-                        onClick={handleInvite}
+                        onClick={() => void handleCopyInviteLink()}
+                        title="Creates the invite and copies the same link we put in invitation emails. No email is sent from Opsy—paste the link wherever you like."
                         disabled={
-                          !canSubmit ||
-                          isSubmitting ||
-                          (activeTab === "homeowner" &&
-                            homeownerInviteType !== "view_only" &&
-                            atHomeownerLimit) ||
-                          (activeTab === "homeowner" &&
-                            homeownerInviteType === "view_only" &&
-                            atViewerLimit)
+                          !canSubmit || inviteActionBusy || inviteSubmitBlocked
                         }
-                        className="btn bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-2 text-sm font-medium text-[#456564] dark:text-[#5a7a78] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
                       >
-                        {isSubmitting ? (
-                          <span className="flex items-center gap-2">
-                            <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                            Sending…
-                          </span>
+                        {inviteBusyAction === "copy" ? (
+                          <span className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent shrink-0" />
                         ) : (
-                          <span className="flex items-center gap-2">
-                            Send invite
-                            <Send className="w-4 h-4" />
-                          </span>
+                          <Link2 className="w-4 h-4 shrink-0" />
                         )}
+                        {linkJustCopied
+                          ? "Link copied"
+                          : inviteBusyAction === "copy"
+                            ? "Copying…"
+                            : "Copy link"}
                       </button>
-                    )}
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setModalOpen(false)}
+                      className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                    >
+                      Cancel
+                    </button>
+                    {activeTab === "agent" &&
+                    hasAgent &&
+                    onUpdateAgentPermissions ? (
+                      <button
+                        type="button"
+                        onClick={handleUpdateAgentPermissions}
+                        className="btn bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white"
+                      >
+                        Accept
+                      </button>
+                    ) : null}
+                    {!(activeTab === "agent" && hasAgent) &&
+                      !isInsuranceOrMortgageComingSoon && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setPersonalizeInviteOpen(true)}
+                            disabled={
+                              !canSubmit ||
+                              inviteActionBusy ||
+                              inviteSubmitBlocked
+                            }
+                            className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Customize email…
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleInvite}
+                            disabled={
+                              !canSubmit ||
+                              inviteActionBusy ||
+                              inviteSubmitBlocked
+                            }
+                            className="btn bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {inviteBusyAction === "send" ? (
+                              <span className="flex items-center gap-2">
+                                <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                                Sending…
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-2">
+                                Send invite
+                                <Send className="w-4 h-4" />
+                              </span>
+                            )}
+                          </button>
+                        </>
+                      )}
+                  </div>
                 </div>
               )}
             </>
@@ -1891,6 +2048,23 @@ function SharePropertyModal({
           const em = item.email?.trim() || "";
           setEmail(em);
           setInviteeName((item.name || "").trim());
+        }}
+      />
+      <InviteEmailPersonalizeModal
+        modalOpen={personalizeInviteOpen}
+        setModalOpen={setPersonalizeInviteOpen}
+        inviteeEmail={effectiveEmail}
+        inviteeName={inviteeName}
+        propertyLine={propertyAddress}
+        propertyId={propertyId}
+        accountId={currentAccount?.id ?? null}
+        showCcField={isSuperAdmin}
+        suggestedCcEmail={propertyAgentCcSuggestion}
+        ccTeamPickOptions={ccTeamPickOptions}
+        busy={inviteBusyAction === "send"}
+        onConfirm={async (extras) => {
+          await completeInviteSend(extras);
+          setPersonalizeInviteOpen(false);
         }}
       />
     </>

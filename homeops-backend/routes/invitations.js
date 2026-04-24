@@ -5,21 +5,173 @@ const { ensureLoggedIn, ensurePropertyOwner, ensurePropertyAccess, ensureUserCan
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const Invitation = require("../models/invitation");
 const Notification = require("../models/notification");
-const { createPropertyInvitation, createBulkPropertyInvitations, createAccountInvitation, acceptInvitation, acceptInvitationForLoggedInUser, resendInvitation } = require("../services/invitationService");
+const {
+  createPropertyInvitation,
+  createBulkPropertyInvitations,
+  createAccountInvitation,
+  acceptInvitation,
+  acceptInvitationForLoggedInUser,
+  resendInvitation,
+  resolvePropertyInvitationInviteUrl,
+} = require("../services/invitationService");
 const { canInviteViewer, canAddTeamMember } = require("../services/tierService");
+const db = require("../db");
+const { buildPropertyInvitationDefaultMainPlain } = require("../services/emailService");
 
 const router = express.Router();
+
+const INVITE_NOTE_MAX = 4000;
+const INVITE_MAIN_MAX = 10000;
+const INVITE_CC_MAX = 10;
+const CC_EMAIL_RE =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+
+function normalizeInvitationEmailNote(raw) {
+  if (raw == null || raw === "") return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (s.length > INVITE_NOTE_MAX) {
+    throw new BadRequestError(
+      `Personal message must be at most ${INVITE_NOTE_MAX} characters.`,
+    );
+  }
+  return s;
+}
+
+function normalizeInvitationCc(raw, { superAdminOnly, primaryTo }) {
+  const hasPayload = (() => {
+    if (raw == null || raw === "") return false;
+    if (Array.isArray(raw)) return raw.some((x) => String(x || "").trim());
+    return String(raw).trim() !== "";
+  })();
+  if (!hasPayload) return [];
+  if (!superAdminOnly) {
+    throw new ForbiddenError(
+      "Only super admins can add CC recipients to invitation emails.",
+    );
+  }
+  const parts = Array.isArray(raw)
+    ? raw.map((x) => String(x || "").trim()).filter(Boolean)
+    : String(raw)
+        .split(/[,;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+  const primaryLower = (primaryTo || "").trim().toLowerCase();
+  const seen = new Set();
+  const out = [];
+  for (const addr of parts) {
+    if (!CC_EMAIL_RE.test(addr)) {
+      throw new BadRequestError(`Invalid CC email address: ${addr}`);
+    }
+    const lower = addr.toLowerCase();
+    if (lower === primaryLower) continue;
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    out.push(addr);
+  }
+  if (out.length > INVITE_CC_MAX) {
+    throw new BadRequestError(`At most ${INVITE_CC_MAX} CC addresses are allowed.`);
+  }
+  return out;
+}
+
+function normalizeInvitationEmailMainPlain(raw) {
+  if (raw == null || raw === "") return null;
+  const t = String(raw).trim();
+  if (!t) return null;
+  if (t.length > INVITE_MAIN_MAX) {
+    throw new BadRequestError(
+      `Invitation email body must be at most ${INVITE_MAIN_MAX} characters.`,
+    );
+  }
+  return t;
+}
+
+/** POST /property-invite-default-main — Plain-text default for the editable invitation body (before the button). */
+router.post("/property-invite-default-main", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const { inviteeEmail, propertyId, accountId, inviteeName } = req.body;
+    if (!inviteeEmail || !propertyId || !accountId) {
+      throw new BadRequestError("inviteeEmail, propertyId, and accountId are required");
+    }
+    const pid = Number(propertyId);
+    if (!Number.isInteger(pid) || pid <= 0) {
+      throw new BadRequestError("propertyId must be a positive integer");
+    }
+    const aid = Number(accountId);
+    if (!Number.isInteger(aid) || aid <= 0) {
+      throw new BadRequestError("accountId must be a positive integer");
+    }
+
+    const propRes = await db.query(
+      `SELECT id, address FROM properties WHERE id = $1 AND account_id = $2`,
+      [pid, aid],
+    );
+    if (!propRes.rows[0]) {
+      throw new BadRequestError("Property not found in this account.");
+    }
+
+    const inviterUserId = res.locals.user.id;
+    const inviterRes = await db.query(`SELECT name FROM users WHERE id = $1`, [inviterUserId]);
+    const inviterName = inviterRes.rows[0]?.name || null;
+
+    const emailNorm = (inviteeEmail || "").trim().toLowerCase();
+    const userRes = await db.query(
+      `SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 AND is_active = true`,
+      [emailNorm],
+    );
+    const inviteeHasAccount = !!userRes.rows[0];
+
+    const propertyAddress = propRes.rows[0].address || null;
+    const displayInviteeName = (inviteeName || "").trim() || null;
+
+    const defaultMainPlain = buildPropertyInvitationDefaultMainPlain({
+      inviterName,
+      inviteeName: displayInviteeName,
+      propertyAddress,
+      inviteeHasAccount,
+    });
+
+    return res.json({ defaultMainPlain, inviteeHasAccount });
+  } catch (err) {
+    return next(err);
+  }
+});
 
 /** POST / - Create account or property invitation. Body: type, inviteeEmail, accountId, propertyId?, intendedRole, inviteeName? (property: saved on auto-created contact). */
 router.post("/", ensureLoggedIn, async function (req, res, next) {
   try {
-    const { type, inviteeEmail, inviteeName, accountId, propertyId, intendedRole } = req.body;
+    const {
+      type,
+      inviteeEmail,
+      inviteeName,
+      accountId,
+      propertyId,
+      intendedRole,
+      skipInviteEmail,
+      invitationEmailNote,
+      invitationEmailMainPlain,
+      invitationEmailCc,
+    } = req.body;
     if (!inviteeEmail || !accountId) {
       throw new BadRequestError("inviteeEmail and accountId are required");
     }
 
     const inviterUserId = res.locals.user.id;
     const userRole = res.locals.user?.role;
+    const noteForEmail =
+      type === "property" ? normalizeInvitationEmailNote(invitationEmailNote) : null;
+    const mainPlainForEmail =
+      type === "property"
+        ? normalizeInvitationEmailMainPlain(invitationEmailMainPlain)
+        : null;
+    const ccForEmail =
+      type === "property"
+        ? normalizeInvitationCc(invitationEmailCc, {
+            superAdminOnly: userRole === "super_admin",
+            primaryTo: inviteeEmail,
+          })
+        : [];
 
     if (intendedRole === 'viewer' && propertyId) {
       const viewerCheck = await canInviteViewer(accountId, propertyId, userRole);
@@ -48,10 +200,23 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
         propertyId,
         intendedRole,
         inviterUserRole: userRole,
+        skipInviteEmail: skipInviteEmail === true,
+        invitationEmailNote: mainPlainForEmail ? null : noteForEmail,
+        invitationEmailMainPlain: mainPlainForEmail,
+        invitationEmailCc: ccForEmail.length > 0 ? ccForEmail : null,
       });
     }
 
-    return res.status(201).json({ invitation: result.invitation, token: result.token });
+    let inviteUrl = null;
+    if (type !== "account" && result?.invitation && result?.token) {
+      inviteUrl = await resolvePropertyInvitationInviteUrl(result.invitation, result.token);
+    }
+
+    return res.status(201).json({
+      invitation: result.invitation,
+      token: result.token,
+      ...(inviteUrl ? { inviteUrl } : {}),
+    });
   } catch (err) {
     return next(err);
   }

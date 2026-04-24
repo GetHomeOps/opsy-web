@@ -164,11 +164,22 @@ async function logUsageIfNeeded(usage) {
   }
 }
 
-async function sendViaSesRawWithInlineFooter({ to, subject, html, replyTo, usage, footerImageBase64 }) {
+async function sendViaSesRawWithInlineFooter({
+  to,
+  subject,
+  html,
+  replyTo,
+  usage,
+  footerImageBase64,
+  cc = [],
+}) {
   const boundary = `opsy_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const ccLine =
+    Array.isArray(cc) && cc.length > 0 ? `Cc: ${cc.join(", ")}` : null;
   const lines = [
     `From: ${getFromAddress()}`,
     `To: ${to}`,
+    ...(ccLine ? [ccLine] : []),
     `Subject: ${subject}`,
     "MIME-Version: 1.0",
     `Content-Type: multipart/related; boundary="${boundary}"`,
@@ -200,7 +211,10 @@ async function sendViaSesRawWithInlineFooter({ to, subject, html, replyTo, usage
   return { success: true };
 }
 
-async function sendViaSes({ to, subject, html, replyTo, usage }) {
+async function sendViaSes({ to, subject, html, replyTo, usage, cc }) {
+  const ccList = Array.isArray(cc)
+    ? [...new Set(cc.map((e) => String(e || "").trim()).filter(Boolean))]
+    : [];
   if (html.includes(`cid:${FOOTER_IMAGE_CID}`)) {
     try {
       const footerImageBase64 = await readFooterImageBase64();
@@ -212,6 +226,7 @@ async function sendViaSes({ to, subject, html, replyTo, usage }) {
           replyTo,
           usage,
           footerImageBase64,
+          cc: ccList,
         });
       }
       const fallbackUrl =
@@ -225,7 +240,10 @@ async function sendViaSes({ to, subject, html, replyTo, usage }) {
 
   const params = {
     Source: getFromAddress(),
-    Destination: { ToAddresses: [to] },
+    Destination: {
+      ToAddresses: [to],
+      ...(ccList.length > 0 ? { CcAddresses: ccList } : {}),
+    },
     Message: {
       Subject: { Data: subject, Charset: "UTF-8" },
       Body: {
@@ -300,9 +318,58 @@ async function sendEmailVerificationEmail({ to, verifyUrl, userName, usage }) {
 }
 
 /**
+ * Property invitation copy (headline, greeting, body) — shared by send + default plain-text preview.
+ * @returns {{ headline: string, intro: string, bodyExtra: string, ctaLabel: string }}
+ */
+function getPropertyInvitationEmailParts(
+  inviterName,
+  inviteeName,
+  propertyAddress,
+  inviteeHasAccount,
+) {
+  const intro = inviteeName ? `Hi ${inviteeName},` : "Hi,";
+  const inviterText = inviterName ? `${inviterName} has` : "Someone has";
+  const contextText = propertyAddress
+    ? `${inviterText} invited you to join a property: ${propertyAddress}.`
+    : `${inviterText} invited you to join a property.`;
+
+  if (inviteeHasAccount) {
+    return {
+      headline: "Property invitation",
+      intro,
+      bodyExtra: `${contextText} You already have a ${brandName} account. Use the button below to open the property and accept or decline. If you're not signed in, you'll be asked to sign in first. You can also respond from your notifications (bell icon) when signed in.`,
+      ctaLabel: "View Invitation",
+    };
+  }
+  return {
+    headline: `Property invitation — ${brandName}`,
+    intro,
+    bodyExtra: `${contextText} Use the button below to join ${brandName} and set your password to accept this invitation.`,
+    ctaLabel: "Accept invitation",
+  };
+}
+
+/** Plain-text default for the editable “main” of a property invite (everything before the button). */
+function buildPropertyInvitationDefaultMainPlain({
+  inviterName,
+  inviteeName,
+  propertyAddress,
+  inviteeHasAccount,
+}) {
+  const { headline, intro, bodyExtra } = getPropertyInvitationEmailParts(
+    inviterName,
+    inviteeName,
+    propertyAddress,
+    inviteeHasAccount,
+  );
+  return `${headline}\n\n${intro}\n\n${bodyExtra}`;
+}
+
+/**
  * Send invitation email with confirmation or sign-in link.
  * @param {Object} opts - { to, inviteUrl, inviterName?, inviteeName?, type: 'account'|'property', propertyAddress?,
  *   inviteeHasAccount?: boolean } — for property invites, inviteeHasAccount selects existing-user vs new-user copy.
+ *   mainPlainOverride: optional full main body (plain text) for property invites; replaces headline/intro/extra/note.
  */
 async function sendInvitationEmail({
   to,
@@ -313,6 +380,9 @@ async function sendInvitationEmail({
   propertyAddress,
   inviteeHasAccount = false,
   usage,
+  personalNote = null,
+  cc = null,
+  mainPlainOverride = null,
 }) {
   if (!isSesConfigured()) {
     throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
@@ -323,7 +393,7 @@ async function sendInvitationEmail({
     ? `You've been invited to join a property${propertyAddress ? `: ${propertyAddress}` : ""}`
     : `You've been invited to join ${brandName}`;
 
-  const intro = inviteeName ? `Hi ${inviteeName},` : "Hi,";
+  const introDefault = inviteeName ? `Hi ${inviteeName},` : "Hi,";
   const inviterText = inviterName ? `${inviterName} has` : "Someone has";
   const contextText = isProperty
     ? (propertyAddress
@@ -332,31 +402,69 @@ async function sendInvitationEmail({
     : `${inviterText} invited you to join ${brandName}.`;
 
   let headline;
+  let intro;
   let bodyExtra;
   let ctaLabel;
   let footerNote =
     "This invitation expires in 48 hours. If you didn't expect this invite, you can safely ignore this email.";
 
-  if (isProperty && inviteeHasAccount) {
-    headline = "Property invitation";
-    bodyExtra =
-      `${contextText} You already have a ${brandName} account. Use the button below to open the property and accept or decline. If you're not signed in, you'll be asked to sign in first. You can also respond from your notifications (bell icon) when signed in.`;
-    ctaLabel = "View Invitation";
-  } else if (isProperty) {
-    headline = `Property invitation — ${brandName}`;
-    bodyExtra = `${contextText} Use the button below to join ${brandName} and set your password to accept this invitation.`;
-    ctaLabel = "Accept invitation";
+  if (isProperty) {
+    const parts = getPropertyInvitationEmailParts(
+      inviterName,
+      inviteeName,
+      propertyAddress,
+      inviteeHasAccount,
+    );
+    headline = parts.headline;
+    intro = parts.intro;
+    bodyExtra = parts.bodyExtra;
+    ctaLabel = parts.ctaLabel;
   } else {
     headline = `You're invited to ${brandName}`;
+    intro = introDefault;
     bodyExtra = `${contextText} Click the button below to accept and set up your account:`;
     ctaLabel = "Accept invitation";
   }
 
+  const mainTrim =
+    isProperty && mainPlainOverride != null
+      ? String(mainPlainOverride).trim()
+      : "";
+  const useCustomMain = mainTrim.length > 0;
+
+  const noteTrim =
+    !useCustomMain && personalNote != null ? String(personalNote).trim() : "";
+  const personalNoteBlock =
+    noteTrim.length > 0
+      ? `<div style="margin: 20px 0; padding: 14px 16px; background: #f3f4f6; border-radius: 8px; border-left: 4px solid #456564;">
+      <p style="margin: 0 0 6px 0; font-size: 12px; font-weight: 600; color: #456564; text-transform: uppercase; letter-spacing: 0.02em;">Personal message</p>
+      <p style="margin: 0; color: #1f2937; font-size: 15px; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(
+        noteTrim,
+      )}</p>
+    </div>`
+      : "";
+
+  const customMainBlock = useCustomMain
+    ? `<div style="font-size: 15px; line-height: 1.6; color: #1f2937; white-space: pre-wrap;">${escapeHtml(
+        mainTrim,
+      )}</div>`
+    : "";
+
+  const standardMainBlock = useCustomMain
+    ? ""
+    : `<h2 style="color: #456564;">${headline}</h2>
+      <p>${intro}</p>
+      ${personalNoteBlock}
+      <p>${bodyExtra}</p>`;
+
+  const ccList =
+    Array.isArray(cc) && cc.length > 0
+      ? [...new Set(cc.map((e) => String(e || "").trim()).filter(Boolean))]
+      : [];
+
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-      <h2 style="color: #456564;">${headline}</h2>
-      <p>${intro}</p>
-      <p>${bodyExtra}</p>
+      ${useCustomMain ? customMainBlock : standardMainBlock}
       <p style="margin: 24px 0;">
         <a href="${inviteUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">${ctaLabel}</a>
       </p>
@@ -365,7 +473,7 @@ async function sendInvitationEmail({
     </div>
   `;
 
-  return sendViaSes({ to, subject, html, usage });
+  return sendViaSes({ to, subject, html, usage, cc: ccList });
 }
 
 /**
@@ -881,6 +989,7 @@ module.exports = {
   sendPasswordResetEmail,
   sendEmailVerificationEmail,
   sendInvitationEmail,
+  buildPropertyInvitationDefaultMainPlain,
   sendBulkPropertyInvitationEmail,
   sendContractorReportEmail,
   sendScheduleNotificationEmail,

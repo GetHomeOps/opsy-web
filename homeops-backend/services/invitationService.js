@@ -76,6 +76,50 @@ function buildPropertyInviteUrl({
   return `${baseUrl}/${accountUrl}/invite/confirm?token=${encodeURIComponent(token)}&email=${encodeURIComponent(invitation.inviteeEmail)}`;
 }
 
+/** Resolve the same URL used in invitation emails (in-app property link, sign-in, or confirm flow). */
+async function resolvePropertyInvitationInviteUrl(invitation, token) {
+  const baseUrl = (APP_BASE_URL || process.env.APP_WEB_ORIGIN || "http://localhost:5173").replace(
+    /\/$/,
+    "",
+  );
+  const account = await Account.get(invitation.accountId);
+  const accountUrl = String(account?.url || account?.name || "home").replace(/^\/+/, "");
+  const emailNorm = (invitation.inviteeEmail || "").trim().toLowerCase();
+
+  const r = await db.query(
+    `SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 AND is_active = true`,
+    [emailNorm],
+  );
+  const resolvedInviteeUserId = r.rows[0]?.id ?? null;
+  const hasExistingAccount = resolvedInviteeUserId != null;
+
+  let propertyUid = null;
+  if (invitation.propertyId) {
+    const prop = await db.query(`SELECT property_uid FROM properties WHERE id = $1`, [
+      invitation.propertyId,
+    ]);
+    propertyUid = prop.rows[0]?.property_uid || null;
+  }
+
+  let isLinkedToAccount = false;
+  if (hasExistingAccount && !propertyUid) {
+    isLinkedToAccount = await Account.isUserLinkedToAccount(
+      resolvedInviteeUserId,
+      invitation.accountId,
+    );
+  }
+
+  return buildPropertyInviteUrl({
+    baseUrl,
+    accountUrl,
+    invitation,
+    token,
+    propertyUid,
+    hasExistingAccount,
+    isLinkedToAccount,
+  });
+}
+
 async function ensureInviteeContactAutoCreated({
   emailLower,
   inviteeEmailTrimmed,
@@ -121,6 +165,10 @@ async function createPropertyInvitation({
   propertyId,
   intendedRole,
   inviterUserRole,
+  skipInviteEmail = false,
+  invitationEmailNote = null,
+  invitationEmailMainPlain = null,
+  invitationEmailCc = null,
 }) {
   const emailLower = (inviteeEmail || "").trim().toLowerCase();
   if (!emailLower) throw new BadRequestError("inviteeEmail is required");
@@ -199,16 +247,21 @@ async function createPropertyInvitation({
     }
   }
 
-  try {
-    await sendInvitationEmailForInvitation({
-      invitation,
-      token,
-      inviterUserId,
-      type: "property",
-      inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
-    });
-  } catch (err) {
-    console.error("[invitationService] Failed to send invitation email:", err.message);
+  if (!skipInviteEmail) {
+    try {
+      await sendInvitationEmailForInvitation({
+        invitation,
+        token,
+        inviterUserId,
+        type: "property",
+        inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
+        personalNote: invitationEmailMainPlain ? null : invitationEmailNote,
+        mainPlainOverride: invitationEmailMainPlain || null,
+        cc: invitationEmailCc,
+      });
+    } catch (err) {
+      console.error("[invitationService] Failed to send invitation email:", err.message);
+    }
   }
 
   return { invitation, token };
@@ -444,7 +497,16 @@ async function createAccountInvitation({ inviterUserId, inviteeEmail, accountId,
 }
 
 /** Build invite URL and send email. Used after create and resend. */
-async function sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type, inviteeUserId }) {
+async function sendInvitationEmailForInvitation({
+  invitation,
+  token,
+  inviterUserId,
+  type,
+  inviteeUserId,
+  personalNote = null,
+  mainPlainOverride = null,
+  cc = null,
+}) {
   const baseUrl = (APP_BASE_URL || process.env.APP_WEB_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
   const account = await Account.get(invitation.accountId);
   const accountUrl = String(account?.url || account?.name || "home").replace(/^\/+/, "");
@@ -504,6 +566,9 @@ async function sendInvitationEmailForInvitation({ invitation, token, inviterUser
     type,
     propertyAddress,
     inviteeHasAccount: hasExistingAccount,
+    personalNote: type === "property" ? personalNote : null,
+    mainPlainOverride: type === "property" ? mainPlainOverride : null,
+    cc: type === "property" && Array.isArray(cc) && cc.length > 0 ? cc : null,
     usage:
       invitation.accountId && inviterUserId
         ? {
@@ -904,4 +969,5 @@ module.exports = {
   acceptInvitation,
   acceptInvitationForLoggedInUser,
   resendInvitation,
+  resolvePropertyInvitationInviteUrl,
 };

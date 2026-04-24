@@ -2436,6 +2436,10 @@ function PropertyFormContainer() {
           role,
           homeownerInviteType,
           permissions,
+          skipInviteEmail,
+          invitationEmailNote,
+          invitationEmailMainPlain,
+          invitationEmailCc,
         }) => {
           const propertyId =
             uid !== "new"
@@ -2478,14 +2482,26 @@ function PropertyFormContainer() {
               accountId: currentAccount.id,
               propertyId,
               intendedRole,
+              skipInviteEmail: skipInviteEmail === true,
+              ...(invitationEmailNote
+                ? {invitationEmailNote}
+                : {}),
+              ...(invitationEmailMainPlain
+                ? {invitationEmailMainPlain}
+                : {}),
+              ...(invitationEmailCc?.length
+                ? {invitationEmailCc}
+                : {}),
             });
             if (res?.invitation?.id) {
               pendingMember.invitationId = res.invitation.id;
             }
             /* Invitation is already persisted — only refresh local list; do not mark property form dirty. */
             setHomeopsTeam((prev) => [...prev, pendingMember]);
+            return res;
           } else {
             handleTeamChange([...homeopsTeam, pendingMember]);
+            return null;
           }
         }}
         onRemoveMember={async (member) => {

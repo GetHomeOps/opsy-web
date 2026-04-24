@@ -390,6 +390,16 @@ class AppApi {
     return res;
   }
 
+  /** Default plain-text body for the property invitation email (editable in UI). */
+  static async getPropertyInviteDefaultMain(data) {
+    let res = await this.request(
+      `invitations/property-invite-default-main`,
+      data,
+      "POST",
+    );
+    return res;
+  }
+
   /** One request + one email for invitee when inviting to multiple properties. */
   static async createBulkPropertyInvitations(data) {
     let res = await this.request(`invitations/bulk-property`, data, "POST");
