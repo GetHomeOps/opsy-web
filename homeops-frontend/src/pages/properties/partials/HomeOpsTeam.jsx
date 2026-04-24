@@ -134,9 +134,14 @@ function HomeOpsTeam({
               ""
             ).toLowerCase();
             const propLower = (member.property_role ?? "").toLowerCase();
+            const isInternalStaff =
+              platformLower === "admin" || platformLower === "super_admin";
             const memberTab = (() => {
               const platform = platformLower;
               const prop = propLower;
+              /* HomeOps internal staff open the "All" tab, never homeowner/agent. */
+              if (platform === "admin" || platform === "super_admin")
+                return "owner";
               if (platform === "agent") return "agent";
               if (platform === "homeowner" || platform === "owner")
                 return "homeowner";
@@ -229,7 +234,7 @@ function HomeOpsTeam({
                       </span>
                     )}
                   </div>
-                  {!isPending && (
+                  {!isPending && !isInternalStaff && (
                     <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate leading-tight">
                       {(() => {
                         const r = platformLower;

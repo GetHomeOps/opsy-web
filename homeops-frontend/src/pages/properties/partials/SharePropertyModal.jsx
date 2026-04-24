@@ -61,11 +61,15 @@ const TABS = [
 ];
 
 /** Maps a team member's role to the corresponding tab id (platform `role` vs property access `property_role`).
- *  Only platform role `agent` is shown in the agent tab — admin/super_admin (HomeOps internal users)
- *  fall back to the homeowner/property-role categorization below. */
+ *  Only platform role `agent` is shown in the agent tab. HomeOps internal users
+ *  (admin / super_admin) are never categorized as homeowner/agent/insurance/mortgage —
+ *  they only appear in the "All" tab as the property owner. */
 function memberRoleToTab(m) {
   const platform = (m.role ?? "").toLowerCase();
   const prop = (m.property_role ?? "").toLowerCase();
+  /* HomeOps internal staff: never classify as homeowner/agent. They only
+     show up in the All tab (owner-only, no sub-tab grouping). */
+  if (platform === "admin" || platform === "super_admin") return "owner";
   if (platform === "agent") return "agent";
   if (platform === "homeowner" || platform === "owner") return "homeowner";
   if (["insurer", "insurance", "insurance agent"].includes(platform))
@@ -81,10 +85,13 @@ function memberRoleToTab(m) {
 }
 
 /** Human-readable platform role for team lists (users.role — Agent, Homeowner, etc.).
- *  Only platform role `agent` is labeled "Agent" — admin/super_admin keep their own label. */
+ *  Only platform role `agent` is labeled "Agent". Admin/super_admin are HomeOps
+ *  internal staff and never get a homeowner/agent label — their "Owner" badge is
+ *  enough, so this returns null for them. */
 function getPlatformTeamRoleLabel(m) {
   if (!m) return null;
   const r = (m.role ?? "").toLowerCase();
+  if (r === "admin" || r === "super_admin") return null;
   if (r === "agent") return "Agent";
   if (["homeowner", "owner"].includes(r)) return "Homeowner";
   if (["insurer", "insurance", "insurance agent"].includes(r))
@@ -941,6 +948,9 @@ function SharePropertyModal({
         });
     visible.forEach((m) => {
       const tab = memberRoleToTab(m);
+      /* `owner` is the meta "All" tab — HomeOps internal staff (admin/super_admin)
+         return this and should not be placed in any sub-tab group. */
+      if (tab === "owner") return;
       if (groups[tab]) groups[tab].push(m);
       else groups.homeowner.push(m);
     });
