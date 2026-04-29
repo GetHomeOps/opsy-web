@@ -64,19 +64,24 @@ async function propertyHasAgentMemberOrPendingAgentInvitation(
   const memberRes = await db.query(memberSql, memberParams);
   if (memberRes.rows.length > 0) return true;
 
+  /* A pending invitation counts as an agent on the property if:
+     (a) the invitee email already maps to a user with role=agent, or
+     (b) the invitation itself was tagged as an agent invite via
+         intended_property_role (covers brand-new agent emails that don't yet
+         exist as platform users). */
   const pendingSql = excludeInvitationId
     ? `SELECT 1 FROM invitations i
-       INNER JOIN users u ON LOWER(TRIM(u.email)) = LOWER(TRIM(i.invitee_email))
+       LEFT JOIN users u ON LOWER(TRIM(u.email)) = LOWER(TRIM(i.invitee_email))
        WHERE i.property_id = $1
          AND i.status = 'pending'
-         AND u.role::text = ANY($2::text[])
+         AND (u.role::text = ANY($2::text[]) OR LOWER(TRIM(COALESCE(i.intended_property_role, ''))) = 'agent')
          AND i.id != $3
        LIMIT 1`
     : `SELECT 1 FROM invitations i
-       INNER JOIN users u ON LOWER(TRIM(u.email)) = LOWER(TRIM(i.invitee_email))
+       LEFT JOIN users u ON LOWER(TRIM(u.email)) = LOWER(TRIM(i.invitee_email))
        WHERE i.property_id = $1
          AND i.status = 'pending'
-         AND u.role::text = ANY($2::text[])
+         AND (u.role::text = ANY($2::text[]) OR LOWER(TRIM(COALESCE(i.intended_property_role, ''))) = 'agent')
        LIMIT 1`;
   const pendingParams = excludeInvitationId
     ? [propertyId, AGENT_PLATFORM_ROLES, excludeInvitationId]

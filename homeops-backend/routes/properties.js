@@ -214,14 +214,54 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
       image_url: u.image_url ?? u.avatar_url ?? null,
     }));
 
-    const pendingMembers = pendingInvitations.map((inv) => ({
-      email: inv.inviteeEmail,
-      name: inv.inviteeEmail,
-      role: inv.intendedRole,
-      property_role: inv.intendedRole,
-      _pending: true,
-      invitationId: inv.id,
-    }));
+    /* Look up existing platform users by email so pending invitations can
+       carry the invitee's actual platform role (e.g. an agent invited from
+       the Agent tab keeps `role: "agent"` after a refresh, instead of being
+       miscategorized as a homeowner). */
+    const inviteeEmailsLower = [
+      ...new Set(
+        pendingInvitations
+          .map((inv) => (inv.inviteeEmail || "").trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    const userRoleByEmailLower = new Map();
+    if (inviteeEmailsLower.length > 0) {
+      const userRolesRes = await db.query(
+        `SELECT LOWER(TRIM(email)) AS email_lower, role, name
+         FROM users
+         WHERE LOWER(TRIM(email)) = ANY($1::text[])`,
+        [inviteeEmailsLower],
+      );
+      for (const row of userRolesRes.rows) {
+        userRoleByEmailLower.set(row.email_lower, {
+          role: row.role,
+          name: row.name,
+        });
+      }
+    }
+
+    const pendingMembers = pendingInvitations.map((inv) => {
+      const emailLower = (inv.inviteeEmail || "").trim().toLowerCase();
+      const matchedUser = userRoleByEmailLower.get(emailLower) || null;
+      /* Prefer the explicit invitation category captured at invite time, then
+         fall back to the invitee's existing platform role (covers older
+         invitations created before intended_property_role was stored), then
+         finally to the access-level intended_role. */
+      const role =
+        inv.intendedPropertyRole || matchedUser?.role || inv.intendedRole;
+      return {
+        email: inv.inviteeEmail,
+        name: matchedUser?.name || inv.inviteeEmail,
+        role,
+        property_role: inv.intendedRole,
+        /* Per-section access restrictions captured at invite time so the
+           share-property modal can rehydrate them after refresh. */
+        permissions: inv.permissions ?? null,
+        _pending: true,
+        invitationId: inv.id,
+      };
+    });
 
     const allMembers = [...property_users_with_avatars, ...pendingMembers];
     const viewerRole = res.locals.user?.role;

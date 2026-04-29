@@ -437,6 +437,17 @@ export function prepareTeamForProperty(team) {
     });
 }
 
+/** Stable signature for access-restriction objects (systems / maintenance / docs). */
+function teamPermissionsSignature(perms) {
+  if (!perms || typeof perms !== "object") return "";
+  try {
+    const keys = Object.keys(perms).sort();
+    return keys.map((k) => `${k}:${perms[k] ?? ""}`).join("|");
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Compare two prepared team arrays (from prepareTeamForProperty) for equality.
  * Used to skip updateTeam + getPropertyTeam when team is unchanged.
@@ -445,7 +456,7 @@ export function teamsAreEqual(preparedA, preparedB) {
   if (!preparedA || !preparedB) return preparedA === preparedB;
   if (preparedA.length !== preparedB.length) return false;
   const toKey = (m) =>
-    `${m?.id ?? m?.user_id}:${(m?.role ?? m?.property_role ?? "").toLowerCase()}`;
+    `${m?.id ?? m?.user_id}:${(m?.role ?? m?.property_role ?? "").toLowerCase()}:${teamPermissionsSignature(m?.permissions)}`;
   const keysA = new Set(preparedA.map(toKey));
   for (const m of preparedB) {
     if (!keysA.has(toKey(m))) return false;

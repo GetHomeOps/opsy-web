@@ -17,6 +17,9 @@
 
 const db = require("../db");
 
+const HOMEOPS_TEAM_ACCOUNT_NAME = "HomeOps Team";
+const MAIN_ACCOUNT_URL = "main";
+
 class PlatformMetrics {
   static async getDailyMetrics({ startDate, endDate } = {}) {
     const clauses = [];
@@ -587,7 +590,9 @@ class PlatformMetrics {
            FROM account_users au
            JOIN accounts a ON a.id = au.account_id
            JOIN users u ON u.id = au.user_id
-           ORDER BY a.name NULLS LAST, u.name NULLS LAST`
+           WHERE (a.name <> $1 AND a.url <> $2) OR au.user_id = a.owner_user_id
+           ORDER BY a.name NULLS LAST, u.name NULLS LAST`,
+          [HOMEOPS_TEAM_ACCOUNT_NAME, MAIN_ACCOUNT_URL]
         ),
         db.query(
           `SELECT e.user_id,

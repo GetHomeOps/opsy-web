@@ -42,6 +42,44 @@ const {
 
 const VALID_ACCOUNT_ROLES = new Set(["owner", "admin", "member", "view_only"]);
 
+/** Allowed values for invitations.intended_property_role — the invitation
+ *  category (which tab the invitee will appear under in the property team
+ *  modal). Decoupled from intended_role, which only carries the access level
+ *  (editor / viewer). */
+const VALID_INTENDED_PROPERTY_ROLES = new Set([
+  "agent",
+  "homeowner",
+  "insurance",
+  "mortgage",
+]);
+
+function normalizeIntendedPropertyRole(value) {
+  if (value == null) return null;
+  const v = String(value).trim().toLowerCase();
+  if (!v) return null;
+  return VALID_INTENDED_PROPERTY_ROLES.has(v) ? v : null;
+}
+
+/** Allowed values for each per-section access restriction (Systems / Maintenance / Docs). */
+const VALID_PERMISSION_VALUES = new Set(["edit", "view", "none"]);
+
+/** Sanitize the per-section permissions object the client sends with an
+ *  invitation. Returns null if the input is empty or not an object so the DB
+ *  column stores NULL (meaning "no overrides"). */
+function normalizeInvitationPermissions(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const out = {};
+  for (const [rawKey, rawVal] of Object.entries(value)) {
+    if (typeof rawKey !== "string") continue;
+    const key = rawKey.trim();
+    if (!key) continue;
+    const valStr = String(rawVal ?? "").trim().toLowerCase();
+    if (!VALID_PERMISSION_VALUES.has(valStr)) continue;
+    out[key] = valStr;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 /** Map invitation intendedRole to account_role. Property invitations use editor/viewer; account uses owner/admin/member/view_only. */
 function mapToAccountRole(intendedRole, invitationType) {
   const r = (intendedRole || "").toLowerCase();
@@ -164,6 +202,8 @@ async function createPropertyInvitation({
   accountId,
   propertyId,
   intendedRole,
+  intendedPropertyRole,
+  permissions,
   inviterUserRole,
   skipInviteEmail = false,
   invitationEmailNote = null,
@@ -219,6 +259,8 @@ async function createPropertyInvitation({
     accountId,
     propertyId,
     intendedRole: intendedRole || 'editor',
+    intendedPropertyRole: normalizeIntendedPropertyRole(intendedPropertyRole),
+    permissions: normalizeInvitationPermissions(permissions),
     tokenHash,
     expiresAt,
   });
@@ -278,6 +320,8 @@ async function createBulkPropertyInvitations({
   accountId,
   propertyIds,
   intendedRole,
+  intendedPropertyRole,
+  permissions,
   inviterUserRole,
 }) {
   const emailLower = (inviteeEmail || "").trim().toLowerCase();
@@ -409,6 +453,10 @@ async function createBulkPropertyInvitations({
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + 48);
 
+  const normalizedIntendedPropertyRole =
+    normalizeIntendedPropertyRole(intendedPropertyRole);
+  const normalizedPermissions = normalizeInvitationPermissions(permissions);
+
   const createdRows = [];
   for (const propertyId of eligible) {
     const { token, tokenHash } = generateInvitationToken();
@@ -419,6 +467,8 @@ async function createBulkPropertyInvitations({
       accountId,
       propertyId,
       intendedRole: intents,
+      intendedPropertyRole: normalizedIntendedPropertyRole,
+      permissions: normalizedPermissions,
       tokenHash,
       expiresAt,
     });
@@ -814,6 +864,7 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
         property_id: accepted.propertyId,
         user_id: user.id,
         role: accepted.intendedRole || 'editor',
+        permissions: accepted.permissions || null,
       });
     }
 

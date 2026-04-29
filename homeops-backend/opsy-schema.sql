@@ -314,6 +314,9 @@ CREATE TABLE property_users (
     property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     role property_role DEFAULT 'editor',
+    -- Per-section access restrictions (e.g. {"systems":"edit","maintenance":"view","documents":"none"}).
+    -- NULL means "no overrides" — the role's default access applies.
+    permissions JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (property_id, user_id)
@@ -469,6 +472,14 @@ CREATE TABLE invitations (
     account_id INTEGER NOT NULL REFERENCES accounts(id),
     property_id INTEGER REFERENCES properties(id),
     intended_role VARCHAR(50) NOT NULL,
+    -- Invitation category (agent / homeowner / insurance / mortgage). Decoupled
+    -- from intended_role so we don't lose the "this person was invited as the
+    -- agent" intent for pending invitations whose access level is just editor.
+    intended_property_role VARCHAR(50),
+    -- Per-section access restrictions captured at invite time
+    -- (e.g. {"systems":"edit","maintenance":"view","documents":"none"}).
+    -- Copied into property_users.permissions when the invitation is accepted.
+    permissions JSONB,
     token_hash TEXT NOT NULL UNIQUE,
     status invitation_status DEFAULT 'pending',
     expires_at TIMESTAMPTZ NOT NULL,

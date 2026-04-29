@@ -2459,6 +2459,15 @@ function PropertyFormContainer() {
               : homeownerInviteType === "view_only"
                 ? "viewer"
                 : "editor";
+          /* Persist the invitation category (which tab the invitee will
+             appear under) so refreshing the page doesn't lose the "this was
+             an agent invite" intent — intended_role only carries the access
+             level, not the category. */
+          const intendedPropertyRole = ["agent", "homeowner", "insurance", "mortgage"].includes(
+            role,
+          )
+            ? role
+            : undefined;
           const displayRoleMap = {
             agent: "Agent",
             homeowner: "Homeowner",
@@ -2485,6 +2494,13 @@ function PropertyFormContainer() {
             inviteAccountId &&
             typeof AppApi.createInvitation === "function"
           ) {
+            /* Persist per-section access restrictions on the invitation row
+               so refreshing the page (or the invitee accepting later) doesn't
+               drop the inviter's choices back to defaults. */
+            const permissionsForApi =
+              permissions && Object.keys(permissions).length > 0
+                ? permissions
+                : undefined;
             const res = await AppApi.createInvitation({
               type: "property",
               inviteeEmail: inviteEmail,
@@ -2492,6 +2508,8 @@ function PropertyFormContainer() {
               accountId: inviteAccountId,
               propertyId,
               intendedRole,
+              ...(intendedPropertyRole ? {intendedPropertyRole} : {}),
+              ...(permissionsForApi ? {permissions: permissionsForApi} : {}),
               skipInviteEmail: skipInviteEmail === true,
               ...(invitationEmailNote
                 ? {invitationEmailNote}

@@ -206,13 +206,18 @@ class Property {
   }
 
   /* Add user to property (upsert: update role if already exists) */
-  static async addUserToProperty({ property_id, user_id, role = 'editor' }) {
+  static async addUserToProperty({ property_id, user_id, role = "editor", permissions = null }) {
+    const permsJson =
+      permissions && typeof permissions === "object" ? JSON.stringify(permissions) : null;
     const result = await db.query(
-      `INSERT INTO property_users (property_id, user_id, role)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (property_id, user_id) DO UPDATE SET role = EXCLUDED.role, updated_at = NOW()
-       RETURNING property_id, user_id, role`,
-      [property_id, user_id, role]
+      `INSERT INTO property_users (property_id, user_id, role, permissions)
+       VALUES ($1, $2, $3, $4::jsonb)
+       ON CONFLICT (property_id, user_id) DO UPDATE SET
+         role = EXCLUDED.role,
+         permissions = COALESCE(EXCLUDED.permissions, property_users.permissions),
+         updated_at = NOW()
+       RETURNING property_id, user_id, role, permissions`,
+      [property_id, user_id, role, permsJson]
     );
     return result.rows[0];
   }
@@ -329,11 +334,13 @@ class Property {
     return result.rows;
   }
 
-  /* Get team for property: returns actual user records with their role on this property */
+  /* Get team for property: returns actual user records with their role and
+     per-section access restrictions (permissions JSONB) on this property. */
   static async getPropertyTeam(propertyId) {
     const result = await db.query(
       `SELECT u.id, u.email, u.name, u.phone, u.role, u.is_active, u.contact_id, u.image, u.avatar_url,
-              pu.role AS property_role
+              pu.role AS property_role,
+              pu.permissions
        FROM property_users pu
        JOIN users u ON u.id = pu.user_id
        WHERE pu.property_id = $1
@@ -443,7 +450,7 @@ class Property {
    *  Time: O(M + N) — M = current rows for property, N = desired list size. Constant 3–4 queries.
    *
    *  @param {number} propertyId - internal property id
-   *  @param {Array<{ id: number, role?: string }>} users - desired team (id = user_id, role defaults to 'editor')
+   *  @param {Array<{ id: number, role?: string, permissions?: object }>} users - desired team (id = user_id)
    *  @returns {Promise<Array>} rows from property_users for this property after sync
    */
   static async updatePropertyUsers(propertyId, users) {
@@ -477,13 +484,30 @@ class Property {
         return [];
       }
 
-      const placeholders = uniqueUsers.map((_, i) => `($1, $${2 + i * 2}, $${3 + i * 2})`).join(", ");
-      const values = [propertyId, ...uniqueUsers.flatMap((u) => [u.id, normalizeRole(u.role || "editor")])];
+      const placeholders = uniqueUsers
+        .map((_, i) => {
+          const base = 2 + i * 3;
+          return `($1, $${base}, $${base + 1}, $${base + 2}::jsonb)`;
+        })
+        .join(", ");
+      const values = [
+        propertyId,
+        ...uniqueUsers.flatMap((u) => [
+          u.id,
+          normalizeRole(u.role || "editor"),
+          u.permissions != null && typeof u.permissions === "object"
+            ? JSON.stringify(u.permissions)
+            : null,
+        ]),
+      ];
       const result = await db.query(
-        `INSERT INTO property_users (property_id, user_id, role)
+        `INSERT INTO property_users (property_id, user_id, role, permissions)
          VALUES ${placeholders}
-         ON CONFLICT (property_id, user_id) DO UPDATE SET role = EXCLUDED.role, updated_at = NOW()
-         RETURNING property_id, user_id, role`,
+         ON CONFLICT (property_id, user_id) DO UPDATE SET
+           role = EXCLUDED.role,
+           permissions = COALESCE(EXCLUDED.permissions, property_users.permissions),
+           updated_at = NOW()
+         RETURNING property_id, user_id, role, permissions`,
         values
       );
       await db.query("COMMIT");

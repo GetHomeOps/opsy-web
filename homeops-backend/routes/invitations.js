@@ -148,6 +148,8 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
       accountId,
       propertyId,
       intendedRole,
+      intendedPropertyRole,
+      permissions,
       skipInviteEmail,
       invitationEmailNote,
       invitationEmailMainPlain,
@@ -199,6 +201,8 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
         accountId,
         propertyId,
         intendedRole,
+        intendedPropertyRole,
+        permissions,
         inviterUserRole: userRole,
         skipInviteEmail: skipInviteEmail === true,
         invitationEmailNote: mainPlainForEmail ? null : noteForEmail,
@@ -225,7 +229,7 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
 /** POST /bulk-property — Invite one email to many properties in one request; one consolidated email. Body: inviteeEmail, accountId, propertyIds[], intendedRole?, inviteeName? */
 router.post("/bulk-property", ensureLoggedIn, async function (req, res, next) {
   try {
-    const { inviteeEmail, inviteeName, accountId, propertyIds, intendedRole } = req.body;
+    const { inviteeEmail, inviteeName, accountId, propertyIds, intendedRole, intendedPropertyRole, permissions } = req.body;
     if (!inviteeEmail || !accountId) {
       throw new BadRequestError("inviteeEmail and accountId are required");
     }
@@ -243,6 +247,8 @@ router.post("/bulk-property", ensureLoggedIn, async function (req, res, next) {
       accountId,
       propertyIds,
       intendedRole,
+      intendedPropertyRole,
+      permissions,
       inviterUserRole: userRole,
     });
 

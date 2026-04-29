@@ -19,16 +19,23 @@ const crypto = require("crypto");
 const { BadRequestError, NotFoundError, UnauthorizedError } = require("../expressError");
 
 class Invitation {
-  static async create({ type, inviterUserId, inviteeEmail, accountId, propertyId, intendedRole, tokenHash, expiresAt }) {
+  static async create({ type, inviterUserId, inviteeEmail, accountId, propertyId, intendedRole, intendedPropertyRole, permissions, tokenHash, expiresAt }) {
+    const permsJson =
+      permissions && typeof permissions === "object" && !Array.isArray(permissions)
+        ? JSON.stringify(permissions)
+        : null;
     const result = await db.query(
       `INSERT INTO invitations
-        (type, inviter_user_id, invitee_email, account_id, property_id, intended_role, token_hash, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (type, inviter_user_id, invitee_email, account_id, property_id, intended_role, intended_property_role, permissions, token_hash, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
        RETURNING id, type, inviter_user_id AS "inviterUserId", invitee_email AS "inviteeEmail",
                  account_id AS "accountId", property_id AS "propertyId",
-                 intended_role AS "intendedRole", status, expires_at AS "expiresAt",
+                 intended_role AS "intendedRole",
+                 intended_property_role AS "intendedPropertyRole",
+                 permissions,
+                 status, expires_at AS "expiresAt",
                  created_at AS "createdAt"`,
-      [type, inviterUserId, inviteeEmail, accountId, propertyId || null, intendedRole, tokenHash, expiresAt]
+      [type, inviterUserId, inviteeEmail, accountId, propertyId || null, intendedRole, intendedPropertyRole || null, permsJson, tokenHash, expiresAt]
     );
     return result.rows[0];
   }
@@ -37,7 +44,10 @@ class Invitation {
     const result = await db.query(
       `SELECT id, type, inviter_user_id AS "inviterUserId", invitee_email AS "inviteeEmail",
               account_id AS "accountId", property_id AS "propertyId",
-              intended_role AS "intendedRole", status, expires_at AS "expiresAt",
+              intended_role AS "intendedRole",
+              intended_property_role AS "intendedPropertyRole",
+              permissions,
+              status, expires_at AS "expiresAt",
               accepted_at AS "acceptedAt", accepted_by_user_id AS "acceptedByUserId",
               created_at AS "createdAt"
        FROM invitations
@@ -51,7 +61,10 @@ class Invitation {
     const result = await db.query(
       `SELECT id, type, inviter_user_id AS "inviterUserId", invitee_email AS "inviteeEmail",
               account_id AS "accountId", property_id AS "propertyId",
-              intended_role AS "intendedRole", status, expires_at AS "expiresAt",
+              intended_role AS "intendedRole",
+              intended_property_role AS "intendedPropertyRole",
+              permissions,
+              status, expires_at AS "expiresAt",
               accepted_at AS "acceptedAt", accepted_by_user_id AS "acceptedByUserId",
               created_at AS "createdAt"
        FROM invitations WHERE id = $1`,
@@ -73,7 +86,9 @@ class Invitation {
               u.name AS "inviterName",
               i.invitee_email AS "inviteeEmail",
               i.account_id AS "accountId", i.property_id AS "propertyId",
-              i.intended_role AS "intendedRole", i.status,
+              i.intended_role AS "intendedRole",
+              i.intended_property_role AS "intendedPropertyRole",
+              i.status,
               i.expires_at AS "expiresAt", i.created_at AS "createdAt"
        FROM invitations i
        LEFT JOIN users u ON u.id = i.inviter_user_id
@@ -96,7 +111,10 @@ class Invitation {
               i.inviter_user_id AS "inviterUserId",
               u.name AS "inviterName",
               i.invitee_email AS "inviteeEmail",
-              i.intended_role AS "intendedRole", i.status,
+              i.intended_role AS "intendedRole",
+              i.intended_property_role AS "intendedPropertyRole",
+              i.permissions,
+              i.status,
               i.expires_at AS "expiresAt", i.created_at AS "createdAt"
        FROM invitations i
        LEFT JOIN users u ON u.id = i.inviter_user_id
@@ -111,7 +129,9 @@ class Invitation {
     const result = await db.query(
       `SELECT i.id, i.type, i.invitee_email AS "inviteeEmail",
               a.name AS "accountName",
-              i.intended_role AS "intendedRole", i.status,
+              i.intended_role AS "intendedRole",
+              i.intended_property_role AS "intendedPropertyRole",
+              i.status,
               i.expires_at AS "expiresAt", i.accepted_at AS "acceptedAt",
               i.created_at AS "createdAt"
        FROM invitations i
@@ -135,7 +155,9 @@ class Invitation {
       `SELECT i.id, i.type, i.invitee_email AS "inviteeEmail",
               i.account_id AS "accountId", i.property_id AS "propertyId",
               p.property_uid AS "propertyUid",
-              i.intended_role AS "intendedRole", i.status,
+              i.intended_role AS "intendedRole",
+              i.intended_property_role AS "intendedPropertyRole",
+              i.status,
               i.expires_at AS "expiresAt", i.created_at AS "createdAt",
               u.name AS "inviterName", u.email AS "inviterEmail",
               a.name AS "accountName",
@@ -157,7 +179,10 @@ class Invitation {
        SET status = 'accepted', accepted_at = NOW(), accepted_by_user_id = $2
        WHERE id = $1 AND status = 'pending'
        RETURNING id, type, account_id AS "accountId", property_id AS "propertyId",
-                 intended_role AS "intendedRole", invitee_email AS "inviteeEmail"`,
+                 intended_role AS "intendedRole",
+                 intended_property_role AS "intendedPropertyRole",
+                 permissions,
+                 invitee_email AS "inviteeEmail"`,
       [id, acceptedByUserId]
     );
     if (!result.rows[0]) throw new NotFoundError(`No pending invitation with id: ${id}`);
