@@ -42,6 +42,9 @@ const {
 
 const VALID_ACCOUNT_ROLES = new Set(["owner", "admin", "member", "view_only"]);
 
+/** Hours until invitation links stop working (creation + acceptance). */
+const INVITATION_EXPIRY_HOURS = 168;
+
 /** Allowed values for invitations.intended_property_role — the invitation
  *  category (which tab the invitee will appear under in the property team
  *  modal). Decoupled from intended_role, which only carries the access level
@@ -250,7 +253,7 @@ async function createPropertyInvitation({
 
   const { token, tokenHash } = generateInvitationToken();
   const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + 48);
+  expiresAt.setHours(expiresAt.getHours() + INVITATION_EXPIRY_HOURS);
 
   const invitation = await Invitation.create({
     type: 'property',
@@ -451,7 +454,7 @@ async function createBulkPropertyInvitations({
   });
 
   const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + 48);
+  expiresAt.setHours(expiresAt.getHours() + INVITATION_EXPIRY_HOURS);
 
   const normalizedIntendedPropertyRole =
     normalizeIntendedPropertyRole(intendedPropertyRole);
@@ -524,7 +527,7 @@ async function createBulkPropertyInvitations({
 async function createAccountInvitation({ inviterUserId, inviteeEmail, accountId, intendedRole }) {
   const { token, tokenHash } = generateInvitationToken();
   const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + 48);
+  expiresAt.setHours(expiresAt.getHours() + INVITATION_EXPIRY_HOURS);
 
   const invitation = await Invitation.create({
     type: 'account',

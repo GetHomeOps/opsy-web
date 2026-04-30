@@ -406,7 +406,7 @@ async function sendInvitationEmail({
   let bodyExtra;
   let ctaLabel;
   let footerNote =
-    "This invitation expires in 48 hours. If you didn't expect this invite, you can safely ignore this email.";
+    "This invitation expires in one week. If you didn't expect this invite, you can safely ignore this email.";
 
   if (isProperty) {
     const parts = getPropertyInvitationEmailParts(
@@ -516,8 +516,8 @@ async function sendBulkPropertyInvitationEmail({
   const headline = n === 1 ? "Property invitation" : "Property invitations";
   const footerNote =
     n === 1
-      ? "This invitation expires in 48 hours. If you didn't expect this invite, you can safely ignore this email."
-      : "These invitations expire in 48 hours. If you didn't expect this invite, you can safely ignore this email.";
+      ? "This invitation expires in one week. If you didn't expect this invite, you can safely ignore this email."
+      : "These invitations expire in one week. If you didn't expect this invite, you can safely ignore this email.";
 
   let bodyExtra;
   let linkIntro;
