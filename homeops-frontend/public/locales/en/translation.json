@@ -761,7 +761,7 @@
   "subscriptions.updatedSuccessfully": "Subscription updated successfully",
   "subscriptions.userRequired": "User is required",
   "subscriptions.userType": "User Type",
-  "subscriptions.userTypeAgents": "Agents",
+  "subscriptions.userTypeAgents": "Agent",
   "subscriptions.userTypeHomeowner": "Homeowner",
   "subscriptions.pricePaid": "Price Paid",
   "subscriptions.subscriptionPlan": "Subscription Plan",
