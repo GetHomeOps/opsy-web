@@ -108,7 +108,7 @@ function ComingSoon() {
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="grow">
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
+          <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             <div className="max-w-3xl mx-auto">
               <div className="flex flex-col items-center text-center mb-10 sm:mb-12">
                 <div className="w-16 h-16 rounded-full bg-[#456564]/10 flex items-center justify-center mb-6">

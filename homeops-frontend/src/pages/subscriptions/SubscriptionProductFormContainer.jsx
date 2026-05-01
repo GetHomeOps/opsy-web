@@ -1028,7 +1028,7 @@ function SubscriptionProductFormContainer() {
         </Banner>
       </div>
 
-      <div className="px-0 sm:px-4 lg:px-5 xxl:px-12">
+      <div className="px-3 sm:px-4 lg:px-5 xxl:px-12">
         {/* Navigation */}
         <div className="flex justify-between items-center mb-2">
           <button

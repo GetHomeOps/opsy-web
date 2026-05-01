@@ -13,7 +13,7 @@ function Resource() {
       <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="flex-1 overflow-y-auto">
-          <div className="px-0 sm:px-5 lg:px-6 xxl:px-14 py-8 w-full max-w-4xl mx-auto">
+          <div className="px-3 sm:px-5 lg:px-6 xxl:px-14 py-8 w-full max-w-4xl mx-auto">
             <ResourceFormContainer />
           </div>
         </main>

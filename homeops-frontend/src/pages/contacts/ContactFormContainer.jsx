@@ -1544,10 +1544,10 @@ function ContactsFormContainer() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               {/* Image and Name with Info */}
-              <div className="flex items-start gap-4">
+              <div className="flex items-start gap-3 sm:gap-4 min-w-0 w-full">
                 {/* Photo Section - using shared ImageUploadField */}
                 <ImageUploadField
                   imageSrc={
@@ -1577,8 +1577,8 @@ function ContactsFormContainer() {
 
                 {/* Contact Name, Type and Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 break-words">
                       {state.contact ? state.contact.name : getPageTitle()}
                     </h1>
                     {state.contact?.contactType && (
@@ -1593,7 +1593,7 @@ function ContactsFormContainer() {
                   {/* Contact Details */}
                   <div className="space-y-2">
                     {state.contact?.phone && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
                         <Phone className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
                         <span className="truncate">
                           {
@@ -1607,13 +1607,13 @@ function ContactsFormContainer() {
                       </div>
                     )}
                     {state.contact?.email && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
                         <Mail className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
                         <span className="truncate">{state.contact.email}</span>
                       </div>
                     )}
                     {state.contact?.website && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
                         <Globe className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
                         <span className="truncate">
                           {state.contact.website}
@@ -1621,7 +1621,7 @@ function ContactsFormContainer() {
                       </div>
                     )}
                     {state.contact?.jobPosition && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
                         <Briefcase className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
                         <span className="truncate">
                           {state.contact.jobPosition}
@@ -1659,8 +1659,8 @@ function ContactsFormContainer() {
             onBlur={handleFormBlur}
           >
             <div className="border-b border-gray-200 dark:border-gray-700">
-              <div className="px-6">
-                <nav className="flex space-x-8" aria-label="Tabs">
+              <div className="px-4 sm:px-6 overflow-x-auto [scrollbar-width:thin]">
+                <nav className="flex space-x-6 sm:space-x-8 min-w-max" aria-label="Tabs">
                   {tabs.map((tab) => (
                     <button
                       key={tab.id}
@@ -1681,10 +1681,10 @@ function ContactsFormContainer() {
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {state.activeTab === 1 && (
                 <div className="space-y-8">
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 sm:p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                       <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                         <User className="h-5 w-5 text-[#6E8276]" />
@@ -1760,7 +1760,7 @@ function ContactsFormContainer() {
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <label className={getLabelClasses()} htmlFor="name">
                           {t("name")} <span className="text-red-500">*</span>
@@ -1962,7 +1962,7 @@ function ContactsFormContainer() {
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 sm:p-6">
                     <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                       <MapPin className="h-5 w-5 text-[#6E8276]" />
                       {t("address")}
@@ -2105,7 +2105,7 @@ function ContactsFormContainer() {
 
               {state.activeTab === 2 && (
                 <div className="space-y-8">
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 sm:p-6">
                     <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                       <FileText className="h-5 w-5 text-[#6E8276]" />
                       {t("notes")}
@@ -2130,7 +2130,7 @@ function ContactsFormContainer() {
             <div
               className={`${
                 state.formDataChanged || state.isNew ? "sticky" : "hidden"
-              } bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-lg transition-all duration-200`}
+              } bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 rounded-b-lg transition-all duration-200`}
             >
               <div className="flex justify-end gap-3">
                 <button

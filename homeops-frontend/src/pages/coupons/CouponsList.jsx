@@ -10,6 +10,7 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import Banner from "../../partials/containers/Banner";
 import FilterDropdown from "../../components/FilterDropdown";
+import useDropdownAlignment from "../../hooks/useDropdownAlignment";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
 
@@ -43,6 +44,8 @@ const COUPON_FILTER_OPTIONS = {
 function CouponActionsMenu({ onRefresh, onCreateCoupon }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const buttonRef = useRef(null);
+  const align = useDropdownAlignment(buttonRef, open);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -56,6 +59,7 @@ function CouponActionsMenu({ onRefresh, onCreateCoupon }) {
   return (
     <div className="relative shrink-0" ref={ref}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
@@ -65,7 +69,11 @@ function CouponActionsMenu({ onRefresh, onCreateCoupon }) {
         <ChevronDown className="w-4 h-4 opacity-60" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-30 min-w-[200px] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+        <div
+          className={`absolute top-full mt-1.5 z-30 min-w-[200px] max-w-[calc(100vw-1.5rem)] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden ${
+            align === "right" ? "right-0" : "left-0"
+          }`}
+        >
           <ul className="py-1.5">
             <li>
               <button
@@ -648,7 +656,7 @@ function CouponsList() {
         </div>
 
         <main className="grow">
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
+          <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             {/* Header */}
             <div className="sm:flex sm:justify-between sm:items-center mb-8">
               <div className="mb-4 sm:mb-0">

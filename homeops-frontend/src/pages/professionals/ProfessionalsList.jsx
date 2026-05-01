@@ -11,6 +11,7 @@ import ListDropdown from "../../partials/buttons/ListDropdown";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
 import ProfessionalsTable from "./ProfessionalsTable";
+import useDropdownAlignment from "../../hooks/useDropdownAlignment";
 
 const PAGE_STORAGE_KEY = "professionals_list_page";
 
@@ -97,6 +98,8 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove}) {
   const [open, setOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(null);
   const dropdownRef = useRef(null);
+  const buttonRef = useRef(null);
+  const align = useDropdownAlignment(buttonRef, open);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -123,6 +126,7 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove}) {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => {
           setOpen((v) => !v);
@@ -152,7 +156,11 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove}) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-30 min-w-[200px] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+        <div
+          className={`absolute top-full mt-1.5 z-30 min-w-[200px] max-w-[calc(100vw-1.5rem)] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden ${
+            align === "right" ? "right-0" : "left-0"
+          }`}
+        >
           {!activeCategory ? (
             <ul className="py-1.5">
               {FILTER_CATEGORIES.map((cat) => {
@@ -713,7 +721,7 @@ function ProfessionalsList() {
         </div>
 
         <main className="grow">
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
+          <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             {/* ─── Header row ─────────────────────────────────── */}
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-5">
               <div>

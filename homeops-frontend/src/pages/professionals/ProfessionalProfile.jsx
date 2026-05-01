@@ -438,7 +438,7 @@ function ProfessionalProfile() {
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="grow">
-          <div className="w-full max-w-6xl mx-auto px-0 sm:px-4 lg:px-5 xxl:px-12 pt-4 pb-16">
+          <div className="w-full max-w-6xl mx-auto px-3 sm:px-4 lg:px-5 xxl:px-12 pt-4 pb-16">
             {/* Breadcrumb */}
             <button
               type="button"

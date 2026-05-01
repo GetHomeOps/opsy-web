@@ -159,7 +159,7 @@ function ProfessionalDirectory() {
         <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className="grow">
-            <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto relative">
+            <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto relative">
               <div className="absolute top-8 right-4 sm:right-5 flex items-center gap-2 text-gray-500 dark:text-gray-400">
                 <Loader2 className="w-5 h-5 text-[#456564] animate-spin shrink-0" />
                 <span className="text-xs font-medium hidden sm:inline">
@@ -207,7 +207,7 @@ function ProfessionalDirectory() {
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="grow">
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
+          <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             {/* Hero / Location Bar */}
             <div className="relative mb-10 rounded-2xl overflow-hidden shadow-xl">
               {/* Refined gradient: softer, more organic emerald-to-forest */}

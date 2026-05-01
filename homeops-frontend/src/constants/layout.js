@@ -1,6 +1,7 @@
 /**
  * Standard page layout padding for consistent spacing across the app.
- * - Mobile: no lateral padding (edge-to-edge) for maximum content area
+ * - Mobile: small lateral padding (px-3 ≈ 12px) so content doesn't touch the
+ *   viewport edges and the sidebar/hamburger trigger has a comfortable gutter
  * - sm–lg (640–1400px): reduced padding for tighter layout
  * - xxl (1400px+): increased padding for breathing room on large screens
  *
@@ -11,19 +12,19 @@
  * - Single source of truth: Prefer layout constants over inline classes.
  */
 export const PAGE_LAYOUT = {
-  /** List pages: px-0 mobile, sm:px-4 lg:px-5 ≤1400px, xxl:px-12 >1400px */
-  list: "px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto",
+  /** List pages: px-3 mobile, sm:px-4 lg:px-5 ≤1400px, xxl:px-12 >1400px */
+  list: "px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto",
   /** List horizontal padding only (for custom layouts like Kanban) */
-  listPaddingX: "px-0 sm:px-4 lg:px-5 xxl:px-12",
+  listPaddingX: "px-3 sm:px-4 lg:px-5 xxl:px-12",
   /** Form container pages (ContactFormContainer, UserFormContainer, etc.) */
-  form: "px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-5xl mx-auto",
+  form: "px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-5xl mx-auto",
   /** Form horizontal padding only (for custom layouts like PropertyFormContainer) */
-  formPaddingX: "px-0 sm:px-4 lg:px-5 xxl:px-12",
+  formPaddingX: "px-3 sm:px-4 lg:px-5 xxl:px-12",
   /** Settings pages (Configuration, Billing, Support forms): matches form padding & width */
-  settings: "px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-5xl mx-auto",
+  settings: "px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-5xl mx-auto",
   /** Settings pages with multi-column layouts (e.g. pricing): tighter gutters, wider max width */
   settingsWide:
-    "px-0 sm:px-2 lg:px-3 xxl:px-8 py-8 w-full max-w-6xl mx-auto",
+    "px-3 sm:px-2 lg:px-3 xxl:px-8 py-8 w-full max-w-6xl mx-auto",
 };
 
 /** Shared card styling for Settings pages (Configuration, Support, etc.) */

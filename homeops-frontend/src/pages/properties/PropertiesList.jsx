@@ -959,7 +959,7 @@ function PropertiesList() {
         </div>
 
         <main className="grow">
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
+          <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             {/* ─── Header row ─────────────────────────────────── */}
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-5">
               <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">

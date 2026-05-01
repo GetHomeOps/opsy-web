@@ -712,7 +712,7 @@ function UsersList() {
         </div>
 
         <main className="grow">
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
+          <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             {/* Page header */}
             <div className="sm:flex sm:justify-between sm:items-center mb-8">
               {/* Left: Title */}

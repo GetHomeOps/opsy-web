@@ -15,7 +15,7 @@ function Property() {
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="grow">
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-6 w-full max-w-7xl mx-auto">
+          <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-6 w-full max-w-7xl mx-auto">
             <PropertyFormContainer />
           </div>
         </main>

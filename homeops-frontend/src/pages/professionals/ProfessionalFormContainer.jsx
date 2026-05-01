@@ -906,7 +906,7 @@ function ProfessionalFormContainer() {
         </div>
 
         <main className="grow">
-          <div className="px-0 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-5xl mx-auto">
+          <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-5xl mx-auto">
             {/* ─── Navigation and Actions (matches contacts / users layout) ───── */}
             <div className="flex justify-between items-center mb-2">
               <button
@@ -1078,8 +1078,8 @@ function ProfessionalFormContainer() {
 
               {/* ─── Header Card: Photo + Company & Contact ───── */}
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-                <div className="p-6">
-                  <div className="flex items-start gap-4">
+                <div className="p-4 sm:p-6">
+                  <div className="flex items-start gap-3 sm:gap-4 min-w-0 w-full">
                     <ImageUploadField
                       imageSrc={profileSrc}
                       hasImage={!!state.formData.profile_photo}
@@ -1097,8 +1097,8 @@ function ProfessionalFormContainer() {
                     />
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-3">
-                        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 break-words">
                           {fd.company_name ||
                             (isNew ? "New Contractor" : "Contractor")}
                         </h1>

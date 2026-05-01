@@ -58,7 +58,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
         variant === "v3" ? "dark:before:bg-gray-900" : ""
       }`}
     >
-      <div className="px-0 sm:px-4 lg:px-5 xxl:px-12">
+      <div className="px-3 sm:px-4 lg:px-5 xxl:px-12">
         <div
           className={`grid h-16 min-w-0 grid-cols-[auto_minmax(2.25rem,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-4 ${
             variant === "v2" || variant === "v3"

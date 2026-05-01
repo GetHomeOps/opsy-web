@@ -1,5 +1,7 @@
 import React, {useState, useRef, useEffect} from "react";
 
+import useDropdownAlignment from "../hooks/useDropdownAlignment";
+
 /**
  * Reusable Odoo-style filter dropdown.
  * @param {Object} props
@@ -21,6 +23,8 @@ function FilterDropdown({
   const [open, setOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(null);
   const dropdownRef = useRef(null);
+  const buttonRef = useRef(null);
+  const align = useDropdownAlignment(buttonRef, open);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -47,6 +51,7 @@ function FilterDropdown({
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => {
           setOpen((v) => !v);
@@ -76,7 +81,11 @@ function FilterDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-30 min-w-[200px] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden">
+        <div
+          className={`absolute top-full mt-1.5 z-30 min-w-[200px] max-w-[calc(100vw-1.5rem)] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden ${
+            align === "right" ? "right-0" : "left-0"
+          }`}
+        >
           {!activeCategory ? (
             <ul className="py-1.5">
               {filterCategories.map((cat) => {

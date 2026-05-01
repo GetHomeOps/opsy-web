@@ -1398,10 +1398,10 @@ function UsersFormContainer() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               {/* User Name and Info */}
-              <div className="flex items-start gap-4">
+              <div className="flex items-start gap-3 sm:gap-4 min-w-0 w-full">
                 <ImageUploadField
                   imageSrc={userPhotoDisplayUrl}
                   hasImage={!!(state.formData.image || state.user?.image)}
@@ -1420,8 +1420,8 @@ function UsersFormContainer() {
                   fileInputRef={userPhotoInputRef}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 break-words">
                       {displayName}
                     </h1>
                     {state.user?.role ? (
@@ -1434,7 +1434,7 @@ function UsersFormContainer() {
                   {/* User Details */}
                   <div className="space-y-2">
                     {displayEmail && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
                         <Mail className="w-4 h-4 mr-2 text-[#456564] shrink-0" />
                         <span className="truncate">{displayEmail}</span>
                       </div>
@@ -1449,14 +1449,14 @@ function UsersFormContainer() {
         {/* User Information Form - Always Visible */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
           <form onSubmit={state.isNew ? handleSubmit : handleUpdate}>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="space-y-6">
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 sm:p-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
                     <User className="h-5 w-5 text-[#456564]" />
                     {t("userInformation") || "User Information"}
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     {/* Name */}
                     <div>
                       <label className={getLabelClasses()} htmlFor="name">
@@ -1620,7 +1620,7 @@ function UsersFormContainer() {
             <div
               className={`${
                 state.formDataChanged || state.isNew ? "sticky" : "hidden"
-              } bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-lg transition-all duration-200`}
+              } bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 rounded-b-lg transition-all duration-200`}
             >
               <div className="flex justify-end gap-3">
                 <button

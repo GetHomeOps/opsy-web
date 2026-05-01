@@ -25,7 +25,7 @@ function SectionTabs({ activeTab, onTabClick, sectionRefs, scrollToSection }) {
       className="sticky top-16 z-20 bg-gray-50 dark:bg-gray-950 border-b border-gray-200/60 dark:border-gray-800"
       aria-label="Section navigation"
     >
-      <div className="flex gap-1 overflow-x-auto no-scrollbar px-0 sm:px-4 lg:px-5 xxl:px-12 max-w-6xl mx-auto">
+      <div className="flex gap-1 overflow-x-auto no-scrollbar px-3 sm:px-4 lg:px-5 xxl:px-12 max-w-6xl mx-auto">
         {TABS.map((tab) => (
           <button
             key={tab.id}
