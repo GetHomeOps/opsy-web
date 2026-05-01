@@ -27,6 +27,14 @@ const FILTER_CATEGORIES = [
   {type: "userType", labelKey: "subscriptions.userType"},
 ];
 
+function subscriptionUserTypeDisplayLabel(raw, t) {
+  const v = (raw || "").trim().toLowerCase();
+  if (v === "agent") return t("subscriptions.userTypeAgents");
+  if (v === "homeowner") return t("subscriptions.userTypeHomeowner");
+  const s = (raw || "").trim();
+  return s || "—";
+}
+
 const initialState = {
   currentPage: 1,
   itemsPerPage: 10,
@@ -404,7 +412,10 @@ function SubscriptionsList() {
       account: accounts.map((v) => ({ value: v, label: v })),
       subscriptionType: products.map((v) => ({ value: v, label: v })),
       status: statuses.map((v) => ({ value: v, label: statusLabels[v] || v })),
-      userType: userTypes.map((v) => ({ value: v, label: v === "agent" || v === "homeowner" ? v : v })),
+      userType: userTypes.map((v) => ({
+        value: v,
+        label: subscriptionUserTypeDisplayLabel(v, t),
+      })),
     };
   }, [state.subscriptions, t]);
 
@@ -752,7 +763,7 @@ function SubscriptionsList() {
       label: t("subscriptions.userType"),
       sortable: true,
       render: (value) => (
-        <span className="capitalize">{value === "agent" || value === "homeowner" ? value : value || "—"}</span>
+        <span>{subscriptionUserTypeDisplayLabel(value, t)}</span>
       ),
     },
     {
@@ -1027,7 +1038,9 @@ function SubscriptionsList() {
                         )}
                         :
                       </span>
-                      {f.label}
+                      {f.type === "userType"
+                        ? subscriptionUserTypeDisplayLabel(f.value, t)
+                        : f.label}
                       <button
                         type="button"
                         onClick={() =>
