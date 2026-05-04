@@ -1300,39 +1300,34 @@ function HomeownerHome() {
                   role="button"
                   tabIndex={0}
                 >
-                  <div className="flex items-start justify-between gap-2 mb-3 min-w-0">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
-                        {pro.profile_photo_url ? (
-                          <img
-                            src={pro.profile_photo_url}
-                            alt={displayName}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm font-semibold">
-                            {(displayName || "P").charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                          {displayName}
-                        </h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {category}
-                        </p>
-                        {location && (
-                          <p className="text-xs text-gray-400 dark:text-gray-500 truncate flex items-center gap-0.5 mt-0.5">
-                            <MapPin className="w-3 h-3" />
-                            {location}
-                          </p>
-                        )}
-                      </div>
+                  <div className="flex items-start gap-3 mb-3 min-w-0 w-full">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 shrink-0">
+                      {pro.profile_photo_url ? (
+                        <img
+                          src={pro.profile_photo_url}
+                          alt={displayName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm font-semibold">
+                          {(displayName || "P").charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
-                    {pro.is_verified && (
-                      <Shield className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                    )}
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                        {displayName}
+                      </h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {category}
+                      </p>
+                      {location && (
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-0.5 min-w-0">
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{location}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5 mb-3">
                     {pro.rating != null && (
