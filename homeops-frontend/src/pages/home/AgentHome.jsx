@@ -424,10 +424,12 @@ function AgentHome() {
       pending++;
       getPropertyTeam(uid)
         .then((team) => {
-          const members = (team?.property_users ?? []).map((m) => ({
-            ...m,
-            role: m.property_role ?? m.role,
-          }));
+          /* Preserve both the user's platform role (`role` — e.g. "homeowner"
+             / "agent") and their per-property access level (`property_role` —
+             "owner" / "editor" / "viewer"). Earlier versions of this file
+             overwrote `role` with `property_role`, which broke the homeowner
+             counter below since `property_role` is never "homeowner". */
+          const members = team?.property_users ?? [];
           setPropertyTeams((prev) => ({...prev, [uid]: members}));
         })
         .catch(() => {
@@ -493,10 +495,11 @@ function AgentHome() {
   const getHomeowners = useCallback(
     (property) => {
       const team = getTeamMembers(property);
-      return team.filter((m) => {
-        const r = (m.property_role ?? m.role ?? "").toLowerCase();
-        return r === "homeowner";
-      });
+      /* Filter on the user's platform role (users.role). `property_role` is an
+         ENUM of owner/editor/viewer and never equals "homeowner". */
+      return team.filter(
+        (m) => (m.role ?? "").toLowerCase() === "homeowner",
+      );
     },
     [getTeamMembers],
   );
@@ -662,10 +665,6 @@ function AgentHome() {
               const photoUrl = getMainPhotoUrl(property);
               const score = getHpsScore(property);
               const team = getTeamMembers(property);
-              const homeowners = team.filter((m) => {
-                const r = (m.property_role ?? m.role ?? "").toLowerCase();
-                return r === "homeowner";
-              });
               const address = [property.address, property.city, property.state]
                 .filter(Boolean)
                 .join(", ");
