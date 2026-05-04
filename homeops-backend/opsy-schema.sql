@@ -796,6 +796,7 @@ CREATE TABLE maintenance_events (
     recurrence_type VARCHAR(20) DEFAULT 'one-time',
     recurrence_interval_value INTEGER,
     recurrence_interval_unit VARCHAR(10),
+    recurrence_parent_id INTEGER REFERENCES maintenance_events(id) ON DELETE CASCADE,
     alert_timing VARCHAR(10) DEFAULT '3d',
     alert_custom_days INTEGER,
     email_reminder BOOLEAN DEFAULT false,
@@ -814,6 +815,7 @@ CREATE INDEX idx_maintenance_events_property ON maintenance_events(property_id);
 CREATE INDEX idx_maintenance_events_date ON maintenance_events(scheduled_date);
 CREATE INDEX idx_maintenance_events_status ON maintenance_events(status);
 CREATE INDEX idx_maintenance_events_property_date ON maintenance_events(property_id, scheduled_date);
+CREATE INDEX idx_maintenance_events_recurrence_parent ON maintenance_events(recurrence_parent_id);
 
 -- ============================================================
 -- Calendar Integrations (OAuth connections for Google/Outlook)

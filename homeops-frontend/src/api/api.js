@@ -960,9 +960,27 @@ class AppApi {
   /**
    * Delete a maintenance event.
    * @param {string|number} eventId - maintenance event id
+   * @param {Object} [options]
+   * @param {"single"|"series"} [options.scope] - "series" deletes every
+   *   occurrence in the same recurrence series; "single" (default) deletes only
+   *   this occurrence.
    */
-  static async deleteMaintenanceEvent(eventId) {
-    await this.request(`maintenance-events/${eventId}`, {}, "DELETE");
+  static async deleteMaintenanceEvent(eventId, {scope} = {}) {
+    const path =
+      scope === "series"
+        ? `maintenance-events/${eventId}/series`
+        : `maintenance-events/${eventId}`;
+    await this.request(path, {}, "DELETE");
+  }
+
+  /**
+   * Get every event that belongs to the same recurrence series (master + children),
+   * ordered by scheduled_date.
+   * @param {string|number} eventId - any event id in the series
+   */
+  static async getMaintenanceEventSeries(eventId) {
+    const res = await this.request(`maintenance-events/${eventId}/series`);
+    return res.events ?? [];
   }
 
   /* --------- Documents --------- */

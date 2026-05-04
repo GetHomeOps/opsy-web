@@ -9,7 +9,9 @@
     "build": "node scripts/build-client.js",
     "build:start": "npm run build && npm start",
     "seed:stripe": "node scripts/seed_stripe_plans.js",
-    "cleanup:incomplete-signups": "node scripts/cleanup-incomplete-signups.js"
+    "cleanup:incomplete-signups": "node scripts/cleanup-incomplete-signups.js",
+    "migrate:maintenance-events-recurrence-parent": "node scripts/run_migrate_maintenance_events_recurrence_parent.js",
+    "backfill:maintenance-event-recurrences": "node scripts/backfill-maintenance-event-recurrences.js"
   },
   "keywords": [],
   "author": "",

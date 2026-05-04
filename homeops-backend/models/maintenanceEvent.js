@@ -9,6 +9,7 @@ const COLUMNS = `
   contractor_id, contractor_source, contractor_name,
   scheduled_date, scheduled_time,
   recurrence_type, recurrence_interval_value, recurrence_interval_unit,
+  recurrence_parent_id,
   alert_timing, alert_custom_days, email_reminder,
   message_enabled, message_body,
   status, event_type, timezone, checklist_item_id, created_by,
@@ -19,41 +20,185 @@ function calendarTypeFromEventType(eventType) {
   return eventType === "inspection" ? "inspection" : "maintenance";
 }
 
-class MaintenanceEvent {
+/** Format a Date as YYYY-MM-DD using local components (avoids TZ shift). */
+function formatYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
-  static async create(data) {
+/**
+ * Compute future occurrence dates for a recurring series. Caller's start date
+ * is the parent; we return only the *additional* dates to insert as children.
+ * Bounded by max occurrences and a horizon to keep the table reasonable.
+ *
+ * @returns {string[]} array of YYYY-MM-DD strings
+ */
+function computeOccurrenceDates(
+  startDateStr,
+  recurrenceType,
+  intervalValue = null,
+  intervalUnit = null,
+  { maxOccurrences = 60, maxHorizonMonths = 60 } = {},
+) {
+  if (!recurrenceType || recurrenceType === "one-time") return [];
+  if (!startDateStr) return [];
+
+  // Anchor at noon local time so DST transitions don't roll the date.
+  const start = new Date(`${String(startDateStr).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(start.getTime())) return [];
+
+  const horizon = new Date(start);
+  horizon.setMonth(horizon.getMonth() + maxHorizonMonths);
+
+  const occurrences = [];
+  const cursor = new Date(start);
+
+  for (let i = 0; i < maxOccurrences; i++) {
+    if (recurrenceType === "quarterly") {
+      cursor.setMonth(cursor.getMonth() + 3);
+    } else if (recurrenceType === "semi-annually") {
+      cursor.setMonth(cursor.getMonth() + 6);
+    } else if (recurrenceType === "annually") {
+      cursor.setFullYear(cursor.getFullYear() + 1);
+    } else if (recurrenceType === "custom") {
+      const v = parseInt(intervalValue, 10);
+      if (!Number.isFinite(v) || v < 1) break;
+      if (intervalUnit === "days") cursor.setDate(cursor.getDate() + v);
+      else if (intervalUnit === "weeks") cursor.setDate(cursor.getDate() + v * 7);
+      else if (intervalUnit === "months") cursor.setMonth(cursor.getMonth() + v);
+      else break;
+    } else {
+      break;
+    }
+    if (cursor > horizon) break;
+    occurrences.push(formatYMD(cursor));
+  }
+  return occurrences;
+}
+
+class MaintenanceEvent {
+  static computeOccurrenceDates = computeOccurrenceDates;
+
+  /**
+   * Insert a single row in maintenance_events. Used for the parent record and
+   * each child occurrence in a recurring series.
+   * @private
+   */
+  static async _insertRow(client, data) {
     const {
       property_id, system_key, system_name,
       contractor_id = null, contractor_source = null, contractor_name = null,
       scheduled_date, scheduled_time = null,
       recurrence_type = "one-time", recurrence_interval_value = null, recurrence_interval_unit = null,
+      recurrence_parent_id = null,
       alert_timing = "3d", alert_custom_days = null, email_reminder = false,
       message_enabled = false, message_body = null,
       status = "scheduled", event_type = "maintenance", timezone = null, checklist_item_id = null, created_by = null,
     } = data;
 
-    const result = await db.query(
+    const result = await client.query(
       `INSERT INTO maintenance_events
          (property_id, system_key, system_name,
           contractor_id, contractor_source, contractor_name,
           scheduled_date, scheduled_time,
           recurrence_type, recurrence_interval_value, recurrence_interval_unit,
+          recurrence_parent_id,
           alert_timing, alert_custom_days, email_reminder,
           message_enabled, message_body,
           status, event_type, timezone, checklist_item_id, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING ${COLUMNS}`,
       [
         property_id, system_key, system_name || null,
         contractor_id, contractor_source, contractor_name,
         scheduled_date, scheduled_time,
         recurrence_type, recurrence_interval_value, recurrence_interval_unit,
+        recurrence_parent_id,
         alert_timing, alert_custom_days, email_reminder,
         message_enabled, message_body,
         status, event_type, timezone, checklist_item_id, created_by,
       ],
     );
     return result.rows[0];
+  }
+
+  /**
+   * Create a maintenance event. When recurrence_type is not "one-time", also
+   * inserts future child occurrences (linked via recurrence_parent_id) bounded
+   * by sane defaults so the table stays small. Returns the parent event;
+   * callers (auto-send, calendar sync, email notification) only act on it.
+   */
+  static async create(data) {
+    const recurrenceType = data.recurrence_type || "one-time";
+    const intervalValue = data.recurrence_interval_value ?? null;
+    const intervalUnit = data.recurrence_interval_unit ?? null;
+
+    if (recurrenceType === "one-time") {
+      return MaintenanceEvent._insertRow(db, {
+        ...data,
+        recurrence_parent_id: null,
+      });
+    }
+
+    const futureDates = computeOccurrenceDates(
+      data.scheduled_date,
+      recurrenceType,
+      intervalValue,
+      intervalUnit,
+    );
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const parent = await MaintenanceEvent._insertRow(client, {
+        ...data,
+        recurrence_parent_id: null,
+      });
+      // Only mirror message/email-notification settings on the parent so the
+      // contractor isn't notified about every occurrence in the series.
+      for (const date of futureDates) {
+        await MaintenanceEvent._insertRow(client, {
+          ...data,
+          scheduled_date: date,
+          recurrence_parent_id: parent.id,
+          message_enabled: false,
+          message_body: null,
+          // checklist_item_id stays null on children — only the first event ties
+          // back to the originating to-do item.
+          checklist_item_id: null,
+        });
+      }
+      await client.query("COMMIT");
+      return parent;
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // ignore rollback errors
+      }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Get all events that share a recurrence series with the given event id.
+   *  Returns rows ordered by scheduled_date ASC. Includes the master row.
+   */
+  static async getSeriesById(eventId) {
+    const result = await db.query(
+      `SELECT ${COLUMNS}
+         FROM maintenance_events
+        WHERE id = $1
+           OR recurrence_parent_id = $1
+           OR id = (SELECT recurrence_parent_id FROM maintenance_events WHERE id = $1)
+           OR recurrence_parent_id = (SELECT recurrence_parent_id FROM maintenance_events WHERE id = $1 AND recurrence_parent_id IS NOT NULL)
+        ORDER BY scheduled_date ASC, scheduled_time ASC NULLS LAST`,
+      [eventId],
+    );
+    return result.rows;
   }
 
   static async getByPropertyId(propertyId) {
@@ -127,12 +272,58 @@ class MaintenanceEvent {
     return event;
   }
 
+  /**
+   * Delete a single occurrence. If the row being deleted is the master of a
+   * recurring series, promote the earliest sibling to be the new master and
+   * re-point the rest before deleting, so a single-row delete doesn't take
+   * the whole series down via ON DELETE CASCADE.
+   */
   static async delete(id) {
+    const childRes = await db.query(
+      `SELECT id FROM maintenance_events
+         WHERE recurrence_parent_id = $1
+         ORDER BY scheduled_date ASC, scheduled_time ASC NULLS LAST
+         LIMIT 1`,
+      [id],
+    );
+    if (childRes.rows.length > 0) {
+      const newMasterId = childRes.rows[0].id;
+      await db.query(
+        `UPDATE maintenance_events SET recurrence_parent_id = NULL WHERE id = $1`,
+        [newMasterId],
+      );
+      await db.query(
+        `UPDATE maintenance_events SET recurrence_parent_id = $1
+           WHERE recurrence_parent_id = $2 AND id <> $1`,
+        [newMasterId, id],
+      );
+    }
+
     const result = await db.query(
       `DELETE FROM maintenance_events WHERE id = $1 RETURNING id`,
       [id],
     );
     if (!result.rows[0]) throw new NotFoundError(`No maintenance event: ${id}`);
+  }
+
+  /**
+   * Delete every occurrence in the same recurrence series as the given event.
+   * Locates the master and deletes it; ON DELETE CASCADE removes the children.
+   * If the event has no series, this is equivalent to {@link delete}.
+   */
+  static async deleteSeries(id) {
+    const evtRes = await db.query(
+      `SELECT id, recurrence_parent_id FROM maintenance_events WHERE id = $1`,
+      [id],
+    );
+    if (!evtRes.rows[0]) throw new NotFoundError(`No maintenance event: ${id}`);
+    const masterId = evtRes.rows[0].recurrence_parent_id ?? evtRes.rows[0].id;
+    const result = await db.query(
+      `DELETE FROM maintenance_events WHERE id = $1 RETURNING id`,
+      [masterId],
+    );
+    if (!result.rows[0]) throw new NotFoundError(`No maintenance event: ${masterId}`);
+    return masterId;
   }
 
   /** Get upcoming maintenance events for a user (across all their properties).
@@ -381,6 +572,9 @@ class MaintenanceEvent {
       db.query(
         `SELECT me.id, me.property_id, me.system_key, me.system_name,
                 me.contractor_name, me.message_body, me.recurrence_type,
+                me.recurrence_interval_value, me.recurrence_interval_unit,
+                me.recurrence_parent_id,
+                me.alert_timing, me.alert_custom_days,
                 me.scheduled_date, me.scheduled_time, me.status, me.event_type,
                 p.property_uid, p.property_name, p.address, p.city, p.state
          FROM maintenance_events me
@@ -451,6 +645,11 @@ class MaintenanceEvent {
       scheduledTime: r.scheduled_time,
       status: r.status,
       recurrenceType: r.recurrence_type,
+      recurrenceIntervalValue: r.recurrence_interval_value,
+      recurrenceIntervalUnit: r.recurrence_interval_unit,
+      recurrenceParentId: r.recurrence_parent_id,
+      alertTiming: r.alert_timing,
+      alertCustomDays: r.alert_custom_days,
     }));
 
     const maintenanceKeys = new Set(
@@ -474,6 +673,11 @@ class MaintenanceEvent {
         scheduledTime: null,
         status: "due",
         recurrenceType: null,
+        recurrenceIntervalValue: null,
+        recurrenceIntervalUnit: null,
+        recurrenceParentId: null,
+        alertTiming: null,
+        alertCustomDays: null,
       }));
 
     return [...maintenanceEvents, ...inspectionEvents].sort(

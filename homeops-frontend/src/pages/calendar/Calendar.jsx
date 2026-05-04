@@ -9,7 +9,7 @@ import {PAGE_LAYOUT} from "../../constants/layout";
 import CalendarScheduleModal from "./CalendarScheduleModal";
 import DateOffsetControl from "../../components/DateOffsetControl";
 import {Popover, PopoverContent, PopoverTrigger} from "../../components/ui/popover";
-import {Calendar as CalendarIcon, SkipForward, Settings} from "lucide-react";
+import {Calendar as CalendarIcon, SkipForward, Settings, Repeat} from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {parseDateInput} from "../../lib/dateOffset";
 
@@ -41,7 +41,6 @@ const DAY_NAMES = [
 /**
  * Normalize API event to calendar format.
  * @param {Object} raw - API event (maintenance or inspection)
- * @returns {{ id, title, date, type, propertyId, status, propertyName, address, contractorName, notes, scheduledTime, nextScheduledDate }}
  */
 function normalizeEvent(raw) {
   return {
@@ -56,19 +55,40 @@ function normalizeEvent(raw) {
     contractorName: raw.contractorName ?? null,
     notes: raw.notes ?? null,
     scheduledTime: raw.scheduledTime ?? null,
+    recurrenceType: raw.recurrenceType ?? null,
+    recurrenceIntervalValue: raw.recurrenceIntervalValue ?? null,
+    recurrenceIntervalUnit: raw.recurrenceIntervalUnit ?? null,
+    recurrenceParentId: raw.recurrenceParentId ?? null,
+    alertTiming: raw.alertTiming ?? null,
+    alertCustomDays: raw.alertCustomDays ?? null,
     nextScheduledDate:
       raw.recurrenceType && raw.recurrenceType !== "one-time"
-        ? computeNextDate(raw.scheduledDate, raw.recurrenceType)
+        ? computeNextDate(
+            raw.scheduledDate,
+            raw.recurrenceType,
+            raw.recurrenceIntervalValue,
+            raw.recurrenceIntervalUnit,
+          )
         : null,
   };
 }
 
-function computeNextDate(dateStr, recurrenceType) {
+function computeNextDate(dateStr, recurrenceType, intervalValue, intervalUnit) {
   const d = parseDateInput(dateStr);
   if (!d) return "";
   if (recurrenceType === "quarterly") d.setMonth(d.getMonth() + 3);
   else if (recurrenceType === "semi-annually") d.setMonth(d.getMonth() + 6);
   else if (recurrenceType === "annually") d.setFullYear(d.getFullYear() + 1);
+  else if (recurrenceType === "custom") {
+    const v = parseInt(intervalValue, 10);
+    if (!Number.isFinite(v) || v < 1) return "";
+    if (intervalUnit === "days") d.setDate(d.getDate() + v);
+    else if (intervalUnit === "weeks") d.setDate(d.getDate() + v * 7);
+    else if (intervalUnit === "months") d.setMonth(d.getMonth() + v);
+    else return "";
+  } else {
+    return "";
+  }
   return format(d, "yyyy-MM-dd");
 }
 
@@ -367,7 +387,9 @@ function Calendar() {
 
   const refreshEvents = useCallback(() => {
     const cacheKey = `${startDate}|${endDate}`;
-    eventsCacheRef.current.delete(cacheKey);
+    // Scheduling a recurring event can affect months beyond the current view.
+    // Clear every cached range so navigation does not show stale months.
+    eventsCacheRef.current.clear();
     setLoading(true);
     setLoadError(null);
     AppApi.getCalendarEvents(startDate, endDate)
@@ -660,6 +682,8 @@ function Calendar() {
                     {daysInMonth.map((day) => {
                       const dayEvents = getEventsForDay(day);
                       const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                      const visibleEvents = dayEvents.slice(0, 3);
+                      const overflowCount = dayEvents.length - visibleEvents.length;
                       return (
                         <div
                           className={`relative bg-white dark:bg-gray-800 h-20 sm:h-28 lg:h-36 overflow-hidden group cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${monthDayCellRingClass(day)}`}
@@ -678,76 +702,71 @@ function Calendar() {
                           }}
                           aria-label={`${day} ${MONTH_NAMES[month]} - click to schedule`}
                         >
-                          <div className="h-full flex flex-col justify-between">
-                            <div className="grow flex flex-col relative p-0.5 sm:p-1.5 overflow-hidden">
-                              <>
-                                {dayEvents.slice(0, 3).map((event) => (
-                                  <button
-                                    type="button"
-                                    className="relative w-full text-left mb-1 hover:opacity-90 transition-opacity"
-                                    key={event.id}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEventClick(e, event);
-                                    }}
-                                  >
-                                    <div
-                                      className={`px-2 py-0.5 rounded-lg overflow-hidden ${eventColorByType(event.type)}`}
-                                    >
-                                      <div className="text-xs font-semibold truncate">
-                                        {event.title}
-                                      </div>
-                                      <div className="text-xs truncate hidden sm:block opacity-90">
-                                        {[
-                                          event.scheduledTime
-                                            ? (() => {
-                                                const [h, m] =
-                                                  event.scheduledTime.split(
-                                                    ":",
-                                                  );
-                                                const hour = parseInt(h, 10);
-                                                const ampm =
-                                                  hour >= 12 ? "PM" : "AM";
-                                                const hour12 = hour % 12 || 12;
-                                                return `${hour12}:${m} ${ampm}`;
-                                              })()
-                                            : event.type === "inspection"
-                                              ? "Inspection"
-                                              : "Maintenance",
-                                          event.contractorName,
-                                        ]
-                                          .filter(Boolean)
-                                          .join(" • ")}
-                                      </div>
-                                    </div>
-                                  </button>
-                                ))}
-                                <div
-                                  className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none"
-                                  aria-hidden="true"
-                                />
-                              </>
-                            </div>
-                            <div className="flex justify-between items-center p-0.5 sm:p-1.5">
-                              {dayEvents.length > 3 && (
-                                <button
-                                  type="button"
-                                  className="text-xs text-gray-500 dark:text-gray-300 font-medium whitespace-nowrap text-center sm:py-0.5 px-0.5 sm:px-2 border border-gray-200 dark:border-gray-700/60 rounded-lg"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                  }}
-                                >
-                                  <span className="md:hidden">+</span>
-                                  <span>{dayEvents.length - 3}</span>{" "}
-                                  <span className="hidden md:inline">more</span>
-                                </button>
-                              )}
-                              <span
-                                className={`inline-flex ml-auto w-6 h-6 items-center justify-center text-xs sm:text-sm font-medium text-center rounded-full ${monthDayNumberClass(day) || "text-gray-700 dark:text-gray-300"}`}
+                          <span
+                            className={`absolute top-1 right-1 sm:top-1.5 sm:right-1.5 z-10 inline-flex w-6 h-6 items-center justify-center text-xs sm:text-sm font-medium rounded-full ${monthDayNumberClass(day) || "text-gray-700 dark:text-gray-300"}`}
+                          >
+                            {day}
+                          </span>
+                          <div className="h-full flex flex-col p-0.5 sm:p-1.5 pt-7 sm:pt-8 gap-1 overflow-hidden">
+                            {visibleEvents.map((event) => (
+                              <button
+                                type="button"
+                                className="relative w-full text-left shrink-0 hover:opacity-90 transition-opacity"
+                                key={event.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEventClick(e, event);
+                                }}
                               >
-                                {day}
-                              </span>
-                            </div>
+                                <div
+                                  className={`px-2 py-0.5 rounded-lg overflow-hidden ${eventColorByType(event.type)}`}
+                                >
+                                  <div className="flex items-center gap-1 text-xs font-semibold truncate">
+                                    {event.recurrenceType &&
+                                      event.recurrenceType !== "one-time" && (
+                                        <Repeat
+                                          className="w-3 h-3 shrink-0 opacity-90"
+                                          aria-label="Recurring"
+                                        />
+                                      )}
+                                    <span className="truncate">{event.title}</span>
+                                  </div>
+                                  <div className="text-xs truncate hidden sm:block opacity-90">
+                                    {[
+                                      event.scheduledTime
+                                        ? (() => {
+                                            const [h, m] =
+                                              event.scheduledTime.split(":");
+                                            const hour = parseInt(h, 10);
+                                            const ampm =
+                                              hour >= 12 ? "PM" : "AM";
+                                            const hour12 = hour % 12 || 12;
+                                            return `${hour12}:${m} ${ampm}`;
+                                          })()
+                                        : event.type === "inspection"
+                                          ? "Inspection"
+                                          : "Maintenance",
+                                      event.contractorName,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" • ")}
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                            {overflowCount > 0 && (
+                              <button
+                                type="button"
+                                className="self-start text-xs text-gray-500 dark:text-gray-300 font-medium whitespace-nowrap text-center sm:py-0.5 px-0.5 sm:px-2 border border-gray-200 dark:border-gray-700/60 rounded-lg shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                }}
+                              >
+                                <span className="md:hidden">+</span>
+                                <span>{overflowCount}</span>{" "}
+                                <span className="hidden md:inline">more</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       );

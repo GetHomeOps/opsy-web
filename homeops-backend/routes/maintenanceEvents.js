@@ -257,6 +257,23 @@ router.get(
   },
 );
 
+/** GET /:id/series - Return all occurrences that belong to the same recurrence
+ *  series as the given event id (master + children, ordered by date). */
+router.get(
+  "/:id/series",
+  ensureLoggedIn,
+  loadPropertyIdFromEvent,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      const events = await MaintenanceEvent.getSeriesById(req.params.id);
+      return res.json({ events });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
 /** PATCH /:id - Update a maintenance event. */
 router.patch(
   "/:id",
@@ -295,7 +312,46 @@ router.patch(
   },
 );
 
-/** DELETE /:id - Delete a maintenance event. */
+/** DELETE /:id/series - Delete every occurrence in the same recurrence series. */
+router.delete(
+  "/:id/series",
+  ensureLoggedIn,
+  loadPropertyIdFromEvent,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      const event = await MaintenanceEvent.getById(req.params.id);
+      const userId = event.created_by || res.locals.user.id;
+
+      try {
+        const seriesRows = await MaintenanceEvent.getSeriesById(req.params.id);
+        await Promise.all(
+          seriesRows.map((row) =>
+            deleteEventFromCalendars(userId, row.id).catch((calErr) =>
+              console.error(
+                "[calendarSync] delete sync failed for occurrence",
+                row.id,
+                ":",
+                calErr.message,
+              ),
+            ),
+          ),
+        );
+      } catch (calErr) {
+        console.error("[calendarSync] delete series sync failed:", calErr.message);
+      }
+
+      const masterId = await MaintenanceEvent.deleteSeries(req.params.id);
+      return res.json({ deleted: req.params.id, scope: "series", masterId });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+/** DELETE /:id - Delete a single maintenance event occurrence.
+ *  If the row is the master of a recurring series, the earliest sibling is
+ *  promoted to be the new master before deletion. */
 router.delete(
   "/:id",
   ensureLoggedIn,
@@ -311,7 +367,7 @@ router.delete(
         console.error("[calendarSync] delete sync failed:", calErr.message);
       }
       await MaintenanceEvent.delete(req.params.id);
-      return res.json({ deleted: req.params.id });
+      return res.json({ deleted: req.params.id, scope: "single" });
     } catch (err) {
       return next(err);
     }

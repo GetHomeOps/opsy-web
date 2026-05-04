@@ -1,10 +1,54 @@
 import React, {useState, useEffect} from "react";
-import {X, MapPin, User, FileText, Calendar, Clock, Trash2, Loader2, Pencil} from "lucide-react";
+import {
+  X,
+  MapPin,
+  User,
+  FileText,
+  Calendar,
+  Clock,
+  Trash2,
+  Loader2,
+  Pencil,
+  Repeat,
+  Bell,
+} from "lucide-react";
 import ModalBlank from "../../components/ModalBlank";
 import AppApi from "../../api/api";
 import {buildGoogleCalendarUrl} from "../../lib/googleCalendarLink";
 import {parseDateInput} from "../../lib/dateOffset";
 import EventEditModal from "./EventEditModal";
+
+const ALERT_TIMING_LABELS = {
+  "1d": "1 day before",
+  "3d": "3 days before",
+  "1w": "1 week before",
+  "2w": "2 weeks before",
+};
+
+function recurrenceLabel(event) {
+  const t = event?.recurrenceType;
+  if (!t || t === "one-time") return null;
+  if (t === "quarterly") return "Every 3 months (quarterly)";
+  if (t === "semi-annually") return "Every 6 months (semi-annually)";
+  if (t === "annually") return "Every year (annually)";
+  if (t === "custom") {
+    const v = event.recurrenceIntervalValue;
+    const u = event.recurrenceIntervalUnit;
+    if (v && u) return `Every ${v} ${u}`;
+    return "Custom interval";
+  }
+  return null;
+}
+
+function reminderLabel(event) {
+  const timing = event?.alertTiming;
+  if (!timing) return null;
+  if (timing === "custom") {
+    const days = event.alertCustomDays;
+    return days ? `${days} day${days === 1 ? "" : "s"} before` : "Custom";
+  }
+  return ALERT_TIMING_LABELS[timing] || null;
+}
 
 /**
  * Normalized calendar event shape (from API).
@@ -26,21 +70,51 @@ import EventEditModal from "./EventEditModal";
 function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteScope, setDeleteScope] = useState("single"); // "single" | "series"
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [series, setSeries] = useState([]);
+  const [seriesLoading, setSeriesLoading] = useState(false);
   const canDelete =
     event?.id != null && !String(event.id).startsWith("system-");
   const canEdit =
     event?.id != null && !String(event.id).startsWith("system-");
 
+  const isRecurring =
+    event?.recurrenceType && event.recurrenceType !== "one-time";
+  const recurrenceText = recurrenceLabel(event);
+  const reminderText = reminderLabel(event);
+
   useEffect(() => {
     if (!isOpen) {
       setDeleteConfirmOpen(false);
       setEditModalOpen(false);
+      setDeleteScope("single");
+      setSeries([]);
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !event?.id || !isRecurring || !canDelete) return;
+    let cancelled = false;
+    setSeriesLoading(true);
+    AppApi.getMaintenanceEventSeries(event.id)
+      .then((rows) => {
+        if (!cancelled) setSeries(rows || []);
+      })
+      .catch(() => {
+        if (!cancelled) setSeries([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSeriesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, event?.id, isRecurring, canDelete]);
+
   const openDeleteConfirm = () => {
     if (!canDelete || deleting) return;
+    setDeleteScope("single");
     setDeleteConfirmOpen(true);
   };
 
@@ -48,7 +122,11 @@ function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
     if (!canDelete || deleting || !event?.id) return;
     setDeleting(true);
     try {
-      await AppApi.deleteMaintenanceEvent(event.id);
+      if (deleteScope === "series" && series.length > 1) {
+        await AppApi.deleteMaintenanceEvent(event.id, {scope: "series"});
+      } else {
+        await AppApi.deleteMaintenanceEvent(event.id);
+      }
       setDeleteConfirmOpen(false);
       onDeleted?.();
       onClose(false);
@@ -223,7 +301,71 @@ function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
               </div>
             )}
 
-            {event.nextScheduledDate && event.type === "maintenance" && parseDateInput(event.nextScheduledDate) && (
+            {recurrenceText && (
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                  <Repeat className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Recurrence
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {recurrenceText}
+                  </p>
+                  {seriesLoading ? (
+                    <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Loading series...
+                    </p>
+                  ) : series.length > 1 ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {series.length} occurrences scheduled
+                      {(() => {
+                        const currentEventDate = parseDateInput(event.date);
+                        if (!currentEventDate) return "";
+                        const nextOccurrence = series.find((row) => {
+                          const occurrenceDate = parseDateInput(
+                            row.scheduled_date,
+                          );
+                          return (
+                            occurrenceDate &&
+                            occurrenceDate.getTime() >
+                              currentEventDate.getTime()
+                          );
+                        });
+                        if (!nextOccurrence) return "";
+                        const nextDate = nextOccurrence.scheduled_date;
+                        const parsed = parseDateInput(nextDate);
+                        if (!parsed) return "";
+                        return ` · next on ${parsed.toLocaleDateString(
+                          "en-US",
+                          {month: "short", day: "numeric", year: "numeric"},
+                        )}`;
+                      })()}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
+            {reminderText && (
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                  <Bell className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Reminder
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {reminderText}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {event.nextScheduledDate && event.type === "maintenance" && parseDateInput(event.nextScheduledDate) && !recurrenceText && (
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
                   <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -308,13 +450,60 @@ function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
         <div className="flex-1 min-w-0">
           <div className="mb-2">
             <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-              Delete this event?
+              {isRecurring && series.length > 1
+                ? "Delete recurring event?"
+                : "Delete this event?"}
             </div>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
-            Are you sure you want to delete this event? This action cannot be
-            undone.
-          </p>
+          {isRecurring && series.length > 1 ? (
+            <>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                This event is part of a recurring series with {series.length}{" "}
+                occurrences.
+              </p>
+              <fieldset className="space-y-2 mb-5">
+                <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="event-delete-scope"
+                    value="single"
+                    checked={deleteScope === "single"}
+                    onChange={() => setDeleteScope("single")}
+                    className="form-radio mt-0.5 text-[#456564]"
+                  />
+                  <span>
+                    <span className="font-medium">This event only</span>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400">
+                      Other occurrences in the series stay scheduled.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="event-delete-scope"
+                    value="series"
+                    checked={deleteScope === "series"}
+                    onChange={() => setDeleteScope("series")}
+                    className="form-radio mt-0.5 text-[#456564]"
+                  />
+                  <span>
+                    <span className="font-medium">
+                      Entire series ({series.length} events)
+                    </span>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400">
+                      Removes every past and future occurrence.
+                    </span>
+                  </span>
+                </label>
+              </fieldset>
+            </>
+          ) : (
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+              Are you sure you want to delete this event? This action cannot be
+              undone.
+            </p>
+          )}
           <div className="flex flex-wrap justify-end gap-2">
             <button
               type="button"
@@ -330,7 +519,11 @@ function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
               onClick={confirmDeleteEvent}
               disabled={deleting}
             >
-              {deleting ? "Deleting..." : "Delete"}
+              {deleting
+                ? "Deleting..."
+                : deleteScope === "series" && isRecurring && series.length > 1
+                  ? `Delete ${series.length} events`
+                  : "Delete"}
             </button>
           </div>
         </div>
