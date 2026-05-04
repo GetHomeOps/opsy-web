@@ -9,6 +9,7 @@ function AgentHomeStats({
   t,
   totalProperties,
   stats,
+  onHomeownersClick,
 }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -36,6 +37,8 @@ function AgentHomeStats({
         value={stats.totalHomeowners}
         subtitle={t("agentHome.activeClients") || "Active clients"}
         color="bg-blue-500"
+        onClick={onHomeownersClick}
+        ariaLabel="View accepted homeowners and their properties"
       />
       <StatCard
         icon={Activity}

@@ -28,6 +28,9 @@ import {
   MessageSquarePlus,
   BellRing,
   Plus,
+  X,
+  Mail,
+  CheckCircle2,
 } from "lucide-react";
 import {
   RESOURCE_THUMBNAIL_PLACEHOLDER,
@@ -37,10 +40,97 @@ import {HealthBadge, AgentHomeStats, AgentHomeKpiCharts} from "./components";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import PaginationClassic from "../../components/PaginationClassic";
+import ModalBlank from "../../components/ModalBlank";
 
 /** Even page sizes that align with the home grid (1 / 2 / 3 columns). */
 const AGENT_HOME_PROPERTY_PAGE_SIZES = [6, 12, 18];
 const DEFAULT_AGENT_HOME_PROPERTIES_PER_PAGE = 6;
+
+/**
+ * One-line mailing-style address without repeating segments that are already inside
+ * `address` (e.g. Places autocomplete fills line1 plus city/state/zip duplicated in fields).
+ */
+function buildPropertySingleLineAddress(property) {
+  if (!property || typeof property !== "object") return "";
+
+  const full =
+    (typeof property.fullAddress === "string" && property.fullAddress.trim()) ||
+    (typeof property.full_address === "string" &&
+      property.full_address.trim()) ||
+    (typeof property.identity?.fullAddress === "string" &&
+      property.identity.fullAddress.trim()) ||
+    "";
+
+  if (full) return full;
+
+  const segments = [];
+
+  const addressLine = (property.address ?? "").trim();
+  const city = (property.city ?? "").trim();
+  const state = (property.state ?? "").trim();
+  const zip = property.zip != null ? String(property.zip).trim() : "";
+
+  if (addressLine) segments.push(addressLine);
+  if (city) segments.push(city);
+
+  let stateZip = "";
+  if (state && zip) stateZip = `${state} ${zip}`;
+  else if (state) stateZip = state;
+  else if (zip) stateZip = zip;
+
+  if (stateZip) segments.push(stateZip);
+
+  if (segments.length === 0) return "";
+
+  const alreadyHasSegment = (acc, segment) => {
+    if (!segment) return true;
+    const a = acc.toLowerCase();
+    const s = segment.toLowerCase();
+    /* Zip: contiguous digits */
+    if (/^\d[\d\s-]+$/.test(segment)) {
+      return a.replace(/\s/g, "").includes(s.replace(/\s/g, ""));
+    }
+    /* 2-letter state codes: avoid matching inside "NY" in "Kenya" via word-ish boundary */
+    if (/^[A-Za-z]{2}$/.test(segment)) {
+      return new RegExp(
+        `(^|[^a-z])${segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=[^a-z]|$)`,
+        "i",
+      ).test(acc);
+    }
+    return a.includes(s);
+  };
+
+  let out = segments[0];
+  for (let i = 1; i < segments.length; i++) {
+    const seg = segments[i];
+    if (!alreadyHasSegment(out, seg)) out = `${out}, ${seg}`;
+  }
+
+  return out;
+}
+
+function trimStr(value) {
+  if (value == null) return "";
+  const s = typeof value === "string" ? value.trim() : String(value).trim();
+  return s || "";
+}
+
+/**
+ * Property list/card title: DB `property_name`, form `propertyName`, optional `nickname`
+ * (and `identity`), but not the street — that belongs in the address line.
+ */
+function getPropertyListingTitle(property) {
+  if (!property || typeof property !== "object") return "";
+  const id = property.identity;
+  return (
+    trimStr(property.property_name) ||
+    trimStr(property.propertyName) ||
+    trimStr(property.nickname) ||
+    (id && trimStr(id.propertyName)) ||
+    (id && trimStr(id.nickname)) ||
+    ""
+  );
+}
 
 /*
  * ════════════════════════════════════════════════════════════════════
@@ -90,6 +180,7 @@ function AgentHome() {
   const [propertyTeams, setPropertyTeams] = useState({});
   const [presignedUrls, setPresignedUrls] = useState({});
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
+  const [homeownersModalOpen, setHomeownersModalOpen] = useState(false);
   const fetchedKeysRef = useRef(new Set());
   const fetchedTeamUidsRef = useRef(new Set());
 
@@ -498,11 +589,69 @@ function AgentHome() {
       /* Filter on the user's platform role (users.role). `property_role` is an
          ENUM of owner/editor/viewer and never equals "homeowner". */
       return team.filter(
-        (m) => (m.role ?? "").toLowerCase() === "homeowner",
+        (m) => !m._pending && (m.role ?? "").toLowerCase() === "homeowner",
       );
     },
     [getTeamMembers],
   );
+
+  const acceptedHomeowners = useMemo(() => {
+    if (!properties?.length) return [];
+
+    const homeownersByKey = new Map();
+    properties.forEach((property) => {
+      const propertyUid = property.property_uid ?? property.id;
+      const singleLineAddress = buildPropertySingleLineAddress(property);
+
+      getHomeowners(property).forEach((homeowner) => {
+        const key =
+          homeowner.id != null
+            ? `id:${homeowner.id}`
+            : `email:${(homeowner.email || "").toLowerCase()}`;
+        if (!homeownersByKey.has(key)) {
+          homeownersByKey.set(key, {
+            id: homeowner.id,
+            name: homeowner.name || homeowner.email || "Homeowner",
+            email: homeowner.email || "",
+            imageUrl: homeowner.image_url || homeowner.image || null,
+            properties: [],
+          });
+        }
+
+        const summary = homeownersByKey.get(key);
+        if (
+          !summary.properties.some(
+            (p) => String(p.uid) === String(propertyUid),
+          )
+        ) {
+          const titleName = getPropertyListingTitle(property);
+
+          const displayName =
+            titleName ||
+            trimStr(property.passport_id) ||
+            "Property";
+
+          const addressBelow =
+            singleLineAddress &&
+            singleLineAddress.trim().toLowerCase() !==
+              displayName.trim().toLowerCase()
+              ? singleLineAddress
+              : null;
+
+          summary.properties.push({
+            uid: propertyUid,
+            name: displayName,
+            addressLine: addressBelow,
+            photoUrl: getMainPhotoUrl(property),
+          });
+        }
+      });
+    });
+
+    return [...homeownersByKey.values()].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [properties, getHomeowners, getMainPhotoUrl]);
 
   // ─── Computed Stats ─────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -612,7 +761,175 @@ function AgentHome() {
       {/* ============================================ */}
       {/* STAT CARDS                                    */}
       {/* ============================================ */}
-      <AgentHomeStats t={t} totalProperties={totalProperties} stats={stats} />
+      <AgentHomeStats
+        t={t}
+        totalProperties={totalProperties}
+        stats={stats}
+        onHomeownersClick={() => setHomeownersModalOpen(true)}
+      />
+
+      <ModalBlank
+        id="agent-homeowners-modal"
+        modalOpen={homeownersModalOpen}
+        setModalOpen={setHomeownersModalOpen}
+        contentClassName="max-w-3xl max-h-[calc(100vh-2rem)] overflow-hidden"
+      >
+        <div className="p-6 max-h-[calc(100vh-2rem)] flex flex-col">
+          <div className="flex items-start justify-between gap-4 mb-5 pb-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                <Users className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {t("agentHome.acceptedHomeownersTitle") ||
+                      "Active Homeowners"}
+                  </h2>
+                  {!isLoadingTeams && acceptedHomeowners.length > 0 && (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                      {acceptedHomeowners.length}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  {t("agentHome.acceptedHomeownersSubtitle") ||
+                    "Homeowners who accepted your invitations and the properties they're linked to."}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHomeownersModalOpen(false)}
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 dark:hover:text-gray-200 transition-colors flex-shrink-0"
+              aria-label="Close homeowners modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {isLoadingTeams ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="h-24 rounded-xl bg-gray-100 dark:bg-gray-700 animate-pulse"
+                  aria-hidden
+                />
+              ))}
+            </div>
+          ) : acceptedHomeowners.length > 0 ? (
+            <div className="space-y-3 overflow-y-auto pr-2 -mr-2 min-h-0">
+              {acceptedHomeowners.map((homeowner) => (
+                <article
+                  key={homeowner.id || homeowner.email}
+                  className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
+                        {homeowner.imageUrl ? (
+                          <img
+                            src={homeowner.imageUrl}
+                            alt={homeowner.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          homeowner.name
+                            .split(" ")
+                            .map((part) => part[0])
+                            .filter(Boolean)
+                            .join("")
+                            .toUpperCase()
+                            .slice(0, 2) || "?"
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            {homeowner.name}
+                          </h3>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                            <CheckCircle2 className="w-3 h-3" />
+                            {t("agentHome.acceptedBadge") || "Accepted"}
+                          </span>
+                        </div>
+                        {homeowner.email && (
+                          <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                            <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="truncate">{homeowner.email}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <span className="inline-flex sm:self-start items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700/60 px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:text-gray-300 self-start whitespace-nowrap">
+                      <Building2 className="w-3 h-3" />
+                      {homeowner.properties.length}{" "}
+                      {homeowner.properties.length === 1
+                        ? t("agentHome.propertySingular") || "property"
+                        : t("agentHome.propertyPlural") || "properties"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+                    {homeowner.properties.map((property) => (
+                      <button
+                        key={property.uid}
+                        type="button"
+                        onClick={() => {
+                          setHomeownersModalOpen(false);
+                          navigate(`/${accountUrl}/properties/${property.uid}`);
+                        }}
+                        className="group flex-shrink-0 w-56 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/30 text-left hover:border-[#456564] hover:bg-white dark:hover:bg-gray-800 dark:hover:border-emerald-400 transition-colors"
+                      >
+                        <span className="flex items-center gap-3 p-2">
+                          <span className="w-14 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                            {property.photoUrl ? (
+                              <img
+                                src={property.photoUrl}
+                                alt={property.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Home className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-xs font-semibold text-gray-800 dark:text-gray-100 truncate group-hover:text-[#456564] dark:group-hover:text-emerald-300 transition-colors">
+                              {property.name}
+                            </span>
+                            {property.addressLine ? (
+                              <span className="block mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 leading-snug line-clamp-2">
+                                {property.addressLine}
+                              </span>
+                            ) : null}
+                          </span>
+                          <ArrowRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#456564] dark:group-hover:text-emerald-300 transition-colors flex-shrink-0" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
+              <div className="w-12 h-12 mx-auto rounded-full bg-gray-100 dark:bg-gray-700/60 flex items-center justify-center mb-3">
+                <Users className="w-6 h-6 text-gray-400 dark:text-gray-500" />
+              </div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                {t("agentHome.noAcceptedHomeownersTitle") ||
+                  "No accepted homeowners yet"}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-sm mx-auto">
+                {t("agentHome.noAcceptedHomeownersBody") ||
+                  "Once a homeowner accepts your invitation, they'll show up here alongside the properties they can access."}
+              </p>
+            </div>
+          )}
+        </div>
+      </ModalBlank>
 
       {/* ============================================ */}
       {/* AGENT PROPERTIES — Responsive Grid           */}

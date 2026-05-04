@@ -14,9 +14,22 @@ function StatCard({
   trend,
   trendDirection,
   loading,
+  onClick,
+  ariaLabel,
 }) {
+  const Component = onClick ? "button" : "div";
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow">
+    <Component
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow ${
+        onClick
+          ? "w-full text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+          : ""
+      }`}
+    >
       <div className="flex items-start justify-between mb-3">
         <div
           className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}
@@ -69,7 +82,7 @@ function StatCard({
           )}
         </>
       )}
-    </div>
+    </Component>
   );
 }
 

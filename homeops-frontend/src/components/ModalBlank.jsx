@@ -1,4 +1,5 @@
 import React, {useRef, useEffect} from "react";
+import {createPortal} from "react-dom";
 import Transition from "../utils/Transition";
 import {cn} from "../lib/utils";
 
@@ -65,7 +66,7 @@ function ModalBlank({
       setModalOpen(false);
   };
 
-  return (
+  const modal = (
     <>
       {/* Modal backdrop — z-index overridable (e.g. confetti between backdrop and dialog) */}
       <Transition
@@ -114,6 +115,9 @@ function ModalBlank({
       </Transition>
     </>
   );
+
+  if (typeof document === "undefined") return modal;
+  return createPortal(modal, document.body);
 }
 
 export default ModalBlank;
