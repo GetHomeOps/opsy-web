@@ -1289,7 +1289,7 @@ function HomeownerHome() {
               return (
                 <div
                   key={pro.id}
-                  className="flex-shrink-0 w-64 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 snap-start hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer"
+                  className="flex-shrink-0 w-64 max-w-[16rem] bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 snap-start hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer overflow-hidden"
                   onClick={() =>
                     navigate(`/${accountUrl}/professionals/${pro.id}`)
                   }
@@ -1315,10 +1315,10 @@ function HomeownerHome() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1 overflow-hidden">
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                      <h4 className="block text-sm font-semibold text-gray-900 dark:text-white truncate w-full">
                         {displayName}
                       </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      <p className="block text-xs text-gray-500 dark:text-gray-400 truncate w-full">
                         {category}
                       </p>
                       {location && (
