@@ -240,6 +240,7 @@ function UsersFormContainer() {
     async function loadPropertySummary() {
       if (!id || id === "new" || !state.user?.id) {
         setOwnerPropertyCount(0);
+        setOwnerPropertyUids([]);
         setInvitedPropertyCount(0);
         setAgentPropertyCount(0);
         setAgentPropertyUids([]);
@@ -248,6 +249,7 @@ function UsersFormContainer() {
       }
       if (Number(state.user.id) !== Number(id)) {
         setOwnerPropertyCount(0);
+        setOwnerPropertyUids([]);
         setInvitedPropertyCount(0);
         setAgentPropertyCount(0);
         setAgentPropertyUids([]);
@@ -259,29 +261,31 @@ function UsersFormContainer() {
         const list = await AppApi.getPropertiesByUserId(state.user.id);
         if (cancelled) return;
         const rows = list || [];
-        const owner = rows.filter(
+        const ownerRows = rows.filter(
           (p) =>
             !p._pendingInvitation &&
             (p.property_role === "owner" || p.propertyRole === "owner"),
-        ).length;
+        );
         const invited = rows.filter((p) => p._pendingInvitation).length;
         const agentRows = rows.filter((p) => {
           if (p._pendingInvitation) return false;
           const pr = (p.property_role || p.propertyRole || "").toLowerCase();
           return pr === "editor" || pr === "viewer";
         });
-        setOwnerPropertyCount(owner);
-        setInvitedPropertyCount(invited);
-        setAgentPropertyCount(agentRows.length);
-        setAgentPropertyUids(
-          agentRows
+        const toUids = (collection) =>
+          collection
             .map((p) => p.property_uid ?? p.propertyUid)
             .filter(Boolean)
-            .map(String),
-        );
+            .map(String);
+        setOwnerPropertyCount(ownerRows.length);
+        setOwnerPropertyUids(toUids(ownerRows));
+        setInvitedPropertyCount(invited);
+        setAgentPropertyCount(agentRows.length);
+        setAgentPropertyUids(toUids(agentRows));
       } catch {
         if (!cancelled) {
           setOwnerPropertyCount(0);
+          setOwnerPropertyUids([]);
           setInvitedPropertyCount(0);
           setAgentPropertyCount(0);
           setAgentPropertyUids([]);
@@ -804,6 +808,7 @@ function UsersFormContainer() {
   const [subscriptionNavigating, setSubscriptionNavigating] = useState(false);
   const [propertySummaryLoading, setPropertySummaryLoading] = useState(false);
   const [ownerPropertyCount, setOwnerPropertyCount] = useState(0);
+  const [ownerPropertyUids, setOwnerPropertyUids] = useState([]);
   const [invitedPropertyCount, setInvitedPropertyCount] = useState(0);
   const [agentPropertyCount, setAgentPropertyCount] = useState(0);
   const [agentPropertyUids, setAgentPropertyUids] = useState([]);
@@ -957,14 +962,46 @@ function UsersFormContainer() {
   );
   const isProfileAgentUser = profileUserRoleKey === "agent";
 
-  const handleNavigateToAgentProperties = () => {
-    if (agentPropertyUids.length > 0) {
-      navigate(`/${accountUrl}/properties`, {
-        state: {filterPropertyUids: agentPropertyUids},
-      });
-    } else {
+  // When clicking on a Property smart button, take the user straight to the
+  // single property if there's only one match; otherwise show a filtered list.
+  const navigateToScopedProperties = (uids, filterMessage) => {
+    if (!uids || uids.length === 0) {
       navigate(`/${accountUrl}/properties`);
+      return;
     }
+    if (uids.length === 1) {
+      const uid = uids[0];
+      navigate(`/${accountUrl}/properties/${uid}`, {
+        state: {
+          currentIndex: 1,
+          totalItems: 1,
+          visiblePropertyIds: [uid],
+        },
+      });
+      return;
+    }
+    navigate(`/${accountUrl}/properties`, {
+      state: {
+        filterPropertyUids: uids,
+        filterPropertyMessage: filterMessage,
+      },
+    });
+  };
+
+  const profileUserName = state.user?.name || t("thisUser") || "this user";
+
+  const handleNavigateToOwnerProperties = () => {
+    navigateToScopedProperties(
+      ownerPropertyUids,
+      `Showing properties owned by ${profileUserName}.`,
+    );
+  };
+
+  const handleNavigateToAgentProperties = () => {
+    navigateToScopedProperties(
+      agentPropertyUids,
+      `Showing properties where ${profileUserName} is on the team as agent (editor or viewer).`,
+    );
   };
 
   // Add a helper function for label classes
@@ -1186,7 +1223,7 @@ function UsersFormContainer() {
                 ownerPropertyCount > 0 && !propertySummaryLoading ? (
                   <button
                     type="button"
-                    onClick={handleNavigateToProperties}
+                    onClick={handleNavigateToOwnerProperties}
                     className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 transition-all duration-200"
                   >
                     <Building2 className="w-4 h-4 flex-shrink-0" />

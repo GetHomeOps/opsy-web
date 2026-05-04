@@ -363,6 +363,8 @@ function PropertiesList() {
     return new Set(uids.map((u) => String(u)));
   }, [location.state?.filterPropertyUids]);
 
+  const filterPropertyMessage = location.state?.filterPropertyMessage;
+
   const listScopeId = accountUrl ? `properties:${accountUrl}` : "";
   usePersistListUiSession(listScopeId, {
     dispatch,
@@ -1003,8 +1005,8 @@ function PropertiesList() {
             {profileAgentUidFilter && profileAgentUidFilter.size > 0 && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#456564]/30 bg-[#456564]/5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300">
                 <span>
-                  Showing properties where this user is on the team as agent
-                  (editor or viewer).
+                  {filterPropertyMessage ||
+                    "Showing properties where this user is on the team as agent (editor or viewer)."}
                 </span>
                 <button
                   type="button"
