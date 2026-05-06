@@ -10,6 +10,7 @@ import {
   Check,
 } from "lucide-react";
 import InboxFileCard from "./InboxFileCard";
+import ModalBlank from "../../../../components/ModalBlank";
 import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../../../constants/documentUpload";
 
 /**
@@ -52,6 +53,9 @@ function DocumentsInboxView({
   const [bulkError, setBulkError] = useState(null);
   const [isDraggingFromOs, setIsDraggingFromOs] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [inboxRemoveModalOpen, setInboxRemoveModalOpen] = useState(false);
+  const [inboxRemoveClientIds, setInboxRemoveClientIds] = useState([]);
+  const [inboxRemoveBusy, setInboxRemoveBusy] = useState(false);
 
   /**
    * Per-property email address. Built from the public 8-digit property_uid so
@@ -201,19 +205,28 @@ function DocumentsInboxView({
     }
   };
 
-  const handleBulkRemove = async () => {
+  const openInboxRemoveModal = useCallback(() => {
     if (!selectedCards.length) return;
-    if (
-      !window.confirm(
-        `Remove ${selectedCards.length} file${selectedCards.length === 1 ? "" : "s"} from the inbox? This deletes the uploaded files.`,
-      )
-    )
-      return;
-    for (const c of selectedCards) {
-      await onRemove(c.clientId);
+    setInboxRemoveClientIds(selectedCards.map((c) => c.clientId));
+    setInboxRemoveModalOpen(true);
+  }, [selectedCards]);
+
+  const confirmInboxRemove = async () => {
+    if (!inboxRemoveClientIds.length) return;
+    setInboxRemoveBusy(true);
+    try {
+      for (const clientId of inboxRemoveClientIds) {
+        await onRemove(clientId);
+      }
+      clearSelection();
+      setInboxRemoveModalOpen(false);
+      setInboxRemoveClientIds([]);
+    } finally {
+      setInboxRemoveBusy(false);
     }
-    clearSelection();
   };
+
+  const inboxRemoveCount = inboxRemoveClientIds.length;
 
   const showEmpty = !loading && cards.length === 0;
 
@@ -372,7 +385,7 @@ function DocumentsInboxView({
           </button>
           <button
             type="button"
-            onClick={handleBulkRemove}
+            onClick={openInboxRemoveModal}
             disabled={bulkBusy}
             className="btn-sm border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs flex items-center gap-1"
           >
@@ -444,6 +457,61 @@ function DocumentsInboxView({
           </div>
         )}
       </div>
+
+      <ModalBlank
+        id="inbox-remove-confirm-modal"
+        modalOpen={inboxRemoveModalOpen}
+        setModalOpen={(open) => {
+          if (!open && inboxRemoveBusy) return;
+          setInboxRemoveModalOpen(open);
+          if (!open) setInboxRemoveClientIds([]);
+        }}
+        backdropZClassName="z-[300]"
+        dialogZClassName="z-[300]"
+        contentClassName="max-w-lg"
+      >
+        <div className="p-5 flex space-x-4">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-red-50 dark:bg-red-900/30">
+            <Trash2
+              className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0"
+              aria-hidden
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="mb-2">
+              <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                Remove from inbox?
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+              {inboxRemoveCount === 1
+                ? "Remove 1 file from the inbox? This deletes the uploaded file."
+                : `Remove ${inboxRemoveCount} files from the inbox? This deletes the uploaded files.`}
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+                onClick={() => {
+                  setInboxRemoveModalOpen(false);
+                  setInboxRemoveClientIds([]);
+                }}
+                disabled={inboxRemoveBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-sm bg-red-500 hover:bg-red-600 text-white"
+                onClick={confirmInboxRemove}
+                disabled={inboxRemoveBusy}
+              >
+                {inboxRemoveBusy ? "Removing…" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </ModalBlank>
     </div>
   );
 }
