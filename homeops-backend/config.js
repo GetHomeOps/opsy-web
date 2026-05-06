@@ -106,6 +106,8 @@ module.exports = {
   // SES writes raw MIME to may live in a different region than AWS_S3_BUCKET
   // because SES inbound is only available in us-east-1 / us-west-2 / eu-west-1.
   SES_INBOUND_BUCKET: process.env.SES_INBOUND_BUCKET,
+  /** Object key prefix in SES “Deliver to S3” (e.g. raw/). Used when the SNS notification’s receipt.action is SNS (last rule action) rather than S3. */
+  SES_INBOUND_S3_PREFIX: process.env.SES_INBOUND_S3_PREFIX || "raw/",
   SES_INBOUND_BUCKET_REGION:
     process.env.SES_INBOUND_BUCKET_REGION || process.env.AWS_SES_REGION || "us-east-1",
   SES_INBOUND_SNS_TOPIC_ARN: process.env.SES_INBOUND_SNS_TOPIC_ARN,

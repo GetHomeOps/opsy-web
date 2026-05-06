@@ -179,6 +179,7 @@ Set these in the deployment environment (Railway, ECS, etc.):
 | Variable | Example | Required | Notes |
 |---|---|---|---|
 | `SES_INBOUND_BUCKET` | `opsy-inbound-mail` | ✓ | Bucket from step 3 |
+| `SES_INBOUND_S3_PREFIX` | `raw/` | optional | Must match the SES rule’s S3 object key prefix when the rule’s **last** action is SNS (default `raw/`) |
 | `SES_INBOUND_BUCKET_REGION` | `us-east-1` | recommended | Defaults to `AWS_SES_REGION` then `us-east-1` |
 | `SES_INBOUND_SNS_TOPIC_ARN` | `arn:aws:sns:us-east-1:123:opsy-inbound-mail` | ✓ | Topic ARN from step 4 |
 | `INBOUND_EMAIL_DOMAIN` | `inbox.heyopsy.com` | optional | Default already matches step 1 |

@@ -6,7 +6,9 @@
  * Pipeline:
  *   1. AWS SES receives mail addressed to `documents+{property_uid}@{INBOUND_EMAIL_DOMAIN}`
  *      and writes the raw MIME to `SES_INBOUND_BUCKET`, then publishes to
- *      `SES_INBOUND_SNS_TOPIC_ARN`.
+ *      `SES_INBOUND_SNS_TOPIC_ARN`. If the receipt rule ends with “Publish to SNS”,
+ *      the notification’s `receipt.action.type` is `SNS`; we still locate the S3 object
+ *      via `mail.messageId` + `SES_INBOUND_S3_PREFIX` (see `resolveInboundS3Location`).
  *   2. SNS POSTs the notification (JSON body, `Content-Type: text/plain`) to
  *      `POST /webhooks/ses-inbound` on this server.
  *   3. The route hands off to `verifyAndProcessSnsMessage` below, which:
@@ -39,6 +41,7 @@ const { ulid } = require("ulid");
 const db = require("../db");
 const {
   SES_INBOUND_BUCKET,
+  SES_INBOUND_S3_PREFIX,
   SES_INBOUND_BUCKET_REGION,
   SES_INBOUND_SNS_TOPIC_ARN,
   INBOUND_EMAIL_DOMAIN,
@@ -589,6 +592,54 @@ async function processInboundEmail({ bucket, key, sesMail } = {}) {
 /* ---------------------------------------------------------------------- */
 
 /**
+ * Normalize SES rule object key prefix (e.g. "raw", "raw/", "/raw/" → "raw/").
+ */
+function normalizeSesInboundKeyPrefix(prefix) {
+  const raw = (prefix == null ? "" : String(prefix)).trim();
+  if (!raw) return "";
+  const noLeadingSlash = raw.replace(/^\/+/g, "");
+  return noLeadingSlash.endsWith("/") ? noLeadingSlash : `${noLeadingSlash}/`;
+}
+
+/**
+ * Resolve { bucket, key } for the raw MIME object SES wrote.
+ *
+ * SES sends different `receipt.action` shapes depending on which rule action
+ * triggered the SNS publish:
+ * - **S3-triggered** notification: `action.type === "S3"` includes bucketName + objectKey.
+ * - **SNS action last** (common: Deliver to S3 → Publish to SNS): `action.type === "SNS"`.
+ *   The payload has no bucket/key; AWS documents `mail.messageId` as the S3 object name
+ *   when the message was saved to S3, prefixed by the rule’s object key prefix.
+ *
+ * @see https://docs.aws.amazon.com/ses/latest/dg/receiving-email-notifications-contents.html
+ */
+function resolveInboundS3Location(inner) {
+  const receipt = inner?.receipt;
+  const mail = inner?.mail;
+  const action = receipt?.action;
+
+  if (action?.type === "S3" && action.bucketName && action.objectKey) {
+    return { bucket: action.bucketName, key: action.objectKey };
+  }
+
+  const actions = receipt?.actions;
+  if (Array.isArray(actions)) {
+    const s3 = actions.find(
+      (a) => a?.type === "S3" && a.bucketName && a.objectKey,
+    );
+    if (s3) return { bucket: s3.bucketName, key: s3.objectKey };
+  }
+
+  const messageId = mail?.messageId;
+  if (action?.type === "SNS" && messageId && SES_INBOUND_BUCKET) {
+    const p = normalizeSesInboundKeyPrefix(SES_INBOUND_S3_PREFIX);
+    return { bucket: SES_INBOUND_BUCKET, key: `${p}${messageId}` };
+  }
+
+  return null;
+}
+
+/**
  * Top-level entry point for `POST /webhooks/ses-inbound`. Handles every
  * SNS message type. Body is the raw request payload (string or Buffer).
  *
@@ -640,11 +691,12 @@ async function verifyAndProcessSnsMessage(rawBody) {
     throw new Error(`SNS notification.Message is not valid JSON: ${err.message}`);
   }
 
-  // SES delivers either { receipt, mail, content? } when "deliver to S3" is
-  // used (no content; we fetch from S3) or includes a base64 content blob
-  // for SNS-only delivery. We only support the S3 path for size reasons.
-  const action = inner?.receipt?.action;
-  if (!action || action.type !== "S3") {
+  // SES delivers { receipt, mail, content? }. We fetch raw MIME from S3 when
+  // the rule saved there (see resolveInboundS3Location — SNS-terminated receipts
+  // still follow an earlier S3 write if configured).
+  const loc = resolveInboundS3Location(inner);
+  if (!loc) {
+    const action = inner?.receipt?.action;
     return {
       status: "ignored",
       reason: "non_s3_action",
@@ -653,8 +705,8 @@ async function verifyAndProcessSnsMessage(rawBody) {
   }
 
   const result = await processInboundEmail({
-    bucket: action.bucketName,
-    key: action.objectKey,
+    bucket: loc.bucket,
+    key: loc.key,
     sesMail: inner.mail,
   });
   return result;
