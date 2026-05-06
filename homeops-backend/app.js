@@ -103,9 +103,14 @@ app.use(cookieParser());
 // Stripe sends application/json; SNS notifications for SES inbound mail send
 // text/plain (a JSON document with a separate cryptographic signature). Both
 // need the unparsed bytes, so the raw parser accepts either content type.
+// SNS HTTPS deliveries can be up to ~256 KB; the default raw() limit is 100 KB,
+// which caused PayloadTooLargeError and dropped inbound-mail processing.
 app.use(
   "/webhooks",
-  express.raw({ type: ["application/json", "text/plain"] }),
+  express.raw({
+    type: ["application/json", "text/plain"],
+    limit: process.env.WEBHOOK_RAW_BODY_LIMIT || "512kb",
+  }),
   webhookRoutes,
 );
 
