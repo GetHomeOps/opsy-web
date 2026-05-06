@@ -8,9 +8,10 @@
  * All existing db.query() call-sites work unchanged since Pool exposes the same API.
  */
 const { Pool } = require("pg");
-const { getDatabaseUri } = require("./config");
+const { getDatabaseUri, redactDatabaseUri } = require("./config");
 
 const databaseUri = getDatabaseUri();
+const databaseUriForLog = redactDatabaseUri(databaseUri);
 
 const isRemoteDb = databaseUri.includes("supabase") || databaseUri.includes("railway") || process.env.DB_SSL === "true";
 
@@ -55,9 +56,9 @@ async function connectDb() {
       }
     }
     client.release();
-    log(`Connected to ${databaseUri} (pool max: ${poolMax})`);
+    log(`Connected to ${databaseUriForLog} (pool max: ${poolMax})`);
   } catch (err) {
-    error(`Couldn't connect to ${databaseUri}`, err.message);
+    error(`Couldn't connect to ${databaseUriForLog}`, err.message);
     process.exit(1);
   }
 }

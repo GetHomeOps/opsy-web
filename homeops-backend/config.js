@@ -4,7 +4,7 @@
  * Application Configuration
  *
  * Central config for the backend. Loads from environment variables.
- * Exports: SECRET_KEY, PORT, BCRYPT_WORK_FACTOR, getDatabaseUri,
+ * Exports: SECRET_KEY, PORT, BCRYPT_WORK_FACTOR, getDatabaseUri, redactDatabaseUri,
  *          AWS_REGION, AWS_S3_BUCKET
  */
 
@@ -38,6 +38,18 @@ function getDatabaseUri() {
     ? "postgresql:///opsy_test"
     : process.env.DATABASE_URL || "postgresql:///opsy";
 }
+
+/** Same URI with credentials stripped — safe for console / log aggregation. */
+function redactDatabaseUri(uri) {
+  if (!uri || typeof uri !== "string") return String(uri);
+  try {
+    const u = new URL(uri);
+    if (u.password) u.password = "***";
+    return u.toString();
+  } catch {
+    return uri.replace(/\/\/([^:@/]+):([^@/]+)@/, "//$1:***@");
+  }
+}
 // Speed up bcrypt during tests, since the algorithm safety isn't being tested
 //
 // WJB: Evaluate in 2021 if this should be increased to 13 for non-test use
@@ -50,7 +62,7 @@ ${"NODE_ENV:".yellow}           ${process.env.NODE_ENV}
 ${"SECRET_KEY:".yellow}         ${SECRET_KEY === "secret-dev" ? "[DEFAULT - NOT FOR PRODUCTION]".red : "[SET]".green}
 ${"PORT:".yellow}               ${PORT}
 ${"BCRYPT_WORK_FACTOR:".yellow} ${BCRYPT_WORK_FACTOR}
-${"Database:".yellow}           ${getDatabaseUri()}
+${"Database:".yellow}           ${redactDatabaseUri(getDatabaseUri())}
 ---`);
 }
 
@@ -76,6 +88,7 @@ module.exports = {
   PORT,
   BCRYPT_WORK_FACTOR,
   getDatabaseUri,
+  redactDatabaseUri,
   validateGoogleOAuthConfig,
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
