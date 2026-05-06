@@ -38,6 +38,7 @@ function DocumentsInboxView({
   onPatchProposed,
   onFileOne,
   onFileBulk,
+  onOpenInNewTab,
   systemsToShow,
   documentTypes,
   systemUploadDisabledIds = [],
@@ -433,6 +434,7 @@ function DocumentsInboxView({
                   onRetry={onRetry}
                   onPatchProposed={onPatchProposed}
                   onFile={onFileOne}
+                  onOpenInNewTab={onOpenInNewTab}
                   systemsToShow={systemsToShow}
                   documentTypes={documentTypes}
                   systemUploadDisabledIds={systemUploadDisabledIds}

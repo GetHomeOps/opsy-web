@@ -1342,6 +1342,9 @@ function DocumentsTab({
                 onPatchProposed={inbox.updateProposed}
                 onFileOne={inboxFileOne}
                 onFileBulk={inboxFileBulk}
+                onOpenInNewTab={(card) =>
+                  handleOpenInNewTab({document_key: card.documentKey})
+                }
                 systemsToShow={systemsToShow}
                 documentTypes={documentTypes}
                 systemUploadDisabledIds={

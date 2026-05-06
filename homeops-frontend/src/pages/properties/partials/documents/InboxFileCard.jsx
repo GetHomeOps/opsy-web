@@ -7,6 +7,7 @@ import {
   X,
   RotateCw,
   Mail,
+  ExternalLink,
 } from "lucide-react";
 import {DocumentThumbContent} from "./documentThumbnailShared";
 
@@ -42,6 +43,7 @@ function InboxFileCard({
   onRetry,
   onPatchProposed,
   onFile,
+  onOpenInNewTab,
   systemsToShow,
   documentTypes,
   systemUploadDisabledIds = [],
@@ -115,18 +117,33 @@ function InboxFileCard({
             </span>
           )}
         </div>
-        {/* Remove button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove?.(card.clientId);
-          }}
-          className="absolute top-1.5 right-1.5 z-10 p-1 rounded-md bg-white/90 dark:bg-gray-900/80 text-gray-500 hover:text-red-600 hover:bg-white dark:hover:bg-gray-800 backdrop-blur-sm shadow-sm transition-colors"
-          title="Remove from inbox"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+        {/* Open + remove */}
+        <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1">
+          {isReady && card.documentKey && onOpenInNewTab && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenInNewTab(card);
+              }}
+              className="p-1 rounded-md bg-white/90 dark:bg-gray-900/80 text-gray-600 hover:text-[#456654] hover:bg-white dark:hover:bg-gray-800 backdrop-blur-sm shadow-sm transition-colors"
+              title="Open in new tab"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove?.(card.clientId);
+            }}
+            className="p-1 rounded-md bg-white/90 dark:bg-gray-900/80 text-gray-500 hover:text-red-600 hover:bg-white dark:hover:bg-gray-800 backdrop-blur-sm shadow-sm transition-colors"
+            title="Remove from inbox"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Body */}
