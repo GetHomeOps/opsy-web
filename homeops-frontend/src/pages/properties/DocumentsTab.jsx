@@ -1347,6 +1347,11 @@ function DocumentsTab({
                 systemUploadDisabledIds={
                   hasInspectionReport ? ["inspectionReport"] : []
                 }
+                propertyUid={
+                  propertyUid ??
+                  propertyData?.property_uid ??
+                  propertyData?.identity?.property_uid
+                }
               />
             )}
           </div>

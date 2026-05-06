@@ -41,6 +41,7 @@
     "jsonschema": "^1.5.0",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
+    "mailparser": "^3.7.1",
     "multer": "^2.0.2",
     "nanoid": "^5.1.6",
     "openai": "^6.22.0",

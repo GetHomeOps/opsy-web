@@ -7,6 +7,10 @@ const Account = require("../models/account");
 const User = require("../models/user");
 const db = require("../db");
 const { isPropertyUid } = require("../helpers/properties");
+const {
+  hasPropertyMembership,
+  hasPendingInvitationForProperty,
+} = require("../helpers/propertyAccess");
 
 /** Verify Bearer token, set res.locals.user (optional). Ignores invalid tokens. */
 function authenticateJWT(req, res, next) {
@@ -221,23 +225,14 @@ function ensurePropertyAccess(options = {}) {
       const cachedGrant = _accessGrantCache.get(ck);
       if (cachedGrant && cachedGrant.expiresAt > Date.now()) return next();
 
-      const result = await db.query(
-        `SELECT 1 FROM property_users WHERE property_id = $1 AND user_id = $2`,
-        [propertyId, user.id],
-      );
-
-      if (result.rows.length > 0) {
+      if (await hasPropertyMembership({ userId: user.id, propertyId })) {
         _accessGrantCache.set(ck, { expiresAt: Date.now() + _ACCESS_TTL_MS });
         return next();
       }
 
-      const invResult = await db.query(
-        `SELECT 1 FROM invitations i
-         JOIN users u ON LOWER(u.email) = LOWER(i.invitee_email) AND u.id = $2
-         WHERE i.property_id = $1 AND i.status = 'pending' AND i.expires_at > NOW()`,
-        [propertyId, user.id],
-      );
-      if (invResult.rows.length > 0) {
+      if (
+        await hasPendingInvitationForProperty({ userId: user.id, propertyId })
+      ) {
         _accessGrantCache.set(ck, { expiresAt: Date.now() + _ACCESS_TTL_MS });
         return next();
       }

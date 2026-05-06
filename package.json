@@ -4,5 +4,8 @@
   "description": "HomeOps monorepo - backend serves frontend",
   "scripts": {
     "start": "cd homeops-backend && npm run build:start"
+  },
+  "dependencies": {
+    "mailparser": "^3.9.8"
   }
 }

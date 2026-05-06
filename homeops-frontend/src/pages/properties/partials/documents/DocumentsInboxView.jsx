@@ -1,13 +1,26 @@
-import React, {useCallback, useRef, useState} from "react";
+import React, {useCallback, useMemo, useRef, useState} from "react";
 import {
   Upload,
   Inbox,
   Trash2,
   CheckCheck,
   ChevronDown,
+  Mail,
+  Copy,
+  Check,
 } from "lucide-react";
 import InboxFileCard from "./InboxFileCard";
 import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../../../constants/documentUpload";
+
+/**
+ * Default inbound-email domain. Override at build time with
+ * `VITE_INBOUND_EMAIL_DOMAIN` to point at a different MX-receiving subdomain
+ * (e.g. staging vs production); the local-part is fixed to `documents` to
+ * match `INBOUND_EMAIL_LOCAL_PART` in homeops-backend/config.js.
+ */
+const INBOUND_EMAIL_DOMAIN =
+  (import.meta.env.VITE_INBOUND_EMAIL_DOMAIN || "inbox.heyopsy.com").trim();
+const INBOUND_EMAIL_LOCAL_PART = "documents";
 
 /**
  * DocumentsInboxView — main panel when no folder is selected.
@@ -28,6 +41,7 @@ function DocumentsInboxView({
   systemsToShow,
   documentTypes,
   systemUploadDisabledIds = [],
+  propertyUid,
 }) {
   const fileInputRef = useRef(null);
   const [selected, setSelected] = useState(() => new Set());
@@ -36,6 +50,41 @@ function DocumentsInboxView({
   const [bulkType, setBulkType] = useState("");
   const [bulkError, setBulkError] = useState(null);
   const [isDraggingFromOs, setIsDraggingFromOs] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
+
+  /**
+   * Per-property email address. Built from the public 8-digit property_uid so
+   * it matches what the backend will look up. `null` when we don't yet know
+   * the uid (legacy callers that don't pass it through).
+   */
+  const propertyEmailAddress = useMemo(() => {
+    if (!propertyUid) return null;
+    return `${INBOUND_EMAIL_LOCAL_PART}+${propertyUid}@${INBOUND_EMAIL_DOMAIN}`;
+  }, [propertyUid]);
+
+  const handleCopyEmail = useCallback(async () => {
+    if (!propertyEmailAddress) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(propertyEmailAddress);
+      } else {
+        // Fallback for non-secure contexts (older Safari, file://). We
+        // intentionally avoid `document.execCommand` in modern code paths.
+        const ta = document.createElement("textarea");
+        ta.value = propertyEmailAddress;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 1500);
+    } catch (err) {
+      console.warn("[DocumentsInboxView] copy email failed:", err.message);
+    }
+  }, [propertyEmailAddress]);
 
   /* OS-level file drop on the panel */
   const handleOsDrop = useCallback(
@@ -239,6 +288,43 @@ function DocumentsInboxView({
           )}
         </div>
       </div>
+
+      {/* Property inbound-email address. Renders only when the public uid is
+          known (so we don't show a half-built address). Members and pending
+          invitees can email attachments here and they land in this inbox. */}
+      {propertyEmailAddress && (
+        <div className="flex-shrink-0 px-5 py-2 border-b border-gray-200 dark:border-gray-700 bg-[#456654]/[0.04] dark:bg-[#456654]/10 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Mail className="w-3.5 h-3.5 text-[#456654] dark:text-[#7a9a88] flex-shrink-0" />
+          <span className="text-xs text-gray-600 dark:text-gray-300">
+            Or email documents to
+          </span>
+          <code
+            className="text-xs font-mono text-[#3a5548] dark:text-[#a8c0b4] bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-[#456654]/20 dark:border-[#456654]/40 select-all"
+            title="Property inbound email address"
+          >
+            {propertyEmailAddress}
+          </code>
+          <button
+            type="button"
+            onClick={handleCopyEmail}
+            className="inline-flex items-center gap-1 text-xs font-medium text-[#456654] dark:text-[#7a9a88] hover:underline"
+            aria-label={emailCopied ? "Email address copied" : "Copy email address"}
+          >
+            {emailCopied ? (
+              <>
+                <Check className="w-3 h-3" /> Copied
+              </>
+            ) : (
+              <>
+                <Copy className="w-3 h-3" /> Copy
+              </>
+            )}
+          </button>
+          <span className="text-[11px] text-gray-500 dark:text-gray-400 ml-auto">
+            Attachments from property members appear here automatically.
+          </span>
+        </div>
+      )}
 
       {/* Bulk actions bar */}
       {selectedCount > 0 && (

@@ -18,6 +18,23 @@ const s3Client = new S3Client({
   followRegionRedirects: true, // Follow 301 redirects when bucket is in a different region
 });
 
+/**
+ * Cache of S3Clients keyed by region. Used when reading from buckets that
+ * live outside `AWS_REGION` (e.g. the SES-inbound mail bucket in us-east-1
+ * while the main app bucket is in us-east-2). Always created with
+ * `followRegionRedirects` so the wrong region still works, just slower.
+ */
+const _regionClientCache = new Map();
+function getS3ClientForRegion(region) {
+  if (!region || region === AWS_REGION) return s3Client;
+  let client = _regionClientCache.get(region);
+  if (!client) {
+    client = new S3Client({ region, followRegionRedirects: true });
+    _regionClientCache.set(region, client);
+  }
+  return client;
+}
+
 /** Presigned URL expiration in seconds (5 minutes). */
 const PRESIGNED_EXPIRATION = 5 * 60;
 
@@ -102,15 +119,26 @@ async function getPresignedUrlForImage(key, expiresIn = PRESIGNED_EXPIRATION) {
 
 /**
  * Download a file from S3 as a Buffer.
- * @param {string} key - S3 object key (path/filename)
+ *
+ * Backwards compatible with `getFile(key)`; new callers may pass an options
+ * object `{ key, bucket?, region? }` to read from a non-default bucket
+ * (used by the SES inbound pipeline, whose bucket lives in us-east-1).
+ *
+ * @param {string|{ key: string, bucket?: string, region?: string }} keyOrOpts
  * @returns {Promise<Buffer>} File content
  */
-async function getFile(key) {
+async function getFile(keyOrOpts) {
+  const opts =
+    typeof keyOrOpts === "string" ? { key: keyOrOpts } : keyOrOpts || {};
+  const { key, bucket, region } = opts;
+  if (!key) throw new Error("getFile: key is required");
+
+  const client = region ? getS3ClientForRegion(region) : s3Client;
   const command = new GetObjectCommand({
-    Bucket: AWS_S3_BUCKET,
+    Bucket: bucket || AWS_S3_BUCKET,
     Key: key,
   });
-  const response = await s3Client.send(command);
+  const response = await client.send(command);
   const chunks = [];
   for await (const chunk of response.Body) {
     chunks.push(chunk);

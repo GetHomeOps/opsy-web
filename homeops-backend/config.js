@@ -87,6 +87,18 @@ module.exports = {
   AWS_REGION: process.env.AWS_REGION || "us-east-2",
   AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
 
+  // Inbound email (SES → S3 → SNS → /webhooks/ses-inbound). The receiving
+  // domain has its own MX (e.g. `inbox.heyopsy.com → inbound-smtp.us-east-1.amazonaws.com`)
+  // so it doesn't collide with outbound mail at the apex. The S3 bucket
+  // SES writes raw MIME to may live in a different region than AWS_S3_BUCKET
+  // because SES inbound is only available in us-east-1 / us-west-2 / eu-west-1.
+  SES_INBOUND_BUCKET: process.env.SES_INBOUND_BUCKET,
+  SES_INBOUND_BUCKET_REGION:
+    process.env.SES_INBOUND_BUCKET_REGION || process.env.AWS_SES_REGION || "us-east-1",
+  SES_INBOUND_SNS_TOPIC_ARN: process.env.SES_INBOUND_SNS_TOPIC_ARN,
+  INBOUND_EMAIL_DOMAIN: process.env.INBOUND_EMAIL_DOMAIN || "inbox.heyopsy.com",
+  INBOUND_EMAIL_LOCAL_PART: process.env.INBOUND_EMAIL_LOCAL_PART || "documents",
+
   // Stripe billing (env-only setup)
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,

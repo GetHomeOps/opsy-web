@@ -99,8 +99,15 @@ app.use(cors(corsOptions));
 app.use(compression());
 app.use(cookieParser());
 
-// Webhooks MUST use raw body for Stripe signature verification - mount before express.json
-app.use("/webhooks", express.raw({ type: "application/json" }), webhookRoutes);
+// Webhooks MUST use raw body for signature verification - mount before express.json.
+// Stripe sends application/json; SNS notifications for SES inbound mail send
+// text/plain (a JSON document with a separate cryptographic signature). Both
+// need the unparsed bytes, so the raw parser accepts either content type.
+app.use(
+  "/webhooks",
+  express.raw({ type: ["application/json", "text/plain"] }),
+  webhookRoutes,
+);
 
 app.use(express.json());
 

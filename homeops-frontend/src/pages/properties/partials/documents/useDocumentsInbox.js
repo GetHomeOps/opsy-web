@@ -94,6 +94,11 @@ function reducer(state, action) {
               new Date().toISOString().slice(0, 10),
           },
           error: row.error_message || null,
+          // Provenance — set by the email-ingest pipeline to "email"; default
+          // is "manual" for direct uploads. `null`-safe if the column hasn't
+          // been migrated on this environment yet.
+          source: row.source || "manual",
+          sourceMetadata: row.source_metadata || null,
           createdAt: row.created_at,
         });
         order.push(clientId);
@@ -339,6 +344,8 @@ export default function useDocumentsInbox(propertyId, { allowedSystemKeys } = {}
             : unsupported
               ? "Unsupported file type. Use PDF, JPG, PNG, GIF, or WebP."
               : null,
+          source: "manual",
+          sourceMetadata: null,
           createdAt: new Date().toISOString(),
         };
         cards.push(card);

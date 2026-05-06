@@ -26,7 +26,8 @@ class StagedDocument {
    * Required: { property_id, user_id, document_key, original_name }
    * Optional: file_size_bytes, mime_type, proposed_system_key,
    *           proposed_document_type, proposed_document_name,
-   *           proposed_document_date, upload_status, error_message
+   *           proposed_document_date, upload_status, error_message,
+   *           source ('manual' | 'email'), source_metadata (JSONB-serializable)
    */
   static async create(data) {
     const {
@@ -42,6 +43,8 @@ class StagedDocument {
       proposed_document_date = null,
       upload_status = "uploaded",
       error_message = null,
+      source = "manual",
+      source_metadata = null,
     } = data;
 
     if (!property_id || !user_id || !document_key || !original_name) {
@@ -63,8 +66,10 @@ class StagedDocument {
         proposed_document_name,
         proposed_document_date,
         upload_status,
-        error_message
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        error_message,
+        source,
+        source_metadata
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
         property_id,
@@ -79,6 +84,8 @@ class StagedDocument {
         proposed_document_date,
         upload_status,
         error_message,
+        source,
+        source_metadata ? JSON.stringify(source_metadata) : null,
       ],
     );
     return result.rows[0];

@@ -434,6 +434,8 @@ CREATE TABLE staged_documents (
     proposed_document_date DATE,
     upload_status VARCHAR(20) NOT NULL DEFAULT 'uploaded',
     error_message TEXT,
+    source VARCHAR(16) NOT NULL DEFAULT 'manual',
+    source_metadata JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -441,6 +443,7 @@ CREATE TABLE staged_documents (
 CREATE INDEX idx_staged_documents_property ON staged_documents(property_id);
 CREATE INDEX idx_staged_documents_user ON staged_documents(user_id);
 CREATE INDEX idx_staged_documents_created ON staged_documents(created_at);
+CREATE INDEX idx_staged_documents_source ON staged_documents(property_id, source);
 
 -- Document chunks with embeddings for RAG over property documents
 CREATE TABLE document_chunks (

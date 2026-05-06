@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   X,
   RotateCw,
+  Mail,
 } from "lucide-react";
 import {DocumentThumbContent} from "./documentThumbnailShared";
 
@@ -136,9 +137,24 @@ function InboxFileCard({
         >
           {card.name}
         </div>
-        <div className="text-[10px] text-gray-500 dark:text-gray-400">
-          {formatBytes(card.sizeBytes)}
-          {card.mimeType ? ` · ${card.mimeType.split("/")[1]?.toUpperCase()}` : ""}
+        <div className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1.5 flex-wrap">
+          <span>
+            {formatBytes(card.sizeBytes)}
+            {card.mimeType ? ` · ${card.mimeType.split("/")[1]?.toUpperCase()}` : ""}
+          </span>
+          {card.source === "email" && (
+            <span
+              className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-[#456654]/10 dark:bg-[#456654]/20 text-[#3a5548] dark:text-[#a8c0b4] font-medium"
+              title={
+                card.sourceMetadata?.from
+                  ? `Emailed from ${card.sourceMetadata.from}`
+                  : "Emailed in"
+              }
+            >
+              <Mail className="w-2.5 h-2.5" />
+              via email
+            </span>
+          )}
         </div>
 
         {card.status === "uploading" && (
