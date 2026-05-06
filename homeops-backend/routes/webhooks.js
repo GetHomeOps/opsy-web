@@ -67,6 +67,12 @@ router.post("/ses-inbound", async function (req, res) {
   let result;
   try {
     result = await inboundEmailService.verifyAndProcessSnsMessage(payload);
+    // HTTP 200 alone is misleading: we also 200 signature failures (`accepted: false`)
+    // and “rejected” ingest outcomes (`accepted: true`, `status: "rejected"`). Log the
+    // outcome so host dashboards (Railway, etc.) show the real reason without the body.
+    if (process.env.NODE_ENV !== "test") {
+      console.info("[webhooks/ses-inbound] result:", JSON.stringify(result));
+    }
   } catch (err) {
     // Bad signature / unknown topic / unparseable body: log and 200 so SNS
     // doesn't keep retrying. Real ingestion failures throw a different
