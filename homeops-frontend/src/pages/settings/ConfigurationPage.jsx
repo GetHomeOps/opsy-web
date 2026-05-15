@@ -1,16 +1,28 @@
-import React, { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
-import { useParams, useLocation } from "react-router-dom";
-import { ShieldCheck, ShieldOff, Loader2, Globe, Calendar, CheckCircle2 } from "lucide-react";
+import React, {useState, useEffect} from "react";
+import {useTranslation} from "react-i18next";
+import {useParams, useLocation} from "react-router-dom";
+import {
+  ShieldCheck,
+  ShieldOff,
+  Loader2,
+  Globe,
+  Calendar,
+  CheckCircle2,
+  RotateCcw,
+  AlertTriangle,
+} from "lucide-react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
-import { useAuth } from "../../context/AuthContext";
+import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
-import { PAGE_LAYOUT, SETTINGS_CARD } from "../../constants/layout";
+import {PAGE_LAYOUT, SETTINGS_CARD} from "../../constants/layout";
 import useImageUpload from "../../hooks/useImageUpload";
-import { S3_UPLOAD_FOLDER } from "../../constants/s3UploadFolders";
+import {S3_UPLOAD_FOLDER} from "../../constants/s3UploadFolders";
 import ImageUploadField from "../../components/ImageUploadField";
-import { GoogleCalendarIcon, MicrosoftOutlookIcon } from "../../components/CalendarProviderIcons";
+import {
+  GoogleCalendarIcon,
+  MicrosoftOutlookIcon,
+} from "../../components/CalendarProviderIcons";
 
 /**
  * Configuration page — profile settings: name, password, phone, MFA.
@@ -18,17 +30,19 @@ import { GoogleCalendarIcon, MicrosoftOutlookIcon } from "../../components/Calen
  * Language changes apply only on save.
  */
 const LANGUAGES = [
-  { code: "en", label: "English" },
-  { code: "es", label: "Español" },
+  {code: "en", label: "English"},
+  {code: "es", label: "Español"},
 ];
 
 function ConfigurationPage() {
-  const { t, i18n } = useTranslation();
+  const {t, i18n} = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentUser, refreshCurrentUser, updateCurrentUser } = useAuth();
+  const {currentUser, refreshCurrentUser, updateCurrentUser} = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [language, setLanguage] = useState(i18n.language?.split("-")[0] || "en");
+  const [language, setLanguage] = useState(
+    i18n.language?.split("-")[0] || "en",
+  );
   const [languageSaving, setLanguageSaving] = useState(false);
   const [languageSuccess, setLanguageSuccess] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -42,7 +56,10 @@ function ConfigurationPage() {
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState(null);
 
-  const [mfaStatus, setMfaStatus] = useState({ mfaEnabled: false, backupCodesRemaining: 0 });
+  const [mfaStatus, setMfaStatus] = useState({
+    mfaEnabled: false,
+    backupCodesRemaining: 0,
+  });
   const [mfaLoading, setMfaLoading] = useState(true);
   const [enableModalOpen, setEnableModalOpen] = useState(false);
   const [disableModalOpen, setDisableModalOpen] = useState(false);
@@ -55,6 +72,11 @@ function ConfigurationPage() {
   const [disableUsePassword, setDisableUsePassword] = useState(true);
   const [mfaActionError, setMfaActionError] = useState(null);
   const [mfaActionLoading, setMfaActionLoading] = useState(false);
+  const [demoResetModalOpen, setDemoResetModalOpen] = useState(false);
+  const [demoResetConfirmText, setDemoResetConfirmText] = useState("");
+  const [demoResetError, setDemoResetError] = useState(null);
+  const [demoResetSuccess, setDemoResetSuccess] = useState(false);
+  const [demoResetLoading, setDemoResetLoading] = useState(false);
 
   const [calendarIntegrations, setCalendarIntegrations] = useState([]);
   const [calendarLoading, setCalendarLoading] = useState(true);
@@ -137,9 +159,12 @@ function ConfigurationPage() {
       setMfaLoading(true);
       try {
         const res = await AppApi.getMfaStatus();
-        setMfaStatus({ mfaEnabled: res.mfaEnabled, backupCodesRemaining: res.backupCodesRemaining ?? 0 });
+        setMfaStatus({
+          mfaEnabled: res.mfaEnabled,
+          backupCodesRemaining: res.backupCodesRemaining ?? 0,
+        });
       } catch {
-        setMfaStatus({ mfaEnabled: false, backupCodesRemaining: 0 });
+        setMfaStatus({mfaEnabled: false, backupCodesRemaining: 0});
       } finally {
         setMfaLoading(false);
       }
@@ -147,8 +172,8 @@ function ConfigurationPage() {
     fetchMfaStatus();
   }, [currentUser?.id, enableModalOpen, disableModalOpen]);
 
-  const { accountUrl } = useParams();
-  const { hash } = useLocation();
+  const {accountUrl} = useParams();
+  const {hash} = useLocation();
   useEffect(() => {
     async function fetchCalendars() {
       if (!currentUser?.id) return;
@@ -171,7 +196,7 @@ function ConfigurationPage() {
     const el = document.getElementById("calendar-integrations");
     if (el) {
       const scroll = () => {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.scrollIntoView({behavior: "smooth", block: "start"});
       };
       // Delay slightly so layout is complete (especially with loading states)
       const t = setTimeout(scroll, 150);
@@ -184,7 +209,9 @@ function ConfigurationPage() {
     const calendar = params.get("calendar");
     const status = params.get("status");
     if (calendar && status === "connected") {
-      setCalendarMessage(`${calendar === "google" ? "Google" : "Outlook"} Calendar connected.`);
+      setCalendarMessage(
+        `${calendar === "google" ? "Google" : "Outlook"} Calendar connected.`,
+      );
       setTimeout(() => setCalendarMessage(null), 5000);
       window.history.replaceState({}, "", window.location.pathname);
       AppApi.getCalendarIntegrations()
@@ -200,7 +227,7 @@ function ConfigurationPage() {
     setProfileSuccess(false);
     setProfileSaving(true);
     try {
-      const payload = { name, phone };
+      const payload = {name, phone};
       if (pendingRemovePhoto) {
         payload.image = null;
         payload.avatar_url = null;
@@ -210,8 +237,10 @@ function ConfigurationPage() {
         payload.avatar_url = null;
       }
       const updatedUser = await AppApi.updateUser(currentUser.id, payload);
-      setSavedImageUrl(pendingRemovePhoto ? null : (updatedUser?.image_url ?? savedImageUrl));
-      const authUpdates = { name: updatedUser?.name, phone: updatedUser?.phone };
+      setSavedImageUrl(
+        pendingRemovePhoto ? null : (updatedUser?.image_url ?? savedImageUrl),
+      );
+      const authUpdates = {name: updatedUser?.name, phone: updatedUser?.phone};
       if (pendingRemovePhoto) {
         authUpdates.image = null;
         authUpdates.image_url = null;
@@ -229,7 +258,9 @@ function ConfigurationPage() {
       setPendingImageKey(null);
       setPendingRemovePhoto(false);
     } catch (err) {
-      setProfileError(err.message || err.messages?.[0] || "Failed to save profile");
+      setProfileError(
+        err.message || err.messages?.[0] || "Failed to save profile",
+      );
     } finally {
       setProfileSaving(false);
     }
@@ -240,11 +271,16 @@ function ConfigurationPage() {
     setPasswordError(null);
     setPasswordSuccess(false);
     if (newPassword !== confirmPassword) {
-      setPasswordError(t("settings.passwordsDoNotMatch") || "Passwords do not match");
+      setPasswordError(
+        t("settings.passwordsDoNotMatch") || "Passwords do not match",
+      );
       return;
     }
     if (newPassword.length < 4) {
-      setPasswordError(t("settings.passwordTooShort") || "Password must be at least 4 characters");
+      setPasswordError(
+        t("settings.passwordTooShort") ||
+          "Password must be at least 4 characters",
+      );
       return;
     }
     setPasswordSaving(true);
@@ -256,7 +292,9 @@ function ConfigurationPage() {
       setConfirmPassword("");
       setTimeout(() => setPasswordSuccess(false), 3000);
     } catch (err) {
-      setPasswordError(err.message || err.messages?.[0] || "Failed to change password");
+      setPasswordError(
+        err.message || err.messages?.[0] || "Failed to change password",
+      );
     } finally {
       setPasswordSaving(false);
     }
@@ -274,7 +312,9 @@ function ConfigurationPage() {
       const res = await AppApi.mfaSetup();
       setQrData(res);
     } catch (err) {
-      setMfaActionError(err?.message || err?.messages?.[0] || "Failed to start MFA setup");
+      setMfaActionError(
+        err?.message || err?.messages?.[0] || "Failed to start MFA setup",
+      );
     }
   }
 
@@ -308,9 +348,11 @@ function ConfigurationPage() {
     setMfaActionError(null);
     setMfaActionLoading(true);
     try {
-      const payload = disableUsePassword ? { password: disableConfirm } : { codeOrBackupCode: disableConfirm };
+      const payload = disableUsePassword
+        ? {password: disableConfirm}
+        : {codeOrBackupCode: disableConfirm};
       await AppApi.mfaDisable(payload);
-      setMfaStatus({ mfaEnabled: false, backupCodesRemaining: 0 });
+      setMfaStatus({mfaEnabled: false, backupCodesRemaining: 0});
       setDisableModalOpen(false);
       setDisableConfirm("");
     } catch (err) {
@@ -322,12 +364,38 @@ function ConfigurationPage() {
 
   function downloadBackupCodes() {
     if (!backupCodes?.length) return;
-    const blob = new Blob([backupCodes.join("\n")], { type: "text/plain" });
+    const blob = new Blob([backupCodes.join("\n")], {type: "text/plain"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "homeops-backup-codes.txt";
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  const showDemoResetAction =
+    typeof window !== "undefined" &&
+    window.location.hostname === "demo.heyopsy.com" &&
+    (currentUser?.email || "").toLowerCase() === "demo-homeowner2@heyopsy.com";
+
+  async function handleDemoResetConfirm(e) {
+    e.preventDefault();
+    if (demoResetConfirmText.trim() !== "RESET") return;
+    setDemoResetError(null);
+    setDemoResetSuccess(false);
+    setDemoResetLoading(true);
+    try {
+      await AppApi.resetDemoHomeownerProfile();
+      await refreshCurrentUser();
+      setDemoResetModalOpen(false);
+      setDemoResetConfirmText("");
+      setDemoResetSuccess(true);
+    } catch (err) {
+      setDemoResetError(
+        err.message || err.messages?.[0] || "Failed to reset demo profile.",
+      );
+    } finally {
+      setDemoResetLoading(false);
+    }
   }
 
   return (
@@ -372,7 +440,8 @@ function ConfigurationPage() {
                   )}
                   {profileSuccess && (
                     <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
-                      {t("settings.profileSaved") || "Profile saved successfully."}
+                      {t("settings.profileSaved") ||
+                        "Profile saved successfully."}
                     </div>
                   )}
                   {/* Profile photo — outside form so remove button doesn't trigger form submit */}
@@ -400,57 +469,71 @@ function ConfigurationPage() {
                     />
                   </div>
                   <form onSubmit={handleProfileSubmit} className="space-y-4">
-                  <div>
-                    <label htmlFor="config-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t("name") || "Name"}
-                    </label>
-                    <input
-                      id="config-name"
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="form-input w-full"
-                      placeholder={t("name") || "Your name"}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="config-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t("email") || "Email"}
-                    </label>
-                    <input
-                      id="config-email"
-                      type="email"
-                      value={currentUser?.email || ""}
-                      readOnly
-                      disabled
-                      className="form-input w-full bg-gray-100 dark:bg-gray-700/50 cursor-not-allowed"
-                    />
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {t("settings.emailReadOnly") || "Email cannot be changed. Contact support if needed."}
-                    </p>
-                  </div>
-                  <div>
-                    <label htmlFor="config-phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      {t("phone") || "Phone"}
-                    </label>
-                    <input
-                      id="config-phone"
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="form-input w-full"
-                      placeholder={t("phonePlaceholder") || "Enter phone number"}
-                    />
-                  </div>
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={profileSaving}
-                      className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
-                    >
-                      {profileSaving ? (t("saving") || "Saving...") : (t("save") || "Save Changes")}
-                    </button>
-                  </div>
+                    <div>
+                      <label
+                        htmlFor="config-name"
+                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                      >
+                        {t("name") || "Name"}
+                      </label>
+                      <input
+                        id="config-name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="form-input w-full"
+                        placeholder={t("name") || "Your name"}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="config-email"
+                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                      >
+                        {t("email") || "Email"}
+                      </label>
+                      <input
+                        id="config-email"
+                        type="email"
+                        value={currentUser?.email || ""}
+                        readOnly
+                        disabled
+                        className="form-input w-full bg-gray-100 dark:bg-gray-700/50 cursor-not-allowed"
+                      />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {t("settings.emailReadOnly") ||
+                          "Email cannot be changed. Contact support if needed."}
+                      </p>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="config-phone"
+                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                      >
+                        {t("phone") || "Phone"}
+                      </label>
+                      <input
+                        id="config-phone"
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="form-input w-full"
+                        placeholder={
+                          t("phonePlaceholder") || "Enter phone number"
+                        }
+                      />
+                    </div>
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        disabled={profileSaving}
+                        className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                      >
+                        {profileSaving
+                          ? t("saving") || "Saving..."
+                          : t("save") || "Save Changes"}
+                      </button>
+                    </div>
                   </form>
                 </div>
               </section>
@@ -466,7 +549,10 @@ function ConfigurationPage() {
                       "Set a permanent password. You'll need your current password to change it."}
                   </p>
                 </div>
-                <form onSubmit={handlePasswordSubmit} className={`${SETTINGS_CARD.body} space-y-4`}>
+                <form
+                  onSubmit={handlePasswordSubmit}
+                  className={`${SETTINGS_CARD.body} space-y-4`}
+                >
                   {passwordError && (
                     <div className="rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
                       {passwordError}
@@ -474,11 +560,15 @@ function ConfigurationPage() {
                   )}
                   {passwordSuccess && (
                     <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
-                      {t("settings.passwordChanged") || "Password changed successfully."}
+                      {t("settings.passwordChanged") ||
+                        "Password changed successfully."}
                     </div>
                   )}
                   <div>
-                    <label htmlFor="current-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label
+                      htmlFor="current-password"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                    >
                       {t("settings.currentPassword") || "Current Password"}
                     </label>
                     <input
@@ -492,7 +582,10 @@ function ConfigurationPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label
+                      htmlFor="new-password"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                    >
                       {t("settings.newPassword") || "New Password"}
                     </label>
                     <input
@@ -507,7 +600,10 @@ function ConfigurationPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label
+                      htmlFor="confirm-password"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                    >
                       {t("settings.confirmPassword") || "Confirm New Password"}
                     </label>
                     <input
@@ -528,8 +624,8 @@ function ConfigurationPage() {
                       className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
                     >
                       {passwordSaving
-                        ? (t("saving") || "Saving...")
-                        : (t("settings.changePassword") || "Change Password")}
+                        ? t("saving") || "Saving..."
+                        : t("settings.changePassword") || "Change Password"}
                     </button>
                   </div>
                 </form>
@@ -549,15 +645,22 @@ function ConfigurationPage() {
                       "Choose your preferred language for the interface."}
                   </p>
                 </div>
-                <form onSubmit={handleLanguageSubmit} className={SETTINGS_CARD.body}>
+                <form
+                  onSubmit={handleLanguageSubmit}
+                  className={SETTINGS_CARD.body}
+                >
                   {languageSuccess && (
                     <div className="mb-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
-                      {t("settings.languageSaved") || "Language saved. The interface will update."}
+                      {t("settings.languageSaved") ||
+                        "Language saved. The interface will update."}
                     </div>
                   )}
                   <div className="flex flex-wrap items-end gap-4">
                     <div className="min-w-[200px]">
-                      <label htmlFor="config-language" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label
+                        htmlFor="config-language"
+                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                      >
                         {t("settings.language") || "Language"}
                       </label>
                       <select
@@ -578,19 +681,25 @@ function ConfigurationPage() {
                       disabled={languageSaving}
                       className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
                     >
-                      {languageSaving ? (t("saving") || "Saving...") : (t("save") || "Save Changes")}
+                      {languageSaving
+                        ? t("saving") || "Saving..."
+                        : t("save") || "Save Changes"}
                     </button>
                   </div>
                 </form>
               </section>
 
               {/* Calendar Integrations */}
-              <section id="calendar-integrations" className={SETTINGS_CARD.card}>
+              <section
+                id="calendar-integrations"
+                className={SETTINGS_CARD.card}
+              >
                 <div className={SETTINGS_CARD.header}>
                   <div className="flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-[#456564] dark:text-[#5a7a78]" />
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {t("settings.calendarIntegrations") || "Calendar Integrations"}
+                      {t("settings.calendarIntegrations") ||
+                        "Calendar Integrations"}
                     </h2>
                   </div>
                   <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
@@ -613,11 +722,23 @@ function ConfigurationPage() {
                   ) : (
                     <div className="space-y-4">
                       {[
-                        { provider: "google", label: "Google Calendar", Icon: GoogleCalendarIcon },
-                        { provider: "outlook", label: "Microsoft Outlook", Icon: MicrosoftOutlookIcon },
-                      ].map(({ provider, label, Icon }) => {
-                        const integration = calendarIntegrations.find((i) => i.provider === provider);
-                        const returnTo = accountUrl ? `${accountUrl}/settings/configuration` : "settings/configuration";
+                        {
+                          provider: "google",
+                          label: "Google Calendar",
+                          Icon: GoogleCalendarIcon,
+                        },
+                        {
+                          provider: "outlook",
+                          label: "Microsoft Outlook",
+                          Icon: MicrosoftOutlookIcon,
+                        },
+                      ].map(({provider, label, Icon}) => {
+                        const integration = calendarIntegrations.find(
+                          (i) => i.provider === provider,
+                        );
+                        const returnTo = accountUrl
+                          ? `${accountUrl}/settings/configuration`
+                          : "settings/configuration";
                         const isConnecting = calendarConnecting === provider;
                         return (
                           <div
@@ -631,9 +752,14 @@ function ConfigurationPage() {
                                 <div className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex-shrink-0" />
                               )}
                               <Icon className="w-5 h-5 flex-shrink-0" />
-                              <span className="font-medium text-gray-800 dark:text-gray-100">{label}</span>
+                              <span className="font-medium text-gray-800 dark:text-gray-100">
+                                {label}
+                              </span>
                               <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {integration ? (t("settings.connected") || "Connected") : (t("settings.notConnected") || "Not connected")}
+                                {integration
+                                  ? t("settings.connected") || "Connected"
+                                  : t("settings.notConnected") ||
+                                    "Not connected"}
                               </span>
                             </div>
                             <div>
@@ -643,15 +769,23 @@ function ConfigurationPage() {
                                   onClick={async () => {
                                     setCalendarDisconnecting(integration.id);
                                     try {
-                                      await AppApi.deleteCalendarIntegration(integration.id);
-                                      setCalendarIntegrations((prev) => prev.filter((i) => i.id !== integration.id));
+                                      await AppApi.deleteCalendarIntegration(
+                                        integration.id,
+                                      );
+                                      setCalendarIntegrations((prev) =>
+                                        prev.filter(
+                                          (i) => i.id !== integration.id,
+                                        ),
+                                      );
                                     } catch {
                                       // ignore
                                     } finally {
                                       setCalendarDisconnecting(null);
                                     }
                                   }}
-                                  disabled={calendarDisconnecting === integration.id}
+                                  disabled={
+                                    calendarDisconnecting === integration.id
+                                  }
                                   className="btn border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm"
                                 >
                                   {calendarDisconnecting === integration.id ? (
@@ -666,7 +800,11 @@ function ConfigurationPage() {
                                   onClick={async () => {
                                     setCalendarConnecting(provider);
                                     try {
-                                      const { url } = await AppApi.getCalendarConnectUrl(provider, returnTo);
+                                      const {url} =
+                                        await AppApi.getCalendarConnectUrl(
+                                          provider,
+                                          returnTo,
+                                        );
                                       window.location.href = url;
                                     } catch {
                                       setCalendarConnecting(null);
@@ -702,7 +840,9 @@ function ConfigurationPage() {
                       "Add an extra layer of security with an authenticator app (Google Authenticator, Microsoft Authenticator, Authy)."}
                   </p>
                 </div>
-                <div className={`${SETTINGS_CARD.body} flex items-center justify-between gap-4`}>
+                <div
+                  className={`${SETTINGS_CARD.body} flex items-center justify-between gap-4`}
+                >
                   <div className="flex items-center gap-3">
                     {mfaLoading ? (
                       <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
@@ -714,14 +854,17 @@ function ConfigurationPage() {
                     <div>
                       <span className="font-medium text-gray-800 dark:text-gray-100">
                         {mfaStatus.mfaEnabled
-                          ? (t("settings.mfaEnabled") || "Enabled")
-                          : (t("settings.mfaDisabled") || "Disabled")}
+                          ? t("settings.mfaEnabled") || "Enabled"
+                          : t("settings.mfaDisabled") || "Disabled"}
                       </span>
-                      {mfaStatus.mfaEnabled && mfaStatus.backupCodesRemaining > 0 && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {mfaStatus.backupCodesRemaining} {t("settings.backupCodesRemaining") || "backup codes remaining"}
-                        </p>
-                      )}
+                      {mfaStatus.mfaEnabled &&
+                        mfaStatus.backupCodesRemaining > 0 && (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {mfaStatus.backupCodesRemaining}{" "}
+                            {t("settings.backupCodesRemaining") ||
+                              "backup codes remaining"}
+                          </p>
+                        )}
                     </div>
                   </div>
                   <div>
@@ -751,6 +894,53 @@ function ConfigurationPage() {
                 </div>
               </section>
 
+              {showDemoResetAction && (
+                <section className={SETTINGS_CARD.card}>
+                  <div className={SETTINGS_CARD.header}>
+                    <div className="flex items-center gap-2">
+                      <RotateCcw className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {t("settings.demoResetTitle") || "Reset demo profile"}
+                      </h2>
+                    </div>
+                    <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
+                      {t("settings.demoResetDescription") ||
+                        "Reset this demo homeowner to a clean state with only the base property preserved."}
+                    </p>
+                  </div>
+                  <div className={`${SETTINGS_CARD.body} space-y-4`}>
+                    {demoResetError && (
+                      <div className="rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                        {demoResetError}
+                      </div>
+                    )}
+                    {demoResetSuccess && (
+                      <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+                        {t("settings.demoResetSuccess") ||
+                          "Demo profile reset completed."}
+                      </div>
+                    )}
+                    <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-900/10 p-4 text-sm text-red-800 dark:text-red-300">
+                      {t("settings.demoResetWarning") ||
+                        "This action permanently removes this demo profile's events, reminders, maintenance history, saved professionals, and related demo data."}
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDemoResetConfirmText("");
+                          setDemoResetError(null);
+                          setDemoResetModalOpen(true);
+                        }}
+                        className="btn border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        {t("settings.resetDemoProfile") || "Reset demo profile"}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
+
               {/* Enable MFA Modal */}
               {enableModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -758,8 +948,9 @@ function ConfigurationPage() {
                     <div className="p-6">
                       <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
                         {enableStep === 1
-                          ? (t("settings.mfaSetup") || "Set up authenticator")
-                          : (t("settings.mfaBackupCodes") || "Save your backup codes")}
+                          ? t("settings.mfaSetup") || "Set up authenticator"
+                          : t("settings.mfaBackupCodes") ||
+                            "Save your backup codes"}
                       </h3>
                       {mfaActionError && (
                         <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
@@ -769,11 +960,16 @@ function ConfigurationPage() {
                       {enableStep === 1 && qrData && (
                         <>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            {t("settings.mfaScanQr") || "Scan QR code with your authenticator app, or enter the code manually."}
+                            {t("settings.mfaScanQr") ||
+                              "Scan QR code with your authenticator app, or enter the code manually."}
                           </p>
                           {qrData.qrCodeDataUrl && (
                             <div className="flex justify-center mb-4">
-                              <img src={qrData.qrCodeDataUrl} alt="QR Code" className="w-48 h-48" />
+                              <img
+                                src={qrData.qrCodeDataUrl}
+                                alt="QR Code"
+                                className="w-48 h-48"
+                              />
                             </div>
                           )}
                           <details className="mb-4">
@@ -786,7 +982,8 @@ function ConfigurationPage() {
                           </details>
                           <form onSubmit={handleEnableMfaConfirm}>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                              {t("settings.enterCode") || "Enter 6-digit code from app"}
+                              {t("settings.enterCode") ||
+                                "Enter 6-digit code from app"}
                             </label>
                             <input
                               type="text"
@@ -794,16 +991,32 @@ function ConfigurationPage() {
                               pattern="[0-9]*"
                               maxLength={6}
                               value={mfaCode}
-                              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ""))}
+                              onChange={(e) =>
+                                setMfaCode(e.target.value.replace(/\D/g, ""))
+                              }
                               className="form-input w-full text-center text-lg tracking-widest mb-4"
                               placeholder="000000"
                             />
                             <div className="flex justify-end gap-2">
-                              <button type="button" onClick={handleEnableMfaClose} className="btn border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">
+                              <button
+                                type="button"
+                                onClick={handleEnableMfaClose}
+                                className="btn border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                              >
                                 {t("cancel") || "Cancel"}
                               </button>
-                              <button type="submit" disabled={mfaActionLoading || mfaCode.length !== 6} className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50">
-                                {mfaActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (t("settings.confirm") || "Confirm")}
+                              <button
+                                type="submit"
+                                disabled={
+                                  mfaActionLoading || mfaCode.length !== 6
+                                }
+                                className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                              >
+                                {mfaActionLoading ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  t("settings.confirm") || "Confirm"
+                                )}
                               </button>
                             </div>
                           </form>
@@ -812,7 +1025,8 @@ function ConfigurationPage() {
                       {enableStep === 2 && backupCodes && (
                         <>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            {t("settings.mfaBackupCodesDesc") || "Save these codes in a secure place. Each can be used once if you lose access to your authenticator."}
+                            {t("settings.mfaBackupCodesDesc") ||
+                              "Save these codes in a secure place. Each can be used once if you lose access to your authenticator."}
                           </p>
                           <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg font-mono text-sm mb-4 max-h-40 overflow-y-auto">
                             {backupCodes.map((c, i) => (
@@ -820,11 +1034,21 @@ function ConfigurationPage() {
                             ))}
                           </div>
                           <div className="flex flex-col gap-2">
-                            <button type="button" onClick={downloadBackupCodes} className="btn border border-gray-300 dark:border-gray-600">
+                            <button
+                              type="button"
+                              onClick={downloadBackupCodes}
+                              className="btn border border-gray-300 dark:border-gray-600"
+                            >
                               {t("settings.download") || "Download"}
                             </button>
                             <label className="flex items-center gap-2 text-sm">
-                              <input type="checkbox" checked={backupCodesSaved} onChange={(e) => setBackupCodesSaved(e.target.checked)} />
+                              <input
+                                type="checkbox"
+                                checked={backupCodesSaved}
+                                onChange={(e) =>
+                                  setBackupCodesSaved(e.target.checked)
+                                }
+                              />
                               {t("settings.iSavedThese") || "I saved these"}
                             </label>
                             <button
@@ -852,7 +1076,8 @@ function ConfigurationPage() {
                         {t("settings.disableMfa") || "Disable MFA"}
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        {t("settings.disableMfaConfirm") || "Enter your password or a current authenticator code to disable MFA."}
+                        {t("settings.disableMfaConfirm") ||
+                          "Enter your password or a current authenticator code to disable MFA."}
                       </p>
                       {mfaActionError && (
                         <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
@@ -867,24 +1092,118 @@ function ConfigurationPage() {
                             className="text-sm text-violet-600 dark:text-violet-400 hover:underline mb-2"
                           >
                             {disableUsePassword
-                              ? (t("settings.useCodeInstead") || "Use authenticator code instead")
-                              : (t("settings.usePasswordInstead") || "Use password instead")}
+                              ? t("settings.useCodeInstead") ||
+                                "Use authenticator code instead"
+                              : t("settings.usePasswordInstead") ||
+                                "Use password instead"}
                           </button>
                           <input
                             type={disableUsePassword ? "password" : "text"}
                             value={disableConfirm}
                             onChange={(e) => setDisableConfirm(e.target.value)}
                             className="form-input w-full"
-                            placeholder={disableUsePassword ? (t("password") || "Password") : "000000"}
-                            autoComplete={disableUsePassword ? "current-password" : "one-time-code"}
+                            placeholder={
+                              disableUsePassword
+                                ? t("password") || "Password"
+                                : "000000"
+                            }
+                            autoComplete={
+                              disableUsePassword
+                                ? "current-password"
+                                : "one-time-code"
+                            }
                           />
                         </div>
                         <div className="flex justify-end gap-2">
-                          <button type="button" onClick={() => setDisableModalOpen(false)} className="btn border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">
+                          <button
+                            type="button"
+                            onClick={() => setDisableModalOpen(false)}
+                            className="btn border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                          >
                             {t("cancel") || "Cancel"}
                           </button>
-                          <button type="submit" disabled={mfaActionLoading || !disableConfirm.trim()} className="btn border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50">
-                            {mfaActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (t("settings.disable") || "Disable")}
+                          <button
+                            type="submit"
+                            disabled={
+                              mfaActionLoading || !disableConfirm.trim()
+                            }
+                            className="btn border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                          >
+                            {mfaActionLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              t("settings.disable") || "Disable"
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Demo reset confirmation modal */}
+              {demoResetModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
+                    <div className="p-6">
+                      <div className="flex items-start gap-3 mb-4">
+                        <AlertTriangle className="w-5 h-5 mt-0.5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                            {t("settings.confirmDemoResetTitle") ||
+                              "Confirm demo reset"}
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            {t("settings.confirmDemoResetBody") ||
+                              "Type RESET to confirm. This only resets the demo-homeowner2 profile data and keeps account login + base property."}
+                          </p>
+                        </div>
+                      </div>
+                      {demoResetError && (
+                        <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                          {demoResetError}
+                        </div>
+                      )}
+                      <form onSubmit={handleDemoResetConfirm}>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          {t("settings.typeResetToConfirm") ||
+                            'Type "RESET" to continue'}
+                        </label>
+                        <input
+                          type="text"
+                          value={demoResetConfirmText}
+                          onChange={(e) =>
+                            setDemoResetConfirmText(e.target.value)
+                          }
+                          className="form-input w-full mb-4"
+                          placeholder="RESET"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (demoResetLoading) return;
+                              setDemoResetModalOpen(false);
+                              setDemoResetConfirmText("");
+                            }}
+                            className="btn border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                          >
+                            {t("cancel") || "Cancel"}
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={
+                              demoResetLoading ||
+                              demoResetConfirmText.trim() !== "RESET"
+                            }
+                            className="btn border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                          >
+                            {demoResetLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              t("settings.confirmReset") || "Reset"
+                            )}
                           </button>
                         </div>
                       </form>

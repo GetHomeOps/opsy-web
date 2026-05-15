@@ -585,15 +585,17 @@ function IdentityTab({
   supportDataAdjustmentUrl,
 }) {
   const lookupKeysRaw = savedPropertyData?.identityLookupPopulatedKeys;
-  const explicitLookupKeys = Array.isArray(lookupKeysRaw) ? lookupKeysRaw : null;
+  /** Treat `[]` like unknown: otherwise no field is in the list and nothing locks. */
+  const explicitLookupKeys =
+    Array.isArray(lookupKeysRaw) && lookupKeysRaw.length > 0 ? lookupKeysRaw : null;
 
   /**
    * Lock only fields the ATTOM/RentCast lookup actually returned (persisted in
    * identity_lookup_populated_keys). Address / Places fields are never locked unless
    * included in that list (e.g. county, taxId from lookup).
    *
-   * When explicitLookupKeys is null (legacy rows), fall back to locking any
-   * non-empty saved value in the vendor-eligible field set.
+   * When explicitLookupKeys is null (legacy rows, missing column, or empty `[]`), fall
+   * back to locking any non-empty saved value in the vendor-eligible field set.
    */
   const isVendorLookupLocked = (fieldName) => {
     const isApiSourced = identityDataSource === "rentcast" || identityDataSource === "attom";

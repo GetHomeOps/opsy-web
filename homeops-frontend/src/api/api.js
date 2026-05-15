@@ -645,6 +645,11 @@ class AppApi {
     return this.request("mfa/disable", { codeOrBackupCode, password }, "POST");
   }
 
+  /** Demo-only: reset demo-homeowner2 profile to a clean homeowner state. */
+  static async resetDemoHomeownerProfile() {
+    return this.request("users/demo/reset-homeowner-profile", {}, "POST");
+  }
+
   /* --------- Calendar Integrations --------- */
 
   /** Get connected calendar integrations (Google, Outlook). */

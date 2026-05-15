@@ -50,12 +50,12 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
   return (
     <header
-      className={`sticky top-0 before:absolute before:inset-0 before:backdrop-blur-md max-lg:before:bg-white/90 dark:max-lg:before:bg-gray-800/90 before:-z-10 z-30 ${
+      className={`sticky top-0 z-30 relative ${
         variant === "v2" || variant === "v3"
-          ? "before:bg-white after:absolute after:h-px after:inset-x-0 after:top-full after:bg-gray-200 dark:after:bg-gray-700/60 after:-z-10"
-          : "max-lg:shadow-xs lg:before:bg-[var(--color-gray-50)]/90 dark:lg:before:bg-gray-900/90"
-      } ${variant === "v2" ? "dark:before:bg-gray-800" : ""} ${
-        variant === "v3" ? "dark:before:bg-gray-900" : ""
+          ? `bg-white border-b border-gray-200 dark:border-gray-700/60 ${
+              variant === "v2" ? "dark:bg-gray-800" : "dark:bg-gray-900"
+            }`
+          : "bg-white dark:bg-gray-800 lg:bg-[var(--color-gray-50)] dark:lg:bg-gray-900 max-lg:shadow-xs"
       }`}
     >
       <div className="px-3 sm:px-4 lg:px-5 xxl:px-12">

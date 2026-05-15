@@ -25,6 +25,7 @@ import {mapMaintenanceRecordsFromBackend} from "../properties/helpers/maintenanc
 import {PROPERTY_SYSTEMS} from "../properties/constants/propertySystems";
 import ModalBlank from "../../components/ModalBlank";
 import CalendarScheduleModal from "../calendar/CalendarScheduleModal";
+import EventDetailModal from "../calendar/EventDetailModal";
 import UploadDocumentModal from "../properties/partials/UploadDocumentModal";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
@@ -145,6 +146,8 @@ function HomeownerHome() {
     useState(false);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
   const [agentModalTab, setAgentModalTab] = useState("message");
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventDetailOpen, setEventDetailOpen] = useState(false);
 
   const [homeEvents, setHomeEvents] = useState(null);
   const [resources, setResources] = useState(null);
@@ -227,7 +230,7 @@ function HomeownerHome() {
   }, [currentUser?.id]);
 
   // ─── Fetch home events (reminders, scheduled work) ───
-  useEffect(() => {
+  const refreshHomeEvents = useCallback(() => {
     if (!currentUser?.id) return;
     setEventsLoading(true);
     AppApi.getHomeEvents()
@@ -242,6 +245,10 @@ function HomeownerHome() {
       )
       .finally(() => setEventsLoading(false));
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    refreshHomeEvents();
+  }, [refreshHomeEvents]);
 
   // ─── Fetch published resources for Discover ───
   useEffect(() => {
@@ -475,6 +482,41 @@ function HomeownerHome() {
     const diffTime = new Date(dateString) - new Date();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
+
+  /** Convert a home event item to the shape expected by EventDetailModal. */
+  const toModalEvent = useCallback((item) => {
+    if (!item) return null;
+    return {
+      id: item.id,
+      title: item.title,
+      date: item.dueAt,
+      type: item.systemType,
+      propertyId: item.propertyId,
+      status: item.isBooked ? "scheduled" : "due",
+      propertyName: item.propertyName ?? null,
+      address: item.address ?? null,
+      contractorName: item.professionalName ?? null,
+      notes: item.notes ?? null,
+      scheduledTime: item.scheduledTime ?? null,
+      recurrenceType: item.recurrenceType ?? null,
+      recurrenceIntervalValue: item.recurrenceIntervalValue ?? null,
+      recurrenceIntervalUnit: item.recurrenceIntervalUnit ?? null,
+      recurrenceParentId: item.recurrenceParentId ?? null,
+      alertTiming: item.alertTiming ?? null,
+      alertCustomDays: item.alertCustomDays ?? null,
+      nextScheduledDate: null,
+    };
+  }, []);
+
+  const openEventDetail = useCallback(
+    (item) => {
+      const modalEvent = toModalEvent(item);
+      if (!modalEvent) return;
+      setSelectedEvent(modalEvent);
+      setEventDetailOpen(true);
+    },
+    [toModalEvent],
+  );
 
   // ─── Navigation ──────────────────────────────────────────────────────────────
   const goToPrev = () => setActiveIndex((prev) => Math.max(0, prev - 1));
@@ -943,18 +985,9 @@ function HomeownerHome() {
                         <div
                           key={item.id}
                           className="flex items-center gap-3 p-3 rounded-lg bg-gray-50/80 dark:bg-gray-700/30 hover:bg-gray-100/80 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                          onClick={() =>
-                            item.propertyUid &&
-                            navigate(
-                              `/${accountUrl}/properties/${item.propertyUid}`,
-                            )
-                          }
+                          onClick={() => openEventDetail(item)}
                           onKeyDown={(e) =>
-                            e.key === "Enter" &&
-                            item.propertyUid &&
-                            navigate(
-                              `/${accountUrl}/properties/${item.propertyUid}`,
-                            )
+                            e.key === "Enter" && openEventDetail(item)
                           }
                           role="button"
                           tabIndex={0}
@@ -1064,18 +1097,9 @@ function HomeownerHome() {
                       <div
                         key={item.id}
                         className="flex items-center gap-3 p-3 rounded-lg bg-gray-50/80 dark:bg-gray-700/30 hover:bg-gray-100/80 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                        onClick={() =>
-                          item.propertyUid &&
-                          navigate(
-                            `/${accountUrl}/properties/${item.propertyUid}`,
-                          )
-                        }
+                        onClick={() => openEventDetail(item)}
                         onKeyDown={(e) =>
-                          e.key === "Enter" &&
-                          item.propertyUid &&
-                          navigate(
-                            `/${accountUrl}/properties/${item.propertyUid}`,
-                          )
+                          e.key === "Enter" && openEventDetail(item)
                         }
                         role="button"
                         tabIndex={0}
@@ -1597,6 +1621,21 @@ function HomeownerHome() {
           isOpen={scheduleModalOpen}
           onClose={() => setScheduleModalOpen(false)}
           onScheduled={() => setScheduleModalOpen(false)}
+        />,
+        document.body,
+      )}
+
+      {/* Event Detail Modal - shows reminder / scheduled work item details */}
+      {createPortal(
+        <EventDetailModal
+          event={selectedEvent}
+          isOpen={eventDetailOpen}
+          onClose={(open) => {
+            setEventDetailOpen(open);
+            if (!open) setSelectedEvent(null);
+          }}
+          onDeleted={refreshHomeEvents}
+          onUpdated={refreshHomeEvents}
         />,
         document.body,
       )}
