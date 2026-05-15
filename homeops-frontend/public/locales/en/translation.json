@@ -587,7 +587,7 @@
   "settings.demoResetWarning": "This action permanently removes this demo profile's events, reminders, maintenance history, saved professionals, and related demo data.",
   "settings.resetDemoProfile": "Reset demo profile",
   "settings.confirmDemoResetTitle": "Confirm demo reset",
-  "settings.confirmDemoResetBody": "Type RESET to confirm. This only resets the demo-homeowner2 profile data and keeps account login + base property.",
+  "settings.confirmDemoResetBody": "Type RESET to confirm. This only resets the hello-homeowner profile data and keeps account login + base property.",
   "settings.typeResetToConfirm": "Type \"RESET\" to continue",
   "settings.confirmReset": "Reset",
   "support.title": "Support & Feedback",

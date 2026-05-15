@@ -35,7 +35,7 @@ const { createAccountInvitation } = require("../services/invitationService");
 
 const router = express.Router();
 const DEMO_HOSTNAME = "demo.heyopsy.com";
-const DEMO_HOMEOWNER_RESET_EMAIL = "demo-homeowner2@heyopsy.com";
+const DEMO_HOMEOWNER_RESET_EMAIL = "hello-homeowner@heyopsy.com";
 
 function hostnameFromUrl(rawUrl) {
   if (!rawUrl || typeof rawUrl !== "string") return null;
@@ -244,7 +244,7 @@ router.get("/onboarding-status", ensureLoggedIn, async function (req, res, next)
 });
 
 /** POST /users/demo/reset-homeowner-profile
- * Reset only demo-homeowner2 to a clean "new homeowner" state while preserving
+ * Reset only hello-homeowner@heyopsy.com to a clean "new homeowner" state while preserving
  * account, credentials, role, and base property.
  */
 router.post("/demo/reset-homeowner-profile", ensureLoggedIn, async function (req, res, next) {

@@ -587,7 +587,7 @@
   "settings.demoResetWarning": "Esta acción elimina de forma permanente los eventos, recordatorios, historial de mantenimiento, profesionales guardados y demás datos de demostración de este perfil.",
   "settings.resetDemoProfile": "Restablecer perfil de demostración",
   "settings.confirmDemoResetTitle": "Confirmar restablecimiento de demostración",
-  "settings.confirmDemoResetBody": "Escribe RESET para confirmar. Solo restablece los datos del perfil demo-homeowner2 y mantiene el inicio de sesión y la propiedad base.",
+  "settings.confirmDemoResetBody": "Escribe RESET para confirmar. Solo restablece los datos del perfil hello-homeowner y mantiene el inicio de sesión y la propiedad base.",
   "settings.typeResetToConfirm": "Escribe \"RESET\" para continuar",
   "settings.confirmReset": "Restablecer",
   "support.title": "Soporte y comentarios",

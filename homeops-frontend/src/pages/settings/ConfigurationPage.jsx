@@ -375,7 +375,7 @@ function ConfigurationPage() {
   const showDemoResetAction =
     typeof window !== "undefined" &&
     window.location.hostname === "demo.heyopsy.com" &&
-    (currentUser?.email || "").toLowerCase() === "demo-homeowner2@heyopsy.com";
+    (currentUser?.email || "").toLowerCase() === "hello-homeowner@heyopsy.com";
 
   async function handleDemoResetConfirm(e) {
     e.preventDefault();
@@ -1156,7 +1156,7 @@ function ConfigurationPage() {
                           </h3>
                           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                             {t("settings.confirmDemoResetBody") ||
-                              "Type RESET to confirm. This only resets the demo-homeowner2 profile data and keeps account login + base property."}
+                              "Type RESET to confirm. This only resets the hello-homeowner profile data and keeps account login + base property."}
                           </p>
                         </div>
                       </div>
