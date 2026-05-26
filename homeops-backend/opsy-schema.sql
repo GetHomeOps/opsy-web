@@ -209,12 +209,15 @@ CREATE TABLE contacts (
 CREATE TABLE account_contacts (
     account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
     contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE,
+    added_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (account_id, contact_id)
 );
 
 CREATE INDEX idx_account_contacts_account_id ON account_contacts(account_id);
+CREATE INDEX idx_account_contacts_added_by ON account_contacts(added_by_user_id)
+    WHERE added_by_user_id IS NOT NULL;
 
 -- Tags: account-scoped tags for contacts
 CREATE TABLE tags (

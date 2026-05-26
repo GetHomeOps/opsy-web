@@ -7,28 +7,18 @@
  */
 
 const db = require("../db");
+const Contact = require("../models/contact");
 
-/** Get contacts for a user (by account access).
- * Agents: contacts in their account(s). Admins: all contacts.
+/** Get contacts for a user (scoped by role).
+ * Agents: contacts they added, invited, or share a managed property with.
+ * Homeowners: contacts they added, their property agents, or legacy account-owned vendors.
+ * Admins: all contacts.
  */
 async function getContactsForUser(userId, userRole) {
-  if (userRole === "super_admin" || userRole === "admin") {
-    const r = await db.query(
-      `SELECT c.id, c.name, c.email FROM contacts c
-       JOIN account_contacts ac ON ac.contact_id = c.id
-       ORDER BY c.name`
-    );
-    return r.rows;
-  }
-  const r = await db.query(
-    `SELECT DISTINCT c.id, c.name, c.email FROM contacts c
-     JOIN account_contacts ac ON ac.contact_id = c.id
-     JOIN account_users au ON au.account_id = ac.account_id
-     WHERE au.user_id = $1 AND c.email IS NOT NULL AND c.email != ''
-     ORDER BY c.name`,
-    [userId]
-  );
-  return r.rows;
+  const contacts = await Contact.getAllForUser(userId, userRole);
+  return contacts
+    .filter((c) => c.email)
+    .map((c) => ({ id: c.id, name: c.name, email: c.email }));
 }
 
 /** Get active users (is_active, has account_users).

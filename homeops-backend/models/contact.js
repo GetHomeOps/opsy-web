@@ -26,6 +26,92 @@ const TAGS_SUBQUERY = `COALESCE(
   '[]'::json
 )`;
 
+const CONTACT_SELECT_COLUMNS = `c.id,
+              c.name,
+              c.image,
+              c.type,
+              c.phone,
+              c.email,
+              c.website,
+              c.street1,
+              c.street2,
+              c.city,
+              c.state,
+              c.zip_code,
+              c.country,
+              c.country_code,
+              c.notes,
+              c.role,
+              c.created_at,
+              c.updated_at,
+              ${TAGS_SUBQUERY} AS tags`;
+
+/** SQL fragment: contact row visible to a non-admin user. */
+function sqlContactVisibleToUser(userIdParam, roleParam, contactAlias = "c", acAlias = "ac") {
+  const c = contactAlias;
+  const ac = acAlias;
+  return `(
+      ${roleParam} IN ('super_admin', 'admin')
+      OR ${ac}.added_by_user_id = ${userIdParam}
+      OR EXISTS (
+        SELECT 1 FROM invitations i
+        WHERE i.inviter_user_id = ${userIdParam}
+          AND i.account_id = ${ac}.account_id
+          AND ${c}.email IS NOT NULL AND TRIM(${c}.email) != ''
+          AND LOWER(TRIM(i.invitee_email)) = LOWER(TRIM(${c}.email))
+      )
+      OR (
+        ${roleParam} = 'agent'
+        AND EXISTS (
+          SELECT 1 FROM users u
+          JOIN property_users pu_home ON pu_home.user_id = u.id
+          JOIN property_users pu_agent ON pu_agent.property_id = pu_home.property_id
+          JOIN users ua ON ua.id = pu_agent.user_id
+          WHERE pu_agent.user_id = ${userIdParam}
+            AND (ua.role = 'agent' OR LOWER(pu_agent.role::text) = 'agent')
+            AND (
+              u.contact_id = ${c}.id
+              OR (${c}.email IS NOT NULL AND TRIM(${c}.email) != ''
+                  AND LOWER(TRIM(u.email)) = LOWER(TRIM(${c}.email)))
+            )
+        )
+      )
+      OR (
+        ${roleParam} = 'homeowner'
+        AND EXISTS (
+          SELECT 1 FROM users u
+          JOIN property_users pu_agent ON pu_agent.user_id = u.id
+          JOIN property_users pu_self ON pu_self.property_id = pu_agent.property_id
+          WHERE pu_self.user_id = ${userIdParam}
+            AND u.role = 'agent'
+            AND (
+              u.contact_id = ${c}.id
+              OR (${c}.email IS NOT NULL AND TRIM(${c}.email) != ''
+                  AND LOWER(TRIM(u.email)) = LOWER(TRIM(${c}.email)))
+            )
+        )
+      )
+      OR (
+        ${ac}.added_by_user_id IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM users u
+          WHERE ${c}.email IS NOT NULL AND TRIM(${c}.email) != ''
+            AND LOWER(TRIM(u.email)) = LOWER(TRIM(${c}.email))
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM invitations i
+          WHERE i.account_id = ${ac}.account_id
+            AND ${c}.email IS NOT NULL AND TRIM(${c}.email) != ''
+            AND LOWER(TRIM(i.invitee_email)) = LOWER(TRIM(${c}.email))
+        )
+        AND EXISTS (
+          SELECT 1 FROM accounts a
+          WHERE a.id = ${ac}.account_id AND a.owner_user_id = ${userIdParam}
+        )
+      )
+    )`;
+}
+
 class Contact {
   /** Sync contact_tags for a contact. Replaces existing assignments. */
   static async _syncContactTags(contactId, tagIds) {
@@ -117,15 +203,16 @@ class Contact {
    *
    * Returns { contact_id, account_id, createdAt, updatedAt }
    **/
-  static async addToAccount({ contactId, accountId }) {
+  static async addToAccount({ contactId, accountId, addedByUserId = null }) {
     const result = await db.query(
-      `INSERT INTO account_contacts (contact_id, account_id)
-       VALUES ($1, $2)
+      `INSERT INTO account_contacts (contact_id, account_id, added_by_user_id)
+       VALUES ($1, $2, $3)
        RETURNING contact_id,
                  account_id,
+                 added_by_user_id AS "addedByUserId",
                  created_at AS "createdAt",
                  updated_at AS "updatedAt"`,
-      [contactId, accountId]
+      [contactId, accountId, addedByUserId ?? null]
     );
 
     return result.rows[0];
@@ -134,53 +221,77 @@ class Contact {
   /** Find all contacts with tags. */
   static async getAll() {
     const result = await db.query(
-      `SELECT c.id,
-              c.name,
-              c.image,
-              c.type,
-              c.phone,
-              c.email,
-              c.website,
-              c.street1,
-              c.street2,
-              c.city,
-              c.state,
-              c.zip_code,
-              c.country,
-              c.country_code,
-              c.notes,
-              c.role,
-              c.created_at,
-              c.updated_at,
-              ${TAGS_SUBQUERY} AS tags
+      `SELECT ${CONTACT_SELECT_COLUMNS}
        FROM contacts c
        ORDER BY c.name`
     );
     return result.rows.map((r) => ({ ...r, tags: r.tags || [] }));
   }
 
+  /** Contacts in an account visible to the requesting user (role-scoped). */
+  static async getByAccountIdForUser(accountId, userId, userRole) {
+    if (userRole === "super_admin" || userRole === "admin") {
+      return this.getByAccountId(accountId);
+    }
+
+    const visibility = sqlContactVisibleToUser("$2", "$3");
+    const result = await db.query(
+      `SELECT ${CONTACT_SELECT_COLUMNS}
+       FROM contacts c
+       JOIN account_contacts ac ON ac.contact_id = c.id
+       WHERE ac.account_id = $1
+         AND ${visibility}
+       ORDER BY c.name`,
+      [accountId, userId, userRole]
+    );
+    return result.rows.map((r) => ({ ...r, tags: r.tags || [] }));
+  }
+
+  /** All contacts across the user's accounts, filtered by role-scoped visibility. */
+  static async getAllForUser(userId, userRole) {
+    if (userRole === "super_admin" || userRole === "admin") {
+      return this.getAll();
+    }
+
+    const visibility = sqlContactVisibleToUser("$1", "$2");
+    const result = await db.query(
+      `SELECT DISTINCT ON (c.id) ${CONTACT_SELECT_COLUMNS}
+       FROM contacts c
+       JOIN account_contacts ac ON ac.contact_id = c.id
+       JOIN account_users au ON au.account_id = ac.account_id
+       WHERE au.user_id = $1
+         AND ${visibility}
+       ORDER BY c.id, c.name`,
+      [userId, userRole]
+    );
+    return result.rows.map((r) => ({ ...r, tags: r.tags || [] }));
+  }
+
+  /** Whether userId may view/edit contactId. */
+  static async userCanAccess(contactId, userId, userRole) {
+    if (userRole === "super_admin" || userRole === "admin") {
+      const r = await db.query(`SELECT 1 FROM contacts WHERE id = $1`, [contactId]);
+      return r.rows.length > 0;
+    }
+
+    const visibility = sqlContactVisibleToUser("$2", "$3");
+    const result = await db.query(
+      `SELECT 1
+       FROM contacts c
+       JOIN account_contacts ac ON ac.contact_id = c.id
+       JOIN account_users au ON au.account_id = ac.account_id AND au.user_id = $2
+       WHERE c.id = $1
+         AND ${visibility}
+       LIMIT 1`,
+      [contactId, userId, userRole]
+    );
+    return result.rows.length > 0;
+  }
+
   /** Get all contacts for a specific account with tags. */
   static async getByAccountId(accountId) {
     const result = await db.query(
-      `SELECT c.id,
-              c.name,
-              c.image,
-              c.type,
-              c.phone,
-              c.email,
-              c.website,
-              c.street1,
-              c.street2,
-              c.city,
-              c.state,
-              c.zip_code,
-              c.country,
-              c.country_code,
-              c.notes,
-              c.role,
-              c.created_at,
-              c.updated_at,
-              ${TAGS_SUBQUERY} AS tags
+      `SELECT ${CONTACT_SELECT_COLUMNS}
        FROM contacts c
        JOIN account_contacts ac ON ac.contact_id = c.id
        WHERE ac.account_id = $1

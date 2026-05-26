@@ -794,9 +794,10 @@ router.get(
         throw new ForbiddenError("Property not found.");
       }
       const accountId = propRes.rows[0].account_id;
+      const userRole = res.locals.user.role;
 
       const [contacts, savedProfessionals] = await Promise.all([
-        Contact.getByAccountId(accountId),
+        Contact.getByAccountIdForUser(accountId, userId, userRole),
         SavedProfessional.getByUserId(userId),
       ]);
 

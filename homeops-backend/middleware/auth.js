@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const { SECRET_KEY } = require("../config");
 const { UnauthorizedError, ForbiddenError } = require("../expressError");
 const Account = require("../models/account");
+const Contact = require("../models/contact");
 const User = require("../models/user");
 const db = require("../db");
 const { isPropertyUid } = require("../helpers/properties");
@@ -398,17 +399,10 @@ function ensureContactBelongsToUserAccount(paramName = "id") {
     try {
       const user = res.locals.user;
       if (!user?.id) throw new UnauthorizedError();
-      if (user.role === "super_admin" || user.role === "admin") return next();
       const contactId = req.params[paramName];
       if (!contactId) throw new ForbiddenError("Contact identifier missing.");
-      const result = await db.query(
-        `SELECT 1 FROM account_contacts ac
-         JOIN account_users au ON ac.account_id = au.account_id
-         WHERE ac.contact_id = $1 AND au.user_id = $2
-         LIMIT 1`,
-        [contactId, user.id]
-      );
-      if (result.rows.length === 0) throw new ForbiddenError("You do not have access to this contact.");
+      const allowed = await Contact.userCanAccess(contactId, user.id, user.role);
+      if (!allowed) throw new ForbiddenError("You do not have access to this contact.");
       return next();
     } catch (err) {
       return next(err);

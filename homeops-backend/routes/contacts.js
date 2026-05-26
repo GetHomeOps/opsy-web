@@ -68,7 +68,13 @@ router.delete("/account/:accountId/tags/:tagId", ensureLoggedIn, ensureUserCanAc
 /** GET /account/:accountId - List contacts for an account. Requires account access. */
 router.get("/account/:accountId", ensureLoggedIn, ensureUserCanAccessAccountByParam("accountId"), async function (req, res, next) {
   try {
-    const contacts = await Contact.getByAccountId(req.params.accountId);
+    const userId = res.locals.user.id;
+    const userRole = res.locals.user.role;
+    const contacts = await Contact.getByAccountIdForUser(
+      req.params.accountId,
+      userId,
+      userRole
+    );
     const contactsWithUrls = await addPresignedUrlsToItems(contacts, "image", "image_url");
     return res.json({ contacts: contactsWithUrls });
   } catch (err) {
@@ -106,7 +112,11 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
     const contactWithUrl = await addPresignedUrlToItem(contact, "image", "image_url");
     let contactAccount = null;
     if (accountId) {
-      contactAccount = await Contact.addToAccount({ contactId: contact.id, accountId });
+      contactAccount = await Contact.addToAccount({
+        contactId: contact.id,
+        accountId,
+        addedByUserId: res.locals.user?.id ?? null,
+      });
     }
     const response = { contact: contactWithUrl };
     if (contactAccount) response.contactAccount = contactAccount;
@@ -126,7 +136,10 @@ router.post("/account_contacts", ensureLoggedIn, async function (req, res, next)
         throw new ForbiddenError(`Contact limit reached (${tierCheck.current}/${tierCheck.max}). Upgrade your plan.`);
       }
     }
-    const contactAccount = await Contact.addToAccount(req.body);
+    const contactAccount = await Contact.addToAccount({
+      ...req.body,
+      addedByUserId: res.locals.user?.id ?? null,
+    });
     return res.status(201).json({ contactAccount });
   } catch (err) {
     return next(err);
