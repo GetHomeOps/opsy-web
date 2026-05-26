@@ -407,7 +407,20 @@ router.get("/:email", ensureLoggedIn, async function (req, res, next) {
       userWithUrl.hasSavedProfessionals = proResult.rows[0]?.has ?? false;
     }
 
-    return res.json({ user: userWithUrl });
+    let impersonation = null;
+    if (res.locals.impersonator?.id) {
+      const impersonator = await User.getById(res.locals.impersonator.id);
+      if (impersonator) {
+        impersonation = {
+          active: true,
+          impersonatorId: impersonator.id,
+          impersonatorName: impersonator.name,
+          impersonatorEmail: impersonator.email,
+        };
+      }
+    }
+
+    return res.json({ user: userWithUrl, impersonation });
   } catch (err) {
     return next(err);
   }

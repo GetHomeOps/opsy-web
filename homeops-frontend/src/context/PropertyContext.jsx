@@ -79,12 +79,13 @@ export function PropertyProvider({children}) {
     }
   }
 
-  // Clear properties immediately when the user changes to prevent stale data
+  // Clear cached data when the logged-in user changes (e.g. impersonation).
   useEffect(() => {
-    if (!currentUser) {
-      setProperties([]);
-    }
-  }, [currentUser]);
+    setProperties([]);
+    setPropertiesLoading(true);
+    propertyTeamCacheRef.current.clear();
+    propertyTeamInflightRef.current.clear();
+  }, [currentUser?.id]);
 
   useEffect(() => {
     fetchProperties();

@@ -2,6 +2,7 @@ import React, {useMemo} from "react";
 import {useTranslation} from "react-i18next";
 import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
+import UserActionsMenu from "./UserActionsMenu";
 
 function UsersTable({
   users,
@@ -14,6 +15,9 @@ function UsersTable({
   onSort,
   onUserClick,
   isSuperAdmin = false,
+  isImpersonating = false,
+  currentUserId,
+  onImpersonate,
   onReconcileBilling,
 }) {
   const {t} = useTranslation();
@@ -153,25 +157,16 @@ function UsersTable({
       key: "billingActions",
       label: "Actions",
       sortable: false,
-      render: (value, item) => {
-        if (!isSuperAdmin) return <span className="text-gray-400">-</span>;
-        const canReconcile =
-          item.paidRequired && !item.hasActivePaidSubscription && !!onReconcileBilling;
-        if (!canReconcile) return <span className="text-gray-400">-</span>;
-
-        return (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onReconcileBilling(item);
-            }}
-            className="btn-xs bg-violet-600 hover:bg-violet-700 text-white"
-          >
-            Reconcile billing
-          </button>
-        );
-      },
+      render: (value, item) => (
+        <UserActionsMenu
+          user={item}
+          currentUserId={currentUserId}
+          isSuperAdmin={isSuperAdmin}
+          isImpersonating={isImpersonating}
+          onImpersonate={onImpersonate}
+          onReconcileBilling={onReconcileBilling}
+        />
+      ),
     },
   ];
 

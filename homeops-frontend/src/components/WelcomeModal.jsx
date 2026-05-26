@@ -112,7 +112,6 @@ function WelcomeModal() {
   }, [userId, refreshCurrentUser]);
 
   const [calendarIntegrations, setCalendarIntegrations] = useState([]);
-  const [savedProfessionals, setSavedProfessionals] = useState([]);
   const [onboardingDataLoaded, setOnboardingDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -121,12 +120,8 @@ function WelcomeModal() {
       return;
     }
 
-    if (
-      currentUser.hasCalendarIntegrations !== undefined &&
-      currentUser.hasSavedProfessionals !== undefined
-    ) {
+    if (currentUser.hasCalendarIntegrations !== undefined) {
       setCalendarIntegrations(currentUser.hasCalendarIntegrations ? [true] : []);
-      setSavedProfessionals(currentUser.hasSavedProfessionals ? [true] : []);
       setOnboardingDataLoaded(true);
       return;
     }
@@ -135,18 +130,16 @@ function WelcomeModal() {
     AppApi.getOnboardingStatus()
       .then((data) => {
         setCalendarIntegrations(data?.hasCalendarIntegrations ? [true] : []);
-        setSavedProfessionals(data?.hasSavedProfessionals ? [true] : []);
       })
       .catch(() => {
         setCalendarIntegrations([]);
-        setSavedProfessionals([]);
       })
       .finally(() => setOnboardingDataLoaded(true));
   }, [currentUser?.id, showForRole, welcomeDismissedPermanently]);
 
   const extraContext = useMemo(
-    () => ({calendarIntegrations, savedProfessionals}),
-    [calendarIntegrations, savedProfessionals],
+    () => ({calendarIntegrations}),
+    [calendarIntegrations],
   );
   const {steps, completedCount, allComplete} = useOnboardingProgress({
     extraContext,
@@ -341,7 +334,7 @@ function WelcomeModal() {
                   <div className="h-1.5 flex-1 max-w-[120px] mx-3 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
                 </div>
                 <div className="space-y-3 mb-6">
-                  {Array.from({length: 5}).map((_, i) => (
+                  {Array.from({length: 3}).map((_, i) => (
                     <div
                       key={i}
                       className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60"

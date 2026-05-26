@@ -14,6 +14,32 @@ import {markPostLogoutRedirectReset} from "../utils/authNavigation";
 export const TOKEN_STORAGE_ID = "app-token";
 export const REFRESH_TOKEN_STORAGE_ID = "app-refresh-token";
 
+function getImpersonationFromToken(token) {
+  if (!token) return null;
+  try {
+    const decoded = decode(token);
+    if (!decoded.impersonatorId) return null;
+    return {
+      active: true,
+      impersonatorId: decoded.impersonatorId,
+      impersonatorEmail: decoded.impersonatorEmail,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function mergeImpersonation(user, token) {
+  const fromToken = getImpersonationFromToken(token);
+  if (!fromToken) return null;
+  return {
+    ...fromToken,
+    impersonatorName: user?.impersonation?.impersonatorName,
+    impersonatorEmail:
+      user?.impersonation?.impersonatorEmail || fromToken.impersonatorEmail,
+  };
+}
+
 /* Context for Authentication */
 const AuthContext = createContext(undefined);
 
@@ -35,6 +61,7 @@ export function AuthProvider({children}) {
   const [token, setToken] = useLocalStorage(TOKEN_STORAGE_ID);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const isOAuthCallbackRef = useRef(false);
+  const [impersonation, setImpersonation] = useState(null);
 
   /* Wipe any persisted auth tokens. Used when the stored token is no longer
    * usable (e.g. user deleted, database reset, token revoked). */
@@ -74,6 +101,8 @@ export function AuthProvider({children}) {
 
           let userAccounts = await getUserAccounts(currentUser.id);
 
+          setImpersonation(mergeImpersonation(currentUser, token));
+
           setCurrentUser({
             isLoading: false,
             data: {...currentUser, accounts: userAccounts || []},
@@ -88,12 +117,14 @@ export function AuthProvider({children}) {
           } else {
             console.error("App loadUserInfo: problem loading", err);
           }
+          setImpersonation(null);
           setCurrentUser({
             isLoading: false,
             data: null,
           });
         }
       } else {
+        setImpersonation(null);
         setCurrentUser({
           isLoading: false,
           data: null,
@@ -123,6 +154,8 @@ export function AuthProvider({children}) {
 
     const userAccounts = await getUserAccounts(currentUser.id);
 
+    setImpersonation(null);
+
     setCurrentUser({
       isLoading: false,
       data: {...currentUser, accounts: userAccounts || []},
@@ -148,6 +181,8 @@ export function AuthProvider({children}) {
 
     const userAccounts = await getUserAccounts(currentUser.id);
 
+    setImpersonation(null);
+
     setCurrentUser({
       isLoading: false,
       data: {...currentUser, accounts: userAccounts || []},
@@ -156,6 +191,47 @@ export function AuthProvider({children}) {
     localStorage.removeItem("current-account");
 
     return accessToken;
+  }
+
+  async function applySessionTokens(accessToken, refreshToken) {
+    const previousApiToken = AppApi.token;
+
+    AppApi.token = accessToken;
+    try {
+      const {email} = decode(accessToken);
+      const currentUser = await AppApi.getCurrentUser(email);
+      if (!currentUser?.id) {
+        throw new Error("Failed to load user after session change.");
+      }
+      const userAccounts = await getUserAccounts(currentUser.id);
+      const userWithAccounts = {...currentUser, accounts: userAccounts || []};
+
+      setToken(accessToken);
+      localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);
+      setImpersonation(mergeImpersonation(currentUser, accessToken));
+      setCurrentUser({
+        isLoading: false,
+        data: userWithAccounts,
+      });
+      localStorage.removeItem("current-account");
+
+      return userWithAccounts;
+    } catch (err) {
+      AppApi.token = previousApiToken;
+      throw err;
+    }
+  }
+
+  /** Super admin: view the app as another user. */
+  async function startImpersonation(userId) {
+    const {accessToken, refreshToken} = await AppApi.startImpersonation(userId);
+    return applySessionTokens(accessToken, refreshToken);
+  }
+
+  /** End impersonation and restore the super admin session. */
+  async function stopImpersonation() {
+    const {accessToken, refreshToken} = await AppApi.stopImpersonation();
+    return applySessionTokens(accessToken, refreshToken);
   }
 
   function extractTokenFromSignupResponse(signupResponse) {
@@ -450,6 +526,7 @@ export function AuthProvider({children}) {
         if (!currentUser?.id) return null;
         const userAccounts = await getUserAccounts(currentUser.id);
         const userWithAccounts = {...currentUser, accounts: userAccounts || []};
+        setImpersonation(mergeImpersonation(currentUser, token));
         setCurrentUser({isLoading: false, data: userWithAccounts});
         return userWithAccounts;
       } catch (err) {
@@ -492,6 +569,7 @@ export function AuthProvider({children}) {
       isLoading: false,
       data: null,
     });
+    setImpersonation(null);
     setToken(null);
   }
 
@@ -500,6 +578,7 @@ export function AuthProvider({children}) {
       value={{
         currentUser: currentUser.data,
         isLoading: currentUser.isLoading,
+        impersonation,
         login,
         completeMfaLogin,
         signup,
@@ -508,6 +587,8 @@ export function AuthProvider({children}) {
         handleOAuthCallback,
         refreshCurrentUser,
         updateCurrentUser,
+        startImpersonation,
+        stopImpersonation,
       }}
     >
       {children}

@@ -235,7 +235,11 @@ class AppApi {
 
   static async getCurrentUser(username) {
     let res = await this.request(`users/${username}`);
-    return res.user;
+    const user = res.user;
+    if (res.impersonation) {
+      user.impersonation = res.impersonation;
+    }
+    return user;
   }
 
   static async login(data) {
@@ -247,6 +251,22 @@ class AppApi {
       };
     }
     return { accessToken: res.accessToken, refreshToken: res.refreshToken };
+  }
+
+  static async startImpersonation(userId) {
+    const res = await this.request(`auth/impersonate/${userId}`, {}, "POST");
+    return {
+      accessToken: res.accessToken,
+      refreshToken: res.refreshToken,
+    };
+  }
+
+  static async stopImpersonation() {
+    const res = await this.request(`auth/stop-impersonating`, {}, "POST");
+    return {
+      accessToken: res.accessToken,
+      refreshToken: res.refreshToken,
+    };
   }
 
   static async verifyMfa(mfaTicket, codeOrBackupCode) {

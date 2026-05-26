@@ -10,7 +10,7 @@
 const express = require("express");
 const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
-const { ensureLoggedIn } = require("../middleware/auth");
+const { ensureLoggedIn, ensureNotImpersonating } = require("../middleware/auth");
 const { BadRequestError, UnauthorizedError } = require("../expressError");
 const User = require("../models/user");
 const MfaBackupCode = require("../models/mfaBackupCode");
@@ -142,7 +142,7 @@ router.post("/totp/verify", handleMfaConfirm);
 /** POST /mfa/disable
  * Disable MFA. Requires valid TOTP, backup code, or current password.
  */
-router.post("/disable", async function (req, res, next) {
+router.post("/disable", ensureNotImpersonating, async function (req, res, next) {
   try {
     const userId = res.locals.user?.id;
     if (!userId) throw new UnauthorizedError("Authentication required");
@@ -204,7 +204,7 @@ router.post("/disable", async function (req, res, next) {
 /** POST /mfa/backup/regenerate
  * Regenerate backup codes. Requires valid TOTP code.
  */
-router.post("/backup/regenerate", async function (req, res, next) {
+router.post("/backup/regenerate", ensureNotImpersonating, async function (req, res, next) {
   try {
     const userId = res.locals.user?.id;
     if (!userId) throw new UnauthorizedError("Authentication required");

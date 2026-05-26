@@ -172,7 +172,8 @@ function UsersList() {
   const {t, i18n} = useTranslation();
   const navigate = useNavigate();
   const {accountUrl} = useParams();
-  const {currentUser} = useAuth();
+  const {currentUser, startImpersonation, impersonation} = useAuth();
+  const [impersonateTarget, setImpersonateTarget] = useState(null);
   const listScopeId = accountUrl ? `users:${accountUrl}` : "";
 
   // Set up component's initial state
@@ -536,6 +537,47 @@ function UsersList() {
     }
   }
 
+  function handleImpersonateClick(user) {
+    const isActive = user?.isActive ?? user?.is_active ?? false;
+    if (!isActive) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: "This user is not active and cannot be impersonated.",
+        },
+      });
+      return;
+    }
+    setImpersonateTarget(user);
+  }
+
+  async function handleConfirmImpersonate() {
+    if (!impersonateTarget?.id) return;
+    dispatch({type: "SET_SUBMITTING", payload: true});
+    try {
+      const user = await startImpersonation(impersonateTarget.id);
+      setImpersonateTarget(null);
+      const targetAccountUrl = user?.accounts?.[0]?.url || accountUrl;
+      navigate(targetAccountUrl ? `/${targetAccountUrl}/home` : "/");
+    } catch (error) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: getApiErrorMessage(
+            error,
+            "This user is not active and cannot be impersonated.",
+          ),
+        },
+      });
+    } finally {
+      dispatch({type: "SET_SUBMITTING", payload: false});
+    }
+  }
+
   return (
     <div className="flex h-[100dvh] overflow-hidden">
       {/* Sidebar */}
@@ -580,6 +622,71 @@ function UsersList() {
         </div>
 
         {/* Danger Modal */}
+        <div className="m-1.5">
+          <ModalBlank
+            id="impersonate-modal"
+            modalOpen={!!impersonateTarget}
+            setModalOpen={(open) => {
+              if (!open) setImpersonateTarget(null);
+            }}
+          >
+            <div className="p-5 flex space-x-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-amber-100 dark:bg-amber-900/30">
+                <svg
+                  className="shrink-0 text-amber-600 dark:text-amber-400"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              </div>
+              <div>
+                <div className="mb-2">
+                  <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                    Impersonate {impersonateTarget?.name || "user"}?
+                  </div>
+                </div>
+                <div className="text-sm mb-10 text-gray-600 dark:text-gray-300">
+                  <p>
+                    You will view the app as{" "}
+                    <span className="font-medium text-gray-800 dark:text-gray-100">
+                      {impersonateTarget?.name}
+                    </span>{" "}
+                    ({impersonateTarget?.email}). All actions during this session
+                    are logged.
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-end space-x-2">
+                  <button
+                    type="button"
+                    className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+                    onClick={() => setImpersonateTarget(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-sm bg-amber-500 hover:bg-amber-600 text-white"
+                    onClick={handleConfirmImpersonate}
+                    disabled={state.isSubmitting}
+                  >
+                    {state.isSubmitting ? "Starting..." : "Impersonate"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ModalBlank>
+        </div>
+
         <div className="m-1.5">
           <ModalBlank
             id="danger-modal"
@@ -857,6 +964,9 @@ function UsersList() {
                 sortConfig={sortConfig}
                 onSort={handleSort}
                 isSuperAdmin={currentUser?.role === "super_admin"}
+                isImpersonating={!!impersonation?.active}
+                currentUserId={currentUser?.id}
+                onImpersonate={handleImpersonateClick}
                 onReconcileBilling={handleReconcileBilling}
               />
               {/* Pagination */}

@@ -1,5 +1,5 @@
 import React, {useState, useRef} from "react";
-import {Link, useSearchParams} from "react-router-dom";
+import {Link, useSearchParams, useNavigate} from "react-router-dom";
 import {HelpCircle} from "lucide-react";
 
 import opsyAiIcon from "../images/opsy_ai2.webp";
@@ -11,13 +11,17 @@ import GlobalAIAssistantPanel from "../components/GlobalAIAssistantPanel";
 import UpgradePrompt from "../components/UpgradePrompt";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
+import {useAuth} from "../context/AuthContext";
 
 const FREE_PLAN_CODES = ["homeowner_free", "agent_free", "free"];
 
 function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [aiUpgradeModalOpen, setAiUpgradeModalOpen] = useState(false);
+  const [stoppingImpersonation, setStoppingImpersonation] = useState(false);
   const aiAssistantButtonRef = useRef(null);
+  const navigate = useNavigate();
+  const {currentUser, impersonation, stopImpersonation} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const {plan, limits, loading: billingLoading, isAdmin} = useBillingStatus();
 
@@ -31,6 +35,23 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const aiFeaturesOnPlan = isAdmin || limits?.aiFeaturesEnabled !== false;
   const showAiAssistantButton =
     isAdmin || !limits || limits.aiFeaturesEnabled !== false;
+
+  const isImpersonating = !!impersonation?.active;
+
+  const handleStopImpersonating = async () => {
+    if (stoppingImpersonation) return;
+    setStoppingImpersonation(true);
+    try {
+      const adminUser = await stopImpersonation();
+      const accountUrl =
+        adminUser?.accounts?.[0]?.url || currentAccount?.url || "";
+      navigate(accountUrl ? `/${accountUrl}/users` : "/");
+    } catch (err) {
+      console.error("Failed to stop impersonation:", err);
+    } finally {
+      setStoppingImpersonation(false);
+    }
+  };
 
   const handleAiAssistantClick = () => {
     if (billingLoading) {
@@ -51,13 +72,36 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   return (
     <header
       className={`sticky top-0 z-30 relative ${
-        variant === "v2" || variant === "v3"
-          ? `bg-white border-b border-gray-200 dark:border-gray-700/60 ${
-              variant === "v2" ? "dark:bg-gray-800" : "dark:bg-gray-900"
-            }`
-          : "bg-white dark:bg-gray-800 lg:bg-[var(--color-gray-50)] dark:lg:bg-gray-900 max-lg:shadow-xs"
+        isImpersonating
+          ? "bg-amber-50 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-700/60"
+          : variant === "v2" || variant === "v3"
+            ? `bg-white border-b border-gray-200 dark:border-gray-700/60 ${
+                variant === "v2" ? "dark:bg-gray-800" : "dark:bg-gray-900"
+              }`
+            : "bg-white dark:bg-gray-800 lg:bg-[var(--color-gray-50)] dark:lg:bg-gray-900 max-lg:shadow-xs"
       }`}
     >
+      {isImpersonating && (
+        <div className="bg-amber-500 dark:bg-amber-600 text-white px-3 sm:px-4 lg:px-5 xxl:px-12">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2 min-h-[2.5rem]">
+            <p className="text-sm font-medium">
+              Viewing as{" "}
+              <span className="font-semibold">{currentUser?.name || "User"}</span>
+              {currentUser?.email ? (
+                <span className="font-normal opacity-90"> ({currentUser.email})</span>
+              ) : null}
+            </p>
+            <button
+              type="button"
+              onClick={handleStopImpersonating}
+              disabled={stoppingImpersonation}
+              className="btn-xs bg-white/95 hover:bg-white text-amber-800 font-semibold shrink-0 disabled:opacity-70"
+            >
+              {stoppingImpersonation ? "Returning..." : "Stop impersonating"}
+            </button>
+          </div>
+        </div>
+      )}
       <div className="px-3 sm:px-4 lg:px-5 xxl:px-12">
         <div
           className={`grid h-16 min-w-0 grid-cols-[auto_minmax(2.25rem,1fr)_auto] items-center gap-2 sm:gap-3 lg:gap-4 ${

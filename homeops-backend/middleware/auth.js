@@ -19,9 +19,30 @@ function authenticateJWT(req, res, next) {
     const token = authHeader.replace(/^[Bb]earer /, "").trim();
     try {
       res.locals.user = jwt.verify(token, SECRET_KEY);
+      attachImpersonatorFromUser(res);
     } catch (err) {
       /* ignore invalid tokens */
     }
+  }
+  return next();
+}
+
+function attachImpersonatorFromUser(res) {
+  const impersonatorId = res.locals.user?.impersonatorId;
+  if (!impersonatorId) {
+    res.locals.impersonator = null;
+    return;
+  }
+  res.locals.impersonator = {
+    id: impersonatorId,
+    email: res.locals.user?.impersonatorEmail,
+  };
+}
+
+/** Block actions that must not run while impersonating another user. */
+function ensureNotImpersonating(req, res, next) {
+  if (res.locals.impersonator || res.locals.user?.impersonatorId) {
+    throw new ForbiddenError("This action is not allowed while impersonating a user.");
   }
   return next();
 }
@@ -64,7 +85,9 @@ function shouldSkipSubscriptionGate(req) {
       path === "/complete-onboarding" ||
       path === "/refresh" ||
       path === "/logout" ||
-      path === "/change-password"
+      path === "/change-password" ||
+      path === "/stop-impersonating" ||
+      path.startsWith("/impersonate/")
     );
   }
 
@@ -119,12 +142,16 @@ async function ensureLoggedIn(req, res, next) {
     const userId = res.locals.user?.id;
     if (!userId) throw new UnauthorizedError();
 
+    attachImpersonatorFromUser(res);
+
     const dbUser = await fetchUserAuthInfo(userId);
     if (dbUser?.role) {
       res.locals.user.role = dbUser.role;
     }
 
-    if (!shouldSkipSubscriptionGate(req)) {
+    const isImpersonating = !!res.locals.impersonator;
+
+    if (!isImpersonating && !shouldSkipSubscriptionGate(req)) {
       if (userRequiresPaidSubscriptionFromInfo(dbUser)) {
         const hasPaidSubscription = await hasActivePaidSubscription(userId);
         if (!hasPaidSubscription) {
@@ -426,5 +453,6 @@ module.exports = {
   ensureCanViewUser,
   ensureContactBelongsToUserAccount,
   ensureSelfOrAdmin,
+  ensureNotImpersonating,
   clearPropertyAccessCache,
 };

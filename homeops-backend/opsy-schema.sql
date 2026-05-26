@@ -88,6 +88,24 @@ CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
 
 -- ============================================================
+-- Impersonation Audit (super admin "login as user" sessions)
+-- ============================================================
+
+CREATE TABLE impersonation_audit (
+    id SERIAL PRIMARY KEY,
+    impersonator_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ended_at TIMESTAMPTZ,
+    ip_address TEXT,
+    user_agent TEXT
+);
+
+CREATE INDEX idx_impersonation_audit_impersonator ON impersonation_audit(impersonator_id);
+CREATE INDEX idx_impersonation_audit_target ON impersonation_audit(target_user_id);
+CREATE INDEX idx_impersonation_audit_started_at ON impersonation_audit(started_at DESC);
+
+-- ============================================================
 -- Password Reset Tokens (forgot password flow)
 -- Tokens are hashed before storage; raw token sent via email
 -- ============================================================

@@ -25,10 +25,15 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const express = require("express");
 const router = new express.Router();
-const { createAccessToken, createRefreshToken, getRefreshTokenExpiresAt } = require("../helpers/tokens");
+const {
+  createAccessToken,
+  createRefreshToken,
+  getRefreshTokenExpiresAt,
+  impersonatorFromPayload,
+} = require("../helpers/tokens");
 const { createMfaTicket, verifyMfaTicket } = require("../helpers/mfaTicket");
 const { buildAuthUrl, exchangeCodeForTokens, verifyIdToken } = require("../helpers/googleOAuth");
-const { ensureLoggedIn } = require("../middleware/auth");
+const { ensureLoggedIn, ensureSuperAdmin, ensureNotImpersonating } = require("../middleware/auth");
 const {
   SECRET_KEY,
   GOOGLE_CLIENT_ID,
@@ -56,7 +61,20 @@ const Contact = require("../models/contact");
 const Subscription = require("../models/subscription");
 const PlatformEngagement = require("../models/platformEngagement");
 const RefreshToken = require("../models/refreshToken");
+const ImpersonationAudit = require("../models/impersonationAudit");
 const db = require("../db");
+
+function getClientMeta(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  const ipAddress =
+    (typeof forwarded === "string" ? forwarded.split(",")[0]?.trim() : null) ||
+    req.ip ||
+    null;
+  return {
+    ipAddress,
+    userAgent: req.headers["user-agent"] || null,
+  };
+}
 
 const OAUTH_STATE_MAX_AGE = 10 * 60; // 10 minutes
 
@@ -117,9 +135,9 @@ function userMayReceiveAuthTokens(user) {
   return true;
 }
 
-async function issueTokenPair(user) {
-  const accessToken = createAccessToken(user);
-  const refreshToken = createRefreshToken(user);
+async function issueTokenPair(user, impersonator = null) {
+  const accessToken = createAccessToken(user, impersonator);
+  const refreshToken = createRefreshToken(user, impersonator);
 
   const tokenHash = RefreshToken.hash(refreshToken);
   const expiresAt = getRefreshTokenExpiresAt();
@@ -281,12 +299,13 @@ router.post("/refresh", async function (req, res, next) {
     }
 
     const user = await User.getById(payload.id);
-    const canProceed = userMayReceiveAuthTokens(user);
+    const impersonator = impersonatorFromPayload(payload);
+    const canProceed = impersonator || userMayReceiveAuthTokens(user);
     if (!canProceed) {
       throw new UnauthorizedError("User account is inactive or not found");
     }
 
-    const tokens = await issueTokenPair(user);
+    const tokens = await issueTokenPair(user, impersonator);
 
     RefreshToken.cleanupExpired().catch(() => { });
 
@@ -295,6 +314,94 @@ router.post("/refresh", async function (req, res, next) {
     return next(err);
   }
 });
+
+const impersonationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      message: "Too many impersonation attempts. Please try again later.",
+      status: 429,
+    },
+  },
+});
+
+/** POST /auth/impersonate/:userId — Super admin views the app as another user. */
+router.post(
+  "/impersonate/:userId",
+  impersonationLimiter,
+  ensureLoggedIn,
+  ensureNotImpersonating,
+  ensureSuperAdmin,
+  async function (req, res, next) {
+    try {
+      const adminId = res.locals.user.id;
+      const targetUserId = parseInt(req.params.userId, 10);
+      if (!Number.isFinite(targetUserId)) {
+        throw new BadRequestError("Invalid user id");
+      }
+      if (targetUserId === adminId) {
+        throw new BadRequestError("You cannot impersonate yourself");
+      }
+
+      const targetUser = await User.getById(targetUserId);
+      if (!targetUser) {
+        throw new BadRequestError("User not found");
+      }
+      if (targetUser.role === "super_admin") {
+        throw new ForbiddenError("Cannot impersonate another super admin");
+      }
+      if (targetUser.isActive !== true) {
+        throw new BadRequestError("This user is not active and cannot be impersonated.");
+      }
+
+      const adminUser = await User.getById(adminId);
+      const tokens = await issueTokenPair(targetUser, adminUser);
+
+      const { ipAddress, userAgent } = getClientMeta(req);
+      await ImpersonationAudit.logStart({
+        impersonatorId: adminId,
+        targetUserId: targetUser.id,
+        ipAddress,
+        userAgent,
+      });
+
+      return res.json(tokens);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** POST /auth/stop-impersonating — Restore the super admin session. */
+router.post(
+  "/stop-impersonating",
+  impersonationLimiter,
+  ensureLoggedIn,
+  async function (req, res, next) {
+    try {
+      const impersonatorId = res.locals.user?.impersonatorId;
+      const targetUserId = res.locals.user?.id;
+      if (!impersonatorId) {
+        throw new BadRequestError("Not currently impersonating a user");
+      }
+
+      const impersonator = await User.getById(impersonatorId);
+      if (!impersonator || impersonator.role !== "super_admin") {
+        throw new ForbiddenError("Invalid impersonation session");
+      }
+
+      await ImpersonationAudit.logEnd({ impersonatorId, targetUserId });
+
+      const tokens = await issueTokenPair(impersonator);
+      return res.json(tokens);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
 
 router.post("/logout", async function (req, res, next) {
   try {
@@ -309,7 +416,7 @@ router.post("/logout", async function (req, res, next) {
   }
 });
 
-router.post("/change-password", ensureLoggedIn, async function (req, res, next) {
+router.post("/change-password", ensureLoggedIn, ensureNotImpersonating, async function (req, res, next) {
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = res.locals.user?.id;

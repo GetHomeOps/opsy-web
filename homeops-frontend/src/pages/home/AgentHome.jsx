@@ -616,7 +616,9 @@ function AgentHome() {
     const uidsToFetch = properties
       .map((prop) => prop.property_uid ?? prop.id)
       .filter((uid) => uid && !fetchedTeamUidsRef.current.has(uid))
-      .sort((a, b) => Number(priorityUids.has(b)) - Number(priorityUids.has(a)));
+      .sort(
+        (a, b) => Number(priorityUids.has(b)) - Number(priorityUids.has(a)),
+      );
 
     if (!uidsToFetch.length) {
       setIsLoadingTeams(false);
@@ -890,96 +892,100 @@ function AgentHome() {
             <>
               <div className="space-y-3 overflow-y-auto pr-2 -mr-2 min-h-0 flex-1">
                 {paginatedHomeowners.map((homeowner) => (
-                <article
-                  key={homeowner.id || homeowner.email}
-                  className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
-                        {homeowner.imageUrl ? (
-                          <img
-                            src={homeowner.imageUrl}
-                            alt={homeowner.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          homeowner.name
-                            .split(" ")
-                            .map((part) => part[0])
-                            .filter(Boolean)
-                            .join("")
-                            .toUpperCase()
-                            .slice(0, 2) || "?"
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                            {homeowner.name}
-                          </h3>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
-                            <CheckCircle2 className="w-3 h-3" />
-                            {t("agentHome.acceptedBadge") || "Accepted"}
-                          </span>
+                  <article
+                    key={homeowner.id || homeowner.email}
+                    className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
+                          {homeowner.imageUrl ? (
+                            <img
+                              src={homeowner.imageUrl}
+                              alt={homeowner.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            homeowner.name
+                              .split(" ")
+                              .map((part) => part[0])
+                              .filter(Boolean)
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2) || "?"
+                          )}
                         </div>
-                        {homeowner.email && (
-                          <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                            <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="truncate">{homeowner.email}</span>
-                          </p>
-                        )}
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                              {homeowner.name}
+                            </h3>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                              <CheckCircle2 className="w-3 h-3" />
+                              {t("agentHome.acceptedBadge") || "Accepted"}
+                            </span>
+                          </div>
+                          {homeowner.email && (
+                            <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                              <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="truncate">
+                                {homeowner.email}
+                              </span>
+                            </p>
+                          )}
+                        </div>
                       </div>
+
+                      <span className="inline-flex sm:self-start items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700/60 px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:text-gray-300 self-start whitespace-nowrap">
+                        <Building2 className="w-3 h-3" />
+                        {homeowner.properties.length}{" "}
+                        {homeowner.properties.length === 1
+                          ? t("agentHome.propertySingular") || "property"
+                          : t("agentHome.propertyPlural") || "properties"}
+                      </span>
                     </div>
 
-                    <span className="inline-flex sm:self-start items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-700/60 px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:text-gray-300 self-start whitespace-nowrap">
-                      <Building2 className="w-3 h-3" />
-                      {homeowner.properties.length}{" "}
-                      {homeowner.properties.length === 1
-                        ? t("agentHome.propertySingular") || "property"
-                        : t("agentHome.propertyPlural") || "properties"}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-                    {homeowner.properties.map((property) => (
-                      <button
-                        key={property.uid}
-                        type="button"
-                        onClick={() => {
-                          setHomeownersModalOpen(false);
-                          navigate(`/${accountUrl}/properties/${property.uid}`);
-                        }}
-                        className="group flex-shrink-0 w-56 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/30 text-left hover:border-[#456564] hover:bg-white dark:hover:bg-gray-800 dark:hover:border-emerald-400 transition-colors"
-                      >
-                        <span className="flex items-center gap-3 p-2">
-                          <span className="w-14 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                            {property.photoUrl ? (
-                              <img
-                                src={property.photoUrl}
-                                alt={property.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <Home className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                            )}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-xs font-semibold text-gray-800 dark:text-gray-100 truncate group-hover:text-[#456564] dark:group-hover:text-emerald-300 transition-colors">
-                              {property.name}
+                    <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+                      {homeowner.properties.map((property) => (
+                        <button
+                          key={property.uid}
+                          type="button"
+                          onClick={() => {
+                            setHomeownersModalOpen(false);
+                            navigate(
+                              `/${accountUrl}/properties/${property.uid}`,
+                            );
+                          }}
+                          className="group flex-shrink-0 w-56 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/30 text-left hover:border-[#456564] hover:bg-white dark:hover:bg-gray-800 dark:hover:border-emerald-400 transition-colors"
+                        >
+                          <span className="flex items-center gap-3 p-2">
+                            <span className="w-14 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                              {property.photoUrl ? (
+                                <img
+                                  src={property.photoUrl}
+                                  alt={property.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <Home className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                              )}
                             </span>
-                            {property.addressLine ? (
-                              <span className="block mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 leading-snug line-clamp-2">
-                                {property.addressLine}
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-xs font-semibold text-gray-800 dark:text-gray-100 truncate group-hover:text-[#456564] dark:group-hover:text-emerald-300 transition-colors">
+                                {property.name}
                               </span>
-                            ) : null}
+                              {property.addressLine ? (
+                                <span className="block mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 leading-snug line-clamp-2">
+                                  {property.addressLine}
+                                </span>
+                              ) : null}
+                            </span>
+                            <ArrowRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#456564] dark:group-hover:text-emerald-300 transition-colors flex-shrink-0" />
                           </span>
-                          <ArrowRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#456564] dark:group-hover:text-emerald-300 transition-colors flex-shrink-0" />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </article>
+                        </button>
+                      ))}
+                    </div>
+                  </article>
                 ))}
               </div>
 
