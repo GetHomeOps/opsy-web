@@ -62,9 +62,10 @@ router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async fun
     if (!accountId) throw new BadRequestError("account_id is required");
 
     const userRole = res.locals.user?.role;
+    const creatorId = res.locals.user?.id;
     const creatorRole = userRole === "homeowner" ? "homeowner" : "agent";
     if (userRole !== 'super_admin' && userRole !== 'admin') {
-      const tierCheck = await canCreateProperty(accountId);
+      const tierCheck = await canCreateProperty(accountId, userRole, creatorId);
       if (!tierCheck.allowed) {
         throw new ForbiddenError(`Property limit reached (${tierCheck.current}/${tierCheck.max}). Upgrade your plan.`);
       }
@@ -73,7 +74,6 @@ router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async fun
     const passport_id = generatePassportId({ state: req.body.state, zip: req.body.zip });
     const property = await Property.create({ ...req.body, passport_id, account_id: accountId });
 
-    const creatorId = res.locals.user?.id;
     if (creatorId) {
       await Property.addUserToProperty({
         property_id: property.id,

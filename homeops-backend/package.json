@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node routes/auth.test.js",
+    "test": "node routes/auth.test.js && node services/homeownerOwnershipTransfer.test.js",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "node scripts/build-client.js",

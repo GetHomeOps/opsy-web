@@ -144,14 +144,41 @@ async function checkAiFeaturesAllowed(userId, userRole) {
   };
 }
 
-async function canCreateProperty(accountId, userRole) {
-  if (isAdminRole(userRole)) return { allowed: true, current: 0, max: 999999 };
-  const limits = await getAccountLimits(accountId);
+async function countAccountOwnedProperties(accountId) {
   const countRes = await db.query(
     `SELECT COUNT(*)::int AS count FROM properties WHERE account_id = $1`,
     [accountId]
   );
-  const current = countRes.rows[0].count;
+  return countRes.rows[0]?.count ?? 0;
+}
+
+/** Distinct properties where the user is on the team with platform role agent. */
+async function countAgentManagedProperties(userId) {
+  if (!userId) return 0;
+  const countRes = await db.query(
+    `SELECT COUNT(DISTINCT pu.property_id)::int AS count
+     FROM property_users pu
+     INNER JOIN users u ON u.id = pu.user_id
+     WHERE pu.user_id = $1 AND LOWER(u.role::text) = 'agent'`,
+    [userId]
+  );
+  return countRes.rows[0]?.count ?? 0;
+}
+
+/** Role-aware property count for plan limit enforcement and billing usage. */
+async function countPropertiesForLimit({ accountId, userId, userRole }) {
+  if (isAdminRole(userRole)) return 0;
+  const role = (userRole || "homeowner").toLowerCase();
+  if (role === "agent") {
+    return countAgentManagedProperties(userId);
+  }
+  return countAccountOwnedProperties(accountId);
+}
+
+async function canCreateProperty(accountId, userRole, userId) {
+  if (isAdminRole(userRole)) return { allowed: true, current: 0, max: 999999 };
+  const limits = await getAccountLimits(accountId);
+  const current = await countPropertiesForLimit({ accountId, userId, userRole });
   return { allowed: current < limits.maxProperties, current, max: limits.maxProperties };
 }
 
@@ -299,6 +326,9 @@ async function canUploadDocumentToSystem(accountId, propertyId, systemKey, userR
 module.exports = {
   getAccountLimits,
   getEffectiveLimits,
+  countAccountOwnedProperties,
+  countAgentManagedProperties,
+  countPropertiesForLimit,
   canCreateProperty,
   canAddContact,
   canInviteViewer,

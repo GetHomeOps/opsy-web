@@ -1,5 +1,5 @@
 import React, {useContext, useMemo} from "react";
-import {Plus, Mail, Loader2} from "lucide-react";
+import {Plus, Loader2} from "lucide-react";
 import UserContext from "../../../context/UserContext";
 import {useAuth} from "../../../context/AuthContext";
 
@@ -225,12 +225,6 @@ function HomeOpsTeam({
                     {isOwner && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#456564]/15 dark:bg-[#5a7a78]/25 text-[#456564] dark:text-[#5a7a78] text-xs font-semibold shrink-0">
                         Owner
-                      </span>
-                    )}
-                    {isPending && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-200/60 dark:bg-neutral-600/40 text-neutral-600 dark:text-neutral-400 text-xs font-semibold shrink-0">
-                        <Mail className="w-3 h-3" />
-                        Pending
                       </span>
                     )}
                   </div>

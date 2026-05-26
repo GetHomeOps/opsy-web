@@ -34,7 +34,7 @@ function requireWithinLimit(limitType) {
       if (!accountId) return next();
 
       if (limitType === "properties") {
-        const check = await canCreateProperty(accountId, userRole);
+        const check = await canCreateProperty(accountId, userRole, userId);
         if (!check.allowed) {
           throw new ForbiddenError(`Property limit reached (${check.current}/${check.max}). Upgrade your plan.`);
         }

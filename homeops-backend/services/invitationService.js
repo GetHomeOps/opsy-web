@@ -39,6 +39,10 @@ const {
   isEmailAnActiveAgentUser,
   propertyHasAgentMemberOrPendingAgentInvitation,
 } = require("./propertyAgentPolicy");
+const {
+  shouldAutoTransferOwnershipOnHomeownerInvite,
+  transferPropertyOwnership,
+} = require("./propertyOwnershipService");
 
 const VALID_ACCOUNT_ROLES = new Set(["owner", "admin", "member", "view_only"]);
 
@@ -862,6 +866,8 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
 
     const accepted = await Invitation.accept(invitation.id, user.id);
 
+    let didAutoTransferOwnership = false;
+
     if (accepted.type === 'property' && accepted.propertyId) {
       await Property.addUserToProperty({
         property_id: accepted.propertyId,
@@ -869,6 +875,30 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
         role: accepted.intendedRole || 'editor',
         permissions: accepted.permissions || null,
       });
+
+      const autoTransfer = await shouldAutoTransferOwnershipOnHomeownerInvite({
+        invitation: {
+          ...invitation,
+          type: accepted.type,
+          propertyId: accepted.propertyId,
+          intendedPropertyRole: accepted.intendedPropertyRole ?? invitation.intendedPropertyRole,
+          intendedRole: accepted.intendedRole ?? invitation.intendedRole,
+          inviterUserId: invitation.inviterUserId,
+        },
+        inviteeUserId: user.id,
+        inviteeUserRole: user.role,
+      });
+
+      if (autoTransfer) {
+        await transferPropertyOwnership({
+          propertyId: autoTransfer.propertyId,
+          fromUserId: autoTransfer.fromUserId,
+          toUserId: autoTransfer.toUserId,
+          reason: "homeowner_invite",
+          sendNotifications: true,
+        });
+        didAutoTransferOwnership = true;
+      }
     }
 
     if (accepted.accountId) {
@@ -923,7 +953,8 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
       if (
         inviterId &&
         inviterId !== user.id &&
-        accepted.propertyId
+        accepted.propertyId &&
+        !didAutoTransferOwnership
       ) {
         try {
           const propRes = await db.query(

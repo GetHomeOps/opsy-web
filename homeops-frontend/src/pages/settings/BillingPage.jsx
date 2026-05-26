@@ -423,7 +423,9 @@ function BillingPage() {
                       <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
                           <dt className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                            {t("settings.properties") || "Properties"}
+                            {targetRole === "agent"
+                              ? t("settings.propertiesManaged") || "Properties managed"
+                              : t("settings.properties") || "Properties"}
                           </dt>
                           <dd className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
                             {usage.propertiesCount ?? 0} /{" "}

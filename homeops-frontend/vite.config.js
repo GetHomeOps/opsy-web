@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -28,7 +29,33 @@ export default defineConfig({
   optimizeDeps: {
     include: ['exceljs'],
   },
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['opsy_favicon.png'],
+      manifest: {
+        name: 'Opsy',
+        short_name: 'Opsy',
+        description: 'HomeOps property management',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
+        icons: [
+          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['index.html'],
+        navigateFallback: '/index.html',
+        runtimeCaching: [],
+      },
+    }),
+  ],
   server: {
     proxy: {
       // Don't proxy /auth/callback - it's a frontend SPA route. The backend redirects there

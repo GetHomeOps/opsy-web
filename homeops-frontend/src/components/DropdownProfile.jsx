@@ -1,9 +1,12 @@
 import React, {useState, useRef, useEffect} from "react";
 import {Link} from "react-router-dom";
+import {Smartphone} from "lucide-react";
 import NavbarDropdownPortal from "./NavbarDropdownPortal";
+import InstallAppModal from "./InstallAppModal";
 import {useAuth} from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
+import usePwaInstall from "../hooks/usePwaInstall";
 
 import {useTranslation} from "react-i18next";
 import "../i18n/index";
@@ -26,10 +29,12 @@ function formatRole(role) {
 
 function DropdownProfile() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [installModalOpen, setInstallModalOpen] = useState(false);
   const {currentUser, logout} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const {plan} = useBillingStatus();
   const {t} = useTranslation();
+  const {canInstall, inAppBrowser, promptInstall} = usePwaInstall();
 
   const trigger = useRef(null);
   const dropdown = useRef(null);
@@ -66,6 +71,14 @@ function DropdownProfile() {
   });
 
   const hideBilling = ["super_admin", "admin"].includes(currentUser?.role);
+
+  const handleInstall = async () => {
+    setDropdownOpen(false);
+    const result = await promptInstall();
+    if (result === "ios") {
+      setInstallModalOpen(true);
+    }
+  };
 
   return (
     <div className="relative inline-flex">
@@ -195,7 +208,7 @@ function DropdownProfile() {
             </div>
           )}
 
-          {/* 3. Pricing & Account & Billing */}
+          {/* 3. Pricing, Install App & Account & Billing */}
           {accountUrl && (
             <ul className="pb-1.5 border-b border-gray-200 dark:border-gray-700/60">
               <li>
@@ -209,6 +222,18 @@ function DropdownProfile() {
                   )}
                 </Link>
               </li>
+              {canInstall && (
+                <li>
+                  <button
+                    type="button"
+                    className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center w-full py-1 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    onClick={handleInstall}
+                  >
+                    <Smartphone className="w-4 h-4 mr-2 shrink-0" aria-hidden />
+                    {t("installApp") || "Install App"}
+                  </button>
+                </li>
+              )}
               {!hideBilling && (
                 <li>
                   <Link
@@ -220,6 +245,21 @@ function DropdownProfile() {
                   </Link>
                 </li>
               )}
+            </ul>
+          )}
+
+          {!accountUrl && canInstall && (
+            <ul className="pb-1.5 border-b border-gray-200 dark:border-gray-700/60">
+              <li>
+                <button
+                  type="button"
+                  className="text-sm text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white flex items-center w-full py-1 px-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                  onClick={handleInstall}
+                >
+                  <Smartphone className="w-4 h-4 mr-2 shrink-0" aria-hidden />
+                  {t("installApp") || "Install App"}
+                </button>
+              </li>
             </ul>
           )}
 
@@ -237,6 +277,11 @@ function DropdownProfile() {
           </div>
         </div>
       </NavbarDropdownPortal>
+      <InstallAppModal
+        open={installModalOpen}
+        setOpen={setInstallModalOpen}
+        inAppBrowser={inAppBrowser}
+      />
     </div>
   );
 }

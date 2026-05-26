@@ -1,9 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import {BrowserRouter} from "react-router-dom";
+import {registerSW} from "virtual:pwa-register";
 import ThemeProvider from "./utils/ThemeContext";
 import App from "./App";
 import "./i18n";
+
+registerSW({immediate: true});
 
 class ErrorBoundary extends React.Component {
   constructor(props) {

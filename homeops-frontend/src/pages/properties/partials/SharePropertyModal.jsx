@@ -111,7 +111,11 @@ const PERMISSION_OPTIONS = [
 ];
 
 const HOMEOWNER_INVITE_TYPES = [
-  {id: "co_owner", label: "Co-owner", description: "Full edit access"},
+  {
+    id: "co_owner",
+    label: "Homeowner",
+    description: "Becomes property owner; billing moves to their account when they accept",
+  },
   {
     id: "view_only",
     label: "View-only household member",
@@ -1256,6 +1260,16 @@ function SharePropertyModal({
     });
   }, [propertyOwner, users]);
 
+  /** True when the property owner is a platform homeowner (not agent/admin). */
+  const propertyOwnerIsHomeowner = useMemo(() => {
+    if (!propertyOwner) return false;
+    const u = (users ?? []).find(
+      (x) => x && String(x.id) === String(propertyOwner.id),
+    );
+    const role = (propertyOwner.role ?? u?.role ?? "").toLowerCase();
+    return role === "homeowner";
+  }, [propertyOwner, users]);
+
   /* Team members excluding the owner (to avoid duplicate display in "All" tab) */
   const teamMembersExcludingOwner = useMemo(() => {
     if (!propertyOwner?.id) return teamMembers ?? [];
@@ -1494,6 +1508,7 @@ function SharePropertyModal({
                           </div>
                           {onTransferOwnership &&
                             isCurrentUserPropertyOwner &&
+                            propertyOwnerIsHomeowner &&
                             transferOwnerOptions.length > 0 && (
                               <div className="shrink-0">
                                 {!transferOwnershipOpen ? (

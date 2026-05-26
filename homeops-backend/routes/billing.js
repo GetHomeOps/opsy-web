@@ -17,6 +17,7 @@ const stripeService = require("../services/stripeService");
 const planModel = require("../models/plan");
 const Coupon = require("../models/coupon");
 const { BILLING_MOCK_MODE } = require("../config");
+const { countPropertiesForLimit } = require("../services/tierService");
 const { wrapStripeErrors } = require("../utils/stripeErrors");
 
 const router = express.Router();
@@ -345,13 +346,14 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
     // Keep billing/status resilient in production if optional analytics tables are missing
     // (e.g., partial migrations). A 500 here causes the activation page to spin indefinitely.
     const usage = { propertiesCount: 0, contactsCount: 0, aiTokensUsed: 0 };
+    const userRole = (res.locals.user?.role || "homeowner").toLowerCase();
 
     try {
-      const propsRes = await db.query(
-        `SELECT COUNT(*)::int AS "propertiesCount" FROM properties WHERE account_id = $1`,
-        [accountId]
-      );
-      usage.propertiesCount = propsRes.rows[0]?.propertiesCount || 0;
+      usage.propertiesCount = await countPropertiesForLimit({
+        accountId,
+        userId,
+        userRole,
+      });
     } catch (usageErr) {
       console.warn("[billing/status] properties usage query failed:", usageErr.message);
     }
