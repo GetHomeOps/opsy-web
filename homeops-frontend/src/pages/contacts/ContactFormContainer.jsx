@@ -386,8 +386,10 @@ function ContactsFormContainer() {
             return a.name.localeCompare(b.name);
           } else {
             // For group view, sort by type first, then name
-            if (a.type_id !== b.type_id) {
-              return a.type_id - b.type_id;
+            const typeA = a.type ?? a.type_id ?? 1;
+            const typeB = b.type ?? b.type_id ?? 1;
+            if (typeA !== typeB) {
+              return typeA - typeB;
             }
             return a.name.localeCompare(b.name);
           }
@@ -598,8 +600,10 @@ function ContactsFormContainer() {
             return a.name.localeCompare(b.name);
           } else {
             // For group view, sort by type first, then name
-            if (a.type_id !== b.type_id) {
-              return a.type_id - b.type_id;
+            const typeA = a.type ?? a.type_id ?? 1;
+            const typeB = b.type ?? b.type_id ?? 1;
+            if (typeA !== typeB) {
+              return typeA - typeB;
             }
             return a.name.localeCompare(b.name);
           }
@@ -874,8 +878,10 @@ function ContactsFormContainer() {
         return a.name.localeCompare(b.name);
       } else {
         // For group view, sort by type first, then name
-        if (a.type_id !== b.type_id) {
-          return a.type_id - b.type_id;
+        const typeA = a.type ?? a.type_id ?? 1;
+        const typeB = b.type ?? b.type_id ?? 1;
+        if (typeA !== typeB) {
+          return typeA - typeB;
         }
         return a.name.localeCompare(b.name);
       }
@@ -1038,7 +1044,10 @@ function ContactsFormContainer() {
 
   // Get company contacts for the dropdown
   const companyContacts = contacts.filter(
-    (contact) => contact.contactType === "company" || contact.type_id === 2,
+    (contact) =>
+      contact.contactType === "company" ||
+      contact.type === 2 ||
+      contact.type_id === 2,
   );
 
   // TagsDropdown component for multi-select tags

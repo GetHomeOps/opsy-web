@@ -18,9 +18,9 @@ function ContactsTableItem({
       className: "font-medium text-gray-800 dark:text-gray-100",
     },
     {
-      key: "type_id",
+      key: "type",
       label: t("type"),
-      render: (value) => (value === 1 ? t("individual") : t("company")),
+      render: (value) => (value === 2 ? t("company") : t("individual")),
       className: "text-gray-600 dark:text-gray-300",
     },
     {

@@ -160,6 +160,7 @@ UsersList -> UsersTable, PaginationClassic
 function UsersList() {
   const {
     users,
+    usersLoading,
     selectedItems,
     setSelectedItems,
     handleToggleSelection,
@@ -955,6 +956,7 @@ function UsersList() {
             <>
               <UsersTable
                 users={filteredUsers}
+                loading={usersLoading}
                 onToggleSelect={handleToggleSelection}
                 selectedItems={selectedItems}
                 totalUsers={filteredUsers.length}

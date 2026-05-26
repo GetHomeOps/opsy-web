@@ -434,7 +434,10 @@ function ContactsList() {
         const email = (contact.email || "").toLowerCase();
         const phone = (contact.phone || "").toLowerCase();
         const jobPosition = (contact.job_position || "").toLowerCase();
-        const type = contact.type_id === 1 ? t("individual") : t("company");
+        const type =
+          contact.type === 2 || contact.type_id === 2
+            ? t("company")
+            : t("individual");
         const matchesSearch =
           contactName.includes(term) ||
           email.includes(term) ||

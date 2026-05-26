@@ -52,7 +52,7 @@ class Contact {
     const {
       name,
       image = null,
-      type = null,
+      type = 1,
       phone = null,
       email = null,
       website = null,

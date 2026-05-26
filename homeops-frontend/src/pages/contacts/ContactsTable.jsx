@@ -43,10 +43,10 @@ function ContactsTable({
       sortable: true,
     },
     {
-      key: "type_id",
+      key: "type",
       label: t("type"),
       sortable: true,
-      render: (value) => (value === 1 ? t("individual") : t("company")),
+      render: (value) => (value === 2 ? t("company") : t("individual")),
     },
     {
       key: "email",

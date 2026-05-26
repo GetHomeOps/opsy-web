@@ -6,6 +6,7 @@ import UserActionsMenu from "./UserActionsMenu";
 
 function UsersTable({
   users,
+  loading = false,
   onToggleSelect,
   selectedItems,
   totalUsers,
@@ -193,6 +194,7 @@ function UsersTable({
       sortConfig={sortConfig}
       onSort={onSort}
       emptyMessage="noUsersFound"
+      loading={loading}
       renderItem={renderItem}
       allSelected={allSelected}
     />

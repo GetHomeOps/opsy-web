@@ -9,6 +9,7 @@ const UserContext = createContext();
 /* Context for Users */
 export function UserProvider({children}) {
   const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState([]);
   const {currentUser, isLoading} = useAuth();
   const {currentAccount} = useCurrentAccount();
@@ -37,6 +38,7 @@ export function UserProvider({children}) {
     if (isLoading || !currentUser) return;
 
     try {
+      setUsersLoading(true);
       let fetchedUsers;
 
       if (currentUser.role === "super_admin") {
@@ -50,6 +52,9 @@ export function UserProvider({children}) {
       setUsers(fetchedUsers);
     } catch (err) {
       console.error("There was an error retrieving users:", err);
+      setUsers([]);
+    } finally {
+      setUsersLoading(false);
     }
   }, [isLoading, currentUser, currentAccount?.id]);
 
@@ -160,6 +165,7 @@ export function UserProvider({children}) {
   const contextValue = useMemo(
     () => ({
       users,
+      usersLoading,
       selectedItems,
       setSelectedItems,
       handleToggleSelection,
@@ -173,7 +179,7 @@ export function UserProvider({children}) {
       sortConfig: listSortConfig,
       handleSort: handleListSort,
     }),
-    [users, selectedItems, listSortedItems, listSortConfig, handleListSort, refetchUsers],
+    [users, usersLoading, selectedItems, listSortedItems, listSortConfig, handleListSort, refetchUsers],
   );
 
   return (

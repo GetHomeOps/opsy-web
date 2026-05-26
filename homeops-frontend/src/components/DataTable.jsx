@@ -87,23 +87,6 @@ function DataTable({
     </thead>
   );
 
-  const renderSkeletonRows = () => {
-    const rows = Array.from({length: 5});
-    const widths = ["w-32", "w-20", "w-40", "w-24", "w-28"];
-    return rows.map((_, i) => (
-      <tr key={`skel-${i}`} className={i % 2 === 0 ? "bg-white dark:bg-gray-700/10" : "bg-gray-50 dark:bg-gray-700/20"}>
-        <td className="px-2 first:pl-5 last:pr-5 py-3 w-px">
-          <div className="w-4 h-4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
-        </td>
-        {columns.map((col, ci) => (
-          <td key={col.key} className="px-2 first:pl-5 last:pr-5 py-3">
-            <div className={`h-4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse ${widths[ci % widths.length]}`} />
-          </td>
-        ))}
-      </tr>
-    ));
-  };
-
   const renderTableBody = () => {
     const isEmpty =
       isCollapsible && groupBy
@@ -112,7 +95,21 @@ function DataTable({
 
     if (isEmpty) {
       if (loading) {
-        return renderSkeletonRows();
+        return (
+          <tr>
+            <td
+              colSpan={columns.length + 1}
+              className="px-2 first:pl-5 last:pr-5 py-12"
+            >
+              <div className="flex justify-center w-full">
+                <Loader2
+                  className="w-10 h-10 text-[#456564] animate-spin"
+                  aria-label={t("loading", {defaultValue: "Loading"})}
+                />
+              </div>
+            </td>
+          </tr>
+        );
       }
       return (
         <tr>
