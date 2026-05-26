@@ -46,6 +46,41 @@ import ModalBlank from "../../components/ModalBlank";
 const AGENT_HOME_PROPERTY_PAGE_SIZES = [6, 12, 18];
 const DEFAULT_AGENT_HOME_PROPERTIES_PER_PAGE = 6;
 
+const AGENT_HOMEOWNERS_PAGE_SIZES = [5, 10, 20];
+const DEFAULT_AGENT_HOMEOWNERS_PER_PAGE = 10;
+
+function HomeownerCardSkeleton() {
+  return (
+    <div
+      className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800/40"
+      aria-hidden
+    >
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <div className="w-11 h-11 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse flex-shrink-0" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              <div className="h-5 w-16 bg-gray-100 dark:bg-gray-700/60 rounded-full animate-pulse" />
+            </div>
+            <div className="h-3 w-44 bg-gray-100 dark:bg-gray-700/60 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="h-6 w-20 bg-gray-100 dark:bg-gray-700/60 rounded-full animate-pulse self-start" />
+      </div>
+      <div className="mt-4">
+        <div className="flex items-center gap-3 p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/30 w-56">
+          <div className="w-14 h-12 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse flex-shrink-0" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="h-3 w-full bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-2.5 w-3/4 bg-gray-100 dark:bg-gray-700/60 rounded animate-pulse" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * One-line mailing-style address without repeating segments that are already inside
  * `address` (e.g. Places autocomplete fills line1 plus city/state/zip duplicated in fields).
@@ -181,6 +216,10 @@ function AgentHome() {
   const [presignedUrls, setPresignedUrls] = useState({});
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
   const [homeownersModalOpen, setHomeownersModalOpen] = useState(false);
+  const [homeownersPage, setHomeownersPage] = useState(1);
+  const [homeownersPerPage, setHomeownersPerPage] = useState(
+    DEFAULT_AGENT_HOMEOWNERS_PER_PAGE,
+  );
   const fetchedKeysRef = useRef(new Set());
   const fetchedTeamUidsRef = useRef(new Set());
 
@@ -532,7 +571,11 @@ function AgentHome() {
         });
     });
 
-    if (pending === 0) setIsLoadingTeams(false);
+    if (pending > 0) {
+      setIsLoadingTeams(true);
+    } else {
+      setIsLoadingTeams(false);
+    }
   }, [properties, getPropertyTeam]);
 
   // ─── Fetch presigned URLs for property photos (only when backend didn't provide one) ──
@@ -652,6 +695,27 @@ function AgentHome() {
       a.name.localeCompare(b.name),
     );
   }, [properties, getHomeowners, getMainPhotoUrl]);
+
+  const paginatedHomeowners = useMemo(() => {
+    if (!acceptedHomeowners.length) return [];
+    const start = (homeownersPage - 1) * homeownersPerPage;
+    return acceptedHomeowners.slice(start, start + homeownersPerPage);
+  }, [acceptedHomeowners, homeownersPage, homeownersPerPage]);
+
+  useEffect(() => {
+    if (!homeownersModalOpen) return;
+    setHomeownersPage(1);
+  }, [homeownersModalOpen]);
+
+  useEffect(() => {
+    const lastPage = Math.max(
+      1,
+      Math.ceil(acceptedHomeowners.length / homeownersPerPage) || 1,
+    );
+    if (homeownersPage > lastPage) {
+      setHomeownersPage(lastPage);
+    }
+  }, [acceptedHomeowners.length, homeownersPerPage, homeownersPage]);
 
   // ─── Computed Stats ─────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -809,18 +873,23 @@ function AgentHome() {
           </div>
 
           {isLoadingTeams ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((item) => (
-                <div
-                  key={item}
-                  className="h-24 rounded-xl bg-gray-100 dark:bg-gray-700 animate-pulse"
-                  aria-hidden
-                />
+            <div
+              className="space-y-3 overflow-y-auto pr-2 -mr-2 min-h-0 flex-1"
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+              aria-label={
+                t("agentHome.loadingHomeowners") || "Loading homeowners"
+              }
+            >
+              {[1, 2, 3, 4, 5].map((item) => (
+                <HomeownerCardSkeleton key={item} />
               ))}
             </div>
           ) : acceptedHomeowners.length > 0 ? (
-            <div className="space-y-3 overflow-y-auto pr-2 -mr-2 min-h-0">
-              {acceptedHomeowners.map((homeowner) => (
+            <>
+              <div className="space-y-3 overflow-y-auto pr-2 -mr-2 min-h-0 flex-1">
+                {paginatedHomeowners.map((homeowner) => (
                 <article
                   key={homeowner.id || homeowner.email}
                   className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
@@ -911,8 +980,26 @@ function AgentHome() {
                     ))}
                   </div>
                 </article>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              {acceptedHomeowners.length > homeownersPerPage && (
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                  <PaginationClassic
+                    currentPage={homeownersPage}
+                    totalItems={acceptedHomeowners.length}
+                    itemsPerPage={homeownersPerPage}
+                    onPageChange={setHomeownersPage}
+                    onItemsPerPageChange={(n) =>
+                      setHomeownersPerPage(
+                        Number(n) || DEFAULT_AGENT_HOMEOWNERS_PER_PAGE,
+                      )
+                    }
+                    pageSizeOptions={AGENT_HOMEOWNERS_PAGE_SIZES}
+                  />
+                </div>
+              )}
+            </>
           ) : (
             <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
               <div className="w-12 h-12 mx-auto rounded-full bg-gray-100 dark:bg-gray-700/60 flex items-center justify-center mb-3">
