@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
   ExternalLink,
+  Loader2,
   Mail,
   RefreshCw,
   Send,
@@ -363,7 +364,9 @@ function EmailDeliveryPage() {
           </Banner>
 
           {loading ? (
-            <p className="text-sm text-gray-500">Loading…</p>
+            <div className={`${SETTINGS_CARD.card} p-8 flex items-center justify-center`}>
+              <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
+            </div>
           ) : (
             <div className="space-y-6">
               <section className={SETTINGS_CARD.card}>
