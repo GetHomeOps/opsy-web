@@ -349,7 +349,13 @@ router.get(
   ensureUserCanAccessAccountByParam("accountId"),
   async function (req, res, next) {
     try {
-      const rows = await Property.getAcceptedHomeownersByAccountId(req.params.accountId);
+      const viewer = res.locals.user;
+      const agentUserId =
+        viewer?.role === "agent" ? viewer.id : null;
+      const rows = await Property.getAcceptedHomeownersByAccountId(
+        req.params.accountId,
+        { agentUserId },
+      );
 
       const homeownersMap = new Map();
       for (const row of rows) {

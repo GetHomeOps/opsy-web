@@ -405,7 +405,7 @@ function AgentHome() {
     return () => {
       cancelled = true;
     };
-  }, [currentAccount?.id]);
+  }, [currentAccount?.id, currentUser?.id]);
 
   // ─── Engagement chart data ────────────────────────────────────
   const engagementLineOptions = useMemo(

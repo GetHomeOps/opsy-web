@@ -243,8 +243,26 @@ class Property {
     return property;
   }
 
-  /* Accepted homeowners on an account's properties (property_users only — not pending invites). */
-  static async getAcceptedHomeownersByAccountId(accountId) {
+  /* Accepted homeowners on an account's properties (property_users only — not pending invites).
+   * When agentUserId is set, only properties where that user is the assigned agent are included. */
+  static async getAcceptedHomeownersByAccountId(accountId, { agentUserId = null } = {}) {
+    const params = [accountId];
+    let agentClause = "";
+    if (agentUserId != null) {
+      params.push(agentUserId);
+      agentClause = `
+         AND EXISTS (
+           SELECT 1
+           FROM property_users pu_agent
+           JOIN users ua ON ua.id = pu_agent.user_id
+           WHERE pu_agent.property_id = p.id
+             AND pu_agent.user_id = $2
+             AND (
+               LOWER(ua.role::text) = 'agent'
+               OR LOWER(pu_agent.role::text) = 'agent'
+             )
+         )`;
+    }
     const result = await db.query(
       `SELECT u.id AS user_id,
               u.email AS user_email,
@@ -266,8 +284,9 @@ class Property {
        WHERE p.account_id = $1
          AND u.role = 'homeowner'
          AND u.is_active = true
+         ${agentClause}
        ORDER BY u.name, p.property_name NULLS LAST, p.address`,
-      [accountId]
+      params
     );
     return result.rows;
   }
