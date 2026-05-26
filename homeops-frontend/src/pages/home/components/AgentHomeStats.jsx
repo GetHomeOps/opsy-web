@@ -9,6 +9,7 @@ function AgentHomeStats({
   t,
   totalProperties,
   stats,
+  loading = false,
   onHomeownersClick,
 }) {
   return (
@@ -37,6 +38,7 @@ function AgentHomeStats({
         value={stats.totalHomeowners}
         subtitle={t("agentHome.activeClients") || "Active clients"}
         color="bg-blue-500"
+        loading={loading}
         onClick={onHomeownersClick}
         ariaLabel="View accepted homeowners and their properties"
       />

@@ -775,6 +775,11 @@ class AppApi {
     return res;
   }
 
+  static async getAccountHomeowners(accountId) {
+    let res = await this.request(`properties/account/${accountId}/homeowners`);
+    return res.homeowners;
+  }
+
   static async getAgentByAccountId(accountId) {
     let res = await this.request(`properties/agent/account/${accountId}`);
     return res.users;

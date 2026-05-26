@@ -150,6 +150,36 @@ function trimStr(value) {
   return s || "";
 }
 
+function mapApiHomeownerToSummary(apiHomeowner) {
+  const properties = (apiHomeowner.properties ?? []).map((property) => {
+    const singleLineAddress = buildPropertySingleLineAddress(property);
+    const titleName = getPropertyListingTitle(property);
+    const displayName =
+      titleName || trimStr(property.passport_id) || "Property";
+    const addressBelow =
+      singleLineAddress &&
+      singleLineAddress.trim().toLowerCase() !==
+        displayName.trim().toLowerCase()
+        ? singleLineAddress
+        : null;
+
+    return {
+      uid: property.property_uid,
+      name: displayName,
+      addressLine: addressBelow,
+      photoUrl: property.main_photo_url ?? null,
+    };
+  });
+
+  return {
+    id: apiHomeowner.id,
+    name: apiHomeowner.name || apiHomeowner.email || "Homeowner",
+    email: apiHomeowner.email || "",
+    imageUrl: apiHomeowner.image_url ?? null,
+    properties,
+  };
+}
+
 /**
  * Property list/card title: DB `property_name`, form `propertyName`, optional `nickname`
  * (and `identity`), but not the street — that belongs in the address line.
@@ -220,6 +250,8 @@ function AgentHome() {
   const [homeownersPerPage, setHomeownersPerPage] = useState(
     DEFAULT_AGENT_HOMEOWNERS_PER_PAGE,
   );
+  const [acceptedHomeowners, setAcceptedHomeowners] = useState([]);
+  const [isLoadingHomeowners, setIsLoadingHomeowners] = useState(false);
   const fetchedKeysRef = useRef(new Set());
   const fetchedTeamUidsRef = useRef(new Set());
 
@@ -345,6 +377,35 @@ function AgentHome() {
         .catch(() => fetchedCommImageKeysRef.current.delete(key));
     });
   }, [communications]);
+
+  useEffect(() => {
+    if (!currentAccount?.id) {
+      setAcceptedHomeowners([]);
+      setIsLoadingHomeowners(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingHomeowners(true);
+    AppApi.getAccountHomeowners(currentAccount.id)
+      .then((list) => {
+        if (cancelled) return;
+        const mapped = (Array.isArray(list) ? list : [])
+          .map(mapApiHomeownerToSummary)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setAcceptedHomeowners(mapped);
+      })
+      .catch(() => {
+        if (!cancelled) setAcceptedHomeowners([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingHomeowners(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAccount?.id]);
 
   // ─── Engagement chart data ────────────────────────────────────
   const engagementLineOptions = useMemo(
@@ -539,44 +600,60 @@ function AgentHome() {
     [],
   );
 
-  // ─── Fetch teams for all properties ─────────────────────────────
+  // ─── Fetch teams for property cards/charts (background; visible grid page first) ─
   useEffect(() => {
     if (!properties?.length || !getPropertyTeam) {
       setIsLoadingTeams(false);
       return;
     }
 
-    let pending = 0;
-    properties.forEach((prop) => {
-      const uid = prop.property_uid ?? prop.id;
-      if (!uid || fetchedTeamUidsRef.current.has(uid)) return;
-      fetchedTeamUidsRef.current.add(uid);
-      pending++;
-      getPropertyTeam(uid)
-        .then((team) => {
-          /* Preserve both the user's platform role (`role` — e.g. "homeowner"
-             / "agent") and their per-property access level (`property_role` —
-             "owner" / "editor" / "viewer"). Earlier versions of this file
-             overwrote `role` with `property_role`, which broke the homeowner
-             counter below since `property_role` is never "homeowner". */
-          const members = team?.property_users ?? [];
-          setPropertyTeams((prev) => ({...prev, [uid]: members}));
-        })
-        .catch(() => {
-          fetchedTeamUidsRef.current.delete(uid);
-        })
-        .finally(() => {
-          pending--;
-          if (pending <= 0) setIsLoadingTeams(false);
-        });
+    const priorityUids = new Set(
+      paginatedProperties
+        .map((prop) => prop.property_uid ?? prop.id)
+        .filter(Boolean),
+    );
+
+    const uidsToFetch = properties
+      .map((prop) => prop.property_uid ?? prop.id)
+      .filter((uid) => uid && !fetchedTeamUidsRef.current.has(uid))
+      .sort((a, b) => Number(priorityUids.has(b)) - Number(priorityUids.has(a)));
+
+    if (!uidsToFetch.length) {
+      setIsLoadingTeams(false);
+      return;
+    }
+
+    uidsToFetch.forEach((uid) => fetchedTeamUidsRef.current.add(uid));
+    setIsLoadingTeams(true);
+
+    let cancelled = false;
+
+    Promise.all(
+      uidsToFetch.map((uid) =>
+        getPropertyTeam(uid)
+          .then((team) => {
+            const members = team?.property_users ?? [];
+            return {uid, members};
+          })
+          .catch(() => {
+            fetchedTeamUidsRef.current.delete(uid);
+            return {uid, members: []};
+          }),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const batch = {};
+      results.forEach(({uid, members}) => {
+        batch[uid] = members;
+      });
+      setPropertyTeams((prev) => ({...prev, ...batch}));
+      setIsLoadingTeams(false);
     });
 
-    if (pending > 0) {
-      setIsLoadingTeams(true);
-    } else {
-      setIsLoadingTeams(false);
-    }
-  }, [properties, getPropertyTeam]);
+    return () => {
+      cancelled = true;
+    };
+  }, [properties, getPropertyTeam, paginatedProperties]);
 
   // ─── Fetch presigned URLs for property photos (only when backend didn't provide one) ──
   useEffect(() => {
@@ -626,76 +703,6 @@ function AgentHome() {
     [propertyTeams],
   );
 
-  const getHomeowners = useCallback(
-    (property) => {
-      const team = getTeamMembers(property);
-      /* Filter on the user's platform role (users.role). `property_role` is an
-         ENUM of owner/editor/viewer and never equals "homeowner". */
-      return team.filter(
-        (m) => !m._pending && (m.role ?? "").toLowerCase() === "homeowner",
-      );
-    },
-    [getTeamMembers],
-  );
-
-  const acceptedHomeowners = useMemo(() => {
-    if (!properties?.length) return [];
-
-    const homeownersByKey = new Map();
-    properties.forEach((property) => {
-      const propertyUid = property.property_uid ?? property.id;
-      const singleLineAddress = buildPropertySingleLineAddress(property);
-
-      getHomeowners(property).forEach((homeowner) => {
-        const key =
-          homeowner.id != null
-            ? `id:${homeowner.id}`
-            : `email:${(homeowner.email || "").toLowerCase()}`;
-        if (!homeownersByKey.has(key)) {
-          homeownersByKey.set(key, {
-            id: homeowner.id,
-            name: homeowner.name || homeowner.email || "Homeowner",
-            email: homeowner.email || "",
-            imageUrl: homeowner.image_url || homeowner.image || null,
-            properties: [],
-          });
-        }
-
-        const summary = homeownersByKey.get(key);
-        if (
-          !summary.properties.some(
-            (p) => String(p.uid) === String(propertyUid),
-          )
-        ) {
-          const titleName = getPropertyListingTitle(property);
-
-          const displayName =
-            titleName ||
-            trimStr(property.passport_id) ||
-            "Property";
-
-          const addressBelow =
-            singleLineAddress &&
-            singleLineAddress.trim().toLowerCase() !==
-              displayName.trim().toLowerCase()
-              ? singleLineAddress
-              : null;
-
-          summary.properties.push({
-            uid: propertyUid,
-            name: displayName,
-            addressLine: addressBelow,
-            photoUrl: getMainPhotoUrl(property),
-          });
-        }
-      });
-    });
-
-    return [...homeownersByKey.values()].sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
-  }, [properties, getHomeowners, getMainPhotoUrl]);
-
   const paginatedHomeowners = useMemo(() => {
     if (!acceptedHomeowners.length) return [];
     const start = (homeownersPage - 1) * homeownersPerPage;
@@ -735,21 +742,13 @@ function AgentHome() {
     const healthyCount = scores.filter((s) => s >= 60).length;
     const needsAttentionCount = scores.filter((s) => s < 60).length;
 
-    // Count unique homeowners across all properties
-    const homeownerIds = new Set();
-    properties.forEach((prop) => {
-      getHomeowners(prop).forEach((h) => {
-        if (h.id) homeownerIds.add(h.id);
-      });
-    });
-
     return {
       avgHealth,
-      totalHomeowners: homeownerIds.size,
+      totalHomeowners: acceptedHomeowners.length,
       healthyCount,
       needsAttentionCount,
     };
-  }, [properties, getHomeowners]);
+  }, [properties, acceptedHomeowners.length]);
 
   const healthDistribution = useMemo(() => {
     if (!properties?.length) return [];
@@ -829,6 +828,7 @@ function AgentHome() {
         t={t}
         totalProperties={totalProperties}
         stats={stats}
+        loading={isLoadingHomeowners}
         onHomeownersClick={() => setHomeownersModalOpen(true)}
       />
 
@@ -850,7 +850,7 @@ function AgentHome() {
                     {t("agentHome.acceptedHomeownersTitle") ||
                       "Active Homeowners"}
                   </h2>
-                  {!isLoadingTeams && acceptedHomeowners.length > 0 && (
+                  {!isLoadingHomeowners && acceptedHomeowners.length > 0 && (
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
                       {acceptedHomeowners.length}
                     </span>
@@ -872,7 +872,7 @@ function AgentHome() {
             </button>
           </div>
 
-          {isLoadingTeams ? (
+          {isLoadingHomeowners ? (
             <div
               className="space-y-3 overflow-y-auto pr-2 -mr-2 min-h-0 flex-1"
               role="status"

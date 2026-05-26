@@ -1,4 +1,4 @@
-import React, {createContext, useState, useMemo, useEffect} from "react";
+import React, {createContext, useState, useMemo, useEffect, useRef} from "react";
 import AppApi from "../api/api";
 import useLocalStorage from "../hooks/useLocalStorage";
 import {useAuth} from "./AuthContext";
@@ -20,6 +20,13 @@ export function PropertyProvider({children}) {
   );
   const {currentUser, isLoading} = useAuth();
   const {currentAccount} = useCurrentAccount();
+  const propertyTeamCacheRef = useRef(new Map());
+  const propertyTeamInflightRef = useRef(new Map());
+
+  useEffect(() => {
+    propertyTeamCacheRef.current.clear();
+    propertyTeamInflightRef.current.clear();
+  }, [currentUser?.id]);
 
   /** Normalize property for list display - ensure health value from hps_score/hpsScore.
    *  When the backend has no persisted score, compute it from the property's identity data. */
@@ -185,6 +192,8 @@ export function PropertyProvider({children}) {
   async function updateTeam(propertyId, team) {
     try {
       const res = await AppApi.updatePropertyTeam(propertyId, team);
+      propertyTeamCacheRef.current.delete(propertyId);
+      propertyTeamInflightRef.current.delete(propertyId);
       return res;
     } catch (err) {
       console.error("There was an error updating property team:", err);
@@ -237,15 +246,33 @@ export function PropertyProvider({children}) {
     }
   };
 
-  /* Get property team */
+  /* Get property team (cached per property uid for the session) */
   async function getPropertyTeam(propertyId) {
-    try {
-      const res = await AppApi.getPropertyTeam(propertyId);
-      return res;
-    } catch (err) {
-      console.error("There was an error getting property team:", err);
-      throw err;
+    const cacheKey = String(propertyId);
+    const cache = propertyTeamCacheRef.current;
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey);
     }
+
+    const inflight = propertyTeamInflightRef.current;
+    if (inflight.has(cacheKey)) {
+      return inflight.get(cacheKey);
+    }
+
+    const promise = AppApi.getPropertyTeam(propertyId)
+      .then((res) => {
+        cache.set(cacheKey, res);
+        inflight.delete(cacheKey);
+        return res;
+      })
+      .catch((err) => {
+        inflight.delete(cacheKey);
+        console.error("There was an error getting property team:", err);
+        throw err;
+      });
+
+    inflight.set(cacheKey, promise);
+    return promise;
   }
 
   /* --------- Maintenance Records --------- */

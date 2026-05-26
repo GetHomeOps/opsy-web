@@ -2,7 +2,7 @@
 
 const express = require("express");
 const jsonschema = require("jsonschema");
-const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensurePropertyAccess, ensurePropertyOwner, ensureUserCanAccessAccountFromBody, clearPropertyAccessCache } = require("../middleware/auth");
+const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensurePropertyAccess, ensurePropertyOwner, ensureUserCanAccessAccountFromBody, ensureUserCanAccessAccountByParam, clearPropertyAccessCache } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const Property = require("../models/property");
 const propertyNewSchema = require("../schemas/propertyNew.json");
@@ -341,6 +341,81 @@ router.get("/agent/account/:accountId", ensureLoggedIn, async function (req, res
     return next(err);
   }
 });
+
+/** GET /account/:accountId/homeowners - Accepted homeowners with linked properties (one query). */
+router.get(
+  "/account/:accountId/homeowners",
+  ensureLoggedIn,
+  ensureUserCanAccessAccountByParam("accountId"),
+  async function (req, res, next) {
+    try {
+      const rows = await Property.getAcceptedHomeownersByAccountId(req.params.accountId);
+
+      const homeownersMap = new Map();
+      for (const row of rows) {
+        const userId = row.user_id;
+        if (!homeownersMap.has(userId)) {
+          homeownersMap.set(userId, {
+            id: userId,
+            name: row.user_name || row.user_email || "Homeowner",
+            email: row.user_email || "",
+            image: row.user_image,
+            avatar_url: row.user_avatar_url,
+            properties: [],
+          });
+        }
+        homeownersMap.get(userId).properties.push({
+          property_uid: row.property_uid,
+          property_name: row.property_name,
+          passport_id: row.passport_id,
+          main_photo: row.main_photo,
+          address: row.address,
+          city: row.city,
+          state: row.state,
+          zip: row.zip,
+        });
+      }
+
+      let homeowners = [...homeownersMap.values()];
+      homeowners = await addPresignedUrlsToItems(homeowners, "image", "image_url");
+      homeowners = homeowners.map((h) => ({
+        ...h,
+        image_url: h.image_url ?? h.avatar_url ?? null,
+      }));
+
+      const allProperties = homeowners.flatMap((h) => h.properties);
+      const propertiesWithUrls = await addPresignedUrlsToItems(
+        allProperties,
+        "main_photo",
+        "main_photo_url",
+      );
+      const photoUrlByUid = new Map(
+        propertiesWithUrls.map((p) => [p.property_uid, p.main_photo_url ?? null]),
+      );
+
+      const payload = homeowners.map((h) => ({
+        id: h.id,
+        name: h.name,
+        email: h.email,
+        image_url: h.image_url,
+        properties: h.properties.map((p) => ({
+          property_uid: p.property_uid,
+          property_name: p.property_name,
+          passport_id: p.passport_id,
+          address: p.address,
+          city: p.city,
+          state: p.state,
+          zip: p.zip,
+          main_photo_url: photoUrlByUid.get(p.property_uid) ?? null,
+        })),
+      }));
+
+      return res.json({ homeowners: payload });
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 /** GET /:uid - Get single property by uid. Requires property access. */
 router.get("/:uid", ensureLoggedIn, ensurePropertyAccess(), async function (req, res, next) {

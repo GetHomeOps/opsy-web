@@ -11,7 +11,7 @@
  * - create / get / getAll: CRUD for properties
  * - getPropertiesByAccountId / getPropertiesByUserId: Filter by account or user
  * - addUserToProperty / updatePropertyUsers: Manage property team access
- * - getPropertyTeam / getAgentByAccountId: Retrieve team/agent data
+ * - getPropertyTeam / getAgentByAccountId / getAcceptedHomeownersByAccountId: Retrieve team/agent data
  */
 
 const { customAlphabet } = require("nanoid");
@@ -241,6 +241,35 @@ class Property {
     const property = result.rows[0];
     if (!property) throw new NotFoundError(`No property with uid: ${uid}`);
     return property;
+  }
+
+  /* Accepted homeowners on an account's properties (property_users only — not pending invites). */
+  static async getAcceptedHomeownersByAccountId(accountId) {
+    const result = await db.query(
+      `SELECT u.id AS user_id,
+              u.email AS user_email,
+              u.name AS user_name,
+              u.image AS user_image,
+              u.avatar_url AS user_avatar_url,
+              p.id AS property_id,
+              p.property_uid,
+              p.property_name,
+              p.passport_id,
+              p.main_photo,
+              p.address,
+              p.city,
+              p.state,
+              p.zip
+       FROM properties p
+       JOIN property_users pu ON pu.property_id = p.id
+       JOIN users u ON u.id = pu.user_id
+       WHERE p.account_id = $1
+         AND u.role = 'homeowner'
+         AND u.is_active = true
+       ORDER BY u.name, p.property_name NULLS LAST, p.address`,
+      [accountId]
+    );
+    return result.rows;
   }
 
   /* Get agents/admins for an account */
