@@ -251,8 +251,8 @@ const PropertyCard = ({
                 onOpenAIAssistant(property);
               }}
               className="p-1.5 rounded-full bg-white/90 hover:bg-white text-[#456564] shadow-sm transition-colors"
-              title="AI Assistant"
-              aria-label="Open AI Assistant"
+              title="Opsy Assistant"
+              aria-label="Open Opsy Assistant"
             >
               <Sparkles className="w-4 h-4" />
             </button>

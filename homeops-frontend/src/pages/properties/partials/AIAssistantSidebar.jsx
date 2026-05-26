@@ -590,7 +590,7 @@ function AIAssistantSidebar({
               className="w-5 h-5 object-contain shrink-0"
             />
             <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-              AI Assistant
+              Opsy Assistant
             </h3>
           </div>
           <div className="flex items-center gap-1">
@@ -1153,7 +1153,7 @@ function AIAssistantSidebar({
                 className="form-input form-textarea flex-1 min-w-0 resize-none rounded-lg text-sm py-2 leading-snug max-h-32 overflow-y-auto disabled:opacity-60"
                 style={{minHeight: "40px"}}
                 disabled={loading}
-                aria-label="Message to AI assistant"
+                aria-label="Message to Opsy assistant"
               />
               <button
                 type="button"
@@ -1170,7 +1170,7 @@ function AIAssistantSidebar({
         {!propertyId && (
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Save the property to use the AI assistant.
+              Save the property to use the Opsy assistant.
             </p>
           </div>
         )}
@@ -1180,7 +1180,7 @@ function AIAssistantSidebar({
         open={upgradePromptOpen}
         onClose={() => setUpgradePromptOpen(false)}
         title="AI usage limit reached"
-        message="You've used all your AI tokens for this month. Upgrade your plan for more AI assistant usage."
+        message="You've used all your AI tokens for this month. Upgrade your plan for more Opsy assistant usage."
       />
     </>
   );

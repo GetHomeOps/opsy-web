@@ -36,7 +36,7 @@ export const HOMEOWNER_PLANS = [
     code: "homeowner_maintain",
     name: "Maintain",
     price: null,
-    description: "Core protection: AI assistant, contractor scheduling",
+    description: "Core protection: Opsy assistant, contractor scheduling",
     popular: true,
     tier: "standard",
     features: {

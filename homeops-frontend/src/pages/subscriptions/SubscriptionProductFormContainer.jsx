@@ -1653,7 +1653,7 @@ function SubscriptionProductFormContainer() {
                             {t(
                               "subscriptionProducts.tierLimits.aiFeaturesEnabledHint",
                             ) ||
-                              "When enabled, subscribers can use AI inspection report analysis and the AI assistant (subject to token limits). When disabled, those actions are blocked at the API."}
+                              "When enabled, subscribers can use AI inspection report analysis and the Opsy assistant (subject to token limits). When disabled, those actions are blocked at the API."}
                           </span>
                         </span>
                       </label>

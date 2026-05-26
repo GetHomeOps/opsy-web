@@ -462,7 +462,7 @@ function CollapsibleSection({
                 </Tooltip>
               )}
               {onOpenAIAssistant && (
-                <Tooltip content="AI Assistant" position="bottom">
+                <Tooltip content="Opsy Assistant" position="bottom">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -531,7 +531,7 @@ function CollapsibleSection({
                       });
                     }}
                     className="inline-flex items-center justify-center w-[18px] h-[18px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors rounded hover:bg-gray-100 dark:hover:bg-gray-600/50 p-0.5"
-                    aria-label="Open AI Assistant"
+                    aria-label="Open Opsy Assistant"
                   >
                     <Sparkles className="w-[18px] h-[18px]" strokeWidth={2} />
                   </button>

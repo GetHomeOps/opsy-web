@@ -588,15 +588,15 @@ function PropertyFormContainer() {
     if (!isAdmin && !aiFeaturesEnabled) {
       setUpgradePromptTitle("AI not included on this plan");
       setUpgradePromptMsg(
-        "Your subscription does not include AI inspection analysis or the assistant. Upgrade to a plan that includes AI features.",
+        "Your subscription does not include AI inspection analysis or the Opsy assistant. Upgrade to a plan that includes AI features.",
       );
       setUpgradePromptOpen(true);
       return;
     }
     if (!isPaidUser) {
-      setUpgradePromptTitle("AI Assistant not included");
+      setUpgradePromptTitle("Opsy Assistant not included");
       setUpgradePromptMsg(
-        "Your plan does not include AI assistance. Upgrade to get AI-powered maintenance and property insights.",
+        "Your plan does not include the Opsy assistant. Upgrade to get AI-powered maintenance and property insights.",
       );
       setUpgradePromptOpen(true);
       return;

@@ -153,8 +153,8 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
                     ref={aiAssistantButtonRef}
                     onClick={handleAiAssistantClick}
                     className="group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-[1.03] shrink-0"
-                    aria-label="AI Assistant"
-                    title="AI Assistant"
+                    aria-label="Opsy Assistant"
+                    title="Opsy Assistant"
                   >
                     <span className="absolute inset-0 rounded-full ai-glow" />
                     <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ai-orbit-ring" />
@@ -198,8 +198,8 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
       <UpgradePrompt
         open={aiUpgradeModalOpen}
         onClose={() => setAiUpgradeModalOpen(false)}
-        title="AI Assistant not included"
-        message="Your plan does not include AI assistance. Upgrade to get AI-powered maintenance and property insights."
+        title="Opsy Assistant not included"
+        message="Your plan does not include the Opsy assistant. Upgrade to get AI-powered maintenance and property insights."
         upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
         ignoreClickRef={aiAssistantButtonRef}
       />

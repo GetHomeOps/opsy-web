@@ -429,7 +429,7 @@ router.post(
 
       const aiAllowed = await checkAiFeaturesAllowed(userId, res.locals.user?.role);
       if (!aiAllowed.allowed) {
-        throw new ForbiddenError(aiAllowed.message || "AI assistant is not available on your plan.");
+        throw new ForbiddenError(aiAllowed.message || "Opsy assistant is not available on your plan.");
       }
 
       const quotaCheck = await checkAiTokenQuota(userId, res.locals.user?.role);

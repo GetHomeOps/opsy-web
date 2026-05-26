@@ -143,7 +143,7 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
                   className="w-5 h-5 object-contain shrink-0"
                 />
                 <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                  AI Assistant
+                  Opsy Assistant
                 </h2>
               </div>
               <button
@@ -167,12 +167,12 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
                   <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     {isPaidUser && !aiFeaturesOnPlan
                       ? "AI not included on this plan"
-                      : "AI Assistant not included"}
+                      : "Opsy Assistant not included"}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-xs">
                     {isPaidUser && !aiFeaturesOnPlan
-                      ? "Your subscription does not include AI inspection analysis or the assistant. Upgrade to a plan that includes AI features."
-                      : "Your plan does not include AI assistance. Upgrade to get AI-powered maintenance and property insights."}
+                      ? "Your subscription does not include AI inspection analysis or the Opsy assistant. Upgrade to a plan that includes AI features."
+                      : "Your plan does not include the Opsy assistant. Upgrade to get AI-powered maintenance and property insights."}
                   </p>
                   <div className="flex items-center gap-3">
                     <button
@@ -201,7 +201,7 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
               ) : (
                 <>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    Select a property to chat with the AI assistant about
+                    Select a property to chat with the Opsy assistant about
                     maintenance and systems.
                   </p>
                   <div className="relative mb-3">
