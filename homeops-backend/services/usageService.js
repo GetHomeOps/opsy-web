@@ -16,6 +16,7 @@ const COST_RATES = {
   'openai/gpt-4o-mini': { prompt: 0.00015 / 1000, completion: 0.0006 / 1000 },
   's3/upload': 0.000023,
   'ses/email': 0.0001,
+  'customer_io/email': 0.0001,
 };
 
 async function logAiUsage({ accountId, userId, model, promptTokens, completionTokens, endpoint }) {
@@ -48,16 +49,17 @@ async function logStorageUsage({ accountId, userId, fileSizeBytes, fileKey }) {
   });
 }
 
-async function logEmailUsage({ accountId, userId, emailType }) {
+async function logEmailUsage({ accountId, userId, emailType, provider = 'ses' }) {
+  const resource = provider === 'customer_io' ? 'customer_io/email' : 'ses/email';
   return AccountUsageEvent.log({
     accountId,
     userId,
     category: 'email',
-    resource: 'ses/email',
+    resource,
     quantity: 1,
     unit: 'count',
-    unitCost: COST_RATES['ses/email'],
-    metadata: { emailType },
+    unitCost: COST_RATES[resource] || COST_RATES['ses/email'],
+    metadata: { emailType, provider },
   });
 }
 

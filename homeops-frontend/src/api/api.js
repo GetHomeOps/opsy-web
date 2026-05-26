@@ -1217,6 +1217,57 @@ class AppApi {
     return res.product;
   }
 
+  /* --------- Email Delivery (Super Admin) --------- */
+
+  static async getEmailDeliverySettings() {
+    return this.request("email-delivery/settings");
+  }
+
+  static async updateEmailDeliverySettings(data) {
+    return this.request("email-delivery/settings", data, "PATCH");
+  }
+
+  static async getEmailDeliveryTemplates() {
+    return this.request("email-delivery/templates");
+  }
+
+  static async getEmailDeliveryTemplate(emailType) {
+    return this.request(`email-delivery/templates/${encodeURIComponent(emailType)}`);
+  }
+
+  static async updateEmailDeliveryTemplate(emailType, data) {
+    return this.request(
+      `email-delivery/templates/${encodeURIComponent(emailType)}`,
+      data,
+      "PATCH",
+    );
+  }
+
+  static async resetEmailDeliveryTemplate(emailType) {
+    return this.request(
+      `email-delivery/templates/${encodeURIComponent(emailType)}/reset`,
+      {},
+      "POST",
+    );
+  }
+
+  static async testEmailDeliveryTemplate(emailType, data = {}) {
+    return this.request(
+      `email-delivery/templates/${encodeURIComponent(emailType)}/test`,
+      data,
+      "POST",
+    );
+  }
+
+  /** Journey/campaign debugging: Track API fires the template's CIO event + sample merges. */
+  static async testEmailDeliveryCustomerIoEvent(emailType, data = {}) {
+    return this.request(
+      `email-delivery/templates/${encodeURIComponent(emailType)}/test-customer-io-event`,
+      data,
+      "POST",
+    );
+  }
+
   /* --------- Inspection Report Analysis --------- */
 
   static async startInspectionAnalysis(propertyId, { s3Key, fileName, mimeType }) {

@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "enum": ["inherit", "ses", "customer_io"]
+    },
+    "sesSubject": { "type": ["string", "null"] },
+    "sesHtmlBody": { "type": ["string", "null"] },
+    "showFooter": { "type": ["boolean", "null"] },
+    "footerImageUrl": { "type": ["string", "null"] },
+    "customerIoMode": {
+      "type": ["string", "null"],
+      "enum": ["event", "transactional", "both", null]
+    },
+    "customerIoTransactionalId": { "type": ["integer", "null"] },
+    "customerIoEventName": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

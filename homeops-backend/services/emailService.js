@@ -12,12 +12,11 @@
  * When email is not configured, password reset logs the link to console (dev).
  */
 
-const fs = require("fs");
-const path = require("path");
-const { SESClient, SendEmailCommand, SendRawEmailCommand } = require("@aws-sdk/client-ses");
-const { EMAIL_BRAND_NAME, APP_BASE_URL } = require("../config");
+const { EMAIL_BRAND_NAME } = require("../config");
+const sesProvider = require("./emailProviders/sesProvider");
+const emailProviderRouter = require("./emailProviderRouter");
 const brandName = EMAIL_BRAND_NAME;
-const FOOTER_IMAGE_CID = "opsy-footer-image";
+const FOOTER_IMAGE_CID = sesProvider.FOOTER_IMAGE_CID;
 
 function escapeHtml(s) {
   if (s == null) return "";
@@ -66,33 +65,8 @@ function sanitizeSenderLabelForEmail(name) {
   return name.replace(/\bHomeOps\b/g, "Opsy");
 }
 
-const region = process.env.AWS_SES_REGION || process.env.AWS_REGION || "us-east-1";
-const credentials =
-  process.env.AWS_SES_ACCESS_KEY_ID && process.env.AWS_SES_SECRET_ACCESS_KEY
-    ? {
-      accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY,
-    }
-    : undefined;
-const sesClient = new SESClient({ region, ...(credentials && { credentials }) });
-
-function getFromAddress() {
-  const email = process.env.SES_FROM_EMAIL;
-  const rawFromName = process.env.SES_FROM_NAME || brandName;
-  const name = rawFromName === "HomeOps" ? "Opsy" : rawFromName;
-  if (!email) {
-    throw new Error("SES_FROM_EMAIL not configured. Set it in .env (e.g. noreply@yourdomain.com)");
-  }
-  return `${name} <${email}>`;
-}
-
-/**
- * True when a verified From address is set. AWS credentials may come from env vars,
- * ~/.aws/credentials (default profile), or an IAM role (ECS/Lambda/EC2) via the SDK default chain.
- * Omit SES_FROM_EMAIL in local .env to skip sending and log the reset link instead (see passwordResetService).
- */
 function isSesConfigured() {
-  return !!(process.env.SES_FROM_EMAIL && process.env.SES_FROM_EMAIL.trim());
+  return sesProvider.isSesConfigured();
 }
 
 /** Comma- or semicolon-separated list; default HeyOpsy@heyopsy.com */
@@ -125,139 +99,8 @@ async function sendOpsTeamInternalNotification({ subject, innerHtml }) {
     return { success: false, reason: "ses_not_configured" };
   }
   for (const to of recipients) {
-    await sendViaSes({ to, subject: fullSubject, html });
+    await sesProvider.sendViaSes({ to, subject: fullSubject, html });
   }
-  return { success: true };
-}
-
-function chunkBase64(value, size = 76) {
-  const chunks = [];
-  for (let i = 0; i < value.length; i += size) chunks.push(value.slice(i, i + size));
-  return chunks.join("\r\n");
-}
-
-function resolveFooterImagePath() {
-  const explicitPath = process.env.EMAIL_FOOTER_IMAGE_PATH;
-  if (explicitPath && fs.existsSync(explicitPath)) return explicitPath;
-  const candidates = [
-    path.resolve(__dirname, "../../homeops-frontend/public/footer.png"),
-    path.resolve(__dirname, "../assets/footer.png"),
-  ];
-  return candidates.find((p) => fs.existsSync(p)) || null;
-}
-
-async function readFooterImageBase64() {
-  const footerPath = resolveFooterImagePath();
-  if (!footerPath) return null;
-  const image = await fs.promises.readFile(footerPath);
-  return image.toString("base64");
-}
-
-async function logUsageIfNeeded(usage) {
-  if (usage?.accountId != null && usage?.userId != null) {
-    const { logEmailUsage } = require("./usageService");
-    logEmailUsage({
-      accountId: usage.accountId,
-      userId: usage.userId,
-      emailType: usage.emailType || "transactional",
-    }).catch((err) => console.error("[emailService] logEmailUsage:", err.message));
-  }
-}
-
-async function sendViaSesRawWithInlineFooter({
-  to,
-  subject,
-  html,
-  replyTo,
-  usage,
-  footerImageBase64,
-  cc = [],
-}) {
-  const boundary = `opsy_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  const ccLine =
-    Array.isArray(cc) && cc.length > 0 ? `Cc: ${cc.join(", ")}` : null;
-  const lines = [
-    `From: ${getFromAddress()}`,
-    `To: ${to}`,
-    ...(ccLine ? [ccLine] : []),
-    `Subject: ${subject}`,
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/related; boundary="${boundary}"`,
-    ...(replyTo && replyTo.trim() ? [`Reply-To: ${replyTo.trim()}`] : []),
-    "",
-    `--${boundary}`,
-    "Content-Type: text/html; charset=UTF-8",
-    "Content-Transfer-Encoding: 7bit",
-    "",
-    html,
-    "",
-    `--${boundary}`,
-    'Content-Type: image/png; name="footer.png"',
-    "Content-Transfer-Encoding: base64",
-    `Content-ID: <${FOOTER_IMAGE_CID}>`,
-    'Content-Disposition: inline; filename="footer.png"',
-    "",
-    chunkBase64(footerImageBase64),
-    `--${boundary}--`,
-    "",
-  ];
-
-  await sesClient.send(
-    new SendRawEmailCommand({
-      RawMessage: { Data: Buffer.from(lines.join("\r\n"), "utf8") },
-    })
-  );
-  await logUsageIfNeeded(usage);
-  return { success: true };
-}
-
-async function sendViaSes({ to, subject, html, replyTo, usage, cc }) {
-  const ccList = Array.isArray(cc)
-    ? [...new Set(cc.map((e) => String(e || "").trim()).filter(Boolean))]
-    : [];
-  if (html.includes(`cid:${FOOTER_IMAGE_CID}`)) {
-    try {
-      const footerImageBase64 = await readFooterImageBase64();
-      if (footerImageBase64) {
-        return sendViaSesRawWithInlineFooter({
-          to,
-          subject,
-          html,
-          replyTo,
-          usage,
-          footerImageBase64,
-          cc: ccList,
-        });
-      }
-      const fallbackUrl =
-        process.env.EMAIL_FOOTER_IMAGE_URL ||
-        `${(APP_BASE_URL || "https://app.heyopsy.com").replace(/\/$/, "")}/footer.png`;
-      html = html.replace(`cid:${FOOTER_IMAGE_CID}`, escapeHtmlAttr(fallbackUrl));
-    } catch (err) {
-      console.error("[emailService] inline footer image load failed:", err.message);
-    }
-  }
-
-  const params = {
-    Source: getFromAddress(),
-    Destination: {
-      ToAddresses: [to],
-      ...(ccList.length > 0 ? { CcAddresses: ccList } : {}),
-    },
-    Message: {
-      Subject: { Data: subject, Charset: "UTF-8" },
-      Body: {
-        Html: { Data: html, Charset: "UTF-8" },
-      },
-    },
-  };
-  if (replyTo && replyTo.trim()) {
-    params.ReplyToAddresses = [replyTo.trim()];
-  }
-  const command = new SendEmailCommand(params);
-
-  await sesClient.send(command);
-  await logUsageIfNeeded(usage);
   return { success: true };
 }
 
@@ -281,7 +124,7 @@ async function sendPasswordResetEmail({ to, resetUrl, userName, usage }) {
     </div>
   `;
 
-  return sendViaSes({
+  return sesProvider.sendViaSes({
     to,
     subject: `Reset your ${brandName} password`,
     html,
@@ -309,7 +152,7 @@ async function sendEmailVerificationEmail({ to, verifyUrl, userName, usage }) {
     </div>
   `;
 
-  return sendViaSes({
+  return sesProvider.sendViaSes({
     to,
     subject: `Verify your email — ${brandName}`,
     html,
@@ -317,10 +160,6 @@ async function sendEmailVerificationEmail({ to, verifyUrl, userName, usage }) {
   });
 }
 
-/**
- * Property invitation copy (headline, greeting, body) — shared by send + default plain-text preview.
- * @returns {{ headline: string, intro: string, bodyExtra: string, ctaLabel: string }}
- */
 function getPropertyInvitationEmailParts(
   inviterName,
   inviteeName,
@@ -349,7 +188,6 @@ function getPropertyInvitationEmailParts(
   };
 }
 
-/** Plain-text default for the editable “main” of a property invite (everything before the button). */
 function buildPropertyInvitationDefaultMainPlain({
   inviterName,
   inviteeName,
@@ -365,12 +203,6 @@ function buildPropertyInvitationDefaultMainPlain({
   return `${headline}\n\n${intro}\n\n${bodyExtra}`;
 }
 
-/**
- * Send invitation email with confirmation or sign-in link.
- * @param {Object} opts - { to, inviteUrl, inviterName?, inviteeName?, type: 'account'|'property', propertyAddress?,
- *   inviteeHasAccount?: boolean } — for property invites, inviteeHasAccount selects existing-user vs new-user copy.
- *   mainPlainOverride: optional full main body (plain text) for property invites; replaces headline/intro/extra/note.
- */
 async function sendInvitationEmail({
   to,
   inviteUrl,
@@ -384,11 +216,8 @@ async function sendInvitationEmail({
   cc = null,
   mainPlainOverride = null,
 }) {
-  if (!isSesConfigured()) {
-    throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
-  }
-
   const isProperty = type === "property";
+  const emailType = isProperty ? "property_invitation" : "account_invitation";
   const subject = isProperty
     ? `You've been invited to join a property${propertyAddress ? `: ${propertyAddress}` : ""}`
     : `You've been invited to join ${brandName}`;
@@ -462,9 +291,11 @@ async function sendInvitationEmail({
       ? [...new Set(cc.map((e) => String(e || "").trim()).filter(Boolean))]
       : [];
 
+  const mainContentHtml = useCustomMain ? customMainBlock : standardMainBlock;
+
   const html = `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-      ${useCustomMain ? customMainBlock : standardMainBlock}
+      ${mainContentHtml}
       <p style="margin: 24px 0;">
         <a href="${inviteUrl}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">${ctaLabel}</a>
       </p>
@@ -473,7 +304,36 @@ async function sendInvitationEmail({
     </div>
   `;
 
-  return sendViaSes({ to, subject, html, usage, cc: ccList });
+  const mergeData = {
+    brandName,
+    inviteUrl,
+    inviterName: inviterName || "Someone",
+    inviteeName: inviteeName || "",
+    propertyAddress: propertyAddress || "",
+    propertyAddressSuffix: propertyAddress ? `: ${propertyAddress}` : "",
+    inviteeHasAccount,
+    personalNote: noteTrim,
+    personalNoteBlock,
+    mainPlainOverride: mainTrim,
+    inviteInstructions: isProperty ? bodyExtra : "",
+    headline,
+    intro,
+    bodyExtra,
+    ctaLabel,
+    footerNote,
+    mainContentHtml,
+    invitationType: type,
+  };
+
+  return emailProviderRouter.deliver({
+    emailType,
+    to,
+    subject,
+    html,
+    mergeData,
+    usage,
+    cc: ccList,
+  });
 }
 
 /**
@@ -488,9 +348,6 @@ async function sendBulkPropertyInvitationEmail({
   inviteeHasAccount = false,
   usage,
 }) {
-  if (!isSesConfigured()) {
-    throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
-  }
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("sendBulkPropertyInvitationEmail requires a non-empty items array");
   }
@@ -566,7 +423,29 @@ async function sendBulkPropertyInvitationEmail({
     </div>
   `;
 
-  return sendViaSes({ to, subject, html, usage });
+  return emailProviderRouter.deliver({
+    emailType: "bulk_property_invitation",
+    to,
+    subject,
+    html,
+    mergeData: {
+      brandName,
+      inviterName: inviterName || "Someone",
+      inviteeName: inviteeName || "",
+      inviteeHasAccount,
+      items,
+      itemCount: n,
+      subject,
+      bulkInviteInstructions: bodyExtra,
+      headline,
+      intro,
+      bodyExtra,
+      linkIntro,
+      listHtml,
+      footerNote,
+    },
+    usage,
+  });
 }
 
 /**
@@ -584,15 +463,13 @@ async function sendContractorReportEmail({
   inspectionDate,
   usage,
 }) {
-  if (!isSesConfigured()) {
-    throw new Error("SES not configured. Set SES_FROM_EMAIL and AWS credentials (or IAM role).");
-  }
-
   const greeting = contractorName ? `Hi ${contractorName},` : "Hi,";
   const senderLabel = sanitizeSenderLabelForEmail(senderName);
   const requester = senderLabel ? senderLabel : "A homeowner";
   const propertyText = propertyAddress ? ` for the property at <strong>${propertyAddress}</strong>` : "";
   const systemText = systemName ? ` regarding <strong>${systemName}</strong>` : "";
+  const propertyAtPhrase = propertyText;
+  const systemPhrase = systemText;
 
   const detailsRows = [];
   if (origin) detailsRows.push(`<tr><td style="padding: 4px 12px 4px 0; color: #6b7280; vertical-align: top;">Origin:</td><td><a href="${origin}">${origin}</a></td></tr>`);
@@ -621,7 +498,29 @@ async function sendContractorReportEmail({
     </div>
   `;
 
-  return sendViaSes({ to, subject, html, usage });
+  return emailProviderRouter.deliver({
+    emailType: "contractor_report",
+    to,
+    subject,
+    html,
+    mergeData: {
+      brandName,
+      reportUrl,
+      contractorName: contractorName || "",
+      propertyAddress: propertyAddress || "",
+      propertySuffix: propertyAddress ? ` – ${propertyAddress}` : "",
+      propertyAtPhrase,
+      systemPhrase,
+      systemName: systemName || "",
+      senderName: requester,
+      origin: origin || "",
+      inspectionDate: inspectionDate || "",
+      greeting,
+      requestLine: `${requester} has requested that you fill out a maintenance/inspection report${propertyText}${systemText}.`,
+      detailsSection,
+    },
+    usage,
+  });
 }
 
 /**
@@ -640,11 +539,6 @@ async function sendScheduleNotificationEmail({
   replyTo,
   usage,
 }) {
-  if (!isSesConfigured()) {
-    console.warn("[emailService] SES not configured — skipping schedule notification email");
-    return { success: false, reason: "ses_not_configured" };
-  }
-
   const greeting = contractorName ? `Hi ${contractorName},` : "Hi,";
   const senderLabel = sanitizeSenderLabelForEmail(senderName);
   const requester = senderLabel || "A homeowner";
@@ -701,7 +595,40 @@ async function sendScheduleNotificationEmail({
     </div>
   `;
 
-  return sendViaSes({ to, subject, html, replyTo, usage });
+  const subjectSuffix = `${systemName ? ` — ${systemName}` : ""}${propertyAddress ? ` at ${propertyAddress}` : ""}`;
+
+  try {
+    return await emailProviderRouter.deliver({
+    emailType: "schedule_notification",
+    to,
+    subject,
+    html,
+    mergeData: {
+      brandName,
+      contractorName: contractorName || "",
+      propertyAddress: propertyAddress || "",
+      systemName: systemName || "",
+      scheduledDate: dateKey || "",
+      scheduledTime: scheduledTime || "",
+      formattedDate: formattedDate || "",
+      formattedTime: formattedTime || "",
+      messageBody: messageBody || "",
+      senderName: requester,
+      subjectSuffix,
+      greeting,
+      scheduleLine: `${requester} has scheduled a service${systemText}${propertyText}.`,
+      detailsSection,
+      messageSection: messageSection
+        ? `<p style="font-size: 14px; color: #374151;">Message from homeowner:</p>${messageSection}`
+        : "",
+    },
+      replyTo,
+      usage,
+    });
+  } catch (err) {
+    console.warn("[emailService] schedule notification email failed:", err.message);
+    return { success: false, reason: "send_failed" };
+  }
 }
 
 /**
@@ -718,11 +645,6 @@ async function sendProfessionalContactEmail({
   replyToEmail,
   usage,
 }) {
-  if (!isSesConfigured()) {
-    throw new Error(
-      "SES not configured. Set SES_FROM_EMAIL (verified in SES) and AWS credentials or use an IAM role / aws configure."
-    );
-  }
   if (!to || !String(to).trim()) {
     throw new Error("Recipient email is required");
   }
@@ -757,10 +679,20 @@ async function sendProfessionalContactEmail({
   const rawSubject = `${brandName}: Message about ${professionalCompanyName || "your listing"}`;
   const subject = rawSubject.length > 200 ? `${rawSubject.slice(0, 197)}...` : rawSubject;
 
-  return sendViaSes({
+  return emailProviderRouter.deliver({
+    emailType: "professional_contact",
     to: String(to).trim(),
     subject,
     html,
+    mergeData: {
+      brandName,
+      professionalCompanyName: professionalCompanyName || "your listing",
+      message,
+      messageHtml: safeBody,
+      senderName: senderName || "",
+      senderEmail: replyEmail || "",
+      senderLine: senderLine || senderLabel,
+    },
     replyTo: replyEmail,
     usage,
   });
@@ -770,10 +702,6 @@ async function sendProfessionalContactEmail({
  * Notify a recipient by email that a communication is available in Opsy (in-app is primary).
  */
 async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl, usage }) {
-  if (!isSesConfigured()) {
-    console.warn("[emailService] SES not configured — skipping communication notify email");
-    return { success: false, reason: "ses_not_configured" };
-  }
   const toAddr = to && String(to).trim();
   if (!toAddr) {
     return { success: false, reason: "no_recipient" };
@@ -793,15 +721,27 @@ async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl
       ${getEmailFooterHtml()}
     </div>
   `;
-  return sendViaSes({
+  try {
+    return await emailProviderRouter.deliver({
+      emailType: "communication_notify",
     to: toAddr,
     subject: `${subjectLine || "New message"} — ${brandName}`,
     html,
-    usage,
-  });
+    mergeData: {
+      brandName,
+      userName: userName || "",
+      subjectLine: subjectLine || "New message",
+      title: subjectLine || "New message",
+      greeting: userName ? `Hi ${userName},` : "Hi,",
+      viewUrl,
+    },
+      usage,
+    });
+  } catch (err) {
+    console.warn("[emailService] communication notify email failed:", err.message);
+    return { success: false, reason: "send_failed" };
+  }
 }
-
-/** Format multi-line plain text into safe HTML paragraphs/lists for ticket emails. */
 function ticketBodyToHtml(text) {
   if (!text) return "";
   const safe = escapeHtml(text).replace(/\r\n/g, "\n");
@@ -865,10 +805,6 @@ async function sendSupportTicketReceivedEmail({
   autoResponseText,
   usage,
 }) {
-  if (!isSesConfigured()) {
-    console.warn("[emailService] SES not configured — skipping ticket received email");
-    return { success: false, reason: "ses_not_configured" };
-  }
   const toAddr = to && String(to).trim();
   if (!toAddr) return { success: false, reason: "no_recipient" };
 
@@ -889,19 +825,43 @@ async function sendSupportTicketReceivedEmail({
     ["Type", ticket?.type === "feedback" ? "Feedback" : "Support"],
   ]);
 
+  const footerNote =
+    "You're receiving this email because you submitted a " +
+    typeLabel +
+    " in Opsy. Replies to this email are not monitored — please use the ticket link above to continue the conversation.";
+
   const html = ticketEmailShell({
     heading,
     intro: null,
     bodyHtml: `${body}${meta}`,
     ctaUrl: viewUrl,
     ctaLabel: "View ticket",
-    footerNote:
-      "You're receiving this email because you submitted a " +
-      typeLabel +
-      " in Opsy. Replies to this email are not monitored — please use the ticket link above to continue the conversation.",
+    footerNote,
   });
 
-  return sendViaSes({ to: toAddr, subject, html, usage });
+  try {
+    return await emailProviderRouter.deliver({
+      emailType: "support_ticket_received",
+    to: toAddr,
+    subject,
+    html,
+    mergeData: {
+      brandName,
+      heading,
+      subjectSuffix: subjectLine,
+      bodyHtml: `${body}${meta}`,
+      viewUrl,
+      footerNote,
+      ticketSubject: ticket?.subject || "",
+      ticketType: ticket?.type || "support",
+      autoResponseText: autoResponseText || "",
+    },
+      usage,
+    });
+  } catch (err) {
+    console.warn("[emailService] ticket received email failed:", err.message);
+    return { success: false, reason: "send_failed" };
+  }
 }
 
 /**
@@ -917,15 +877,12 @@ async function sendSupportTicketReplyEmail({
   viewUrl,
   usage,
 }) {
-  if (!isSesConfigured()) {
-    console.warn("[emailService] SES not configured — skipping ticket reply email");
-    return { success: false, reason: "ses_not_configured" };
-  }
   const toAddr = to && String(to).trim();
   if (!toAddr) return { success: false, reason: "no_recipient" };
   if (!reply?.body?.trim()) return { success: false, reason: "empty_body" };
 
   const firstName = firstNameFromUser(userName);
+  const introPlain = firstName ? `Hi ${firstName},` : "Hi there,";
   const intro = firstName
     ? `Hi ${escapeHtml(firstName)},`
     : "Hi there,";
@@ -945,6 +902,9 @@ async function sendSupportTicketReplyEmail({
     ["Status", humanizeStatus(ticket?.status)],
   ]);
 
+  const footerNote =
+    "Replies to this email are not monitored — please use the ticket link above so the entire thread stays with your request.";
+
   const html = ticketEmailShell({
     heading: `A team member replied to your ticket`,
     intro,
@@ -959,11 +919,34 @@ async function sendSupportTicketReplyEmail({
       </p>`,
     ctaUrl: viewUrl,
     ctaLabel: "View and reply",
-    footerNote:
-      "Replies to this email are not monitored — please use the ticket link above so the entire thread stays with your request.",
+    footerNote,
   });
 
-  return sendViaSes({ to: toAddr, subject, html, usage });
+  try {
+    return await emailProviderRouter.deliver({
+      emailType: "support_ticket_reply",
+    to: toAddr,
+    subject,
+    html,
+    mergeData: {
+      brandName,
+      userName: firstName || userName || "",
+      intro: introPlain,
+      subjectSuffix: subjectLine,
+      replyBlock,
+      metaHtml: meta,
+      viewUrl,
+      footerNote,
+      ticketSubject: ticket?.subject || "",
+      ticketStatus: humanizeStatus(ticket?.status) || "",
+      replyBody: reply.body,
+    },
+      usage,
+    });
+  } catch (err) {
+    console.warn("[emailService] ticket reply email failed:", err.message);
+    return { success: false, reason: "send_failed" };
+  }
 }
 
 function detailsTableTicket(rows) {

@@ -1371,3 +1371,29 @@ CREATE TABLE attom_lookup_jobs (
 CREATE INDEX idx_attom_lookup_jobs_status ON attom_lookup_jobs(status, run_after);
 CREATE INDEX idx_attom_lookup_jobs_property ON attom_lookup_jobs(property_id);
 CREATE INDEX idx_attom_lookup_jobs_created ON attom_lookup_jobs(created_at DESC);
+
+-- ============================================================
+-- Platform email delivery (SES vs Customer.io)
+-- ============================================================
+
+CREATE TABLE platform_email_settings (
+    id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    default_provider VARCHAR(20) NOT NULL DEFAULT 'ses',
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by INTEGER REFERENCES users(id)
+);
+
+CREATE TABLE email_template_configs (
+    email_type VARCHAR(60) PRIMARY KEY,
+    provider VARCHAR(20) NOT NULL DEFAULT 'inherit',
+    is_switchable BOOLEAN NOT NULL DEFAULT true,
+    label VARCHAR(120) NOT NULL,
+    description TEXT,
+    ses_subject TEXT,
+    ses_html_body TEXT,
+    customer_io_mode VARCHAR(20) DEFAULT 'event',
+    customer_io_transactional_id INTEGER,
+    customer_io_event_name VARCHAR(100),
+    merge_variables JSONB DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);

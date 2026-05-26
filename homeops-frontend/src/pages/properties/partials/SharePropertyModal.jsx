@@ -872,6 +872,8 @@ function SharePropertyModal({
       setLinkJustCopied(false);
       setInviteBusyAction(null);
       setPersonalizeInviteOpen(false);
+    } else {
+      setRemoveConfirmMember(null);
     }
   }, [modalOpen, initialTab]);
 
@@ -1357,6 +1359,9 @@ function SharePropertyModal({
         setModalOpen={setModalOpen}
         contentClassName="max-w-2xl min-w-[24rem] max-h-[90vh] flex flex-col"
         ignoreClickRefs={[emailDropdownRef]}
+        /* Nested remove-confirm portals to document.body — outside-click must not fire for those nodes */
+        closeOnClickOutside={!removeConfirmMember}
+        closeOnEscape={!removeConfirmMember}
       >
         <div
           className={`relative flex flex-col flex-1 min-h-0 overflow-hidden ${
@@ -1988,51 +1993,53 @@ function SharePropertyModal({
             </>
           )}
         </div>
+      </ModalBlank>
 
-        {/* Remove member confirmation modal */}
-        <ModalBlank
-          modalOpen={!!removeConfirmMember}
-          setModalOpen={(open) => !open && setRemoveConfirmMember(null)}
-          contentClassName="max-w-md"
-        >
-          <div className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Remove team member
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Are you sure you want to remove{" "}
-              <span className="font-medium text-gray-900 dark:text-white">
-                {removeConfirmMember?.name || removeConfirmMember?.email}
-              </span>{" "}
-              from this property? They will no longer have access.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setRemoveConfirmMember(null)}
-                disabled={removingMember}
-                className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmRemove}
-                disabled={removingMember}
-                className="btn bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
-              >
-                {removingMember ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                    Removing…
-                  </span>
-                ) : (
-                  "Remove"
-                )}
-              </button>
-            </div>
+      {/* Outside share modal in the tree — confirm dialog portals to body and is not inside share modalContent.ref (avoids parent's document outside-click firing on confirm UI). */}
+      <ModalBlank
+        modalOpen={!!removeConfirmMember}
+        setModalOpen={(open) => !open && setRemoveConfirmMember(null)}
+        contentClassName="max-w-md"
+        backdropZClassName="z-[210]"
+        dialogZClassName="z-[210]"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            Remove team member
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Are you sure you want to remove{" "}
+            <span className="font-medium text-gray-900 dark:text-white">
+              {removeConfirmMember?.name || removeConfirmMember?.email}
+            </span>{" "}
+            from this property? They will no longer have access.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button
+              type="button"
+              onClick={() => setRemoveConfirmMember(null)}
+              disabled={removingMember}
+              className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmRemove}
+              disabled={removingMember}
+              className="btn bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+            >
+              {removingMember ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                  Removing…
+                </span>
+              ) : (
+                "Remove"
+              )}
+            </button>
           </div>
-        </ModalBlank>
+        </div>
       </ModalBlank>
       <ContactSearchModal
         modalOpen={searchMoreModalOpen}

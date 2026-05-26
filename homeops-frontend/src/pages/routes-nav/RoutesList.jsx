@@ -51,6 +51,7 @@ import Subscription from "../subscriptions/Subscription";
 import SubscriptionProductsList from "../subscriptions/SubscriptionProductsList";
 import SubscriptionProduct from "../subscriptions/SubscriptionProduct";
 import CouponsList from "../coupons/CouponsList";
+import EmailDeliveryPage from "../emailDelivery/EmailDeliveryPage";
 import CouponForm from "../coupons/CouponForm";
 import ProfessionalDirectory from "../professionals/ProfessionalDirectory";
 import ProfessionalsDirectorySample from "../professionals/ProfessionalsDirectorySample";
@@ -699,6 +700,14 @@ function RoutesList() {
         element={
           <SuperAdminRoute>
             <CouponForm />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/email-delivery"
+        element={
+          <SuperAdminRoute>
+            <EmailDeliveryPage />
           </SuperAdminRoute>
         }
       />

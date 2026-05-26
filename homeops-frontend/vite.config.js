@@ -65,6 +65,7 @@ export default defineConfig({
       '/resources': API_PROXY_TARGET,
       '/communications': API_PROXY_TARGET,
       '/notifications': API_PROXY_TARGET,
+      '/email-delivery': API_PROXY_TARGET,
       '/inspection-analysis': API_PROXY_TARGET,
       '/inspection-checklist': API_PROXY_TARGET,
       '/ai': API_PROXY_TARGET,

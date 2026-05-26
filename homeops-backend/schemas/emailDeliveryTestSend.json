@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "to": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 254
+    }
+  },
+  "required": ["to"],
+  "additionalProperties": false
+}

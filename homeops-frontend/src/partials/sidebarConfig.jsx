@@ -29,6 +29,7 @@ import {
   Clock,
   Inbox,
   Tag,
+  Mail,
 } from "lucide-react";
 
 const ICON_SIZE = 18;
@@ -224,6 +225,13 @@ export const SIDEBAR_CONFIG = [
             roles: "superAdminOnly",
           },
         ],
+      },
+      {
+        id: "email-delivery",
+        label: "Email Delivery",
+        path: "email-delivery",
+        icon: icon(Mail),
+        roles: "superAdminOnly",
       },
       {
         id: "users",
