@@ -33,6 +33,24 @@ import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowser
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Persists unsent composer text per property across panel close/unmount. */
+const draftByPropertyId = new Map();
+
+function readComposerDraft(propertyId) {
+  if (propertyId == null) return "";
+  return draftByPropertyId.get(String(propertyId)) ?? "";
+}
+
+function writeComposerDraft(propertyId, text) {
+  if (propertyId == null) return;
+  const key = String(propertyId);
+  if (text) {
+    draftByPropertyId.set(key, text);
+  } else {
+    draftByPropertyId.delete(key);
+  }
+}
+
 function AIAssistantSidebar({
   isOpen,
   onClose,
@@ -56,7 +74,7 @@ function AIAssistantSidebar({
     : "/professionals";
   const [messages, setMessages] = useState([]);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => readComposerDraft(propertyId));
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const [activeSystemId, setActiveSystemId] = useState(
@@ -107,6 +125,10 @@ function AIAssistantSidebar({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    setInput(readComposerDraft(propertyId));
+  }, [propertyId]);
 
   useEffect(() => {
     if (isOpen && propertyId) {
@@ -360,6 +382,7 @@ function AIAssistantSidebar({
     if (!text || !propertyId || loading) return;
 
     setInput("");
+    writeComposerDraft(propertyId, "");
     setMessages((prev) => [...prev, {role: "user", content: text}]);
     setLoading(true);
 
@@ -1109,7 +1132,11 @@ function AIAssistantSidebar({
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setInput(value);
+                  writeComposerDraft(propertyId, value);
+                }}
                 onInput={(e) => {
                   e.target.style.height = "auto";
                   e.target.style.height =
