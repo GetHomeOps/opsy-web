@@ -84,18 +84,33 @@ function prettyName(name) {
  * @param {string} filename
  * @param {Object} [options]
  * @param {Set<string>} [options.allowedSystemKeys] - if provided, only return system_key from this set.
+ * @param {Array<{ name: string, key: string }>} [options.customSystems] - custom display names → backend keys
  * @returns {{ system_key: string|null, document_type: string|null, document_name: string, document_date: string|null }}
  */
 export function guessFromFilename(filename, options = {}) {
   const norm = normalize(filename);
   const allowed = options.allowedSystemKeys;
+  const customSystems = options.customSystems ?? [];
 
   let systemKey = null;
-  for (const [key, words] of SYSTEM_KEYWORDS) {
+
+  for (const {name, key} of customSystems) {
+    if (!name || !key) continue;
     if (allowed && !allowed.has(key)) continue;
-    if (words.some((w) => norm.includes(w))) {
+    const nameNorm = normalize(name);
+    if (nameNorm && norm.includes(nameNorm)) {
       systemKey = key;
       break;
+    }
+  }
+
+  if (!systemKey) {
+    for (const [key, words] of SYSTEM_KEYWORDS) {
+      if (allowed && !allowed.has(key)) continue;
+      if (words.some((w) => norm.includes(w))) {
+        systemKey = key;
+        break;
+      }
     }
   }
 
@@ -117,4 +132,16 @@ export function guessFromFilename(filename, options = {}) {
     document_name: prettyName(filename),
     document_date: guessDate(filename),
   };
+}
+
+/**
+ * Default document_type when filing into a folder. Inspection folders always
+ * map to "inspection"; otherwise keep a filename guess or fall back to receipt.
+ */
+export function inferDocumentTypeFromFolder(systemKey, existingType = null) {
+  if (systemKey === "inspectionReport" || systemKey === "inspections") {
+    return "inspection";
+  }
+  if (existingType) return existingType;
+  return "receipt";
 }

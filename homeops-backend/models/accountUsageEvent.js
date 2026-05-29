@@ -17,7 +17,9 @@ const db = require("../db");
 
 class AccountUsageEvent {
   static async log({ accountId, userId, category, resource, quantity, unit, unitCost, metadata = {} }) {
-    const totalCost = quantity * unitCost;
+    const safeQuantity = Number.isFinite(Number(quantity)) ? Number(quantity) : 0;
+    const safeUnitCost = Number.isFinite(Number(unitCost)) ? Number(unitCost) : 0;
+    const totalCost = safeQuantity * safeUnitCost;
     const result = await db.query(
       `INSERT INTO account_usage_events
         (account_id, user_id, category, resource, quantity, unit, unit_cost, total_cost, metadata)
@@ -25,7 +27,7 @@ class AccountUsageEvent {
        RETURNING id, account_id AS "accountId", user_id AS "userId",
                  category, resource, quantity, unit, unit_cost AS "unitCost",
                  total_cost AS "totalCost", created_at AS "createdAt"`,
-      [accountId, userId, category, resource, quantity, unit, unitCost, totalCost, JSON.stringify(metadata)]
+      [accountId, userId, category, resource, safeQuantity, unit, safeUnitCost, totalCost, JSON.stringify(metadata)]
     );
     return result.rows[0];
   }

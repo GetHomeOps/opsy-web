@@ -8,10 +8,12 @@ import {
   Mail,
   Copy,
   Check,
+  Camera,
 } from "lucide-react";
 import InboxFileCard from "./InboxFileCard";
 import ModalBlank from "../../../../components/ModalBlank";
 import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../../../constants/documentUpload";
+import {inferDocumentTypeFromFolder} from "./filenameHeuristics";
 
 /**
  * Default inbound-email domain. Override at build time with
@@ -34,6 +36,7 @@ function DocumentsInboxView({
   cards,
   loading,
   onAddFiles,
+  onOpenCapture,
   onRemove,
   onRetry,
   onPatchProposed,
@@ -41,7 +44,6 @@ function DocumentsInboxView({
   onFileBulk,
   onOpenInNewTab,
   systemsToShow,
-  documentTypes,
   systemUploadDisabledIds = [],
   propertyUid,
 }) {
@@ -49,7 +51,6 @@ function DocumentsInboxView({
   const [selected, setSelected] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkSystem, setBulkSystem] = useState("");
-  const [bulkType, setBulkType] = useState("");
   const [bulkError, setBulkError] = useState(null);
   const [isDraggingFromOs, setIsDraggingFromOs] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
@@ -139,7 +140,6 @@ function DocumentsInboxView({
   const allReadyComplete = readyCards.every(
     (c) =>
       c.proposed.system_key &&
-      c.proposed.document_type &&
       c.proposed.document_name?.trim() &&
       c.proposed.document_date,
   );
@@ -149,7 +149,7 @@ function DocumentsInboxView({
     if (!readyCards.length) return;
     if (!allReadyComplete) {
       setBulkError(
-        "Some cards are missing folder or type. Fill them in or use bulk-apply below.",
+        "Some cards are missing a folder. Pick one on each card or use bulk-apply below.",
       );
       return;
     }
@@ -159,7 +159,10 @@ function DocumentsInboxView({
         readyCards.map((c) => ({
           clientId: c.clientId,
           system_key: c.proposed.system_key,
-          document_type: c.proposed.document_type,
+          document_type: inferDocumentTypeFromFolder(
+            c.proposed.system_key,
+            c.proposed.document_type,
+          ),
           document_name: c.proposed.document_name,
           document_date: c.proposed.document_date,
         })),
@@ -189,7 +192,10 @@ function DocumentsInboxView({
         eligible.map((c) => ({
           clientId: c.clientId,
           system_key: bulkSystem,
-          document_type: bulkType || c.proposed.document_type || "other",
+          document_type: inferDocumentTypeFromFolder(
+            bulkSystem,
+            c.proposed.document_type,
+          ),
           document_name: c.proposed.document_name || c.name,
           document_date:
             c.proposed.document_date || new Date().toISOString().slice(0, 10),
@@ -197,7 +203,6 @@ function DocumentsInboxView({
       );
       clearSelection();
       setBulkSystem("");
-      setBulkType("");
     } catch (err) {
       setBulkError(err?.message || "Filing failed");
     } finally {
@@ -277,6 +282,17 @@ function DocumentsInboxView({
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {onOpenCapture && (
+            <button
+              type="button"
+              onClick={onOpenCapture}
+              className="btn-sm border border-[#456654]/40 text-[#456654] dark:text-[#7a9a88] hover:bg-[#456654]/10 dark:hover:bg-[#456654]/20 flex items-center gap-1.5 text-xs"
+              title="Capture document photo"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Camera</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -363,18 +379,6 @@ function DocumentsInboxView({
               </option>
             ))}
           </select>
-          <select
-            value={bulkType}
-            onChange={(e) => setBulkType(e.target.value)}
-            className="form-select text-xs py-1 px-2 bg-white dark:bg-gray-800 border-[#456654]/20 dark:border-[#456654]/40 rounded"
-          >
-            <option value="">Set type… (optional)</option>
-            {documentTypes.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
           <button
             type="button"
             onClick={handleBulkMoveSelected}
@@ -449,7 +453,6 @@ function DocumentsInboxView({
                   onFile={onFileOne}
                   onOpenInNewTab={onOpenInNewTab}
                   systemsToShow={systemsToShow}
-                  documentTypes={documentTypes}
                   systemUploadDisabledIds={systemUploadDisabledIds}
                 />
               </div>

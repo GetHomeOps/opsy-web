@@ -43,8 +43,17 @@ import {
   FolderContentsView,
   useDocumentsInbox,
 } from "./partials/documents";
+import DocumentCaptureModal from "./partials/documents/DocumentCaptureModal";
+import {inferDocumentTypeFromFolder} from "./partials/documents/filenameHeuristics";
 import {PROPERTY_SYSTEMS, CUSTOM_SYSTEM_DEFAULT_ICON} from "./constants/propertySystems";
+import { buildCustomSystemsForUi } from "./helpers/systemKeyUtils";
 import {PROPERTY_DOCUMENTS_CHANGED_EVENT} from "./helpers/inspectionFlowSession";
+import {
+  emitDocumentsFiled,
+  emitReopenDocumentAnalysis,
+  emitRequestDocumentAnalysis,
+} from "./helpers/documentAnalysisFlow";
+import {useDocumentAnalysisStatus} from "../../hooks/useDocumentAnalysisStatus";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import ModalBlank from "../../components/ModalBlank";
 import {
@@ -220,6 +229,7 @@ function InlineDocumentPreview({
 
 function DocumentsTab({
   propertyData,
+  propertySystems = [],
   accountUrl = "",
   propertyUid,
   onOpenAIReport,
@@ -227,6 +237,8 @@ function DocumentsTab({
   onUploadModalOpened,
 }) {
   const propertyId = propertyData?.id ?? propertyData?.identity?.id;
+  const {getUiState: getDocumentAnalysisUiState, getAnalysisItem} =
+    useDocumentAnalysisStatus(propertyId);
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
@@ -238,6 +250,7 @@ function DocumentsTab({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showCaptureModal, setShowCaptureModal] = useState(false);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
   const [upgradePromptMsg, setUpgradePromptMsg] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -315,21 +328,34 @@ function DocumentsTab({
         cat || {id: s.id, label: s.name, icon: s.icon, color: "text-gray-600"}
       );
     });
-    const custom = customSystemNames.map((name, i) => ({
-      id: `custom-${name}-${i}`,
-      label: name,
-      icon: CUSTOM_SYSTEM_DEFAULT_ICON,
-      color: "text-gray-600",
-    }));
+    const custom = buildCustomSystemsForUi(customSystemNames, propertySystems).map(
+      ({id, label}) => ({
+        id,
+        label,
+        icon: CUSTOM_SYSTEM_DEFAULT_ICON,
+        color: "text-gray-600",
+      }),
+    );
     return [inspectionReport, ...selected, ...custom].filter(Boolean);
-  }, [visibleSystemIds, customSystemNames]);
+  }, [visibleSystemIds, customSystemNames, propertySystems]);
 
   const allowedSystemKeys = useMemo(
     () => systemsToShow.map((s) => s.id),
     [systemsToShow],
   );
 
-  const inbox = useDocumentsInbox(propertyId, { allowedSystemKeys });
+  const customSystemsForInbox = useMemo(
+    () =>
+      buildCustomSystemsForUi(customSystemNames, propertySystems).map(
+        ({id, label}) => ({name: label, key: id}),
+      ),
+    [customSystemNames, propertySystems],
+  );
+
+  const inbox = useDocumentsInbox(propertyId, {
+    allowedSystemKeys,
+    customSystems: customSystemsForInbox,
+  });
 
   /* ----- documents list & grouping ----- */
 
@@ -525,6 +551,13 @@ function DocumentsTab({
     inboxBrowseRef.current?.click();
   }, []);
 
+  const openCaptureModal = useCallback(() => {
+    setSelectedFolder(null);
+    setSelectedDocument(null);
+    setShowCaptureModal(true);
+    setSidebarOpen(false);
+  }, []);
+
   useEffect(() => {
     if (!showUploadModal || !hasInspectionReport) return;
     if (uploadSystemKey !== "inspectionReport") return;
@@ -650,6 +683,7 @@ function DocumentsTab({
     clearUploadHookError();
 
     let successCount = 0;
+    const filedDocs = [];
     for (let i = 0; i < uploadFiles.length; i++) {
       const file = uploadFiles[i];
       const name =
@@ -673,6 +707,7 @@ function DocumentsTab({
         setUploadSuccessCount(successCount);
         if (created) {
           setDocuments((prev) => [...prev, created]);
+          filedDocs.push(created);
         } else {
           await fetchDocuments();
         }
@@ -696,6 +731,9 @@ function DocumentsTab({
       setUploadFiles([]);
       setUploadDocumentName("");
       await fetchDocuments();
+      if (propertyId && filedDocs.length) {
+        emitDocumentsFiled(propertyId, filedDocs);
+      }
     }
   };
 
@@ -777,6 +815,20 @@ function DocumentsTab({
       setSidebarOpen(false);
     },
     [handleSelectDocument],
+  );
+
+  const handleAnalyzeDocument = useCallback(
+    (doc) => {
+      if (!propertyId || !doc) return;
+      const analysisItem = getAnalysisItem(doc.id);
+      const uiState = getDocumentAnalysisUiState(doc.id);
+      if (uiState.action === "reopen") {
+        emitReopenDocumentAnalysis(propertyId, doc, analysisItem);
+      } else {
+        emitRequestDocumentAnalysis(propertyId, doc);
+      }
+    },
+    [propertyId, getAnalysisItem, getDocumentAnalysisUiState],
   );
 
   /* ----- Toast helper ----- */
@@ -871,9 +923,12 @@ function DocumentsTab({
           return;
         }
         try {
-          await inboxRef.current.fileOne(card.clientId, {
+          const created = await inboxRef.current.fileOne(card.clientId, {
             system_key: targetSystem,
-            document_type: card.proposed.document_type || "other",
+            document_type: inferDocumentTypeFromFolder(
+              targetSystem,
+              card.proposed.document_type,
+            ),
             document_name: card.proposed.document_name || card.name,
             document_date:
               card.proposed.document_date ||
@@ -884,6 +939,9 @@ function DocumentsTab({
             kind: "success",
             message: `Filed "${card.name}" in ${targetLabel}`,
           });
+          if (propertyId && created) {
+            emitDocumentsFiled(propertyId, [created]);
+          }
         } catch (err) {
           if (err?.status === 403 && err?.message?.toLowerCase().includes("limit")) {
             setUpgradePromptMsg(err.message);
@@ -945,7 +1003,7 @@ function DocumentsTab({
         return;
       }
     },
-    [documents, fetchDocuments, hasInspectionReport, showToast],
+    [documents, fetchDocuments, hasInspectionReport, showToast, propertyId],
   );
 
   /* ----- inbox card actions ----- */
@@ -955,9 +1013,12 @@ function DocumentsTab({
       const card = inbox.cards.find((c) => c.clientId === clientId);
       if (!card) return;
       try {
-        await inbox.fileOne(clientId, {
+        const created = await inbox.fileOne(clientId, {
           system_key: card.proposed.system_key,
-          document_type: card.proposed.document_type,
+          document_type: inferDocumentTypeFromFolder(
+            card.proposed.system_key,
+            card.proposed.document_type,
+          ),
           document_name: card.proposed.document_name,
           document_date: card.proposed.document_date,
         });
@@ -966,6 +1027,9 @@ function DocumentsTab({
           kind: "success",
           message: `Filed "${card.name}"`,
         });
+        if (propertyId && created) {
+          emitDocumentsFiled(propertyId, [created]);
+        }
       } catch (err) {
         if (err?.status === 403 && err?.message?.toLowerCase().includes("limit")) {
           setUpgradePromptMsg(err.message);
@@ -987,9 +1051,13 @@ function DocumentsTab({
         kind: "success",
         message: `Filed ${filedCount} document${filedCount === 1 ? "" : "s"}`,
       });
+      if (propertyId && res?.filed?.length) {
+        const docs = res.filed.map((f) => f.document).filter(Boolean);
+        if (docs.length) emitDocumentsFiled(propertyId, docs);
+      }
       return res;
     },
-    [inbox, fetchDocuments, showToast],
+    [inbox, fetchDocuments, showToast, propertyId],
   );
 
   const inboxRetry = useCallback(
@@ -1108,6 +1176,7 @@ function DocumentsTab({
                   setSelectedDocument(null);
                 }}
                 onUpload={openDefaultUploadModal}
+                onOpenCapture={openCaptureModal}
                 onUploadForSystem={openUploadModalWithSystem}
                 systemUploadDisabledIds={
                   hasInspectionReport ? ["inspectionReport"] : []
@@ -1307,6 +1376,8 @@ function DocumentsTab({
                 onOpenInNewTab={handleOpenInNewTab}
                 onDelete={handleDelete}
                 onOpenAIReport={onOpenAIReport}
+                onAnalyzeDocument={handleAnalyzeDocument}
+                documentAnalysisState={getDocumentAnalysisUiState(selectedDocument?.id)}
                 getDocumentIcon={getDocumentIcon}
                 getFileTypeColor={getFileTypeColor}
                 systemCategories={systemCategories}
@@ -1337,6 +1408,7 @@ function DocumentsTab({
                 cards={inbox.cards}
                 loading={inbox.loading}
                 onAddFiles={inbox.addFiles}
+                onOpenCapture={openCaptureModal}
                 onRemove={inbox.removeStaged}
                 onRetry={inboxRetry}
                 onPatchProposed={inbox.updateProposed}
@@ -1346,7 +1418,6 @@ function DocumentsTab({
                   handleOpenInNewTab({document_key: card.documentKey})
                 }
                 systemsToShow={systemsToShow}
-                documentTypes={documentTypes}
                 systemUploadDisabledIds={
                   hasInspectionReport ? ["inspectionReport"] : []
                 }
@@ -1759,6 +1830,12 @@ function DocumentsTab({
             </div>
           </div>
         </ModalBlank>
+
+        <DocumentCaptureModal
+          open={showCaptureModal}
+          onClose={() => setShowCaptureModal(false)}
+          onAddToInbox={(files) => inbox.addFiles(files)}
+        />
       </div>
     </DndContext>
   );

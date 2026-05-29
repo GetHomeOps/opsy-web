@@ -18,6 +18,8 @@ function SystemActionButtons({
   propertyId,
   propertyData = {},
   systemsToShow = [],
+  propertySystems = [],
+  onDocumentsFiled,
 }) {
   const [showInstallerCard, setShowInstallerCard] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -149,6 +151,9 @@ function SystemActionButtons({
             systemLabel={systemLabel}
             propertyId={propertyId}
             systemsToShow={systemsToShow}
+            propertySystems={propertySystems}
+            customSystemNames={propertyData?.customSystemNames ?? []}
+            onDocumentsFiled={onDocumentsFiled}
           />,
           document.body,
         )}

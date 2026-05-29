@@ -32,7 +32,7 @@ import {
   getConditionFieldName,
   getCurrentConditionValue,
 } from "./helpers/systemStatusHelpers";
-import {getDisplayNamesWithCounters} from "./helpers/systemKeyUtils";
+import {getDisplayNamesWithCounters, buildCustomSystemsForUi, resolveCustomSystemBackendKey} from "./helpers/systemKeyUtils";
 import DatePickerInput from "../../components/DatePickerInput";
 import ContactContext from "../../context/ContactContext";
 import CollapsibleSection from "./partials/CollapsibleSection";
@@ -43,6 +43,8 @@ import Tooltip from "../../utils/Tooltip";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
 import {getPropertyAssistantHeaderLines} from "./helpers/propertyAssistantHeader";
 import AIReanalysisAuditModal from "./partials/AIReanalysisAuditModal";
+import SystemDocumentFindingsModal from "./partials/SystemDocumentFindingsModal";
+import {useDocumentAnalysisCounts} from "../../hooks/useDocumentAnalysisCounts";
 
 function SystemsTab({
   propertyData,
@@ -141,6 +143,13 @@ function SystemsTab({
     propertyData?.property_uid ??
     propertyData?.identity?.property_uid ??
     propertyIdFallback;
+
+  const documentAnalysisCounts = useDocumentAnalysisCounts(propertyId);
+  const [documentFindingsModal, setDocumentFindingsModal] = useState(null);
+
+  const handleOpenDocumentFindings = useCallback((systemKey, systemLabel) => {
+    setDocumentFindingsModal({systemKey, systemLabel});
+  }, []);
 
   const [aiAuditModalOpen, setAiAuditModalOpen] = useState(false);
   const [systemEventsModalOpen, setSystemEventsModalOpen] = useState(false);
@@ -347,12 +356,11 @@ function SystemsTab({
     const selected = PROPERTY_SYSTEMS.filter((s) =>
       visibleSystemIdsForUpload.includes(s.id),
     ).map((s) => ({id: s.id, label: s.name}));
-    const custom = customSystemNames.map((name, i) => ({
-      id: `custom-${name}-${i}`,
-      label: name,
-    }));
+    const custom = buildCustomSystemsForUi(customSystemNames, systems).map(
+      ({id, label}) => ({id, label}),
+    );
     return [general, ...selected, ...custom].filter(Boolean);
-  }, [visibleSystemIdsForUpload, customSystemNames]);
+  }, [visibleSystemIdsForUpload, customSystemNames, systems]);
 
   return (
     <>
@@ -410,6 +418,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -583,6 +593,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -750,6 +762,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -862,6 +876,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -981,6 +997,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -1144,6 +1162,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -1315,6 +1335,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -1489,6 +1511,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -1665,6 +1689,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -1841,6 +1867,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -2039,6 +2067,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -2112,6 +2142,8 @@ function SystemsTab({
             inspectionAnalysis={inspectionAnalysis}
             onOpenInspectionReport={onOpenInspectionReport}
             onOpenAIAssistant={handleOpenAIAssistant}
+            documentAnalysisCounts={documentAnalysisCounts}
+            onOpenDocumentFindings={handleOpenDocumentFindings}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -2340,7 +2372,7 @@ function SystemsTab({
           const displayNames = getDisplayNamesWithCounters(customNames);
           return customNames.map((systemName, index) => {
             const displayName = displayNames[index] ?? systemName;
-            const sectionId = `custom-${systemName}-${index}`;
+            const sectionId = resolveCustomSystemBackendKey(systemName, systems);
             const systemData = customSystemsData[systemName] ?? {};
             // Calculate progress for custom system
             const customProgress = (() => {
@@ -2387,6 +2419,7 @@ function SystemsTab({
                 propertyId={propertyId}
                 propertyData={propertyData}
                 systemsToShow={systemsToShow}
+                propertySystems={systems}
                 customSystemsData={customSystemsData}
                 maintenanceEvents={maintenanceEvents}
                 maintenanceRecords={maintenanceRecords}
@@ -2399,6 +2432,8 @@ function SystemsTab({
                 inspectionAnalysis={inspectionAnalysis}
                 onOpenInspectionReport={onOpenInspectionReport}
                 onOpenAIAssistant={handleOpenAIAssistant}
+                documentAnalysisCounts={documentAnalysisCounts}
+                onOpenDocumentFindings={handleOpenDocumentFindings}
                 checklistSystemKey={systemName}
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2529,6 +2564,15 @@ function SystemsTab({
         isOpen={aiAuditModalOpen}
         onClose={() => setAiAuditModalOpen(false)}
         propertyId={propertyId}
+      />
+
+      <SystemDocumentFindingsModal
+        open={!!documentFindingsModal}
+        onClose={() => setDocumentFindingsModal(null)}
+        propertyId={propertyId}
+        systemKey={documentFindingsModal?.systemKey}
+        systemLabel={documentFindingsModal?.systemLabel}
+        onSystemsUpdated={onSilentSystemsUpdate}
       />
 
       <ModalBlank

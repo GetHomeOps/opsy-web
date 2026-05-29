@@ -2,6 +2,88 @@
 export const MAX_SYSTEM_KEY_LENGTH = 50;
 
 /**
+ * Parse display name from a persisted custom system_key (custom-solar-panels → Solar Panels).
+ */
+export function parseCustomSystemName(systemKey) {
+  if (!systemKey?.startsWith("custom-")) return null;
+  const slug = systemKey.replace(/^custom-/, "");
+  return slug
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/**
+ * Resolve a custom system's display name to its persisted backend system_key.
+ * Reuses an existing key when the property already has a matching custom system.
+ */
+export function resolveCustomSystemBackendKey(displayName, existingSystems = []) {
+  const normalized = (displayName || "").trim().toLowerCase();
+  if (!normalized) return slugifyCustomSystemName(displayName);
+
+  for (const sys of existingSystems ?? []) {
+    const key = (sys.system_key ?? sys.systemKey ?? "").toString();
+    if (!key.startsWith("custom-")) continue;
+    const parsed = parseCustomSystemName(key);
+    if (parsed && parsed.toLowerCase() === normalized) return key;
+  }
+
+  return slugifyCustomSystemName(displayName);
+}
+
+/**
+ * Build UI folder/section entries for custom systems using persisted system_key ids.
+ */
+export function buildCustomSystemsForUi(customSystemNames = [], existingSystems = []) {
+  return (customSystemNames ?? []).map((name, index) => ({
+    id: resolveCustomSystemBackendKey(name, existingSystems),
+    label: name,
+    index,
+  }));
+}
+
+/**
+ * Resolve a UI section/folder id to the backend system_key used for documents.
+ * Handles legacy ids like custom-Flooring-0 as well as persisted keys like custom-flooring.
+ */
+export function resolveUploadSystemKey(
+  systemType,
+  existingSystems = [],
+  customSystemNames = [],
+) {
+  if (!systemType || !String(systemType).startsWith("custom-")) {
+    return systemType;
+  }
+
+  const type = String(systemType);
+
+  const exact = (existingSystems ?? []).find(
+    (s) => (s.system_key ?? s.systemKey) === type,
+  );
+  if (exact) return type;
+
+  const uiMatch = type.match(/^custom-(.+)-(\d+)$/);
+  if (uiMatch) {
+    const [, namePart] = uiMatch;
+    const matchedName =
+      (customSystemNames ?? []).find(
+        (n) => n === namePart || n.toLowerCase() === namePart.toLowerCase(),
+      ) ?? namePart.replace(/-/g, " ");
+    return resolveCustomSystemBackendKey(matchedName, existingSystems);
+  }
+
+  const setupMatch = (customSystemNames ?? []).find((n) => `custom-${n}` === type);
+  if (setupMatch) {
+    return resolveCustomSystemBackendKey(setupMatch, existingSystems);
+  }
+
+  const parsed = parseCustomSystemName(type);
+  if (parsed) return resolveCustomSystemBackendKey(parsed, existingSystems);
+
+  return resolveCustomSystemBackendKey(type.replace(/^custom-/, ""), existingSystems);
+}
+
+/**
  * Returns display names with counters for duplicates (e.g. "Pool", "Pool 2", "Pool 3").
  * Strips trailing " N" or " NNNNN" to get base name before counting.
  *

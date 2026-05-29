@@ -298,13 +298,13 @@ class PlatformMetrics {
       `WITH usage_by_user AS (
          SELECT
            ue.user_id,
-           COALESCE(SUM(ue.total_cost), 0)::numeric(12,6) AS "totalCost",
-           COALESCE(SUM(CASE WHEN ue.category = 'ai_tokens' THEN ue.total_cost ELSE 0 END), 0)::numeric(12,6) AS "aiCost",
-           COALESCE(SUM(CASE WHEN ue.category = 'storage' THEN ue.total_cost ELSE 0 END), 0)::numeric(12,6) AS "storageCost",
-           COALESCE(SUM(CASE WHEN ue.category = 'email' THEN ue.total_cost ELSE 0 END), 0)::numeric(12,6) AS "emailCost",
+           COALESCE(SUM(CASE WHEN ue.total_cost::text <> 'NaN' THEN ue.total_cost ELSE 0 END), 0)::numeric(12,6) AS "totalCost",
+           COALESCE(SUM(CASE WHEN ue.category = 'ai_tokens' AND ue.total_cost::text <> 'NaN' THEN ue.total_cost ELSE 0 END), 0)::numeric(12,6) AS "aiCost",
+           COALESCE(SUM(CASE WHEN ue.category = 'storage' AND ue.total_cost::text <> 'NaN' THEN ue.total_cost ELSE 0 END), 0)::numeric(12,6) AS "storageCost",
+           COALESCE(SUM(CASE WHEN ue.category = 'email' AND ue.total_cost::text <> 'NaN' THEN ue.total_cost ELSE 0 END), 0)::numeric(12,6) AS "emailCost",
            COUNT(CASE WHEN ue.category = 'ai_tokens' THEN 1 END)::int AS "apiCallCount",
            COUNT(CASE WHEN ue.category = 'storage' THEN 1 END)::int AS "documentCount",
-           COALESCE(SUM(CASE WHEN ue.category = 'ai_tokens' THEN ue.quantity ELSE 0 END), 0)::bigint AS "tokenCount"
+           COALESCE(TRUNC(SUM(CASE WHEN ue.category = 'ai_tokens' AND ue.quantity::text <> 'NaN' THEN ue.quantity ELSE 0 END)), 0)::bigint AS "tokenCount"
          FROM account_usage_events ue
          ${where}
          GROUP BY ue.user_id

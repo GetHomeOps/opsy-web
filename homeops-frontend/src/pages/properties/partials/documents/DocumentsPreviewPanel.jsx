@@ -41,6 +41,8 @@ function DocumentsPreviewPanel({
   onOpenInNewTab,
   onDelete,
   onOpenAIReport,
+  onAnalyzeDocument,
+  documentAnalysisState,
   getDocumentIcon,
   getFileTypeColor,
   systemCategories = [],
@@ -71,6 +73,37 @@ function DocumentsPreviewPanel({
   const systemColor =
     systemCategories.find((sc) => sc.id === selectedDocument.system)?.color ||
     "text-gray-500";
+
+  const isInspectionDoc =
+    selectedDocument.system === "inspectionReport" ||
+    selectedDocument.type === "inspection";
+
+  const showDocumentAnalysis =
+    documentAnalysisState?.showAnalyze && !isInspectionDoc;
+
+  function renderAnalyzeButton({ compact = false } = {}) {
+    if (!showDocumentAnalysis) return null;
+    const { analyzing, label } = documentAnalysisState;
+    const baseClass = compact
+      ? "btn-sm border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0"
+      : "w-full text-xs px-2 py-1.5 rounded-md border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 dark:hover:bg-[#5a7a78]/20 flex items-center justify-center gap-1";
+
+    return (
+      <button
+        type="button"
+        onClick={() => onAnalyzeDocument?.(selectedDocument)}
+        className={baseClass}
+        title={label}
+      >
+        {analyzing ? (
+          <Loader2 className={`${compact ? "w-3.5 h-3.5" : "w-3 h-3"} animate-spin`} />
+        ) : (
+          <Sparkles className={compact ? "w-3.5 h-3.5" : "w-3 h-3"} />
+        )}
+        {label}
+      </button>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-800 overflow-hidden">
@@ -195,6 +228,7 @@ function DocumentsPreviewPanel({
                       AI Report Analysis
                     </button>
                   )}
+                {renderAnalyzeButton()}
                 <button
                   onClick={() => onDelete?.(selectedDocument.id)}
                   className="w-full text-xs px-2 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-700 text-red-600 dark:text-red-400 flex items-center justify-center gap-1"
@@ -269,6 +303,7 @@ function DocumentsPreviewPanel({
                     AI
                   </button>
                 )}
+              {renderAnalyzeButton({ compact: true })}
               <button
                 onClick={() => onOpenInNewTab?.(selectedDocument)}
                 className="btn-sm bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0"

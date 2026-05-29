@@ -6,6 +6,7 @@ import {
 import {
   slugifyCustomSystemName,
   ensureUniqueSystemKey,
+  resolveCustomSystemBackendKey,
   MAX_SYSTEM_KEY_LENGTH,
 } from "./systemKeyUtils";
 
@@ -177,8 +178,8 @@ export function formSystemsToArray(formData, propertyId, existingSystems = []) {
     const data = getCustomSystemData(customData, systemName);
     const nextServiceDate = getCustomNextServiceDate(customData, systemName);
     const systemKey = ensureUniqueSystemKey(
-      slugifyCustomSystemName(systemName),
-      usedKeys
+      resolveCustomSystemBackendKey(systemName, existingSystems),
+      usedKeys,
     );
     selectedCustomKeys.add(systemKey);
 

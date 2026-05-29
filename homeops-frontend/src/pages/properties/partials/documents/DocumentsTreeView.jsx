@@ -9,6 +9,7 @@ import {
   File,
   Plus,
   Inbox,
+  Camera,
 } from "lucide-react";
 
 function formatDate(dateString) {
@@ -244,6 +245,7 @@ function DocumentsTreeView({
   onSelectDocument,
   onSelectFolder,
   onUpload,
+  onOpenCapture,
   onUploadForSystem,
   systemUploadDisabledIds = [],
   onCollapse,
@@ -302,13 +304,25 @@ function DocumentsTreeView({
           />
         </div>
 
-        <button
-          onClick={onUpload}
-          className="w-full btn-sm bg-[#456654] hover:bg-[#3a5548] text-white flex items-center justify-center gap-1.5 py-2"
-        >
-          <Upload className="w-4 h-4" />
-          Upload
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onUpload}
+            className="flex-1 btn-sm bg-[#456654] hover:bg-[#3a5548] text-white flex items-center justify-center gap-1.5 py-2"
+          >
+            <Upload className="w-4 h-4" />
+            Upload
+          </button>
+          {onOpenCapture && (
+            <button
+              type="button"
+              onClick={onOpenCapture}
+              className="btn-sm border border-[#456654]/40 text-[#456654] dark:text-[#7a9a88] hover:bg-[#456654]/10 dark:hover:bg-[#456654]/20 flex items-center justify-center px-3 py-2"
+              title="Capture document photo"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">

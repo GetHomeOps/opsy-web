@@ -20,9 +20,13 @@ const COST_RATES = {
 };
 
 async function logAiUsage({ accountId, userId, model, promptTokens, completionTokens, endpoint }) {
+  const pTokens = Number(promptTokens) || 0;
+  const cTokens = Number(completionTokens) || 0;
+  const totalTokens = pTokens + cTokens;
+  if (totalTokens <= 0) return null;
+
   const rates = COST_RATES[model] || COST_RATES['openai/gpt-4o-mini'];
-  const totalTokens = promptTokens + completionTokens;
-  const unitCost = (rates.prompt * promptTokens + rates.completion * completionTokens) / totalTokens || 0;
+  const unitCost = (rates.prompt * pTokens + rates.completion * cTokens) / totalTokens;
 
   return AccountUsageEvent.log({
     accountId,
@@ -32,7 +36,7 @@ async function logAiUsage({ accountId, userId, model, promptTokens, completionTo
     quantity: totalTokens,
     unit: 'tokens',
     unitCost,
-    metadata: { endpoint, promptTokens, completionTokens },
+    metadata: { endpoint, promptTokens: pTokens, completionTokens: cTokens },
   });
 }
 

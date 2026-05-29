@@ -1318,6 +1318,71 @@ class AppApi {
     return res;
   }
 
+  /* --------- Document Analysis (per-document after filing) --------- */
+
+  static async startDocumentAnalysis(propertyDocumentId) {
+    const prev = AppApi._suppressTierEmit;
+    AppApi._suppressTierEmit = true;
+    try {
+      const res = await this.request(
+        "document-analysis/analyze",
+        { propertyDocumentId },
+        "POST",
+      );
+      return res.jobId;
+    } finally {
+      AppApi._suppressTierEmit = prev;
+    }
+  }
+
+  static async getDocumentAnalysisJob(jobId) {
+    return this.request(`document-analysis/jobs/${jobId}`);
+  }
+
+  static async getDocumentAnalysisByProperty(propertyId) {
+    const res = await this.request(
+      `document-analysis/property/${propertyId}`,
+      {},
+      "GET",
+    );
+    return res.items ?? [];
+  }
+
+  static async getDocumentAnalysisBySystem(propertyId, systemKey) {
+    return this.request(
+      `document-analysis/system/${propertyId}/${encodeURIComponent(systemKey)}`,
+      {},
+      "GET",
+    );
+  }
+
+  static async getDocumentAnalysisResult(resultId) {
+    const res = await this.request(
+      `document-analysis/results/${resultId}`,
+      {},
+      "GET",
+    );
+    return res.result;
+  }
+
+  static async applyDocumentAnalysis(resultId, selectedFieldKeys) {
+    const res = await this.request(
+      `document-analysis/results/${resultId}/apply`,
+      { selectedFieldKeys },
+      "POST",
+    );
+    return res;
+  }
+
+  static async rejectDocumentAnalysis(resultId) {
+    const res = await this.request(
+      `document-analysis/results/${resultId}/reject`,
+      {},
+      "POST",
+    );
+    return res.result;
+  }
+
   /* --------- Inspection Checklist --------- */
 
   static async getInspectionChecklist(propertyId, { systemKey, status } = {}) {

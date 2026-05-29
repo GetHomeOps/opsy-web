@@ -23,6 +23,8 @@ import SystemsTab from "./SystemsTab";
 import MaintenanceTab from "./MaintenanceTab";
 import IdentityTab from "./IdentityTab";
 import DocumentsTab from "./DocumentsTab";
+import DocumentAnalysisOrchestrator from "./partials/DocumentAnalysisOrchestrator";
+import { REQUEST_INSPECTION_OPSYMIZATION_EVENT } from "./helpers/documentAnalysisFlow";
 import OpsyHead from "../../images/opsy_head.png";
 import Tooltip from "../../utils/Tooltip";
 import ScoreCard from "./ScoreCard";
@@ -65,6 +67,7 @@ import {
 } from "./helpers/formDataByTabs";
 import {buildPropertyPayloadFromRefresh} from "./helpers/buildPropertyPayloadFromRefresh";
 import {formSystemsToArray} from "./helpers/formSystemsToArray";
+import {buildCustomSystemsForUi} from "./helpers/systemKeyUtils";
 import {computeHpsScore} from "./helpers/computeHpsScore";
 import {
   mapMaintenanceRecordsFromBackend,
@@ -546,6 +549,8 @@ function PropertyFormContainer() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareModalInitialTab, setShareModalInitialTab] = useState("owner");
   const [blankModalOpen, setBlankModalOpen] = useState(false);
+  const [inspectionAutoReportMeta, setInspectionAutoReportMeta] = useState(null);
+  const [inspectionAutoStart, setInspectionAutoStart] = useState(false);
   const [documentsUploadModalRequested, setDocumentsUploadModalRequested] =
     useState(false);
   const [invitationModalOpen, setInvitationModalOpen] = useState(false);
@@ -609,17 +614,41 @@ function PropertyFormContainer() {
     [state.formData.identity],
   );
 
-  const openInspectionAnalysisWithPlanCheck = useCallback(() => {
-    if (!isAdmin && !aiFeaturesEnabled) {
-      setUpgradePromptTitle("AI inspection analysis not included");
-      setUpgradePromptMsg(
-        "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features.",
-      );
-      setUpgradePromptOpen(true);
-      return;
-    }
-    setBlankModalOpen(true);
-  }, [isAdmin, aiFeaturesEnabled]);
+  const openInspectionAnalysisWithPlanCheck = useCallback(
+    (filedDocument = null) => {
+      if (!isAdmin && !aiFeaturesEnabled) {
+        setUpgradePromptTitle("AI inspection analysis not included");
+        setUpgradePromptMsg(
+          "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features.",
+        );
+        setUpgradePromptOpen(true);
+        return;
+      }
+      if (filedDocument) {
+        const s3Key =
+          filedDocument.document_key ??
+          filedDocument.documentKey ??
+          filedDocument.s3Key ??
+          "";
+        setInspectionAutoReportMeta({
+          s3Key: String(s3Key).trim(),
+          fileName:
+            filedDocument.document_name ?? filedDocument.name ?? null,
+          mimeType:
+            filedDocument.mime_type ??
+            filedDocument.mimeType ??
+            "application/pdf",
+          document_date: filedDocument.document_date ?? null,
+        });
+        setInspectionAutoStart(true);
+      } else {
+        setInspectionAutoReportMeta(null);
+        setInspectionAutoStart(false);
+      }
+      setBlankModalOpen(true);
+    },
+    [isAdmin, aiFeaturesEnabled],
+  );
 
   // Merged formData – declared early so callbacks can reference it
   const mergedFormData = mergeFormDataFromTabs(state.formData);
@@ -1121,6 +1150,24 @@ function PropertyFormContainer() {
     };
   }, [propertyIdForApi]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !propertyIdForApi) return;
+    const normalizedPropertyId = String(propertyIdForApi);
+    const handleOpsymizationRequest = (event) => {
+      if (String(event.detail?.propertyId ?? "") !== normalizedPropertyId) return;
+      openInspectionAnalysisWithPlanCheck(event.detail?.document ?? null);
+    };
+    window.addEventListener(
+      REQUEST_INSPECTION_OPSYMIZATION_EVENT,
+      handleOpsymizationRequest,
+    );
+    return () =>
+      window.removeEventListener(
+        REQUEST_INSPECTION_OPSYMIZATION_EVENT,
+        handleOpsymizationRequest,
+      );
+  }, [propertyIdForApi, openInspectionAnalysisWithPlanCheck]);
+
   /* Get property by ID and its systems */
   useEffect(() => {
     async function loadPropertyAndSystems() {
@@ -1379,9 +1426,11 @@ function PropertyFormContainer() {
       const customNamesFromBackend = Object.keys(
         fromSystems.customSystemsData ?? {},
       );
+      const {customSystemsData, ...flatFields} = fromSystems;
       dispatch({
         type: "SET_SYSTEMS_FORM_DATA_SILENT",
         payload: {
+          ...flatFields,
           selectedSystemIds:
             selectedIdsFromBackend.length > 0
               ? selectedIdsFromBackend
@@ -1391,7 +1440,7 @@ function PropertyFormContainer() {
               ? customNamesFromBackend
               : (state.formData.systems?.customSystemNames ?? []),
           customSystemsData:
-            fromSystems.customSystemsData ??
+            customSystemsData ??
             state.formData.systems?.customSystemsData ??
             {},
         },
@@ -2286,6 +2335,21 @@ function PropertyFormContainer() {
 
   // Systems to show in Systems tab: only those with included=true (from modal selection)
   const visibleSystemIds = state.formData.systems?.selectedSystemIds ?? [];
+
+  const systemsToShowForAnalysis = useMemo(() => {
+    const customNames = state.formData.systems?.customSystemNames ?? [];
+    const selected = PROPERTY_SYSTEMS.filter((s) =>
+      visibleSystemIds.includes(s.id),
+    ).map((s) => ({id: s.id, label: s.name}));
+    const custom = buildCustomSystemsForUi(customNames, state.systems ?? []).map(
+      ({id, label}) => ({id, label}),
+    );
+    return [
+      {id: "inspectionReport", label: "Inspection Report"},
+      ...selected,
+      ...custom,
+    ];
+  }, [visibleSystemIds, state.formData.systems?.customSystemNames, state.systems]);
 
   // Array of systems for use when updating systems on the backend (camelCase, backend-ready)
   const propertyId = state.property?.identity?.id ?? state.property?.id;
@@ -3824,6 +3888,7 @@ function PropertyFormContainer() {
                     >
                       <DocumentsTab
                         propertyData={mergedFormData}
+                        propertySystems={state.systems ?? []}
                         accountUrl={accountUrl}
                         propertyUid={uid}
                         onOpenAIReport={
@@ -4247,7 +4312,11 @@ function PropertyFormContainer() {
               : null
           }
           isOpen={blankModalOpen}
-          onClose={() => setBlankModalOpen(false)}
+          onClose={() => {
+            setBlankModalOpen(false);
+            setInspectionAutoReportMeta(null);
+            setInspectionAutoStart(false);
+          }}
           onScheduleMaintenance={(prefill) => {
             setScheduleFromAiPrefill(prefill);
             setScheduleFromAiModalOpen(true);
@@ -4292,11 +4361,16 @@ function PropertyFormContainer() {
           customSystemNames={state.formData.systems?.customSystemNames ?? []}
           onContinueToSystems={(suggested) => {
             setBlankModalOpen(false);
+            setInspectionAutoReportMeta(null);
+            setInspectionAutoStart(false);
             setExternalSuggestedSystems(suggested);
             setSystemsSetupOnlyStep("systems");
             setSystemsSetupInitialStep("systems");
             setSystemsSetupModalOpen(true);
           }}
+          initialReportMeta={inspectionAutoReportMeta}
+          autoStartAnalysis={inspectionAutoStart}
+          onAutoStartConsumed={() => setInspectionAutoStart(false)}
         />
       </ModalBlank>
 
@@ -4421,6 +4495,22 @@ function PropertyFormContainer() {
           setShareModalOpen(true);
         }}
       />
+
+      {propertyIdForApi && (
+        <DocumentAnalysisOrchestrator
+          propertyId={propertyIdForApi}
+          systemsToShow={systemsToShowForAnalysis}
+          onOpenDocument={async (key) => {
+            try {
+              const url = await AppApi.getPresignedPreviewUrl(key);
+              window.open(url, "_blank", "noopener,noreferrer");
+            } catch (err) {
+              console.warn("[DocumentAnalysis] preview failed:", err.message);
+            }
+          }}
+          onSystemsUpdated={refreshPropertySystems}
+        />
+      )}
     </div>
   );
 }

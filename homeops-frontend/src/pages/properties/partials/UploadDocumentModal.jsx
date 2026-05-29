@@ -10,6 +10,8 @@ import {
   defaultDocumentLabelFromFile,
 } from "../../../constants/documentUpload";
 import UpgradePrompt from "../../../components/UpgradePrompt";
+import { emitDocumentsFiled } from "../helpers/documentAnalysisFlow";
+import { resolveUploadSystemKey } from "../helpers/systemKeyUtils";
 
 const documentTypes = [
   {id: "contract", label: "Contract"},
@@ -30,10 +32,14 @@ function UploadDocumentModal({
   systemLabel,
   propertyId,
   systemsToShow = [],
+  propertySystems = [],
+  customSystemNames = [],
   /** When true, lock to inspection report (system + type fixed), hide system/type dropdowns */
   inspectionReportOnly = false,
   /** Called after successful upload with created docs: [{key, name, type}] */
   onSuccess,
+  /** Called with full property_document rows after each successful upload batch */
+  onDocumentsFiled,
 }) {
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
   const [upgradePromptMsg, setUpgradePromptMsg] = useState("");
@@ -44,8 +50,14 @@ function UploadDocumentModal({
   const [documentType, setDocumentType] = useState(
     inspectionReportOnly ? "inspection" : "receipt",
   );
-  const [uploadSystemKey, setUploadSystemKey] = useState(
+  const resolvedInitialSystemKey = resolveUploadSystemKey(
     inspectionReportOnly ? "inspectionReport" : systemType,
+    propertySystems,
+    customSystemNames.length ? customSystemNames : systemsToShow.map((s) => s.label),
+  );
+
+  const [uploadSystemKey, setUploadSystemKey] = useState(
+    resolvedInitialSystemKey,
   );
   const [uploadFiles, setUploadFiles] = useState([]);
   const [uploadError, setUploadError] = useState(null);
@@ -72,7 +84,15 @@ function UploadDocumentModal({
       setDocumentName("");
       setDocumentDate(new Date().toISOString().slice(0, 10));
       setDocumentType(inspectionReportOnly ? "inspection" : "receipt");
-      setUploadSystemKey(inspectionReportOnly ? "inspectionReport" : systemType);
+      setUploadSystemKey(
+        resolveUploadSystemKey(
+          inspectionReportOnly ? "inspectionReport" : systemType,
+          propertySystems,
+          customSystemNames.length
+            ? customSystemNames
+            : systemsToShow.map((s) => s.label),
+        ),
+      );
       setUploadFiles([]);
       setUploadError(null);
       setUploadSuccessCount(0);
@@ -104,6 +124,7 @@ function UploadDocumentModal({
     clearUploadHookError();
 
     const createdDocs = [];
+    const filedPropertyDocs = [];
     let successCount = 0;
     for (let i = 0; i < uploadFiles.length; i++) {
       const file = uploadFiles[i];
@@ -118,7 +139,7 @@ function UploadDocumentModal({
         const prev = AppApi._suppressTierEmit;
         AppApi._suppressTierEmit = true;
         try {
-          await AppApi.createPropertyDocument({
+          const created = await AppApi.createPropertyDocument({
             property_id: propertyId,
             document_name: name,
             document_date: documentDate,
@@ -130,6 +151,7 @@ function UploadDocumentModal({
           successCount++;
           setUploadSuccessCount(successCount);
           createdDocs.push({key: s3Key, name: file.name, type: file.type});
+          if (created) filedPropertyDocs.push(created);
         } finally {
           AppApi._suppressTierEmit = prev;
         }
@@ -150,6 +172,10 @@ function UploadDocumentModal({
       setUploadFiles([]);
       setDocumentName("");
       onSuccess?.(createdDocs);
+      if (filedPropertyDocs.length) {
+        onDocumentsFiled?.(filedPropertyDocs);
+        emitDocumentsFiled(propertyId, filedPropertyDocs);
+      }
     }
   };
 
@@ -167,10 +193,19 @@ function UploadDocumentModal({
         setDocumentType("inspection");
       } else {
         const valid = systemsToShow.some((s) => s.id === systemType);
-        setUploadSystemKey(valid ? systemType : systemsToShow[0]?.id ?? "general");
+        const fallback = systemsToShow[0]?.id ?? "general";
+        setUploadSystemKey(
+          resolveUploadSystemKey(
+            valid ? systemType : fallback,
+            propertySystems,
+            customSystemNames.length
+              ? customSystemNames
+              : systemsToShow.map((s) => s.label),
+          ),
+        );
       }
     }
-  }, [isOpen, systemType, systemsToShow, inspectionReportOnly]);
+  }, [isOpen, systemType, systemsToShow, inspectionReportOnly, propertySystems, customSystemNames]);
 
   return (
     <>

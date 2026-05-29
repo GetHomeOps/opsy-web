@@ -120,6 +120,9 @@ export default function InspectionAnalysisModalContent({
   propertySystems = [],
   customSystemNames = [],
   onContinueToSystems,
+  initialReportMeta = null,
+  autoStartAnalysis = false,
+  onAutoStartConsumed,
 }) {
   const navigate = useNavigate();
   const {accountUrl} = useParams();
@@ -133,6 +136,7 @@ export default function InspectionAnalysisModalContent({
     refresh,
     load,
     startAnalysis,
+    startAnalysisForReport,
     analysisProgress,
     reportMeta,
     completedRunCount,
@@ -168,10 +172,42 @@ export default function InspectionAnalysisModalContent({
   };
 
   useEffect(() => {
-    if (isOpen && propertyId) {
-      load();
+    if (!isOpen || !propertyId) return;
+    if (autoStartAnalysis && initialReportMeta?.s3Key) return;
+    load();
+  }, [isOpen, propertyId, load, autoStartAnalysis, initialReportMeta?.s3Key]);
+
+  const autoStartHandledRef = React.useRef(false);
+  useEffect(() => {
+    if (!isOpen) {
+      autoStartHandledRef.current = false;
+      return;
     }
-  }, [isOpen, propertyId, load]);
+    if (
+      !autoStartAnalysis ||
+      !initialReportMeta?.s3Key ||
+      autoStartHandledRef.current
+    ) {
+      return;
+    }
+    autoStartHandledRef.current = true;
+    const meta = {
+      s3Key: String(initialReportMeta.s3Key).trim(),
+      fileName: initialReportMeta.fileName ?? null,
+      mimeType: initialReportMeta.mimeType ?? "application/pdf",
+      document_date: initialReportMeta.document_date ?? null,
+    };
+    if (!meta.s3Key) return;
+    startAnalysisForReport(meta).finally(() => {
+      onAutoStartConsumed?.();
+    });
+  }, [
+    isOpen,
+    autoStartAnalysis,
+    initialReportMeta,
+    startAnalysisForReport,
+    onAutoStartConsumed,
+  ]);
 
   useEffect(() => {
     if (status !== "ready" || !data || !propertyId || !isOpen) {

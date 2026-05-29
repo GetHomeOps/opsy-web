@@ -155,13 +155,18 @@ function reducer(state, action) {
 
 /* ------------------------- hook ------------------------- */
 
-export default function useDocumentsInbox(propertyId, { allowedSystemKeys } = {}) {
+export default function useDocumentsInbox(
+  propertyId,
+  { allowedSystemKeys, customSystems } = {},
+) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const propertyIdRef = useRef(propertyId);
   propertyIdRef.current = propertyId;
 
   const allowedRef = useRef(allowedSystemKeys);
   allowedRef.current = allowedSystemKeys;
+  const customSystemsRef = useRef(customSystems);
+  customSystemsRef.current = customSystems;
 
   /* hydrate on mount + when property changes */
   useEffect(() => {
@@ -312,13 +317,17 @@ export default function useDocumentsInbox(propertyId, { allowedSystemKeys } = {}
       const allowed = allowedRef.current
         ? new Set(allowedRef.current)
         : null;
+      const customSystemsForGuess = customSystemsRef.current ?? [];
 
       const cards = [];
       for (const file of files) {
         const tooBig =
           typeof file.size === "number" && file.size > MAX_DOCUMENT_UPLOAD_BYTES;
         const unsupported = !isAcceptedFile(file);
-        const guess = guessFromFilename(file.name, { allowedSystemKeys: allowed });
+        const guess = guessFromFilename(file.name, {
+          allowedSystemKeys: allowed,
+          customSystems: customSystemsForGuess,
+        });
 
         const card = {
           clientId: nextClientId(),

@@ -82,15 +82,7 @@ function toFormKey(snakeKey, prefix) {
   return toCamelCase(snakeKey);
 }
 
-/** Parse custom system name from slug (custom-solar-panels -> Solar Panels) */
-function parseCustomSystemName(systemKey) {
-  if (!systemKey?.startsWith("custom-")) return null;
-  const slug = systemKey.replace(/^custom-/, "");
-  return slug
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
+import { parseCustomSystemName } from "./systemKeyUtils";
 
 /** Map one system's data to form keys. Each system has standard fields: material, installDate, installer, etc. */
 function mapSystemData(systemKey, data, nextServiceDate) {

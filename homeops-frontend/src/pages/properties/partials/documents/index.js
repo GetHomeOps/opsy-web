@@ -4,5 +4,6 @@ export { default as DocumentsPreviewPanel } from "./DocumentsPreviewPanel";
 export { default as DocumentsInboxView } from "./DocumentsInboxView";
 export { default as InboxFileCard } from "./InboxFileCard";
 export { default as FolderContentsView } from "./FolderContentsView";
+export { default as DocumentCaptureModal } from "./DocumentCaptureModal";
 export { default as useDocumentsInbox } from "./useDocumentsInbox";
 export { guessFromFilename } from "./filenameHeuristics";

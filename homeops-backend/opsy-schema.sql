@@ -1257,6 +1257,56 @@ CREATE INDEX idx_property_ai_reanalysis_audit_created
     ON property_ai_reanalysis_audit(created_at DESC);
 
 -- ============================================================
+-- Document Analysis (per-document AI extraction after filing)
+-- ============================================================
+
+CREATE TABLE document_analysis_jobs (
+    id SERIAL PRIMARY KEY,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    property_document_id INTEGER NOT NULL REFERENCES property_documents(id) ON DELETE CASCADE,
+    s3_key VARCHAR(512) NOT NULL,
+    file_name VARCHAR(255),
+    mime_type VARCHAR(100),
+    system_key VARCHAR(50) NOT NULL,
+    document_type VARCHAR(50),
+    status VARCHAR(30) NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'processing', 'completed', 'failed')),
+    progress VARCHAR(100),
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_document_analysis_jobs_property ON document_analysis_jobs(property_id);
+CREATE INDEX idx_document_analysis_jobs_document ON document_analysis_jobs(property_document_id);
+CREATE INDEX idx_document_analysis_jobs_system ON document_analysis_jobs(property_id, system_key);
+CREATE INDEX idx_document_analysis_jobs_status ON document_analysis_jobs(status);
+
+CREATE TABLE document_analysis_results (
+    id SERIAL PRIMARY KEY,
+    job_id INTEGER NOT NULL REFERENCES document_analysis_jobs(id) ON DELETE CASCADE UNIQUE,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    property_document_id INTEGER NOT NULL REFERENCES property_documents(id) ON DELETE CASCADE,
+    system_key VARCHAR(50) NOT NULL,
+    detected_category VARCHAR(50) NOT NULL
+        CHECK (detected_category IN (
+            'installation_invoice', 'maintenance_report', 'inspection_report', 'bid', 'other'
+        )),
+    findings JSONB NOT NULL DEFAULT '[]',
+    review_status VARCHAR(30) NOT NULL DEFAULT 'pending_review'
+        CHECK (review_status IN ('pending_review', 'approved', 'rejected', 'partially_approved')),
+    applied_fields JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_document_analysis_results_property ON document_analysis_results(property_id);
+CREATE INDEX idx_document_analysis_results_document ON document_analysis_results(property_document_id);
+CREATE INDEX idx_document_analysis_results_system ON document_analysis_results(property_id, system_key);
+CREATE INDEX idx_document_analysis_results_review ON document_analysis_results(review_status);
+
+-- ============================================================
 -- AI Conversations and Messages
 -- ============================================================
 

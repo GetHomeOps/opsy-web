@@ -541,6 +541,62 @@ export function useInspectionAnalysis(propertyId) {
     }
   }, [propertyId, reportMeta, pollJobUntilTerminal]);
 
+  /** Start analysis for a specific report (e.g. just filed from Documents tab). */
+  const startAnalysisForReport = useCallback(
+    async (meta) => {
+      if (!propertyId || !meta?.s3Key) return;
+      const key = String(meta.s3Key).trim();
+      if (!key) return;
+
+      let docsForVerify = [];
+      try {
+        docsForVerify = (await AppApi.getPropertyDocuments(propertyId)) ?? [];
+      } catch {
+        docsForVerify = [];
+      }
+      if (!documentsHasS3Key(docsForVerify, key)) {
+        setStatus("error");
+        setReportMeta(null);
+        setError(
+          "No inspection report file is on file for this property. Upload a report before running analysis.",
+        );
+        return;
+      }
+
+      const reportMetaForJob = {
+        s3Key: key,
+        fileName: meta.fileName ?? null,
+        mimeType: meta.mimeType ?? "application/pdf",
+        document_date: meta.document_date ?? null,
+      };
+
+      setReportMeta(reportMetaForJob);
+      setStatus("loading");
+      setError(null);
+      setAnalysisProgress("Starting Opsymization analysis…");
+      abortRef.current = null;
+      pollGenerationRef.current += 1;
+
+      const prevSuppress = AppApi._suppressTierEmit;
+      AppApi._suppressTierEmit = true;
+      try {
+        const jobId = await createOrRefreshAnalysis(propertyId, reportMetaForJob);
+        await pollJobUntilTerminal(jobId, reportMetaForJob);
+      } catch (err) {
+        if (abortRef.current) return;
+        const isQuotaError =
+          err?.status === 403 &&
+          err?.message?.toLowerCase().includes("quota");
+        setStatus(isQuotaError ? "quota_exceeded" : "ready_to_analyze");
+        setError(err?.message ?? "Failed to start analysis");
+        setAnalysisProgress(null);
+      } finally {
+        AppApi._suppressTierEmit = prevSuppress;
+      }
+    },
+    [propertyId, pollJobUntilTerminal],
+  );
+
   return {
     status,
     data,
@@ -552,6 +608,7 @@ export function useInspectionAnalysis(propertyId) {
     refresh,
     load,
     startAnalysis,
+    startAnalysisForReport,
     generate: refresh,
   };
 }

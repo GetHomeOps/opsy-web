@@ -8,6 +8,7 @@ import {
   Calendar,
   Sparkles,
   FileSearch,
+  FileBarChart,
   Gauge,
   Wrench,
   AlertOctagon,
@@ -46,6 +47,7 @@ function CollapsibleSection({
   propertyId,
   propertyData = {},
   systemsToShow = [],
+  propertySystems = [],
   customSystemsData = {},
   onOpenAIAssistant,
   aiCondition,
@@ -55,6 +57,9 @@ function CollapsibleSection({
   maintenanceRecords = [],
   checklistSystemKey,
   onViewSystemEvents,
+  documentAnalysisCounts = {},
+  onOpenDocumentFindings,
+  onDocumentsFiled,
 }) {
   const formStatus = useMemo(
     () =>
@@ -103,6 +108,9 @@ function CollapsibleSection({
         scheduledDate: formStatus.scheduledDate,
       };
     }, [formStatus, systemFindings]);
+
+  const documentAnalysisCount = documentAnalysisCounts[systemType] ?? 0;
+  const hasDocumentAnalysis = documentAnalysisCount > 0;
 
   const aiInspectionTooltip = useMemo(() => {
     if (!aiCondition) return null;
@@ -323,6 +331,8 @@ function CollapsibleSection({
                 propertyId={propertyId}
                 propertyData={propertyData}
                 systemsToShow={systemsToShow}
+                propertySystems={propertySystems}
+                onDocumentsFiled={onDocumentsFiled}
               />
             </div>
           )}
@@ -369,6 +379,36 @@ function CollapsibleSection({
                     </button>
                   </Tooltip>
                 )}
+              {onOpenDocumentFindings && (
+                <Tooltip
+                  content={
+                    hasDocumentAnalysis
+                      ? `AI insights from uploaded documents (${documentAnalysisCount})`
+                      : "View AI document insights"
+                  }
+                  position="bottom"
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenDocumentFindings?.(systemType, systemLabel || title);
+                    }}
+                    className={`inline-flex items-center justify-center w-[18px] h-[18px] transition-colors rounded p-0.5 hover:opacity-80 ${
+                      hasDocumentAnalysis
+                        ? "text-emerald-600 dark:text-emerald-500"
+                        : "text-gray-400 dark:text-gray-500"
+                    }`}
+                    aria-label={
+                      hasDocumentAnalysis
+                        ? `AI document insights (${documentAnalysisCount})`
+                        : "View AI document insights"
+                    }
+                  >
+                    <FileBarChart className="w-[18px] h-[18px]" strokeWidth={2} />
+                  </button>
+                </Tooltip>
+              )}
               {needsAttention && (
                 <Tooltip
                   content={(() => {
