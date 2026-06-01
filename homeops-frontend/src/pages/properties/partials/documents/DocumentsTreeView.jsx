@@ -4,12 +4,10 @@ import {
   ChevronDown,
   ChevronRight,
   Search,
-  Upload,
   PanelLeftClose,
   File,
   Plus,
   Inbox,
-  Camera,
 } from "lucide-react";
 
 function formatDate(dateString) {
@@ -244,8 +242,6 @@ function DocumentsTreeView({
   setSearchQuery,
   onSelectDocument,
   onSelectFolder,
-  onUpload,
-  onOpenCapture,
   onUploadForSystem,
   systemUploadDisabledIds = [],
   onCollapse,
@@ -293,7 +289,7 @@ function DocumentsTreeView({
           </div>
         </div>
 
-        <div className="relative mb-3">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
@@ -302,26 +298,6 @@ function DocumentsTreeView({
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#456654] focus:border-transparent"
           />
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            onClick={onUpload}
-            className="flex-1 btn-sm bg-[#456654] hover:bg-[#3a5548] text-white flex items-center justify-center gap-1.5 py-2"
-          >
-            <Upload className="w-4 h-4" />
-            Upload
-          </button>
-          {onOpenCapture && (
-            <button
-              type="button"
-              onClick={onOpenCapture}
-              className="btn-sm border border-[#456654]/40 text-[#456654] dark:text-[#7a9a88] hover:bg-[#456654]/10 dark:hover:bg-[#456654]/20 flex items-center justify-center px-3 py-2"
-              title="Capture document photo"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
 

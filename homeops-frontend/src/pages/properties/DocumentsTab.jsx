@@ -1175,8 +1175,6 @@ function DocumentsTab({
                   setSelectedFolder(id);
                   setSelectedDocument(null);
                 }}
-                onUpload={openDefaultUploadModal}
-                onOpenCapture={openCaptureModal}
                 onUploadForSystem={openUploadModalWithSystem}
                 systemUploadDisabledIds={
                   hasInspectionReport ? ["inspectionReport"] : []

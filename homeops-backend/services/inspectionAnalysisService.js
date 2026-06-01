@@ -38,6 +38,38 @@ async function extractTextFromBuffer(buffer, mimeType) {
   return "";
 }
 
+const MAX_RATE_LIMIT_WAIT_MS = 35000;
+
+/**
+ * Call the OpenAI chat completion API with retry/backoff on rate limits (429)
+ * and transient 5xx errors. When the API reports "try again in Xs", we honor
+ * that delay; otherwise we back off exponentially. This prevents a transient
+ * TPM rate limit from silently dropping an entire pass's findings.
+ */
+async function chatCompletionWithRetry(openai, params, { label = "openai", maxRetries = 4 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await openai.chat.completions.create(params);
+    } catch (err) {
+      lastErr = err;
+      const status = err?.status ?? err?.response?.status;
+      const retryable = status === 429 || (status >= 500 && status < 600);
+      if (!retryable || attempt === maxRetries) throw err;
+      const suggested = /try again in ([\d.]+)\s*s/i.exec(err?.message || "");
+      let waitMs = suggested
+        ? Math.ceil(parseFloat(suggested[1]) * 1000) + 750
+        : Math.min(2000 * Math.pow(2, attempt), MAX_RATE_LIMIT_WAIT_MS);
+      waitMs = Math.min(waitMs, MAX_RATE_LIMIT_WAIT_MS);
+      console.warn(
+        `[inspectionAnalysis] ${label}: ${status} rate/transient error — retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${maxRetries})`
+      );
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+  throw lastErr;
+}
+
 const CANONICAL_SYSTEMS_LIST = CANONICAL_SYSTEMS.join(", ");
 
 /* ── Multi-pass prompts ── */
@@ -133,8 +165,13 @@ Output format:
 Report text for {SYSTEM_TYPE}:
 `;
 
-/* Legacy single-pass prompt (kept as fallback for short reports) */
+/* Single comprehensive prompt — used only for very short reports (<= SINGLE_PASS_MAX_CHARS). */
 const ANALYSIS_PROMPT = `You are an expert home inspector analyzing a property inspection report. Extract structured findings that represent ACTUAL DEFICIENCIES, DEFECTS, SAFETY CONCERNS, or EXPLICIT RECOMMENDATIONS.
+
+COMPLETENESS — CAPTURE EVERY RECOMMENDATION:
+- Read the ENTIRE report. Inspectors often place a consolidated list in a "SUMMARY", "RECOMMENDATIONS", or numbered "Recommendations" section — harvest every item from those sections AND any deficiencies described inline in the system sections.
+- Do not stop early or skip sections. Scan interior, carpentry, cabinetry, trim, drywall, site, and general sections too, not just the major mechanical systems.
+- Each distinct recommendation must appear EXACTLY ONCE (see DEDUPLICATION below).
 
 CRITICAL RULES — WHAT TO INCLUDE:
 - Output ONLY valid JSON. No markdown, no extra text.
@@ -163,9 +200,10 @@ IMPACT SCORE (1-10): Rate each finding's real-world impact on habitability, safe
 
 SYSTEM TYPE: For each finding, choose the best-fitting system:
 1. Use a canonical type when it fits: ${CANONICAL_SYSTEMS_LIST}
-2. Use a custom systemType when none of the above fit well (e.g. "pool", "deck", "septic"). Use lowercase camelCase.
+2. For findings in interior, carpentry, cabinetry, drywall, trim, general, or appliance/disposal sections that do not fit a canonical system, use systemType "interior".
+3. Otherwise use a custom systemType when none of the above fit well (e.g. "pool", "deck", "septic"). Use lowercase camelCase.
 
-CRITICAL: Do NOT suggest or use "Appliances" or appliance-related systems. We track only property systems, not appliances.
+CRITICAL: Never use "appliances" or a specific appliance name (dishwasher, disposal, refrigerator, etc.) as the systemType — use "interior" instead. Do NOT invent appliance systems; we track property systems, but DO keep an explicit inspector recommendation even if it concerns an appliance, attributing it to "interior".
 
 DEDUPLICATION — SYSTEMS: Do NOT create redundant or overlapping systems. Each area maps to one system. "structure"/"foundation" -> foundation. "fuel storage"/"oil tank" -> heating. "chimney"/"fireplace" -> heating. "attic"/"insulation" -> exterior. "crawl space"/"basement" -> foundation. "garage"/"garage door" -> exterior. "ventilation" -> ac. "smoke detectors"/"CO detectors" -> safety. Do NOT include "inspections" as a system.
 
@@ -203,6 +241,47 @@ Output format (strict JSON):
 Report text:
 `;
 
+/*
+ * Global findings sweep (multi-pass). Runs once over the ENTIRE report to catch
+ * every explicit deficiency/recommendation regardless of which "system" it falls
+ * under. This is the comprehensiveness guarantee: per-system passes only run for
+ * systems the inventory enumerated, so findings in Interior/Carpentry/General/
+ * Appliance sections (which are not tracked systems) would otherwise be missed.
+ */
+const GLOBAL_FINDINGS_PROMPT = `You are an expert home inspector. Read the ENTIRE inspection report below and extract EVERY explicit deficiency, defect, safety concern, or recommendation the inspector made — no matter where it appears.
+
+COMPLETENESS — THIS IS THE PRIORITY:
+- Inspectors often place a consolidated list in a "SUMMARY", "RECOMMENDATIONS", or numbered "Recommendations" section. Capture every item from those sections AND any deficiencies described inline in system sections.
+- Do not stop early. Scan the whole document, including interior, carpentry, cabinetry, appliances, site, and general sections.
+- Each distinct recommendation must appear EXACTLY ONCE. Do not output duplicates or rephrased versions of the same item.
+
+CRITICAL RULES — WHAT TO INCLUDE:
+- Output ONLY valid JSON. No markdown, no extra text.
+- ONLY include items where the report identifies an actual problem, deficiency, defect, safety hazard, code violation, deferred maintenance, or an explicit recommendation to repair/replace/clean/correct/evaluate something.
+- EVIDENCE REQUIRED: every item MUST have an "evidence" field containing a VERBATIM quote (1-2 sentences, copied exactly) from the report. If you cannot find a verbatim quote, do NOT include the item.
+
+CRITICAL RULES — WHAT TO EXCLUDE (no bloat, no hallucination):
+- DO NOT include items where the report says "no observable defects", "no deficiencies", "satisfactory", "functional", "operating normally", "good condition", "no issues", "N/A", or similar positive/neutral language.
+- DO NOT include informational observations that are not deficiencies (age, material type, how a system works).
+- DO NOT apply general maintenance knowledge. If the report does not explicitly flag it, omit it.
+
+SYSTEM ATTRIBUTION:
+- Map each finding to the best-fitting tracked system: ${CANONICAL_SYSTEMS_LIST}.
+- For findings in interior, carpentry, cabinetry, drywall, trim, general, or appliance/disposal sections that do not fit a canonical system, use systemType "interior".
+- Never use "appliances" or a specific appliance name as the systemType; use "interior" instead.
+
+SEVERITY: critical/urgent for safety hazards or "immediate"; high for "recommend repair/replace", active damage; medium for "monitor/consider/minor"; low for minor notes. Infer from the report's own language and timeframe (e.g. "Immediate", "As soon as possible").
+IMPACT SCORE (1-10): 8-10 safety/structural/water intrusion; 5-7 active deficiencies needing professional repair; 3-4 minor/cosmetic/deferred.
+
+Output format (strict JSON):
+{
+  "needsAttention": [{ "title": "short descriptive title", "systemType": "exterior", "severity": "high", "priority": "urgent", "impactScore": 7, "suggestedAction": "what to do", "evidence": "verbatim quote from report" }],
+  "maintenanceSuggestions": [{ "systemType": "interior", "task": "what to do", "suggestedWhen": "as soon as possible", "priority": "medium", "impactScore": 4, "rationale": "why — grounded in report", "confidence": 0.8, "evidence": "verbatim quote from report" }]
+}
+
+Report text:
+`;
+
 /** Fetch property context (existing systems) for analysis. */
 async function getPropertyContextForAnalysis(propertyId) {
   const [propRes, systemsRes] = await Promise.all([
@@ -227,9 +306,53 @@ async function getPropertyContextForAnalysis(propertyId) {
   return parts.length > 0 ? parts.join("\n") + "\n\n" : "";
 }
 
-const SHORT_REPORT_THRESHOLD = 8000;
-const MAX_CONCURRENT_SYSTEM_CALLS = 4;
+/**
+ * Only very short reports are analyzed in a SINGLE comprehensive pass (one LLM
+ * call). Anything larger uses multi-pass (inventory + focused per-system passes
+ * + global sweep), which has substantially higher recall: a single combined call
+ * tends to summarize and drop individual findings (e.g. it returned 3 of 6
+ * electrical items on a 52k-char report), whereas the per-system passes
+ * enumerate each system exhaustively. The TPM concern that previously motivated
+ * preferring single-pass is now handled by chatCompletionWithRetry's rate-limit
+ * backoff, so we default to the more complete multi-pass path.
+ */
+const SINGLE_PASS_MAX_CHARS = 8000;
 const MIN_EVIDENCE_LENGTH = 15;
+
+/**
+ * Models, split by role:
+ * - REASONING_MODEL (gpt-4o): low-volume, judgment-heavy passes — the system
+ *   inventory/overall-condition pass and the single-pass path for tiny reports.
+ * - EXTRACTION_MODEL (gpt-4o-mini): high-volume, well-constrained extraction —
+ *   the per-system passes and the global findings sweep. These dominate token
+ *   throughput, and gpt-4o has only a 30k tokens-per-minute (TPM) ceiling on
+ *   this account (full ~50k-char report ≈ 13k tokens PER call), which throttled
+ *   the analysis to 12-26s backoffs and even dropped systems. gpt-4o-mini has a
+ *   far higher TPM limit, so we can send the FULL report to every pass (maximum
+ *   recall) without throttling, and it is faster and cheaper per token.
+ */
+const REASONING_MODEL = "gpt-4o";
+const EXTRACTION_MODEL = "gpt-4o-mini";
+
+/**
+ * Per-system passes run concurrently. gpt-4o-mini's high TPM ceiling lets us run
+ * several full-report calls at once without rate limiting; this is the main
+ * latency win versus running them in small serial batches.
+ */
+const MAX_CONCURRENT_SYSTEM_CALLS = 5;
+
+/**
+ * Send the FULL report to each per-system pass (findings for one system are
+ * routinely scattered across the whole document, so slicing drops them). Only
+ * reports larger than this fall back to gathering every heading occurrence (see
+ * extractAllSystemSections). The cap is effectively the post-truncation report
+ * size, so in practice every report sends full text.
+ */
+const FULL_TEXT_PER_SYSTEM_THRESHOLD = 100000;
+/** Max characters of gathered per-system text for reports above the threshold. */
+const MAX_SECTION_CHARS = 30000;
+/** Deterministic sampling seed (best-effort) for reproducible analyses. */
+const ANALYSIS_SEED = 7;
 
 const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 const PRIORITY_RANK = { urgent: 0, high: 1, medium: 2, low: 3 };
@@ -319,6 +442,141 @@ function deduplicateFindingsByEvidence(items, scoreFn) {
   return Array.from(byEvidence.values());
 }
 
+/** Normalize a title/task for dedup (lowercase, strip punctuation, collapse whitespace). */
+function normalizeTitleForDedup(str) {
+  if (!str || typeof str !== "string") return "";
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Min length for a normalized title to be used for containment-based dedup. */
+const MIN_TITLE_DEDUP_LENGTH = 8;
+
+/**
+ * Words that carry no distinguishing meaning for a finding title and would
+ * otherwise prevent two phrasings of the same issue from matching. Includes
+ * articles/prepositions plus generic action verbs ("install", "repair") and
+ * filler ("recommend", "missing", "certain") so that, e.g., "Lack of GFCI
+ * Protection" and "GFCI protection missing at certain locations" reduce to the
+ * same significant tokens {gfci, protection}.
+ */
+const TITLE_STOPWORDS = new Set([
+  "the", "a", "an", "of", "at", "in", "on", "to", "from", "and", "or", "for",
+  "with", "is", "are", "be", "by", "as", "that", "this", "these", "those", "it",
+  "install", "installing", "installation", "repair", "repairing", "replace",
+  "replacing", "replacement", "remove", "removing", "removal", "fix", "fixing",
+  "service", "servicing", "evaluate", "evaluation", "correct", "correction",
+  "address", "prevent", "reduce", "recommend", "recommended", "recommends",
+  "recommendation", "needs", "need", "needed", "should", "missing", "lack",
+  "lacking", "certain", "various", "location", "locations", "area", "areas",
+  "some", "all", "where", "near", "due", "not", "no",
+]);
+
+/** Extract the set of significant (non-stopword) tokens from a title/task. */
+function significantTokens(str) {
+  const norm = normalizeTitleForDedup(str);
+  if (!norm) return new Set();
+  return new Set(
+    norm.split(" ").filter((t) => t.length > 1 && !TITLE_STOPWORDS.has(t))
+  );
+}
+
+/** Min number of shared significant tokens required to treat two titles as the same. */
+const MIN_SHARED_SIGNIFICANT_TOKENS = 2;
+/** Jaccard threshold (token overlap) above which two titles are considered duplicates. */
+const TITLE_JACCARD_THRESHOLD = 0.6;
+
+/**
+ * Decide whether two titles/tasks describe the same underlying issue, using
+ * significant-token overlap rather than raw substring containment. Catches
+ * rephrasings the old containment check missed, e.g.:
+ *   "Moss growth on roofing material" vs "Remove moss from roofing material"
+ *   "Lack of GFCI Protection"        vs "GFCI protection missing at certain locations"
+ *   "Construction debris in waste disposal" vs "Remove construction debris from waste disposal grinder"
+ * while keeping genuinely distinct items apart (e.g. "GFCI receptacle not
+ * resetting" vs "Lack of GFCI protection" share only {gfci}).
+ */
+function titlesAreSimilar(a, b) {
+  const ta = significantTokens(a);
+  const tb = significantTokens(b);
+  if (ta.size === 0 || tb.size === 0) return false;
+
+  let inter = 0;
+  for (const t of ta) if (tb.has(t)) inter++;
+  if (inter === 0) return false;
+
+  const smaller = Math.min(ta.size, tb.size);
+  // Subset: every significant token of the shorter title is in the longer one.
+  if (smaller >= MIN_SHARED_SIGNIFICANT_TOKENS && inter === smaller) return true;
+
+  const union = ta.size + tb.size - inter;
+  return inter / union >= TITLE_JACCARD_THRESHOLD;
+}
+
+/**
+ * Deduplicate findings whose title/task describes the same issue. Complements
+ * evidence-based dedup: the same real-world issue can be reported under two
+ * systems (or by both a per-system pass and the global sweep) with different
+ * evidence quotes and slightly different wording. Keeps the highest-scored item.
+ */
+function deduplicateFindingsByTitle(items, getTitle, scoreFn) {
+  const kept = []; // { item, title }
+  const passthrough = [];
+
+  for (const item of items) {
+    const title = getTitle(item);
+    const norm = normalizeTitleForDedup(title);
+    if (norm.length < MIN_TITLE_DEDUP_LENGTH) {
+      passthrough.push(item);
+      continue;
+    }
+
+    const matchIdx = kept.findIndex((k) => titlesAreSimilar(k.title, title));
+    if (matchIdx === -1) {
+      kept.push({ item, title });
+    } else if (scoreFn(item) > scoreFn(kept[matchIdx].item)) {
+      kept[matchIdx] = { item, title };
+    }
+  }
+  return [...kept.map((k) => k.item), ...passthrough];
+}
+
+/** Run both evidence- and title-based dedup for a set of findings. */
+function dedupeFindings(items, getTitle, scoreFn) {
+  const byEvidence = deduplicateFindingsByEvidence(items, scoreFn);
+  return deduplicateFindingsByTitle(byEvidence, getTitle, scoreFn);
+}
+
+/**
+ * Remove maintenance suggestions that duplicate a needs-attention item. The same
+ * issue is frequently surfaced as both an urgent finding AND a maintenance task
+ * (e.g. "Construction debris in waste disposal" + "Remove construction debris
+ * from waste disposal grinder"). The needs-attention entry is the more prominent
+ * one, so it wins and the redundant maintenance task is dropped. Matches on
+ * shared evidence quote or similar title/task.
+ */
+function dropMaintenanceDuplicatedInNeedsAttention(needsAttention, maintenance) {
+  if (needsAttention.length === 0) return maintenance;
+  const naEvidence = needsAttention
+    .map((n) => normalizeEvidenceForDedup(n.evidence || ""))
+    .filter((e) => e.length >= MIN_EVIDENCE_DEDUP_LENGTH);
+
+  return maintenance.filter((m) => {
+    const mEv = normalizeEvidenceForDedup(m.evidence || m.rationale || "");
+    if (mEv.length >= MIN_EVIDENCE_DEDUP_LENGTH) {
+      for (const naEv of naEvidence) {
+        const shorter = mEv.length < naEv.length ? mEv : naEv;
+        const longer = mEv.length >= naEv.length ? mEv : naEv;
+        if (longer.includes(shorter)) return false;
+      }
+    }
+    return !needsAttention.some((n) => titlesAreSimilar(n.title, m.task));
+  });
+}
+
 /**
  * Check if an item has valid evidence (direct quote from report).
  * Items without evidence may be invented; we filter them out for accuracy.
@@ -329,34 +587,144 @@ function hasValidEvidence(item) {
 }
 
 /**
- * Extract relevant text for a specific system from the full report.
- * Uses section headings to find relevant portions; falls back to full text.
+ * Gather text for a system from a LARGE report by collecting EVERY heading
+ * occurrence (not just the first), since a single system's findings are usually
+ * scattered across the document. Merges overlapping windows and caps the total.
+ * Falls back to the whole report when no headings match.
  */
-function extractSystemSection(fullText, systemType, sectionHint) {
+function extractAllSystemSections(fullText, systemType, sectionHint, maxChars = MAX_SECTION_CHARS) {
   const hints = [systemType, sectionHint].filter(Boolean);
   const headingPatterns = hints.flatMap((h) => {
     const esc = h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return [
-      new RegExp(`(?:^|\\n)\\s*#{1,4}\\s*${esc}[^\\n]*`, "im"),
-      new RegExp(`(?:^|\\n)\\s*\\*{0,2}${esc}\\*{0,2}\\s*[:—\\-]?`, "im"),
-      new RegExp(`(?:^|\\n)\\s*${esc}\\s*\\n[-=]{2,}`, "im"),
+      new RegExp(`(?:^|\\n)\\s*#{1,4}\\s*${esc}[^\\n]*`, "gim"),
+      new RegExp(`(?:^|\\n)\\s*\\*{0,2}${esc}\\*{0,2}\\s*[:—\\-]?`, "gim"),
+      new RegExp(`(?:^|\\n)\\s*${esc}\\s*\\n[-=]{2,}`, "gim"),
     ];
   });
 
+  // Collect [start, end] windows around every heading occurrence.
+  const WINDOW_BEFORE = 200;
+  const WINDOW_AFTER = 1800;
+  const ranges = [];
   for (const re of headingPatterns) {
-    const match = re.exec(fullText);
-    if (match) {
-      const startIdx = match.index;
-      const nextHeading = fullText.slice(startIdx + match[0].length).search(
-        /\n\s*(?:#{1,4}\s|\*{2}[A-Z]|[A-Z][A-Z\s/]{3,}[:—\-]\s*\n|[A-Z][a-z]+ [A-Z][a-z]+\s*\n[-=]{2,})/
-      );
-      const endIdx = nextHeading >= 0
-        ? startIdx + match[0].length + nextHeading + 500
-        : startIdx + 8000;
-      return fullText.slice(Math.max(0, startIdx - 200), Math.min(fullText.length, endIdx));
+    let match;
+    while ((match = re.exec(fullText)) !== null) {
+      const startIdx = Math.max(0, match.index - WINDOW_BEFORE);
+      const endIdx = Math.min(fullText.length, match.index + match[0].length + WINDOW_AFTER);
+      ranges.push([startIdx, endIdx]);
+      if (match.index === re.lastIndex) re.lastIndex++; // guard against zero-width matches
     }
   }
-  return fullText;
+
+  if (ranges.length === 0) {
+    return fullText.length > maxChars ? fullText.slice(0, maxChars) : fullText;
+  }
+
+  // Merge overlapping/adjacent ranges.
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [ranges[0].slice()];
+  for (let i = 1; i < ranges.length; i++) {
+    const last = merged[merged.length - 1];
+    if (ranges[i][0] <= last[1]) {
+      last[1] = Math.max(last[1], ranges[i][1]);
+    } else {
+      merged.push(ranges[i].slice());
+    }
+  }
+
+  let out = "";
+  for (const [s, e] of merged) {
+    if (out.length >= maxChars) break;
+    const chunk = fullText.slice(s, e);
+    out += (out ? "\n...\n" : "") + chunk;
+  }
+  return out.length > maxChars ? out.slice(0, maxChars) : out;
+}
+
+/**
+ * Resolve the text to send to a per-system extraction pass. Sends the full
+ * report for typical sizes (so no scattered findings are missed); for very large
+ * reports, gathers every heading occurrence for the system.
+ */
+function getSystemTextForPass(fullText, systemType, sectionHint) {
+  if (fullText.length <= FULL_TEXT_PER_SYSTEM_THRESHOLD) {
+    return fullText;
+  }
+  return extractAllSystemSections(fullText, systemType, sectionHint);
+}
+
+/**
+ * Global findings sweep: one pass over the FULL report to capture every explicit
+ * deficiency/recommendation, including those in sections that are not tracked
+ * systems (Interior/Carpentry/General/Appliance). Returns normalized, evidence-
+ * gated findings to be merged with the per-system results. Failures are logged
+ * and treated as empty so they never break the overall analysis.
+ */
+async function runGlobalFindingsPass(openai, textToUse, usageCtx) {
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const completion = await chatCompletionWithRetry(openai, {
+        model: EXTRACTION_MODEL,
+        messages: [
+          { role: "system", content: "You output only valid JSON. No markdown, no code blocks, no extra text." },
+          { role: "user", content: GLOBAL_FINDINGS_PROMPT + textToUse },
+        ],
+        temperature: 0,
+        seed: ANALYSIS_SEED,
+        max_tokens: 4000,
+        response_format: { type: "json_object" },
+      }, { label: "global-findings" });
+      if (usageCtx && completion.usage) {
+        logAiUsage({
+          accountId: usageCtx.accountId,
+          userId: usageCtx.userId,
+          model: `openai/${EXTRACTION_MODEL}`,
+          promptTokens: completion.usage.prompt_tokens,
+          completionTokens: completion.usage.completion_tokens,
+          endpoint: "inspection-analysis/global-findings",
+        }).catch((err) => console.error("[inspectionAnalysis] logAiUsage error:", err.message));
+      }
+      const content = completion.choices[0]?.message?.content;
+      if (!content) {
+        lastErr = new Error("Empty response");
+        continue;
+      }
+      const data = JSON.parse(content);
+
+      const needsAttention = (data.needsAttention || [])
+        .filter((n) => hasValidEvidence(n) && !isExcludedSystem(n.systemType))
+        .map((n) => ({
+          title: n.title || "",
+          systemType: n.systemType ? normalizeSystemType(n.systemType) || n.systemType : "interior",
+          severity: n.severity || "medium",
+          evidence: n.evidence || null,
+          suggestedAction: n.suggestedAction || "",
+          priority: n.priority || "medium",
+          impactScore: n.impactScore ?? 5,
+        }));
+
+      const maintenanceSuggestions = (data.maintenanceSuggestions || [])
+        .filter((m) => hasValidEvidence(m) && !isExcludedSystem(m.systemType))
+        .map((m) => ({
+          systemType: m.systemType ? normalizeSystemType(m.systemType) || m.systemType : "interior",
+          task: m.task || "",
+          suggestedWhen: m.suggestedWhen || "",
+          priority: m.priority || "medium",
+          rationale: m.rationale || "",
+          confidence: m.confidence ?? 0.5,
+          impactScore: m.impactScore ?? 5,
+          evidence: m.evidence || null,
+        }));
+
+      return { needsAttention, maintenanceSuggestions };
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  console.error("[inspectionAnalysis] global findings pass failed:", lastErr?.message || lastErr);
+  return { needsAttention: [], maintenanceSuggestions: [] };
 }
 
 /**
@@ -372,20 +740,21 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
 
   /* ── Pass 1: System Inventory ── */
   await progressCb("Analyzing report — identifying systems...");
-  const inventoryCompletion = await openai.chat.completions.create({
-    model: "gpt-4o",
+  const inventoryCompletion = await chatCompletionWithRetry(openai, {
+    model: REASONING_MODEL,
     messages: [
       { role: "system", content: "You output only valid JSON. No markdown, no code blocks, no extra text." },
       { role: "user", content: ctxPrefix + INVENTORY_PROMPT + preDetectionHint + textToUse },
     ],
-    temperature: 0.15,
+    temperature: 0,
+    seed: ANALYSIS_SEED,
     response_format: { type: "json_object" },
-  });
+  }, { label: "inventory" });
   if (usageCtx && inventoryCompletion.usage) {
     logAiUsage({
       accountId: usageCtx.accountId,
       userId: usageCtx.userId,
-      model: "openai/gpt-4o",
+      model: `openai/${REASONING_MODEL}`,
       promptTokens: inventoryCompletion.usage.prompt_tokens,
       completionTokens: inventoryCompletion.usage.completion_tokens,
       endpoint: "inspection-analysis/inventory",
@@ -411,6 +780,26 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
     return true;
   });
 
+  // Coverage safety net: a single inventory pass can miss a system that is
+  // clearly present in the report. Add any keyword-detected system the inventory
+  // omitted so it still gets a per-system extraction pass. The per-system prompt
+  // will produce nothing if the system has no substantive findings.
+  for (const det of keywordDetections) {
+    const normalized = normalizeSystemType(det.system) || det.system;
+    if (!normalized || isExcludedSystem(normalized)) continue;
+    const k = normalized.toLowerCase();
+    if (seenSys.has(k)) continue;
+    seenSys.add(k);
+    dedupedSystems.push({ systemType: normalized, sectionHint: "" });
+  }
+
+  /* ── Global findings sweep (runs concurrently with the per-system passes) ── */
+  // Kick off the full-document sweep now so it overlaps Pass 2 instead of adding
+  // a serial round-trip at the end. It only needs the report text, not the
+  // per-system results, so there is no ordering dependency. We await it at the
+  // merge step below.
+  const globalFindingsPromise = runGlobalFindingsPass(openai, textToUse, usageCtx);
+
   /* ── Pass 2: Per-system extraction (batched) ── */
   const allSystemsDetected = [];
   const allNeedsAttention = [];
@@ -428,39 +817,56 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
 
     const results = await Promise.allSettled(
       batch.map(async (sys) => {
-        const sectionText = extractSystemSection(textToUse, sys.systemType, sys.sectionHint);
-        const maxSectionChars = 20000;
-        const trimmed = sectionText.length > maxSectionChars ? sectionText.slice(0, maxSectionChars) : sectionText;
+        const trimmed = getSystemTextForPass(textToUse, sys.systemType, sys.sectionHint);
         const prompt = PER_SYSTEM_PROMPT.replace(/\{SYSTEM_TYPE\}/g, sys.systemType);
 
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: "You output only valid JSON. No markdown, no code blocks, no extra text." },
-            { role: "user", content: prompt + trimmed },
-          ],
-          temperature: 0.15,
-          response_format: { type: "json_object" },
-        });
-        if (usageCtx && completion.usage) {
-          logAiUsage({
-            accountId: usageCtx.accountId,
-            userId: usageCtx.userId,
-            model: "openai/gpt-4o",
-            promptTokens: completion.usage.prompt_tokens,
-            completionTokens: completion.usage.completion_tokens,
-            endpoint: `inspection-analysis/system/${sys.systemType}`,
-          }).catch((err) => console.error("[inspectionAnalysis] logAiUsage error:", err.message));
-        }
+        // Retry once: a truncated/invalid JSON response (or transient error)
+        // would otherwise silently drop this entire system's findings.
+        let lastErr;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const completion = await chatCompletionWithRetry(openai, {
+              model: EXTRACTION_MODEL,
+              messages: [
+                { role: "system", content: "You output only valid JSON. No markdown, no code blocks, no extra text." },
+                { role: "user", content: prompt + trimmed },
+              ],
+              temperature: 0,
+              seed: ANALYSIS_SEED,
+              max_tokens: 4000,
+              response_format: { type: "json_object" },
+            }, { label: `system/${sys.systemType}` });
+            if (usageCtx && completion.usage) {
+              logAiUsage({
+                accountId: usageCtx.accountId,
+                userId: usageCtx.userId,
+                model: `openai/${EXTRACTION_MODEL}`,
+                promptTokens: completion.usage.prompt_tokens,
+                completionTokens: completion.usage.completion_tokens,
+                endpoint: `inspection-analysis/system/${sys.systemType}`,
+              }).catch((err) => console.error("[inspectionAnalysis] logAiUsage error:", err.message));
+            }
 
-        const content = completion.choices[0]?.message?.content;
-        if (!content) return null;
-        return { systemType: sys.systemType, data: JSON.parse(content) };
+            const content = completion.choices[0]?.message?.content;
+            if (!content) {
+              lastErr = new Error("Empty response");
+              continue;
+            }
+            return { systemType: sys.systemType, data: JSON.parse(content) };
+          } catch (err) {
+            lastErr = err;
+          }
+        }
+        throw new Error(`per-system extraction failed for "${sys.systemType}": ${lastErr?.message || "unknown error"}`);
       })
     );
 
     for (const r of results) {
-      if (r.status !== "fulfilled" || !r.value) continue;
+      if (r.status === "rejected") {
+        console.error("[inspectionAnalysis] per-system pass dropped:", r.reason?.message || r.reason);
+        continue;
+      }
+      if (!r.value) continue;
       const { systemType, data } = r.value;
       const sysCondition = (data.condition || "unknown").toLowerCase();
       const hasCondition = ["excellent", "good", "fair", "poor"].includes(sysCondition);
@@ -505,6 +911,15 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
     }
   }
 
+  /* ── Merge in the global findings sweep ── */
+  // Catches explicit recommendations that don't map to an enumerated system
+  // (Interior/Carpentry/General/Appliance sections). Merged + deduped below so
+  // results are comprehensive and consistent regardless of inventory variance.
+  await progressCb("Reviewing report for any remaining recommendations...");
+  const globalFindings = await globalFindingsPromise;
+  for (const n of globalFindings.needsAttention) allNeedsAttention.push(n);
+  for (const m of globalFindings.maintenanceSuggestions) allMaintenanceSuggestions.push(m);
+
   const systemsWithFindings = new Set();
   for (const s of allSystemsDetected) {
     const cond = (s.condition || "unknown").toLowerCase();
@@ -517,9 +932,10 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
     if (m.systemType) systemsWithFindings.add(m.systemType.toLowerCase());
   }
 
-  // Deduplicate findings that appear under multiple systems (same evidence quote)
-  const dedupedNeedsAttention = deduplicateFindingsByEvidence(allNeedsAttention, severityScore);
-  const dedupedMaintenanceSuggestions = deduplicateFindingsByEvidence(allMaintenanceSuggestions, priorityScore);
+  // Deduplicate findings that appear under multiple systems (same evidence quote
+  // or same title/task).
+  const dedupedNeedsAttention = dedupeFindings(allNeedsAttention, (n) => n.title, severityScore);
+  const dedupedMaintenanceSuggestions = dedupeFindings(allMaintenanceSuggestions, (m) => m.task, priorityScore);
 
   const overallCondition = inventory.overallCondition || {};
   return {
@@ -540,7 +956,11 @@ async function runMultiPassAnalysis(openai, textToUse, propertyContext, keywordD
 }
 
 /**
- * Run legacy single-pass analysis for short reports.
+ * Run a single comprehensive analysis pass over the full report in one LLM call.
+ * Used only for very short reports (<= SINGLE_PASS_MAX_CHARS), where one call is
+ * sufficient to enumerate the few findings present. Larger reports use multi-pass
+ * for higher recall. ANALYSIS_PROMPT returns systems, conditions, findings, and
+ * summary together.
  */
 async function runSinglePassAnalysis(openai, textToUse, propertyContext, keywordDetections, usageCtx) {
   const preDetectedSystems = keywordDetections.map((d) => d.system);
@@ -548,8 +968,8 @@ async function runSinglePassAnalysis(openai, textToUse, propertyContext, keyword
     ? `\n\nA keyword scan found references to: ${preDetectedSystems.join(", ")}. Only include them in systemsDetected and suggestedSystemsToAdd if the report has substantive findings or condition assessments for them.\n\n`
     : "";
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+  const completion = await chatCompletionWithRetry(openai, {
+    model: REASONING_MODEL,
     messages: [
       { role: "system", content: "You output only valid JSON. No markdown, no code blocks, no extra text." },
       {
@@ -557,15 +977,17 @@ async function runSinglePassAnalysis(openai, textToUse, propertyContext, keyword
         content: (propertyContext ? `PROPERTY CONTEXT:\n${propertyContext}\n` : "") + ANALYSIS_PROMPT + preDetectionHint + textToUse,
       },
     ],
-    temperature: 0.2,
+    temperature: 0,
+    seed: ANALYSIS_SEED,
+    max_tokens: 4096,
     response_format: { type: "json_object" },
-  });
+  }, { label: "single-pass" });
 
   if (usageCtx && completion.usage) {
     logAiUsage({
       accountId: usageCtx.accountId,
       userId: usageCtx.userId,
-      model: "openai/gpt-4o",
+      model: `openai/${REASONING_MODEL}`,
       promptTokens: completion.usage.prompt_tokens,
       completionTokens: completion.usage.completion_tokens,
       endpoint: "inspection-analysis/single-pass",
@@ -641,7 +1063,7 @@ async function runAnalysis(jobId) {
     userId: job.user_id,
   };
 
-  const useMultiPass = textToUse.length > SHORT_REPORT_THRESHOLD;
+  const useMultiPass = textToUse.length > SINGLE_PASS_MAX_CHARS;
 
   let parsed;
   try {
@@ -719,8 +1141,10 @@ async function runAnalysis(jobId) {
       impactScore: s.impactScore ?? 5,
       evidence: s.evidence || null,
     }));
-  const maintenanceSuggestions = sortMaintenanceSuggestions(
-    deduplicateFindingsByEvidence(rawMaintenanceSuggestions, priorityScore)
+  const dedupedMaintenanceSuggestions = dedupeFindings(
+    rawMaintenanceSuggestions,
+    (m) => m.task,
+    priorityScore
   );
 
   const rawNeedsAttention = (parsed.needsAttention || [])
@@ -735,7 +1159,14 @@ async function runAnalysis(jobId) {
       impactScore: n.impactScore ?? 5,
     }));
   const needsAttention = sortNeedsAttention(
-    deduplicateFindingsByEvidence(rawNeedsAttention, severityScore)
+    dedupeFindings(rawNeedsAttention, (n) => n.title, severityScore)
+  );
+
+  // Cross-list dedup: drop maintenance tasks that restate a needs-attention item
+  // so the same issue doesn't appear twice in the checklist (once as a finding,
+  // once as a task). Needs-attention is the more prominent surface, so it wins.
+  const maintenanceSuggestions = sortMaintenanceSuggestions(
+    dropMaintenanceDuplicatedInNeedsAttention(needsAttention, dedupedMaintenanceSuggestions)
   );
 
   // If the AI couldn't determine a condition AND found no actionable content,

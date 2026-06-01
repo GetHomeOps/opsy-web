@@ -44,7 +44,7 @@ function SystemGroupSkeleton({docTitleWidths}) {
 }
 
 /**
- * Mirrors DocumentsTreeView chrome (header, search, upload, tree rows) while documents load.
+ * Mirrors DocumentsTreeView chrome (header, search, tree rows) while documents load.
  */
 export default function DocumentsTreeSkeleton() {
   return (
@@ -62,10 +62,7 @@ export default function DocumentsTreeSkeleton() {
             <SkeletonBlock className="w-7 h-7 rounded-lg" />
           </div>
         </div>
-        <div className="mb-3">
-          <SkeletonBlock className="h-10 w-full rounded-lg" />
-        </div>
-        <SkeletonBlock className="h-9 w-full rounded-lg" />
+        <SkeletonBlock className="h-10 w-full rounded-lg" />
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto p-2">

@@ -286,7 +286,7 @@ function DocumentsInboxView({
             <button
               type="button"
               onClick={onOpenCapture}
-              className="btn-sm border border-[#456654]/40 text-[#456654] dark:text-[#7a9a88] hover:bg-[#456654]/10 dark:hover:bg-[#456654]/20 flex items-center gap-1.5 text-xs"
+              className="btn-sm h-8 border border-[#456654]/40 text-[#456654] dark:text-[#7a9a88] hover:bg-[#456654]/10 dark:hover:bg-[#456654]/20 flex items-center gap-1.5 text-xs"
               title="Capture document photo"
             >
               <Camera className="w-3.5 h-3.5" />
@@ -296,7 +296,7 @@ function DocumentsInboxView({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="btn-sm bg-[#456654] hover:bg-[#3a5548] text-white flex items-center gap-1.5 text-xs"
+            className="btn-sm h-8 bg-[#456654] hover:bg-[#3a5548] text-white flex items-center gap-1.5 text-xs"
           >
             <Upload className="w-3.5 h-3.5" /> Upload
           </button>
