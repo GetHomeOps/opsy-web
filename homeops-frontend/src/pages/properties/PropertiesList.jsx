@@ -30,6 +30,7 @@ import BulkInviteModal from "./partials/BulkInviteModal";
 import usePersistListUiSession, {
   HYDRATE_LIST_UI,
 } from "../../hooks/usePersistListUiSession";
+import {getPropertyStreetLine} from "./helpers/preparePropertyValues";
 
 const PAGE_STORAGE_KEY = "properties_list_page";
 
@@ -61,6 +62,57 @@ function propertyHasOpsyAgent(property) {
   return (
     property?.has_opsy_agent === true || property?.hasOpsyAgent === true
   );
+}
+
+/** Sort values aligned with table column render fallbacks (snake_case + camelCase). */
+function getPropertyColumnSortValue(property, key) {
+  if (!property || typeof property !== "object") return "";
+  switch (key) {
+    case "property_name":
+      return (
+        property.property_name ??
+        property.propertyName ??
+        property.nickname ??
+        ""
+      );
+    case "address":
+      return getPropertyStreetLine(property);
+    case "owner_user_name":
+      return property.owner_user_name ?? property.ownerUserName ?? "";
+    case "agent_user_name":
+      return property.agent_user_name ?? property.agentUserName ?? "";
+    case "agency_name":
+      return property.agency_name ?? property.agencyName ?? "";
+    case "health":
+      return property.health ?? property.hps_score ?? property.hpsScore ?? 0;
+    default:
+      return property[key] ?? "";
+  }
+}
+
+function comparePropertyRowsForSort(a, b, {key, direction}) {
+  const multiplier = direction === "asc" ? 1 : -1;
+  const rawA = getPropertyColumnSortValue(a, key);
+  const rawB = getPropertyColumnSortValue(b, key);
+
+  let cmp = 0;
+  if (key === "health") {
+    const numA = Number(rawA);
+    const numB = Number(rawB);
+    if (Number.isFinite(numA) && Number.isFinite(numB) && numA !== numB) {
+      cmp = numA < numB ? -1 : 1;
+    }
+  } else {
+    const strA = String(rawA).trim().toLowerCase();
+    const strB = String(rawB).trim().toLowerCase();
+    cmp = strA.localeCompare(strB);
+  }
+
+  if (cmp !== 0) return cmp * multiplier;
+
+  const tieA = String(a.passport_id ?? a.passportId ?? "");
+  const tieB = String(b.passport_id ?? b.passportId ?? "");
+  return tieA.localeCompare(tieB) * multiplier;
 }
 
 const initialState = {
@@ -620,17 +672,7 @@ function PropertiesList() {
 
   const sortedProperties = useMemo(() => {
     const sortable = [...filteredProperties];
-    sortable.sort((a, b) => {
-      const {key, direction} = sortConfig;
-      const dirMultiplier = direction === "asc" ? 1 : -1;
-      const valueA = a[key];
-      const valueB = b[key];
-      if (valueA === valueB) return 0;
-      if (typeof valueA === "string" && typeof valueB === "string") {
-        return valueA.localeCompare(valueB) * dirMultiplier;
-      }
-      return (valueA > valueB ? 1 : -1) * dirMultiplier;
-    });
+    sortable.sort((a, b) => comparePropertyRowsForSort(a, b, sortConfig));
     return sortable;
   }, [filteredProperties, sortConfig]);
 
@@ -752,7 +794,12 @@ function PropertiesList() {
       render: (value, item) =>
         value ?? item?.propertyName ?? item?.nickname ?? "—",
     },
-    {key: "address", label: "address", sortable: true},
+    {
+      key: "address",
+      label: "address",
+      sortable: true,
+      render: (_value, item) => getPropertyStreetLine(item) || "—",
+    },
     {key: "city", label: "city", sortable: true},
     {key: "state", label: "state", sortable: true},
     {

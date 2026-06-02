@@ -202,11 +202,21 @@ function toCamelCase(key) {
   return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
-function deriveStreetFromAddress(address) {
+export function deriveStreetFromAddress(address) {
   if (typeof address !== "string") return "";
   const trimmed = address.trim();
   if (!trimmed) return "";
   return trimmed.split(",")[0].trim();
+}
+
+/** Street line only — for tables that already show city/state/zip columns. */
+export function getPropertyStreetLine(property) {
+  if (!property || typeof property !== "object") return "";
+  const line1 = (property.address_line_1 || property.addressLine1 || "").trim();
+  if (line1) return line1;
+  const addr = (property.address || "").trim();
+  if (!addr) return "";
+  return deriveStreetFromAddress(addr) || addr;
 }
 
 /**
