@@ -17,6 +17,15 @@ export default function useOnboardingProgress({steps = DEFAULT_ONBOARDING_STEPS,
   const {currentAccount, properties = []} = useContext(PropertyContext) ?? {};
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
+  const role = (currentUser?.role ?? "").toLowerCase();
+
+  const filteredSteps = useMemo(() => {
+    return steps.filter((step) => {
+      if (!step.roles || step.roles.length === 0) return true;
+      return step.roles.includes(role);
+    });
+  }, [steps, role]);
+
   const context = useMemo(
     () => ({
       currentUser,
@@ -28,7 +37,7 @@ export default function useOnboardingProgress({steps = DEFAULT_ONBOARDING_STEPS,
   );
 
   const stepsWithStatus = useMemo(() => {
-    return steps.map((step) => {
+    return filteredSteps.map((step) => {
       const completed = step.checkComplete?.(context) ?? false;
       const actionPath = step.getActionPath?.(context) ?? null;
       return {
@@ -37,7 +46,7 @@ export default function useOnboardingProgress({steps = DEFAULT_ONBOARDING_STEPS,
         actionPath,
       };
     });
-  }, [steps, context]);
+  }, [filteredSteps, context]);
 
   const completedCount = stepsWithStatus.filter((s) => s.completed).length;
   const allComplete = completedCount === stepsWithStatus.length;

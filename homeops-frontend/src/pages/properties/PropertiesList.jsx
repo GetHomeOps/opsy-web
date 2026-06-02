@@ -37,6 +37,8 @@ const FILTER_CATEGORIES = [
   {type: "city", labelKey: "city"},
   {type: "state", labelKey: "state"},
   {type: "owner", labelKey: "owner"},
+  {type: "agent", labelKey: "agent"},
+  {type: "agency", labelKey: "agency"},
   {type: "health", labelKey: "healthStatus"},
   {type: "agentAssignment", labelKey: "filterAgentAssignment"},
 ];
@@ -403,11 +405,35 @@ function PropertiesList() {
     return owners.sort((a, b) => a.localeCompare(b));
   }, [properties]);
 
+  const uniqueAgents = useMemo(() => {
+    const agents = [
+      ...new Set(
+        properties
+          .map((p) => (p.agent_user_name ?? p.agentUserName ?? "").trim())
+          .filter(Boolean),
+      ),
+    ];
+    return agents.sort((a, b) => a.localeCompare(b));
+  }, [properties]);
+
+  const uniqueAgencies = useMemo(() => {
+    const agencies = [
+      ...new Set(
+        properties
+          .map((p) => (p.agency_name ?? p.agencyName ?? "").trim())
+          .filter(Boolean),
+      ),
+    ];
+    return agencies.sort((a, b) => a.localeCompare(b));
+  }, [properties]);
+
   const filterOptions = useMemo(
     () => ({
       city: uniqueCities.map((c) => ({value: c, label: c})),
       state: uniqueStates.map((s) => ({value: s, label: s})),
       owner: uniqueOwners.map((o) => ({value: o, label: o})),
+      agent: uniqueAgents.map((a) => ({value: a, label: a})),
+      agency: uniqueAgencies.map((a) => ({value: a, label: a})),
       health: HEALTH_RANGES.map((h) => ({
         value: h.value,
         label: t(h.labelKey),
@@ -418,7 +444,7 @@ function PropertiesList() {
         label: t(a.labelKey),
       })),
     }),
-    [uniqueCities, uniqueStates, uniqueOwners, t],
+    [uniqueCities, uniqueStates, uniqueOwners, uniqueAgents, uniqueAgencies, t],
   );
 
   /* ─── Presigned photo URLs ─────────────────────────────────── */
@@ -543,6 +569,24 @@ function PropertiesList() {
           ""
         ).trim();
         if (!filtersByType.owner.includes(owner)) return false;
+      }
+
+      if (filtersByType.agent) {
+        const agent = (
+          property.agent_user_name ??
+          property.agentUserName ??
+          ""
+        ).trim();
+        if (!filtersByType.agent.includes(agent)) return false;
+      }
+
+      if (filtersByType.agency) {
+        const agency = (
+          property.agency_name ??
+          property.agencyName ??
+          ""
+        ).trim();
+        if (!filtersByType.agency.includes(agency)) return false;
       }
 
       if (filtersByType.health) {
@@ -716,6 +760,18 @@ function PropertiesList() {
       label: "owner",
       sortable: true,
       render: (value, item) => value ?? item?.ownerUserName ?? "—",
+    },
+    {
+      key: "agent_user_name",
+      label: "agent",
+      sortable: true,
+      render: (value, item) => value ?? item?.agentUserName ?? "—",
+    },
+    {
+      key: "agency_name",
+      label: "agency",
+      sortable: true,
+      render: (value, item) => value ?? item?.agencyName ?? "—",
     },
     {
       key: "health",
@@ -1121,9 +1177,9 @@ function PropertiesList() {
                   {state.activeFilters.map((f) => (
                     <span
                       key={`${f.type}-${f.value}`}
-                      className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20"
+                      className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20"
                     >
-                      <span className="text-violet-400 dark:text-violet-500 font-normal">
+                      <span className="text-emerald-400 dark:text-emerald-500 font-normal">
                         {t(
                           FILTER_CATEGORIES.find((c) => c.type === f.type)
                             ?.labelKey ?? f.type,
@@ -1136,7 +1192,7 @@ function PropertiesList() {
                         onClick={() =>
                           dispatch({type: "REMOVE_FILTER", payload: f})
                         }
-                        className="ml-0.5 p-0.5 rounded-full hover:bg-violet-200 dark:hover:bg-violet-500/20 transition-colors"
+                        className="ml-0.5 p-0.5 rounded-full hover:bg-emerald-200 dark:hover:bg-emerald-500/20 transition-colors"
                       >
                         <svg
                           className="w-3 h-3"

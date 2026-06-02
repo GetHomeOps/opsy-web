@@ -11,6 +11,7 @@ const S3_ALLOWED_PREFIXES = [
   "property_photos/",
   "professionals/",
   "user_photos/",
+  "agencies/",
   /** Existing bucket content / admin uploads */
   "config/",
 ];
@@ -21,6 +22,7 @@ const S3_UPLOAD_FOLDER_TO_PREFIX = {
   property_photos: "property_photos",
   professionals: "professionals",
   user_photos: "user_photos",
+  agencies: "agencies",
 };
 
 const VALID_UPLOAD_FOLDERS = new Set(Object.keys(S3_UPLOAD_FOLDER_TO_PREFIX));

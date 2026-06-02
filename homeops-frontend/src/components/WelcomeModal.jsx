@@ -7,6 +7,7 @@ import {useAuth} from "../context/AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useOnboardingProgress from "../hooks/useOnboardingProgress";
 import AppApi from "../api/api";
+import AffiliationPicker from "./affiliation/AffiliationPicker";
 import {POST_LOGIN_WELCOME_GREETING_KEY} from "../utils/authNavigation";
 import OpsyMascot from "../images/opsy2.png";
 
@@ -30,9 +31,13 @@ const WELCOME_CONFETTI_Z_INDEX = 210;
 const WELCOME_MODAL_ROLES = new Set(["agent", "homeowner"]);
 
 /** Custom action handlers keyed by customActionId. Most links open in a new tab; steps with `navigateSameWindow` use in-app navigation. */
-function useCustomActionHandlers({onClose, accountUrl, navigate}) {
+function useCustomActionHandlers({onClose, accountUrl, navigate, onBrokerageAffiliation}) {
   return useCallback(
     (step) => {
+      if (step.customActionId === "brokerageAffiliation") {
+        onBrokerageAffiliation?.();
+        return;
+      }
       if (step.customActionId === "addProperty") {
         const url = accountUrl
           ? `/${accountUrl}/properties/new`
@@ -52,7 +57,7 @@ function useCustomActionHandlers({onClose, accountUrl, navigate}) {
       }
       onClose();
     },
-    [onClose, accountUrl, navigate],
+    [onClose, accountUrl, navigate, onBrokerageAffiliation],
   );
 }
 
@@ -112,6 +117,9 @@ function WelcomeModal() {
   }, [userId, refreshCurrentUser]);
 
   const [calendarIntegrations, setCalendarIntegrations] = useState([]);
+  const [affiliationStatus, setAffiliationStatus] = useState(undefined);
+  const [affiliationModalOpen, setAffiliationModalOpen] = useState(false);
+  const [affiliationRequestOpen, setAffiliationRequestOpen] = useState(false);
   const [onboardingDataLoaded, setOnboardingDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -120,26 +128,64 @@ function WelcomeModal() {
       return;
     }
 
-    if (currentUser.hasCalendarIntegrations !== undefined) {
-      setCalendarIntegrations(currentUser.hasCalendarIntegrations ? [true] : []);
-      setOnboardingDataLoaded(true);
-      return;
-    }
+    let cancelled = false;
 
-    setOnboardingDataLoaded(false);
-    AppApi.getOnboardingStatus()
-      .then((data) => {
-        setCalendarIntegrations(data?.hasCalendarIntegrations ? [true] : []);
-      })
-      .catch(() => {
-        setCalendarIntegrations([]);
-      })
-      .finally(() => setOnboardingDataLoaded(true));
-  }, [currentUser?.id, showForRole, welcomeDismissedPermanently]);
+    const loadOnboardingData = async () => {
+      setOnboardingDataLoaded(false);
+      try {
+        if (currentUser.hasCalendarIntegrations !== undefined) {
+          if (!cancelled) {
+            setCalendarIntegrations(currentUser.hasCalendarIntegrations ? [true] : []);
+          }
+        } else {
+          const data = await AppApi.getOnboardingStatus();
+          if (!cancelled) {
+            setCalendarIntegrations(data?.hasCalendarIntegrations ? [true] : []);
+          }
+        }
+
+        if (role === "agent") {
+          try {
+            const aff = await AppApi.getMyAffiliation();
+            if (!cancelled) setAffiliationStatus(aff?.status ?? "independent");
+          } catch {
+            if (!cancelled) setAffiliationStatus("independent");
+          }
+        } else if (!cancelled) {
+          setAffiliationStatus(undefined);
+        }
+      } catch {
+        if (!cancelled) setCalendarIntegrations([]);
+        if (!cancelled && role === "agent") setAffiliationStatus("independent");
+      } finally {
+        if (!cancelled) setOnboardingDataLoaded(true);
+      }
+    };
+
+    loadOnboardingData();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, currentUser?.hasCalendarIntegrations, showForRole, welcomeDismissedPermanently, role]);
+
+  useEffect(() => {
+    if (role !== "agent") return;
+    const onAffiliationRefresh = async () => {
+      try {
+        const aff = await AppApi.getMyAffiliation();
+        setAffiliationStatus(aff?.status ?? "independent");
+      } catch {
+        /* ignore */
+      }
+      refreshCurrentUser?.();
+    };
+    window.addEventListener("opsy:affiliation-refresh", onAffiliationRefresh);
+    return () => window.removeEventListener("opsy:affiliation-refresh", onAffiliationRefresh);
+  }, [role, refreshCurrentUser]);
 
   const extraContext = useMemo(
-    () => ({calendarIntegrations}),
-    [calendarIntegrations],
+    () => ({calendarIntegrations, affiliationStatus}),
+    [calendarIntegrations, affiliationStatus],
   );
   const {steps, completedCount, allComplete} = useOnboardingProgress({
     extraContext,
@@ -147,10 +193,45 @@ function WelcomeModal() {
   const totalSteps = steps.length;
   const handleClose = useCallback(() => setModalOpen(false), []);
 
+  const refreshAffiliationStatus = useCallback(async () => {
+    if (role !== "agent") return;
+    try {
+      const aff = await AppApi.getMyAffiliation();
+      setAffiliationStatus(aff?.status ?? "independent");
+    } catch {
+      setAffiliationStatus("independent");
+    }
+  }, [role]);
+
+  const handleAffiliationSaved = useCallback(
+    async (payload) => {
+      if (payload?.status === "affiliated" || payload?.status === "pending_request") {
+        setAffiliationStatus(payload.status);
+      } else {
+        await refreshAffiliationStatus();
+      }
+      setAffiliationModalOpen(false);
+      await refreshCurrentUser?.();
+    },
+    [refreshCurrentUser, refreshAffiliationStatus],
+  );
+
+  const handleAffiliationSkipped = useCallback(async () => {
+    setAffiliationModalOpen(false);
+    await refreshCurrentUser?.();
+    await refreshAffiliationStatus();
+  }, [refreshCurrentUser, refreshAffiliationStatus]);
+
+  const handleAffiliationCancel = useCallback(async () => {
+    setAffiliationModalOpen(false);
+    await refreshAffiliationStatus();
+  }, [refreshAffiliationStatus]);
+
   const runCustomAction = useCustomActionHandlers({
     onClose: handleClose,
     accountUrl,
     navigate,
+    onBrokerageAffiliation: () => setAffiliationModalOpen(true),
   });
 
   useEffect(() => {
@@ -250,6 +331,7 @@ function WelcomeModal() {
           if (!open) handleSkipForNow();
         }}
         closeOnClickOutside={false}
+        closeOnEscape={!affiliationModalOpen}
         contentClassName="max-w-lg"
         dialogZClassName="z-[220]"
       >
@@ -474,6 +556,35 @@ function WelcomeModal() {
               </>
             )}
           </div>
+        </div>
+      </ModalBlank>
+
+      <ModalBlank
+        modalOpen={affiliationModalOpen}
+        setModalOpen={(open) => {
+          if (!open) {
+            setAffiliationRequestOpen(false);
+            handleAffiliationCancel();
+          } else setAffiliationModalOpen(true);
+        }}
+        contentClassName="max-w-xl overflow-visible"
+        dialogZClassName="z-[230]"
+        closeOnEscape={!affiliationRequestOpen}
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+            {t("onboarding.stepAffiliationTitle")}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {t("onboarding.stepAffiliationDescription")}
+          </p>
+          <AffiliationPicker
+            showSkip
+            onSaved={handleAffiliationSaved}
+            onSkipped={handleAffiliationSkipped}
+            onCancel={handleAffiliationCancel}
+            onRequestModalOpenChange={setAffiliationRequestOpen}
+          />
         </div>
       </ModalBlank>
     </>

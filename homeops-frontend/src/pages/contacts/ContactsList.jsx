@@ -169,7 +169,7 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
         </svg>
         {t("filter")}
         {activeFilters.length > 0 && (
-          <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
+          <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
             {activeFilters.length}
           </span>
         )}
@@ -197,7 +197,7 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
                       <span>{t(cat.labelKey)}</span>
                       <span className="flex items-center gap-1 text-gray-400">
                         {count > 0 && (
-                          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
+                          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
                             {count}
                           </span>
                         )}
@@ -846,7 +846,7 @@ function ContactsList() {
                   {state.activeFilters.map((f) => (
                     <span
                       key={`${f.type}-${f.value}`}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
                     >
                       {f.label || f.value}
                       <button

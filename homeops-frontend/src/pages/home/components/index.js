@@ -5,6 +5,7 @@ export { default as Sparkline } from "./Sparkline";
 export { default as DonutChart } from "./DonutChart";
 export { default as MetricRow } from "./MetricRow";
 export { default as AgentHomeStats } from "./AgentHomeStats";
+export { default as AgentHomeAgencyCard } from "./AgentHomeAgencyCard";
 export { default as AgentHomeKpiCharts } from "./AgentHomeKpiCharts";
 export { default as SuperAdminHomeStats } from "./SuperAdminHomeStats";
 export { default as SuperAdminHomeKpiCharts } from "./SuperAdminHomeKpiCharts";

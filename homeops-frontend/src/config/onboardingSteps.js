@@ -12,7 +12,7 @@
  * - getActionPath: (context) => string | null - path to navigate, or null for custom action
  */
 
-import {User, Home, Calendar} from "lucide-react";
+import {User, Home, Calendar, Building2} from "lucide-react";
 
 /**
  * Check if user has completed their profile.
@@ -64,6 +64,22 @@ export const DEFAULT_ONBOARDING_STEPS = [
       ctx.accountUrl
         ? `/${ctx.accountUrl}/settings/configuration`
         : "/settings/accounts",
+  },
+  {
+    id: "brokerage-affiliation",
+    roles: ["agent"],
+    titleKey: "onboarding.stepAffiliationTitle",
+    descriptionKey: "onboarding.stepAffiliationDescription",
+    actionLabelKey: "onboarding.stepAffiliationAction",
+    icon: Building2,
+    checkComplete: (ctx) => {
+      const status = ctx.affiliationStatus;
+      if (status === undefined || status === null) return false;
+      if (status === "affiliated" || status === "pending_request") return true;
+      if (status !== "independent") return false;
+      return Boolean(ctx.currentUser?.affiliationOnboardingSkipped);
+    },
+    customActionId: "brokerageAffiliation",
   },
   {
     id: "connect-calendar",

@@ -162,7 +162,12 @@ class AppApi {
       "Content-Type": "application/json",
       ...customHeaders
     };
-    url.search = (method === "GET") ? new URLSearchParams(data) : "";
+    if (method === "GET") {
+      const query = Object.fromEntries(
+        Object.entries(data).filter(([, v]) => v !== undefined && v !== null),
+      );
+      url.search = new URLSearchParams(query);
+    }
     const body = (method !== "GET") ? JSON.stringify(data) : undefined;
 
     if (import.meta.env.DEV) {
@@ -2005,6 +2010,151 @@ class AppApi {
 
   static async markConversationRead(conversationId) {
     return this.request(`conversations/${conversationId}/read`, {}, "POST");
+  }
+
+  /* --------- Affiliations --------- */
+
+  static async getMyAffiliation() {
+    return this.request("affiliations/me");
+  }
+
+  static async saveMyAffiliation({ agencyId, officeId, teamId }) {
+    return this.request(
+      "affiliations/me",
+      { agencyId, officeId, teamId },
+      "POST",
+    );
+  }
+
+  static async leaveMyAffiliation() {
+    return this.request("affiliations/me/leave", {}, "POST");
+  }
+
+  static async skipAffiliationOnboarding() {
+    return this.request("affiliations/me/skip-onboarding", {}, "POST");
+  }
+
+  static async searchAffiliationAgencies(q = "", limit = 30) {
+    const res = await this.request("affiliations/agencies", { q, limit });
+    return res.agencies ?? [];
+  }
+
+  static async searchAffiliationOffices(agencyId, q = "", limit = 30) {
+    const res = await this.request(`affiliations/agencies/${agencyId}/offices`, { q, limit });
+    return res.offices ?? [];
+  }
+
+  static async searchAffiliationTeams(officeId, q = "", limit = 30) {
+    const res = await this.request(`affiliations/offices/${officeId}/teams`, { q, limit });
+    return res.teams ?? [];
+  }
+
+  static async createAffiliationRequest(data) {
+    return this.request("affiliation-requests", data, "POST");
+  }
+
+  static async getPendingAffiliationRequests() {
+    const res = await this.request("affiliation-requests", { status: "pending" });
+    return res.requests ?? [];
+  }
+
+  static async approveAffiliationRequest(id) {
+    return this.request(`affiliation-requests/${id}/approve`, {}, "POST");
+  }
+
+  static async rejectAffiliationRequest(id) {
+    return this.request(`affiliation-requests/${id}/reject`, {}, "POST");
+  }
+
+  /* --------- Agencies (super admin) --------- */
+
+  static async listAdminAgencies(params = {}) {
+    const res = await this.request("agencies-admin", params);
+    return {
+      agencies: res.agencies ?? [],
+      total: res.total ?? 0,
+    };
+  }
+
+  static async listAdminAgents(params = {}) {
+    const res = await this.request("agencies-admin/agents", params);
+    return {
+      agents: res.agents ?? [],
+      total: res.total ?? 0,
+    };
+  }
+
+  static async getAdminAgentFacets(params = {}) {
+    const res = await this.request("agencies-admin/agents/facets", params);
+    return {
+      agencies: res.agencies ?? [],
+      offices: res.offices ?? [],
+      teams: res.teams ?? [],
+    };
+  }
+
+  static async getAdminAgencyFacets(params = {}) {
+    const res = await this.request("agencies-admin/facets", params);
+    return {
+      states: res.states ?? [],
+      cities: res.cities ?? [],
+    };
+  }
+
+  static async getAdminAgency(id) {
+    const res = await this.request(`agencies-admin/${id}`);
+    return res.agency ?? null;
+  }
+
+  static async createAdminAgency(data) {
+    return this.request("agencies-admin", data, "POST");
+  }
+
+  static async updateAdminAgency(id, data) {
+    const res = await this.request(`agencies-admin/${id}`, data, "PATCH");
+    return res.agency ?? null;
+  }
+
+  static async listAdminAgencyOffices(agencyId) {
+    const res = await this.request(`agencies-admin/${agencyId}/offices`);
+    return res.offices ?? [];
+  }
+
+  static async createAdminAgencyOffice(agencyId, data) {
+    const res = await this.request(`agencies-admin/${agencyId}/offices`, data, "POST");
+    return res.office ?? null;
+  }
+
+  static async updateAdminAgencyOffice(agencyId, officeId, data) {
+    const res = await this.request(
+      `agencies-admin/${agencyId}/offices/${officeId}`,
+      data,
+      "PATCH",
+    );
+    return res.office ?? null;
+  }
+
+  static async listAdminAgencyTeams(agencyId, q = "") {
+    const res = await this.request(`agencies-admin/${agencyId}/teams`, q ? { q } : {});
+    return res.teams ?? [];
+  }
+
+  static async createAdminAgencyTeam(agencyId, data) {
+    const res = await this.request(`agencies-admin/${agencyId}/teams`, data, "POST");
+    return res.team ?? null;
+  }
+
+  static async updateAdminAgencyTeam(agencyId, teamId, data) {
+    const res = await this.request(
+      `agencies-admin/${agencyId}/teams/${teamId}`,
+      data,
+      "PATCH",
+    );
+    return res.team ?? null;
+  }
+
+  static async importAdminAgencies(agencies) {
+    return this.request("agencies-admin/import", { agencies }, "POST");
   }
 }
 

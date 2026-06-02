@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Users,
   ArrowRightLeft,
+  Building2,
   CheckCircle,
   XCircle,
 } from "lucide-react";
@@ -49,6 +50,9 @@ function DropdownNotifications() {
   const clientMessagesPath = accountUrl
     ? `/${accountUrl}/homeowner-messages`
     : "/";
+  const affiliationRequestsPath = accountUrl
+    ? `/${accountUrl}/agencies/requests`
+    : "/agencies/requests";
 
   const fetchData = useCallback(() => {
     setLoading(true);
@@ -176,6 +180,9 @@ function DropdownNotifications() {
                   const isHomeownerInquiry = n.type === "homeowner_inquiry";
                   const isPropertyMissingAgent = n.type === "property_missing_agent";
                   const isConversationMessage = n.type === "conversation_message";
+                  const isAffiliationPending = n.type === "affiliation_request_pending";
+                  const isAffiliationApproved = n.type === "affiliation_request_approved";
+                  const isAffiliationRejected = n.type === "affiliation_request_rejected";
                   const isCommunication = n.type === "communication_sent" && (n.communicationId ?? n.resourceId);
                   const isResource = n.type === "resource_sent" && n.resourceId;
                   const acctForProperty = n.accountUrl || accountUrl;
@@ -191,8 +198,15 @@ function DropdownNotifications() {
                     acctForProperty
                       ? `/${acctForProperty}/properties/${n.propertyUid}`
                       : null;
+                  const configurationPath = accountUrl
+                    ? `/${accountUrl}/settings/configuration`
+                    : "/settings/configuration";
                   const basePath =
-                    isConversationMessage
+                    isAffiliationPending
+                      ? affiliationRequestsPath
+                      : isAffiliationApproved || isAffiliationRejected
+                      ? configurationPath
+                      : isConversationMessage
                       ? clientMessagesPath
                       : isHomeownerInquiry
                       ? `${clientMessagesPath}${n.homeownerInquiryId ? `?highlight=${n.homeownerInquiryId}` : ""}`
@@ -346,6 +360,9 @@ function DropdownNotifications() {
                               setUnreadCount((c) => Math.max(0, c - 1));
                             } catch {}
                           }
+                          if (isAffiliationApproved || isAffiliationRejected) {
+                            window.dispatchEvent(new CustomEvent("opsy:affiliation-refresh"));
+                          }
                           setDropdownOpen(false);
                         }}
                         className={`flex gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${!n.readAt ? "bg-[#456564]/5 dark:bg-[#456564]/10" : ""}`}
@@ -365,6 +382,12 @@ function DropdownNotifications() {
                             <MessageSquare className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isPropertyMissingAgent ? (
                             <Users className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isAffiliationPending ? (
+                            <Building2 className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isAffiliationApproved ? (
+                            <CheckCircle className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isAffiliationRejected ? (
+                            <XCircle className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : (
                             <BookOpen className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           )}

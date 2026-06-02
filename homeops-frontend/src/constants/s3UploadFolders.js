@@ -8,4 +8,5 @@ export const S3_UPLOAD_FOLDER = {
   PROPERTY_PHOTOS: "property_photos",
   PROFESSIONALS: "professionals",
   USER_PHOTOS: "user_photos",
+  AGENCIES: "agencies",
 };

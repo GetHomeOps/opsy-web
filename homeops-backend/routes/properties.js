@@ -25,6 +25,7 @@ const User = require("../models/user");
 const PropertyOwnershipTransferRequest = require("../models/propertyOwnershipTransferRequest");
 const db = require("../db");
 const { isAllowedInspectionAnalysisS3Key } = require("../constants/s3Upload");
+const AgentAffiliation = require("../models/agentAffiliation");
 
 const router = new express.Router();
 
@@ -46,6 +47,48 @@ function filterPropertyTeamForViewer(members, viewerPlatformRole) {
     (m) =>
       m._pending ||
       !INTERNAL_TEAM_PLATFORM_ROLES.has(m.role)
+  );
+}
+
+/** Attach affiliated agency (name + presigned logo) to agent members on a property team. */
+async function enrichTeamWithAgentAgencies(members) {
+  const agentIds = members
+    .filter((m) => !m._pending && String(m.role || "").toLowerCase() === "agent")
+    .map((m) => Number(m.id))
+    .filter(Boolean);
+  if (!agentIds.length) return members;
+
+  const affiliationByUserId = await AgentAffiliation.getActiveForUserIds(agentIds);
+
+  return Promise.all(
+    members.map(async (member) => {
+      if (member._pending || String(member.role || "").toLowerCase() !== "agent") {
+        return member;
+      }
+      const affiliation = affiliationByUserId.get(Number(member.id));
+      if (!affiliation?.agency?.name) return member;
+
+      const agency = await addPresignedUrlToItem(
+        { ...affiliation.agency },
+        "logoUrl",
+        "logoDisplayUrl"
+      );
+
+      return {
+        ...member,
+        agency: {
+          id: agency.id,
+          name: agency.name,
+          legalName: agency.legalName || null,
+          logoDisplayUrl: agency.logoDisplayUrl || null,
+          website: agency.website || null,
+          addressLine1: agency.addressLine1 || null,
+          city: agency.city || null,
+          state: agency.state || null,
+          phone: agency.phone || null,
+        },
+      };
+    })
   );
 }
 
@@ -265,7 +308,8 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
 
     const allMembers = [...property_users_with_avatars, ...pendingMembers];
     const viewerRole = res.locals.user?.role;
-    const property_users = filterPropertyTeamForViewer(allMembers, viewerRole);
+    const filtered = filterPropertyTeamForViewer(allMembers, viewerRole);
+    const property_users = await enrichTeamWithAgentAgencies(filtered);
     return res.json({ property_users });
   } catch (err) {
     return next(err);

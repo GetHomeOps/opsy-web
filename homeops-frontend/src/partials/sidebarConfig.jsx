@@ -172,6 +172,13 @@ export const SIDEBAR_CONFIG = [
         icon: icon(Inbox),
         roles: "all",
       },
+      {
+        id: "agencies",
+        label: "Agencies",
+        path: "agencies/manage",
+        icon: icon(Building2),
+        roles: "superAdminOnly",
+      },
     ],
   },
 

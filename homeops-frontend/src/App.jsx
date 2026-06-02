@@ -5,6 +5,7 @@ import {AuthProvider} from "./context/AuthContext";
 import {ContactProvider} from "./context/ContactContext";
 import {UserProvider} from "./context/UserContext";
 import {PropertyProvider} from "./context/PropertyContext";
+import {AgencyProvider} from "./context/AgencyContext";
 import TierLimitBanner from "./components/TierLimitBanner";
 import PageViewTracker from "./components/PageViewTracker";
 import GoogleAnalyticsTracker from "./components/GoogleAnalyticsTracker";
@@ -25,10 +26,12 @@ function App() {
       <ContactProvider>
         <UserProvider>
           <PropertyProvider>
-            <TierLimitBanner />
-            <GoogleAnalyticsTracker />
-            <PageViewTracker />
-            <RoutesList />
+            <AgencyProvider>
+              <TierLimitBanner />
+              <GoogleAnalyticsTracker />
+              <PageViewTracker />
+              <RoutesList />
+            </AgencyProvider>
           </PropertyProvider>
         </UserProvider>
       </ContactProvider>

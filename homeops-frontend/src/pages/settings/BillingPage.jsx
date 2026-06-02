@@ -4,7 +4,6 @@ import {useNavigate, useLocation} from "react-router-dom";
 import {
   Sparkles,
   Loader2,
-  CreditCard,
   FileText,
   ExternalLink,
 } from "lucide-react";
@@ -32,7 +31,6 @@ function BillingPage() {
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const [billing, setBilling] = useState(null);
   const [plans, setPlans] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -49,23 +47,19 @@ function BillingPage() {
     if (!accountId) return;
     try {
       setError(null);
-      const [statusRes, plansRes, pmRes, invoicesRes] = await Promise.all([
+      const [statusRes, plansRes, invoicesRes] = await Promise.all([
         AppApi.getBillingStatus(accountId)
           .then((r) => r)
           .catch(() => null),
         AppApi.getBillingPlans(targetRole)
           .then((r) => r.plans || [])
           .catch(() => []),
-        AppApi.getBillingPaymentMethod(accountId)
-          .then((r) => r?.paymentMethod)
-          .catch(() => null),
         AppApi.getBillingInvoices(accountId)
           .then((r) => r?.invoices || [])
           .catch(() => []),
       ]);
       setBilling(statusRes);
       setPlans(plansRes);
-      setPaymentMethod(pmRes);
       setInvoices(invoicesRes);
     } catch (err) {
       setError(err?.message || "Failed to load billing data");
@@ -290,42 +284,6 @@ function BillingPage() {
                     )}
                   </div>
                 </section>
-
-                {(sub || billing?.mockMode) && (
-                  <section className="rounded-xl bg-white dark:bg-gray-800 shadow-xs overflow-hidden">
-                    <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700/60 flex flex-wrap items-center justify-between gap-4">
-                      <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                        {t("settings.paymentMethod") || "Payment Method"}
-                      </h2>
-                      <button
-                        type="button"
-                        onClick={handleManageBilling}
-                        disabled={portalLoading}
-                        className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
-                      >
-                        {paymentMethod
-                          ? t("settings.updatePaymentMethod") || "Update"
-                          : t("settings.addPaymentMethod") ||
-                            "Add payment method"}
-                      </button>
-                    </div>
-                    <div className="p-6">
-                      {paymentMethod ? (
-                        <div className="flex items-center gap-3">
-                          <CreditCard className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                          <span className="text-gray-800 dark:text-gray-100 capitalize">
-                            {paymentMethod.brand} •••• {paymentMethod.last4}
-                          </span>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {t("settings.noPaymentMethod") ||
-                            "No payment method on file. Use Manage billing to add one."}
-                        </p>
-                      )}
-                    </div>
-                  </section>
-                )}
 
                 {(sub || billing?.mockMode) && (
                   <section className="rounded-xl bg-white dark:bg-gray-800 shadow-xs overflow-hidden">

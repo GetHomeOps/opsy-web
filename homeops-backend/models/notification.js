@@ -18,12 +18,13 @@ class Notification {
       conversationMessageId,
       propertyId,
       ownershipTransferRequestId,
+      affiliationRequestId,
     } = data;
     const run = queryFn || ((text, params) => db.query(text, params));
     const result = await run(
-      `INSERT INTO notifications (user_id, type, resource_id, communication_id, title, invitation_id, maintenance_record_id, homeowner_inquiry_id, conversation_message_id, property_id, ownership_transfer_request_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING id, user_id AS "userId", type, resource_id AS "resourceId", communication_id AS "communicationId", title, invitation_id AS "invitationId", maintenance_record_id AS "maintenanceRecordId", homeowner_inquiry_id AS "homeownerInquiryId", conversation_message_id AS "conversationMessageId", property_id AS "propertyId", ownership_transfer_request_id AS "ownershipTransferRequestId", read_at AS "readAt", created_at AS "createdAt"`,
+      `INSERT INTO notifications (user_id, type, resource_id, communication_id, title, invitation_id, maintenance_record_id, homeowner_inquiry_id, conversation_message_id, property_id, ownership_transfer_request_id, affiliation_request_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING id, user_id AS "userId", type, resource_id AS "resourceId", communication_id AS "communicationId", title, invitation_id AS "invitationId", maintenance_record_id AS "maintenanceRecordId", homeowner_inquiry_id AS "homeownerInquiryId", conversation_message_id AS "conversationMessageId", property_id AS "propertyId", ownership_transfer_request_id AS "ownershipTransferRequestId", affiliation_request_id AS "affiliationRequestId", read_at AS "readAt", created_at AS "createdAt"`,
       [
         userId,
         type,
@@ -36,6 +37,7 @@ class Notification {
         conversationMessageId || null,
         propertyId || null,
         ownershipTransferRequestId || null,
+        affiliationRequestId || null,
       ]
     );
     return result.rows[0];
@@ -61,7 +63,7 @@ class Notification {
   /** List notifications for a user (unread first, then by date) */
   static async listForUser(userId, { limit = 20 } = {}) {
     const result = await db.query(
-      `SELECT n.id, n.user_id AS "userId", n.type, n.resource_id AS "resourceId", n.communication_id AS "communicationId", n.title, n.invitation_id AS "invitationId", n.maintenance_record_id AS "maintenanceRecordId", n.homeowner_inquiry_id AS "homeownerInquiryId", n.property_id AS "propertyId", n.ownership_transfer_request_id AS "ownershipTransferRequestId", n.read_at AS "readAt", n.created_at AS "createdAt",
+      `SELECT n.id, n.user_id AS "userId", n.type, n.resource_id AS "resourceId", n.communication_id AS "communicationId", n.title, n.invitation_id AS "invitationId", n.maintenance_record_id AS "maintenanceRecordId", n.homeowner_inquiry_id AS "homeownerInquiryId", n.property_id AS "propertyId", n.ownership_transfer_request_id AS "ownershipTransferRequestId", n.affiliation_request_id AS "affiliationRequestId", n.read_at AS "readAt", n.created_at AS "createdAt",
               r.subject AS "resourceSubject", r.type AS "resourceType",
               COALESCE(p.property_uid, p_miss.property_uid) AS "propertyUid",
               COALESCE(a.url, a_miss.url) AS "accountUrl",

@@ -46,6 +46,7 @@ CREATE TABLE users (
     onboarding_completed BOOLEAN DEFAULT true,
     role_locked BOOLEAN DEFAULT false,
     welcome_modal_dismissed BOOLEAN DEFAULT false,
+    affiliation_onboarding_skipped BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -1074,6 +1075,7 @@ CREATE TABLE notifications (
     conversation_message_id INTEGER REFERENCES conversation_messages(id) ON DELETE SET NULL,
     property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
     ownership_transfer_request_id UUID REFERENCES property_ownership_transfer_requests(id) ON DELETE CASCADE,
+    affiliation_request_id INTEGER,
     title VARCHAR(500),
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -1468,3 +1470,111 @@ CREATE TABLE email_template_configs (
     merge_variables JSONB DEFAULT '[]'::jsonb,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ============================================================
+-- Agency / Brokerage Affiliation (agents only)
+-- Three-tier: Agency → Office → Team (optional)
+-- Operational data stays keyed by user_id; affiliation is contextual.
+-- ============================================================
+
+CREATE TYPE entity_approval_status AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE affiliation_request_type AS ENUM ('agency', 'office', 'team');
+CREATE TYPE affiliation_request_status AS ENUM ('pending', 'approved', 'rejected');
+
+CREATE TABLE agencies (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    legal_name VARCHAR(255),
+    website VARCHAR(500),
+    address_line1 VARCHAR(255),
+    city VARCHAR(100),
+    state VARCHAR(50),
+    phone VARCHAR(50),
+    logo_url VARCHAR(500),
+    status entity_approval_status NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_agencies_status_name ON agencies(status, name);
+CREATE INDEX idx_agencies_search ON agencies(status, name, city, state);
+
+CREATE TABLE offices (
+    id SERIAL PRIMARY KEY,
+    agency_id INTEGER NOT NULL REFERENCES agencies(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    address_line1 VARCHAR(255),
+    city VARCHAR(100),
+    state VARCHAR(50),
+    zip VARCHAR(20),
+    phone VARCHAR(50),
+    status entity_approval_status NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_offices_agency_status ON offices(agency_id, status);
+CREATE INDEX idx_offices_search ON offices(agency_id, status, name, city, state);
+
+CREATE TABLE teams (
+    id SERIAL PRIMARY KEY,
+    office_id INTEGER NOT NULL REFERENCES offices(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    status entity_approval_status NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_teams_office_status ON teams(office_id, status);
+
+CREATE TABLE agent_affiliations (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    agency_id INTEGER NOT NULL REFERENCES agencies(id),
+    office_id INTEGER NOT NULL REFERENCES offices(id),
+    team_id INTEGER REFERENCES teams(id),
+    status VARCHAR(20) NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'left')),
+    effective_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    effective_to TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_agent_affiliations_one_active
+    ON agent_affiliations(user_id) WHERE status = 'active';
+CREATE INDEX idx_agent_affiliations_user ON agent_affiliations(user_id);
+
+CREATE TABLE affiliation_requests (
+    id SERIAL PRIMARY KEY,
+    requested_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    agency_id INTEGER REFERENCES agencies(id) ON DELETE SET NULL,
+    office_id INTEGER REFERENCES offices(id) ON DELETE SET NULL,
+    requested_name VARCHAR(255) NOT NULL,
+    request_type affiliation_request_type NOT NULL,
+    status affiliation_request_status NOT NULL DEFAULT 'pending',
+    notes TEXT,
+    address_line1 VARCHAR(255),
+    city VARCHAR(100),
+    state VARCHAR(50),
+    phone VARCHAR(50),
+    website VARCHAR(500),
+    main_office_name VARCHAR(255),
+    main_team_name VARCHAR(255),
+    logo_url VARCHAR(500),
+    reviewed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMPTZ,
+    resolved_entity_id INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_affiliation_requests_status_created
+    ON affiliation_requests(status, created_at DESC);
+CREATE INDEX idx_affiliation_requests_user_pending
+    ON affiliation_requests(requested_by_user_id)
+    WHERE status = 'pending';
+
+ALTER TABLE notifications
+    ADD CONSTRAINT notifications_affiliation_request_id_fkey
+    FOREIGN KEY (affiliation_request_id) REFERENCES affiliation_requests(id) ON DELETE CASCADE;

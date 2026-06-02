@@ -96,6 +96,9 @@ import CommunicationsList from "../communications/CommunicationsList";
 import CommunicationComposer from "../communications/CommunicationComposer";
 import CommunicationViewerPage from "../communications/CommunicationViewerPage";
 import ClientMessages from "../network/ClientMessages";
+import AgenciesAdminHub from "../agencies/AgenciesAdminHub";
+import AgencyFormContainer from "../agencies/AgencyFormContainer";
+import AgenciesImport from "../agencies/AgenciesImport";
 import Calendar from "../calendar/Calendar";
 import ComingSoon from "../ComingSoon";
 
@@ -855,6 +858,54 @@ function RoutesList() {
           <ProtectedRoute>
             <ClientMessages />
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/agencies/agents"
+        element={
+          <SuperAdminRoute>
+            <AgenciesAdminHub activeTab="agents" />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/agencies/requests"
+        element={
+          <SuperAdminRoute>
+            <AgenciesAdminHub activeTab="requests" />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/agencies/manage/new"
+        element={
+          <SuperAdminRoute>
+            <AgencyFormContainer />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/agencies/manage/:agencyId"
+        element={
+          <SuperAdminRoute>
+            <AgencyFormContainer />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/agencies/manage"
+        element={
+          <SuperAdminRoute>
+            <AgenciesAdminHub activeTab="manage" />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/agencies/import"
+        element={
+          <SuperAdminRoute>
+            <AgenciesImport />
+          </SuperAdminRoute>
         }
       />
       <Route

@@ -36,7 +36,12 @@ import {
   RESOURCE_THUMBNAIL_PLACEHOLDER,
   DEFAULT_HEADER_IMAGE,
 } from "../../utils/resourceThumbnail";
-import {HealthBadge, AgentHomeStats, AgentHomeKpiCharts} from "./components";
+import {
+  HealthBadge,
+  AgentHomeStats,
+  AgentHomeKpiCharts,
+  AgentHomeAgencyCard,
+} from "./components";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import PaginationClassic from "../../components/PaginationClassic";
@@ -813,14 +818,17 @@ function AgentHome() {
       {/* ============================================ */}
       {/* WELCOME HEADER                               */}
       {/* ============================================ */}
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">
-          {t("welcome")?.replace("!", "")}, {agentName}
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-          {t("agentHome.subtitle") ||
-            "Here's an overview of your properties and homeowner engagement."}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">
+            {t("welcome")?.replace("!", "")}, {agentName}
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
+            {t("agentHome.subtitle") ||
+              "Here's an overview of your properties and homeowner engagement."}
+          </p>
+        </div>
+        <AgentHomeAgencyCard />
       </div>
 
       {/* ============================================ */}

@@ -176,7 +176,7 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
         </svg>
         {t("filter")}
         {activeFilters.length > 0 && (
-          <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
+          <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
             {activeFilters.length}
           </span>
         )}
@@ -204,7 +204,7 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
                       <span>{t(cat.labelKey)}</span>
                       <span className="flex items-center gap-1 text-gray-400">
                         {count > 0 && (
-                          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
+                          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
                             {count}
                           </span>
                         )}
@@ -1029,9 +1029,9 @@ function SubscriptionsList() {
                   {state.activeFilters.map((f) => (
                     <span
                       key={`${f.type}-${f.value}`}
-                      className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20"
+                      className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20"
                     >
-                      <span className="text-violet-400 dark:text-violet-500 font-normal">
+                      <span className="text-emerald-400 dark:text-emerald-500 font-normal">
                         {t(
                           FILTER_CATEGORIES.find((c) => c.type === f.type)
                             ?.labelKey ?? f.type,
@@ -1046,7 +1046,7 @@ function SubscriptionsList() {
                         onClick={() =>
                           dispatch({type: "REMOVE_FILTER", payload: f})
                         }
-                        className="ml-0.5 p-0.5 rounded-full hover:bg-violet-200 dark:hover:bg-violet-500/20 transition-colors"
+                        className="ml-0.5 p-0.5 rounded-full hover:bg-emerald-200 dark:hover:bg-emerald-500/20 transition-colors"
                       >
                         <svg
                           className="w-3 h-3"

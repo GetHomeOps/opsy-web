@@ -553,9 +553,9 @@ function PropertyAnalytics() {
                     {activeFilters.map((f) => (
                       <span
                         key={`${f.type}-${f.value}`}
-                        className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-500/20"
+                        className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20"
                       >
-                        <span className="text-violet-400 dark:text-violet-500 font-normal">
+                        <span className="text-emerald-400 dark:text-emerald-500 font-normal">
                           {t(
                             DASHBOARD_PROPERTY_FILTER_CATEGORIES.find(
                               (c) => c.type === f.type,
@@ -567,7 +567,7 @@ function PropertyAnalytics() {
                         <button
                           type="button"
                           onClick={() => removeFilter(f)}
-                          className="ml-0.5 p-0.5 rounded-full hover:bg-violet-200 dark:hover:bg-violet-500/20 transition-colors"
+                          className="ml-0.5 p-0.5 rounded-full hover:bg-emerald-200 dark:hover:bg-emerald-500/20 transition-colors"
                           aria-label={t("removeFilter", {
                             defaultValue: "Remove filter",
                           })}

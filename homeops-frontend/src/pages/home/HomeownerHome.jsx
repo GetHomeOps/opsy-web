@@ -62,6 +62,7 @@ import heroSeattleSkyline2 from "../../images/homepage/Seattle skyline 2.webp";
 import heroSeattleSkyline3 from "../../images/homepage/Seattle skyline 3.webp";
 import AgentCard from "./components/AgentCard";
 import AgentModal from "./components/AgentModal";
+import AgencyModal from "./components/AgencyModal";
 
 const HOME_HERO_BACKGROUNDS = [
   heroMountBaker,
@@ -146,6 +147,8 @@ function HomeownerHome() {
     useState(false);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
   const [agentModalTab, setAgentModalTab] = useState("message");
+  const [agencyModalOpen, setAgencyModalOpen] = useState(false);
+  const [selectedAgency, setSelectedAgency] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventDetailOpen, setEventDetailOpen] = useState(false);
 
@@ -448,6 +451,7 @@ function HomeownerHome() {
           userFromCtx?.image ??
           null,
         company: agent.company ?? userFromCtx?.company ?? null,
+        agency: agent.agency ?? userFromCtx?.agency ?? null,
       };
     },
     [propertyTeams, users],
@@ -721,16 +725,20 @@ function HomeownerHome() {
                     setAgentModalTab(tab);
                     setAgentModalOpen(true);
                   }}
+                  onOpenAgency={(agency) => {
+                    setSelectedAgency(agency);
+                    setAgencyModalOpen(true);
+                  }}
                 />
               )}
             </div>
 
             {/* Middle Section - Spacer */}
-            <div className="flex-1" />
+            <div className="flex-1 min-h-2 sm:min-h-3" />
 
             {/* Bottom Section - Welcome, Name & Address — extra left inset when carousel arrows are shown */}
             <div
-              className={`pr-3 pt-4 sm:pt-0 pb-28 sm:pb-40 lg:pb-36 text-left flex flex-col items-start ${
+              className={`pr-3 pt-4 sm:pt-3 pb-28 sm:pb-40 lg:pb-36 text-left flex flex-col items-start ${
                 totalProperties > 1
                   ? "pl-16 sm:pl-20 sm:pr-4 lg:pr-5 xxl:pr-12"
                   : "pl-5 sm:px-4 lg:px-5 xxl:px-12"
@@ -1728,6 +1736,15 @@ function HomeownerHome() {
         onClose={() => {
           setAgentModalOpen(false);
           setAgentModalTab("message");
+        }}
+      />
+
+      <AgencyModal
+        agency={selectedAgency}
+        isOpen={agencyModalOpen}
+        onClose={() => {
+          setAgencyModalOpen(false);
+          setSelectedAgency(null);
         }}
       />
     </div>

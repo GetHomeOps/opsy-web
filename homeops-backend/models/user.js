@@ -169,7 +169,8 @@ class User {
              subscription_tier AS "subscriptionTier",
              onboarding_completed AS "onboardingCompleted",
              COALESCE(role_locked, false) AS "roleLocked",
-             welcome_modal_dismissed AS "welcomeModalDismissed"
+             welcome_modal_dismissed AS "welcomeModalDismissed",
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"
        FROM users
        WHERE id = $1`,
       [id]
@@ -188,7 +189,8 @@ class User {
               subscription_tier AS "subscriptionTier",
               onboarding_completed AS "onboardingCompleted",
               COALESCE(role_locked, false) AS "roleLocked",
-              welcome_modal_dismissed AS "welcomeModalDismissed"
+              welcome_modal_dismissed AS "welcomeModalDismissed",
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"
        FROM users WHERE google_sub = $1`,
       [googleSub]
     );
@@ -206,7 +208,8 @@ class User {
               subscription_tier AS "subscriptionTier",
               onboarding_completed AS "onboardingCompleted",
               COALESCE(role_locked, false) AS "roleLocked",
-              welcome_modal_dismissed AS "welcomeModalDismissed"
+              welcome_modal_dismissed AS "welcomeModalDismissed",
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"
        FROM users WHERE email = $1`,
       [email]
     );
@@ -236,7 +239,8 @@ class User {
                  subscription_tier AS "subscriptionTier",
                  onboarding_completed AS "onboardingCompleted",
                  COALESCE(role_locked, false) AS "roleLocked",
-                 welcome_modal_dismissed AS "welcomeModalDismissed"`,
+                 welcome_modal_dismissed AS "welcomeModalDismissed",
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"`,
       [email, name, googleSub, avatarUrl || null, emailVerified ?? true]
     );
     return result.rows[0];
@@ -257,7 +261,8 @@ class User {
                  subscription_tier AS "subscriptionTier",
                  onboarding_completed AS "onboardingCompleted",
                  COALESCE(role_locked, false) AS "roleLocked",
-                 welcome_modal_dismissed AS "welcomeModalDismissed"`,
+                 welcome_modal_dismissed AS "welcomeModalDismissed",
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"`,
       [googleSub, userId, ev]
     );
     return result.rows[0] || null;
@@ -299,7 +304,8 @@ class User {
                subscription_tier AS "subscriptionTier",
                onboarding_completed AS "onboardingCompleted",
                COALESCE(role_locked, false) AS "roleLocked",
-               welcome_modal_dismissed AS "welcomeModalDismissed"
+               welcome_modal_dismissed AS "welcomeModalDismissed",
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"
         FROM users
         WHERE email=$1`,
         [email]
@@ -546,7 +552,8 @@ class User {
                 contact_id AS "contact",
                 is_active AS "isActive",
                 image,
-                welcome_modal_dismissed AS "welcomeModalDismissed"
+                welcome_modal_dismissed AS "welcomeModalDismissed",
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"
                 `;
       const result = await db.query(querySql, [...values, id]);
       const user = result.rows[0];

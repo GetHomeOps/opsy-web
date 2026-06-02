@@ -23,6 +23,7 @@ import {
   GoogleCalendarIcon,
   MicrosoftOutlookIcon,
 } from "../../components/CalendarProviderIcons";
+import AffiliationStatusSection from "../../components/affiliation/AffiliationStatusSection";
 
 /**
  * Configuration page — profile settings: name, password, phone, MFA.
@@ -38,6 +39,7 @@ function ConfigurationPage() {
   const {t, i18n} = useTranslation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const {currentUser, refreshCurrentUser, updateCurrentUser} = useAuth();
+  const isAgent = (currentUser?.role ?? "").toLowerCase() === "agent";
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [language, setLanguage] = useState(
@@ -537,6 +539,10 @@ function ConfigurationPage() {
                   </form>
                 </div>
               </section>
+
+              {isAgent && (
+                <AffiliationStatusSection onRefreshUser={refreshCurrentUser} />
+              )}
 
               {/* Password */}
               <section className={SETTINGS_CARD.card}>

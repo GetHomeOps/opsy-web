@@ -1,5 +1,85 @@
 import React from "react";
-import {MessageSquare, Share2, Mail, UserPlus} from "lucide-react";
+import {useTranslation} from "react-i18next";
+import {MessageSquare, Share2, Mail, UserPlus, Building2, ChevronRight} from "lucide-react";
+
+function agencyInitials(name) {
+  if (!name || typeof name !== "string") return "A";
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
+
+/** Full-width footer strip at the bottom of the agent card. */
+function AgentAgencyFooter({agency, onClick}) {
+  const {t} = useTranslation();
+  if (!agency?.name) return null;
+
+  const logoUrl = agency.logoDisplayUrl;
+  const initials = agencyInitials(agency.name);
+  const ariaLabel =
+    t("homeownerHome.agentAgencyAria", {name: agency.name}) ||
+    `Agent's brokerage: ${agency.name}`;
+
+  const content = (
+    <>
+      <span className="relative flex-shrink-0 w-8 h-8 rounded-lg overflow-hidden ring-1 ring-white/25 bg-white/10 shadow-sm flex items-center justify-center">
+        {logoUrl ? (
+          <img src={logoUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-[10px] font-bold text-white/90 leading-none">
+            {initials}
+          </span>
+        )}
+        {!logoUrl && (
+          <Building2
+            className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 text-white/40"
+            aria-hidden
+          />
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/40 leading-none mb-0.5">
+          {t("homeownerHome.agentBrokerage") || "Brokerage"}
+        </p>
+        <p className="text-xs font-medium text-white/85 truncate leading-snug">
+          {agency.name}
+        </p>
+      </div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="relative w-full flex items-center gap-2.5 pt-3 mt-3 border-t border-white/[.1] text-left rounded-lg -mx-1 pl-1 pr-7 transition-colors hover:bg-white/[.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 cursor-pointer group/agency"
+        title={agency.name}
+        aria-label={ariaLabel}
+      >
+        {content}
+        <ChevronRight
+          className="absolute right-1 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 group-hover/agency:text-white/60 pointer-events-none transition-colors"
+          aria-hidden
+        />
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className="relative w-full flex items-center gap-2.5 pt-3 mt-3 border-t border-white/[.1]"
+      title={agency.name}
+      aria-label={ariaLabel}
+    >
+      {content}
+    </div>
+  );
+}
 
 function AgentAvatar({agent, size = "md"}) {
   const sizeClasses = {
@@ -45,45 +125,63 @@ function AgentAvatar({agent, size = "md"}) {
  * @param {object} props.agent
  * @param {(tab: 'message' | 'refer' | 'request') => void} props.onOpenModal
  */
-function AgentCard({agent, onOpenModal}) {
+function AgentCard({agent, onOpenModal, onOpenAgency}) {
   if (!agent) return null;
+
+  const hasAgency = Boolean(agent.agency?.name);
 
   return (
     <>
-      {/* ── Mobile: compact pill (no nested buttons) ── */}
-      <div className="lg:hidden relative flex items-center gap-0.5 bg-gradient-to-br from-white/20 via-white/[.13] to-white/[.08] backdrop-blur-2xl rounded-full pl-1.5 pr-1.5 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,.15)] border border-white/20">
-        <button
-          type="button"
-          onClick={() => onOpenModal("message")}
-          className="flex flex-1 min-w-0 items-center gap-2.5 rounded-l-full py-0 pr-1 pl-0 text-left transition-colors hover:bg-white/[.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-          aria-label={`Contact ${agent.name}, your agent`}
-        >
-          <AgentAvatar agent={agent} size="sm" />
-          <div className="min-w-0 text-left">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/45 leading-none mb-0.5">
-              Your Agent
-            </p>
-            <p className="text-sm font-semibold text-white truncate leading-tight max-w-[120px]">
-              {agent.name}
-            </p>
-          </div>
-        </button>
-        <button
-          type="button"
-          onClick={() => onOpenModal("refer")}
-          className="flex-shrink-0 p-2 rounded-full text-white/65 hover:text-white/95 hover:bg-white/[.08] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-          aria-label="Refer agent"
-        >
-          <Share2 className="w-4 h-4" aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => onOpenModal("message")}
-          className="flex-shrink-0 p-2 rounded-full text-white/70 hover:text-white/95 hover:bg-white/[.08] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-          aria-label={`Message ${agent.name}`}
-        >
-          <MessageSquare className="w-4 h-4" aria-hidden />
-        </button>
+      {/* ── Mobile: pill, or stacked card when agency footer is shown ── */}
+      <div
+        className={`lg:hidden relative overflow-hidden bg-gradient-to-br from-white/20 via-white/[.13] to-white/[.08] backdrop-blur-2xl shadow-[0_4px_20px_rgba(0,0,0,.15)] border border-white/20 ${
+          hasAgency
+            ? "rounded-2xl px-3 py-2.5 min-w-[200px] max-w-[min(100%,320px)]"
+            : "flex items-center gap-0.5 rounded-full pl-1.5 pr-1.5 py-1.5"
+        }`}
+      >
+        <div className="flex items-center gap-0.5 w-full">
+          <button
+            type="button"
+            onClick={() => onOpenModal("message")}
+            className={`flex flex-1 min-w-0 items-center gap-2.5 text-left transition-colors hover:bg-white/[.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${
+              hasAgency ? "rounded-xl py-0.5 pr-1 pl-0" : "rounded-l-full py-0 pr-1 pl-0"
+            }`}
+            aria-label={`Contact ${agent.name}, your agent`}
+          >
+            <AgentAvatar agent={agent} size="sm" />
+            <div className="min-w-0 text-left">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/45 leading-none mb-0.5">
+                Your Agent
+              </p>
+              <p className="text-sm font-semibold text-white truncate leading-tight max-w-[140px]">
+                {agent.name}
+              </p>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenModal("refer")}
+            className="flex-shrink-0 p-2 rounded-full text-white/65 hover:text-white/95 hover:bg-white/[.08] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+            aria-label="Refer agent"
+          >
+            <Share2 className="w-4 h-4" aria-hidden />
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenModal("message")}
+            className="flex-shrink-0 p-2 rounded-full text-white/70 hover:text-white/95 hover:bg-white/[.08] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+            aria-label={`Message ${agent.name}`}
+          >
+            <MessageSquare className="w-4 h-4" aria-hidden />
+          </button>
+        </div>
+        {hasAgency && (
+          <AgentAgencyFooter
+            agency={agent.agency}
+            onClick={onOpenAgency ? () => onOpenAgency(agent.agency) : undefined}
+          />
+        )}
       </div>
 
       {/* ── Desktop: full card ── */}
@@ -155,6 +253,13 @@ function AgentCard({agent, onOpenModal}) {
             Request Referral
           </button>
         </div>
+
+        {hasAgency && (
+          <AgentAgencyFooter
+            agency={agent.agency}
+            onClick={onOpenAgency ? () => onOpenAgency(agent.agency) : undefined}
+          />
+        )}
       </div>
     </>
   );

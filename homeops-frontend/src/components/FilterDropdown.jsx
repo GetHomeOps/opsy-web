@@ -74,7 +74,7 @@ function FilterDropdown({
         </svg>
         {t("filter")}
         {activeFilters.length > 0 && (
-          <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
+          <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
             {activeFilters.length}
           </span>
         )}
@@ -102,7 +102,7 @@ function FilterDropdown({
                       <span>{t(cat.labelKey)}</span>
                       <span className="flex items-center gap-1 text-gray-400">
                         {count > 0 && (
-                          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400">
+                          <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
                             {count}
                           </span>
                         )}
@@ -165,7 +165,7 @@ function FilterDropdown({
                         <span
                           className={`flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
                             active
-                              ? "bg-violet-500 border-violet-500"
+                              ? "bg-[#456564] border-[#456564]"
                               : "border-gray-300 dark:border-gray-600"
                           }`}
                         >

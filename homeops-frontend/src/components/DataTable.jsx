@@ -29,11 +29,14 @@ function DataTable({
   allSelected = false,
   onSelectAll = null,
   loading = false,
+  selectable = true,
 }) {
   const {t} = useTranslation();
   const renderSortIndicator = useSortIndicator();
+  const colSpan = selectable ? columns.length + 1 : columns.length;
 
   const handleSelectAll = () => {
+    if (!selectable) return;
     if (onSelectAll) {
       onSelectAll();
     } else {
@@ -43,26 +46,29 @@ function DataTable({
   };
 
   const handleSelect = (id) => {
-    onSelect(id);
+    if (!selectable) return;
+    onSelect?.(id);
   };
 
   const renderTableHeader = () => (
     <thead className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 bg-gray-100/80 dark:bg-gray-900/20 border-t border-b border-gray-100 dark:border-gray-700/60">
       <tr>
-        <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap w-px">
-          <div className="flex items-center">
-            <label className="inline-flex">
-              <span className="sr-only">Select all</span>
-              <input
-                className="form-checkbox"
-                type="checkbox"
-                checked={allSelected}
-                onChange={handleSelectAll}
-                disabled={items.length === 0}
-              />
-            </label>
-          </div>
-        </th>
+        {selectable && (
+          <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap w-px">
+            <div className="flex items-center">
+              <label className="inline-flex">
+                <span className="sr-only">Select all</span>
+                <input
+                  className="form-checkbox"
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={handleSelectAll}
+                  disabled={items.length === 0}
+                />
+              </label>
+            </div>
+          </th>
+        )}
         {columns.map((column) => (
           <th
             key={column.key}
@@ -98,7 +104,7 @@ function DataTable({
         return (
           <tr>
             <td
-              colSpan={columns.length + 1}
+              colSpan={colSpan}
               className="px-2 first:pl-5 last:pr-5 py-12"
             >
               <div className="flex justify-center w-full">
@@ -114,7 +120,7 @@ function DataTable({
       return (
         <tr>
           <td
-            colSpan={columns.length + 1}
+            colSpan={colSpan}
             className="px-2 first:pl-5 last:pr-5 py-8 text-gray-500 dark:text-gray-400"
           >
             <div className="flex justify-center w-full">

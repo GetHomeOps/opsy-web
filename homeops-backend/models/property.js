@@ -71,6 +71,25 @@ const PROPERTY_LIST_HAS_OPSY_AGENT = `EXISTS (
     AND u_has_opsy_agent.role = 'agent'
 ) AS has_opsy_agent`;
 
+/** Agent on the property team (platform role = agent) and their active agency affiliation. */
+const PROPERTY_LIST_AGENT_AGENCY_COLUMNS = `
+  agent_sub.agent_user_name,
+  agent_sub.agency_name`;
+
+const PROPERTY_LIST_AGENT_AGENCY_JOIN = `
+       LEFT JOIN (
+         SELECT DISTINCT ON (pu.property_id)
+           pu.property_id,
+           u.name AS agent_user_name,
+           ag.name AS agency_name
+         FROM property_users pu
+         JOIN users u ON u.id = pu.user_id
+         LEFT JOIN agent_affiliations aa ON aa.user_id = u.id AND aa.status = 'active'
+         LEFT JOIN agencies ag ON ag.id = aa.agency_id
+         WHERE u.role = 'agent'
+         ORDER BY pu.property_id, pu.created_at
+       ) agent_sub ON agent_sub.property_id = p.id`;
+
 /** Insertable columns for properties (matches opsy-schema.sql; excludes id, created_at, updated_at) */
 const PROPERTY_INSERT_COLUMNS = [
   "property_uid",
@@ -147,7 +166,9 @@ class Property {
   /* Get all properties */
   static async getAll() {
     const result = await db.query(
-      `SELECT ${PROPERTY_LIST_COLUMNS}, ${PROPERTY_LIST_HAS_OPSY_AGENT}, owner_sub.name AS owner_user_name
+      `SELECT ${PROPERTY_LIST_COLUMNS}, ${PROPERTY_LIST_HAS_OPSY_AGENT},
+              ${PROPERTY_LIST_AGENT_AGENCY_COLUMNS},
+              owner_sub.name AS owner_user_name
        FROM properties p
        LEFT JOIN (
          SELECT DISTINCT ON (pu.property_id)
@@ -157,7 +178,8 @@ class Property {
          ORDER BY pu.property_id,
            CASE WHEN pu.role = 'owner' THEN 0 ELSE 1 END,
            pu.created_at
-       ) owner_sub ON owner_sub.property_id = p.id`
+       ) owner_sub ON owner_sub.property_id = p.id
+       ${PROPERTY_LIST_AGENT_AGENCY_JOIN}`
     );
     return result.rows;
   }
@@ -311,7 +333,9 @@ class Property {
   /* Get properties by account id */
   static async getPropertiesByAccountId(accountId) {
     const result = await db.query(
-      `SELECT ${PROPERTY_LIST_COLUMNS}, ${PROPERTY_LIST_HAS_OPSY_AGENT}, owner_sub.name AS owner_user_name
+      `SELECT ${PROPERTY_LIST_COLUMNS}, ${PROPERTY_LIST_HAS_OPSY_AGENT},
+              ${PROPERTY_LIST_AGENT_AGENCY_COLUMNS},
+              owner_sub.name AS owner_user_name
        FROM properties p
        LEFT JOIN (
          SELECT DISTINCT ON (pu.property_id)
@@ -322,6 +346,7 @@ class Property {
            CASE WHEN pu.role = 'owner' THEN 0 ELSE 1 END,
            pu.created_at
        ) owner_sub ON owner_sub.property_id = p.id
+       ${PROPERTY_LIST_AGENT_AGENCY_JOIN}
        WHERE p.account_id = $1`,
       [accountId]
     );
@@ -333,7 +358,8 @@ class Property {
     const result = await db.query(
       `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name,
               pu.role AS property_role,
-              ${PROPERTY_LIST_HAS_OPSY_AGENT}
+              ${PROPERTY_LIST_HAS_OPSY_AGENT},
+              ${PROPERTY_LIST_AGENT_AGENCY_COLUMNS}
        FROM properties p
        JOIN property_users pu ON p.id = pu.property_id
        LEFT JOIN (
@@ -345,6 +371,7 @@ class Property {
            CASE WHEN pu2.role = 'owner' THEN 0 ELSE 1 END,
            pu2.created_at
        ) owner_sub ON owner_sub.property_id = p.id
+       ${PROPERTY_LIST_AGENT_AGENCY_JOIN}
        WHERE pu.user_id = $1`,
       [userId]
     );
@@ -357,6 +384,7 @@ class Property {
       `SELECT DISTINCT ON (p.id)
         ${PROPERTY_LIST_COLUMNS},
         ${PROPERTY_LIST_HAS_OPSY_AGENT},
+        ${PROPERTY_LIST_AGENT_AGENCY_COLUMNS},
         i.id AS _invitation_id,
         i.intended_role AS _invitation_role,
         i.expires_at AS _invitation_expires_at,
@@ -372,6 +400,7 @@ class Property {
            CASE WHEN pu.role = 'owner' THEN 0 ELSE 1 END,
            pu.created_at
        ) owner_sub ON owner_sub.property_id = p.id
+       ${PROPERTY_LIST_AGENT_AGENCY_JOIN}
        WHERE LOWER(i.invitee_email) = LOWER($1)
          AND i.type = 'property'
          AND i.status = 'pending'
