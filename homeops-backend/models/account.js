@@ -196,6 +196,31 @@ class Account {
    * Returns { accountId, userId, role, createdAt }
    **/
   static async addUserToAccount({ userId, accountId, role = 'member' }) {
+    /* Safeguard: the platform account (owned by a super_admin, e.g. "main") must
+     * stay super_admin-only. Adding a non-super-admin as a member would attribute
+     * their properties/usage to that account and pollute their own account list,
+     * so block it here as a last line of defense across all call sites. The owner
+     * themselves is always allowed (covers account creation). */
+    const ownerRes = await db.query(
+      `SELECT a.owner_user_id, u.role::text AS owner_role
+         FROM accounts a
+         JOIN users u ON u.id = a.owner_user_id
+        WHERE a.id = $1`,
+      [accountId]
+    );
+    const owner = ownerRes.rows[0];
+    if (owner && owner.owner_role === 'super_admin' && owner.owner_user_id !== userId) {
+      const addeeRes = await db.query(
+        `SELECT role::text AS role FROM users WHERE id = $1`,
+        [userId]
+      );
+      if (addeeRes.rows[0]?.role !== 'super_admin') {
+        throw new BadRequestError(
+          "Cannot add a non-super-admin user to the platform (super admin) account."
+        );
+      }
+    }
+
     const isLinked = await isAccountLinkedToUser(accountId);
 
     if (!isLinked) {

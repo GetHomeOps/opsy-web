@@ -1019,6 +1019,7 @@ function PropertiesList() {
             setModalOpen={(open) =>
               dispatch({type: "SET_DANGER_MODAL", payload: open})
             }
+            contentClassName="max-w-lg"
           >
             <div className="p-5 flex space-x-4">
               <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-gray-100 dark:bg-gray-700">
@@ -1031,7 +1032,7 @@ function PropertiesList() {
                   <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 12c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm1-3H7V4h2v5z" />
                 </svg>
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <div className="mb-2">
                   <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
                     Delete {selectedProperties.length}{" "}
@@ -1041,21 +1042,17 @@ function PropertiesList() {
                     ?
                   </div>
                 </div>
-                <div className="text-sm mb-10">
-                  <div className="space-y-2">
-                    <p>
-                      {t("propertyDeleteConfirmationMessage", {
-                        count: selectedProperties.length,
-                        defaultValue:
-                          selectedProperties.length === 1
-                            ? "Are you sure you want to delete the selected property?"
-                            : "Are you sure you want to delete the selected properties?",
-                      })}{" "}
-                      {t("actionCantBeUndone")}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap justify-end space-x-2">
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                  {t("propertyDeleteConfirmationMessage", {
+                    count: selectedProperties.length,
+                    defaultValue:
+                      selectedProperties.length === 1
+                        ? "Are you sure you want to delete the selected property?"
+                        : "Are you sure you want to delete the selected properties?",
+                  })}{" "}
+                  {t("actionCantBeUndone")}
+                </p>
+                <div className="flex flex-wrap justify-end gap-2">
                   <button
                     className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
                     onClick={(e) => {
