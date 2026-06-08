@@ -17,6 +17,9 @@ const settingsCache = { at: 0, settings: null };
 const templateCache = new Map();
 const CACHE_TTL_MS = 30_000;
 
+/** Email types that get the Opsy brand logo prepended at the top of the body. */
+const HEADER_LOGO_EMAIL_TYPES = new Set(["welcome"]);
+
 function shouldFallbackToSes() {
   const raw = process.env.EMAIL_FALLBACK_TO_SES;
   if (raw === "false" || raw === "0") return false;
@@ -173,6 +176,9 @@ async function deliverViaSes({
     showFooter: config.showFooter !== false,
     footerImageUrl: config.footerImageUrl || process.env.EMAIL_FOOTER_IMAGE_URL,
     footerLinkUrl: process.env.EMAIL_FOOTER_LINK_URL,
+    showHeaderLogo: HEADER_LOGO_EMAIL_TYPES.has(config.emailType),
+    headerImageUrl: process.env.EMAIL_HEADER_IMAGE_URL,
+    headerLinkUrl: process.env.EMAIL_HEADER_LINK_URL,
     brandName: EMAIL_BRAND_NAME,
   });
 

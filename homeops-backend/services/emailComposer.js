@@ -15,6 +15,21 @@ function escapeHtmlAttr(s) {
   return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
+function buildHeaderHtml({ brandName, headerImageUrl, headerLinkUrl }) {
+  const safeBrand = String(brandName || "Opsy");
+  const link = headerLinkUrl || "https://heyopsy.com";
+  const img =
+    headerImageUrl && String(headerImageUrl).trim()
+      ? String(headerImageUrl).trim()
+      : `cid:${sesProvider.HEADER_LOGO_CID}`;
+  return `
+<p style="margin: 0 0 24px; text-align: center;">
+  <a href="${escapeHtmlAttr(link)}" style="text-decoration: none; border: 0;">
+    <img src="${escapeHtmlAttr(img)}" alt="${safeBrand}" width="200" style="display: inline-block; border: 0; outline: none; width: 200px; max-width: 60%; height: auto;" />
+  </a>
+</p>`.trim();
+}
+
 function buildFooterHtml({ brandName, footerImageUrl, footerLinkUrl }) {
   const safeBrand = String(brandName || "Opsy");
   const link = footerLinkUrl || "https://heyopsy.com";
@@ -38,19 +53,34 @@ function buildFooterHtml({ brandName, footerImageUrl, footerLinkUrl }) {
  * @param {boolean} [opts.showFooter=true]
  * @param {string} [opts.footerImageUrl] - per-template footer image URL
  * @param {string} [opts.footerLinkUrl]
+ * @param {boolean} [opts.showHeaderLogo=false] - prepend the Opsy brand logo
+ * @param {string} [opts.headerImageUrl] - override header logo URL
+ * @param {string} [opts.headerLinkUrl]
  * @param {string} [opts.brandName]
  */
 function wrapEmailHtml(bodyHtml, opts = {}) {
-  const { showFooter = true, footerImageUrl, footerLinkUrl, brandName } = opts;
+  const {
+    showFooter = true,
+    footerImageUrl,
+    footerLinkUrl,
+    showHeaderLogo = false,
+    headerImageUrl,
+    headerLinkUrl,
+    brandName,
+  } = opts;
   const body = bodyHtml || "";
+  const header = showHeaderLogo
+    ? buildHeaderHtml({ brandName, headerImageUrl, headerLinkUrl })
+    : "";
   const footer = showFooter
     ? buildFooterHtml({ brandName, footerImageUrl, footerLinkUrl })
     : "";
-  return `<div style="${DEFAULT_CONTAINER_STYLE}">${body}${footer}</div>`;
+  return `<div style="${DEFAULT_CONTAINER_STYLE}">${header}${body}${footer}</div>`;
 }
 
 module.exports = {
   wrapEmailHtml,
+  buildHeaderHtml,
   buildFooterHtml,
   DEFAULT_CONTAINER_STYLE,
 };

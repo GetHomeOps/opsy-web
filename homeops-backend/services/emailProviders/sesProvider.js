@@ -11,6 +11,7 @@ const { EMAIL_BRAND_NAME, APP_BASE_URL } = require("../../config");
 
 const brandName = EMAIL_BRAND_NAME;
 const FOOTER_IMAGE_CID = "opsy-footer-image";
+const HEADER_LOGO_CID = "opsy-header-logo";
 
 const region = process.env.AWS_SES_REGION || process.env.AWS_REGION || "us-east-1";
 const credentials =
@@ -64,6 +65,23 @@ async function readFooterImageBase64() {
   return image.toString("base64");
 }
 
+function resolveHeaderLogoPath() {
+  const explicitPath = process.env.EMAIL_HEADER_IMAGE_PATH;
+  if (explicitPath && fs.existsSync(explicitPath)) return explicitPath;
+  const candidates = [
+    path.resolve(__dirname, "../../../homeops-frontend/public/OpsyHeader.png"),
+    path.resolve(__dirname, "../../assets/OpsyHeader.png"),
+  ];
+  return candidates.find((p) => fs.existsSync(p)) || null;
+}
+
+async function readHeaderLogoBase64() {
+  const logoPath = resolveHeaderLogoPath();
+  if (!logoPath) return null;
+  const image = await fs.promises.readFile(logoPath);
+  return image.toString("base64");
+}
+
 async function logUsageIfNeeded(usage) {
   if (usage?.accountId != null && usage?.userId != null) {
     const { logEmailUsage } = require("../usageService");
@@ -76,13 +94,17 @@ async function logUsageIfNeeded(usage) {
   }
 }
 
-async function sendViaSesRawWithInlineFooter({
+/**
+ * Send a multipart/related message with one or more inline images (CID).
+ * @param {Array<{ cid: string, base64: string, filename: string }>} inlineImages
+ */
+async function sendViaSesRawWithInlineImages({
   to,
   subject,
   html,
   replyTo,
   usage,
-  footerImageBase64,
+  inlineImages,
   cc = [],
 }) {
   const boundary = `opsy_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -103,16 +125,21 @@ async function sendViaSesRawWithInlineFooter({
     "",
     html,
     "",
-    `--${boundary}`,
-    'Content-Type: image/png; name="footer.png"',
-    "Content-Transfer-Encoding: base64",
-    `Content-ID: <${FOOTER_IMAGE_CID}>`,
-    'Content-Disposition: inline; filename="footer.png"',
-    "",
-    chunkBase64(footerImageBase64),
-    `--${boundary}--`,
-    "",
   ];
+
+  for (const img of inlineImages) {
+    lines.push(
+      `--${boundary}`,
+      `Content-Type: image/png; name="${img.filename}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-ID: <${img.cid}>`,
+      `Content-Disposition: inline; filename="${img.filename}"`,
+      "",
+      chunkBase64(img.base64),
+      ""
+    );
+  }
+  lines.push(`--${boundary}--`, "");
 
   await sesClient.send(
     new SendRawEmailCommand({
@@ -123,31 +150,71 @@ async function sendViaSesRawWithInlineFooter({
   return { success: true, provider: "ses" };
 }
 
+function replaceCidWithUrl(html, cid, url) {
+  return html.split(`cid:${cid}`).join(escapeHtmlAttr(url));
+}
+
 async function sendViaSes({ to, subject, html, replyTo, usage, cc }) {
   const ccList = Array.isArray(cc)
     ? [...new Set(cc.map((e) => String(e || "").trim()).filter(Boolean))]
     : [];
+  const appBase = (APP_BASE_URL || "https://app.heyopsy.com").replace(/\/$/, "");
+  const inlineImages = [];
+
+  if (html.includes(`cid:${HEADER_LOGO_CID}`)) {
+    try {
+      const headerLogoBase64 = await readHeaderLogoBase64();
+      if (headerLogoBase64) {
+        inlineImages.push({
+          cid: HEADER_LOGO_CID,
+          base64: headerLogoBase64,
+          filename: "opsy-header.png",
+        });
+      } else {
+        const fallbackUrl =
+          process.env.EMAIL_HEADER_IMAGE_URL || `${appBase}/OpsyHeader.png`;
+        html = replaceCidWithUrl(html, HEADER_LOGO_CID, fallbackUrl);
+      }
+    } catch (err) {
+      console.error("[sesProvider] inline header logo load failed:", err.message);
+      const fallbackUrl =
+        process.env.EMAIL_HEADER_IMAGE_URL || `${appBase}/OpsyHeader.png`;
+      html = replaceCidWithUrl(html, HEADER_LOGO_CID, fallbackUrl);
+    }
+  }
+
   if (html.includes(`cid:${FOOTER_IMAGE_CID}`)) {
     try {
       const footerImageBase64 = await readFooterImageBase64();
       if (footerImageBase64) {
-        return sendViaSesRawWithInlineFooter({
-          to,
-          subject,
-          html,
-          replyTo,
-          usage,
-          footerImageBase64,
-          cc: ccList,
+        inlineImages.push({
+          cid: FOOTER_IMAGE_CID,
+          base64: footerImageBase64,
+          filename: "footer.png",
         });
+      } else {
+        const fallbackUrl =
+          process.env.EMAIL_FOOTER_IMAGE_URL || `${appBase}/footer.png`;
+        html = replaceCidWithUrl(html, FOOTER_IMAGE_CID, fallbackUrl);
       }
-      const fallbackUrl =
-        process.env.EMAIL_FOOTER_IMAGE_URL ||
-        `${(APP_BASE_URL || "https://app.heyopsy.com").replace(/\/$/, "")}/footer.png`;
-      html = html.replace(`cid:${FOOTER_IMAGE_CID}`, escapeHtmlAttr(fallbackUrl));
     } catch (err) {
       console.error("[sesProvider] inline footer image load failed:", err.message);
+      const fallbackUrl =
+        process.env.EMAIL_FOOTER_IMAGE_URL || `${appBase}/footer.png`;
+      html = replaceCidWithUrl(html, FOOTER_IMAGE_CID, fallbackUrl);
     }
+  }
+
+  if (inlineImages.length > 0) {
+    return sendViaSesRawWithInlineImages({
+      to,
+      subject,
+      html,
+      replyTo,
+      usage,
+      inlineImages,
+      cc: ccList,
+    });
   }
 
   const params = {
@@ -177,4 +244,5 @@ module.exports = {
   getFromAddress,
   sendViaSes,
   FOOTER_IMAGE_CID,
+  HEADER_LOGO_CID,
 };
