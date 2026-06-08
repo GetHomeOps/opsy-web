@@ -33,8 +33,9 @@ const {
 } = require("./propertyInvitationDataGaps");
 const customerIoProvider = require("./emailProviders/customerIoProvider");
 const { initialsFromFullName } = require("../utils/nameInitials");
+const { isSafeS3Key } = require("../helpers/presignedUrls");
 const AgentAffiliation = require("../models/agentAffiliation");
-const { APP_BASE_URL } = require("../config");
+const { APP_BASE_URL, BACKEND_URL } = require("../config");
 const {
   canAddContact,
   getTeamMemberInviteEligibilityByProperty,
@@ -92,6 +93,31 @@ function toAbsoluteMediaUrl(url) {
   return `${base}${trimmed.startsWith("/") ? trimmed : `/${trimmed}`}`;
 }
 
+/** True when the user has a usable avatar source (uploaded S3 photo or an OAuth avatar URL). */
+function userHasUsableAvatar(image, avatarUrl) {
+  if (typeof image === "string" && isSafeS3Key(image)) return true;
+  if (typeof avatarUrl === "string" && /^https?:\/\//i.test(avatarUrl.trim())) return true;
+  return false;
+}
+
+/**
+ * Stable, public avatar URL for embedding in emails. Resolves the user's photo
+ * (private S3 object) at view time, or a branded initials image as fallback —
+ * so the email <img> never renders broken regardless of when it's opened.
+ */
+function buildPublicAvatarUrl(userId, fullName) {
+  if (!userId) return "";
+  const base = (BACKEND_URL || APP_BASE_URL || process.env.APP_WEB_ORIGIN || "").replace(
+    /\/$/,
+    ""
+  );
+  if (!base) return "";
+  const q = new URLSearchParams();
+  if (fullName) q.set("name", fullName);
+  const query = q.toString();
+  return `${base}/public/avatar/users/${userId}${query ? `?${query}` : ""}`;
+}
+
 async function resolveInviteeFirstName(emailLower, accountId) {
   if (!emailLower) return "";
 
@@ -122,6 +148,7 @@ async function buildPropertyInvitationAgentMergeData(inviterUserId, invitation) 
       agentFullName: "",
       agentRole: "",
       agentPhotoUrl: "",
+      agentAvatarUrl: "",
       agentInitials: "",
       hasAgentPhoto: false,
       teamName: "",
@@ -144,16 +171,24 @@ async function buildPropertyInvitationAgentMergeData(inviterUserId, invitation) 
 
   const agentFullName = inviter.name || "";
   const affiliation = await AgentAffiliation.getActiveForUser(inviterUserId);
-  const agentPhotoUrl = toAbsoluteMediaUrl(inviter.image || inviter.avatar_url || "");
+
+  /* Stable public URL that resolves the agent's photo (private S3 object) at
+     view time, or a branded initials image as fallback. Used for the email
+     <img> so it loads whenever the recipient opens the message. */
+  const agentAvatarUrl = buildPublicAvatarUrl(inviterUserId, agentFullName);
+  const hasAgentPhoto = userHasUsableAvatar(inviter.image, inviter.avatar_url);
 
   return {
     invitedByAgent,
     agentFirstName: firstNameFromFullName(agentFullName),
     agentFullName,
     agentRole: "real estate advisor",
-    agentPhotoUrl,
+    // agentPhotoUrl: photo-only (empty when no photo) for templates that branch on it.
+    agentPhotoUrl: hasAgentPhoto ? agentAvatarUrl : "",
+    // agentAvatarUrl: always renders (photo or initials) — preferred for the email <img>.
+    agentAvatarUrl,
     agentInitials: initialsFromFullName(agentFullName),
-    hasAgentPhoto: Boolean(agentPhotoUrl),
+    hasAgentPhoto,
     teamName: affiliation?.team?.name || "",
     brokerageName: affiliation?.agency?.name || "",
     brokerageLogoUrl: toAbsoluteMediaUrl(affiliation?.agency?.logoUrl || ""),

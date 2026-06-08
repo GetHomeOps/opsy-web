@@ -125,6 +125,10 @@ app.use(express.json());
 const contractorReportRoutes = require("./routes/contractorReport");
 app.use("/contractor-report", contractorReportRoutes);
 
+// Public avatar redirect — stable image URLs for emails (no session). Mounted before authenticateJWT.
+const publicAvatarRoutes = require("./routes/publicAvatars");
+app.use("/public", publicAvatarRoutes);
+
 // API health check (keep before SPA fallback)
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy' });

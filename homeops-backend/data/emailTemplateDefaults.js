@@ -166,6 +166,7 @@ function getSampleMergeData(emailType) {
       agentFullName: "Kino Belden",
       agentRole: "real estate advisor",
       agentPhotoUrl: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=144&h=144&fit=crop",
+      agentAvatarUrl: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=144&h=144&fit=crop",
       agentInitials: "KB",
       hasAgentPhoto: true,
       emailIconPlace: "",
