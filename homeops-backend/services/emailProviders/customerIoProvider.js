@@ -8,6 +8,7 @@
  */
 
 const { EMAIL_BRAND_NAME } = require("../../config");
+const { buildSeasonalMaintenanceEventFields } = require("../../helpers/seasonalMaintenance");
 
 function getRegion() {
   const r = (process.env.CUSTOMER_IO_REGION || "us").trim().toLowerCase();
@@ -271,6 +272,9 @@ async function trackPropertyAdded({
   propertyId,
   propertyAddress = "",
   propertyUid = "",
+  propertyState = "",
+  propertyCity = "",
+  region = "",
   accountId,
   isFirstPropertyForUser = false,
   source = "create",
@@ -282,6 +286,12 @@ async function trackPropertyAdded({
 
   try {
     const displayName = String(userName || "").trim();
+    const state = String(propertyState || "").trim();
+    const city = String(propertyCity || "").trim();
+    const seasonalFields = buildSeasonalMaintenanceEventFields({
+      state,
+      region: String(region || "").trim(),
+    });
     await identifyPerson({
       email,
       attributes: displayName ? { name: displayName } : {},
@@ -293,10 +303,13 @@ async function trackPropertyAdded({
         propertyId: propertyId ?? null,
         propertyAddress: String(propertyAddress || "").trim(),
         propertyUid: String(propertyUid || "").trim(),
+        state,
+        city,
         accountId: accountId ?? null,
         isFirstPropertyForUser: Boolean(isFirstPropertyForUser),
         source: String(source || "create").trim(),
         brandName: EMAIL_BRAND_NAME,
+        ...seasonalFields,
       },
     });
   } catch (err) {

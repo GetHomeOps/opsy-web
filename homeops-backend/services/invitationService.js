@@ -1096,14 +1096,18 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
     if (accepted.type === "property") {
       let propertyAddress = "";
       let propertyUid = "";
+      let propertyState = "";
+      let propertyCity = "";
       if (accepted.propertyId) {
         try {
           const propRes = await db.query(
-            `SELECT address, property_uid FROM properties WHERE id = $1`,
+            `SELECT address, property_uid, state, city FROM properties WHERE id = $1`,
             [accepted.propertyId]
           );
           propertyAddress = propRes.rows[0]?.address || "";
           propertyUid = propRes.rows[0]?.property_uid || "";
+          propertyState = propRes.rows[0]?.state || "";
+          propertyCity = propRes.rows[0]?.city || "";
         } catch (propErr) {
           console.error(
             "[invitationService] Failed to load property for acceptance:",
@@ -1141,6 +1145,8 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
           propertyId: accepted.propertyId,
           propertyAddress,
           propertyUid,
+          propertyState,
+          propertyCity,
           accountId: accepted.accountId,
           isFirstPropertyForUser,
           source: "invitation_accept",

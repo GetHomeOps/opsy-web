@@ -183,6 +183,8 @@ router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async fun
           propertyId: property.id,
           propertyAddress,
           propertyUid: property.property_uid,
+          propertyState: property.state,
+          propertyCity: property.city,
           accountId,
           isFirstPropertyForUser,
           source: "create",
