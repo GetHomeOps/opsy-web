@@ -1035,7 +1035,9 @@ class AppApi {
 
   /**
    * @param {File|Blob} file
-   * @param {{ uploadFolder?: string }} [options] - S3 top-level folder (see S3_UPLOAD_FOLDER)
+   * @param {{ uploadFolder?: string, emailType?: string, iconSlot?: string }} [options]
+   *   - uploadFolder: S3 top-level folder (see S3_UPLOAD_FOLDER)
+   *   - emailType, iconSlot: required for email_assets (Customer.io template icons)
    */
   static async uploadDocument(file, options = {}) {
     if (
@@ -1050,6 +1052,14 @@ class AppApi {
     const folder = options.uploadFolder ?? options.upload_folder;
     if (folder) {
       formData.append("upload_folder", folder);
+    }
+    const emailType = options.emailType ?? options.email_type;
+    const iconSlot = options.iconSlot ?? options.icon_slot;
+    if (emailType) {
+      formData.append("email_type", emailType);
+    }
+    if (iconSlot) {
+      formData.append("icon_slot", iconSlot);
     }
     let res = await this.requestFormData("documents/upload", formData);
     return res.document;

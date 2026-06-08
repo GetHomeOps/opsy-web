@@ -11,6 +11,7 @@ const sesProvider = require("./emailProviders/sesProvider");
 const customerIoProvider = require("./emailProviders/customerIoProvider");
 const { wrapEmailHtml } = require("./emailComposer");
 const { EMAIL_BRAND_NAME } = require("../config");
+const { attachTemplateIconMergeData } = require("./emailTemplateIcons");
 
 const settingsCache = { at: 0, settings: null };
 const templateCache = new Map();
@@ -84,6 +85,11 @@ async function deliver({
   usage,
 }) {
   const { provider, config } = await resolveProvider(emailType);
+  const mergedData = attachTemplateIconMergeData(
+    emailType,
+    mergeData,
+    config.customerIoIcons
+  );
   const usageWithProvider = {
     ...usage,
     emailType: usage?.emailType || emailType,
@@ -95,7 +101,7 @@ async function deliver({
       return await customerIoProvider.deliverViaCustomerIo({
         to,
         config,
-        messageData: mergeData,
+        messageData: mergedData,
         replyTo,
         cc,
         usage: usageWithProvider,
@@ -112,7 +118,7 @@ async function deliver({
           config,
           subject,
           html,
-          mergeData,
+          mergeData: mergedData,
           replyTo,
           cc,
           usage: { ...usageWithProvider, provider: "ses" },
@@ -127,7 +133,7 @@ async function deliver({
     config,
     subject,
     html,
-    mergeData,
+    mergeData: mergedData,
     replyTo,
     cc,
     usage: usageWithProvider,

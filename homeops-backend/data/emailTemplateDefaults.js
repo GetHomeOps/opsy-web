@@ -12,6 +12,15 @@ const { EMAIL_BRAND_NAME } = require("../config");
  */
 
 const DEFAULTS = {
+  welcome: {
+    subject: "Welcome to {{brandName}}",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">Welcome to {{brandName}}</h2>
+<p style="margin: 12px 0; line-height: 1.6;">Hi {{recipientFirstName}},</p>
+<p style="margin: 12px 0; line-height: 1.6;">Welcome. {{brandName}} is a calm, organized home for your home — it keeps track of what the house needs and tells you when something matters, before it becomes a weekend you didn't plan for.</p>
+<p style="margin: 12px 0; line-height: 1.6;">The first step is the only one that needs you: add your home, and we'll start filling in the rest.</p>
+<p style="margin: 24px 0;"><a href="{{ctaUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Add your home</a></p>
+<p style="color: #6b7280; font-size: 14px;">Takes about a minute &middot; Nothing to download</p>`,
+  },
   account_invitation: {
     subject: "You've been invited to join {{brandName}}",
     htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">You're invited to join {{brandName}}</h2>
@@ -133,6 +142,11 @@ function getSampleMergeData(emailType) {
     brandName: EMAIL_BRAND_NAME,
   };
   const samples = {
+    welcome: {
+      ...base,
+      recipientFirstName: "Alex",
+      ctaUrl: "https://app.heyopsy.com/home/properties/new",
+    },
     account_invitation: {
       ...base,
       inviteUrl: "https://app.heyopsy.com/invite/sample",
@@ -142,10 +156,36 @@ function getSampleMergeData(emailType) {
     property_invitation: {
       ...base,
       inviteUrl: "https://app.heyopsy.com/invite/sample",
-      inviterName: "Jane Smith",
-      inviteeName: "Alex",
-      propertyAddress: "123 Main St",
-      propertyAddressSuffix: ": 123 Main St",
+      inviterName: "Kino Belden",
+      inviteeName: "Maria",
+      recipientFirstName: "Maria",
+      propertyAddress: "123 Elm Street",
+      propertyAddressSuffix: ": 123 Elm Street",
+      invitedByAgent: true,
+      agentFirstName: "Kino",
+      agentFullName: "Kino Belden",
+      agentRole: "real estate advisor",
+      agentPhotoUrl: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=144&h=144&fit=crop",
+      agentInitials: "KB",
+      hasAgentPhoto: true,
+      emailIconPlace: "",
+      emailIconAlert: "",
+      emailIconHome: "",
+      propertyStreet: "123 Elm Street",
+      missingDataCount: 3,
+      missingDataSummary: "Documents, Roof, Maintenance history",
+      missingDataHtml:
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td valign="top" style="padding-bottom:14px; font-size:13px; line-height:19px; color:#3a4a42;"><strong style="color:#2f4a3d;">Documents</strong><br>Inspection reports, warranties, and closing paperwork are not attached yet.</td></tr></table>',
+      missingDataItem1Title: "Documents",
+      missingDataItem1Body:
+        "Inspection reports, warranties, and closing paperwork are not attached yet.",
+      missingDataItem2Title: "Roof",
+      missingDataItem2Body: "3 of 8 key roof details are filled in so far.",
+      missingDataItem3Title: "Maintenance history",
+      missingDataItem3Body: "Past service visits and tune-ups have not been recorded yet.",
+      teamName: "Kino's Team",
+      brokerageName: "Ohana Brokers",
+      brokerageLogoUrl: "",
       ctaLabel: "Accept invitation",
       personalNoteBlock: "",
       inviteInstructions:

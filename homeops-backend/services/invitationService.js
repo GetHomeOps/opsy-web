@@ -27,6 +27,13 @@ const Notification = require("../models/notification");
 const { syncPropertyMissingAgentAdminNotifications } = require("./propertyMissingAgentNotifications");
 const { notifyNewUserAccount } = require("./opsTeamNotifyService");
 const { sendInvitationEmail, sendBulkPropertyInvitationEmail } = require("./emailService");
+const {
+  buildPropertyInvitationMissingDataMerge,
+  EMPTY_MISSING_DATA_MERGE,
+} = require("./propertyInvitationDataGaps");
+const customerIoProvider = require("./emailProviders/customerIoProvider");
+const { initialsFromFullName } = require("../utils/nameInitials");
+const AgentAffiliation = require("../models/agentAffiliation");
 const { APP_BASE_URL } = require("../config");
 const {
   canAddContact,
@@ -65,6 +72,92 @@ function normalizeIntendedPropertyRole(value) {
   const v = String(value).trim().toLowerCase();
   if (!v) return null;
   return VALID_INTENDED_PROPERTY_ROLES.has(v) ? v : null;
+}
+
+function firstNameFromFullName(name) {
+  if (!name || typeof name !== "string") return "";
+  const trimmed = name.trim();
+  if (!trimmed) return "";
+  return trimmed.split(/\s+/)[0] || "";
+}
+
+/** Ensure avatar/logo URLs work in external email clients. */
+function toAbsoluteMediaUrl(url) {
+  if (!url || typeof url !== "string") return "";
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const base = (APP_BASE_URL || process.env.APP_WEB_ORIGIN || "").replace(/\/$/, "");
+  if (!base) return trimmed;
+  return `${base}${trimmed.startsWith("/") ? trimmed : `/${trimmed}`}`;
+}
+
+async function resolveInviteeFirstName(emailLower, accountId) {
+  if (!emailLower) return "";
+
+  const userRes = await db.query(
+    `SELECT name FROM users WHERE LOWER(TRIM(email)) = $1 LIMIT 1`,
+    [emailLower]
+  );
+  const fromUser = firstNameFromFullName(userRes.rows[0]?.name);
+  if (fromUser) return fromUser;
+
+  if (accountId == null) return "";
+  const contactRes = await db.query(
+    `SELECT c.name FROM contacts c
+     JOIN account_contacts ac ON ac.contact_id = c.id
+     WHERE LOWER(TRIM(c.email)) = $1 AND ac.account_id = $2
+     LIMIT 1`,
+    [emailLower, accountId]
+  );
+  return firstNameFromFullName(contactRes.rows[0]?.name);
+}
+
+/** Customer.io merge fields for agent → homeowner property invitations. */
+async function buildPropertyInvitationAgentMergeData(inviterUserId, invitation) {
+  if (!inviterUserId || !invitation) {
+    return {
+      invitedByAgent: false,
+      agentFirstName: "",
+      agentFullName: "",
+      agentRole: "",
+      agentPhotoUrl: "",
+      agentInitials: "",
+      hasAgentPhoto: false,
+      teamName: "",
+      brokerageName: "",
+      brokerageLogoUrl: "",
+    };
+  }
+
+  const inviterRes = await db.query(
+    `SELECT name, role, image, avatar_url FROM users WHERE id = $1`,
+    [inviterUserId]
+  );
+  const inviter = inviterRes.rows[0] || {};
+  const intendedPropertyRole = (invitation.intendedPropertyRole || "")
+    .trim()
+    .toLowerCase();
+  const invitedByAgent =
+    (inviter.role || "").toLowerCase() === "agent" &&
+    intendedPropertyRole === "homeowner";
+
+  const agentFullName = inviter.name || "";
+  const affiliation = await AgentAffiliation.getActiveForUser(inviterUserId);
+  const agentPhotoUrl = toAbsoluteMediaUrl(inviter.image || inviter.avatar_url || "");
+
+  return {
+    invitedByAgent,
+    agentFirstName: firstNameFromFullName(agentFullName),
+    agentFullName,
+    agentRole: "real estate advisor",
+    agentPhotoUrl,
+    agentInitials: initialsFromFullName(agentFullName),
+    hasAgentPhoto: Boolean(agentPhotoUrl),
+    teamName: affiliation?.team?.name || "",
+    brokerageName: affiliation?.agency?.name || "",
+    brokerageLogoUrl: toAbsoluteMediaUrl(affiliation?.agency?.logoUrl || ""),
+  };
 }
 
 /** Allowed values for each per-section access restriction (Systems / Maintenance / Docs). */
@@ -304,6 +397,7 @@ async function createPropertyInvitation({
         inviterUserId,
         type: "property",
         inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
+        inviteeName: trimmedInviteeName || null,
         personalNote: invitationEmailMainPlain ? null : invitationEmailNote,
         mainPlainOverride: invitationEmailMainPlain || null,
         cc: invitationEmailCc,
@@ -560,6 +654,7 @@ async function sendInvitationEmailForInvitation({
   inviterUserId,
   type,
   inviteeUserId,
+  inviteeName = null,
   personalNote = null,
   mainPlainOverride = null,
   cc = null,
@@ -610,8 +705,27 @@ async function sendInvitationEmailForInvitation({
   });
 
   let inviterName = null;
-  if (inviterUserId) {
-    const inviter = await db.query(`SELECT name FROM users WHERE id = $1`, [inviterUserId]);
+  let agentMergeData = {};
+  let missingDataMerge = { ...EMPTY_MISSING_DATA_MERGE };
+  let recipientFirstName = "";
+  if (type === "property") {
+    recipientFirstName =
+      firstNameFromFullName(inviteeName) ||
+      (await resolveInviteeFirstName(emailNorm, invitation.accountId));
+    agentMergeData = await buildPropertyInvitationAgentMergeData(
+      inviterUserId,
+      invitation
+    );
+    inviterName = agentMergeData.agentFullName || null;
+    if (invitation.propertyId) {
+      missingDataMerge = await buildPropertyInvitationMissingDataMerge(
+        invitation.propertyId
+      );
+    }
+  } else if (inviterUserId) {
+    const inviter = await db.query(`SELECT name FROM users WHERE id = $1`, [
+      inviterUserId,
+    ]);
     inviterName = inviter.rows[0]?.name || null;
   }
   const emailType = type === "property" ? "invitation_property" : "invitation_account";
@@ -619,13 +733,18 @@ async function sendInvitationEmailForInvitation({
     to: invitation.inviteeEmail,
     inviteUrl,
     inviterName,
-    inviteeName: null,
+    inviteeName: recipientFirstName || null,
     type,
     propertyAddress,
+    invitationId: type === "property" ? invitation.id : undefined,
+    propertyId: type === "property" ? invitation.propertyId : undefined,
     inviteeHasAccount: hasExistingAccount,
     personalNote: type === "property" ? personalNote : null,
     mainPlainOverride: type === "property" ? mainPlainOverride : null,
     cc: type === "property" && Array.isArray(cc) && cc.length > 0 ? cc : null,
+    recipientFirstName,
+    ...agentMergeData,
+    ...missingDataMerge,
     usage:
       invitation.accountId && inviterUserId
         ? {
@@ -940,6 +1059,59 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
     }
 
     if (accepted.type === "property") {
+      let propertyAddress = "";
+      let propertyUid = "";
+      if (accepted.propertyId) {
+        try {
+          const propRes = await db.query(
+            `SELECT address, property_uid FROM properties WHERE id = $1`,
+            [accepted.propertyId]
+          );
+          propertyAddress = propRes.rows[0]?.address || "";
+          propertyUid = propRes.rows[0]?.property_uid || "";
+        } catch (propErr) {
+          console.error(
+            "[invitationService] Failed to load property for acceptance:",
+            propErr.message
+          );
+        }
+      }
+
+      customerIoProvider.trackPropertyInvitationAccepted({
+        inviteeEmail: invitation.inviteeEmail,
+        invitationId: invitation.id,
+        propertyId: accepted.propertyId,
+        propertyAddress,
+        inviteeName: user.name || invitation.inviteeEmail,
+      });
+
+      const inviteeEmail = user.email || invitation.inviteeEmail;
+      if (inviteeEmail && accepted.propertyId) {
+        let isFirstPropertyForUser = false;
+        try {
+          const countRes = await db.query(
+            `SELECT COUNT(*)::int AS c FROM property_users WHERE user_id = $1`,
+            [user.id]
+          );
+          isFirstPropertyForUser = (countRes.rows[0]?.c ?? 0) === 1;
+        } catch (countErr) {
+          console.error(
+            "[invitationService] property count for Customer.io:",
+            countErr.message
+          );
+        }
+        customerIoProvider.trackPropertyAdded({
+          userEmail: inviteeEmail,
+          userName: user.name || invitation.inviteeEmail,
+          propertyId: accepted.propertyId,
+          propertyAddress,
+          propertyUid,
+          accountId: accepted.accountId,
+          isFirstPropertyForUser,
+          source: "invitation_accept",
+        });
+      }
+
       try {
         await Notification.deletePropertyInvitationNotifications(invitation.id);
       } catch (notifErr) {
@@ -957,11 +1129,7 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
         !didAutoTransferOwnership
       ) {
         try {
-          const propRes = await db.query(
-            `SELECT address FROM properties WHERE id = $1`,
-            [accepted.propertyId]
-          );
-          const address = propRes.rows[0]?.address;
+          const address = propertyAddress;
           const placeLabel =
             address && String(address).trim() ? String(address).trim() : "the property";
           const acceptorName =

@@ -21,6 +21,8 @@ const {
 } = require("../services/emailTemplateRenderer");
 const { wrapEmailHtml } = require("../services/emailComposer");
 const { toPreviewHtml, toStorageHtml, getFooterPreviewUrl } = require("../services/emailPreviewHtml");
+const { getCustomerIoIconSlots, normalizeCustomerIoIcons } = require("../constants/emailIconSlots");
+const { attachTemplateIconMergeData } = require("../services/emailTemplateIcons");
 const settingsUpdateSchema = require("../schemas/emailDeliverySettingsUpdate.json");
 const templateUpdateSchema = require("../schemas/emailTemplateConfigUpdate.json");
 
@@ -119,7 +121,11 @@ router.get("/templates/:emailType", ensureLoggedIn, ensureSuperAdmin, async (req
       PlatformEmailSettings.get(),
       EmailTemplateConfig.getByType(req.params.emailType),
     ]);
-    const sampleMergeData = enrichMergeData(getSampleMergeData(req.params.emailType));
+    const sampleMergeData = attachTemplateIconMergeData(
+      req.params.emailType,
+      enrichMergeData(getSampleMergeData(req.params.emailType)),
+      template.customerIoIcons
+    );
     const defaults = getDefaultSesTemplate(req.params.emailType) || {};
     const rawSubject = template.sesSubject || defaults.subject || "";
     const rawBody = template.sesHtmlBody || defaults.htmlBody || "";
@@ -143,6 +149,7 @@ router.get("/templates/:emailType", ensureLoggedIn, ensureSuperAdmin, async (req
       sampleMergeData,
       preview: { subject: renderedSubject, html: previewHtml },
       defaults: { subject: defaults.subject || "", body: defaults.htmlBody || "" },
+      customerIoIconSlots: getCustomerIoIconSlots(req.params.emailType),
     });
   } catch (err) {
     return next(err);
@@ -156,7 +163,8 @@ router.patch("/templates/:emailType", ensureLoggedIn, ensureSuperAdmin, async (r
     if (!validator.valid) {
       throw new BadRequestError(validator.errors.map((e) => e.stack));
     }
-    const template = await EmailTemplateConfig.update(req.params.emailType, {
+    const emailType = req.params.emailType;
+    const template = await EmailTemplateConfig.update(emailType, {
       ...req.body,
       ...(req.body.sesHtmlBody !== undefined
         ? { sesHtmlBody: toStorageHtml(req.body.sesHtmlBody) }
@@ -168,6 +176,14 @@ router.patch("/templates/:emailType", ensureLoggedIn, ensureSuperAdmin, async (r
               String(req.body.footerImageUrl).trim() === ""
                 ? null
                 : String(req.body.footerImageUrl).trim(),
+          }
+        : {}),
+      ...(req.body.customerIoIcons !== undefined
+        ? {
+            customerIoIcons: normalizeCustomerIoIcons(
+              emailType,
+              req.body.customerIoIcons
+            ),
           }
         : {}),
     });
@@ -209,9 +225,13 @@ router.post("/templates/:emailType/test", ensureLoggedIn, ensureSuperAdmin, asyn
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
       throw new BadRequestError("A valid recipient email is required.");
     }
-    const sampleMergeData = enrichMergeData(getSampleMergeData(emailType));
-    const defaults = getDefaultSesTemplate(emailType);
     const template = await EmailTemplateConfig.getByType(emailType);
+    const sampleMergeData = attachTemplateIconMergeData(
+      emailType,
+      enrichMergeData(getSampleMergeData(emailType)),
+      template.customerIoIcons
+    );
+    const defaults = getDefaultSesTemplate(emailType);
     const subject = renderTemplate(
       template.sesSubject || defaults?.subject || "Test email",
       sampleMergeData
@@ -267,7 +287,11 @@ router.post(
         );
       }
 
-      const sampleMergeData = enrichMergeData(getSampleMergeData(emailType));
+      const sampleMergeData = attachTemplateIconMergeData(
+        emailType,
+        enrichMergeData(getSampleMergeData(emailType)),
+        template.customerIoIcons
+      );
 
       await customerIoProvider.identifyPerson({
         email: to,

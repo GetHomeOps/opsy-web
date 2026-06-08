@@ -18,6 +18,7 @@ import {PAGE_LAYOUT, SETTINGS_CARD} from "../../constants/layout";
 import ModalBlank from "../../components/ModalBlank";
 import EmailTestSendModal from "./EmailTestSendModal";
 import RichTextEditor from "./RichTextEditor";
+import EmailCustomerIoIconSlot from "./EmailCustomerIoIconSlot";
 
 const PROVIDER_LABELS = {
   ses: "AWS SES",
@@ -63,6 +64,7 @@ function buildFormFromDetailResponse(res) {
     customerIoMode: t.customerIoMode || "event",
     customerIoTransactionalId: t.customerIoTransactionalId ?? "",
     customerIoEventName: t.customerIoEventName || "",
+    customerIoIcons: t.customerIoIcons ?? {},
   };
 }
 
@@ -77,7 +79,9 @@ function templateFormEquals(a, b) {
     String(a.customerIoTransactionalId ?? "") ===
       String(b.customerIoTransactionalId ?? "") &&
     (a.customerIoEventName || "") === (b.customerIoEventName || "") &&
-    (a.customerIoMode || "event") === (b.customerIoMode || "event")
+    (a.customerIoMode || "event") === (b.customerIoMode || "event") &&
+    JSON.stringify(a.customerIoIcons || {}) ===
+      JSON.stringify(b.customerIoIcons || {})
   );
 }
 
@@ -98,6 +102,7 @@ function EmailDeliveryPage() {
   const [templates, setTemplates] = useState([]);
   const [selectedType, setSelectedType] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [form, setForm] = useState({});
   /** Bumps TipTap when discarding edits so HTML resets even if updatedAt unchanged. */
   const [rteResetNonce, setRteResetNonce] = useState(0);
@@ -136,6 +141,7 @@ function EmailDeliveryPage() {
   const loadDetail = useCallback(
     async (emailType) => {
       if (!emailType) return;
+      setDetailLoading(true);
       try {
         const res = await AppApi.getEmailDeliveryTemplate(emailType);
         setDetail(res);
@@ -143,6 +149,8 @@ function EmailDeliveryPage() {
         setForm(buildFormFromDetailResponse(res));
       } catch (err) {
         showBanner("error", err.message || "Failed to load template.");
+      } finally {
+        setDetailLoading(false);
       }
     },
     [showBanner],
@@ -194,6 +202,37 @@ function EmailDeliveryPage() {
   const mergeVariables = useMemo(
     () => detail?.template?.mergeVariables || [],
     [detail],
+  );
+
+  const customerIoIconSlots = useMemo(
+    () => detail?.customerIoIconSlots ?? [],
+    [detail],
+  );
+
+  const handleCustomerIoIconChange = useCallback(
+    async (slotKey, url) => {
+      if (!selectedType) return;
+      const nextIcons = {...(form.customerIoIcons || {})};
+      if (url) {
+        nextIcons[slotKey] = url;
+      } else {
+        delete nextIcons[slotKey];
+      }
+      setForm((f) => ({...f, customerIoIcons: nextIcons}));
+      setSaving(true);
+      try {
+        await AppApi.updateEmailDeliveryTemplate(selectedType, {
+          customerIoIcons: nextIcons,
+        });
+        await loadDetail(selectedType);
+        showBanner("success", url ? "Icon saved to S3." : "Icon removed.");
+      } catch (err) {
+        showBanner("error", err.message || "Failed to save icon.");
+      } finally {
+        setSaving(false);
+      }
+    },
+    [form.customerIoIcons, loadDetail, selectedType, showBanner],
   );
 
   const savedTemplateForm = useMemo(
@@ -265,6 +304,7 @@ function EmailDeliveryPage() {
           form.customerIoTransactionalId == null
             ? null
             : Number(form.customerIoTransactionalId),
+        customerIoIcons: form.customerIoIcons ?? {},
       };
       await AppApi.updateEmailDeliveryTemplate(selectedType, payload);
       await loadOverview();
@@ -438,7 +478,12 @@ function EmailDeliveryPage() {
                         <li key={t.emailType}>
                           <button
                             type="button"
-                            onClick={() => setSelectedType(t.emailType)}
+                            onClick={() => {
+                              if (t.emailType !== selectedType) {
+                                setDetailLoading(true);
+                              }
+                              setSelectedType(t.emailType);
+                            }}
                             className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors ${
                               selectedType === t.emailType
                                 ? "bg-[#456564]/10 border-l-4 border-[#456564]"
@@ -691,6 +736,42 @@ function EmailDeliveryPage() {
                                 <code className="text-[11px]">{`{{customer.email}}`}</code>
                                 ).
                               </p>
+
+                              {customerIoIconSlots.length > 0 ? (
+                                <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-600 space-y-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <ImageIcon className="w-3.5 h-3.5 text-[#456564]" />
+                                    <h4 className="text-xs font-semibold text-gray-800 dark:text-gray-100">
+                                      Template icons (S3)
+                                    </h4>
+                                  </div>
+                                  <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                                    20×20 PNGs; merge fields like{" "}
+                                    <code className="text-[10px]">
+                                      {`{{event.${customerIoIconSlots[0]?.key || "emailIconPlace"}}}`}
+                                    </code>
+                                    . Bucket must allow public read (or
+                                    CloudFront).
+                                  </p>
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    {customerIoIconSlots.map((slot) => (
+                                      <EmailCustomerIoIconSlot
+                                        key={slot.key}
+                                        emailType={selectedType}
+                                        slot={slot}
+                                        imageUrl={
+                                          form.customerIoIcons?.[slot.key] || ""
+                                        }
+                                        disabled={saving}
+                                        onUrlChange={handleCustomerIoIconChange}
+                                        onError={(msg) =>
+                                          showBanner("error", msg)
+                                        }
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         ) : (
@@ -794,6 +875,7 @@ function EmailDeliveryPage() {
                                   <RichTextEditor
                                     value={form.sesHtmlBody}
                                     documentKey={`${selectedType}-${detail?.template?.updatedAt}-${rteResetNonce}`}
+                                    isLoading={detailLoading}
                                     onChange={(html) =>
                                       setForm((f) => ({
                                         ...f,
@@ -880,34 +962,41 @@ function EmailDeliveryPage() {
                         )}
 
                         <div className="flex flex-wrap gap-3 pt-2">
-                          <button
-                            type="submit"
-                            disabled={saving}
-                            className="px-4 py-2 rounded-lg bg-[#456564] text-white text-sm font-medium hover:bg-[#3a5554] disabled:opacity-50"
-                          >
-                            {saving ? "Saving…" : "Save changes"}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={saving || !templateHasUnsavedChanges}
-                            onClick={openDiscardTemplateConfirm}
-                            className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium hover:border-gray-400 dark:hover:border-gray-500 disabled:opacity-50"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTestSendKind("ses");
-                              setTestModalOpen(true);
-                            }}
-                            disabled={testing || saving}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium hover:border-[#456564] disabled:opacity-50"
-                          >
-                            <Send className="w-4 h-4" />
-                            Send test email
-                          </button>
-                          {settingsMeta?.customerIoConfigured &&
+                          {templateHasUnsavedChanges && (
+                            <>
+                              <button
+                                type="submit"
+                                disabled={saving}
+                                className="px-4 py-2 rounded-lg bg-[#456564] text-white text-sm font-medium hover:bg-[#3a5554] disabled:opacity-50"
+                              >
+                                {saving ? "Saving…" : "Save changes"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={openDiscardTemplateConfirm}
+                                className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium hover:border-gray-400 dark:hover:border-gray-500 disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+                          {!isCustomerIoActive && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTestSendKind("ses");
+                                setTestModalOpen(true);
+                              }}
+                              disabled={testing || saving}
+                              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium hover:border-[#456564] disabled:opacity-50"
+                            >
+                              <Send className="w-4 h-4" />
+                              Send test email
+                            </button>
+                          )}
+                          {isCustomerIoActive &&
+                            settingsMeta?.customerIoConfigured &&
                             !providerHasUnsavedChanges && (
                               <button
                                 type="button"

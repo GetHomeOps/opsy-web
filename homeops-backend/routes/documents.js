@@ -3,6 +3,8 @@
 const express = require("express");
 const multer = require("multer");
 const { ensureLoggedIn } = require("../middleware/auth");
+const { isAllowedCustomerIoIconSlot } = require("../constants/emailIconSlots");
+const { EMAIL_TYPE_KEYS } = require("../constants/emailTypes");
 const { BadRequestError } = require("../expressError");
 const { uploadFile, getPresignedUrl, getPresignedUrlForImage } = require("../services/s3Service");
 const { AWS_S3_BUCKET } = require("../config");
@@ -64,11 +66,31 @@ router.post("/upload", ensureLoggedIn, upload.single("file"), async (req, res, n
     const folderPrefix = resolveUploadFolderPrefix(req.body);
     if (!folderPrefix) {
       throw new BadRequestError(
-        "Invalid upload_folder. Use: documents, property_documents, property_photos, professionals, or user_photos."
+        "Invalid upload_folder. Use: documents, property_documents, property_photos, professionals, user_photos, agencies, or email_assets."
       );
     }
+
+    let key;
     const ext = req.file.originalname.split(".").pop() || "bin";
-    const key = `${folderPrefix}/${userId}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
+    if (folderPrefix === "email_assets") {
+      if (res.locals.user?.role !== "super_admin") {
+        throw new BadRequestError("Only super admins can upload email template icons.");
+      }
+      const emailType = String(req.body.email_type ?? req.body.emailType ?? "").trim();
+      const iconSlot = String(req.body.icon_slot ?? req.body.iconSlot ?? "").trim();
+      if (!EMAIL_TYPE_KEYS.includes(emailType)) {
+        throw new BadRequestError("Invalid email_type for email_assets upload.");
+      }
+      if (!isAllowedCustomerIoIconSlot(emailType, iconSlot)) {
+        throw new BadRequestError("Invalid icon_slot for this email type.");
+      }
+      if (!["png", "jpg", "jpeg", "webp", "gif"].includes(ext.toLowerCase())) {
+        throw new BadRequestError("Email icons must be PNG, JPEG, WebP, or GIF.");
+      }
+      key = `email_assets/${emailType}/${iconSlot}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
+    } else {
+      key = `${folderPrefix}/${userId}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
+    }
 
     const { key: s3Key, url } = await uploadFile(
       req.file.buffer,

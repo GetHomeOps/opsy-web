@@ -17,6 +17,34 @@ import {
   Variable,
 } from "lucide-react";
 
+function SkeletonBar({className = ""}) {
+  return (
+    <div
+      className={`bg-gray-200 dark:bg-gray-700 rounded animate-pulse ${className}`}
+      aria-hidden
+    />
+  );
+}
+
+function EmailBodySkeleton() {
+  return (
+    <div
+      className="min-h-[260px] px-4 py-4 space-y-3"
+      role="status"
+      aria-busy="true"
+      aria-label="Loading email body"
+    >
+      <SkeletonBar className="h-5 w-2/5 max-w-[200px]" />
+      <SkeletonBar className="h-4 w-3/5 max-w-[280px]" />
+      <SkeletonBar className="h-4 w-full max-w-[480px]" />
+      <SkeletonBar className="h-4 w-full max-w-[420px]" />
+      <SkeletonBar className="h-4 w-4/5 max-w-[360px]" />
+      <SkeletonBar className="h-4 w-2/5 max-w-[160px]" />
+      <SkeletonBar className="h-9 w-36 max-w-[40%] mt-2 rounded-md" />
+    </div>
+  );
+}
+
 function ToolbarButton({onClick, active, disabled, title, children}) {
   return (
     <button
@@ -48,6 +76,7 @@ function ToolbarButton({onClick, active, disabled, title, children}) {
  *  - mergeVariables ([{key, description}]): inserted as `{{key}}` plain text
  *  - placeholder
  *  - documentKey (any): when this changes the editor's content is reset
+ *  - isLoading (bool): show skeleton and block edits while template loads
  */
 export default function RichTextEditor({
   value,
@@ -55,6 +84,7 @@ export default function RichTextEditor({
   mergeVariables = [],
   placeholder = "Start writing your email…",
   documentKey,
+  isLoading = false,
 }) {
   const [variableMenuOpen, setVariableMenuOpen] = useState(false);
   const variableMenuRef = useRef(null);
@@ -99,16 +129,22 @@ export default function RichTextEditor({
   });
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || isLoading) return;
     const current = editor.getHTML();
     const next = value || "";
     if (current !== next) {
       editor.commands.setContent(next, false);
     }
-    
-  }, [documentKey, editor]);
+  }, [documentKey, editor, isLoading]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(!isLoading);
+  }, [editor, isLoading]);
 
   useEffect(() => () => editor?.destroy(), [editor]);
+
+  const showBodySkeleton = isLoading || !editor;
 
   const isActive = useMemo(() => {
     if (!editor) return () => false;
@@ -136,8 +172,6 @@ export default function RichTextEditor({
     }
     editor.chain().focus().extendMarkRange("link").setLink({href: url}).run();
   }
-
-  if (!editor) return null;
 
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden shadow-sm dark:shadow-none">
@@ -181,58 +215,66 @@ export default function RichTextEditor({
       <div className="flex flex-wrap items-center gap-1 px-2 py-1.5 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 rounded-t-lg">
         <ToolbarButton
           title="Bold"
+          disabled={showBodySkeleton}
           active={isActive("bold")}
-          onClick={() => editor.chain().focus().toggleBold().run()}
+          onClick={() => editor?.chain().focus().toggleBold().run()}
         >
           <BoldIcon className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Italic"
+          disabled={showBodySkeleton}
           active={isActive("italic")}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
+          onClick={() => editor?.chain().focus().toggleItalic().run()}
         >
           <ItalicIcon className="w-4 h-4" />
         </ToolbarButton>
         <span className="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-1" />
         <ToolbarButton
           title="Paragraph"
+          disabled={showBodySkeleton}
           active={isActive("paragraph")}
-          onClick={() => editor.chain().focus().setParagraph().run()}
+          onClick={() => editor?.chain().focus().setParagraph().run()}
         >
           <Pilcrow className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Heading"
+          disabled={showBodySkeleton}
           active={isActive("heading", {level: 2})}
-          onClick={() => editor.chain().focus().toggleHeading({level: 2}).run()}
+          onClick={() => editor?.chain().focus().toggleHeading({level: 2}).run()}
         >
           <Heading2 className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Subheading"
+          disabled={showBodySkeleton}
           active={isActive("heading", {level: 3})}
-          onClick={() => editor.chain().focus().toggleHeading({level: 3}).run()}
+          onClick={() => editor?.chain().focus().toggleHeading({level: 3}).run()}
         >
           <Heading3 className="w-4 h-4" />
         </ToolbarButton>
         <span className="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-1" />
         <ToolbarButton
           title="Bullet list"
+          disabled={showBodySkeleton}
           active={isActive("bulletList")}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          onClick={() => editor?.chain().focus().toggleBulletList().run()}
         >
           <ListIcon className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Numbered list"
+          disabled={showBodySkeleton}
           active={isActive("orderedList")}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          onClick={() => editor?.chain().focus().toggleOrderedList().run()}
         >
           <ListOrdered className="w-4 h-4" />
         </ToolbarButton>
         <span className="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-1" />
         <ToolbarButton
           title="Link"
+          disabled={showBodySkeleton}
           active={isActive("link")}
           onClick={setLink}
         >
@@ -242,11 +284,12 @@ export default function RichTextEditor({
           <div className="relative ml-auto" ref={variableMenuRef}>
             <button
               type="button"
+              disabled={showBodySkeleton}
               aria-expanded={variableMenuOpen}
               aria-haspopup="listbox"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setVariableMenuOpen((open) => !open)}
-              className="cursor-pointer inline-flex items-center gap-1.5 px-2 h-8 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-medium text-gray-700 dark:text-gray-200 hover:border-[#456564]"
+              className="cursor-pointer inline-flex items-center gap-1.5 px-2 h-8 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-medium text-gray-700 dark:text-gray-200 hover:border-[#456564] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Variable className="w-3.5 h-3.5" />
               Insert variable
@@ -284,21 +327,35 @@ export default function RichTextEditor({
         <span className="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-1" />
         <ToolbarButton
           title="Undo"
-          disabled={!editor.can().undo()}
-          onClick={() => editor.chain().focus().undo().run()}
+          disabled={showBodySkeleton || !editor?.can().undo()}
+          onClick={() => editor?.chain().focus().undo().run()}
         >
           <Undo2 className="w-4 h-4" />
         </ToolbarButton>
         <ToolbarButton
           title="Redo"
-          disabled={!editor.can().redo()}
-          onClick={() => editor.chain().focus().redo().run()}
+          disabled={showBodySkeleton || !editor?.can().redo()}
+          onClick={() => editor?.chain().focus().redo().run()}
         >
           <Redo2 className="w-4 h-4" />
         </ToolbarButton>
       </div>
-      <div className="rounded-b-lg bg-white [&_.ProseMirror]:min-h-[260px]">
-        <EditorContent editor={editor} />
+      <div className="relative rounded-b-lg bg-white dark:bg-gray-900 [&_.ProseMirror]:min-h-[260px]">
+        {showBodySkeleton && (
+          <div className="absolute inset-0 z-10 bg-white dark:bg-gray-900">
+            <EmailBodySkeleton />
+          </div>
+        )}
+        {editor ? (
+          <div
+            className={
+              showBodySkeleton ? "opacity-0 pointer-events-none" : ""
+            }
+            aria-hidden={showBodySkeleton}
+          >
+            <EditorContent editor={editor} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

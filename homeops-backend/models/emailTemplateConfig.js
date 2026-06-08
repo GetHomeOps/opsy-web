@@ -7,6 +7,7 @@ const {
   getDefaultSesTemplate,
   isLegacySesTemplate,
 } = require("../data/emailTemplateDefaults");
+const { normalizeCustomerIoIcons } = require("../constants/emailIconSlots");
 
 const COLS = `email_type AS "emailType", provider, is_switchable AS "isSwitchable",
   label, description,
@@ -15,6 +16,7 @@ const COLS = `email_type AS "emailType", provider, is_switchable AS "isSwitchabl
   customer_io_mode AS "customerIoMode",
   customer_io_transactional_id AS "customerIoTransactionalId",
   customer_io_event_name AS "customerIoEventName",
+  customer_io_icons AS "customerIoIcons",
   merge_variables AS "mergeVariables",
   updated_at AS "updatedAt"`;
 
@@ -23,6 +25,7 @@ function mapRow(row) {
   return {
     ...row,
     mergeVariables: row.mergeVariables || [],
+    customerIoIcons: row.customerIoIcons || {},
     showFooter: row.showFooter !== false,
   };
 }
@@ -39,6 +42,10 @@ async function ensureSchema() {
   await db.query(
     `ALTER TABLE email_template_configs
        ADD COLUMN IF NOT EXISTS footer_image_url TEXT`
+  );
+  await db.query(
+    `ALTER TABLE email_template_configs
+       ADD COLUMN IF NOT EXISTS customer_io_icons JSONB NOT NULL DEFAULT '{}'::jsonb`
   );
   schemaReady = true;
 }
@@ -140,6 +147,7 @@ class EmailTemplateConfig {
       customerIoMode: "customer_io_mode",
       customerIoTransactionalId: "customer_io_transactional_id",
       customerIoEventName: "customer_io_event_name",
+      customerIoIcons: "customer_io_icons",
     };
 
     const sets = [];
@@ -149,7 +157,12 @@ class EmailTemplateConfig {
     for (const [camel, col] of Object.entries(allowed)) {
       if (data[camel] !== undefined) {
         sets.push(`${col} = $${idx}`);
-        values.push(data[camel]);
+        if (camel === "customerIoIcons") {
+          sets[sets.length - 1] = `${col} = $${idx}::jsonb`;
+          values.push(JSON.stringify(data[camel]));
+        } else {
+          values.push(data[camel]);
+        }
         idx++;
       }
     }
@@ -183,6 +196,7 @@ class EmailTemplateConfig {
       sesHtmlBody: defaults.htmlBody,
       showFooter: true,
       footerImageUrl: null,
+      customerIoIcons: {},
     });
   }
 }

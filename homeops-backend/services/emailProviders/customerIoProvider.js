@@ -171,12 +171,18 @@ async function deliverViaCustomerIo({ to, config, messageData, replyTo, cc, usag
   const transactionalId =
     config.customerIoTransactionalId ?? config.customer_io_transactional_id;
 
+  const displayName =
+    messageData.inviteeName ||
+    messageData.userName ||
+    messageData.recipientFirstName ||
+    "";
   await identifyPerson({
     email: to,
     attributes: {
-      ...(messageData.inviteeName || messageData.userName
-        ? { name: messageData.inviteeName || messageData.userName }
+      ...(messageData.recipientFirstName
+        ? { first_name: messageData.recipientFirstName }
         : {}),
+      ...(displayName ? { name: displayName } : {}),
     },
   });
 
@@ -204,6 +210,48 @@ async function deliverViaCustomerIo({ to, config, messageData, replyTo, cc, usag
   return { success: true, provider: "customer_io" };
 }
 
+const PROPERTY_INVITATION_ACCEPTED_EVENT = "property_invitation_accepted";
+const PROPERTY_ADDED_EVENT = "property_added";
+
+/**
+ * Track property invitation acceptance for Customer.io journeys (exit / branch).
+ * No-op when Customer.io is not configured; errors are logged, not thrown.
+ */
+async function trackPropertyInvitationAccepted({
+  inviteeEmail,
+  invitationId,
+  propertyId,
+  propertyAddress = "",
+  inviteeName = "",
+}) {
+  if (!isCustomerIoConfigured()) return;
+
+  const email = String(inviteeEmail || "").trim();
+  if (!email) return;
+
+  try {
+    const displayName = String(inviteeName || "").trim();
+    await identifyPerson({
+      email,
+      attributes: displayName ? { name: displayName } : {},
+    });
+    await trackEvent({
+      email,
+      eventName: PROPERTY_INVITATION_ACCEPTED_EVENT,
+      data: {
+        invitationId: invitationId ?? null,
+        propertyId: propertyId ?? null,
+        propertyAddress: String(propertyAddress || "").trim(),
+      },
+    });
+  } catch (err) {
+    console.error(
+      "[customerIoProvider] trackPropertyInvitationAccepted:",
+      err.message
+    );
+  }
+}
+
 function getCustomerIoWorkspaceUrl() {
   const siteId = process.env.CUSTOMER_IO_SITE_ID;
   if (!siteId) return null;
@@ -212,12 +260,60 @@ function getCustomerIoWorkspaceUrl() {
   return `https://${host}/workspaces/${siteId}`;
 }
 
+/**
+ * Track when a user adds a property (create or invitation accept).
+ * Used in Customer.io journeys to exit / skip follow-ups (e.g. welcome nudge).
+ * No-op when Customer.io is not configured; errors are logged, not thrown.
+ */
+async function trackPropertyAdded({
+  userEmail,
+  userName = "",
+  propertyId,
+  propertyAddress = "",
+  propertyUid = "",
+  accountId,
+  isFirstPropertyForUser = false,
+  source = "create",
+}) {
+  if (!isCustomerIoConfigured()) return;
+
+  const email = String(userEmail || "").trim();
+  if (!email) return;
+
+  try {
+    const displayName = String(userName || "").trim();
+    await identifyPerson({
+      email,
+      attributes: displayName ? { name: displayName } : {},
+    });
+    await trackEvent({
+      email,
+      eventName: PROPERTY_ADDED_EVENT,
+      data: {
+        propertyId: propertyId ?? null,
+        propertyAddress: String(propertyAddress || "").trim(),
+        propertyUid: String(propertyUid || "").trim(),
+        accountId: accountId ?? null,
+        isFirstPropertyForUser: Boolean(isFirstPropertyForUser),
+        source: String(source || "create").trim(),
+        brandName: EMAIL_BRAND_NAME,
+      },
+    });
+  } catch (err) {
+    console.error("[customerIoProvider] trackPropertyAdded:", err.message);
+  }
+}
+
 module.exports = {
   isCustomerIoConfigured,
   identifyPerson,
   trackEvent,
   sendTransactional,
   deliverViaCustomerIo,
+  trackPropertyInvitationAccepted,
+  trackPropertyAdded,
+  PROPERTY_INVITATION_ACCEPTED_EVENT,
+  PROPERTY_ADDED_EVENT,
   getCustomerIoWorkspaceUrl,
   getRegion,
 };

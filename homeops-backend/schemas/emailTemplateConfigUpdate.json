@@ -14,7 +14,11 @@
       "enum": ["event", "transactional", "both", null]
     },
     "customerIoTransactionalId": { "type": ["integer", "null"] },
-    "customerIoEventName": { "type": ["string", "null"] }
+    "customerIoEventName": { "type": ["string", "null"] },
+    "customerIoIcons": {
+      "type": ["object", "null"],
+      "additionalProperties": { "type": ["string", "null"] }
+    }
   },
   "additionalProperties": false
 }

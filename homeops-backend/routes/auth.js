@@ -54,6 +54,7 @@ const {
 } = require("../services/emailVerificationService");
 const { onUserCreated } = require("../services/resourceAutoSend");
 const commAutoSend = require("../services/commAutoSend");
+const { trySendWelcomeEmailForUser } = require("../services/emailService");
 const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
 const stripeService = require("../services/stripeService");
 const Account = require("../models/account");
@@ -921,12 +922,28 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
 
     const existingUser = await User.getById(userId);
     const hadNoRole = !existingUser?.role;
+    const completingOnboarding = existingUser?.onboardingCompleted === false;
     const user = await User.completeOnboarding(userId, { role, subscriptionTier });
 
     const accountResult = await db.query(
       `SELECT account_id FROM account_users WHERE user_id = $1 LIMIT 1`,
       [userId]
     );
+
+    if (
+      completingOnboarding &&
+      (role === "homeowner" || role === "agent") &&
+      accountResult.rows[0]?.account_id
+    ) {
+      try {
+        await trySendWelcomeEmailForUser({
+          userId,
+          accountId: accountResult.rows[0].account_id,
+        });
+      } catch (welcomeErr) {
+        console.error("[welcomeEmail] complete-onboarding:", welcomeErr.message);
+      }
+    }
 
     if (hadNoRole) {
       try {

@@ -12,7 +12,8 @@
  * When email is not configured, password reset logs the link to console (dev).
  */
 
-const { EMAIL_BRAND_NAME } = require("../config");
+const db = require("../db");
+const { EMAIL_BRAND_NAME, APP_BASE_URL } = require("../config");
 const sesProvider = require("./emailProviders/sesProvider");
 const emailProviderRouter = require("./emailProviderRouter");
 const brandName = EMAIL_BRAND_NAME;
@@ -215,6 +216,29 @@ async function sendInvitationEmail({
   personalNote = null,
   cc = null,
   mainPlainOverride = null,
+  recipientFirstName = "",
+  invitedByAgent = false,
+  agentFirstName = "",
+  agentFullName = "",
+  agentRole = "",
+  agentPhotoUrl = "",
+  agentInitials = "",
+  hasAgentPhoto = false,
+  teamName = "",
+  brokerageName = "",
+  brokerageLogoUrl = "",
+  invitationId = null,
+  propertyId = null,
+  propertyStreet = "",
+  missingDataCount = 0,
+  missingDataSummary = "",
+  missingDataHtml = "",
+  missingDataItem1Title = "",
+  missingDataItem1Body = "",
+  missingDataItem2Title = "",
+  missingDataItem2Body = "",
+  missingDataItem3Title = "",
+  missingDataItem3Body = "",
 }) {
   const isProperty = type === "property";
   const emailType = isProperty ? "property_invitation" : "account_invitation";
@@ -304,11 +328,13 @@ async function sendInvitationEmail({
     </div>
   `;
 
+  const resolvedRecipientFirstName =
+    recipientFirstName || inviteeName || "";
   const mergeData = {
     brandName,
     inviteUrl,
     inviterName: inviterName || "Someone",
-    inviteeName: inviteeName || "",
+    inviteeName: inviteeName || resolvedRecipientFirstName || "",
     propertyAddress: propertyAddress || "",
     propertyAddressSuffix: propertyAddress ? `: ${propertyAddress}` : "",
     inviteeHasAccount,
@@ -323,6 +349,33 @@ async function sendInvitationEmail({
     footerNote,
     mainContentHtml,
     invitationType: type,
+    ...(isProperty
+      ? {
+          invitationId: invitationId ?? null,
+          propertyId: propertyId ?? null,
+          recipientFirstName: resolvedRecipientFirstName,
+          invitedByAgent: Boolean(invitedByAgent),
+          agentFirstName: agentFirstName || firstNameFromUser(inviterName),
+          agentFullName: agentFullName || inviterName || "",
+          agentRole: agentRole || "real estate advisor",
+          agentPhotoUrl: agentPhotoUrl || "",
+          agentInitials: agentInitials || "",
+          hasAgentPhoto: Boolean(hasAgentPhoto),
+          teamName: teamName || "",
+          brokerageName: brokerageName || "",
+          brokerageLogoUrl: brokerageLogoUrl || "",
+          propertyStreet: propertyStreet || "",
+          missingDataCount: Number(missingDataCount) || 0,
+          missingDataSummary: missingDataSummary || "",
+          missingDataHtml: missingDataHtml || "",
+          missingDataItem1Title: missingDataItem1Title || "",
+          missingDataItem1Body: missingDataItem1Body || "",
+          missingDataItem2Title: missingDataItem2Title || "",
+          missingDataItem2Body: missingDataItem2Body || "",
+          missingDataItem3Title: missingDataItem3Title || "",
+          missingDataItem3Body: missingDataItem3Body || "",
+        }
+      : {}),
   };
 
   return emailProviderRouter.deliver({
@@ -699,6 +752,94 @@ async function sendProfessionalContactEmail({
 }
 
 /**
+ * Welcome email after onboarding — prompts user to add their first property.
+ */
+async function sendWelcomeEmail({ to, recipientFirstName, ctaUrl, usage }) {
+  const toAddr = to && String(to).trim();
+  if (!toAddr) {
+    return { success: false, reason: "no_recipient" };
+  }
+
+  const firstName = recipientFirstName || "there";
+  const safeCta = ctaUrl ? escapeHtmlAttr(ctaUrl) : "#";
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color: #456564; margin: 0 0 12px;">Welcome to ${escapeHtml(brandName)}</h2>
+      <p style="margin: 12px 0; line-height: 1.6;">Hi ${escapeHtml(firstName)},</p>
+      <p style="margin: 12px 0; line-height: 1.6;">Welcome. ${escapeHtml(brandName)} is a calm, organized home for your home — it keeps track of what the house needs and tells you when something matters, before it becomes a weekend you didn't plan for.</p>
+      <p style="margin: 12px 0; line-height: 1.6;">The first step is the only one that needs you: add your home, and we'll start filling in the rest.</p>
+      <p style="margin: 24px 0;">
+        <a href="${safeCta}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Add your home</a>
+      </p>
+      <p style="color: #6b7280; font-size: 14px;">Takes about a minute &middot; Nothing to download</p>
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  return emailProviderRouter.deliver({
+    emailType: "welcome",
+    to: toAddr,
+    subject: `Welcome to ${brandName}`,
+    html,
+    mergeData: {
+      brandName,
+      recipientFirstName: firstName,
+      ctaUrl: ctaUrl || "",
+    },
+    usage,
+  });
+}
+
+/**
+ * Send welcome email when a user completes onboarding and has no property yet.
+ * Skips invited users who already joined a property.
+ */
+async function trySendWelcomeEmailForUser({ userId, accountId }) {
+  if (!userId || !accountId) {
+    return { sent: false, reason: "missing_ids" };
+  }
+
+  const userRes = await db.query(
+    `SELECT email, name, role FROM users WHERE id = $1 AND is_active = true`,
+    [userId]
+  );
+  const user = userRes.rows[0];
+  if (!user?.email) {
+    return { sent: false, reason: "no_email" };
+  }
+
+  const role = (user.role || "").toLowerCase();
+  if (role !== "homeowner" && role !== "agent") {
+    return { sent: false, reason: "skip_role" };
+  }
+
+  const propRes = await db.query(
+    `SELECT COUNT(*)::int AS c FROM property_users WHERE user_id = $1`,
+    [userId]
+  );
+  if ((propRes.rows[0]?.c || 0) > 0) {
+    return { sent: false, reason: "has_property" };
+  }
+
+  const base = (APP_BASE_URL || "http://localhost:5173").replace(/\/$/, "");
+  const accRes = await db.query(`SELECT url, name FROM accounts WHERE id = $1`, [accountId]);
+  const accountSlug = String(accRes.rows[0]?.url || accRes.rows[0]?.name || "home").replace(
+    /^\/+|\/+$/g,
+    ""
+  );
+  const ctaUrl = `${base}/${accountSlug}/properties/new`;
+  const recipientFirstName = firstNameFromUser(user.name) || "there";
+
+  const result = await sendWelcomeEmail({
+    to: user.email,
+    recipientFirstName,
+    ctaUrl,
+    usage: { accountId, userId, emailType: "welcome" },
+  });
+  return { sent: true, result };
+}
+
+/**
  * Notify a recipient by email that a communication is available in Opsy (in-app is primary).
  */
 async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl, usage }) {
@@ -971,6 +1112,8 @@ function humanizeStatus(status) {
 module.exports = {
   sendPasswordResetEmail,
   sendEmailVerificationEmail,
+  sendWelcomeEmail,
+  trySendWelcomeEmailForUser,
   sendInvitationEmail,
   buildPropertyInvitationDefaultMainPlain,
   sendBulkPropertyInvitationEmail,

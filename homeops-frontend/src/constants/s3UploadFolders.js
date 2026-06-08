@@ -9,4 +9,6 @@ export const S3_UPLOAD_FOLDER = {
   PROFESSIONALS: "professionals",
   USER_PHOTOS: "user_photos",
   AGENCIES: "agencies",
+  /** Customer.io template icons (super admin, Email Delivery) */
+  EMAIL_ASSETS: "email_assets",
 };

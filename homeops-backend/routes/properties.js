@@ -26,6 +26,7 @@ const PropertyOwnershipTransferRequest = require("../models/propertyOwnershipTra
 const db = require("../db");
 const { isAllowedInspectionAnalysisS3Key } = require("../constants/s3Upload");
 const AgentAffiliation = require("../models/agentAffiliation");
+const customerIoProvider = require("../services/emailProviders/customerIoProvider");
 
 const router = new express.Router();
 
@@ -167,6 +168,28 @@ router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async fun
       await syncPropertyMissingAgentAdminNotifications(property.id);
     } catch (missingAgentErr) {
       console.error("[propertyMissingAgent] property created:", missingAgentErr.message);
+    }
+
+    if (creatorId && res.locals.user?.email) {
+      const propertyAddress =
+        property.address ||
+        [property.address_line_1, property.city, property.state, property.zip]
+          .filter(Boolean)
+          .join(", ");
+      customerIoProvider
+        .trackPropertyAdded({
+          userEmail: res.locals.user.email,
+          userName: res.locals.user.name,
+          propertyId: property.id,
+          propertyAddress,
+          propertyUid: property.property_uid,
+          accountId,
+          isFirstPropertyForUser,
+          source: "create",
+        })
+        .catch((e) =>
+          console.error("[customerIo] trackPropertyAdded create:", e.message)
+        );
     }
 
     const propertyWithUrl = await addPresignedUrlToItem(property, "main_photo", "main_photo_url");

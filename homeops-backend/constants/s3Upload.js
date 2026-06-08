@@ -12,6 +12,8 @@ const S3_ALLOWED_PREFIXES = [
   "professionals/",
   "user_photos/",
   "agencies/",
+  /** Customer.io template icons (Email Delivery admin) */
+  "email_assets/",
   /** Existing bucket content / admin uploads */
   "config/",
 ];
@@ -23,6 +25,7 @@ const S3_UPLOAD_FOLDER_TO_PREFIX = {
   professionals: "professionals",
   user_photos: "user_photos",
   agencies: "agencies",
+  email_assets: "email_assets",
 };
 
 const VALID_UPLOAD_FOLDERS = new Set(Object.keys(S3_UPLOAD_FOLDER_TO_PREFIX));
