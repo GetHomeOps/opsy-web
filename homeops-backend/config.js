@@ -26,8 +26,21 @@ const PORT = +process.env.PORT || 3000;
 // Google OAuth (optional; validated when used)
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI_SIGNIN = process.env.GOOGLE_REDIRECT_URI_SIGNIN;
-const GOOGLE_REDIRECT_URI_SIGNUP = process.env.GOOGLE_REDIRECT_URI_SIGNUP;
+// Google sign-in/up OAuth callbacks hit the backend. When the explicit redirect
+// URIs aren't set, derive them from the public origin so they can't silently fall
+// back to an internal host (e.g. *.up.railway.app). Prefer BACKEND_URL, then the
+// same-origin web origin, then localhost for dev.
+const OAUTH_CALLBACK_BASE = (
+  process.env.BACKEND_URL ||
+  process.env.APP_WEB_ORIGIN ||
+  `http://localhost:${PORT}`
+).replace(/\/$/, "");
+const GOOGLE_REDIRECT_URI_SIGNIN =
+  process.env.GOOGLE_REDIRECT_URI_SIGNIN ||
+  `${OAUTH_CALLBACK_BASE}/auth/google/callback/signin`;
+const GOOGLE_REDIRECT_URI_SIGNUP =
+  process.env.GOOGLE_REDIRECT_URI_SIGNUP ||
+  `${OAUTH_CALLBACK_BASE}/auth/google/callback/signup`;
 const APP_WEB_ORIGIN = process.env.APP_WEB_ORIGIN;
 // BrowserRouter uses path-based URLs; redirect to origin + /auth/callback (no hash)
 const AUTH_SUCCESS_REDIRECT = process.env.AUTH_SUCCESS_REDIRECT || (process.env.APP_WEB_ORIGIN ? `${process.env.APP_WEB_ORIGIN}/auth/callback` : null);
@@ -71,11 +84,25 @@ function validateGoogleOAuthConfig() {
   if (!GOOGLE_CLIENT_ID) return; // Google auth disabled
   const missing = [];
   if (!GOOGLE_CLIENT_SECRET) missing.push("GOOGLE_CLIENT_SECRET");
-  if (!GOOGLE_REDIRECT_URI_SIGNIN) missing.push("GOOGLE_REDIRECT_URI_SIGNIN");
-  if (!GOOGLE_REDIRECT_URI_SIGNUP) missing.push("GOOGLE_REDIRECT_URI_SIGNUP");
   if (!APP_WEB_ORIGIN) missing.push("APP_WEB_ORIGIN");
   if (missing.length > 0) {
     throw new Error(`Google OAuth enabled but missing env: ${missing.join(", ")}`);
+  }
+  // Redirect URIs are derived from BACKEND_URL/APP_WEB_ORIGIN when not set explicitly.
+  // In production they must be HTTPS and must not point at localhost, or Google will
+  // reject the callback (redirect_uri_mismatch) and the flow will silently break.
+  if (process.env.NODE_ENV === "production") {
+    for (const [name, uri] of [
+      ["GOOGLE_REDIRECT_URI_SIGNIN", GOOGLE_REDIRECT_URI_SIGNIN],
+      ["GOOGLE_REDIRECT_URI_SIGNUP", GOOGLE_REDIRECT_URI_SIGNUP],
+    ]) {
+      if (!/^https:\/\//.test(uri) || /localhost|127\.0\.0\.1/.test(uri)) {
+        throw new Error(
+          `Google OAuth enabled but ${name} resolved to an invalid production value: ${uri}. ` +
+            `Set BACKEND_URL/APP_WEB_ORIGIN (or ${name}) to your public HTTPS origin.`
+        );
+      }
+    }
   }
 }
 

@@ -52,6 +52,15 @@ export default defineConfig({
       workbox: {
         globPatterns: ['index.html'],
         navigateFallback: '/index.html',
+        // Backend endpoints reached via full-page navigation (OAuth start + callbacks,
+        // calendar integration redirects) must hit the server, NOT be served the SPA
+        // shell. Without this denylist the service worker intercepts e.g.
+        // /auth/google/signin and renders the SPA 404 instead of redirecting to Google.
+        // Note: /auth/callback is a real frontend route, so we only deny /auth/google/*.
+        navigateFallbackDenylist: [
+          /^\/auth\/google\//,
+          /^\/calendar-integrations\//,
+        ],
         runtimeCaching: [],
       },
     }),
