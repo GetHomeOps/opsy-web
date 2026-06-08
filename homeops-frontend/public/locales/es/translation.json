@@ -359,6 +359,7 @@
   "contacts.emptyState": "Aún no hay contactos. Añade tu primer contacto para comenzar.",
   "noIcon": "Sin icono",
   "noItemsFound": "No se encontraron elementos",
+  "noUsersFound": "No se encontraron usuarios",
   "propertiesGrid.emptyState": "Aún no hay propiedades. Crea tu primera propiedad para comenzar.",
   "homeownerHome.emptyState": "Aún no hay propiedades. Crea tu primera propiedad para comenzar.",
   "homeownerHome.emptyStateSubtext": "Crea tu primera propiedad para comenzar.",
