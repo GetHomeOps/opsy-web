@@ -382,12 +382,27 @@ function PropertiesList() {
   );
   const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] =
     useState(false);
+  const [propertyLimitMessage, setPropertyLimitMessage] = useState("");
   const {handleAddProperty, isChecking: addPropertyChecking} =
     useAddPropertyWithLimitCheck({
       accountId: currentAccount?.id,
       accountUrl,
       onLimitReached: () => setPropertyLimitUpgradeOpen(true),
     });
+
+  /* Surface the upgrade prompt when redirected here because the new-property
+   * flow hit the plan limit (otherwise the redirect looks like a silent reload). */
+  useEffect(() => {
+    if (!location.state?.propertyLimitReached) return;
+    setPropertyLimitMessage(location.state.propertyLimitMessage || "");
+    setPropertyLimitUpgradeOpen(true);
+    const {
+      propertyLimitReached: _ignored,
+      propertyLimitMessage: _ignoredMsg,
+      ...rest
+    } = location.state;
+    navigate(location.pathname, {replace: true, state: rest});
+  }, [location.state, location.pathname, navigate]);
   const [selectedProperties, setSelectedProperties] = useState([]);
   const [bulkInviteOpen, setBulkInviteOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({
@@ -1380,9 +1395,15 @@ function PropertiesList() {
 
       <UpgradePrompt
         open={propertyLimitUpgradeOpen}
-        onClose={() => setPropertyLimitUpgradeOpen(false)}
+        onClose={() => {
+          setPropertyLimitUpgradeOpen(false);
+          setPropertyLimitMessage("");
+        }}
         title="Property limit reached"
-        message="You've used all properties on your current plan. Upgrade to add more."
+        message={
+          propertyLimitMessage ||
+          "You've used all properties on your current plan. Upgrade to add more."
+        }
         upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
       />
 

@@ -862,12 +862,15 @@ function PropertyFormContainer() {
         const max = res?.limits?.maxProperties;
         const count = res?.usage?.propertiesCount ?? 0;
         if (max != null && count >= max && !cancelled) {
-          setUpgradePromptTitle("Property limit reached");
-          setUpgradePromptMsg(
-            "You've used all properties on your current plan. Upgrade to add more.",
-          );
-          setUpgradePromptOpen(true);
-          navigate(`/${accountUrl}/properties`, {replace: true});
+          const accountLabel =
+            currentAccount?.name || currentAccount?.url || accountUrl;
+          navigate(`/${accountUrl}/properties`, {
+            replace: true,
+            state: {
+              propertyLimitReached: true,
+              propertyLimitMessage: `You've used all properties (${count}/${max}) on the "${accountLabel}" account's current plan. Upgrade to add more.`,
+            },
+          });
           return;
         }
         if (!cancelled) setSystemsSetupModalOpen(true);

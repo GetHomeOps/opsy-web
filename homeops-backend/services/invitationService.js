@@ -226,6 +226,23 @@ function mapToAccountRole(intendedRole, invitationType) {
   return "member";
 }
 
+/** True when the account is the internal platform account (owned by a super_admin).
+ *  Invitees (e.g. homeowners invited to demo properties) must still get property
+ *  access, but should NOT become members of this account — its properties would
+ *  otherwise count against the invitee's plan limit and pollute their account list. */
+async function isInternalPlatformAccount(accountId) {
+  if (!accountId) return false;
+  const res = await db.query(
+    `SELECT 1
+       FROM accounts a
+       JOIN users u ON u.id = a.owner_user_id
+      WHERE a.id = $1 AND u.role = 'super_admin'
+      LIMIT 1`,
+    [accountId]
+  );
+  return res.rows.length > 0;
+}
+
 function buildPropertyInviteUrl({
   baseUrl,
   accountUrl,
@@ -1057,7 +1074,12 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
 
     if (accepted.accountId) {
       const isLinked = await Account.isUserLinkedToAccount(user.id, accepted.accountId);
-      if (!isLinked) {
+      // Never auto-add invitees to the internal platform account (owned by a
+      // super_admin). They still receive property access via property_users above;
+      // making them an account member would count that account's properties
+      // (e.g. demo data) against their own plan limit.
+      const internalPlatformAccount = await isInternalPlatformAccount(accepted.accountId);
+      if (!isLinked && !internalPlatformAccount) {
         const accountRole = mapToAccountRole(accepted.intendedRole, accepted.type);
         await Account.addUserToAccount({
           userId: user.id,
