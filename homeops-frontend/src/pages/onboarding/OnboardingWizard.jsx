@@ -275,15 +275,46 @@ function getDisplayFeatures(plan) {
   return limitFeatures;
 }
 
+/** Resolve the best available Stripe price for display/checkout (prefers selected interval). */
+function resolvePlanPrice(plan, preferredInterval = "month") {
+  const prices = plan?.stripePrices || {};
+  const preferred = prices[preferredInterval];
+  if (typeof preferred?.unitAmount === "number") {
+    return {unitAmount: preferred.unitAmount, interval: preferredInterval};
+  }
+  for (const interval of ["month", "year", "annual"]) {
+    const row = prices[interval];
+    if (typeof row?.unitAmount === "number") {
+      return {
+        unitAmount: row.unitAmount,
+        interval: interval === "annual" ? "year" : interval,
+      };
+    }
+  }
+  return {unitAmount: null, interval: preferredInterval};
+}
+
 function isZeroCostPlan(plan, billingInterval = "month") {
   if (!plan) return false;
-  const intervalPrice = plan?.stripePrices?.[billingInterval];
-  if (typeof intervalPrice?.unitAmount === "number") {
-    return intervalPrice.unitAmount <= 0;
+  const {unitAmount} = resolvePlanPrice(plan, billingInterval);
+  if (typeof unitAmount === "number") {
+    return unitAmount <= 0;
   }
   const normalizedPrice =
     plan?.price != null && plan?.price !== "" ? Number(plan.price) : Number.NaN;
   return Number.isFinite(normalizedPrice) && normalizedPrice <= 0;
+}
+
+function plansHaveMonthlyPrice(plans) {
+  return plans.some((p) => typeof p.stripePrices?.month?.unitAmount === "number");
+}
+
+function plansHaveYearlyPrice(plans) {
+  return plans.some(
+    (p) =>
+      typeof p.stripePrices?.year?.unitAmount === "number" ||
+      typeof p.stripePrices?.annual?.unitAmount === "number",
+  );
 }
 
 function Step2Plan({
@@ -414,30 +445,30 @@ function Step2Plan({
 
             const isEnterprise =
               /enterprise/i.test(planId) || /enterprise/i.test(p.name || "");
+            const {unitAmount: resolvedUnit, interval: resolvedInterval} =
+              resolvePlanPrice(p, billingInterval);
             const isPaidPlan =
               p.stripePrices?.month?.unitAmount > 0 ||
               p.stripePrices?.year?.unitAmount > 0 ||
+              p.stripePrices?.annual?.unitAmount > 0 ||
               (p.price != null && p.price > 0);
-            const isYearly =
-              hasPaidPlans && billingInterval === "year" && isPaidPlan;
+            const showYearlyBreakdown =
+              hasPaidPlans && resolvedInterval === "year" && isPaidPlan;
 
             let displayPrice;
             let yearlyTotal = null;
-            const monthUnit = p.stripePrices?.month?.unitAmount;
-            const yearUnit = p.stripePrices?.year?.unitAmount;
             if (isEnterprise) {
               displayPrice = "Contact Sales";
-            } else if (isYearly && typeof yearUnit === "number") {
-              if (yearUnit === 0) {
+            } else if (typeof resolvedUnit === "number") {
+              if (resolvedUnit === 0) {
                 displayPrice = "Free";
-              } else {
-                const monthlyEquiv = yearUnit / 100 / 12;
+              } else if (showYearlyBreakdown) {
+                const monthlyEquiv = resolvedUnit / 100 / 12;
                 displayPrice = `$${monthlyEquiv.toFixed(2)}`;
-                yearlyTotal = (yearUnit / 100).toFixed(2);
+                yearlyTotal = (resolvedUnit / 100).toFixed(2);
+              } else {
+                displayPrice = `$${(resolvedUnit / 100).toFixed(2)}`;
               }
-            } else if (typeof monthUnit === "number") {
-              displayPrice =
-                monthUnit === 0 ? "Free" : `$${(monthUnit / 100).toFixed(2)}`;
             } else if (p.price === 0 || !isPaidPlan) {
               displayPrice = "Free";
             } else {
@@ -671,9 +702,17 @@ export default function OnboardingWizard() {
       const products = await AppApi.getSubscriptionProductsByRole(role).catch(
         () => [],
       );
-      setApiPlans(withSinglePopularFlag(plans));
+      const normalizedPlans = withSinglePopularFlag(plans);
+      setApiPlans(normalizedPlans);
       setApiPlansLoaded(plansApiOk);
       setSubscriptionProducts(Array.isArray(products) ? products : []);
+      const hasMonthly = plansHaveMonthlyPrice(normalizedPlans);
+      const hasYearly = plansHaveYearlyPrice(normalizedPlans);
+      if (hasYearly && !hasMonthly) {
+        setBillingInterval("year");
+      } else if (hasMonthly && !hasYearly) {
+        setBillingInterval("month");
+      }
     } finally {
       setApiLoading(false);
     }

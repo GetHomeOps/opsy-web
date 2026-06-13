@@ -2,6 +2,7 @@
 
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
+const { resolveFindingSystemType } = require("../services/systemTypes");
 
 class InspectionChecklistItem {
 
@@ -25,7 +26,15 @@ class InspectionChecklistItem {
       rows.push({
         analysis_result_id: analysisResultId,
         property_id,
-        system_key: n.systemType || "general",
+        system_key:
+          resolveFindingSystemType({
+            systemType: n.systemType,
+            title: n.title,
+            suggestedAction: n.suggestedAction,
+            description: n.suggestedAction,
+          }) ||
+          n.systemType ||
+          "general",
         source: "needs_attention",
         source_index: i,
         title: n.title || n.suggestedAction || "Inspection finding",
@@ -42,7 +51,15 @@ class InspectionChecklistItem {
       rows.push({
         analysis_result_id: analysisResultId,
         property_id,
-        system_key: m.systemType || "general",
+        system_key:
+          resolveFindingSystemType({
+            systemType: m.systemType,
+            task: m.task,
+            rationale: m.rationale,
+            description: m.rationale,
+          }) ||
+          m.systemType ||
+          "general",
         source: "maintenance_suggestion",
         source_index: i,
         title: m.task || "Maintenance task",

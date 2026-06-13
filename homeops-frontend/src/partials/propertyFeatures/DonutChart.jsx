@@ -25,7 +25,10 @@ function DonutChart({
   const textSizeClass = size <= 80 ? "text-xl" : "text-4xl";
 
   return (
-    <div className={`relative ${className}`} style={{width: size, height: size}}>
+    <div
+      className={`relative ${className}`}
+      style={{width: size, height: size}}
+    >
       <svg className="transform -rotate-90" width={size} height={size}>
         {/* Background circle */}
         <circle

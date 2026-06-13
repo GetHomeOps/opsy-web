@@ -11,6 +11,7 @@ import {
 } from "../../../constants/documentUpload";
 import UpgradePrompt from "../../../components/UpgradePrompt";
 import { emitDocumentsFiled } from "../helpers/documentAnalysisFlow";
+import { emitPropertyDocumentsChanged } from "../helpers/inspectionFlowSession";
 import { resolveUploadSystemKey } from "../helpers/systemKeyUtils";
 
 const documentTypes = [
@@ -175,6 +176,7 @@ function UploadDocumentModal({
       if (filedPropertyDocs.length) {
         onDocumentsFiled?.(filedPropertyDocs);
         emitDocumentsFiled(propertyId, filedPropertyDocs);
+        emitPropertyDocumentsChanged(propertyId);
       }
     }
   };

@@ -4,36 +4,84 @@
  */
 
 import {
-  normalizeAiSystemToken,
-  mapAiSystemTypeToIds,
+  canonicalSystemsMatch,
+  resolveFindingSystemType,
 } from "./aiSystemNormalization";
 
-function getSystemKeyTokens(systemKey) {
-  const raw = String(systemKey || "").trim();
-  if (!raw) return [];
-  const normalized = normalizeAiSystemToken(raw);
-  const tokens = new Set([normalized]);
-
-  const mapped = mapAiSystemTypeToIds(raw);
-  mapped.forEach((id) => tokens.add(normalizeAiSystemToken(id)));
-
-  if (normalized.startsWith("custom")) {
-    tokens.add(normalized.replace(/^custom/, ""));
-  }
-  return [...tokens].filter(Boolean);
+/** Resolve the display system bucket for a persisted checklist row. */
+export function resolveChecklistItemSystemKey(item) {
+  return (
+    resolveFindingSystemType({
+      systemType: item.system_key ?? item.systemKey,
+      title: item.title,
+      description: item.description,
+    }) ||
+    item.system_key ||
+    item.systemKey ||
+    "general"
+  );
 }
 
-function getAnalysisTypeTokens(rawType) {
-  const raw = String(rawType || "").trim();
-  if (!raw) return [];
-  const normalized = normalizeAiSystemToken(raw);
-  const mapped = mapAiSystemTypeToIds(raw);
-  if (mapped.length > 0) {
-    return mapped.map((id) => normalizeAiSystemToken(id)).filter(Boolean);
-  }
-  return [normalized].filter(Boolean);
+/** True when a checklist row should render as completed (matches ChecklistItem). */
+export function isChecklistItemCompleted(item, completedChecklistItemIds = new Set()) {
+  const explicitlyIncomplete = ["pending", "in_progress"].includes(
+    String(item.status ?? "").toLowerCase(),
+  );
+  return (
+    item.status === "completed" ||
+    (completedChecklistItemIds.has(Number(item.id)) && !explicitlyIncomplete)
+  );
 }
 
+/** Filter checklist rows to those belonging to a UI system. */
+export function filterChecklistItemsForSystem(items, systemKey) {
+  return (items || []).filter((item) =>
+    matchesSystemForAnalysis(systemKey, resolveChecklistItemSystemKey(item)),
+  );
+}
+
+/** Property documents filed under a system folder in the Documents tab. */
+export function filterPropertyDocumentsForSystem(documents, systemKey) {
+  if (!systemKey) return [];
+  return (documents || []).filter((doc) => {
+    const rawKey = doc.system_key ?? doc.systemKey;
+    const docKey =
+      rawKey === "general" ? "inspectionReport" : rawKey || "inspectionReport";
+    return matchesSystemForAnalysis(systemKey, docKey);
+  });
+}
+
+/** Derive progress stats from the same rows the checklist UI displays. */
+export function computeChecklistProgressFromItems(
+  items,
+  completedChecklistItemIds = new Set(),
+) {
+  const list = items || [];
+  const completed = list.filter((item) =>
+    isChecklistItemCompleted(item, completedChecklistItemIds),
+  ).length;
+  return {
+    completed,
+    total: list.length,
+    open: list.length - completed,
+  };
+}
+
+function resolveItemSystemType(item) {
+  return (
+    resolveFindingSystemType({
+      systemType: item.systemType ?? item.system_type ?? item.system_key,
+      title: item.title,
+      task: item.task,
+      suggestedAction: item.suggestedAction,
+      rationale: item.rationale,
+      description: item.description,
+    }) ||
+    item.systemType ||
+    item.system_type ||
+    item.system_key
+  );
+}
 
 /**
  * Check if a UI system key matches an inspection analysis system type.
@@ -42,18 +90,7 @@ function getAnalysisTypeTokens(rawType) {
  * @returns {boolean}
  */
 export function matchesSystemForAnalysis(systemKey, rawType) {
-  if (!systemKey || !rawType) return false;
-  const keyTokens = getSystemKeyTokens(systemKey);
-  const analysisTokens = getAnalysisTypeTokens(rawType);
-  if (keyTokens.length === 0 || analysisTokens.length === 0) return false;
-  return analysisTokens.some((analysisToken) =>
-    keyTokens.some(
-      (keyToken) =>
-        keyToken === analysisToken ||
-        keyToken.includes(analysisToken) ||
-        analysisToken.includes(keyToken),
-    ),
-  );
+  return canonicalSystemsMatch(systemKey, rawType);
 }
 
 /**
@@ -66,14 +103,14 @@ export function getSystemFindingsFromAnalysis(systemType, analysis) {
   if (!analysis) return { needsAttention: [], maintenanceSuggestions: [] };
   const needsAttention = (analysis.needsAttention ?? analysis.needs_attention ?? []).filter(
     (n) => {
-      const st = n.systemType ?? n.system_type;
+      const st = resolveItemSystemType(n);
       return st && matchesSystemForAnalysis(systemType, st);
     }
   );
   const maintenanceSuggestions = (
     analysis.maintenanceSuggestions ?? analysis.maintenance_suggestions ?? []
   ).filter((m) => {
-    const st = m.systemType ?? m.system_type;
+    const st = resolveItemSystemType(m);
     return st && matchesSystemForAnalysis(systemType, st);
   });
   return { needsAttention, maintenanceSuggestions };

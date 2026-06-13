@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Sparkles,
   Wrench,
+  ArrowLeft,
 } from "lucide-react";
 
 function formatDate(dateString) {
@@ -38,6 +39,8 @@ function DocumentsPreviewPanel({
   fetchPresignedPreview,
   InlineDocumentPreview,
   onClose,
+  onBack,
+  backLabel = "All Documents",
   onOpenInNewTab,
   onDelete,
   onOpenAIReport,
@@ -109,6 +112,16 @@ function DocumentsPreviewPanel({
     <div className="flex flex-col h-full bg-white dark:bg-gray-800 overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onBack ?? onClose}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#456564] dark:text-[#7aa3a2] hover:text-[#34514f] dark:hover:text-[#9ec5c4] transition-colors flex-shrink-0"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">{backLabel}</span>
+          <span className="sm:hidden">Back</span>
+        </button>
+        <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 flex-shrink-0" />
         <button
           type="button"
           onClick={() => setMetadataOpen((o) => !o)}

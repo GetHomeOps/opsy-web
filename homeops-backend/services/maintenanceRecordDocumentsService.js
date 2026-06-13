@@ -2,14 +2,60 @@
 
 const db = require("../db");
 const PropertyDocument = require("../models/propertyDocuments");
+const DocumentAnalysisJob = require("../models/documentAnalysisJob");
+const { enqueue } = require("./documentAnalysisQueue");
+const { checkAiFeaturesAllowed, checkAiTokenQuota } = require("./tierService");
+
+function inferMimeFromKey(key, fileName) {
+  const name = (fileName || key || "").toLowerCase();
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".gif")) return "image/gif";
+  if (name.endsWith(".pdf")) return "application/pdf";
+  return null;
+}
+
+/**
+ * Kick off AI document analysis for a newly filed maintenance document.
+ * Respects tier/quota limits; failures are logged but never block the sync.
+ */
+async function startAnalysisForDocument(doc, user) {
+  if (!user?.id) return;
+  try {
+    await checkAiFeaturesAllowed(user.id, user.role);
+    await checkAiTokenQuota(user.id, user.role);
+
+    const active = await DocumentAnalysisJob.getActiveForDocument(doc.id);
+    if (active) return;
+
+    const job = await DocumentAnalysisJob.create({
+      property_id: doc.property_id,
+      user_id: user.id,
+      property_document_id: doc.id,
+      s3_key: doc.document_key,
+      file_name: doc.document_name,
+      mime_type: inferMimeFromKey(doc.document_key, doc.document_name),
+      system_key: doc.system_key,
+      document_type: doc.document_type,
+    });
+    enqueue(job.id);
+  } catch (err) {
+    console.error(
+      "[maintenanceRecordDocuments] AI analysis skipped:",
+      err.message
+    );
+  }
+}
 
 /**
  * Syncs files from a maintenance record's data.files to property_documents.
  * Files in data.files should have format { key, name, size } where key is the S3 document_key.
  * - Removes property_documents linked to this record whose keys are no longer in files
  * - Creates property_document for each file with a key that isn't already linked
+ * - Optionally starts AI document analysis for newly filed documents (options.analyzeUser)
  */
-async function syncMaintenanceRecordDocuments(record) {
+async function syncMaintenanceRecordDocuments(record, options = {}) {
   const recordId = record.id;
   const propertyId = record.property_id;
   const systemKey = record.system_key || "general";
@@ -54,7 +100,7 @@ async function syncMaintenanceRecordDocuments(record) {
 
     if (existing.rows.length > 0) continue;
 
-    await PropertyDocument.create({
+    const doc = await PropertyDocument.create({
       property_id: propertyId,
       document_name: documentName,
       document_date: documentDate,
@@ -63,6 +109,15 @@ async function syncMaintenanceRecordDocuments(record) {
       system_key: systemKey,
       maintenance_record_id: recordId,
     });
+
+    if (doc && options.analyzeUser) {
+      startAnalysisForDocument(doc, options.analyzeUser).catch((err) =>
+        console.error(
+          "[maintenanceRecordDocuments] AI analysis failed:",
+          err.message
+        )
+      );
+    }
   }
 }
 

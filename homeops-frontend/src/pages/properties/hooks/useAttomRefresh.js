@@ -23,6 +23,8 @@ export function useAttomRefresh(propertyId, opts = {}) {
   const [jobStatus, setJobStatus] = useState(null);
   const [jobError, setJobError] = useState(null);
   const [populatedKeys, setPopulatedKeys] = useState([]);
+  const [lookupCount, setLookupCount] = useState(0);
+  const [lookupLimit, setLookupLimit] = useState(4);
   const [initialLoaded, setInitialLoaded] = useState(false);
 
   const pollTimerRef = useRef(null);
@@ -37,6 +39,8 @@ export function useAttomRefresh(propertyId, opts = {}) {
     try {
       const res = await AppApi.getPropertyAttomLookupStatus(propertyId);
       const job = res?.job ?? null;
+      setLookupCount(Number(res?.lookupCount) || 0);
+      setLookupLimit(Number(res?.lookupLimit) || 4);
       if (!job) {
         setJobStatus(null);
         setJobError(null);
@@ -68,6 +72,8 @@ export function useAttomRefresh(propertyId, opts = {}) {
       setJobStatus(null);
       setJobError(null);
       setPopulatedKeys([]);
+      setLookupCount(0);
+      setLookupLimit(4);
       setInitialLoaded(true);
       return;
     }
@@ -132,28 +138,49 @@ export function useAttomRefresh(propertyId, opts = {}) {
     }
   }, [jobStatus, initialLoaded, jobError, onComplete, onFail]);
 
-  /** Kick off a new job. Caller usually shows a confirm dialog first. */
-  const startRefresh = useCallback(async () => {
-    if (!propertyId) return;
-    setConfirmOpen(true);
-    setModalView("progress");
-    setJobError(null);
-    completionHandledRef.current = false;
-    failureHandledRef.current = false;
-    manualRefreshRequestedRef.current = true;
-    try {
-      await AppApi.refreshPropertyAttomLookup(propertyId);
-      await syncLatestJob();
-    } catch (err) {
-      console.error("[useAttomRefresh] refresh request failed:", err);
-      const message =
-        err?.message || "Unable to start refresh. Please try again in a moment.";
-      setJobError(message);
-      setModalView("result");
-      manualRefreshRequestedRef.current = false;
-      if (typeof onFail === "function") onFail(message);
-    }
-  }, [propertyId, syncLatestJob, onFail]);
+  const isAtLookupLimit = lookupCount >= lookupLimit;
+
+  /** Kick off a new job. Pass `{ silent: true }` to skip the confirm dialog (e.g. address-change auto-pull). */
+  const startRefresh = useCallback(
+    async ({silent = false} = {}) => {
+      if (!propertyId) return;
+      if (isAtLookupLimit) {
+        const message = `ATTOM lookup limit reached (${lookupLimit} per property).`;
+        setJobError(message);
+        if (!silent) {
+          setConfirmOpen(true);
+          setModalView("result");
+        }
+        if (typeof onFail === "function") onFail(message);
+        return;
+      }
+      if (!silent) {
+        setConfirmOpen(true);
+        setModalView("progress");
+      }
+      setJobError(null);
+      completionHandledRef.current = false;
+      failureHandledRef.current = false;
+      manualRefreshRequestedRef.current = true;
+      try {
+        const res = await AppApi.refreshPropertyAttomLookup(propertyId);
+        if (res?.lookupCount != null) setLookupCount(Number(res.lookupCount) || 0);
+        if (res?.lookupLimit != null) setLookupLimit(Number(res.lookupLimit) || 4);
+        await syncLatestJob();
+      } catch (err) {
+        console.error("[useAttomRefresh] refresh request failed:", err);
+        const message =
+          err?.message || "Unable to start refresh. Please try again in a moment.";
+        setJobError(message);
+        if (!silent) {
+          setModalView("result");
+        }
+        manualRefreshRequestedRef.current = false;
+        if (typeof onFail === "function") onFail(message);
+      }
+    },
+    [propertyId, syncLatestJob, onFail, isAtLookupLimit, lookupLimit],
+  );
 
   const openConfirm = useCallback(() => {
     setModalView("confirm");
@@ -166,6 +193,9 @@ export function useAttomRefresh(propertyId, opts = {}) {
     jobStatus,
     jobError,
     populatedKeys,
+    lookupCount,
+    lookupLimit,
+    isAtLookupLimit,
     isActive,
     initialLoaded,
     confirmOpen,

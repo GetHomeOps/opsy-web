@@ -19,6 +19,9 @@ const { BadRequestError, NotFoundError } = require("../expressError");
 const TERMINAL_STATUSES = new Set(["completed", "failed", "skipped"]);
 const ACTIVE_STATUSES = new Set(["queued", "processing"]);
 
+/** Max ATTOM lookup jobs (API calls) allowed per property across its lifetime. */
+const MAX_LOOKUPS_PER_PROPERTY = 4;
+
 class AttomLookupJob {
   /** Create a new job (defaults: status='queued', attempts=0, max_attempts=3, run_after=NOW()). */
   static async create({
@@ -171,6 +174,16 @@ class AttomLookupJob {
     return result.rows;
   }
 
+  /** Total lookup jobs ever created for a property (each job = one ATTOM call envelope). */
+  static async countForProperty(propertyId) {
+    if (!propertyId) return 0;
+    const result = await db.query(
+      `SELECT COUNT(*)::int AS count FROM attom_lookup_jobs WHERE property_id = $1`,
+      [propertyId]
+    );
+    return result.rows[0]?.count ?? 0;
+  }
+
   /** Most-recent active (queued/processing) job for a property, or null. */
   static async getLatestActiveForProperty(propertyId) {
     if (!propertyId) return null;
@@ -206,5 +219,6 @@ class AttomLookupJob {
 
 AttomLookupJob.TERMINAL_STATUSES = TERMINAL_STATUSES;
 AttomLookupJob.ACTIVE_STATUSES = ACTIVE_STATUSES;
+AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY = MAX_LOOKUPS_PER_PROPERTY;
 
 module.exports = AttomLookupJob;

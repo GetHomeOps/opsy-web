@@ -13,6 +13,8 @@ function AttomRefreshConfirmDialog({
   jobStatus,
   jobError,
   populatedKeys = [],
+  lookupCount = 0,
+  lookupLimit = 4,
   onCancel,
   onConfirm,
 }) {
@@ -24,13 +26,19 @@ function AttomRefreshConfirmDialog({
   const isResult =
     modalView === "result" || jobStatus === "completed" || !!jobError;
 
+  const remainingLookups = Math.max(0, lookupLimit - lookupCount);
   let title = "Fill missing property details from ATTOM?";
   let body = (
-    <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-      We'll look up public records and fill in any currently empty Identity
-      fields (owner, tax ID, specs, schools, etc.). Fields you've already edited
-      will not be overwritten.
-    </p>
+    <>
+      <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+        We'll look up public records and fill in any currently empty Identity
+        fields (owner, tax ID, specs, schools, etc.). Fields you've already edited
+        will not be overwritten.
+      </p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        {remainingLookups} of {lookupLimit} lookups remaining for this property.
+      </p>
+    </>
   );
   let actions = (
     <div className="flex justify-end gap-2">

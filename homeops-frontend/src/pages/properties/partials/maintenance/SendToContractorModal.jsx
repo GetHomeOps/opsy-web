@@ -15,6 +15,8 @@ function SendToContractorModal({
   inspectionFinding,
   isSending,
   onSend,
+  backdropZClassName,
+  dialogZClassName,
 }) {
   const displaySenderName = senderName
     ? senderName.replace(/\bHomeOps\b/g, "Opsy")
@@ -26,6 +28,8 @@ function SendToContractorModal({
       modalOpen={modalOpen}
       setModalOpen={setModalOpen}
       contentClassName="max-w-2xl"
+      backdropZClassName={backdropZClassName}
+      dialogZClassName={dialogZClassName}
     >
       <div className="p-6">
         <div className="flex items-center justify-between mb-5">

@@ -4,7 +4,6 @@ import {
   Wrench,
   Calendar,
   FileText,
-  DollarSign,
   Clock,
   AlertCircle,
   Loader2,
@@ -51,11 +50,12 @@ function ContractorReportPage() {
   useAutoCloseBanner(bannerOpen, bannerMessage, () => setBannerOpen(false));
 
   const [formData, setFormData] = useState({
-    description: "",
     workOrderNumber: "",
     cost: "",
     materialsUsed: [],
     notes: "",
+    findings: "",
+    nextStepsRecommendation: "",
     status: "Completed",
     completedAt: new Date().toISOString().slice(0, 10),
     nextServiceDate: "",
@@ -97,14 +97,19 @@ function ContractorReportPage() {
           : typeof raw === "string" && raw.trim()
             ? [{ material: raw.trim(), description: "", cost: "" }]
             : [];
-      setFormData((prev) => ({
-        ...prev,
-        description: data.existingData?.description || "",
+      setFormData({
         workOrderNumber: data.existingData?.workOrderNumber || "",
         cost: data.existingData?.cost || "",
         materialsUsed,
         notes: data.existingData?.notes || "",
-      }));
+        findings: data.existingData?.findings || "",
+        nextStepsRecommendation:
+          data.existingData?.nextStepsRecommendation || "",
+        status: data.status || "Completed",
+        completedAt:
+          data.completedAt || new Date().toISOString().slice(0, 10),
+        nextServiceDate: data.nextServiceDate || "",
+      });
       setUploadedFiles(Array.isArray(data.existingData?.files) ? data.existingData.files : []);
     } catch (err) {
       setError(err.message);
@@ -205,8 +210,8 @@ function ContractorReportPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!formData.description?.trim()) {
-      setError("Please provide a work description.");
+    if (!formData.notes?.trim()) {
+      setError("Please provide a work performed description.");
       return;
     }
     setSubmitting(true);
@@ -326,6 +331,22 @@ function ContractorReportPage() {
                 </span>
               </div>
             )}
+            {reportData.recordTitle && (
+              <div className="sm:col-span-2">
+                <span className="text-gray-500">Record Title:</span>
+                <span className="ml-2 font-medium text-gray-900">
+                  {reportData.recordTitle}
+                </span>
+              </div>
+            )}
+            {reportData.recordType && (
+              <div>
+                <span className="text-gray-500">Record Type:</span>
+                <span className="ml-2 font-medium text-gray-900">
+                  {reportData.recordType}
+                </span>
+              </div>
+            )}
             {reportData.contractorName && (
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-gray-400" />
@@ -354,16 +375,16 @@ function ContractorReportPage() {
 
         {/* Report form */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Date & Work Order */}
+          {/* Basics — aligned with Create Maintenance Record */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-emerald-600" />
-              Basic Information
+              Basics
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Completion Date <span className="text-red-500">*</span>
+                  Service Date <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -387,30 +408,76 @@ function ContractorReportPage() {
                   className="form-input w-full rounded-lg border-gray-300"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status After Work
+                </label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  className="form-select w-full rounded-lg border-gray-300"
+                >
+                  <option value="Completed">Completed</option>
+                  <option value="In Progress">
+                    In Progress — More Work Needed
+                  </option>
+                  <option value="Scheduled">Follow-up Scheduled</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Total Cost
+                </label>
+                <div className="relative flex">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    name="cost"
+                    value={formData.cost}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                    className="form-input w-full pl-7 rounded-lg border-gray-300"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Work Description */}
+          {/* Scheduling */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-emerald-600" />
+              Scheduling
+            </h2>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Next Service Date
+              </label>
+              <input
+                type="date"
+                name="nextServiceDate"
+                value={formData.nextServiceDate}
+                onChange={handleChange}
+                className="form-input w-full rounded-lg border-gray-300"
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                When should the next service be scheduled?
+              </p>
+            </div>
+          </div>
+
+          {/* Report Details — aligned with Create Maintenance Record */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <FileText className="w-5 h-5 text-emerald-600" />
-              Work Performed
+              Report Details
             </h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Work Description <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  rows={5}
-                  required
-                  placeholder="Describe the work performed, issues found, repairs made, and any recommendations..."
-                  className="form-input w-full rounded-lg border-gray-300"
-                />
-              </div>
               <div className="w-full">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   <Wrench className="w-4 h-4 inline mr-1" />
@@ -470,95 +537,56 @@ function ContractorReportPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Status After Work
+                  Work Performed <span className="text-red-500">*</span>
                 </label>
-                <select
-                  name="status"
-                  value={formData.status}
+                <textarea
+                  name="notes"
+                  value={formData.notes}
                   onChange={handleChange}
-                  className="form-select w-full rounded-lg border-gray-300"
-                >
-                  <option value="Completed">Completed</option>
-                  <option value="In Progress">
-                    In Progress — More Work Needed
-                  </option>
-                  <option value="Scheduled">Follow-up Scheduled</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Cost & Scheduling */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-emerald-600" />
-              Cost & Follow-up
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Total Cost
-                </label>
-                <div className="relative flex">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    name="cost"
-                    value={formData.cost}
-                    onChange={handleChange}
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    className="form-input w-full pl-7 rounded-lg border-gray-300"
-                  />
-                </div>
-                <p className="mt-1 text-xs text-gray-400">
-                  Total amount charged for this maintenance service
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Clock className="w-4 h-4 inline mr-1" />
-                  Next Service Date
-                </label>
-                <input
-                  type="date"
-                  name="nextServiceDate"
-                  value={formData.nextServiceDate}
-                  onChange={handleChange}
+                  rows={5}
+                  required
+                  placeholder="Describe the work performed during this service, inspection, or repair…"
                   className="form-input w-full rounded-lg border-gray-300"
                 />
-                <p className="mt-1 text-xs text-gray-400">
-                  When should the next service be scheduled?
-                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Findings
+                </label>
+                <textarea
+                  name="findings"
+                  value={formData.findings}
+                  onChange={handleChange}
+                  rows={4}
+                  placeholder={"One finding per line, e.g.\nOverall condition is good\nMinor hairline cracks observed"}
+                  className="form-input w-full rounded-lg border-gray-300"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Recommended Next Steps
+                </label>
+                <textarea
+                  name="nextStepsRecommendation"
+                  value={formData.nextStepsRecommendation}
+                  onChange={handleChange}
+                  rows={4}
+                  placeholder={"One recommendation per line, e.g.\nMonitor for changes\nRe-inspect in 12 months"}
+                  className="form-input w-full rounded-lg border-gray-300"
+                />
               </div>
             </div>
           </div>
 
-          {/* Additional Notes */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-emerald-600" />
-              Additional Notes
-            </h2>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              rows={3}
-              placeholder="Any additional observations, recommendations, or follow-up actions needed..."
-              className="form-input w-full rounded-lg border-gray-300"
-            />
-          </div>
-
-          {/* Attachments */}
+          {/* Documentation */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Upload className="w-5 h-5 text-emerald-600" />
-              Attachments
+              Documentation
             </h2>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Related Documents
+            </label>
             <div className="space-y-3">
               <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">

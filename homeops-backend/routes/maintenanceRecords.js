@@ -47,7 +47,7 @@ router.post("/:PropertyId", ensureLoggedIn, ensurePropertyAccess({ param: "Prope
     const created = await MaintenanceRecord.createMany(maintenanceRecords);
     // Sync files to property_documents so they appear in Documents tab
     for (const r of created) {
-      syncMaintenanceRecordDocuments(r).catch((err) =>
+      syncMaintenanceRecordDocuments(r, { analyzeUser: res.locals.user }).catch((err) =>
         console.error("[maintenanceRecordDocuments] Sync failed:", err.message)
       );
     }
@@ -97,7 +97,7 @@ router.post("/record/:PropertyId", ensureLoggedIn, ensurePropertyAccess({ param:
       }).catch((err) => console.error("[inspectionChecklist] Auto-link failed:", err.message));
     }
 
-    syncMaintenanceRecordDocuments(maintenanceRecord).catch((err) =>
+    syncMaintenanceRecordDocuments(maintenanceRecord, { analyzeUser: res.locals.user }).catch((err) =>
       console.error("[maintenanceRecordDocuments] Sync failed:", err.message)
     );
     triggerReanalysisOnMaintenance(propertyId, maintenanceRecord).catch((err) =>
@@ -131,7 +131,7 @@ router.patch("/:recordId", ensureLoggedIn, loadPropertyIdFromRecord, ensurePrope
     }
     const maintenance = await MaintenanceRecord.update(recordId, req.body);
 
-    syncMaintenanceRecordDocuments(maintenance).catch((err) =>
+    syncMaintenanceRecordDocuments(maintenance, { analyzeUser: res.locals.user }).catch((err) =>
       console.error("[maintenanceRecordDocuments] Sync failed:", err.message)
     );
     const checklistItemId = req.body.checklist_item_id || (req.body.data && req.body.data.checklist_item_id);

@@ -3,3 +3,7 @@ export { default as MaintenanceRecordCard } from "./MaintenanceRecordCard";
 export { default as MaintenanceRecordForm } from "./MaintenanceRecordForm";
 export { default as MaintenanceTreeView } from "./MaintenanceTreeView";
 export { default as MaintenanceFormPanel } from "./MaintenanceFormPanel";
+export { default as MaintenanceRecordsTableView } from "./MaintenanceRecordsTableView";
+export { default as MaintenanceRecordDetailView } from "./MaintenanceRecordDetailView";
+export { default as MaintenanceRecordReadView } from "./MaintenanceRecordReadView";
+export { default as CreateMaintenanceRecordPanel } from "./CreateMaintenanceRecordPanel";

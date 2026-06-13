@@ -23,12 +23,15 @@ import SystemsTab from "./SystemsTab";
 import MaintenanceTab from "./MaintenanceTab";
 import IdentityTab from "./IdentityTab";
 import DocumentsTab from "./DocumentsTab";
+import FinancialsTab from "./FinancialsTab";
 import DocumentAnalysisOrchestrator from "./partials/DocumentAnalysisOrchestrator";
-import { REQUEST_INSPECTION_OPSYMIZATION_EVENT } from "./helpers/documentAnalysisFlow";
-import OpsyHead from "../../images/opsy_head.png";
-import Tooltip from "../../utils/Tooltip";
+import {REQUEST_INSPECTION_OPSYMIZATION_EVENT} from "./helpers/documentAnalysisFlow";
+import {PROPERTY_DOCUMENTS_CHANGED_EVENT} from "./helpers/inspectionFlowSession";
 import ScoreCard from "./ScoreCard";
 import HomeOpsTeam from "./partials/HomeOpsTeam";
+import PropertyPassportHeader from "./partials/passport/PropertyPassportHeader";
+import PropertyOverviewDashboard from "./partials/passport/PropertyOverviewDashboard";
+import EmptyStateCard from "./partials/passport/EmptyStateCard";
 import SystemsSetupModal from "./partials/SystemsSetupModal";
 import ScheduleSystemModal from "./partials/ScheduleSystemModal";
 import SharePropertyModal from "./partials/SharePropertyModal";
@@ -55,7 +58,36 @@ import {
   prepareTeamForProperty,
   teamsAreEqual,
   mapPropertyFromBackend,
+  deriveStreetFromAddress,
 } from "./helpers/preparePropertyValues";
+
+function getAddressFingerprint(data) {
+  const line1 = (
+    data?.addressLine1 ||
+    deriveStreetFromAddress(data?.address) ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+  const city = (data?.city || "").trim().toLowerCase();
+  const state = (data?.state || "").trim().toUpperCase();
+  const zip = String(data?.zip || "").trim();
+  return `${line1}|${city}|${state}|${zip}`;
+}
+
+function hasCompleteAddressForAttom(data) {
+  const line1 = (
+    data?.addressLine1 ||
+    deriveStreetFromAddress(data?.address) ||
+    ""
+  ).trim();
+  return !!(
+    line1 &&
+    String(data?.city || "").trim() &&
+    String(data?.state || "").trim() &&
+    String(data?.zip || "").trim()
+  );
+}
 import {mapSystemsFromBackend} from "./helpers/mapSystemsFromBackend";
 import {prepareSystemsForApi} from "./helpers/prepareSystemsForApi";
 import {
@@ -86,7 +118,7 @@ import {
   FIELD_ALIASES,
 } from "./constants/identitySections";
 import {
-  RENTCAST_FIELD_KEYS,
+  ADJUSTABLE_FIELD_KEYS,
   ADDRESS_FIELD_KEYS,
 } from "./constants/rentcastFields";
 import {
@@ -96,27 +128,20 @@ import {
 import Banner from "../../partials/containers/Banner";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
 import {
-  Bed,
-  Bath,
-  Ruler,
-  Calendar,
   FileText,
   Settings,
   Wrench,
   Image as ImageIcon,
   ClipboardList,
   Home,
-  MapPin,
-  Building,
   Zap,
   Droplet,
-  Shield,
   AlertTriangle,
-  FileCheck,
   ChevronDown,
   ChevronUp,
   FileBarChart,
   FilePenLine,
+  Landmark,
   Lock,
   Loader2,
   Sparkles,
@@ -126,6 +151,7 @@ import {
   Briefcase,
   RefreshCw,
   CheckCircle2,
+  Plus,
 } from "lucide-react";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
 import AttomRefreshConfirmDialog from "./partials/AttomRefreshConfirmDialog";
@@ -138,7 +164,9 @@ import InspectionAnalysisModalContent from "./partials/InspectionAnalysisModalCo
 import useImageUpload from "../../hooks/useImageUpload";
 import {S3_UPLOAD_FOLDER} from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
-import useGooglePlacesAutocomplete from "../../hooks/useGooglePlacesAutocomplete";
+import useGooglePlacesAutocomplete, {
+  getIdentityAddressInputDisplayValue,
+} from "../../hooks/useGooglePlacesAutocomplete";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import useBillingStatus from "../../hooks/useBillingStatus";
 import ImageUploadField from "../../components/ImageUploadField";
@@ -442,17 +470,14 @@ const platformUsers = [];
 const mockProperties = [];
 
 const tabs = [
+  {id: "overview", label: "Overview"},
   {id: "identity", label: "Identity"},
   {id: "systems", label: "Systems"},
   {id: "maintenance", label: "Maintenance"},
   {id: "documents", label: "Documents"},
   {id: "media", label: "Media"},
+  {id: "financials", label: "Financials"},
 ];
-
-const formatCurrency = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
 
 /** Router nav slice after create — avoids duplicating newUid if context already includes it. */
 function buildPropertyFormNavStateFromProperties(properties, newUid) {
@@ -471,7 +496,13 @@ function buildPropertyFormNavStateFromProperties(properties, newUid) {
 
 /* Property Form Container */
 function PropertyFormContainer() {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const {uid: uidForInitialTab} = useParams();
+  /* Existing properties land on the Overview dashboard; the create flow starts
+     on Identity since there is nothing to summarize yet. */
+  const [state, dispatch] = useReducer(reducer, initialState, (init) => ({
+    ...init,
+    activeTab: uidForInitialTab === "new" ? "identity" : "overview",
+  }));
   const navigate = useNavigate();
   const location = useLocation();
   const {uid, accountUrl: accountUrlParam} = useParams();
@@ -545,11 +576,16 @@ function PropertyFormContainer() {
   const [createdPropertyFromModal, setCreatedPropertyFromModal] =
     useState(null);
   const [maintenanceEvents, setMaintenanceEvents] = useState([]);
+  const [overviewDocuments, setOverviewDocuments] = useState([]);
+  const [propertyNotes, setPropertyNotes] = useState([]);
+  const [propertyNotesLoading, setPropertyNotesLoading] = useState(false);
+  const [propertyNotesSaving, setPropertyNotesSaving] = useState(false);
   const [actionsDropdownOpen, setActionsDropdownOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareModalInitialTab, setShareModalInitialTab] = useState("owner");
   const [blankModalOpen, setBlankModalOpen] = useState(false);
-  const [inspectionAutoReportMeta, setInspectionAutoReportMeta] = useState(null);
+  const [inspectionAutoReportMeta, setInspectionAutoReportMeta] =
+    useState(null);
   const [inspectionAutoStart, setInspectionAutoStart] = useState(false);
   const [documentsUploadModalRequested, setDocumentsUploadModalRequested] =
     useState(false);
@@ -632,8 +668,7 @@ function PropertyFormContainer() {
           "";
         setInspectionAutoReportMeta({
           s3Key: String(s3Key).trim(),
-          fileName:
-            filedDocument.document_name ?? filedDocument.name ?? null,
+          fileName: filedDocument.document_name ?? filedDocument.name ?? null,
           mimeType:
             filedDocument.mime_type ??
             filedDocument.mimeType ??
@@ -702,24 +737,17 @@ function PropertyFormContainer() {
         params.set("currentValue", String(currentVal).trim());
       }
 
+      if (!ADJUSTABLE_FIELD_KEYS.has(fieldKey)) return undefined;
+
       if (ADDRESS_FIELD_KEYS.has(fieldKey)) {
         params.set("system", "Address");
-        params.set("field", fieldKey);
-        if (currentPropertyId)
-          params.set("propertyId", String(currentPropertyId));
-        if (currentPropertyContextLabel)
-          params.set("propertyLabel", currentPropertyContextLabel);
-        return `${base}?${params.toString()}`;
+      } else if (identityDataSource === "attom") {
+        params.set("system", "ATTOM");
+      } else if (identityDataSource === "rentcast") {
+        params.set("system", "RentCast");
+      } else {
+        params.set("system", "Property Identity");
       }
-
-      const isApiSourced =
-        identityDataSource === "rentcast" || identityDataSource === "attom";
-      if (!isApiSourced || !RENTCAST_FIELD_KEYS.has(fieldKey)) return undefined;
-
-      params.set(
-        "system",
-        identityDataSource === "attom" ? "ATTOM" : "RentCast",
-      );
       params.set("field", fieldKey);
       if (currentPropertyId)
         params.set("propertyId", String(currentPropertyId));
@@ -766,11 +794,13 @@ function PropertyFormContainer() {
   useEffect(() => {
     if (uid === "new" || !tabFromUrl) return;
     const validTabs = [
+      "overview",
       "identity",
       "systems",
       "maintenance",
       "documents",
       "media",
+      "financials",
       "photos",
     ];
     if (validTabs.includes(tabFromUrl)) {
@@ -1157,7 +1187,8 @@ function PropertyFormContainer() {
     if (typeof window === "undefined" || !propertyIdForApi) return;
     const normalizedPropertyId = String(propertyIdForApi);
     const handleOpsymizationRequest = (event) => {
-      if (String(event.detail?.propertyId ?? "") !== normalizedPropertyId) return;
+      if (String(event.detail?.propertyId ?? "") !== normalizedPropertyId)
+        return;
       openInspectionAnalysisWithPlanCheck(event.detail?.document ?? null);
     };
     window.addEventListener(
@@ -1326,6 +1357,85 @@ function PropertyFormContainer() {
     };
   }, [effectivePropertyId]);
 
+  const refreshOverviewDocuments = useCallback(() => {
+    if (!effectivePropertyId) {
+      setOverviewDocuments([]);
+      return;
+    }
+    AppApi.getPropertyDocuments(effectivePropertyId)
+      .then((docs) => setOverviewDocuments(docs ?? []))
+      .catch(() => setOverviewDocuments([]));
+  }, [effectivePropertyId]);
+
+  const refreshPropertyNotes = useCallback(() => {
+    if (!effectivePropertyId) {
+      setPropertyNotes([]);
+      return;
+    }
+    setPropertyNotesLoading(true);
+    AppApi.getPropertyNotes(effectivePropertyId)
+      .then((notes) => setPropertyNotes(notes ?? []))
+      .catch(() => setPropertyNotes([]))
+      .finally(() => setPropertyNotesLoading(false));
+  }, [effectivePropertyId]);
+
+  useEffect(() => {
+    refreshOverviewDocuments();
+  }, [refreshOverviewDocuments]);
+
+  useEffect(() => {
+    refreshPropertyNotes();
+  }, [refreshPropertyNotes]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleDocumentsChanged = () => refreshOverviewDocuments();
+    window.addEventListener(
+      PROPERTY_DOCUMENTS_CHANGED_EVENT,
+      handleDocumentsChanged,
+    );
+    return () => {
+      window.removeEventListener(
+        PROPERTY_DOCUMENTS_CHANGED_EVENT,
+        handleDocumentsChanged,
+      );
+    };
+  }, [refreshOverviewDocuments]);
+
+  const handleAddPropertyNote = useCallback(
+    async (body) => {
+      if (!effectivePropertyId) return;
+      setPropertyNotesSaving(true);
+      try {
+        const note = await AppApi.createPropertyNote(
+          effectivePropertyId,
+          body,
+        );
+        setPropertyNotes((prev) => [note, ...prev]);
+      } finally {
+        setPropertyNotesSaving(false);
+      }
+    },
+    [effectivePropertyId],
+  );
+
+  const handleUpdatePropertyNote = useCallback(async (noteId, body) => {
+    setPropertyNotesSaving(true);
+    try {
+      const note = await AppApi.updatePropertyNote(noteId, body);
+      setPropertyNotes((prev) =>
+        prev.map((n) => (n.id === note.id ? note : n)),
+      );
+    } finally {
+      setPropertyNotesSaving(false);
+    }
+  }, []);
+
+  const handleDeletePropertyNote = useCallback(async (noteId) => {
+    await AppApi.deletePropertyNote(noteId);
+    setPropertyNotes((prev) => prev.filter((n) => n.id !== noteId));
+  }, []);
+
   /** Called by IdentityTab after a background ATTOM lookup completes. Refetches
    *  the property, reapplies identity fields to the form (without marking it
    *  dirty), and shows a success banner. No-op if the user has unsaved edits —
@@ -1347,12 +1457,17 @@ function PropertyFormContainer() {
     try {
       const refreshed = await getPropertyById(uid);
       if (!refreshed) return;
-      const systemsRes = await getSystemsByPropertyId(effectivePropertyId).catch(
-        () => null,
-      );
-      const systemsFromBackend = systemsRes?.systems ?? systemsRes ?? state.systems ?? [];
+      const systemsRes = await getSystemsByPropertyId(
+        effectivePropertyId,
+      ).catch(() => null);
+      const systemsFromBackend =
+        systemsRes?.systems ?? systemsRes ?? state.systems ?? [];
       const propertyPayload = {
-        ...buildPropertyPayloadFromRefresh(refreshed, systemsFromBackend ?? [], refreshed),
+        ...buildPropertyPayloadFromRefresh(
+          refreshed,
+          systemsFromBackend ?? [],
+          refreshed,
+        ),
         maintenanceRecords: state.formData.maintenanceRecords ?? [],
       };
       const scrollEl = document.querySelector(".flex-1.overflow-y-auto");
@@ -1365,7 +1480,8 @@ function PropertyFormContainer() {
           banner: {
             open: true,
             type: "success",
-            message: "Missing property details filled from ATTOM public records.",
+            message:
+              "Missing property details filled from ATTOM public records.",
           },
         },
       });
@@ -1413,6 +1529,34 @@ function PropertyFormContainer() {
       onFail: handleAttomRefreshFailed,
     },
   );
+
+  const initialAttomPullAttemptedRef = useRef(false);
+  useEffect(() => {
+    initialAttomPullAttemptedRef.current = false;
+  }, [effectivePropertyId]);
+
+  /** Auto-pull ATTOM when a saved property has never had a lookup and has a complete address. */
+  useEffect(() => {
+    if (uid === "new" || !effectivePropertyId) return;
+    if (!attomRefresh.initialLoaded || initialAttomPullAttemptedRef.current) return;
+    if (attomRefresh.isActive || attomRefresh.isAtLookupLimit) return;
+    if (attomRefresh.lookupCount > 0) return;
+    if (identityDataSource === "attom" || identityDataSource === "rentcast") return;
+    if (!hasCompleteAddressForAttom(savedMergedPropertyData)) return;
+
+    initialAttomPullAttemptedRef.current = true;
+    void attomRefresh.startRefresh({silent: true});
+  }, [
+    uid,
+    effectivePropertyId,
+    attomRefresh.initialLoaded,
+    attomRefresh.isActive,
+    attomRefresh.isAtLookupLimit,
+    attomRefresh.lookupCount,
+    attomRefresh.startRefresh,
+    identityDataSource,
+    savedMergedPropertyData,
+  ]);
 
   const refreshPropertySystems = useCallback(async () => {
     if (!effectivePropertyId) return;
@@ -1568,7 +1712,11 @@ function PropertyFormContainer() {
        object — `SET_PROPERTY` runs up to 3x per navigation (preloaded create
        payload, optimistic list-state, full fetch) and each new object reference
        was retriggering this effect, kicking off duplicate /team/:uid fetches. */
-  }, [uid, currentUser?.id, state.property?.identity?.id ?? state.property?.id]);
+  }, [
+    uid,
+    currentUser?.id,
+    state.property?.identity?.id ?? state.property?.id,
+  ]);
 
   /* Handles the change of the property */
   const handleChange = (event) => {
@@ -1850,6 +1998,66 @@ function PropertyFormContainer() {
     }
   };
 
+  const handleCancelIdentityEdit = useCallback(() => {
+    if (!state.property) return;
+
+    const saved = mergeFormDataFromTabs(state.property);
+    const identityFields = [
+      "propertyName",
+      "address",
+      "fullAddress",
+      "addressLine1",
+      "addressLine2",
+      "city",
+      "state",
+      "zip",
+      "county",
+    ];
+    const payload = {};
+    for (const key of identityFields) {
+      payload[key] = saved[key] ?? saved.identity?.[key] ?? null;
+    }
+    dispatch({type: "SET_IDENTITY_FORM_DATA_SILENT", payload});
+
+    if (identityAddressRef.current) {
+      identityAddressRef.current.value =
+        getIdentityAddressInputDisplayValue(saved) ?? "";
+    }
+
+    const identityErrorKeys = [
+      "propertyName",
+      "address",
+      "city",
+      "state",
+      "zip",
+    ];
+    const nextErrors = {...state.errors};
+    let errorsChanged = false;
+    for (const key of identityErrorKeys) {
+      if (nextErrors[key]) {
+        nextErrors[key] = null;
+        errorsChanged = true;
+      }
+    }
+    if (errorsChanged) {
+      dispatch({type: "SET_ERRORS", payload: nextErrors});
+    }
+
+    const maintenanceDirty =
+      JSON.stringify(state.formData.maintenanceRecords ?? []) !==
+      JSON.stringify(state.savedMaintenanceRecords ?? []);
+    dispatch({
+      type: "SET_FORM_CHANGED",
+      payload: state.systemsDirty || maintenanceDirty,
+    });
+  }, [
+    state.property,
+    state.errors,
+    state.systemsDirty,
+    state.formData.maintenanceRecords,
+    state.savedMaintenanceRecords,
+  ]);
+
   /** Scroll to section and highlight – runs after tab switch so target is in DOM. */
   const INCOMPLETE_SECTION_GLOW = [
     "shadow-[0_0_0_1px_rgba(251,146,60,0.45),0_0_20px_rgba(251,146,60,0.25)]",
@@ -1916,7 +2124,8 @@ function PropertyFormContainer() {
       );
       if (firstIncompleteIdentity) {
         dispatch({type: "SET_ACTIVE_TAB", payload: "identity"});
-        setExpandSectionId(null);
+        // IdentityTab listens for identity section ids to switch into edit mode
+        setExpandSectionId(firstIncompleteIdentity.id);
         runScrollToSection("identity", firstIncompleteIdentity.id);
         return;
       }
@@ -1942,10 +2151,10 @@ function PropertyFormContainer() {
         return;
       }
 
-      // All sections complete
-      dispatch({type: "SET_ACTIVE_TAB", payload: "identity"});
+      // All sections complete — the completion card lives on the Overview tab
+      dispatch({type: "SET_ACTIVE_TAB", payload: "overview"});
       setExpandSectionId(null);
-      runScrollToSection("identity", "__all_complete__");
+      runScrollToSection("overview", "__all_complete__");
       dispatch({
         type: "SET_BANNER",
         payload: {
@@ -1995,6 +2204,12 @@ function PropertyFormContainer() {
     dispatch({type: "SET_ERRORS", payload: {}});
     dispatch({type: "SET_SUBMITTING", payload: true});
     const t0 = performance.now();
+    const prevAddressFingerprint = getAddressFingerprint(savedMergedPropertyData);
+    const nextIdentity = state.formData.identity ?? {};
+    const nextAddressFingerprint = getAddressFingerprint(nextIdentity);
+    const addressChangedForAttom =
+      prevAddressFingerprint !== nextAddressFingerprint &&
+      hasCompleteAddressForAttom(nextIdentity);
     try {
       const propertyId = state.property?.identity?.id ?? state.property?.id;
       const merged = mergeFormDataFromTabs(state.formData);
@@ -2220,6 +2435,14 @@ function PropertyFormContainer() {
             else if (scrollPos) window.scrollTo(0, scrollPos);
           });
         });
+
+        if (
+          addressChangedForAttom &&
+          !attomRefresh.isActive &&
+          !attomRefresh.isAtLookupLimit
+        ) {
+          void attomRefresh.startRefresh({silent: true});
+        }
       } else {
         dispatch({
           type: "SET_BANNER",
@@ -2339,20 +2562,34 @@ function PropertyFormContainer() {
   // Systems to show in Systems tab: only those with included=true (from modal selection)
   const visibleSystemIds = state.formData.systems?.selectedSystemIds ?? [];
 
+  const handleOpenSystemsSetup = useCallback((suggested = []) => {
+    if (Array.isArray(suggested) && suggested.length > 0) {
+      setExternalSuggestedSystems(suggested);
+    }
+    setSystemsSetupOnlyStep("systems");
+    setSystemsSetupInitialStep("systems");
+    setSystemsSetupModalOpen(true);
+  }, []);
+
   const systemsToShowForAnalysis = useMemo(() => {
     const customNames = state.formData.systems?.customSystemNames ?? [];
     const selected = PROPERTY_SYSTEMS.filter((s) =>
       visibleSystemIds.includes(s.id),
     ).map((s) => ({id: s.id, label: s.name}));
-    const custom = buildCustomSystemsForUi(customNames, state.systems ?? []).map(
-      ({id, label}) => ({id, label}),
-    );
+    const custom = buildCustomSystemsForUi(
+      customNames,
+      state.systems ?? [],
+    ).map(({id, label}) => ({id, label}));
     return [
       {id: "inspectionReport", label: "Inspection Report"},
       ...selected,
       ...custom,
     ];
-  }, [visibleSystemIds, state.formData.systems?.customSystemNames, state.systems]);
+  }, [
+    visibleSystemIds,
+    state.formData.systems?.customSystemNames,
+    state.systems,
+  ]);
 
   // Array of systems for use when updating systems on the backend (camelCase, backend-ready)
   const propertyId = state.property?.identity?.id ?? state.property?.id;
@@ -2530,9 +2767,12 @@ function PropertyFormContainer() {
              appear under) so refreshing the page doesn't lose the "this was
              an agent invite" intent — intended_role only carries the access
              level, not the category. */
-          const intendedPropertyRole = ["agent", "homeowner", "insurance", "mortgage"].includes(
-            role,
-          )
+          const intendedPropertyRole = [
+            "agent",
+            "homeowner",
+            "insurance",
+            "mortgage",
+          ].includes(role)
             ? role
             : undefined;
           const displayRoleMap = {
@@ -2578,15 +2818,9 @@ function PropertyFormContainer() {
               ...(intendedPropertyRole ? {intendedPropertyRole} : {}),
               ...(permissionsForApi ? {permissions: permissionsForApi} : {}),
               skipInviteEmail: skipInviteEmail === true,
-              ...(invitationEmailNote
-                ? {invitationEmailNote}
-                : {}),
-              ...(invitationEmailMainPlain
-                ? {invitationEmailMainPlain}
-                : {}),
-              ...(invitationEmailCc?.length
-                ? {invitationEmailCc}
-                : {}),
+              ...(invitationEmailNote ? {invitationEmailNote} : {}),
+              ...(invitationEmailMainPlain ? {invitationEmailMainPlain} : {}),
+              ...(invitationEmailCc?.length ? {invitationEmailCc} : {}),
             });
             if (res?.invitation?.id) {
               pendingMember.invitationId = res.invitation.id;
@@ -2855,7 +3089,7 @@ function PropertyFormContainer() {
       </div>
 
       {/* Navigation and Actions */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center gap-3 mb-3">
         <button
           className="btn text-neutral-500 hover:text-neutral-800 dark:text-neutral-300 dark:hover:text-neutral-100 mb-2 pl-0 focus:outline-none shadow-none"
           onClick={handleBackToProperties}
@@ -2871,12 +3105,12 @@ function PropertyFormContainer() {
           <span className="text-lg">Properties</span>
         </button>
         {!isInvitationView && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="relative inline-flex">
               <button
                 ref={actionsTriggerRef}
                 type="button"
-                className="btn px-2.5 bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-500 dark:text-neutral-400"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-500 dark:text-neutral-400 transition-colors"
                 aria-haspopup="true"
                 aria-expanded={actionsDropdownOpen}
                 onClick={() => setActionsDropdownOpen(!actionsDropdownOpen)}
@@ -2926,7 +3160,9 @@ function PropertyFormContainer() {
                       <li>
                         <button
                           type="button"
-                          disabled={attomRefresh.isActive}
+                          disabled={
+                            attomRefresh.isActive || attomRefresh.isAtLookupLimit
+                          }
                           className="w-full flex items-center justify-start text-left cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-70"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -2943,11 +3179,13 @@ function PropertyFormContainer() {
                             <RefreshCw className="w-5 h-5 shrink-0 text-neutral-500 dark:text-neutral-400" />
                           )}
                           <span className="text-sm font-medium ml-2 min-w-0 text-left">
-                            {attomRefresh.jobStatus === "queued"
-                              ? "Queued…"
-                              : attomRefresh.jobStatus === "processing"
-                                ? "Pulling property data…"
-                                : "Pull property data"}
+                            {attomRefresh.isAtLookupLimit
+                              ? "Lookup limit reached"
+                              : attomRefresh.jobStatus === "queued"
+                                ? "Queued…"
+                                : attomRefresh.jobStatus === "processing"
+                                  ? "Pulling property data…"
+                                  : "Pull property data"}
                           </span>
                         </button>
                       </li>
@@ -3016,12 +3254,122 @@ function PropertyFormContainer() {
               </Transition>
             </div>
             <button
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm disabled:opacity-70"
+              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm disabled:opacity-70 inline-flex items-center gap-1.5 h-9 px-3.5 text-sm font-medium"
               onClick={handleNewProperty}
               disabled={addPropertyChecking}
             >
+              <Plus className="w-4 h-4" />
               {addPropertyChecking ? "…" : t("new")}
             </button>
+            {uid &&
+              uid !== "new" &&
+              (() => {
+                const navState =
+                  buildNavigationState(
+                    uid,
+                    location.state?.visiblePropertyIds,
+                  ) ?? buildNavigationState(uid);
+
+                if (!navState) return null;
+
+                return (
+                  <div className="flex items-center gap-0.5 ml-1 pl-3 border-l border-neutral-200 dark:border-neutral-700">
+                    <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-1.5 tabular-nums">
+                      {navState.currentIndex || 1} / {navState.totalItems || 1}
+                    </span>
+                    <button
+                      className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:hover:bg-transparent transition-colors"
+                      title="Previous"
+                      onClick={() => {
+                        if (
+                          navState.visiblePropertyIds &&
+                          navState.currentIndex > 1
+                        ) {
+                          const prevIndex = navState.currentIndex - 2;
+                          const prevPropertyId =
+                            navState.visiblePropertyIds[prevIndex];
+                          const prevNavState = buildNavigationState(
+                            prevPropertyId,
+                            navState.visiblePropertyIds,
+                          );
+                          navigate(
+                            `/${accountUrl}/properties/${prevPropertyId}`,
+                            {
+                              state: prevNavState || {
+                                ...navState,
+                                currentIndex: navState.currentIndex - 1,
+                              },
+                            },
+                          );
+                        }
+                      }}
+                      disabled={
+                        !navState.currentIndex || navState.currentIndex <= 1
+                      }
+                    >
+                      <svg
+                        className={`fill-current shrink-0 ${
+                          !navState.currentIndex || navState.currentIndex <= 1
+                            ? "text-neutral-200 dark:text-neutral-700"
+                            : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                        }`}
+                        width="20"
+                        height="20"
+                        viewBox="0 0 18 18"
+                      >
+                        <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z"></path>
+                      </svg>
+                    </button>
+                    <button
+                      className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:hover:bg-transparent transition-colors"
+                      title="Next"
+                      onClick={() => {
+                        if (
+                          navState.visiblePropertyIds &&
+                          navState.currentIndex < navState.totalItems
+                        ) {
+                          const nextIndex = navState.currentIndex;
+                          const nextPropertyId =
+                            navState.visiblePropertyIds[nextIndex];
+                          const nextNavState = buildNavigationState(
+                            nextPropertyId,
+                            navState.visiblePropertyIds,
+                          );
+                          navigate(
+                            `/${accountUrl}/properties/${nextPropertyId}`,
+                            {
+                              state: nextNavState || {
+                                ...navState,
+                                currentIndex: navState.currentIndex + 1,
+                              },
+                            },
+                          );
+                        }
+                      }}
+                      disabled={
+                        !navState.currentIndex ||
+                        !navState.totalItems ||
+                        navState.currentIndex >= navState.totalItems
+                      }
+                    >
+                      <svg
+                        className={`fill-current shrink-0 ${
+                          !navState.currentIndex ||
+                          !navState.totalItems ||
+                          navState.currentIndex >= navState.totalItems
+                            ? "text-neutral-200 dark:text-neutral-700"
+                            : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+                        }`}
+                        width="20"
+                        height="20"
+                        viewBox="0 0 18 18"
+                      >
+                        <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z"></path>
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })()}
           </div>
         )}
       </div>
@@ -3145,22 +3493,27 @@ function PropertyFormContainer() {
         </div>
       )}
 
-      {!isInvitationView && (
-        <div className="flex items-center mb-2">
-          {/* Passport Opsymization button - Left aligned, premium gold pill */}
-          <div className="flex items-center ml-4">
-            {uid !== "new" && (isAdmin || aiFeaturesEnabled) && (
+      <div className="space-y-5">
+        {/* Property Passport Header - compact persistent surface */}
+        <PropertyPassportHeader
+          headerRef={invitationMainCardRef}
+          cardData={cardData}
+          hasImage={Boolean(heroImageUrl)}
+          opsymizationSlot={
+            !isInvitationView &&
+            uid !== "new" &&
+            (isAdmin || aiFeaturesEnabled) ? (
               <>
                 <style>{`
                   .passport-opsymization-container {
                     position: relative;
-                    display: inline-flex;
+                    display: flex;
                   }
                   .passport-opsymization-container::before {
                     content: "";
                     position: absolute;
                     inset: 0;
-                    border-radius: 9999px;
+                    border-radius: 0.5rem;
                     background: rgba(213, 155, 91, 0.35);
                     opacity: 0;
                     filter: blur(3px);
@@ -3173,7 +3526,7 @@ function PropertyFormContainer() {
                   .passport-opsymization-border {
                     position: relative;
                     padding: 2px;
-                    border-radius: 9999px;
+                    border-radius: 0.5rem;
                     background: rgba(213, 155, 91, 0.5);
                     transition: box-shadow 0.3s ease, background 0.3s ease;
                   }
@@ -3185,9 +3538,9 @@ function PropertyFormContainer() {
                     display: inline-flex;
                     align-items: center;
                     gap: 0.5rem;
-                    padding: 0.3125rem 1rem;
+                    padding: 0.4375rem 1rem;
                     border: none;
-                    border-radius: 9999px;
+                    border-radius: 0.375rem;
                     background: linear-gradient(to bottom, #eac285 0%, transparent 35%), rgba(213, 155, 91, 0.9);
                     color: rgba(255, 250, 235, 0.98);
                     font-weight: 600;
@@ -3195,6 +3548,8 @@ function PropertyFormContainer() {
                     transition: all 0.2s ease;
                     position: relative;
                     overflow: hidden;
+                    white-space: nowrap;
+                    flex-shrink: 0;
                   }
                   .passport-opsymization-button::after {
                     content: "";
@@ -3234,467 +3589,99 @@ function PropertyFormContainer() {
                       ref={blankModalButtonRef}
                       type="button"
                       onClick={openInspectionAnalysisWithPlanCheck}
-                      className="passport-opsymization-button"
+                      className="passport-opsymization-button justify-center"
                       title="Passport Opsymization"
                     >
                       <Sparkles
                         className="w-3.5 h-3.5 passport-opsymization-icon"
                         strokeWidth={2}
                       />
-                      <span className="text-sm font-semibold">
+                      <span className="text-sm font-semibold whitespace-nowrap">
                         Passport Opsymization
                       </span>
                     </button>
                   </div>
                 </div>
               </>
-            )}
-          </div>
-
-          {/* Property Navigation */}
-          <div className="flex items-center justify-end flex-1">
-            {uid &&
-              uid !== "new" &&
-              (() => {
-                // Prefer navigation scoped from list filters/search when available.
-                const navState =
-                  buildNavigationState(
-                    uid,
-                    location.state?.visiblePropertyIds,
-                  ) ?? buildNavigationState(uid);
-
-                if (!navState) return null;
-
-                return (
-                  <>
-                    <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-2">
-                      {navState.currentIndex || 1} / {navState.totalItems || 1}
-                    </span>
-                    <button
-                      className="btn shadow-none p-1"
-                      title="Previous"
-                      onClick={() => {
-                        if (
-                          navState.visiblePropertyIds &&
-                          navState.currentIndex > 1
-                        ) {
-                          const prevIndex = navState.currentIndex - 2;
-                          const prevPropertyId =
-                            navState.visiblePropertyIds[prevIndex];
-                          const prevNavState = buildNavigationState(
-                            prevPropertyId,
-                            navState.visiblePropertyIds,
-                          );
-                          navigate(
-                            `/${accountUrl}/properties/${prevPropertyId}`,
-                            {
-                              state: prevNavState || {
-                                ...navState,
-                                currentIndex: navState.currentIndex - 1,
-                              },
-                            },
-                          );
-                        }
-                      }}
-                      disabled={
-                        !navState.currentIndex || navState.currentIndex <= 1
-                      }
-                    >
-                      <svg
-                        className={`fill-current shrink-0 ${
-                          !navState.currentIndex || navState.currentIndex <= 1
-                            ? "text-neutral-200 dark:text-neutral-700"
-                            : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-                        }`}
-                        width="24"
-                        height="24"
-                        viewBox="0 0 18 18"
-                      >
-                        <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z"></path>
-                      </svg>
-                    </button>
-
-                    <button
-                      className="btn shadow-none p-1"
-                      title="Next"
-                      onClick={() => {
-                        if (
-                          navState.visiblePropertyIds &&
-                          navState.currentIndex < navState.totalItems
-                        ) {
-                          const nextIndex = navState.currentIndex;
-                          const nextPropertyId =
-                            navState.visiblePropertyIds[nextIndex];
-                          const nextNavState = buildNavigationState(
-                            nextPropertyId,
-                            navState.visiblePropertyIds,
-                          );
-                          navigate(
-                            `/${accountUrl}/properties/${nextPropertyId}`,
-                            {
-                              state: nextNavState || {
-                                ...navState,
-                                currentIndex: navState.currentIndex + 1,
-                              },
-                            },
-                          );
-                        }
-                      }}
-                      disabled={
-                        !navState.currentIndex ||
-                        !navState.totalItems ||
-                        navState.currentIndex >= navState.totalItems
-                      }
-                    >
-                      <svg
-                        className={`fill-current shrink-0 ${
-                          !navState.currentIndex ||
-                          !navState.totalItems ||
-                          navState.currentIndex >= navState.totalItems
-                            ? "text-neutral-200 dark:text-neutral-700"
-                            : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-                        }`}
-                        width="24"
-                        height="24"
-                        viewBox="0 0 18 18"
-                      >
-                        <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z"></path>
-                      </svg>
-                    </button>
-                  </>
-                );
-              })()}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-8">
-        {/* Property Passport Card - clean premium surface */}
-        <section
-          ref={invitationMainCardRef}
-          className="rounded-2xl overflow-hidden border border-neutral-200/80 bg-white dark:border-neutral-700/50 dark:bg-neutral-900"
-          style={{
-            boxShadow:
-              "0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
-          }}
-        >
-          {/* Brand accent - subtle top glow */}
-          <div
-            className="h-0.5 w-full"
-            style={{
-              background:
-                "linear-gradient(90deg, rgba(16,185,129,0.08), rgba(16,185,129,0.04), transparent)",
-            }}
-            aria-hidden
-          />
-
-          {/* Hero - clean neutral surface (no background image) */}
-          <div className="relative min-h-[280px] lg:min-h-[320px]">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-neutral-100 dark:border-neutral-800">
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-lg bg-neutral-100/80 backdrop-blur-sm border border-neutral-200/60 flex items-center justify-center">
-                    <Shield className="w-5 h-5 text-neutral-700" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white"></div>
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold text-neutral-900 dark:text-white tracking-tight mb-0.5 antialiased">
-                    Opsy Digital Passport
-                  </h2>
-                  <p className="text-[10px] text-neutral-500 dark:text-neutral-500 font-medium tracking-wide">
-                    Powered by HomeOps
-                  </p>
-                  <p className="text-xs text-neutral-600 dark:text-neutral-400 font-medium tracking-wide">
-                    Digital Property Record
-                  </p>
-                </div>
-                {inspectionAnalysis?.conditionRating && (
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
-                      inspectionAnalysis.conditionRating === "good"
-                        ? "bg-emerald-500/15 text-emerald-700 border border-emerald-400/30"
-                        : inspectionAnalysis.conditionRating === "fair"
-                          ? "bg-amber-500/15 text-amber-700 border border-amber-400/30"
-                          : inspectionAnalysis.conditionRating === "poor"
-                            ? "bg-red-500/15 text-red-700 border border-red-400/30"
-                            : "bg-neutral-100 text-neutral-600 border border-neutral-200"
-                    }`}
-                  >
-                    {(
-                      inspectionAnalysis.conditionRating || ""
-                    ).toLowerCase() === "unknown"
-                      ? "Not specified"
-                      : inspectionAnalysis.conditionRating}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center justify-end">
-                <Tooltip
-                  className="pl-0 inline-flex shrink-0"
-                  position="left"
-                  size="xl"
-                  gap={16}
-                  panelClassName="!min-w-0 !w-fit !max-w-sm !px-2.5"
-                  content="Your property is currently in Opsymization. This critical phase is building your comprehensive HomeOps Passport Score—your key to smarter, proactive home management. Available soon."
-                >
-                  <img
-                    src={OpsyHead}
-                    alt="Opsy — Opsymizing your property"
-                    className="w-24 h-24 object-contain"
-                  />
-                </Tooltip>
-              </div>
-            </div>
-
-            {/* Body content */}
-            <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 px-6 pt-6 pb-6">
-              {/* Property Image */}
-              <div className="w-full lg:w-2/5 flex-shrink-0">
-                <div
-                  className={`relative h-52 lg:h-72 rounded-xl overflow-hidden border transition-all duration-300 ${
-                    heroImageUrl
-                      ? "border-neutral-200/80 dark:border-neutral-600/50 bg-neutral-50/50 dark:bg-neutral-800/30 shadow-sm"
-                      : "border-2 border-dashed border-neutral-200 dark:border-neutral-600 bg-neutral-50/30 dark:bg-neutral-800/20"
-                  }`}
-                >
-                  <ImageUploadField
-                    imageSrc={
-                      mainPhotoPreviewUrl ||
-                      (state.formData.identity?.mainPhoto !== ""
-                        ? cardData.mainPhotoUrl
-                        : null) ||
-                      (state.formData.identity?.mainPhoto !== ""
-                        ? cardData.mainPhoto?.startsWith?.("blob:")
-                          ? cardData.mainPhoto
-                          : null
-                        : null) ||
-                      (mainPhotoPresignedKey === mainPhotoKey
-                        ? mainPhotoPresignedUrl
-                        : null) ||
-                      mainPhotoUploadedUrl
-                    }
-                    hasImage={
-                      !!(
-                        state.formData.identity?.mainPhoto ||
-                        mainPhotoPreviewUrl ||
-                        mainPhotoUploadedUrl ||
-                        (state.formData.identity?.mainPhoto !== "" &&
-                          (cardData.mainPhoto || cardData.mainPhotoUrl))
-                      )
-                    }
-                    imageUploading={mainPhotoUploading}
-                    onUpload={uploadMainPhoto}
-                    onRemove={() => {
-                      clearMainPhotoPreview();
-                      clearMainPhotoUploadedUrl();
-                      clearMainPhotoPresignedUrl();
-                      dispatch({
-                        type: "SET_IDENTITY_FORM_DATA",
-                        payload: {mainPhoto: ""},
-                      });
-                      if (state.isInitialLoad) {
-                        dispatch({type: "SET_FORM_CHANGED", payload: true});
-                      }
-                    }}
-                    onPasteUrl={null}
-                    showRemove={
-                      !!(
-                        state.formData.identity?.mainPhoto ||
-                        mainPhotoPreviewUrl ||
-                        mainPhotoUploadedUrl ||
-                        (state.formData.identity?.mainPhoto !== "" &&
-                          (cardData.mainPhoto || cardData.mainPhotoUrl))
-                      )
-                    }
-                    imageUploadError={null}
-                    onDismissError={() => setMainPhotoUploadError(null)}
-                    size="xl"
-                    placeholder="generic"
-                    emptyLabel="Add image"
-                    alt={cardData.address || "Property"}
-                    uploadLabel="Upload photo"
-                    removeLabel="Remove photo"
-                    fileInputRef={mainPhotoInputRef}
-                    menuOpen={mainPhotoMenuOpen}
-                    onMenuToggle={setMainPhotoMenuOpen}
-                  />
-                </div>
-              </div>
-
-              {/* Property Information */}
-              <div className="flex-1 space-y-5">
-                {/* Property Identity */}
-                <div>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <MapPin className="w-[18px] h-[18px] text-neutral-400" />
-                        <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-[0.12em] opacity-70 antialiased">
-                          Property Location
-                        </span>
-                      </div>
-                      {cardData.propertyName && (
-                        <h1 className="text-2xl md:text-[2rem] lg:text-[2.25rem] font-bold text-neutral-900 dark:text-white mb-1 tracking-tight leading-tight antialiased">
-                          {cardData.propertyName}
-                        </h1>
-                      )}
-                      <p
-                        className={`${cardData.propertyName ? "text-[15px] text-neutral-600 dark:text-neutral-400 leading-snug opacity-90" : "text-2xl md:text-[2rem] lg:text-[2.25rem] font-bold text-neutral-900 dark:text-white tracking-tight leading-tight antialiased"} leading-tight`}
-                      >
-                        {cardData.fullAddress ||
-                          cardData.address ||
-                          [cardData.city, cardData.state, cardData.zip]
-                            .filter(Boolean)
-                            .join(", ") ||
-                          "—"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Passport ID */}
-                  <div className="mt-4 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                    <div className="flex items-center gap-2 mb-1">
-                      <FileCheck className="w-[18px] h-[18px] text-neutral-400" />
-                      <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-[0.12em] opacity-70 antialiased">
-                        Passport ID
-                      </span>
-                    </div>
-                    <p className="text-sm font-mono text-neutral-800 dark:text-neutral-200 font-semibold tabular-nums">
-                      {cardData.passportId ?? cardData.passport_id ?? "—"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Property Specifications */}
-                <div className="pt-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Building className="w-[18px] h-[18px] text-neutral-400" />
-                    <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-[0.12em] opacity-70 antialiased">
-                      Property Specifications
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10">
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <Bed className="w-[18px] h-[18px] text-neutral-400 shrink-0" />
-                        <span className="text-lg font-bold text-neutral-900 dark:text-white tabular-nums">
-                          {cardData.rooms ?? cardData.bedCount ?? "—"}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-neutral-500 uppercase tracking-[0.1em] ml-6 opacity-70">
-                        Bedrooms
-                      </span>
-                    </div>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <Bath className="w-[18px] h-[18px] text-neutral-400 shrink-0" />
-                        <span className="text-lg font-bold text-neutral-900 dark:text-white tabular-nums">
-                          {cardData.bathrooms ?? cardData.bathCount ?? "—"}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-neutral-500 uppercase tracking-[0.1em] ml-6 opacity-70">
-                        Bathrooms
-                      </span>
-                    </div>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <Ruler className="w-[18px] h-[18px] text-neutral-400 shrink-0" />
-                        <span className="text-lg font-bold text-neutral-900 dark:text-white tabular-nums">
-                          {(cardData.squareFeet ?? cardData.sqFtTotal) != null
-                            ? Number(
-                                cardData.squareFeet ?? cardData.sqFtTotal,
-                              ).toLocaleString()
-                            : "—"}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-neutral-500 uppercase tracking-[0.1em] ml-6 opacity-70">
-                        Square Feet
-                      </span>
-                    </div>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <Calendar className="w-[18px] h-[18px] text-neutral-400 shrink-0" />
-                        <span className="text-lg font-bold text-neutral-900 dark:text-white tabular-nums">
-                          {cardData.yearBuilt ?? "—"}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-neutral-500 uppercase tracking-[0.1em] ml-6 opacity-70">
-                        Year Built
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Property Value */}
-                {cardData.price != null && cardData.price !== "" && (
-                  <div className="pt-5 border-t border-neutral-100 dark:border-neutral-800">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] font-medium text-neutral-500 uppercase tracking-[0.12em] block mb-0.5 opacity-70 antialiased">
-                          Estimated Value
-                        </span>
-                        <p className="text-xl font-semibold text-neutral-900 dark:text-white tabular-nums">
-                          {formatCurrency.format(cardData.price)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* HomeOps Team */}
-        <HomeOpsTeam
-          teamMembers={homeopsTeam}
-          isLoadingTeam={uid !== "new" && !hasResolvedTeamForCta}
-          onOpenShareModal={
-            isInvitationView
-              ? undefined
-              : () => {
-                  setShareModalInitialTab("owner");
-                  setShareModalOpen(true);
-                }
+            ) : undefined
           }
-          onMemberClick={
-            isInvitationView
-              ? undefined
-              : (tab) => {
-                  setShareModalInitialTab(tab);
-                  setShareModalOpen(true);
+          imageSlot={
+            <ImageUploadField
+              imageSrc={
+                mainPhotoPreviewUrl ||
+                (state.formData.identity?.mainPhoto !== ""
+                  ? cardData.mainPhotoUrl
+                  : null) ||
+                (state.formData.identity?.mainPhoto !== ""
+                  ? cardData.mainPhoto?.startsWith?.("blob:")
+                    ? cardData.mainPhoto
+                    : null
+                  : null) ||
+                (mainPhotoPresignedKey === mainPhotoKey
+                  ? mainPhotoPresignedUrl
+                  : null) ||
+                mainPhotoUploadedUrl
+              }
+              hasImage={
+                !!(
+                  state.formData.identity?.mainPhoto ||
+                  mainPhotoPreviewUrl ||
+                  mainPhotoUploadedUrl ||
+                  (state.formData.identity?.mainPhoto !== "" &&
+                    (cardData.mainPhoto || cardData.mainPhotoUrl))
+                )
+              }
+              imageUploading={mainPhotoUploading}
+              onUpload={uploadMainPhoto}
+              onRemove={() => {
+                clearMainPhotoPreview();
+                clearMainPhotoUploadedUrl();
+                clearMainPhotoPresignedUrl();
+                dispatch({
+                  type: "SET_IDENTITY_FORM_DATA",
+                  payload: {mainPhoto: ""},
+                });
+                if (state.isInitialLoad) {
+                  dispatch({type: "SET_FORM_CHANGED", payload: true});
                 }
+              }}
+              onPasteUrl={null}
+              showRemove={
+                !!(
+                  state.formData.identity?.mainPhoto ||
+                  mainPhotoPreviewUrl ||
+                  mainPhotoUploadedUrl ||
+                  (state.formData.identity?.mainPhoto !== "" &&
+                    (cardData.mainPhoto || cardData.mainPhotoUrl))
+                )
+              }
+              imageUploadError={null}
+              onDismissError={() => setMainPhotoUploadError(null)}
+              size="xl"
+              placeholder="generic"
+              emptyLabel="Add image"
+              alt={cardData.address || "Property"}
+              uploadLabel="Upload photo"
+              removeLabel="Remove photo"
+              fileInputRef={mainPhotoInputRef}
+              menuOpen={mainPhotoMenuOpen}
+              onMenuToggle={setMainPhotoMenuOpen}
+            />
           }
-          hideAddButton={isInvitationView}
         />
+
+        {/* HomeOps Team — standalone in invitation view only (tabs are hidden there).
+            Otherwise the team lives inside the Overview tab. */}
+        {isInvitationView && (
+          <HomeOpsTeam
+            teamMembers={homeopsTeam}
+            isLoadingTeam={uid !== "new" && !hasResolvedTeamForCta}
+            hideAddButton
+          />
+        )}
 
         {!isInvitationView && (
           <>
-            {/* Property Health & Completeness */}
-            <section
-              data-section-id="health-status"
-              className="rounded-2xl overflow-hidden border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 p-5 md:p-6"
-              style={{
-                boxShadow:
-                  "0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
-              }}
-            >
-              <ScoreCard
-                propertyData={mergedFormData}
-                onCompleteOutstandingTasks={handleCompleteOutstandingTasks}
-                propertyId={
-                  uid !== "new"
-                    ? (state.property?.identity?.id ??
-                      state.property?.id ??
-                      uid)
-                    : null
-                }
-                maintenanceRecords={state.formData.maintenanceRecords ?? []}
-              />
-            </section>
-
             {/* Navigation Tabs */}
             <section
               className={`rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 ${
@@ -3709,15 +3696,17 @@ function PropertyFormContainer() {
                     : "0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
               }}
             >
-              <div className="border-b border-neutral-100 dark:border-neutral-800 px-6">
+              <div className="border-b border-neutral-100 dark:border-neutral-800 px-4">
                 <nav className="flex flex-wrap gap-1">
                   {tabs.map((tab) => {
                     const icons = {
+                      overview: Home,
                       identity: FileText,
                       systems: Settings,
                       maintenance: Wrench,
                       documents: FileText,
                       media: ImageIcon,
+                      financials: Landmark,
                     };
                     const Icon = icons[tab.id] || FileText;
                     return (
@@ -3726,7 +3715,7 @@ function PropertyFormContainer() {
                         onClick={() =>
                           dispatch({type: "SET_ACTIVE_TAB", payload: tab.id})
                         }
-                        className={`py-4 px-4 text-sm font-medium transition border-b-2 flex items-center gap-2 ${
+                        className={`py-3 px-3.5 text-sm font-medium transition border-b-2 flex items-center gap-2 ${
                           state.activeTab === tab.id
                             ? "border-[#456564] text-[#456564] dark:text-[#5a7a78] dark:border-[#5a7a78]"
                             : "border-transparent text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"
@@ -3748,8 +3737,70 @@ function PropertyFormContainer() {
                 </nav>
               </div>
               <div
-                className={`px-6 pt-6 ${state.formDataChanged || state.isNew ? "pb-6" : "pb-2"}`}
+                className={`px-4 md:px-5 pt-4 ${state.formDataChanged || state.isNew ? "pb-5" : "pb-2"}`}
               >
+                {state.activeTab === "overview" && (
+                  <PropertyOverviewDashboard
+                    propertyData={mergedFormData}
+                    maintenanceRecords={state.formData.maintenanceRecords ?? []}
+                    maintenanceEvents={maintenanceEvents}
+                    propertyDocuments={overviewDocuments}
+                    photosCount={(state.formData.identity?.photos ?? []).length}
+                    aiSummaryUpdatedAt={state.aiSummaryUpdatedAt}
+                    inspectionAnalysis={inspectionAnalysis}
+                    onNavigateTab={(tabId) =>
+                      dispatch({type: "SET_ACTIVE_TAB", payload: tabId})
+                    }
+                    onCompleteOutstandingTasks={handleCompleteOutstandingTasks}
+                    onOpenInspectionAnalysis={openInspectionAnalysisWithPlanCheck}
+                    onUploadInspectionReport={() => {
+                      dispatch({type: "SET_ACTIVE_TAB", payload: "documents"});
+                      setDocumentsUploadModalRequested(true);
+                    }}
+                    notes={propertyNotes}
+                    notesLoading={propertyNotesLoading}
+                    notesSaving={propertyNotesSaving}
+                    currentUserId={currentUser?.id}
+                    onAddNote={handleAddPropertyNote}
+                    onUpdateNote={handleUpdatePropertyNote}
+                    onDeleteNote={handleDeletePropertyNote}
+                    scoreCardSlot={
+                      <ScoreCard
+                        variant="overview"
+                        propertyData={mergedFormData}
+                        onCompleteOutstandingTasks={
+                          handleCompleteOutstandingTasks
+                        }
+                        propertyId={
+                          uid !== "new"
+                            ? (state.property?.identity?.id ??
+                              state.property?.id ??
+                              uid)
+                            : null
+                        }
+                        maintenanceRecords={
+                          state.formData.maintenanceRecords ?? []
+                        }
+                      />
+                    }
+                    teamSlot={
+                      <HomeOpsTeam
+                        compact
+                        teamMembers={homeopsTeam}
+                        isLoadingTeam={uid !== "new" && !hasResolvedTeamForCta}
+                        onOpenShareModal={() => {
+                          setShareModalInitialTab("owner");
+                          setShareModalOpen(true);
+                        }}
+                        onMemberClick={(tab) => {
+                          setShareModalInitialTab(tab);
+                          setShareModalOpen(true);
+                        }}
+                      />
+                    }
+                  />
+                )}
+
                 {state.activeTab === "identity" && (
                   <IdentityTab
                     propertyData={mergedFormData}
@@ -3762,6 +3813,10 @@ function PropertyFormContainer() {
                     AutocompleteWrapper={IdentityAutocompleteWrapper}
                     identityDataSource={identityDataSource}
                     supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+                    expandSectionId={expandSectionId}
+                    formDataChanged={state.formDataChanged}
+                    attomRefresh={attomRefresh}
+                    onCancelEdit={handleCancelIdentityEdit}
                   />
                 )}
 
@@ -3769,6 +3824,7 @@ function PropertyFormContainer() {
                   <SystemsTab
                     propertyData={mergedFormData}
                     maintenanceRecords={state.formData.maintenanceRecords ?? []}
+                    propertyDocuments={overviewDocuments}
                     propertyIdFallback={uid !== "new" ? uid : undefined}
                     handleInputChange={handleChange}
                     expandSectionId={expandSectionId}
@@ -3818,6 +3874,7 @@ function PropertyFormContainer() {
                     aiSidebarSystemLabel={aiSidebarSystemLabel}
                     aiSidebarSystemContext={aiSidebarSystemContext}
                     onSystemsCompletionChange={handleSystemsCompletionChange}
+                    onOpenSystemsSetup={handleOpenSystemsSetup}
                   />
                 )}
 
@@ -3853,10 +3910,45 @@ function PropertyFormContainer() {
                 )}
 
                 {state.activeTab === "media" && (
-                  <div className="flex flex-col items-center justify-center py-24 text-center">
-                    <p className="text-neutral-500 dark:text-neutral-400 text-lg font-medium">
-                      Coming Soon
-                    </p>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                          Property Media
+                        </h3>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                          Photos and visual records for this property
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-neutral-100 text-neutral-600 border border-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700">
+                        Uploads Coming Soon
+                      </span>
+                    </div>
+                    {(state.formData.identity?.photos ?? []).length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {(state.formData.identity?.photos ?? []).map(
+                          (photo, index) => (
+                            <div
+                              key={photo}
+                              className="relative overflow-hidden rounded-xl h-44 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/50"
+                            >
+                              <img
+                                src={photo}
+                                alt={`Property photo ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    ) : (
+                      <EmptyStateCard
+                        icon={ImageIcon}
+                        title="No media yet"
+                        description="Photo and video management for your property is coming soon. Your property's main photo can be set from the passport header."
+                        className="py-12"
+                      />
+                    )}
                   </div>
                 )}
 
@@ -3909,17 +4001,26 @@ function PropertyFormContainer() {
                     </React.Suspense>
                   </div>
                 )}
+
+                {state.activeTab === "financials" && (
+                  <FinancialsTab
+                    propertyData={mergedFormData}
+                    onNavigateTab={(tabId) =>
+                      dispatch({type: "SET_ACTIVE_TAB", payload: tabId})
+                    }
+                  />
+                )}
               </div>
             </section>
 
-            {/* Save/Cancel bar — direct child of space-y-8 so its sticky parent
+            {/* Save/Cancel bar — direct child of space-y-5 so its sticky parent
              always has content in the viewport regardless of scroll position.
-             -mt-8 collapses the space-y gap to visually attach to the section above.
+             -mt-5 collapses the space-y gap to visually attach to the section above.
              z-0 keeps it below tooltips (z-10) and popovers (z-50) on Systems tab. */}
             <div
               ref={saveBarRef}
               className={`${
-                state.formDataChanged || state.isNew ? "sticky -mt-8" : "hidden"
+                state.formDataChanged || state.isNew ? "sticky -mt-5" : "hidden"
               } bottom-0 z-0 bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-700/50 border-t border-t-neutral-100 dark:border-t-neutral-800 px-6 py-4 rounded-b-2xl transition-all duration-200`}
               style={{
                 boxShadow:
@@ -4236,8 +4337,10 @@ function PropertyFormContainer() {
           jobStatus={attomRefresh.jobStatus}
           jobError={attomRefresh.jobError}
           populatedKeys={attomRefresh.populatedKeys}
+          lookupCount={attomRefresh.lookupCount}
+          lookupLimit={attomRefresh.lookupLimit}
           onCancel={attomRefresh.closeConfirm}
-          onConfirm={attomRefresh.startRefresh}
+          onConfirm={() => attomRefresh.startRefresh()}
         />
       )}
 

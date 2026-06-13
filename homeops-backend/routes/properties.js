@@ -744,6 +744,7 @@ router.post(
 
       const existing = await AttomLookupJob.getLatestActiveForProperty(propertyId);
       if (existing) {
+        const lookupCount = await AttomLookupJob.countForProperty(propertyId);
         return res.status(202).json({
           job: {
             id: existing.id,
@@ -754,7 +755,16 @@ router.post(
             createdAt: existing.created_at,
           },
           reused: true,
+          lookupCount,
+          lookupLimit: AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY,
         });
+      }
+
+      const lookupCount = await AttomLookupJob.countForProperty(propertyId);
+      if (lookupCount >= AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY) {
+        throw new ForbiddenError(
+          `ATTOM lookup limit reached (${AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY} per property). Contact support if you need another refresh.`
+        );
       }
 
       const propRes = await db.query(
@@ -784,6 +794,8 @@ router.post(
           createdAt: job.created_at,
         },
         reused: false,
+        lookupCount: lookupCount + 1,
+        lookupLimit: AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY,
       });
     } catch (err) {
       return next(err);
@@ -804,8 +816,17 @@ router.get(
   async function (req, res, next) {
     try {
       const propertyId = req.params.propertyId;
-      const job = await AttomLookupJob.getLatestForProperty(propertyId);
-      if (!job) return res.json({ job: null });
+      const [job, lookupCount] = await Promise.all([
+        AttomLookupJob.getLatestForProperty(propertyId),
+        AttomLookupJob.countForProperty(propertyId),
+      ]);
+      if (!job) {
+        return res.json({
+          job: null,
+          lookupCount,
+          lookupLimit: AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY,
+        });
+      }
 
       let populatedKeys = [];
       if (Array.isArray(job.populated_keys)) {
@@ -836,6 +857,8 @@ router.get(
           createdAt: job.created_at,
           updatedAt: job.updated_at,
         },
+        lookupCount,
+        lookupLimit: AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY,
       });
     } catch (err) {
       return next(err);

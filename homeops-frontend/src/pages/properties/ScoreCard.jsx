@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   IDENTITY_SECTIONS,
@@ -42,6 +43,7 @@ function ScoreCard({
   onCompleteOutstandingTasks,
   propertyId,
   maintenanceRecords = [],
+  variant = "default",
 }) {
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [identityOpen, setIdentityOpen] = useState(false);
@@ -267,12 +269,73 @@ function ScoreCard({
 
   const totalScore = (identityScore + systemsScore + maintenanceScore) / 3;
 
-  const scoreRingColorClass =
-    totalScore >= 60
-      ? "text-green-400 dark:text-green-500"
-      : totalScore >= 40
-        ? "text-amber-400 dark:text-amber-500"
-        : "text-slate-400 dark:text-slate-500";
+  const scoreRingColorClass = "text-green-500 dark:text-green-400";
+
+  const overviewItems = [
+    {
+      id: "identity",
+      label: "Identity",
+      complete: completedIdentitySections === identitySections.length,
+    },
+    {
+      id: "systems",
+      label: "Systems",
+      complete: currentSystems === systemItems.length && systemItems.length > 0,
+    },
+    {
+      id: "maintenance",
+      label: "Maintenance",
+      complete:
+        currentMaintenance === systemItems.length && systemItems.length > 0,
+    },
+  ];
+
+  if (variant === "overview") {
+    return (
+      <div className="space-y-3" data-section-id="health-status">
+        <div className="flex items-center gap-4">
+          <div className="shrink-0">
+            <DonutChart
+              percentage={Math.round(totalScore)}
+              size={96}
+              strokeWidth={9}
+              colorClass={scoreRingColorClass}
+            />
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <ul className="space-y-2">
+              {overviewItems.map((item) => (
+                <li key={item.id} className="flex items-center gap-2">
+                  {item.complete ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500 dark:text-green-400 shrink-0" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-neutral-300 dark:border-neutral-600 shrink-0" />
+                  )}
+                  <span
+                    className={`text-sm ${
+                      item.complete
+                        ? "text-neutral-800 dark:text-neutral-200"
+                        : "text-neutral-500 dark:text-neutral-400"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onCompleteOutstandingTasks}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-[#456564] dark:text-[#7fa3a1] hover:underline"
+        >
+          View Completion Details
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div

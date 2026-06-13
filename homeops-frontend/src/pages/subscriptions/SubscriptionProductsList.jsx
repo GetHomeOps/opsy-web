@@ -598,18 +598,22 @@ function SubscriptionProductsList() {
     return `${text.slice(0, DESCRIPTION_MAX_LENGTH).trim()}...`;
   }
 
-  /** Get display price for a specific billing interval (month or year). Exclusively from Stripe. */
+  /** Get display price for a specific billing interval (month or year). Prefer live Stripe prices. */
   function getPriceForInterval(product, interval) {
     const prices = product?.prices || [];
     const pr = prices.find((p) => p.billingInterval === interval);
     if (pr) {
       if (pr.isActive === false) return "Off";
-      if (pr.unitAmount != null) {
-        return new Intl.NumberFormat("en-US", {style: "currency", currency: pr.currency || "usd"}).format(pr.unitAmount / 100);
-      }
-      const sp = stripePrices.find((s) => s.id === pr.stripePriceId);
-      if (sp?.unitAmount != null) {
-        return new Intl.NumberFormat("en-US", {style: "currency", currency: sp.currency || "usd"}).format(sp.unitAmount / 100);
+      const sp = pr.stripePriceId
+        ? stripePrices.find((s) => s.id === pr.stripePriceId)
+        : null;
+      const unitAmount = sp?.unitAmount ?? pr.unitAmount;
+      const currency = sp?.currency || pr.currency || "usd";
+      if (unitAmount != null) {
+        return new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency,
+        }).format(unitAmount / 100);
       }
       if (pr.stripePriceId) return "Linked";
     }

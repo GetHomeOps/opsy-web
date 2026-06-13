@@ -12,6 +12,7 @@ export const ADDRESS_FIELD_KEYS = new Set([
   "city",
   "state",
   "zip",
+  "county",
 ]);
 
 /** RentCast-sourced fields (original set, for identity_data_source === 'rentcast') */
@@ -50,12 +51,15 @@ export const RENTCAST_FIELD_KEYS = new Set([
   "county",
 ]);
 
-/** All fields that support Data Adjustment (RentCast + Address) */
+/** All fields that support Data Adjustment (RentCast + Address + occupancy) */
 export const ADJUSTABLE_FIELD_KEYS = new Set([
   ...ADDRESS_FIELD_KEYS,
   "ownerName",
   "ownerName2",
   "ownerCity",
+  "ownerPhone",
+  "occupantName",
+  "occupantType",
   "taxId",
   "addressLine2",
   "propertyType",
@@ -95,8 +99,11 @@ export const RENTCAST_FIELD_LABELS = {
   state: "State",
   zip: "ZIP",
   ownerName: "Owner Name",
-  ownerName2: "Owner Name 2",
+  ownerName2: "Co-owner",
   ownerCity: "Owner City",
+  ownerPhone: "Owner Phone",
+  occupantName: "Occupant Name",
+  occupantType: "Occupancy",
   taxId: "Tax / Parcel ID",
   addressLine2: "Address Line 2",
   propertyType: "Property Type",

@@ -83,3 +83,57 @@ export function getSystemLabelFromAiType(
   }
   return toDisplaySystemName(rawValue) || "General";
 }
+
+const SPACE_HEATING_KEYWORDS =
+  /\b(furnace|boiler|chimney|fireplace|flue|ductwork|heat pump|space heat|forced air)\b/i;
+const WATER_HEATING_KEYWORDS =
+  /\b(water heater|hot water|tankless water|tpr valve|anode rod|expansion tank)\b/i;
+
+/** Resolve canonical system id for a finding (mirrors backend resolveFindingSystemType). */
+export function resolveFindingSystemType({
+  systemType,
+  title = "",
+  task = "",
+  suggestedAction = "",
+  rationale = "",
+  description = "",
+} = {}) {
+  const text = [title, task, suggestedAction, rationale, description]
+    .filter(Boolean)
+    .join(" ");
+  const hasSpaceHeating = SPACE_HEATING_KEYWORDS.test(text);
+  const hasWaterHeating = WATER_HEATING_KEYWORDS.test(text);
+
+  const mapped = mapAiSystemTypeToIds(systemType);
+  const declared =
+    mapped.length > 0
+      ? mapped[0]
+      : (PROPERTY_SYSTEMS || []).find(
+          (sys) =>
+            normalizeAiSystemToken(sys.id) ===
+            normalizeAiSystemToken(systemType),
+        )?.id ||
+        systemType ||
+        null;
+
+  // Correct common AI mis-tags (e.g. furnace tasks labeled waterHeating).
+  if (hasSpaceHeating && !hasWaterHeating && declared === "waterHeating") {
+    return "heating";
+  }
+  if (hasWaterHeating && !hasSpaceHeating && declared === "heating") {
+    return "waterHeating";
+  }
+
+  return declared;
+}
+
+/** True when two identifiers refer to the same canonical property system. */
+export function canonicalSystemsMatch(systemKey, rawType) {
+  if (!systemKey || !rawType) return false;
+  const keyIds = mapAiSystemTypeToIds(systemKey);
+  const typeIds = mapAiSystemTypeToIds(rawType);
+  if (keyIds.length > 0 && typeIds.length > 0) {
+    return keyIds.some((id) => typeIds.includes(id));
+  }
+  return normalizeAiSystemToken(systemKey) === normalizeAiSystemToken(rawType);
+}

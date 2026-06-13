@@ -11,19 +11,23 @@ import {
   Check,
   AlertCircle,
   Info,
+  Pencil,
+  ClipboardList,
+  RefreshCw,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
+import SectionCard from "./partials/passport/SectionCard";
+import {StatusBadge} from "./partials/passport/StatusBadge";
+import LabelValue from "./partials/passport/LabelValue";
 import {useDynamicPosition} from "../../hooks/useDynamicPosition";
-import {usStates} from "../../data/states";
 import {
   IDENTITY_SECTIONS,
   getSectionProgress,
 } from "./constants/identitySections";
-import {
-  RENTCAST_FIELD_KEYS,
-  RENTCAST_VERIFIED_TOOLTIP,
-} from "./constants/rentcastFields";
 import Tooltip from "../../utils/Tooltip";
 import {getIdentityAddressInputDisplayValue} from "../../hooks/useGooglePlacesAutocomplete";
+import useSuppressBrowserAddressAutofill from "../../hooks/useSuppressBrowserAddressAutofill";
 
 function SubtleLockIcon({className = ""}) {
   return (
@@ -63,7 +67,13 @@ const TOOLTIP_GAP = 8;
 
 const TOOLTIP_LEAVE_DELAY = 150;
 
-function LockedFieldControl({label, fieldName, supportDataAdjustmentUrl}) {
+function LockedFieldControl({
+  label,
+  fieldName,
+  supportDataAdjustmentUrl,
+  message = "Verified data from public records. This field is system-managed and cannot be edited directly.",
+  ctaLabel = "Request correction",
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const triggerId = useId();
   const wrapperRef = useRef(null);
@@ -130,15 +140,14 @@ function LockedFieldControl({label, fieldName, supportDataAdjustmentUrl}) {
       onMouseLeave={handleTooltipLeave}
     >
       <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-        Verified data from public records. This field is system-managed and
-        cannot be edited directly.
+        {message}
       </p>
       <button
         type="button"
         onClick={openRequestCorrection}
         className="mt-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-[#456564] dark:hover:text-emerald-300 focus:outline-none focus:underline"
       >
-        Request correction
+        {ctaLabel}
       </button>
     </div>
   );
@@ -295,6 +304,16 @@ function AutocompleteLockControl({tooltipText, supportDataAdjustmentUrl, fieldNa
     </span>
   );
 }
+/** Full-border inputs for primary identity fields (property name, address). */
+const BORDERED_INPUT_CLASS = "form-input w-full";
+
+/** Underline-style inputs in edit mode (bottom border only). */
+const EDIT_MODE_INPUT_CLASS =
+  "form-input w-full border-0 border-b rounded-none shadow-none px-0 bg-transparent focus:ring-0";
+
+const EDIT_FIELD_LABEL_CLASS =
+  "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1";
+
 // Stable subcomponents; defined at module level so inputs don't remount on every keystroke.
 function Field({
   label,
@@ -302,7 +321,7 @@ function Field({
   value,
   placeholder,
   type = "text",
-  inputClassName = "form-input w-full",
+  inputClassName = EDIT_MODE_INPUT_CLASS,
   onChange,
   required = false,
   error,
@@ -314,9 +333,15 @@ function Field({
   readOnly = false,
   verifiedLockTooltip,
   supportDataAdjustmentUrl,
+  inputExtraProps,
 }) {
+  const resolvedInputClass = readOnly ? BORDERED_INPUT_CLASS : inputClassName;
+  const usesUnderlineInput =
+    !readOnly && inputClassName === EDIT_MODE_INPUT_CLASS;
   const errorClasses = error
-    ? "border-red-300 dark:border-red-500 focus:border-red-500 focus:ring-red-500 dark:focus:border-red-500 dark:focus:ring-red-500"
+    ? readOnly || !usesUnderlineInput
+      ? "border-red-300 dark:border-red-500 focus:border-red-500 focus:ring-red-500 dark:focus:border-red-500 dark:focus:ring-red-500"
+      : "border-b-red-300 dark:border-b-red-500 focus:border-b-red-500 dark:focus:border-b-red-500"
     : "";
   const readOnlyClasses = readOnly
     ? "bg-gray-100/80 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-default border-gray-200 dark:border-gray-600"
@@ -335,7 +360,7 @@ function Field({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+      <label className={EDIT_FIELD_LABEL_CLASS}>
         {label}
         {lockContent}
         {lockTooltip && !verifiedLockTooltip && (
@@ -361,10 +386,11 @@ function Field({
         type={type}
         name={name}
         placeholder={placeholder}
-        className={`${inputClassName} ${errorClasses} ${readOnlyClasses}`}
+        className={`${resolvedInputClass} ${errorClasses} ${readOnlyClasses}`}
         required={required}
         readOnly={readOnly}
         {...inputProps}
+        {...inputExtraProps}
       />
       {error && (
         <div className="mt-1 flex items-center text-sm text-red-500">
@@ -372,181 +398,6 @@ function Field({
           <span>{error}</span>
         </div>
       )}
-    </div>
-  );
-}
-
-function SelectField({
-  label,
-  name,
-  value,
-  options,
-  onChange,
-  required = false,
-  error,
-  infoTooltip,
-  lockTooltip,
-  readOnly = false,
-  verifiedLockTooltip,
-  supportDataAdjustmentUrl,
-}) {
-  const errorClasses = error
-    ? "border-red-300 dark:border-red-500 focus:border-red-500 focus:ring-red-500 dark:focus:border-red-500 dark:focus:ring-red-500"
-    : "";
-  const readOnlyClasses = readOnly
-    ? "bg-gray-100/80 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 cursor-default border-gray-200 dark:border-gray-600"
-    : "";
-
-  const lockContent = verifiedLockTooltip && (
-    <LockedFieldControl
-      label={label}
-      fieldName={name}
-      supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-    />
-  );
-
-  if (readOnly) {
-    return (
-      <div>
-        <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-          {label}
-          {lockContent}
-          {lockTooltip && !verifiedLockTooltip && (
-            <AutocompleteLockControl
-              tooltipText={lockTooltip}
-              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-              fieldName={name}
-            />
-          )}
-          {infoTooltip && !verifiedLockTooltip && !lockTooltip && (
-            <Tooltip content={infoTooltip} position="top">
-              <Info className="w-4 h-4 ml-0.5 inline-block align-middle text-gray-400 dark:text-gray-500 cursor-help" />
-            </Tooltip>
-          )}
-        </label>
-        <div
-          className={`form-input w-full min-h-[2.5rem] ${errorClasses} ${readOnlyClasses} py-2.5 flex items-center`}
-          aria-readonly
-        >
-          {value ?? ""}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-        {label}
-        {lockContent}
-        {lockTooltip && !verifiedLockTooltip && (
-          <AutocompleteLockControl
-            tooltipText={lockTooltip}
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-            fieldName={name}
-          />
-        )}
-        {infoTooltip && !verifiedLockTooltip && !lockTooltip && (
-          <Tooltip content={infoTooltip} position="top">
-            <Info className="w-4 h-4 ml-0.5 inline-block align-middle text-gray-400 dark:text-gray-500 cursor-help" />
-          </Tooltip>
-        )}
-      </label>
-      <select
-        name={name}
-        value={value ?? ""}
-        onChange={onChange}
-        className={`form-select w-full ${errorClasses}`}
-        required={required}
-      >
-        <option value="">Select…</option>
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
-      {error && (
-        <div className="mt-1 flex items-center text-sm text-red-500">
-          <AlertCircle className="h-4 w-4 mr-1 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SectionWithProgress({
-  sectionId,
-  label,
-  icon: Icon,
-  propertyData,
-  children,
-}) {
-  const section = IDENTITY_SECTIONS.find((s) => s.id === sectionId);
-  const {percent, filled, total} = section
-    ? getSectionProgress(propertyData, section)
-    : {percent: 0, filled: 0, total: 1};
-  const isComplete = percent >= 100;
-
-  return (
-    <div
-      className="bg-gray-50 dark:bg-gray-700/50 rounded-lg overflow-hidden relative"
-      data-section-id={sectionId}
-    >
-      <style>{`
-        @keyframes identityCheckPop {
-          from {
-            opacity: 0;
-            transform: scale(0.5) translate(12px, -12px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translate(0, 0);
-          }
-        }
-      `}</style>
-
-      {/* Progress bar - compresses (hides) when complete */}
-      <div
-        className="absolute top-0 left-0 right-0 overflow-hidden bg-gray-200 dark:bg-gray-600"
-        style={{
-          height: isComplete ? 0 : 3,
-          opacity: isComplete ? 0 : 1,
-          transition: "height 0.35s ease-out, opacity 0.25s ease-out",
-        }}
-      >
-        <div
-          className="h-full bg-emerald-400 dark:bg-emerald-400/90 transition-all duration-500 ease-out"
-          style={{width: `${percent}%`}}
-        />
-      </div>
-
-      {/* Checkmark - pops in top-right when complete */}
-      {isComplete && (
-        <div
-          className="absolute top-4 right-4 flex items-center justify-center w-7 h-7 rounded-full bg-emerald-400/20 dark:bg-emerald-400/25 text-emerald-600 dark:text-emerald-400"
-          style={{
-            animation:
-              "identityCheckPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
-          }}
-        >
-          <Check className="w-4 h-4" strokeWidth={2.25} />
-        </div>
-      )}
-
-      <div className="p-6 pt-7">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2 pr-10">
-          <Icon className="h-5 w-5 text-[#456654] flex-shrink-0" />
-          {label}
-          {!isComplete && total > 0 && (
-            <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-1">
-              ({filled}/{total})
-            </span>
-          )}
-        </h3>
-        {children}
-      </div>
     </div>
   );
 }
@@ -568,9 +419,270 @@ function getFieldValue(propertyData, fieldName) {
   return undefined;
 }
 
-/* The ATTOM "Pull property data" action was moved to the PropertyFormContainer
- * actions dropdown. State + polling live in hooks/useAttomRefresh.js; the confirm
- * dialog lives in partials/AttomRefreshConfirmDialog.jsx. */
+/* ---------------- Read-only (view mode) presentation ---------------- */
+
+const SECTION_ICONS = {
+  identity_address: Home,
+  ownership_occupancy: User,
+  general_info: Building2,
+  size_lot: Ruler,
+  rooms_baths: Bed,
+  features_parking: Flame,
+  schools: School,
+};
+
+/** Shared width for property name + address in identity sections. */
+const IDENTITY_PRIMARY_FIELD_WRAP = "col-span-full min-w-0";
+
+const READONLY_FIELD_LABELS = {
+  propertyName: "Property Name",
+  address: "Full Address",
+  addressLine1: "Street",
+  city: "City",
+  state: "State",
+  zip: "ZIP",
+  county: "County",
+  taxId: "Tax / Parcel ID",
+  ownerName: "Owner Name",
+  ownerName2: "Co-owner",
+  ownerCity: "Owner City",
+  occupantName: "Occupant Name",
+  occupantType: "Occupancy",
+  ownerPhone: "Owner Phone",
+  propertyType: "Property Type",
+  subType: "Sub Type",
+  yearBuilt: "Year Built",
+  sqFtTotal: "Total (ft²)",
+  sqFtFinished: "Finished (ft²)",
+  garageSqFt: "Garage (ft²)",
+  totalDwellingSqFt: "Total Dwelling (ft²)",
+  lotSize: "Lot Size",
+  bedCount: "Bedrooms",
+  bathCount: "Bathrooms",
+  fullBaths: "Full Baths",
+  threeQuarterBaths: "3/4 Baths",
+  halfBaths: "Half Baths",
+  numberOfShowers: "Showers",
+  numberOfBathtubs: "Bathtubs",
+  fireplaces: "Fireplaces",
+  fireplaceTypes: "Fireplace Type",
+  basement: "Basement",
+  parkingType: "Parking Type",
+  totalCoveredParking: "Covered Parking",
+  totalUncoveredParking: "Uncovered Parking",
+  schoolDistrict: "School District",
+  elementarySchool: "Elementary",
+  juniorHighSchool: "Junior High",
+  seniorHighSchool: "Senior High",
+};
+
+function identityPrimaryFieldClass(fieldName) {
+  return fieldName === "propertyName" || fieldName === "address"
+    ? IDENTITY_PRIMARY_FIELD_WRAP
+    : "";
+}
+
+function readOnlyDisplayValue(propertyData, fieldName) {
+  if (fieldName === "address") {
+    return (
+      propertyData?.fullAddress ||
+      propertyData?.address ||
+      [
+        propertyData?.addressLine1,
+        propertyData?.city,
+        propertyData?.state,
+        propertyData?.zip,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    );
+  }
+  const v = getFieldValue(propertyData, fieldName);
+  if (typeof v === "number") return String(v);
+  return v;
+}
+
+function ReadOnlySectionCard({section, propertyData}) {
+  const Icon = SECTION_ICONS[section.id] ?? Home;
+  const {filled, total} = getSectionProgress(propertyData, section);
+  const isComplete = filled >= total;
+
+  return (
+    <div
+      className="rounded-xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 p-4 h-full"
+      data-section-id={section.id}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <Icon className="h-4 w-4 text-[#456564] dark:text-[#7fa3a1] shrink-0" />
+        <h4 className="text-sm font-semibold text-neutral-900 dark:text-white">
+          {section.label}
+        </h4>
+        {isComplete ? (
+          <span className="ml-auto flex items-center justify-center w-5 h-5 rounded-full bg-emerald-400/20 dark:bg-emerald-400/25 text-emerald-600 dark:text-emerald-400 shrink-0">
+            <Check className="w-3 h-3" strokeWidth={2.5} />
+          </span>
+        ) : (
+          <span className="ml-auto text-xs text-neutral-400 dark:text-neutral-500 shrink-0">
+            {filled}/{total}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+        {section.fields.map((fieldName) => (
+          <LabelValue
+            key={fieldName}
+            label={READONLY_FIELD_LABELS[fieldName] ?? fieldName}
+            value={readOnlyDisplayValue(propertyData, fieldName)}
+            className={identityPrimaryFieldClass(fieldName)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Edit mode (saved properties) ---------------- */
+
+const ADJUSTMENT_LOCK_MESSAGE =
+  "This field is managed from verified records and can't be edited directly. Submit a data adjustment request and our team will update it for you.";
+
+/** Label/value pair with a lock affordance that routes to a data adjustment request. */
+function LockedValue({label, value, fieldName, supportDataAdjustmentUrl, className = ""}) {
+  const isEmpty =
+    value == null || (typeof value === "string" && value.trim() === "");
+  return (
+    <div className={`min-w-0 ${className}`}>
+      <div className="flex items-center text-xs text-neutral-500 dark:text-neutral-400">
+        <span className="truncate">{label}</span>
+        <LockedFieldControl
+          label={label}
+          fieldName={fieldName}
+          supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+          message={ADJUSTMENT_LOCK_MESSAGE}
+          ctaLabel="Request data adjustment"
+        />
+      </div>
+      <div
+        className={`text-sm mt-0.5 break-words ${
+          isEmpty
+            ? "text-neutral-400 dark:text-neutral-600"
+            : "font-medium text-neutral-900 dark:text-white"
+        }`}
+      >
+        {isEmpty ? "—" : value}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Edit-mode section card for saved properties. Mirrors the read-only card
+ * layout: only Property Name and Address are direct inputs, everything else
+ * is locked behind a data adjustment request.
+ */
+function EditableSectionCard({
+  section,
+  propertyData,
+  handleInputChange,
+  errors = {},
+  addressInputRef,
+  placesError,
+  AutocompleteWrapper,
+  supportDataAdjustmentUrl,
+  addressInputExtraProps,
+  /** Saved properties lock non-primary fields; new properties show label/value placeholders. */
+  lockNonEditableFields = true,
+}) {
+  const Icon = SECTION_ICONS[section.id] ?? Home;
+  const {filled, total} = getSectionProgress(propertyData, section);
+  const isComplete = filled >= total;
+
+  const addressField = (
+    <Field
+      inputRef={addressInputRef}
+      uncontrolled
+      label="Address"
+      name="address"
+      value={getIdentityAddressInputDisplayValue(propertyData)}
+      placeholder="Start typing an address to search..."
+      required
+      error={errors.address || placesError}
+      inputClassName={BORDERED_INPUT_CLASS}
+      inputExtraProps={addressInputExtraProps}
+    />
+  );
+
+  return (
+    <div
+      className="rounded-xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 p-4 h-full"
+      data-section-id={section.id}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <Icon className="h-4 w-4 text-[#456564] dark:text-[#7fa3a1] shrink-0" />
+        <h4 className="text-sm font-semibold text-neutral-900 dark:text-white">
+          {section.label}
+        </h4>
+        {isComplete ? (
+          <span className="ml-auto flex items-center justify-center w-5 h-5 rounded-full bg-emerald-400/20 dark:bg-emerald-400/25 text-emerald-600 dark:text-emerald-400 shrink-0">
+            <Check className="w-3 h-3" strokeWidth={2.5} />
+          </span>
+        ) : (
+          <span className="ml-auto text-xs text-neutral-400 dark:text-neutral-500 shrink-0">
+            {filled}/{total}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+        {section.fields.map((fieldName) => {
+          if (fieldName === "propertyName") {
+            return (
+              <div key={fieldName} className={IDENTITY_PRIMARY_FIELD_WRAP}>
+                <Field
+                  onChange={handleInputChange}
+                  label="Property Name"
+                  name="propertyName"
+                  value={propertyData.propertyName}
+                  placeholder="e.g. Lakewood Estate, My Home"
+                  inputClassName={BORDERED_INPUT_CLASS}
+                />
+              </div>
+            );
+          }
+          if (fieldName === "address") {
+            return (
+              <div key={fieldName} className={IDENTITY_PRIMARY_FIELD_WRAP}>
+                {AutocompleteWrapper ? (
+                  <AutocompleteWrapper>{addressField}</AutocompleteWrapper>
+                ) : (
+                  addressField
+                )}
+              </div>
+            );
+          }
+          if (lockNonEditableFields) {
+            return (
+              <LockedValue
+                key={fieldName}
+                label={READONLY_FIELD_LABELS[fieldName] ?? fieldName}
+                value={readOnlyDisplayValue(propertyData, fieldName)}
+                fieldName={fieldName}
+                supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+              />
+            );
+          }
+          return (
+            <LabelValue
+              key={fieldName}
+              label={READONLY_FIELD_LABELS[fieldName] ?? fieldName}
+              value={readOnlyDisplayValue(propertyData, fieldName)}
+              className={identityPrimaryFieldClass(fieldName)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function IdentityTab({
   propertyData,
@@ -581,582 +693,185 @@ function IdentityTab({
   placesLoaded,
   placesError,
   AutocompleteWrapper,
-  identityDataSource,
   supportDataAdjustmentUrl,
+  expandSectionId = null,
+  formDataChanged = false,
+  attomRefresh = null,
+  onCancelEdit,
 }) {
-  const lookupKeysRaw = savedPropertyData?.identityLookupPopulatedKeys;
-  /** Treat `[]` like unknown: otherwise no field is in the list and nothing locks. */
-  const explicitLookupKeys =
-    Array.isArray(lookupKeysRaw) && lookupKeysRaw.length > 0 ? lookupKeysRaw : null;
+  /* View/edit toggle: read-only label/value cards by default; the existing
+   * form is shown in edit mode. New (unsaved) properties always start in
+   * edit mode since there is nothing to display yet. */
+  const [editOverride, setEditOverride] = useState(null);
+  const hasSavedProperty = Boolean(
+    savedPropertyData?.id ?? propertyData?.id,
+  );
+  const isEditing = editOverride ?? !hasSavedProperty;
+  const prevFormDataChangedRef = useRef(formDataChanged);
 
-  /**
-   * Lock only fields the ATTOM/RentCast lookup actually returned (persisted in
-   * identity_lookup_populated_keys). Address / Places fields are never locked unless
-   * included in that list (e.g. county, taxId from lookup).
-   *
-   * When explicitLookupKeys is null (legacy rows, missing column, or empty `[]`), fall
-   * back to locking any non-empty saved value in the vendor-eligible field set.
-   */
-  const isVendorLookupLocked = (fieldName) => {
-    const isApiSourced = identityDataSource === "rentcast" || identityDataSource === "attom";
-    if (!isApiSourced) return false;
-    if (explicitLookupKeys !== null) {
-      return explicitLookupKeys.includes(fieldName);
+  // After a successful save, return to read-only cards for saved properties.
+  useEffect(() => {
+    const wasChanged = prevFormDataChangedRef.current;
+    prevFormDataChangedRef.current = formDataChanged;
+    if (wasChanged && !formDataChanged && hasSavedProperty) {
+      setEditOverride(false);
     }
-    if (!RENTCAST_FIELD_KEYS.has(fieldName)) return false;
-    const val = getFieldValue(savedPropertyData, fieldName);
-    return val !== undefined && val !== null && String(val).trim() !== "";
-  };
+  }, [formDataChanged, hasSavedProperty]);
+
+  // Container "Complete Outstanding Tasks" jumps target form sections —
+  // switch into edit mode so the scroll/focus targets exist.
+  useEffect(() => {
+    if (
+      expandSectionId &&
+      IDENTITY_SECTIONS.some((s) => s.id === expandSectionId)
+    ) {
+      setEditOverride(true);
+    }
+  }, [expandSectionId]);
+
+  const completedSections = IDENTITY_SECTIONS.filter(
+    (s) => getSectionProgress(propertyData, s).percent >= 100,
+  ).length;
+  const allSectionsComplete = completedSections === IDENTITY_SECTIONS.length;
+
+  const bindAddressSearchInput = useSuppressBrowserAddressAutofill(
+    "identity-address-search",
+  );
+  const addressInputExtraProps = bindAddressSearchInput();
+
+  const handleCancelEdit = useCallback(() => {
+    onCancelEdit?.();
+    setEditOverride(false);
+  }, [onCancelEdit]);
+
+  const handleDoneEdit = useCallback(() => {
+    setEditOverride(false);
+  }, []);
 
   return (
-    <div className="space-y-4">
-      {/* Identity + Address */}
-      <SectionWithProgress
-        sectionId="identity_address"
-        label="Identity & Address"
-        icon={Home}
-        propertyData={propertyData}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-3">
-            <Field
-              onChange={handleInputChange}
-              label="Property Name"
-              name="propertyName"
-              value={propertyData.propertyName}
-              placeholder="e.g. Lakewood Estate, My Home"
-            />
-          </div>
-
-          <div className="md:col-span-3">
-            {AutocompleteWrapper ? (
-              <AutocompleteWrapper>
-                <Field
-                  inputRef={addressInputRef}
-                  uncontrolled
-                  label="Address"
-                  name="address"
-                  value={getIdentityAddressInputDisplayValue(propertyData)}
-                  placeholder="Start typing an address to search..."
-                  required
-                  error={errors.address || placesError}
-                  supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-                />
-              </AutocompleteWrapper>
+    <SectionCard
+      flat
+      title="Property Identity"
+      description="Core identity and ownership information for this property"
+      icon={ClipboardList}
+      badge={
+        <StatusBadge tone={allSectionsComplete ? "emerald" : "neutral"}>
+          {allSectionsComplete ? (
+            <>
+              <Check className="w-3 h-3" strokeWidth={2.5} />
+              Complete
+            </>
+          ) : (
+            `${completedSections} of ${IDENTITY_SECTIONS.length} complete`
+          )}
+        </StatusBadge>
+      }
+      action={
+        hasSavedProperty ? (
+          <div className="flex items-center gap-2">
+            {attomRefresh && (
+              <button
+                type="button"
+                disabled={
+                  attomRefresh.isActive || attomRefresh.isAtLookupLimit
+                }
+                title={
+                  attomRefresh.isAtLookupLimit
+                    ? `ATTOM lookup limit reached (${attomRefresh.lookupLimit} per property)`
+                    : "Fill missing identity fields from ATTOM public records"
+                }
+                onClick={attomRefresh.openConfirm}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {attomRefresh.isActive ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    {attomRefresh.jobStatus === "queued"
+                      ? "Queued…"
+                      : "Pulling data…"}
+                  </>
+                ) : attomRefresh.isAtLookupLimit ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Limit reached
+                  </>
+                ) : attomRefresh.jobStatus === "completed" &&
+                  !attomRefresh.jobError ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    Pull property data
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Pull property data
+                  </>
+                )}
+              </button>
+            )}
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDoneEdit}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Done
+                </button>
+              </>
             ) : (
-              <Field
-                inputRef={addressInputRef}
-                uncontrolled
-                label="Address"
-                name="address"
-                value={getIdentityAddressInputDisplayValue(propertyData)}
-                placeholder="Start typing an address to search..."
-                required
-                error={errors.address || placesError}
-                supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-              />
+              <button
+                type="button"
+                onClick={() => setEditOverride(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit Identity
+              </button>
             )}
           </div>
-
-          <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2">
-              <Field
-                label="Street"
-                name="addressLine1"
-                value={propertyData.addressLine1}
-                placeholder="e.g. 123 Main St"
-                readOnly
-              />
-            </div>
-            <Field
-              label="City"
-              name="city"
-              value={propertyData.city}
-              required
-              error={errors.city}
-              readOnly
+        ) : null
+      }
+      bodyClassName="pt-2"
+    >
+      {!isEditing ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+          {IDENTITY_SECTIONS.map((section) => (
+            <ReadOnlySectionCard
+              key={section.id}
+              section={section}
+              propertyData={propertyData}
             />
-            <SelectField
-              label="State"
-              name="state"
-              value={propertyData.state}
-              options={usStates.map((s) => s.code)}
-              required
-              error={errors.state}
-              readOnly
-            />
-            <Field
-              label="ZIP"
-              name="zip"
-              value={propertyData.zip}
-              required
-              error={errors.zip}
-              readOnly
-            />
-            <Field
-              onChange={handleInputChange}
-              label="County"
-              name="county"
-              value={propertyData.county}
-              placeholder="e.g. King"
-              readOnly={isVendorLookupLocked("county")}
-              verifiedLockTooltip={
-                isVendorLookupLocked("county") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-              }
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+          {IDENTITY_SECTIONS.map((section) => (
+            <EditableSectionCard
+              key={section.id}
+              section={section}
+              propertyData={propertyData}
+              handleInputChange={handleInputChange}
+              errors={errors}
+              addressInputRef={addressInputRef}
+              placesError={placesError}
+              AutocompleteWrapper={AutocompleteWrapper}
               supportDataAdjustmentUrl={supportDataAdjustmentUrl}
+              addressInputExtraProps={addressInputExtraProps}
+              lockNonEditableFields={hasSavedProperty}
             />
-            <Field
-              onChange={handleInputChange}
-              label="Tax / Parcel ID"
-              name="taxId"
-              value={propertyData.taxId || propertyData.parcelTaxId}
-              placeholder="e.g. 9278300025"
-              readOnly={isVendorLookupLocked("taxId")}
-              verifiedLockTooltip={
-                isVendorLookupLocked("taxId") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-              }
-              supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-            />
-          </div>
+          ))}
         </div>
-      </SectionWithProgress>
-
-      {/* Ownership & Occupancy */}
-      <SectionWithProgress
-        sectionId="ownership_occupancy"
-        label="Ownership & Occupancy"
-        icon={User}
-        propertyData={propertyData}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Field
-            onChange={handleInputChange}
-            label="Owner Name"
-            name="ownerName"
-            value={propertyData.ownerName}
-            readOnly={isVendorLookupLocked("ownerName")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("ownerName") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Owner Name 2"
-            name="ownerName2"
-            value={propertyData.ownerName2}
-            readOnly={isVendorLookupLocked("ownerName2")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("ownerName2") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Owner City"
-            name="ownerCity"
-            value={propertyData.ownerCity}
-            placeholder="e.g. Seattle WA"
-            readOnly={isVendorLookupLocked("ownerCity")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("ownerCity") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Occupant Name"
-            name="occupantName"
-            value={propertyData.occupantName}
-          />
-          <SelectField
-            onChange={handleInputChange}
-            label="Occupant Type"
-            name="occupantType"
-            value={propertyData.occupantType}
-            options={["Owner", "Tenant", "Vacant", "Unknown"]}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Owner Phone"
-            name="ownerPhone"
-            value={propertyData.ownerPhone}
-            placeholder="(000) 000-0000"
-          />
-        </div>
-      </SectionWithProgress>
-
-      {/* General Property Info */}
-      <SectionWithProgress
-        sectionId="general_info"
-        label="General Information"
-        icon={Building2}
-        propertyData={propertyData}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <SelectField
-            onChange={handleInputChange}
-            label="Property Type"
-            name="propertyType"
-            value={propertyData.propertyType}
-            options={[
-              "Single Family",
-              "Townhouse",
-              "Condo",
-              "Multi-Family",
-              "Manufactured",
-              "Land",
-              "Other",
-            ]}
-            readOnly={isVendorLookupLocked("propertyType")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("propertyType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Sub Type"
-            name="subType"
-            value={propertyData.subType}
-            placeholder="e.g. Residential"
-            readOnly={isVendorLookupLocked("subType")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("subType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Year Built"
-            name="yearBuilt"
-            type="number"
-            value={propertyData.yearBuilt}
-            readOnly={isVendorLookupLocked("yearBuilt")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("yearBuilt") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-        </div>
-      </SectionWithProgress>
-
-      {/* Size & Lot */}
-      <SectionWithProgress
-        sectionId="size_lot"
-        label="Size & Lot"
-        icon={Ruler}
-        propertyData={propertyData}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Field
-            onChange={handleInputChange}
-            label="Total (ft²)"
-            name="sqFtTotal"
-            type="number"
-            value={propertyData.sqFtTotal || propertyData.squareFeet}
-            readOnly={isVendorLookupLocked("sqFtTotal")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("sqFtTotal") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Finished (ft²)"
-            name="sqFtFinished"
-            type="number"
-            value={propertyData.sqFtFinished}
-            readOnly={isVendorLookupLocked("sqFtFinished")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("sqFtFinished") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Garage (ft²)"
-            name="garageSqFt"
-            type="number"
-            value={propertyData.garageSqFt}
-            readOnly={isVendorLookupLocked("garageSqFt")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("garageSqFt")
-                ? RENTCAST_VERIFIED_TOOLTIP
-                : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Total Dwelling (ft²)"
-            name="totalDwellingSqFt"
-            type="number"
-            value={propertyData.totalDwellingSqFt}
-            readOnly={isVendorLookupLocked("totalDwellingSqFt")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("totalDwellingSqFt") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Lot Size"
-            name="lotSize"
-            value={propertyData.lotSize}
-            placeholder="e.g. .200 ac / 8,700 sf"
-            readOnly={isVendorLookupLocked("lotSize")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("lotSize") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-        </div>
-      </SectionWithProgress>
-
-      {/* Rooms & Baths */}
-      <SectionWithProgress
-        sectionId="rooms_baths"
-        label="Rooms & Baths"
-        icon={Bed}
-        propertyData={propertyData}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Field
-            onChange={handleInputChange}
-            label="Bedrooms"
-            name="bedCount"
-            type="number"
-            value={propertyData.bedCount || propertyData.rooms}
-            readOnly={isVendorLookupLocked("bedCount")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("bedCount") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Bathrooms"
-            name="bathCount"
-            type="number"
-            value={propertyData.bathCount || propertyData.bathrooms}
-            readOnly={isVendorLookupLocked("bathCount")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("bathCount") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Full Baths"
-            name="fullBaths"
-            type="number"
-            value={propertyData.fullBaths}
-            readOnly={isVendorLookupLocked("fullBaths")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("fullBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="3/4 Baths"
-            name="threeQuarterBaths"
-            type="number"
-            value={propertyData.threeQuarterBaths}
-            readOnly={isVendorLookupLocked("threeQuarterBaths")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("threeQuarterBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Half Baths"
-            name="halfBaths"
-            type="number"
-            value={propertyData.halfBaths}
-            readOnly={isVendorLookupLocked("halfBaths")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("halfBaths") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-
-          <Field
-            onChange={handleInputChange}
-            label="Number of Showers"
-            name="numberOfShowers"
-            type="number"
-            value={propertyData.numberOfShowers}
-            readOnly={isVendorLookupLocked("numberOfShowers")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("numberOfShowers") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Number of Bathtubs"
-            name="numberOfBathtubs"
-            type="number"
-            value={propertyData.numberOfBathtubs}
-            readOnly={isVendorLookupLocked("numberOfBathtubs")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("numberOfBathtubs") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-        </div>
-      </SectionWithProgress>
-
-      {/* Features & Parking */}
-      <SectionWithProgress
-        sectionId="features_parking"
-        label="Features & Parking"
-        icon={Flame}
-        propertyData={propertyData}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Field
-            onChange={handleInputChange}
-            label="Fireplaces"
-            name="fireplaces"
-            type="number"
-            value={propertyData.fireplaces}
-            readOnly={isVendorLookupLocked("fireplaces")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("fireplaces") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <SelectField
-            onChange={handleInputChange}
-            label="Fireplace Type"
-            name="fireplaceTypes"
-            value={propertyData.fireplaceTypes}
-            options={["Gas", "Wood", "Other"]}
-            readOnly={isVendorLookupLocked("fireplaceTypes")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("fireplaceTypes") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <SelectField
-            onChange={handleInputChange}
-            label="Basement"
-            name="basement"
-            value={propertyData.basement}
-            options={[
-              "Daylight",
-              "Fully Finished",
-              "Partially Finished",
-              "Roughed in",
-              "Unfinished",
-              "None",
-            ]}
-            readOnly={isVendorLookupLocked("basement")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("basement") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-
-          <Field
-            onChange={handleInputChange}
-            label="Parking Type"
-            name="parkingType"
-            value={propertyData.parkingType}
-            placeholder="e.g. Driveway Parking"
-            readOnly={isVendorLookupLocked("parkingType")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("parkingType") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Total Covered Parking"
-            name="totalCoveredParking"
-            type="number"
-            value={propertyData.totalCoveredParking}
-            readOnly={isVendorLookupLocked("totalCoveredParking")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("totalCoveredParking") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Total Uncovered Parking"
-            name="totalUncoveredParking"
-            type="number"
-            value={propertyData.totalUncoveredParking}
-            readOnly={isVendorLookupLocked("totalUncoveredParking")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("totalUncoveredParking") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-        </div>
-      </SectionWithProgress>
-
-      {/* Schools */}
-      <SectionWithProgress
-        sectionId="schools"
-        label="Schools"
-        icon={School}
-        propertyData={propertyData}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Field
-            onChange={handleInputChange}
-            label="School District"
-            name="schoolDistrict"
-            value={propertyData.schoolDistrict}
-            placeholder="e.g. Seattle"
-            readOnly={isVendorLookupLocked("schoolDistrict")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("schoolDistrict") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Elementary"
-            name="elementarySchool"
-            value={propertyData.elementarySchool}
-            readOnly={isVendorLookupLocked("elementarySchool")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("elementarySchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Junior High"
-            name="juniorHighSchool"
-            value={propertyData.juniorHighSchool}
-            readOnly={isVendorLookupLocked("juniorHighSchool")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("juniorHighSchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-          <Field
-            onChange={handleInputChange}
-            label="Senior High"
-            name="seniorHighSchool"
-            value={propertyData.seniorHighSchool}
-            readOnly={isVendorLookupLocked("seniorHighSchool")}
-            verifiedLockTooltip={
-              isVendorLookupLocked("seniorHighSchool") ? RENTCAST_VERIFIED_TOOLTIP : undefined
-            }
-            supportDataAdjustmentUrl={supportDataAdjustmentUrl}
-          />
-        </div>
-      </SectionWithProgress>
-    </div>
+      )}
+    </SectionCard>
   );
 }
 

@@ -78,13 +78,72 @@ function normalizeSystemType(raw) {
   const lower = raw.toLowerCase().trim().replace(/\s+/g, "");
   for (const [alias, canonical] of Object.entries(SYSTEM_ALIASES)) {
     const aliasNorm = alias.toLowerCase().replace(/\s+/g, "");
-    if (lower.includes(aliasNorm) || aliasNorm.includes(lower)) {
+    // Require the input to contain the full alias (not the reverse — "heating" must not match "waterheating").
+    if (lower === aliasNorm || (aliasNorm.length <= lower.length && lower.includes(aliasNorm))) {
       return Array.isArray(canonical) ? canonical[0] : canonical;
     }
   }
-  const canonical = CANONICAL_SYSTEMS.find((s) => lower.includes(s) || s.includes(lower));
+  const exact = CANONICAL_SYSTEMS.find((s) => lower === s.toLowerCase());
+  if (exact) return exact;
+  // Prefer longer ids when the input contains a full canonical token (e.g. "waterheater" → waterHeating).
+  const canonical = [...CANONICAL_SYSTEMS]
+    .sort((a, b) => b.length - a.length)
+    .find((s) => {
+      const sLower = s.toLowerCase();
+      return lower.includes(sLower);
+    });
   if (canonical) return canonical;
   return raw.trim() || null;
+}
+
+/** Space-heating vs domestic hot water — common AI mix-up. */
+const SPACE_HEATING_KEYWORDS =
+  /\b(furnace|boiler|chimney|fireplace|flue|ductwork|heat pump|space heat|forced air)\b/i;
+const WATER_HEATING_KEYWORDS =
+  /\b(water heater|hot water|tankless water|tpr valve|anode rod|expansion tank)\b/i;
+
+/**
+ * Resolve the canonical system for a finding using text + declared systemType.
+ * Corrects cases like furnace/chimney tasks tagged as waterHeating.
+ */
+function resolveFindingSystemType({
+  systemType,
+  title = "",
+  task = "",
+  suggestedAction = "",
+  rationale = "",
+  description = "",
+} = {}) {
+  const text = [title, task, suggestedAction, rationale, description]
+    .filter(Boolean)
+    .join(" ");
+  const hasSpaceHeating = SPACE_HEATING_KEYWORDS.test(text);
+  const hasWaterHeating = WATER_HEATING_KEYWORDS.test(text);
+
+  const declared = normalizeSystemType(systemType) || systemType || null;
+
+  // Correct common AI mis-tags (e.g. furnace tasks labeled waterHeating).
+  if (hasSpaceHeating && !hasWaterHeating && declared === "waterHeating") {
+    return "heating";
+  }
+  if (hasWaterHeating && !hasSpaceHeating && declared === "heating") {
+    return "waterHeating";
+  }
+
+  return declared;
+}
+
+/** True when two system identifiers map to the same canonical system id. */
+function canonicalSystemsMatch(systemKey, rawType) {
+  if (!systemKey || !rawType) return false;
+  const left = normalizeSystemType(systemKey);
+  const right = normalizeSystemType(rawType);
+  if (!left || !right) {
+    const a = String(systemKey).trim().toLowerCase();
+    const b = String(rawType).trim().toLowerCase();
+    return a.length > 0 && a === b;
+  }
+  return left.toLowerCase() === right.toLowerCase();
 }
 
 module.exports = {
@@ -93,4 +152,6 @@ module.exports = {
   SYSTEM_ALIASES,
   isExcludedSystem,
   normalizeSystemType,
+  resolveFindingSystemType,
+  canonicalSystemsMatch,
 };

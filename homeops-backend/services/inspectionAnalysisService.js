@@ -17,7 +17,12 @@ const { AWS_S3_BUCKET } = require("../config");
 
 const { detectSystemsFromText } = require("./aiChatService");
 const { triggerReanalysisOnInspection } = require("./ai/propertyReanalysisService");
-const { CANONICAL_SYSTEMS, isExcludedSystem, normalizeSystemType } = require("./systemTypes");
+const {
+  CANONICAL_SYSTEMS,
+  isExcludedSystem,
+  normalizeSystemType,
+  resolveFindingSystemType,
+} = require("./systemTypes");
 const { logAiUsage } = require("./usageService");
 
 async function extractTextFromPdf(buffer) {
@@ -697,7 +702,15 @@ async function runGlobalFindingsPass(openai, textToUse, usageCtx) {
         .filter((n) => hasValidEvidence(n) && !isExcludedSystem(n.systemType))
         .map((n) => ({
           title: n.title || "",
-          systemType: n.systemType ? normalizeSystemType(n.systemType) || n.systemType : "interior",
+          systemType:
+            resolveFindingSystemType({
+              systemType: n.systemType,
+              title: n.title,
+              suggestedAction: n.suggestedAction,
+            }) ||
+            normalizeSystemType(n.systemType) ||
+            n.systemType ||
+            "interior",
           severity: n.severity || "medium",
           evidence: n.evidence || null,
           suggestedAction: n.suggestedAction || "",
@@ -708,7 +721,15 @@ async function runGlobalFindingsPass(openai, textToUse, usageCtx) {
       const maintenanceSuggestions = (data.maintenanceSuggestions || [])
         .filter((m) => hasValidEvidence(m) && !isExcludedSystem(m.systemType))
         .map((m) => ({
-          systemType: m.systemType ? normalizeSystemType(m.systemType) || m.systemType : "interior",
+          systemType:
+            resolveFindingSystemType({
+              systemType: m.systemType,
+              task: m.task,
+              rationale: m.rationale,
+            }) ||
+            normalizeSystemType(m.systemType) ||
+            m.systemType ||
+            "interior",
           task: m.task || "",
           suggestedWhen: m.suggestedWhen || "",
           priority: m.priority || "medium",
@@ -1132,7 +1153,14 @@ async function runAnalysis(jobId) {
   const rawMaintenanceSuggestions = (parsed.maintenanceSuggestions || [])
     .filter((s) => !isExcludedSystem(s.systemType) && hasValidEvidence(s))
     .map((s) => ({
-      systemType: normalizeSystemType(s.systemType) || s.systemType,
+      systemType:
+        resolveFindingSystemType({
+          systemType: s.systemType,
+          task: s.task,
+          rationale: s.rationale,
+        }) ||
+        normalizeSystemType(s.systemType) ||
+        s.systemType,
       task: s.task || "",
       suggestedWhen: s.suggestedWhen || "",
       priority: s.priority || "medium",
@@ -1151,7 +1179,15 @@ async function runAnalysis(jobId) {
     .filter((n) => !isExcludedSystem(n.systemType) && hasValidEvidence(n))
     .map((n) => ({
       title: n.title || "",
-      systemType: n.systemType ? normalizeSystemType(n.systemType) || n.systemType : null,
+      systemType: n.systemType
+        ? resolveFindingSystemType({
+            systemType: n.systemType,
+            title: n.title,
+            suggestedAction: n.suggestedAction,
+          }) ||
+          normalizeSystemType(n.systemType) ||
+          n.systemType
+        : null,
       severity: n.severity || "medium",
       evidence: n.evidence || null,
       suggestedAction: n.suggestedAction || "",

@@ -27,27 +27,30 @@ import {
   Loader2,
   Menu,
   Undo2,
+  Sparkles,
+  Smartphone,
 } from "lucide-react";
+import SectionCard from "./partials/passport/SectionCard";
+import EmptyStateCard from "./partials/passport/EmptyStateCard";
+import {StatusBadge} from "./partials/passport/StatusBadge";
 import AppApi from "../../api/api";
 import DatePickerInput from "../../components/DatePickerInput";
-import {Popover, PopoverContent, PopoverTrigger} from "../../components/ui/popover";
-import {Calendar as CalendarIcon} from "lucide-react";
 import useDocumentUpload from "../../hooks/useDocumentUpload";
 import { S3_UPLOAD_FOLDER } from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import {
-  DocumentsTreeView,
+  DocumentsFolderSidebar,
+  DocumentsTableView,
   DocumentsTreeSkeleton,
   DocumentsPreviewPanel,
   DocumentsInboxView,
-  FolderContentsView,
   useDocumentsInbox,
 } from "./partials/documents";
 import DocumentCaptureModal from "./partials/documents/DocumentCaptureModal";
 import {inferDocumentTypeFromFolder} from "./partials/documents/filenameHeuristics";
 import {PROPERTY_SYSTEMS, CUSTOM_SYSTEM_DEFAULT_ICON} from "./constants/propertySystems";
 import { buildCustomSystemsForUi } from "./helpers/systemKeyUtils";
-import {PROPERTY_DOCUMENTS_CHANGED_EVENT} from "./helpers/inspectionFlowSession";
+import {PROPERTY_DOCUMENTS_CHANGED_EVENT, emitPropertyDocumentsChanged} from "./helpers/inspectionFlowSession";
 import {
   emitDocumentsFiled,
   emitReopenDocumentAnalysis,
@@ -114,21 +117,6 @@ const documentTypes = [
   {id: "insurance", label: "Insurance", icon: Shield},
   {id: "mortgage", label: "Mortgage", icon: FileText},
   {id: "other", label: "Other", icon: File},
-];
-
-const months = [
-  {value: "01", label: "January"},
-  {value: "02", label: "February"},
-  {value: "03", label: "March"},
-  {value: "04", label: "April"},
-  {value: "05", label: "May"},
-  {value: "06", label: "June"},
-  {value: "07", label: "July"},
-  {value: "08", label: "August"},
-  {value: "09", label: "September"},
-  {value: "10", label: "October"},
-  {value: "11", label: "November"},
-  {value: "12", label: "December"},
 ];
 
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
@@ -242,13 +230,8 @@ function DocumentsTab({
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
-  const [selectedSystem, setSelectedSystem] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedYear, setSelectedYear] = useState("all");
-  const [selectedMonth, setSelectedMonth] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showCaptureModal, setShowCaptureModal] = useState(false);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
@@ -256,8 +239,10 @@ function DocumentsTab({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
-  // null = inbox view; system id = folder view
+  // null = "All Documents" table; system id = folder table
   const [selectedFolder, setSelectedFolder] = useState(null);
+  // staged-uploads triage view
+  const [inboxSelected, setInboxSelected] = useState(false);
   const [activeDrag, setActiveDrag] = useState(null);
   const [toast, setToast] = useState(null); // { kind, message, undo? }
   const [uploadDocumentName, setUploadDocumentName] = useState("");
@@ -357,6 +342,29 @@ function DocumentsTab({
     customSystems: customSystemsForInbox,
   });
 
+  /* ---- Smart Records & AI right panel data (from existing analysis state) ---- */
+  const smartRecordsSummary = useMemo(() => {
+    const withAnalysis = (documents ?? [])
+      .map((doc) => {
+        const item = getAnalysisItem(doc.id);
+        if (!item) return null;
+        return {doc, status: String(item.status ?? "").toLowerCase()};
+      })
+      .filter(Boolean);
+    const analyzed = withAnalysis.filter((e) => e.status === "completed");
+    const processing = withAnalysis.filter(
+      (e) => e.status === "queued" || e.status === "processing",
+    );
+    const failed = withAnalysis.filter((e) => e.status === "failed");
+    return {
+      total: (documents ?? []).length,
+      analyzed,
+      processing,
+      failed,
+      recent: withAnalysis.slice(0, 5),
+    };
+  }, [documents, getAnalysisItem]);
+
   /* ----- documents list & grouping ----- */
 
   useEffect(() => {
@@ -440,64 +448,16 @@ function DocumentsTab({
     maintenance_record_id: doc.maintenance_record_id,
   });
 
-  const availableYears = useMemo(() => {
-    const years = new Set();
-    documents.forEach((doc) => {
-      const d = doc.document_date || doc.created_at;
-      if (d) years.add(new Date(d).getFullYear());
-    });
-    return Array.from(years).sort((a, b) => b - a);
-  }, [documents]);
-
   const filteredDocuments = useMemo(() => {
     const uiDocs = documents.map(toUIDoc);
     return uiDocs.filter((doc) => {
-      const matchesSystem =
-        selectedSystem === "all" || doc.system === selectedSystem;
       const matchesType = selectedType === "all" || doc.type === selectedType;
       const matchesSearch =
         searchQuery === "" ||
         (doc.name || "").toLowerCase().includes(searchQuery.toLowerCase());
-
-      let matchesDate = true;
-      if (
-        selectedYear !== "all" ||
-        selectedMonth !== "all" ||
-        dateFrom ||
-        dateTo
-      ) {
-        const d = doc.document_date || doc.created_at;
-        if (!d) matchesDate = false;
-        else {
-          const docDate = new Date(d);
-          const docYear = docDate.getFullYear().toString();
-          const docMonth = String(docDate.getMonth() + 1).padStart(2, "0");
-          if (selectedYear !== "all" && docYear !== selectedYear)
-            matchesDate = false;
-          if (selectedMonth !== "all" && docMonth !== selectedMonth)
-            matchesDate = false;
-          // Compare on YYYY-MM-DD strings to avoid timezone drift between the
-          // filter inputs (date-only) and document_date timestamps.
-          const docDateStr = `${docYear}-${docMonth}-${String(
-            docDate.getDate(),
-          ).padStart(2, "0")}`;
-          if (dateFrom && docDateStr < dateFrom) matchesDate = false;
-          if (dateTo && docDateStr > dateTo) matchesDate = false;
-        }
-      }
-
-      return matchesSystem && matchesType && matchesSearch && matchesDate;
+      return matchesType && matchesSearch;
     });
-  }, [
-    documents,
-    selectedSystem,
-    selectedType,
-    searchQuery,
-    selectedYear,
-    selectedMonth,
-    dateFrom,
-    dateTo,
-  ]);
+  }, [documents, selectedType, searchQuery]);
 
   useEffect(() => {
     if (
@@ -510,7 +470,7 @@ function DocumentsTab({
 
   const documentsBySystem = useMemo(() => {
     const grouped = {};
-    filteredDocuments.forEach((doc) => {
+    documents.map(toUIDoc).forEach((doc) => {
       const sys =
         doc.system === "general"
           ? "inspectionReport"
@@ -519,13 +479,16 @@ function DocumentsTab({
       grouped[sys].push(doc);
     });
     return grouped;
-  }, [filteredDocuments]);
+  }, [documents]);
 
-  const systemsForTree = useMemo(() => {
-    if (selectedSystem === "all") return systemsToShow;
-    const match = systemsToShow.find((s) => s.id === selectedSystem);
-    return match ? [match] : systemsToShow;
-  }, [systemsToShow, selectedSystem]);
+  /** Docs shown in the table: filtered by search/type, then by selected folder. */
+  const tableDocuments = useMemo(
+    () =>
+      selectedFolder
+        ? filteredDocuments.filter((doc) => doc.system === selectedFolder)
+        : filteredDocuments,
+    [filteredDocuments, selectedFolder],
+  );
 
   const openUploadModalWithSystem = useCallback(
     (systemId) => {
@@ -544,19 +507,24 @@ function DocumentsTab({
     [clearUploadHookError],
   );
 
-  // Tree "Upload" button now opens a hidden file picker that drops files
-  // straight into the inbox (no modal). Faster for the common path.
+  // "Upload Document" opens a hidden file picker that drops files straight
+  // into the inbox (no modal). Faster for the common path.
   const inboxBrowseRef = useRef(null);
   const openDefaultUploadModal = useCallback(() => {
     inboxBrowseRef.current?.click();
   }, []);
 
-  const openCaptureModal = useCallback(() => {
+  const showInboxView = useCallback(() => {
     setSelectedFolder(null);
     setSelectedDocument(null);
-    setShowCaptureModal(true);
+    setInboxSelected(true);
     setSidebarOpen(false);
   }, []);
+
+  const openCaptureModal = useCallback(() => {
+    showInboxView();
+    setShowCaptureModal(true);
+  }, [showInboxView]);
 
   useEffect(() => {
     if (!showUploadModal || !hasInspectionReport) return;
@@ -733,6 +701,7 @@ function DocumentsTab({
       await fetchDocuments();
       if (propertyId && filedDocs.length) {
         emitDocumentsFiled(propertyId, filedDocs);
+        emitPropertyDocumentsChanged(propertyId);
       }
     }
   };
@@ -765,42 +734,6 @@ function DocumentsTab({
     return colors[type] || colors.other;
   };
 
-  const clearFilters = () => {
-    setSelectedSystem("all");
-    setSelectedType("all");
-    setSearchQuery("");
-    setSelectedYear("all");
-    setSelectedMonth("all");
-    setDateFrom("");
-    setDateTo("");
-  };
-
-  const hasActiveFilters =
-    selectedSystem !== "all" ||
-    selectedType !== "all" ||
-    searchQuery ||
-    selectedYear !== "all" ||
-    selectedMonth !== "all" ||
-    dateFrom ||
-    dateTo;
-
-  const dateRangeError =
-    dateFrom && dateTo && dateFrom > dateTo
-      ? "Start date must be before end date"
-      : null;
-
-  const dateRangeLabel = useMemo(() => {
-    const fmt = (s) => {
-      if (!s) return "";
-      const [y, m, d] = s.split("-");
-      return `${d}/${m}/${y}`;
-    };
-    if (dateFrom && dateTo) return `${fmt(dateFrom)} – ${fmt(dateTo)}`;
-    if (dateFrom) return `From ${fmt(dateFrom)}`;
-    if (dateTo) return `Until ${fmt(dateTo)}`;
-    return "Date range";
-  }, [dateFrom, dateTo]);
-
   useEffect(() => {
     const handleKeydown = (e) => {
       if (e.key === "Escape" && sidebarOpen) setSidebarOpen(false);
@@ -815,6 +748,15 @@ function DocumentsTab({
       setSidebarOpen(false);
     },
     [handleSelectDocument],
+  );
+
+  const getAnalysisStatus = useCallback(
+    (docId) => {
+      const item = getAnalysisItem(docId);
+      if (!item) return null;
+      return String(item.status ?? "").toLowerCase();
+    },
+    [getAnalysisItem],
   );
 
   const handleAnalyzeDocument = useCallback(
@@ -941,6 +883,7 @@ function DocumentsTab({
           });
           if (propertyId && created) {
             emitDocumentsFiled(propertyId, [created]);
+            emitPropertyDocumentsChanged(propertyId);
           }
         } catch (err) {
           if (err?.status === 403 && err?.message?.toLowerCase().includes("limit")) {
@@ -1029,6 +972,7 @@ function DocumentsTab({
         });
         if (propertyId && created) {
           emitDocumentsFiled(propertyId, [created]);
+          emitPropertyDocumentsChanged(propertyId);
         }
       } catch (err) {
         if (err?.status === 403 && err?.message?.toLowerCase().includes("limit")) {
@@ -1053,7 +997,10 @@ function DocumentsTab({
       });
       if (propertyId && res?.filed?.length) {
         const docs = res.filed.map((f) => f.document).filter(Boolean);
-        if (docs.length) emitDocumentsFiled(propertyId, docs);
+        if (docs.length) {
+          emitDocumentsFiled(propertyId, docs);
+          emitPropertyDocumentsChanged(propertyId);
+        }
       }
       return res;
     },
@@ -1093,7 +1040,8 @@ function DocumentsTab({
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
     >
-      <div className="relative flex h-[calc(100vh-200px)] min-h-[600px] bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_19rem] gap-4 items-start">
+      <div className="relative flex h-[calc(100vh-200px)] min-h-[600px] min-w-0 bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
         {inspectionUploadBlockedNotice && (
           <div className="absolute top-2 left-2 right-2 z-[60] flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 px-3 py-2 text-sm text-amber-900 dark:text-amber-100 shadow-sm">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -1124,7 +1072,10 @@ function DocumentsTab({
           className="hidden"
           onChange={(e) => {
             const files = Array.from(e.target.files || []);
-            if (files.length) inbox.addFiles(files);
+            if (files.length) {
+              inbox.addFiles(files);
+              showInboxView();
+            }
             e.target.value = "";
           }}
         />
@@ -1156,24 +1107,26 @@ function DocumentsTab({
                 </button>
               </div>
             ) : (
-              <DocumentsTreeView
-                systemsToShow={systemsForTree}
-                documentTypes={documentTypes}
+              <DocumentsFolderSidebar
+                systemsToShow={systemsToShow}
                 documentsBySystem={documentsBySystem}
-                selectedDocumentId={selectedDocument?.id}
-                selectedFolderId={selectedFolder}
+                totalCount={documents.length}
                 inboxCount={inbox.cards.length}
-                inboxSelected={!selectedFolder && !selectedDocument}
-                onSelectInbox={() => {
+                allSelected={!selectedFolder && !inboxSelected}
+                inboxSelected={inboxSelected}
+                selectedFolderId={selectedFolder}
+                onSelectAll={() => {
                   setSelectedFolder(null);
+                  setInboxSelected(false);
                   setSelectedDocument(null);
+                  setSidebarOpen(false);
                 }}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                onSelectDocument={handleDocumentSelect}
+                onSelectInbox={showInboxView}
                 onSelectFolder={(id) => {
                   setSelectedFolder(id);
+                  setInboxSelected(false);
                   setSelectedDocument(null);
+                  setSidebarOpen(false);
                 }}
                 onUploadForSystem={openUploadModalWithSystem}
                 systemUploadDisabledIds={
@@ -1183,7 +1136,6 @@ function DocumentsTab({
                   setSidebarCollapsed(true);
                   setSidebarOpen(false);
                 }}
-                getFileTypeColor={getFileTypeColor}
               />
             )}
           </div>
@@ -1220,147 +1172,7 @@ function DocumentsTab({
             </div>
           </div>
 
-          {/* Filters bar */}
-          <div className="flex-shrink-0 px-4 py-2.5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-wrap items-center gap-2">
-            <select
-              value={selectedSystem}
-              onChange={(e) => setSelectedSystem(e.target.value)}
-              className="form-select text-sm bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 rounded-lg pl-3 pr-8 py-1.5 min-w-[180px]"
-            >
-              <option value="all">All Systems</option>
-              {systemsToShow.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="form-select text-sm bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 rounded-lg pl-3 pr-8 py-1.5 min-w-[180px]"
-            >
-              <option value="all">All Types</option>
-              {documentTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => {
-                setSelectedYear(e.target.value);
-                if (e.target.value === "all") setSelectedMonth("all");
-              }}
-              className="form-select text-sm bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 rounded-lg pl-3 pr-8 py-1.5 min-w-[120px]"
-            >
-              <option value="all">All Years</option>
-              {availableYears.map((y) => (
-                <option key={y} value={y.toString()}>
-                  {y}
-                </option>
-              ))}
-            </select>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              disabled={selectedYear === "all"}
-              className="form-select text-sm bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 rounded-lg pl-3 pr-8 py-1.5 min-w-[140px] disabled:opacity-50"
-            >
-              <option value="all">All Months</option>
-              {months.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className={`inline-flex items-center gap-1.5 text-sm rounded-lg border pl-3 pr-3 py-1.5 transition-colors ${
-                    dateFrom || dateTo
-                      ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200"
-                      : "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600"
-                  }`}
-                >
-                  <CalendarIcon className="w-3.5 h-3.5" />
-                  {dateRangeLabel}
-                  {(dateFrom || dateTo) && (
-                    <X
-                      className="w-3.5 h-3.5 ml-1 opacity-70 hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDateFrom("");
-                        setDateTo("");
-                      }}
-                    />
-                  )}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-auto p-3 z-[60]"
-                align="start"
-                sideOffset={6}
-              >
-                <div className="flex flex-col gap-3 min-w-[260px]">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      From
-                    </label>
-                    <DatePickerInput
-                      name="documentsDateFrom"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                      className="form-input w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-lg text-sm py-1.5"
-                      maxDate={dateTo || undefined}
-                      popoverClassName="z-[70]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      To
-                    </label>
-                    <DatePickerInput
-                      name="documentsDateTo"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                      className="form-input w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 rounded-lg text-sm py-1.5"
-                      minDate={dateFrom || undefined}
-                      popoverClassName="z-[70]"
-                    />
-                  </div>
-                  {dateRangeError && (
-                    <span className="text-xs text-red-600 dark:text-red-400">
-                      {dateRangeError}
-                    </span>
-                  )}
-                  {(dateFrom || dateTo) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDateFrom("");
-                        setDateTo("");
-                      }}
-                      className="self-end text-xs text-[#456654] dark:text-[#5a7a68] hover:underline font-medium"
-                    >
-                      Clear range
-                    </button>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="text-xs text-[#456654] dark:text-[#5a7a68] hover:underline font-medium px-2 py-1"
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
-
-          {/* Body: inbox view OR folder contents OR preview */}
+          {/* Body: preview OR inbox OR documents table */}
           <div className="flex-1 min-h-0">
             {selectedDocument ? (
               <DocumentsPreviewPanel
@@ -1371,6 +1183,14 @@ function DocumentsTab({
                 fetchPresignedPreview={fetchPresignedPreview}
                 InlineDocumentPreview={InlineDocumentPreview}
                 onClose={() => setSelectedDocument(null)}
+                onBack={() => setSelectedDocument(null)}
+                backLabel={
+                  inboxSelected
+                    ? "Inbox"
+                    : selectedFolderObj
+                      ? selectedFolderObj.label
+                      : "All Documents"
+                }
                 onOpenInNewTab={handleOpenInNewTab}
                 onDelete={handleDelete}
                 onOpenAIReport={onOpenAIReport}
@@ -1383,25 +1203,7 @@ function DocumentsTab({
                 accountUrl={accountUrl}
                 propertyUid={propertyUid ?? propertyData?.property_uid ?? propertyData?.identity?.property_uid}
               />
-            ) : selectedFolderObj ? (
-              <FolderContentsView
-                folder={selectedFolderObj}
-                documents={documentsBySystem[selectedFolderObj.id] || []}
-                onBack={() => setSelectedFolder(null)}
-                onUploadForSystem={openUploadModalWithSystem}
-                onSelectDocument={handleDocumentSelect}
-                selectedDocumentId={selectedDocument?.id}
-                onOpenInNewTab={handleOpenInNewTab}
-                onDelete={handleDelete}
-                documentTypes={documentTypes}
-                getFileTypeColor={getFileTypeColor}
-                isUploadDisabled={
-                  selectedFolderObj.id === "inspectionReport" &&
-                  hasInspectionReport
-                }
-                uploadDisabledReason="An inspection report already exists for this property"
-              />
-            ) : (
+            ) : inboxSelected ? (
               <DocumentsInboxView
                 cards={inbox.cards}
                 loading={inbox.loading}
@@ -1423,6 +1225,28 @@ function DocumentsTab({
                   propertyUid ??
                   propertyData?.property_uid ??
                   propertyData?.identity?.property_uid
+                }
+              />
+            ) : (
+              <DocumentsTableView
+                title={
+                  selectedFolderObj ? selectedFolderObj.label : "All Documents"
+                }
+                documents={tableDocuments}
+                documentTypes={documentTypes}
+                getFileTypeColor={getFileTypeColor}
+                getAnalysisStatus={getAnalysisStatus}
+                onSelectDocument={handleDocumentSelect}
+                onOpenInNewTab={handleOpenInNewTab}
+                onDelete={handleDelete}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                selectedType={selectedType}
+                setSelectedType={setSelectedType}
+                onUploadClick={
+                  selectedFolderObj
+                    ? () => openUploadModalWithSystem(selectedFolderObj.id)
+                    : openDefaultUploadModal
                 }
               />
             )}
@@ -1834,6 +1658,147 @@ function DocumentsTab({
           onClose={() => setShowCaptureModal(false)}
           onAddToInbox={(files) => inbox.addFiles(files)}
         />
+      </div>
+
+      {/* Right rail — Smart Records & AI */}
+      <div className="space-y-4 min-w-0">
+        <SectionCard
+          flat
+          title="Smart Records & AI"
+          description="Add documents and let Opsy extract key details"
+          icon={Sparkles}
+        >
+          <div className="space-y-5">
+            {/* Add & Extract Documents */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400 dark:text-neutral-500 mb-2">
+                Add &amp; Extract Documents
+              </p>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={openDefaultUploadModal}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-700/60 hover:border-[#456654]/50 hover:bg-[#456654]/[0.04] dark:hover:bg-[#456654]/10 transition-colors text-left group"
+                >
+                  <span className="w-8 h-8 rounded-lg bg-[#456654]/10 dark:bg-[#456654]/25 flex items-center justify-center shrink-0">
+                    <Upload className="w-4 h-4 text-[#456654] dark:text-[#7a9a88]" />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium text-neutral-900 dark:text-white">
+                      Upload Document
+                    </span>
+                    <span className="block text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
+                      Upload files from your device
+                    </span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-neutral-300 dark:text-neutral-600 group-hover:text-[#456654] dark:group-hover:text-[#7a9a88] shrink-0" />
+                </button>
+                <button
+                  type="button"
+                  onClick={openCaptureModal}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-700/60 hover:border-[#456654]/50 hover:bg-[#456654]/[0.04] dark:hover:bg-[#456654]/10 transition-colors text-left group"
+                >
+                  <span className="w-8 h-8 rounded-lg bg-[#456654]/10 dark:bg-[#456654]/25 flex items-center justify-center shrink-0">
+                    <Smartphone className="w-4 h-4 text-[#456654] dark:text-[#7a9a88]" />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium text-neutral-900 dark:text-white">
+                      Add from Mobile
+                    </span>
+                    <span className="block text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
+                      Scan QR code to upload
+                    </span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-neutral-300 dark:text-neutral-600 group-hover:text-[#456654] dark:group-hover:text-[#7a9a88] shrink-0" />
+                </button>
+              </div>
+            </div>
+
+            {/* Recent Parsed Documents */}
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400 dark:text-neutral-500 mb-2">
+                Recent Parsed Documents
+              </p>
+              {smartRecordsSummary.recent.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/50 py-2">
+                      <p className="text-base font-bold text-neutral-900 dark:text-white tabular-nums">
+                        {smartRecordsSummary.analyzed.length}
+                      </p>
+                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.06em]">
+                        Analyzed
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/50 py-2">
+                      <p className="text-base font-bold text-neutral-900 dark:text-white tabular-nums">
+                        {smartRecordsSummary.processing.length}
+                      </p>
+                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.06em]">
+                        In Progress
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700/50 py-2">
+                      <p className="text-base font-bold text-neutral-900 dark:text-white tabular-nums">
+                        {smartRecordsSummary.total}
+                      </p>
+                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.06em]">
+                        Documents
+                      </p>
+                    </div>
+                  </div>
+                  <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                    {smartRecordsSummary.recent.map(({doc, status}) => (
+                      <li key={`analysis-${doc.id}`}>
+                        <button
+                          type="button"
+                          onClick={() => handleDocumentSelect(doc)}
+                          className="w-full flex items-center gap-2.5 py-2 first:pt-0 last:pb-0 text-left group"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                          <span className="text-sm text-neutral-800 dark:text-neutral-200 truncate flex-1">
+                            {doc.document_name || doc.file_name || "Document"}
+                          </span>
+                          <StatusBadge
+                            tone={
+                              status === "completed"
+                                ? "emerald"
+                                : status === "failed"
+                                  ? "red"
+                                  : "amber"
+                            }
+                          >
+                            {status === "completed"
+                              ? "Analyzed"
+                              : status === "failed"
+                                ? "Failed"
+                                : "Analyzing"}
+                          </StatusBadge>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {onOpenAIReport && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenAIReport()}
+                      className="w-full px-3 py-1.5 text-xs font-medium rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456654]/50 hover:text-[#456654] dark:hover:text-[#7a9a88] transition-colors"
+                    >
+                      View All Extracted Data
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <EmptyStateCard
+                  icon={Sparkles}
+                  title="No AI extractions yet"
+                  description="Upload documents like inspection reports, invoices, and warranties — Opsy can extract key details automatically."
+                />
+              )}
+            </div>
+          </div>
+        </SectionCard>
+      </div>
       </div>
     </DndContext>
   );

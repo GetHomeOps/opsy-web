@@ -570,10 +570,19 @@ async function processWebhookEvent(event) {
   }
 }
 
+/* Short TTL cache: the admin dropdown hits this on every page load and the data
+   changes rarely. Avoids a Stripe round trip per request. */
+const ACTIVE_PRICES_CACHE_TTL_MS = 60 * 1000;
+let activePricesCache = null; // { data, fetchedAt }
+
 /** List active Stripe prices with product info (for admin dropdown). */
 async function listActivePrices() {
   if (BILLING_MOCK_MODE || !stripe) {
     return [];
+  }
+
+  if (activePricesCache && Date.now() - activePricesCache.fetchedAt < ACTIVE_PRICES_CACHE_TTL_MS) {
+    return activePricesCache.data;
   }
 
   const prices = await stripe.prices.list({
@@ -582,7 +591,7 @@ async function listActivePrices() {
     limit: 100,
   });
 
-  return (prices.data || []).map((p) => ({
+  const data = (prices.data || []).map((p) => ({
     id: p.id,
     nickname: p.nickname || "",
     unitAmount: p.unit_amount,
@@ -592,6 +601,8 @@ async function listActivePrices() {
     productId: typeof p.product === "string" ? p.product : p.product?.id,
     productName: typeof p.product === "object" ? p.product?.name : null,
   }));
+  activePricesCache = { data, fetchedAt: Date.now() };
+  return data;
 }
 
 /** Get default payment method for a Stripe customer. Returns { brand, last4 } or null. */

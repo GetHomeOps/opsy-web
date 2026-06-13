@@ -897,7 +897,9 @@ class AppApi {
   }
 
   static async createMaintenanceRecord(data) {
-    let res = await this.request(`maintenance/record/${data.property_id}`, data, 'POST');
+    const propertyId = data.property_id;
+    const {property_id: _propertyId, ...body} = data;
+    let res = await this.request(`maintenance/record/${propertyId}`, body, 'POST');
     return res.maintenanceRecord ?? res.maintenance;
   }
 
@@ -1102,6 +1104,35 @@ class AppApi {
     } finally {
       AppApi._suppressTierEmit = prev;
     }
+  }
+
+  /* --------- Property Notes --------- */
+
+  static async getPropertyNotes(propertyId) {
+    const res = await this.request(`property-notes/property/${propertyId}`);
+    return res.notes ?? [];
+  }
+
+  static async createPropertyNote(propertyId, body) {
+    const res = await this.request(
+      `property-notes/property/${propertyId}`,
+      { body },
+      "POST",
+    );
+    return res.note;
+  }
+
+  static async updatePropertyNote(noteId, body) {
+    const res = await this.request(
+      `property-notes/${noteId}`,
+      { body },
+      "PATCH",
+    );
+    return res.note;
+  }
+
+  static async deletePropertyNote(noteId) {
+    await this.request(`property-notes/${noteId}`, {}, "DELETE");
   }
 
   /* --------- Staged Documents (Documents inbox) --------- */

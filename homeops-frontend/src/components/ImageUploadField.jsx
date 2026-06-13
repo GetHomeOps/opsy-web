@@ -9,7 +9,7 @@ const SIZES = {
   sm: "w-20 h-20 sm:w-24 sm:h-24",
   md: "w-24 h-24 sm:w-36 sm:h-36",
   lg: "w-36 h-36 sm:w-52 sm:h-52",
-  xl: "w-full h-full min-h-[208px] lg:min-h-[288px]",
+  xl: "w-full h-full",
 };
 
 /**
@@ -90,7 +90,11 @@ function ImageUploadField({
       <div
         className={`${sizeClass} ${isCompact ? "rounded-lg" : "rounded-xl"} overflow-hidden transition-all duration-200 flex flex-col items-center justify-center relative ${
           hasImage
-            ? "bg-white ring-2 ring-gray-200 dark:ring-gray-600 ring-offset-2 dark:ring-offset-gray-800 shadow-sm cursor-pointer"
+            ? `bg-white shadow-sm cursor-pointer${
+                isXl
+                  ? ""
+                  : " ring-2 ring-gray-200 dark:ring-gray-600 ring-offset-2 dark:ring-offset-gray-800"
+              }`
             : "bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-750 border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:from-gray-100 hover:to-gray-200 dark:hover:from-gray-650 dark:hover:to-gray-700"
         }`}
         onClick={handleAreaClick}
@@ -112,7 +116,9 @@ function ImageUploadField({
             <Loader2
               className={`${isCompact ? "w-5 h-5" : "w-10 h-10"} animate-spin`}
             />
-            <span className={`${isCompact ? "text-[10px]" : "text-xs"} font-medium`}>
+            <span
+              className={`${isCompact ? "text-[10px]" : "text-xs"} font-medium`}
+            >
               {imageUploading ? "Uploading..." : "Loading..."}
             </span>
           </div>

@@ -6,27 +6,11 @@
  * Does not persist; returns computed object to attach to each system.
  */
 
-const { normalizeSystemType } = require("../services/inspectionAnalysisService");
-
-/** Map severity/priority to status. */
-function severityToStatus(severity, priority) {
-  const s = (severity || "").toLowerCase();
-  const p = (priority || "").toLowerCase();
-  if (s === "urgent" || s === "critical" || p === "urgent") return "poor";
-  if (s === "high" || p === "high") return "poor";
-  if (s === "medium" || p === "medium") return "fair";
-  if (s === "low" || p === "low") return "good";
-  return "fair";
-}
+const { canonicalSystemsMatch } = require("../services/systemTypes");
 
 /** Check if system key matches a normalized system type. */
 function matchesSystem(systemKey, rawType) {
-  if (!systemKey || !rawType) return false;
-  const key = String(systemKey).toLowerCase().replace(/-/g, "");
-  const norm = normalizeSystemType(rawType);
-  if (!norm) return false;
-  const normLower = String(norm).toLowerCase();
-  return key === normLower || key.includes(normLower) || normLower.includes(key);
+  return canonicalSystemsMatch(systemKey, rawType);
 }
 
 /**
@@ -46,9 +30,21 @@ function computeAiConditionForSystem(systemKey, analysis) {
   let status = null;
   let severity = null;
   let confidence = null;
-  let source = "inspection_analysis";
+  const source = "inspection_analysis";
 
-  // Check needsAttention first (defects take precedence)
+  // Align with inspection report modal: use per-system detected condition first.
+  const detected = systemsDetected.find((s) =>
+    matchesSystem(systemKey, s.systemType || s.system_type)
+  );
+  if (detected?.condition) {
+    const detectedCondition = String(detected.condition).toLowerCase();
+    if (["excellent", "good", "fair", "poor"].includes(detectedCondition)) {
+      status = detectedCondition;
+      confidence = detected.confidence ?? 0.7;
+    }
+  }
+
+  // Track worst actionable severity for attention badges (does not override condition).
   const needsForSystem = needsAttention.filter((n) => {
     const st = n.systemType || n.system_type;
     return st && matchesSystem(systemKey, st);
@@ -61,12 +57,7 @@ function computeAiConditionForSystem(systemKey, analysis) {
       return (order[aSev] ?? 5) <= (order[bSev] ?? 5) ? a : b;
     });
     severity = worst.severity || worst.priority || "medium";
-    status = severityToStatus(severity, worst.priority);
-    confidence = 0.7;
-  }
-
-  // Else check maintenanceSuggestions for this system
-  if (status == null) {
+  } else {
     const maintForSystem = maintenanceSuggestions.filter((m) =>
       matchesSystem(systemKey, m.systemType || m.system_type)
     );
@@ -78,16 +69,12 @@ function computeAiConditionForSystem(systemKey, analysis) {
         return (order[aP] ?? 4) <= (order[bP] ?? 4) ? a : b;
       });
       severity = worst.priority || "medium";
-      status = severityToStatus(severity, worst.priority);
-      confidence = worst.confidence ?? 0.6;
     }
   }
 
-  // Else if system detected but no issues, use overall condition or good
+  // Fallback when the system was detected but has no explicit condition rating.
   if (status == null) {
-    const isDetected = systemsDetected.some((s) =>
-      matchesSystem(systemKey, s.systemType || s.system_type)
-    );
+    const isDetected = Boolean(detected);
     if (isDetected) {
       status = ["excellent", "good", "fair", "poor"].includes(overallCondition)
         ? overallCondition
@@ -115,9 +102,8 @@ function computeAiConditionFromSummaryState(systemKey, summaryState) {
   if (!summaryState || !systemKey) return null;
   const updatedSystems = summaryState.updated_systems || summaryState.updatedSystems || [];
   const match = updatedSystems.find((s) => {
-    const name = (s.name || s.systemType || s.system_key || "").toLowerCase();
-    const key = String(systemKey).toLowerCase().replace(/-/g, "");
-    return name === key || name.includes(key) || key.includes(name);
+    const raw = s.name || s.systemType || s.system_key;
+    return raw && canonicalSystemsMatch(systemKey, raw);
   });
   if (!match) return null;
   const condition = (match.condition || "unknown").toLowerCase();

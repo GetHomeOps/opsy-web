@@ -22,7 +22,6 @@ import {
   Wrench,
   FileText,
   ArrowRightLeft,
-  RefreshCw,
   X,
   Search,
   AlertTriangle,
@@ -114,7 +113,8 @@ const HOMEOWNER_INVITE_TYPES = [
   {
     id: "co_owner",
     label: "Homeowner",
-    description: "Becomes property owner; billing moves to their account when they accept",
+    description:
+      "Becomes property owner; billing moves to their account when they accept",
   },
   {
     id: "view_only",
@@ -635,9 +635,9 @@ function PermissionToggle({
       role="group"
       aria-label={ariaLabel}
     >
-      <span className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 truncate shrink-0">
+      <span className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300 truncate shrink-0">
         {Icon && (
-          <Icon className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+          <Icon className="w-3.5 h-3.5 text-[#456564] dark:text-[#5a7a78]" />
         )}
         {systemName}
       </span>
@@ -694,81 +694,72 @@ function TeamMemberCard({
   const isPending = m._pending === true;
   const isCurrentUser =
     currentUserId != null && String(m.id) === String(currentUserId);
-  /* Only show resend for pending invitations – not for users who already accepted */
   const hasResend = isPending && m.invitationId && onResendInvitation;
   const displayRole = getPlatformTeamRoleLabel(m) ?? "Member";
+  const email = m.email || m.inviteeEmail;
 
   return (
-    <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600">
+    <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600">
       <div
-        className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0 ${
+        className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0 ${
           isPending
             ? "bg-gray-400 dark:bg-gray-500"
             : "bg-[#456564] dark:bg-[#5a7a78]"
         }`}
       >
         {isPending
-          ? m.email?.charAt(0)?.toUpperCase() || "?"
+          ? email?.charAt(0)?.toUpperCase() || "?"
           : m.name?.charAt(0)?.toUpperCase() ||
-            m.email?.charAt(0)?.toUpperCase() ||
+            email?.charAt(0)?.toUpperCase() ||
             "?"}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-medium text-gray-900 dark:text-white truncate">
-          {m.name || m.email}
+        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+          {m.name || email}
           {isCurrentUser && (
             <span className="text-gray-500 dark:text-gray-400 font-normal ml-1">
               (Me)
             </span>
           )}
         </p>
-        {(m.email || m.inviteeEmail) && (
+        {email && (
           <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            {m.email || m.inviteeEmail}
+            {email}
           </p>
         )}
-        {showRole && !(m.email || m.inviteeEmail) && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+        {showRole && (
+          <span className="inline-flex mt-1 px-1.5 py-0 rounded-md bg-neutral-100 dark:bg-neutral-800 text-[10px] font-medium text-neutral-600 dark:text-neutral-300">
             {displayRole}
-          </p>
-        )}
-        {showRole && (m.email || m.inviteeEmail) && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            {displayRole}
-          </p>
-        )}
-        {isPending && !hasResend && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            Pending invitation
-          </p>
+          </span>
         )}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {hasResend && (
-          <button
-            type="button"
-            onClick={() => onResendInvitation(m)}
-            disabled={resendingId === m.invitationId}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#456564] dark:text-[#5a7a78] hover:underline disabled:opacity-50"
-          >
-            {resendingId === m.invitationId ? (
-              <span className="animate-spin rounded-full h-3 w-3 border-2 border-current border-t-transparent" />
-            ) : (
-              <RefreshCw className="w-3 h-3" />
-            )}
-            Resend Invitation Email
-          </button>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        {isPending && (
+          <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 whitespace-nowrap">
+            Pending invite
+          </span>
         )}
-        {canRemove && onRemove && (
-          <button
-            type="button"
-            onClick={() => onRemove(m)}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/20 transition-colors"
-            aria-label="Remove member"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {hasResend && (
+            <button
+              type="button"
+              onClick={() => onResendInvitation(m)}
+              disabled={resendingId === m.invitationId}
+              className="text-[11px] font-medium text-[#456564] dark:text-[#5a7a78] hover:underline disabled:opacity-50 whitespace-nowrap"
+            >
+              {resendingId === m.invitationId ? "Sending…" : "Resend"}
+            </button>
+          )}
+          {canRemove && onRemove && (
+            <button
+              type="button"
+              onClick={() => onRemove(m)}
+              className="text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline whitespace-nowrap"
+            >
+              Remove
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -816,7 +807,8 @@ function SharePropertyModal({
   const [linkJustCopied, setLinkJustCopied] = useState(false);
   const [personalizeInviteOpen, setPersonalizeInviteOpen] = useState(false);
   const emailDropdownRef = useRef(null);
-  const inviteEmailAccountId = accountIdForProperty ?? currentAccount?.id ?? null;
+  const inviteEmailAccountId =
+    accountIdForProperty ?? currentAccount?.id ?? null;
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -944,7 +936,7 @@ function SharePropertyModal({
   const membersByTab = useMemo(() => {
     const groups = {agent: [], homeowner: [], insurance: [], mortgage: []};
     const visible = isAdminOrSuperAdmin
-      ? teamMembers ?? []
+      ? (teamMembers ?? [])
       : (teamMembers ?? []).filter((m) => {
           const r = (m?.role ?? "").toLowerCase();
           return r !== "admin" && r !== "super_admin";
@@ -977,6 +969,22 @@ function SharePropertyModal({
     }
     return groups;
   }, [teamMembers, currentUser?.id, isAgent, isHomeowner, isAdminOrSuperAdmin]);
+
+  const tabCounts = useMemo(() => {
+    const visible = isAdminOrSuperAdmin
+      ? (teamMembers ?? [])
+      : (teamMembers ?? []).filter((m) => {
+          const r = (m?.role ?? "").toLowerCase();
+          return r !== "admin" && r !== "super_admin";
+        });
+    return {
+      owner: visible.length,
+      homeowner: (membersByTab.homeowner ?? []).length,
+      agent: (membersByTab.agent ?? []).length,
+      insurance: (membersByTab.insurance ?? []).length,
+      mortgage: (membersByTab.mortgage ?? []).length,
+    };
+  }, [teamMembers, membersByTab, isAdminOrSuperAdmin]);
 
   /* Only one agent per property - block adding when one already exists */
   const hasAgent = useMemo(
@@ -1410,7 +1418,7 @@ function SharePropertyModal({
                 <div className="w-14 h-14 shrink-0 rounded-full bg-[#456564]/20 dark:bg-[#5a7a78]/30 flex items-center justify-center">
                   <Check className="w-8 h-8 text-[#456564] dark:text-[#5a7a78]" />
                 </div>
-                <p className="text-base font-semibold text-gray-900 dark:text-white text-center break-words w-full">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white text-center break-words w-full">
                   {successType === "resend"
                     ? "Invitation email resent!"
                     : successType === "ownership_sent"
@@ -1423,63 +1431,86 @@ function SharePropertyModal({
 
           {!showSuccessOverlay && (
             <>
-              <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Invite to property
-                </h2>
-                {propertyAddress && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate max-w-full">
-                    {propertyAddress}
-                  </p>
-                )}
+              <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Manage Property Team
+                    </h2>
+                    {propertyAddress && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-full">
+                        {propertyAddress}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 shrink-0"
+                    aria-label="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Tabs */}
-              <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto shrink-0 mx-6 md:mx-8">
+              <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto shrink-0 mx-5">
                 {visibleTabs.map((tab) => {
                   const Icon = tab.icon;
+                  const count = tabCounts[tab.id] ?? 0;
+                  const isActive = activeTab === tab.id;
                   return (
                     <button
                       key={tab.id}
                       type="button"
                       onClick={() => !tab.disabled && setActiveTab(tab.id)}
                       disabled={tab.disabled}
-                      className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors ${
                         tab.disabled
                           ? "text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-60"
-                          : activeTab === tab.id
+                          : isActive
                             ? "text-[#456564] dark:text-[#5a7a78] border-b-2 border-[#456564] dark:border-[#5a7a78]"
                             : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                       }`}
-                      aria-selected={activeTab === tab.id}
+                      aria-selected={isActive}
                       aria-disabled={tab.disabled}
                       role="tab"
                     >
-                      <Icon className="w-4 h-4 shrink-0" />
+                      <Icon className="w-3.5 h-3.5 shrink-0" />
                       {tab.label}
+                      <span
+                        className={`inline-flex items-center justify-center min-w-[1.125rem] h-4 px-1 rounded-full text-[10px] font-semibold tabular-nums ${
+                          isActive
+                            ? "bg-[#456564]/15 text-[#456564] dark:bg-[#5a7a78]/20 dark:text-[#7fa3a1]"
+                            : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+                        }`}
+                      >
+                        {count}
+                      </span>
                     </button>
                   );
                 })}
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 min-h-0">
+              <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
                 {/* ===== Owner tab: show owner (once) + team members (excluding owner) ===== */}
                 {activeTab === "owner" && (
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {/* Section 1: Owner */}
                     <div>
-                      <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">
+                      <p className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.08em] mb-1.5">
                         Owner
                       </p>
                       {propertyOwner ? (
-                        <div className="flex items-center gap-4 p-4 rounded-xl bg-[#456564]/5 dark:bg-[#5a7a78]/10 border border-[#456564]/20 dark:border-[#5a7a78]/30">
-                          <div className="w-12 h-12 rounded-full bg-[#456564] dark:bg-[#5a7a78] flex items-center justify-center text-white font-semibold shrink-0">
+                        <div className="flex items-center gap-3 p-3 rounded-xl bg-[#456564]/5 dark:bg-[#5a7a78]/10 border border-[#456564]/20 dark:border-[#5a7a78]/30">
+                          <div className="w-9 h-9 rounded-full bg-[#456564] dark:bg-[#5a7a78] flex items-center justify-center text-white text-xs font-semibold shrink-0">
                             {(propertyOwner.name || propertyOwner.email)
                               ?.charAt(0)
                               ?.toUpperCase() || "?"}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-gray-900 dark:text-white">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                               {propertyOwner.name ||
                                 propertyOwner.email ||
                                 "Unknown"}
@@ -1492,20 +1523,20 @@ function SharePropertyModal({
                             </p>
                             {(propertyOwner.email ||
                               propertyOwner.inviteeEmail) && (
-                              <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                                 {propertyOwner.email ||
                                   propertyOwner.inviteeEmail}
                               </p>
                             )}
                             {propertyOwnerPlatformLabel && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                              <span className="inline-flex mt-1 px-1.5 py-0 rounded-md bg-neutral-100 dark:bg-neutral-800 text-[10px] font-medium text-neutral-600 dark:text-neutral-300">
                                 {propertyOwnerPlatformLabel}
-                              </p>
+                              </span>
                             )}
-                            <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-[#456564]/20 dark:bg-[#5a7a78]/30 text-[#456564] dark:text-[#5a7a78] text-xs font-semibold">
-                              Owner
-                            </span>
                           </div>
+                          <span className="inline-flex items-center shrink-0 px-2 py-0.5 rounded-full bg-[#456564]/15 dark:bg-[#5a7a78]/25 text-[10px] font-semibold text-[#456564] dark:text-[#7fa3a1]">
+                            Owner
+                          </span>
                           {onTransferOwnership &&
                             isCurrentUserPropertyOwner &&
                             propertyOwnerIsHomeowner &&
@@ -1518,10 +1549,10 @@ function SharePropertyModal({
                                       setTransferError("");
                                       setTransferOwnershipOpen(true);
                                     }}
-                                    className="inline-flex items-center gap-1.5 text-sm font-medium text-[#456564] dark:text-[#5a7a78] hover:underline"
+                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#456564] dark:text-[#5a7a78] hover:underline"
                                   >
-                                    <ArrowRightLeft className="w-4 h-4" />
-                                    Transfer ownership
+                                    <ArrowRightLeft className="w-3 h-3" />
+                                    Transfer
                                   </button>
                                 ) : (
                                   <div className="flex flex-col gap-2 min-w-[200px]">
@@ -1570,7 +1601,7 @@ function SharePropertyModal({
                             )}
                         </div>
                       ) : (
-                        <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400">
                           No owner assigned
                         </div>
                       )}
@@ -1580,7 +1611,7 @@ function SharePropertyModal({
                       <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 mt-3">
                         <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-red-700 dark:text-red-400 leading-relaxed">
+                          <p className="text-xs text-red-700 dark:text-red-400 leading-relaxed">
                             {transferError}
                           </p>
                         </div>
@@ -1596,8 +1627,8 @@ function SharePropertyModal({
 
                     {/* Section 2: Team Members (excluding owner) */}
                     {teamMembersExcludingOwner.length > 0 && (
-                      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">
+                      <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                        <p className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.08em] mb-1.5">
                           Team Members
                         </p>
                         <div className="space-y-2">
@@ -1625,11 +1656,11 @@ function SharePropertyModal({
 
                 {/* ===== Invite tabs: agent, homeowner, insurance, mortgage ===== */}
                 {showInviteActions && (
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {/* Existing members for this tab */}
                     {(membersByTab[activeTab] ?? []).length > 0 && (
                       <div>
-                        <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-2">
+                        <p className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.08em] mb-1.5">
                           Current{" "}
                           {TABS.find(
                             (t) => t.id === activeTab,
@@ -1659,7 +1690,7 @@ function SharePropertyModal({
                       atHomeownerLimit &&
                       homeownerInviteType !== "view_only" &&
                       maxHomeownerSlots != null && (
-                        <div className="p-4 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">
+                        <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-xs text-gray-700 dark:text-gray-300">
                           You&apos;ve reached your plan limit for household
                           members ({homeownerCount} of {maxHomeownerSlots}).
                           Upgrade your plan to add more.
@@ -1667,7 +1698,7 @@ function SharePropertyModal({
                       )}
 
                     {activeTab === "agent" && hasAgent && (
-                      <div className="p-4 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300">
+                      <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-xs text-gray-700 dark:text-gray-300">
                         An agent has already been added to this property. Only
                         one agent is allowed per property.
                       </div>
@@ -1676,7 +1707,7 @@ function SharePropertyModal({
                     {activeTab === "agent" && hasAgent && (
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                             Access restrictions
                           </label>
                           <div className="flex items-center gap-1.5">
@@ -1716,14 +1747,14 @@ function SharePropertyModal({
 
                     {isInsuranceOrMortgageComingSoon ? (
                       <div className="py-8 text-center">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
                           Coming Soon
                         </p>
                       </div>
                     ) : activeTab === "agent" &&
                       hasAgent /* Agent already added: message and restrictions shown above; no invite form */ ? null : (
                       <>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
                           {activeTab === "agent"
                             ? "Invite an agent to collaborate on this property."
                             : isHomeowner
@@ -1733,11 +1764,11 @@ function SharePropertyModal({
 
                         {activeTab === "homeowner" && isHomeowner && (
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
                               Type
                             </label>
                             {atViewerLimit && maxViewers != null && (
-                              <div className="p-3 mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 text-sm text-amber-800 dark:text-amber-200">
+                              <div className="p-3 mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-200">
                                 You&apos;ve reached your plan limit for
                                 view-only members ({viewerCount} of {maxViewers}
                                 ). Upgrade your plan to add more.
@@ -1758,7 +1789,7 @@ function SharePropertyModal({
                                       setHomeownerInviteType(opt.id)
                                     }
                                     disabled={isDisabled}
-                                    className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                    className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                                       homeownerInviteType === opt.id
                                         ? "bg-[#456564] dark:bg-[#5a7a78] text-white"
                                         : "bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
@@ -1766,7 +1797,7 @@ function SharePropertyModal({
                                   >
                                     <span className="block">{opt.label}</span>
                                     <span
-                                      className={`block text-xs mt-0.5 ${homeownerInviteType === opt.id ? "text-white/90" : "text-gray-500 dark:text-gray-400"}`}
+                                      className={`block text-[10px] mt-0.5 ${homeownerInviteType === opt.id ? "text-white/90" : "text-gray-500 dark:text-gray-400"}`}
                                     >
                                       {opt.description}
                                     </span>
@@ -1780,7 +1811,7 @@ function SharePropertyModal({
                         <div>
                           <label
                             htmlFor="invite-name"
-                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                            className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5"
                           >
                             Name{" "}
                             <span className="font-normal text-gray-500 dark:text-gray-400">
@@ -1808,7 +1839,7 @@ function SharePropertyModal({
                         <div>
                           <label
                             htmlFor="invite-email"
-                            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                            className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5"
                           >
                             Email address
                           </label>
@@ -1845,7 +1876,7 @@ function SharePropertyModal({
                         {activeTab === "agent" && !hasAgent && (
                           <div>
                             <div className="flex items-center justify-between mb-3">
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                                 Access restrictions
                               </label>
                               <div className="flex items-center gap-1.5">
@@ -1886,7 +1917,7 @@ function SharePropertyModal({
                         {activeTab === "homeowner" && !isHomeowner && (
                           <div>
                             <div className="flex items-center justify-between mb-3">
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                                 Access restrictions
                               </label>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -1919,7 +1950,7 @@ function SharePropertyModal({
               </div>
 
               {showInviteActions && (
-                <div className="p-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2 shrink-0">
                   <div className="min-w-0">
                     {showCopyInviteLink ? (
                       <button
@@ -1929,12 +1960,12 @@ function SharePropertyModal({
                         disabled={
                           !canSubmit || inviteActionBusy || inviteSubmitBlocked
                         }
-                        className="inline-flex items-center gap-2 text-sm font-medium text-[#456564] dark:text-[#5a7a78] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-[#456564] dark:text-[#5a7a78] hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
                       >
                         {inviteBusyAction === "copy" ? (
-                          <span className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent shrink-0" />
+                          <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent shrink-0" />
                         ) : (
-                          <Link2 className="w-4 h-4 shrink-0" />
+                          <Link2 className="w-3.5 h-3.5 shrink-0" />
                         )}
                         {linkJustCopied
                           ? "Link copied"
@@ -1944,11 +1975,11 @@ function SharePropertyModal({
                       </button>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 justify-end">
+                  <div className="flex flex-wrap items-center gap-2 justify-end">
                     <button
                       type="button"
                       onClick={() => setModalOpen(false)}
-                      className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                      className="btn btn-sm border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs"
                     >
                       Cancel
                     </button>
@@ -2018,11 +2049,11 @@ function SharePropertyModal({
         backdropZClassName="z-[210]"
         dialogZClassName="z-[210]"
       >
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+        <div className="p-5">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
             Remove team member
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-5">
             Are you sure you want to remove{" "}
             <span className="font-medium text-gray-900 dark:text-white">
               {removeConfirmMember?.name || removeConfirmMember?.email}

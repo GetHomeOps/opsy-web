@@ -21,11 +21,14 @@ const DATA_FIELDS = [
   "workOrderNumber",
   "materialsUsed",
   "notes",
+  "findings",
   "nextStepsRecommendation",
   "files",
   "requestStatus",
   "checklist_item_id",
   "hideSendToContractorBanner",
+  "recordType",
+  "source",
 ];
 
 const DATA_DEFAULTS = {
@@ -37,11 +40,14 @@ const DATA_DEFAULTS = {
   workOrderNumber: "",
   materialsUsed: [],
   notes: "",
+  findings: "",
   nextStepsRecommendation: "",
   files: [],
   requestStatus: null,
   checklist_item_id: null,
   hideSendToContractorBanner: false,
+  recordType: "",
+  source: "Opsy",
 };
 
 /**
@@ -190,11 +196,14 @@ export function fromMaintenanceRecordBackend(backend) {
     workOrderNumber: d.workOrderNumber ?? "",
     materialsUsed: normalizeMaterialsUsedForUi(d.materialsUsed),
     notes: d.notes ?? "",
+    findings: d.findings ?? "",
     nextStepsRecommendation: d.nextStepsRecommendation ?? "",
     files: d.files ?? [],
     requestStatus: d.requestStatus ?? backend.requestStatus ?? null,
     checklist_item_id: d.checklist_item_id ?? null,
     hideSendToContractorBanner: Boolean(d.hideSendToContractorBanner),
+    recordType: d.recordType ?? "",
+    source: d.source ?? "Opsy",
     record_status:
       backend.recordStatus ??
       backend.record_status ??

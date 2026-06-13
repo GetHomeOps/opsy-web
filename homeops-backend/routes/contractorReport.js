@@ -98,6 +98,12 @@ router.get("/:token", async function (req, res, next) {
     const tokenData = await ContractorReportToken.validateToken(req.params.token);
 
     const data = tokenData.recordData || {};
+    const existingRecord = await MaintenanceRecord.getByRecordId(tokenData.maintenanceRecordId);
+    const completedAt = existingRecord.completed_at
+      ? String(existingRecord.completed_at).slice(0, 10)
+      : tokenData.completedAt
+        ? String(tokenData.completedAt).slice(0, 10)
+        : null;
     res.json({
       tokenId: tokenData.id,
       maintenanceRecordId: tokenData.maintenanceRecordId,
@@ -107,20 +113,28 @@ router.get("/:token", async function (req, res, next) {
       propertyName: tokenData.propertyName,
       systemKey: tokenData.systemKey,
       systemName: SYSTEM_LABELS[tokenData.systemKey] || tokenData.systemKey,
+      recordTitle: data.description || "",
+      recordType: data.recordType || "",
+      status: existingRecord.status || tokenData.recordStatus || "Scheduled",
+      completedAt,
+      nextServiceDate: existingRecord.next_service_date
+        ? String(existingRecord.next_service_date).slice(0, 10)
+        : null,
       existingData: {
         description: data.description || "",
+        recordType: data.recordType || "",
         workOrderNumber: data.workOrderNumber || "",
         priority: data.priority || "Medium",
         cost: data.cost || "",
         materialsUsed: normalizeMaterialsUsedForContractor(data.materialsUsed),
         notes: data.notes || "",
+        findings: data.findings || "",
+        nextStepsRecommendation: data.nextStepsRecommendation || "",
         files: Array.isArray(data.files) ? data.files : [],
         contractor: data.contractor || tokenData.contractorName || "",
         contractorEmail: data.contractorEmail || tokenData.contractorEmail || "",
         contractorPhone: data.contractorPhone || "",
       },
-      status: tokenData.recordStatus || "Pending Contractor",
-      completedAt: tokenData.completedAt,
     });
   } catch (err) {
     return next(err);
@@ -133,12 +147,13 @@ router.post("/:token", async function (req, res, next) {
     const tokenData = await ContractorReportToken.validateToken(req.params.token);
 
     const {
-      description, workOrderNumber, cost, materialsUsed,
-      notes, status, completedAt, nextServiceDate, files,
+      workOrderNumber, cost, materialsUsed,
+      notes, findings, nextStepsRecommendation,
+      status, completedAt, nextServiceDate, files,
     } = req.body;
 
-    if (!description || !description.trim()) {
-      throw new BadRequestError("Work description is required");
+    if (!notes || !notes.trim()) {
+      throw new BadRequestError("Work performed description is required");
     }
 
     const existingRecord = await MaintenanceRecord.getByRecordId(tokenData.maintenanceRecordId);
@@ -155,11 +170,14 @@ router.post("/:token", async function (req, res, next) {
 
     const updatedData = {
       ...existingData,
-      description: description?.trim() || existingData.description,
+      description: existingData.description,
       workOrderNumber: workOrderNumber ?? existingData.workOrderNumber,
       cost: cost ?? existingData.cost,
       materialsUsed: normalizedMaterials,
-      notes: notes ?? existingData.notes,
+      notes: notes?.trim() ?? existingData.notes,
+      findings: findings ?? existingData.findings,
+      nextStepsRecommendation:
+        nextStepsRecommendation ?? existingData.nextStepsRecommendation,
       files: mergedFiles,
       contractorSubmittedAt: new Date().toISOString(),
     };
@@ -216,19 +234,24 @@ router.patch("/:token", async function (req, res, next) {
     const tokenData = await ContractorReportToken.validateToken(req.params.token);
 
     const {
-      description, workOrderNumber, cost, materialsUsed,
-      notes, status, completedAt, nextServiceDate, files,
+      workOrderNumber, cost, materialsUsed,
+      notes, findings, nextStepsRecommendation,
+      status, completedAt, nextServiceDate, files,
     } = req.body;
 
     const existingRecord = await MaintenanceRecord.getByRecordId(tokenData.maintenanceRecordId);
     const existingData = existingRecord.data || {};
 
     const updatedData = { ...existingData };
-    if (description !== undefined) updatedData.description = description?.trim() ?? existingData.description;
     if (workOrderNumber !== undefined) updatedData.workOrderNumber = workOrderNumber ?? existingData.workOrderNumber;
     if (cost !== undefined) updatedData.cost = cost ?? existingData.cost;
     if (materialsUsed !== undefined) updatedData.materialsUsed = normalizeMaterialsUsedForContractor(materialsUsed);
     if (notes !== undefined) updatedData.notes = notes ?? existingData.notes;
+    if (findings !== undefined) updatedData.findings = findings ?? existingData.findings;
+    if (nextStepsRecommendation !== undefined) {
+      updatedData.nextStepsRecommendation =
+        nextStepsRecommendation ?? existingData.nextStepsRecommendation;
+    }
     if (files !== undefined) updatedData.files = Array.isArray(files) ? files : (existingData.files ?? []);
     updatedData.contractorDraftSavedAt = new Date().toISOString();
 

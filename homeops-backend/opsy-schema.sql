@@ -436,6 +436,17 @@ CREATE TABLE property_documents (
 
 CREATE INDEX idx_property_documents_maintenance ON property_documents(maintenance_record_id);
 
+CREATE TABLE property_notes (
+    id SERIAL PRIMARY KEY,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_property_notes_property ON property_notes(property_id, updated_at DESC);
+
 -- ============================================================
 -- Staged Documents
 -- Inbox / staging area for the Documents tab. Files are uploaded to

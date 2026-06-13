@@ -1,4 +1,6 @@
 export { default as DocumentsTreeView } from "./DocumentsTreeView";
+export { default as DocumentsFolderSidebar } from "./DocumentsFolderSidebar";
+export { default as DocumentsTableView } from "./DocumentsTableView";
 export { default as DocumentsTreeSkeleton } from "./DocumentsTreeSkeleton";
 export { default as DocumentsPreviewPanel } from "./DocumentsPreviewPanel";
 export { default as DocumentsInboxView } from "./DocumentsInboxView";

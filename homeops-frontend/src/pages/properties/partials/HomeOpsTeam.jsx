@@ -9,6 +9,7 @@ function HomeOpsTeam({
   onMemberClick,
   hideAddButton,
   isLoadingTeam = false,
+  compact = false,
 }) {
   const {users = []} = useContext(UserContext);
   const {currentUser} = useAuth();
@@ -64,30 +65,70 @@ function HomeOpsTeam({
 
   return (
     <section
-      className="rounded-2xl overflow-hidden border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900"
-      style={{
-        boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
-      }}
+      className={`rounded-2xl overflow-hidden border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 ${
+        compact ? "" : ""
+      }`}
+      style={
+        compact
+          ? undefined
+          : {
+              boxShadow:
+                "0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+            }
+      }
     >
-      <div className="flex items-center justify-between px-6 md:px-8 pt-6 md:pt-8 pb-3 md:pb-4">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-neutral-900 dark:text-white mb-0.5">
-            {teamSectionTitle}
-          </h2>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            People with access to this property
-          </p>
+      <div
+        className={`flex items-center justify-between ${
+          compact
+            ? "px-4 pt-4 pb-2"
+            : "px-6 md:px-8 pt-6 md:pt-8 pb-3 md:pb-4"
+        }`}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <h2
+              className={`font-semibold text-neutral-900 dark:text-white mb-0.5 truncate ${
+                compact ? "text-sm" : "text-xl md:text-2xl font-bold"
+              }`}
+            >
+              {teamSectionTitle}
+            </h2>
+            {compact && !isLoadingTeam && (
+              <button
+                type="button"
+                onClick={() => onOpenShareModal?.()}
+                className="text-xs font-semibold text-[#456564] dark:text-[#7fa3a1] hover:underline shrink-0"
+              >
+                Manage
+              </button>
+            )}
+          </div>
+          {!compact && (
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              People with access to this property
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="px-6 md:px-8 pb-6 md:pb-8 pt-0">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.12em] opacity-70">
-            Team members
-          </span>
-        </div>
+      <div
+        className={`pt-0 ${
+          compact ? "px-4 pb-4" : "px-6 md:px-8 pb-6 md:pb-8"
+        }`}
+      >
+        {!compact && (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.12em] opacity-70">
+              Team members
+            </span>
+          </div>
+        )}
         <div
-          className="flex items-center gap-4 flex-wrap min-h-[4.5rem]"
+          className={`flex min-h-0 ${
+            compact
+              ? "flex-col gap-2"
+              : "items-center gap-4 flex-wrap min-h-[4.5rem]"
+          }`}
           aria-busy={isLoadingTeam}
         >
         {isLoadingTeam ? (
@@ -174,6 +215,21 @@ function HomeOpsTeam({
                 }
               : undefined;
 
+            const roleLabel = (() => {
+              const r = platformLower;
+              if (r === "agent") return "Agent";
+              if (r === "homeowner" || r === "owner") return "Homeowner";
+              if (["insurer", "insurance", "insurance agent"].includes(r))
+                return "Insurance";
+              if (
+                ["mortgage partner", "mortgage", "mortgage agent"].includes(r)
+              )
+                return "Mortgage";
+              if (propLower === "viewer") return "Viewer";
+              if (propLower === "owner") return "Homeowner";
+              return "Editor";
+            })();
+
             return (
               <div
                 key={member.id ?? `pending-${member.email}`}
@@ -190,7 +246,11 @@ function HomeOpsTeam({
                       }
                     : undefined
                 }
-                className={`flex items-center gap-3 py-3 pl-3 pr-5 rounded-xl transition-colors duration-150 ${
+                className={`flex items-center transition-colors duration-150 ${
+                  compact
+                    ? "gap-3 py-2.5 px-2.5 rounded-lg w-full"
+                    : "gap-3 py-3 pl-3 pr-5 rounded-xl"
+                } ${
                   isClickable ? "cursor-pointer" : "cursor-default"
                 } ${
                   isPending
@@ -201,7 +261,9 @@ function HomeOpsTeam({
                 }`}
               >
                 <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-sm font-semibold overflow-hidden flex-shrink-0 ${
+                  className={`rounded-full flex items-center justify-center text-white font-semibold overflow-hidden flex-shrink-0 ${
+                    compact ? "w-10 h-10 text-sm" : "w-12 h-12 text-sm"
+                  } ${
                     isPending
                       ? "bg-neutral-400 dark:bg-neutral-500"
                       : "bg-[#456564] dark:bg-[#5a7a78]"
@@ -217,40 +279,46 @@ function HomeOpsTeam({
                     initials
                   )}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-neutral-900 dark:text-white truncate leading-tight">
+                    <p
+                      className="font-semibold text-neutral-900 dark:text-white truncate leading-tight text-sm"
+                    >
                       {member.name || member.email}
                     </p>
                     {isOwner && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#456564]/15 dark:bg-[#5a7a78]/25 text-[#456564] dark:text-[#5a7a78] text-xs font-semibold shrink-0">
+                      <span
+                        className={`inline-flex items-center rounded-md bg-[#456564]/15 dark:bg-[#5a7a78]/25 text-[#456564] dark:text-[#5a7a78] font-semibold shrink-0 ${
+                          compact
+                            ? "px-2 py-0.5 text-[11px]"
+                            : "px-2 py-0.5 text-xs"
+                        }`}
+                      >
                         Owner
                       </span>
                     )}
+                    {!isOwner && !isPending && !isInternalStaff && compact && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 shrink-0">
+                        {roleLabel}
+                      </span>
+                    )}
+                    {isPending && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-neutral-200/80 dark:bg-neutral-700 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 shrink-0">
+                        Pending Invite
+                      </span>
+                    )}
                   </div>
-                  {!isPending && !isInternalStaff && (
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate leading-tight">
-                      {(() => {
-                        const r = platformLower;
-                        if (r === "agent") return "Agent";
-                        if (r === "homeowner" || r === "owner")
-                          return "Homeowner";
-                        if (
-                          ["insurer", "insurance", "insurance agent"].includes(r)
-                        )
-                          return "Insurance";
-                        if (
-                          [
-                            "mortgage partner",
-                            "mortgage",
-                            "mortgage agent",
-                          ].includes(r)
-                        )
-                          return "Mortgage";
-                        if (propLower === "viewer") return "Viewer";
-                        if (propLower === "owner") return "Homeowner";
-                        return "Editor";
-                      })()}
+                  {!isPending && (
+                    <p
+                      className={`text-neutral-500 dark:text-neutral-400 truncate leading-tight ${
+                        compact ? "text-xs mt-0.5" : "text-xs"
+                      }`}
+                    >
+                      {compact
+                        ? member.email
+                        : !isInternalStaff
+                          ? roleLabel
+                          : null}
                     </p>
                   )}
                 </div>
@@ -266,11 +334,16 @@ function HomeOpsTeam({
             e.stopPropagation();
             onOpenShareModal?.();
           }}
-          className="w-14 h-14 rounded-xl border-2 border-dashed border-neutral-200 dark:border-neutral-600 flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:border-[#5a7a78]/50 dark:hover:text-[#5a7a78] hover:bg-[#456564]/5 transition-all duration-200 flex-shrink-0"
+          className={`border-2 border-dashed border-neutral-200 dark:border-neutral-600 flex items-center justify-center text-neutral-400 dark:text-neutral-500 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:border-[#5a7a78]/50 dark:hover:text-[#5a7a78] hover:bg-[#456564]/5 transition-all duration-200 flex-shrink-0 ${
+            compact
+              ? "w-full rounded-lg py-2.5 gap-1.5 text-[13px] font-semibold text-neutral-600 dark:text-neutral-400"
+              : "w-14 h-14 rounded-xl"
+          }`}
           aria-label="Add team member"
           title="Add team member"
         >
-          <Plus className="w-6 h-6" />
+          <Plus className={compact ? "w-4 h-4" : "w-6 h-6"} />
+          {compact && <span>Add Member</span>}
         </button>
         )}
         </div>

@@ -69,6 +69,73 @@ async function upsertPlanLimits(productId, limits) {
   }
 }
 
+/* Short-lived in-memory cache of Stripe price amounts so list endpoints don't
+   hit the Stripe API on every request. plan_prices remains the durable cache. */
+const STRIPE_PRICE_CACHE_TTL_MS = 60 * 1000;
+const stripePriceCache = new Map(); // priceId -> { value: {unitAmount, currency} | null, fetchedAt }
+
+/** Fetch fresh Stripe price data for the given IDs in parallel (deduped, TTL-cached).
+ *  Returns Map of priceId -> { unitAmount, currency }. Missing/unreachable prices are omitted. */
+async function getStripePriceMap(priceIds) {
+  const result = new Map();
+  let stripe = null;
+  try {
+    stripe = require("../services/stripeService").stripe;
+  } catch (_) { /* stripe service unavailable */ }
+  if (!stripe) return result;
+
+  const now = Date.now();
+  const toFetch = [];
+  for (const id of new Set(priceIds)) {
+    if (!id) continue;
+    const cached = stripePriceCache.get(id);
+    if (cached && now - cached.fetchedAt < STRIPE_PRICE_CACHE_TTL_MS) {
+      if (cached.value) result.set(id, cached.value);
+    } else {
+      toFetch.push(id);
+    }
+  }
+
+  await Promise.all(toFetch.map(async (id) => {
+    try {
+      const price = await stripe.prices.retrieve(id);
+      const value = { unitAmount: price.unit_amount, currency: price.currency || "usd" };
+      stripePriceCache.set(id, { value, fetchedAt: now });
+      result.set(id, value);
+    } catch (_) {
+      /* Stripe unavailable or price deleted — negative-cache so we don't retry every request */
+      stripePriceCache.set(id, { value: null, fetchedAt: now });
+    }
+  }));
+  return result;
+}
+
+/** Resolve plan price rows against Stripe in bulk; keeps plan_prices cache in sync.
+ *  Returns rows with unitAmount/currency refreshed from Stripe when available. */
+async function resolvePlanPriceRows(rows) {
+  const stripeMap = await getStripePriceMap(rows.map((r) => r.stripePriceId));
+  const updates = [];
+  const resolved = rows.map((row) => {
+    let unitAmount = row.unitAmount;
+    let currency = row.currency || "usd";
+    const fresh = row.stripePriceId ? stripeMap.get(row.stripePriceId) : null;
+    if (fresh && (fresh.unitAmount !== unitAmount || fresh.currency !== currency)) {
+      unitAmount = fresh.unitAmount;
+      currency = fresh.currency;
+      updates.push(
+        db.query(
+          `UPDATE plan_prices SET unit_amount = $1, currency = $2
+           WHERE subscription_product_id = $3 AND billing_interval = $4`,
+          [unitAmount, currency, row.subscriptionProductId, row.billingInterval]
+        ).catch(() => { /* cache refresh is best-effort */ })
+      );
+    }
+    return { ...row, unitAmount, currency };
+  });
+  await Promise.all(updates);
+  return resolved;
+}
+
 async function upsertPlanPrice(productId, billingInterval, stripePriceId) {
   const normalizedPriceId = typeof stripePriceId === "string" ? stripePriceId.trim() : stripePriceId;
 
@@ -307,10 +374,17 @@ class SubscriptionProduct {
                 COALESCE(is_active, true) AS "isActive"
          FROM plan_prices ORDER BY subscription_product_id, billing_interval`
       );
-      for (const row of priceRes.rows) {
+      const resolvedRows = await resolvePlanPriceRows(priceRes.rows);
+      for (const row of resolvedRows) {
         const pid = row.subscriptionProductId;
         if (!pricesByProduct[pid]) pricesByProduct[pid] = [];
-        pricesByProduct[pid].push({ billingInterval: row.billingInterval, stripePriceId: row.stripePriceId, unitAmount: row.unitAmount, currency: row.currency, isActive: row.isActive });
+        pricesByProduct[pid].push({
+          billingInterval: row.billingInterval,
+          stripePriceId: row.stripePriceId,
+          unitAmount: row.unitAmount,
+          currency: row.currency,
+          isActive: row.isActive,
+        });
       }
     } catch (e) {
       pricesByProduct = {};
@@ -367,36 +441,16 @@ class SubscriptionProduct {
         [products.map((p) => p.id)]
       );
       const pricesByProduct = {};
-      for (const row of priceRes.rows) {
-        if (row.isActive === false) continue;
+      const activeRows = priceRes.rows.filter((row) => row.isActive !== false);
+      const resolvedRows = await resolvePlanPriceRows(activeRows);
+      for (const row of resolvedRows) {
         const pid = row.subscriptionProductId;
         if (!pricesByProduct[pid]) pricesByProduct[pid] = [];
-        let unitAmount = row.unitAmount;
-        let currency = row.currency || "usd";
-        if (row.stripePriceId) {
-          try {
-            const stripeService = require("../services/stripeService");
-            if (stripeService.stripe) {
-              const price = await stripeService.stripe.prices.retrieve(row.stripePriceId);
-              const freshAmount = price.unit_amount;
-              const freshCurrency = price.currency || "usd";
-              if (freshAmount !== unitAmount || freshCurrency !== currency) {
-                unitAmount = freshAmount;
-                currency = freshCurrency;
-                await db.query(
-                  `UPDATE plan_prices SET unit_amount = $1, currency = $2
-                   WHERE subscription_product_id = $3 AND billing_interval = $4`,
-                  [unitAmount, currency, pid, row.billingInterval]
-                );
-              }
-            }
-          } catch (_) { /* Stripe unavailable — use cached value */ }
-        }
         pricesByProduct[pid].push({
           billingInterval: row.billingInterval,
           stripePriceId: row.stripePriceId,
-          unitAmount,
-          currency,
+          unitAmount: row.unitAmount,
+          currency: row.currency,
         });
       }
       for (const p of products) {

@@ -21,6 +21,7 @@ import {
   ListTodo,
 } from "lucide-react";
 import DatePickerInput from "../../../../components/DatePickerInput";
+import CurrencyInput from "../../../../components/CurrencyInput";
 import ContractorDropdown from "./ContractorDropdown";
 import SendToContractorModal from "./SendToContractorModal";
 import ContactSearchModal from "../ContactSearchModal";
@@ -54,6 +55,7 @@ function MaintenanceFormPanel({
   senderName = "",
   isSubmitting = false,
   saveBarAtTop = false,
+  embeddedInDetail = false,
   externalBanner = null,
   onExternalBannerClose,
 }) {
@@ -606,8 +608,8 @@ function MaintenanceFormPanel({
         <Wrench className="w-16 h-16 mb-4 opacity-30" />
         <h3 className="text-lg font-medium mb-2">No Record Selected</h3>
         <p className="text-sm text-center max-w-md">
-          Select a maintenance record from the tree view to view or edit its
-          details, or click the + button to add a new record.
+          Select a maintenance record from the list to view or edit its
+          details, or click New Record to add one.
         </p>
       </div>
     );
@@ -620,15 +622,21 @@ function MaintenanceFormPanel({
       }`}
     >
       {/* Header with actions */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-            {record ? "Edit" : "New"} Maintenance Record
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {systemName || "System"}
-          </p>
-        </div>
+      <div
+        className={`flex items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 ${
+          embeddedInDetail ? "justify-end" : "justify-between"
+        }`}
+      >
+        {!embeddedInDetail && (
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+              {record ? "Edit" : "New"} Maintenance Record
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {systemName || "System"}
+            </p>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           {onOpenInNewTab && systemId && record && (
             <button
@@ -1046,21 +1054,12 @@ function MaintenanceFormPanel({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Total Cost
             </label>
-            <div className="relative flex">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
-                $
-              </span>
-              <input
-                type="number"
-                name="cost"
-                value={formData.cost}
-                onChange={handleInputChange}
-                placeholder="0.00"
-                step="0.01"
-                min="0"
-                className="form-input w-full pl-7"
-              />
-            </div>
+            <CurrencyInput
+              name="cost"
+              value={formData.cost}
+              onChange={handleInputChange}
+              placeholder="0.00"
+            />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Total amount charged for this maintenance service
             </p>

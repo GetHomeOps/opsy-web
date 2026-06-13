@@ -30,7 +30,14 @@ import AppApi from "../../../api/api";
 import ModalBlank from "../../../components/ModalBlank";
 import ScheduleSystemModal from "./ScheduleSystemModal";
 import {parseDateInput} from "../../../lib/dateOffset";
-import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
+import {
+  getSystemLabelFromAiType,
+} from "../helpers/aiSystemNormalization";
+import {
+  computeChecklistProgressFromItems,
+  filterChecklistItemsForSystem,
+  resolveChecklistItemSystemKey,
+} from "../helpers/inspectionAnalysisHelpers";
 
 const INSPECTION_CHECKLIST_UPDATED_EVENT = "inspection-checklist:updated";
 
@@ -562,7 +569,6 @@ export default function InspectionChecklistPanel({
   onOpenAIAssistant,
 }) {
   const [items, setItems] = useState([]);
-  const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [syncingItemId, setSyncingItemId] = useState(null);
   const skipNextLoadRef = useRef(false);
@@ -580,13 +586,11 @@ export default function InspectionChecklistPanel({
       if (!propertyId) return;
       if (showLoader) setLoading(true);
       try {
-        const [itemsRes, progressRes, eventsRes] = await Promise.all([
+        const [itemsRes, eventsRes] = await Promise.all([
           AppApi.getInspectionChecklist(propertyId, {systemKey}),
-          AppApi.getInspectionChecklistProgress(propertyId),
           AppApi.getMaintenanceEventsByProperty(propertyId).catch(() => []),
         ]);
         setItems(itemsRes);
-        setProgress(progressRes);
         setMaintenanceEvents(eventsRes || []);
         if (!systemKey) {
           const systems = new Set(itemsRes.map((i) => i.system_key));
@@ -645,36 +649,6 @@ export default function InspectionChecklistPanel({
             : i,
         ),
       );
-      setProgress((prev) => {
-        if (!prev) return prev;
-        const sys = item.system_key;
-        const sysProgress = prev.bySystem[sys] || {
-          total: 0,
-          completed: 0,
-          pending: 0,
-          in_progress: 0,
-          deferred: 0,
-          not_applicable: 0,
-        };
-        const oldStatus = item.status;
-        const newSysProgress = {...sysProgress};
-        if (oldStatus && newSysProgress[oldStatus] > 0)
-          newSysProgress[oldStatus]--;
-        newSysProgress[newStatus] = (newSysProgress[newStatus] || 0) + 1;
-        const newBySystem = {...prev.bySystem, [sys]: newSysProgress};
-        let totalCompleted = 0;
-        let totalPending = 0;
-        for (const s of Object.values(newBySystem)) {
-          totalCompleted += s.completed || 0;
-          totalPending += s.pending || 0;
-        }
-        return {
-          ...prev,
-          completed: totalCompleted,
-          pending: totalPending,
-          bySystem: newBySystem,
-        };
-      });
       try {
         if (newStatus === "completed") {
           await AppApi.completeChecklistItem(itemId);
@@ -695,32 +669,9 @@ export default function InspectionChecklistPanel({
 
   const handleItemCreated = useCallback((newItem) => {
     setItems((prev) => [...prev, newItem]);
-    setProgress((prev) => {
-      if (!prev) return prev;
-      const sys = newItem.system_key;
-      const sysProgress = prev.bySystem[sys] || {
-        total: 0,
-        completed: 0,
-        pending: 0,
-        in_progress: 0,
-        deferred: 0,
-        not_applicable: 0,
-      };
-      const newSysProgress = {
-        ...sysProgress,
-        total: sysProgress.total + 1,
-        pending: sysProgress.pending + 1,
-      };
-      return {
-        ...prev,
-        total: prev.total + 1,
-        pending: prev.pending + 1,
-        bySystem: {...prev.bySystem, [sys]: newSysProgress},
-      };
-    });
     setExpandedSystems((prev) => {
       const next = new Set(prev);
-      next.add(newItem.system_key);
+      next.add(resolveChecklistItemSystemKey(newItem));
       return next;
     });
     skipNextLoadRef.current = true;
@@ -734,34 +685,6 @@ export default function InspectionChecklistPanel({
       try {
         await AppApi.deleteChecklistItem(itemId);
         setItems((prev) => prev.filter((i) => i.id !== itemId));
-        setProgress((prev) => {
-          if (!prev) return prev;
-          const sys = item.system_key;
-          const sysProgress = prev.bySystem[sys];
-          if (!sysProgress) return prev;
-          const newSysProgress = {
-            ...sysProgress,
-            total: Math.max(0, sysProgress.total - 1),
-          };
-          const st = item.status;
-          if (st && newSysProgress[st] > 0) newSysProgress[st]--;
-          const newBySystem = {...prev.bySystem, [sys]: newSysProgress};
-          let totalAll = 0,
-            totalCompleted = 0,
-            totalPending = 0;
-          for (const s of Object.values(newBySystem)) {
-            totalAll += s.total || 0;
-            totalCompleted += s.completed || 0;
-            totalPending += s.pending || 0;
-          }
-          return {
-            ...prev,
-            total: totalAll,
-            completed: totalCompleted,
-            pending: totalPending,
-            bySystem: newBySystem,
-          };
-        });
         skipNextLoadRef.current = true;
         emitInspectionChecklistUpdated();
       } catch (err) {
@@ -771,15 +694,32 @@ export default function InspectionChecklistPanel({
     [items],
   );
 
+  const completedChecklistItemIds = useMemo(() => {
+    const ids = new Set();
+    for (const rec of maintenanceRecords || []) {
+      const cid = rec.checklist_item_id ?? rec.checklistItemId;
+      const status = (rec.status ?? "").toString();
+      if (cid != null && status.toLowerCase() === "completed") {
+        ids.add(Number(cid));
+      }
+    }
+    return ids;
+  }, [maintenanceRecords]);
+
   const groupedItems = useMemo(() => {
     const groups = {};
     for (const item of items) {
-      const key = item.system_key || "general";
+      const key = resolveChecklistItemSystemKey(item);
       if (!groups[key]) groups[key] = [];
       groups[key].push(item);
     }
     return groups;
   }, [items]);
+
+  const overallProgress = useMemo(
+    () => computeChecklistProgressFromItems(items, completedChecklistItemIds),
+    [items, completedChecklistItemIds],
+  );
 
   const eventsByChecklistItemId = useMemo(() => {
     const map = {};
@@ -829,18 +769,6 @@ export default function InspectionChecklistPanel({
     [onOpenAIAssistant, systemType, systemLabel],
   );
 
-  const completedChecklistItemIds = useMemo(() => {
-    const ids = new Set();
-    for (const rec of maintenanceRecords || []) {
-      const cid = rec.checklist_item_id ?? rec.checklistItemId;
-      const status = (rec.status ?? "").toString();
-      if (cid != null && status.toLowerCase() === "completed") {
-        ids.add(Number(cid));
-      }
-    }
-    return ids;
-  }, [maintenanceRecords]);
-
   const toggleSystem = (sysKey) => {
     setExpandedSystems((prev) => {
       const next = new Set(prev);
@@ -876,18 +804,11 @@ export default function InspectionChecklistPanel({
   }
 
   if (systemKey) {
-    const sysKeyLower = systemKey.toLowerCase();
-    const sysItems =
-      groupedItems[systemKey] ||
-      Object.entries(groupedItems).find(
-        ([k]) => k.toLowerCase() === sysKeyLower,
-      )?.[1] ||
-      [];
-    const sysProgress =
-      progress?.bySystem?.[systemKey] ??
-      Object.entries(progress?.bySystem || {}).find(
-        ([k]) => k.toLowerCase() === sysKeyLower,
-      )?.[1];
+    const sysItems = filterChecklistItemsForSystem(items, systemKey);
+    const sysProgress = computeChecklistProgressFromItems(
+      sysItems,
+      completedChecklistItemIds,
+    );
     const inspectionItems = sysItems.filter((i) => i.source !== "user_created");
     const userItems = sysItems.filter((i) => i.source === "user_created");
     const hasAnyItems = sysItems.length > 0;
@@ -901,7 +822,7 @@ export default function InspectionChecklistPanel({
           .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
           .dark .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
         `}</style>
-        {sysProgress && hasAnyItems && (
+        {hasAnyItems && (
           <ProgressBar
             completed={sysProgress.completed}
             total={sysProgress.total}
@@ -991,11 +912,11 @@ export default function InspectionChecklistPanel({
         .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
         .dark .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
       `}</style>
-      {progress && (
+      {items.length > 0 && (
         <div className="flex items-center gap-3 mb-1">
           <ProgressBar
-            completed={progress.completed}
-            total={progress.total}
+            completed={overallProgress.completed}
+            total={overallProgress.total}
             className="flex-1"
           />
         </div>
@@ -1003,7 +924,10 @@ export default function InspectionChecklistPanel({
 
       {Object.entries(groupedItems).map(([sysKey, sysItems]) => {
         const isExpanded = expandedSystems.has(sysKey);
-        const sysProgress = progress?.bySystem?.[sysKey];
+        const sysProgress = computeChecklistProgressFromItems(
+          sysItems,
+          completedChecklistItemIds,
+        );
         const inspectionItems = sysItems.filter(
           (i) => i.source !== "user_created",
         );
@@ -1026,7 +950,7 @@ export default function InspectionChecklistPanel({
               <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                 {getSystemLabel(sysKey)}
               </span>
-              {sysProgress && (
+              {sysItems.length > 0 && (
                 <ProgressBar
                   completed={sysProgress.completed}
                   total={sysProgress.total}
