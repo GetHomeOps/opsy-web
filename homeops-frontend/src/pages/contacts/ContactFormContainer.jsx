@@ -157,19 +157,52 @@ function ContactsFormContainer() {
   const [deletingTagId, setDeletingTagId] = useState(null);
 
   const TAG_COLOR_OPTIONS = [
-    { value: "#3b82f6", classes: "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300" },
-    { value: "#22c55e", classes: "bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-300" },
-    { value: "#a855f7", classes: "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300" },
-    { value: "#f97316", classes: "bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-orange-300" },
-    { value: "#ef4444", classes: "bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-300" },
-    { value: "#14b8a6", classes: "bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300" },
-    { value: "#f59e0b", classes: "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300" },
-    { value: "#ec4899", classes: "bg-pink-100 text-pink-800 dark:bg-pink-900/60 dark:text-pink-300" },
+    {
+      value: "#3b82f6",
+      classes:
+        "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300",
+    },
+    {
+      value: "#22c55e",
+      classes:
+        "bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-300",
+    },
+    {
+      value: "#a855f7",
+      classes:
+        "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300",
+    },
+    {
+      value: "#f97316",
+      classes:
+        "bg-orange-100 text-orange-800 dark:bg-orange-900/60 dark:text-orange-300",
+    },
+    {
+      value: "#ef4444",
+      classes: "bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-300",
+    },
+    {
+      value: "#14b8a6",
+      classes:
+        "bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300",
+    },
+    {
+      value: "#f59e0b",
+      classes:
+        "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300",
+    },
+    {
+      value: "#ec4899",
+      classes:
+        "bg-pink-100 text-pink-800 dark:bg-pink-900/60 dark:text-pink-300",
+    },
   ];
 
-  const DEFAULT_TAG_CLASSES = "bg-gray-100 text-gray-800 dark:bg-gray-900/60 dark:text-gray-300";
+  const DEFAULT_TAG_CLASSES =
+    "bg-gray-100 text-gray-800 dark:bg-gray-900/60 dark:text-gray-300";
   const hexToTagClasses = (hex) =>
-    TAG_COLOR_OPTIONS.find((o) => o.value === hex)?.classes || DEFAULT_TAG_CLASSES;
+    TAG_COLOR_OPTIONS.find((o) => o.value === hex)?.classes ||
+    DEFAULT_TAG_CLASSES;
 
   const {
     uploadImage,
@@ -287,9 +320,13 @@ function ContactsFormContainer() {
   // Clear local preview and uploaded URL when switching to a different contact (not when updating the same one)
   const prevContactIdRef = useRef(null);
   useEffect(() => {
-    const currentId = state.contact?.id != null ? Number(state.contact.id) : null;
-    const switchedContact = prevContactIdRef.current != null && currentId !== prevContactIdRef.current;
-    const clearedContact = prevContactIdRef.current != null && currentId == null;
+    const currentId =
+      state.contact?.id != null ? Number(state.contact.id) : null;
+    const switchedContact =
+      prevContactIdRef.current != null &&
+      currentId !== prevContactIdRef.current;
+    const clearedContact =
+      prevContactIdRef.current != null && currentId == null;
     prevContactIdRef.current = currentId;
 
     if (switchedContact || clearedContact) {
@@ -420,7 +457,10 @@ function ContactsFormContainer() {
       }
     } catch (err) {
       console.error("Error creating contact:", err);
-      if (err?.status === 403 && err?.message?.toLowerCase().includes("limit")) {
+      if (
+        err?.status === 403 &&
+        err?.message?.toLowerCase().includes("limit")
+      ) {
         setUpgradePromptMsg(err.message);
         setUpgradePromptOpen(true);
       } else {
@@ -972,12 +1012,17 @@ function ContactsFormContainer() {
     setDeletingTagId(tagId);
     try {
       await AppApi.deleteTag(currentAccount.id, tagId);
-      setAccountTags((prev) => prev.filter((t) => Number(t.id) !== Number(tagId)));
+      setAccountTags((prev) =>
+        prev.filter((t) => Number(t.id) !== Number(tagId)),
+      );
       handleRemoveTag(tagId);
     } catch (err) {
       console.error("Error deleting tag:", err);
       const msg = err?.message || err?.messages?.[0] || "Failed to delete tag.";
-      dispatch({ type: "SET_BANNER", payload: { open: true, type: "error", message: msg } });
+      dispatch({
+        type: "SET_BANNER",
+        payload: {open: true, type: "error", message: msg},
+      });
     } finally {
       setDeletingTagId(null);
     }
@@ -993,7 +1038,8 @@ function ContactsFormContainer() {
           payload: {
             open: true,
             type: "error",
-            message: t("noAccountSelected") || "Please select an account first.",
+            message:
+              t("noAccountSelected") || "Please select an account first.",
           },
         });
       }
@@ -1011,7 +1057,8 @@ function ContactsFormContainer() {
           payload: {
             open: true,
             type: "error",
-            message: t("tagCreateFailed") || "Failed to create tag. Please try again.",
+            message:
+              t("tagCreateFailed") || "Failed to create tag. Please try again.",
           },
         });
         return;
@@ -1299,7 +1346,7 @@ function ContactsFormContainer() {
                         ? "border-gray-700 dark:border-gray-300 scale-110"
                         : "border-gray-200 dark:border-gray-600 hover:border-gray-400"
                     }`}
-                    style={{ backgroundColor: opt.value }}
+                    style={{backgroundColor: opt.value}}
                     aria-label={t("selectColor") || "Select color"}
                   />
                 ))}
@@ -1327,8 +1374,16 @@ function ContactsFormContainer() {
                         className="opacity-70 hover:opacity-100 focus:opacity-100 rounded p-0.5 disabled:opacity-50"
                         aria-label={t("deleteTag") || "Delete tag"}
                       >
-                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                       </button>
                     </span>
@@ -1563,13 +1618,17 @@ function ContactsFormContainer() {
                     imagePreviewUrl ||
                     state.contact?.image_url ||
                     uploadedImageUrl ||
-                    (state.formData.image?.startsWith?.("http") ? state.formData.image : null)
+                    (state.formData.image?.startsWith?.("http")
+                      ? state.formData.image
+                      : null)
                   }
                   hasImage={!!state.formData.image}
                   imageUploading={imageUploading}
                   onUpload={uploadImage}
                   onRemove={handleRemovePhoto}
-                  onPasteUrl={() => dispatch({type: "SET_SHOW_URL_INPUT", payload: true})}
+                  onPasteUrl={() =>
+                    dispatch({type: "SET_SHOW_URL_INPUT", payload: true})
+                  }
                   showRemove={!!state.formData.image}
                   imageUploadError={imageUploadError}
                   onDismissError={() => setImageUploadError(null)}
@@ -1581,7 +1640,9 @@ function ContactsFormContainer() {
                   pasteUrlLabel={t("pasteUrl") || "Paste URL"}
                   fileInputRef={fileInputRef}
                   menuOpen={state.imageMenuOpen}
-                  onMenuToggle={(open) => dispatch({type: "SET_IMAGE_MENU_OPEN", payload: open})}
+                  onMenuToggle={(open) =>
+                    dispatch({type: "SET_IMAGE_MENU_OPEN", payload: open})
+                  }
                 />
 
                 {/* Contact Name, Type and Info */}
@@ -1669,7 +1730,10 @@ function ContactsFormContainer() {
           >
             <div className="border-b border-gray-200 dark:border-gray-700">
               <div className="px-4 sm:px-6 overflow-x-auto [scrollbar-width:thin]">
-                <nav className="flex space-x-6 sm:space-x-8 min-w-max" aria-label="Tabs">
+                <nav
+                  className="flex space-x-6 sm:space-x-8 min-w-max"
+                  aria-label="Tabs"
+                >
                   {tabs.map((tab) => (
                     <button
                       key={tab.id}
@@ -1705,7 +1769,9 @@ function ContactsFormContainer() {
                           <button
                             type="button"
                             role="radio"
-                            aria-checked={state.formData.contactType === "individual"}
+                            aria-checked={
+                              state.formData.contactType === "individual"
+                            }
                             onClick={() => {
                               dispatch({
                                 type: "SET_FORM_DATA",
@@ -1716,7 +1782,10 @@ function ContactsFormContainer() {
                                 },
                               });
                               if (state.isInitialLoad) {
-                                dispatch({type: "SET_FORM_CHANGED", payload: true});
+                                dispatch({
+                                  type: "SET_FORM_CHANGED",
+                                  payload: true,
+                                });
                               }
                             }}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -1737,7 +1806,9 @@ function ContactsFormContainer() {
                           <button
                             type="button"
                             role="radio"
-                            aria-checked={state.formData.contactType === "company"}
+                            aria-checked={
+                              state.formData.contactType === "company"
+                            }
                             onClick={() => {
                               dispatch({
                                 type: "SET_FORM_DATA",
@@ -1748,7 +1819,10 @@ function ContactsFormContainer() {
                                 },
                               });
                               if (state.isInitialLoad) {
-                                dispatch({type: "SET_FORM_CHANGED", payload: true});
+                                dispatch({
+                                  type: "SET_FORM_CHANGED",
+                                  payload: true,
+                                });
                               }
                             }}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors border-l border-gray-200 dark:border-gray-600 ${
@@ -2197,7 +2271,10 @@ function ContactsFormContainer() {
         open={upgradePromptOpen}
         onClose={() => setUpgradePromptOpen(false)}
         title="Contact limit reached"
-        message={upgradePromptMsg || "You've reached the maximum number of contacts for your current plan. Upgrade to add more."}
+        message={
+          upgradePromptMsg ||
+          "You've reached the maximum number of contacts for your current plan. Upgrade to add more."
+        }
       />
     </div>
   );

@@ -98,6 +98,7 @@ import {
   SYSTEM_FIELD_NAMES,
 } from "./helpers/formDataByTabs";
 import {buildPropertyPayloadFromRefresh} from "./helpers/buildPropertyPayloadFromRefresh";
+import {openMaintenanceRecordInNewTab} from "./helpers/maintenanceRecordNavigation";
 import {formSystemsToArray} from "./helpers/formSystemsToArray";
 import {buildCustomSystemsForUi} from "./helpers/systemKeyUtils";
 import {computeHpsScore} from "./helpers/computeHpsScore";
@@ -354,6 +355,17 @@ function reducer(state, action) {
         },
         isInitialLoad: false,
       };
+    case "MERGE_SAVED_MAINTENANCE_RECORD": {
+      const record = action.payload;
+      if (!record?.id) return state;
+      const existing = state.savedMaintenanceRecords ?? [];
+      const idx = existing.findIndex((r) => String(r.id) === String(record.id));
+      const nextSaved =
+        idx >= 0
+          ? existing.map((r, i) => (i === idx ? {...r, ...record} : r))
+          : [...existing, record];
+      return {...state, savedMaintenanceRecords: nextSaved};
+    }
     case "SET_ERRORS":
       return {...state, errors: action.payload};
     case "SET_VALIDATION_FAILED":
@@ -1339,6 +1351,34 @@ function PropertyFormContainer() {
       })
       .catch(() => setMaintenanceEvents([]));
   }, [effectivePropertyId]);
+  const handleMaintenanceRecordsChange = useCallback(
+    (records, options = {}) => {
+      dispatch({
+        type: options.silent
+          ? "SET_MAINTENANCE_FORM_DATA_SILENT"
+          : "SET_MAINTENANCE_FORM_DATA",
+        payload: records,
+      });
+      if (options.persistedRecord?.id != null) {
+        dispatch({
+          type: "MERGE_SAVED_MAINTENANCE_RECORD",
+          payload: options.persistedRecord,
+        });
+        originalMaintenanceRecordIdsRef.current.add(options.persistedRecord.id);
+      }
+    },
+    [],
+  );
+  const handleOpenMaintenanceRecordView = useCallback(
+    (record) => {
+      openMaintenanceRecordInNewTab({
+        accountUrl,
+        propertyId: uid,
+        record,
+      });
+    },
+    [accountUrl, uid],
+  );
   useEffect(() => {
     if (!effectivePropertyId) {
       setMaintenanceEvents([]);
@@ -1407,10 +1447,7 @@ function PropertyFormContainer() {
       if (!effectivePropertyId) return;
       setPropertyNotesSaving(true);
       try {
-        const note = await AppApi.createPropertyNote(
-          effectivePropertyId,
-          body,
-        );
+        const note = await AppApi.createPropertyNote(effectivePropertyId, body);
         setPropertyNotes((prev) => [note, ...prev]);
       } finally {
         setPropertyNotesSaving(false);
@@ -1538,10 +1575,12 @@ function PropertyFormContainer() {
   /** Auto-pull ATTOM when a saved property has never had a lookup and has a complete address. */
   useEffect(() => {
     if (uid === "new" || !effectivePropertyId) return;
-    if (!attomRefresh.initialLoaded || initialAttomPullAttemptedRef.current) return;
+    if (!attomRefresh.initialLoaded || initialAttomPullAttemptedRef.current)
+      return;
     if (attomRefresh.isActive || attomRefresh.isAtLookupLimit) return;
     if (attomRefresh.lookupCount > 0) return;
-    if (identityDataSource === "attom" || identityDataSource === "rentcast") return;
+    if (identityDataSource === "attom" || identityDataSource === "rentcast")
+      return;
     if (!hasCompleteAddressForAttom(savedMergedPropertyData)) return;
 
     initialAttomPullAttemptedRef.current = true;
@@ -2204,7 +2243,9 @@ function PropertyFormContainer() {
     dispatch({type: "SET_ERRORS", payload: {}});
     dispatch({type: "SET_SUBMITTING", payload: true});
     const t0 = performance.now();
-    const prevAddressFingerprint = getAddressFingerprint(savedMergedPropertyData);
+    const prevAddressFingerprint = getAddressFingerprint(
+      savedMergedPropertyData,
+    );
     const nextIdentity = state.formData.identity ?? {};
     const nextAddressFingerprint = getAddressFingerprint(nextIdentity);
     const addressChangedForAttom =
@@ -3161,7 +3202,8 @@ function PropertyFormContainer() {
                         <button
                           type="button"
                           disabled={
-                            attomRefresh.isActive || attomRefresh.isAtLookupLimit
+                            attomRefresh.isActive ||
+                            attomRefresh.isAtLookupLimit
                           }
                           className="w-full flex items-center justify-start text-left cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2 disabled:cursor-not-allowed disabled:opacity-70"
                           onClick={(e) => {
@@ -3752,7 +3794,9 @@ function PropertyFormContainer() {
                       dispatch({type: "SET_ACTIVE_TAB", payload: tabId})
                     }
                     onCompleteOutstandingTasks={handleCompleteOutstandingTasks}
-                    onOpenInspectionAnalysis={openInspectionAnalysisWithPlanCheck}
+                    onOpenInspectionAnalysis={
+                      openInspectionAnalysisWithPlanCheck
+                    }
                     onUploadInspectionReport={() => {
                       dispatch({type: "SET_ACTIVE_TAB", payload: "documents"});
                       setDocumentsUploadModalRequested(true);
@@ -3824,6 +3868,22 @@ function PropertyFormContainer() {
                   <SystemsTab
                     propertyData={mergedFormData}
                     maintenanceRecords={state.formData.maintenanceRecords ?? []}
+                    savedMaintenanceRecords={
+                      state.savedMaintenanceRecords ?? []
+                    }
+                    onMaintenanceRecordsChange={handleMaintenanceRecordsChange}
+                    onMaintenanceRecordAdded={() => {
+                      setTimeout(() => {
+                        saveBarRef.current?.scrollIntoView?.({
+                          behavior: "smooth",
+                          block: "nearest",
+                        });
+                      }, 100);
+                    }}
+                    onFormDirty={(dirty) => {
+                      if (dirty)
+                        dispatch({type: "SET_FORM_CHANGED", payload: true});
+                    }}
                     propertyDocuments={overviewDocuments}
                     propertyIdFallback={uid !== "new" ? uid : undefined}
                     handleInputChange={handleChange}
@@ -3875,6 +3935,7 @@ function PropertyFormContainer() {
                     aiSidebarSystemContext={aiSidebarSystemContext}
                     onSystemsCompletionChange={handleSystemsCompletionChange}
                     onOpenSystemsSetup={handleOpenSystemsSetup}
+                    onOpenMaintenanceRecord={handleOpenMaintenanceRecordView}
                   />
                 )}
 
@@ -3885,14 +3946,7 @@ function PropertyFormContainer() {
                     savedMaintenanceRecords={
                       state.savedMaintenanceRecords ?? []
                     }
-                    onMaintenanceRecordsChange={(records, options = {}) =>
-                      dispatch({
-                        type: options.silent
-                          ? "SET_MAINTENANCE_FORM_DATA_SILENT"
-                          : "SET_MAINTENANCE_FORM_DATA",
-                        payload: records,
-                      })
-                    }
+                    onMaintenanceRecordsChange={handleMaintenanceRecordsChange}
                     onMaintenanceRecordAdded={() => {
                       setTimeout(() => {
                         saveBarRef.current?.scrollIntoView?.({

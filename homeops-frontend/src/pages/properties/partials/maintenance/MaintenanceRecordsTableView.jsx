@@ -10,9 +10,15 @@ import {
   ArrowUpDown,
   FileText,
   Plus,
+  X,
 } from "lucide-react";
 import {StatusBadge} from "../passport/StatusBadge";
-import {RECORD_STATUS} from "../../helpers/maintenanceRecordMapping";
+import {
+  RECORD_STATUS,
+  resolveMaintenanceRecordSource,
+  isCompletedMaintenanceRecord,
+  getMaintenanceRecordTitle,
+} from "../../helpers/maintenanceRecordMapping";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
@@ -61,20 +67,21 @@ function formatCost(value) {
 
 function getDisplayStatus(record) {
   const today = new Date().toISOString().slice(0, 10);
+  const recordStatus = String(record.record_status ?? "").toLowerCase();
+  if (recordStatus === RECORD_STATUS.CONTRACTOR_PENDING) {
+    return {label: "Needs Review", tone: "amber"};
+  }
+  const status = String(record.status ?? "").trim();
+  if (status === "Completed" || isCompletedMaintenanceRecord(record)) {
+    return {label: "Completed", tone: "emerald"};
+  }
   const nextDue = record.nextServiceDate
     ? String(record.nextServiceDate).slice(0, 10)
     : null;
   if (nextDue && nextDue < today) {
     return {label: "Overdue", tone: "red"};
   }
-  const recordStatus = String(record.record_status ?? "").toLowerCase();
-  if (recordStatus === RECORD_STATUS.CONTRACTOR_PENDING) {
-    return {label: "Needs Review", tone: "amber"};
-  }
-  const status = String(record.status ?? "").trim();
   switch (status) {
-    case "Completed":
-      return {label: "Completed", tone: "emerald"};
     case "Scheduled":
       return {label: "Scheduled", tone: "brand"};
     case "In Progress":
@@ -88,24 +95,11 @@ function getDisplayStatus(record) {
   }
 }
 
-function getRecordSource(record) {
-  const recordStatus = String(record.record_status ?? "").toLowerCase();
-  if (
-    recordStatus === RECORD_STATUS.CONTRACTOR_COMPLETED ||
-    recordStatus === RECORD_STATUS.CONTRACTOR_PENDING ||
-    record.requestStatus
-  ) {
-    return "Contractor";
-  }
-  return "Opsy";
-}
-
-function getRecordTypeLabel(record, getSystemName) {
+function getRecordTypeLabel(record) {
   const recordType = String(record.recordType ?? "").trim();
   if (recordType) return recordType;
-  const description = String(record.description ?? "").trim();
-  if (description) return description;
-  return `${getSystemName(record.systemId)} Service`;
+  if (/inspection/i.test(String(record?.description ?? ""))) return "Inspection";
+  return "Service";
 }
 
 function RecordActionsMenu({record, onOpenInNewTab, onDelete}) {
@@ -203,11 +197,16 @@ function MaintenanceRecordRow({
         </div>
       </td>
       <td className="px-4 py-3 hidden md:table-cell">
-        <span className="text-sm text-gray-700 dark:text-gray-300 truncate block max-w-[12rem]">
-          {getRecordTypeLabel(record, getSystemName)}
+        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate block max-w-[14rem]">
+          {getMaintenanceRecordTitle(record, getSystemName(record.systemId))}
         </span>
       </td>
       <td className="px-4 py-3 hidden lg:table-cell">
+        <span className="text-sm text-gray-700 dark:text-gray-300 truncate block max-w-[10rem]">
+          {getRecordTypeLabel(record)}
+        </span>
+      </td>
+      <td className="px-4 py-3 hidden xl:table-cell">
         <span className="text-sm text-gray-600 dark:text-gray-400 truncate block max-w-[10rem]">
           {record.contractor || "—"}
         </span>
@@ -237,7 +236,7 @@ function MaintenanceRecordRow({
       </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className="text-xs text-gray-500 dark:text-gray-400">
-          {getRecordSource(record)}
+          {resolveMaintenanceRecordSource(record)}
         </span>
       </td>
       <td className="px-2 py-3">
@@ -303,6 +302,7 @@ function MaintenanceRecordsTableView({
       }
 
       if (filterPreset === "upcoming") {
+        if (isCompletedMaintenanceRecord(record)) return false;
         const nextDue = record.nextServiceDate
           ? String(record.nextServiceDate).slice(0, 10)
           : null;
@@ -356,7 +356,9 @@ function MaintenanceRecordsTableView({
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const searchable = [
+          getMaintenanceRecordTitle(record, getSystemName(record.systemId)),
           record.description,
+          record.recordType,
           record.contractor,
           record.notes,
           record.workOrderNumber,
@@ -444,6 +446,25 @@ function MaintenanceRecordsTableView({
     {value: "Pending Contractor", label: "Pending"},
     {value: "Overdue", label: "Overdue"},
   ];
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    filterSystem !== "all" ||
+    filterStatus !== "all" ||
+    filterDateRange !== "all" ||
+    filterContractor !== "all" ||
+    filterHasDocuments !== "all" ||
+    filterPreset != null;
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setFilterSystem("all");
+    setFilterStatus("all");
+    setFilterDateRange("all");
+    setFilterContractor("all");
+    setFilterHasDocuments("all");
+    setFilterPreset(null);
+  };
 
   return (
     <div className="flex flex-col min-h-[480px] bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -557,6 +578,17 @@ function MaintenanceRecordsTableView({
               <option value="no">No Documents</option>
             </select>
           </FilterField>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors self-end"
+            >
+              <X className="w-3.5 h-3.5" />
+              Clear all filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -580,9 +612,12 @@ function MaintenanceRecordsTableView({
                 </th>
                 <th className="px-4 py-2.5 text-left font-semibold">System</th>
                 <th className="px-4 py-2.5 text-left font-semibold hidden md:table-cell">
-                  Record Type
+                  Title
                 </th>
                 <th className="px-4 py-2.5 text-left font-semibold hidden lg:table-cell">
+                  Record Type
+                </th>
+                <th className="px-4 py-2.5 text-left font-semibold hidden xl:table-cell">
                   Contractor
                 </th>
                 <th className="px-4 py-2.5 text-left font-semibold">Status</th>
@@ -626,26 +661,34 @@ function MaintenanceRecordsTableView({
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-sm">
               {contractorRequestsOnly
                 ? "Maintenance records sent to contractors will appear here."
-                : searchQuery ||
-                    filterSystem !== "all" ||
-                    filterStatus !== "all" ||
-                    filterDateRange !== "all" ||
-                    filterPreset
+                : hasActiveFilters
                   ? "Try adjusting your search or filters."
                   : "Create your first maintenance record to track service history and upcoming work."}
             </p>
-            {onNewRecord &&
-              !searchQuery &&
-              !contractorRequestsOnly && (
-              <button
-                type="button"
-                onClick={() => onNewRecord()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#3a5548] text-white transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New Record
-              </button>
-            )}
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Clear all filters
+                </button>
+              )}
+              {onNewRecord &&
+                !hasActiveFilters &&
+                !contractorRequestsOnly && (
+                <button
+                  type="button"
+                  onClick={() => onNewRecord()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#3a5548] text-white transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  New Record
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

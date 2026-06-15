@@ -24,6 +24,7 @@ import {
 } from "../../constants/systemFieldConfig";
 import { SystemEditableField } from "./SystemEditableField";
 import { formatOverviewDate } from "../passport/SystemsOverviewPanel";
+import { resolveDisplayNextInspectionDate } from "../../helpers/systemStatusHelpers";
 
 const GROUP_META = {
   identity: { title: "System Identity", icon: FileText },
@@ -55,6 +56,7 @@ export function SystemEditableFormCards({
   aiFindings,
   linkedRecords = [],
   onUploadDocument,
+  lastInspectionDate,
 }) {
   const groups = groupFields(systemId);
   const installDateField = INSTALL_DATE_FIELD_BY_SYSTEM[systemId];
@@ -78,6 +80,10 @@ export function SystemEditableFormCards({
   const nextInspectionValue = nextInspectionField
     ? propertyData?.[nextInspectionField]
     : null;
+  const displayNextInspection = resolveDisplayNextInspectionDate(
+    nextInspectionValue,
+    lastInspectionDate,
+  );
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
@@ -92,14 +98,14 @@ export function SystemEditableFormCards({
           );
           return (
             <SectionCard flat key={groupKey} title={meta.title} icon={meta.icon}>
-              {nextInspectionValue ? (
+              {displayNextInspection ? (
                 <div className="rounded-xl bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 px-4 py-3 mb-3">
                   <p className="text-[10px] font-medium text-emerald-700/80 dark:text-emerald-300/80 uppercase tracking-[0.08em]">
                     {SYSTEM_FIELD_DEFINITIONS[nextInspectionField]?.label ??
                       "Next Inspection"}
                   </p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-white mt-0.5">
-                    {formatOverviewDate(nextInspectionValue) ?? nextInspectionValue}
+                    {formatOverviewDate(displayNextInspection) ?? displayNextInspection}
                   </p>
                 </div>
               ) : (

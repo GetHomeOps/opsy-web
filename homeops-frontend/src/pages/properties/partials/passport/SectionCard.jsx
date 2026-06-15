@@ -11,6 +11,7 @@ function SectionCard({
   title,
   description,
   icon: Icon,
+  iconClassName,
   action,
   badge,
   children,
@@ -31,7 +32,9 @@ function SectionCard({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 {Icon && (
-                  <Icon className="w-4 h-4 text-neutral-400 dark:text-neutral-500 shrink-0" />
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${iconClassName ?? "text-neutral-400 dark:text-neutral-500"}`}
+                  />
                 )}
                 <h3 className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
                   {title}

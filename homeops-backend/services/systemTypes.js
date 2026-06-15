@@ -136,14 +136,28 @@ function resolveFindingSystemType({
 /** True when two system identifiers map to the same canonical system id. */
 function canonicalSystemsMatch(systemKey, rawType) {
   if (!systemKey || !rawType) return false;
-  const left = normalizeSystemType(systemKey);
-  const right = normalizeSystemType(rawType);
-  if (!left || !right) {
-    const a = String(systemKey).trim().toLowerCase();
-    const b = String(rawType).trim().toLowerCase();
-    return a.length > 0 && a === b;
+  const keysToTry = [systemKey];
+  const typesToTry = [rawType];
+  if (String(systemKey).startsWith("custom-")) {
+    keysToTry.push(String(systemKey).slice(7));
   }
-  return left.toLowerCase() === right.toLowerCase();
+  if (String(rawType).startsWith("custom-")) {
+    typesToTry.push(String(rawType).slice(7));
+  }
+
+  for (const k of keysToTry) {
+    for (const t of typesToTry) {
+      const left = normalizeSystemType(k);
+      const right = normalizeSystemType(t);
+      if (left && right && left.toLowerCase() === right.toLowerCase()) {
+        return true;
+      }
+      const a = String(k).trim().toLowerCase();
+      const b = String(t).trim().toLowerCase();
+      if (a.length > 0 && a === b) return true;
+    }
+  }
+  return false;
 }
 
 module.exports = {

@@ -3,6 +3,9 @@
  * used by the Systems tab collapsible headers.
  */
 
+import {parseCustomSystemName} from "./systemKeyUtils";
+import {isCompletedMaintenanceRecord} from "./maintenanceRecordMapping";
+
 /** systemType -> { lastInspection, nextInspection, condition, issues, installDate } field names */
 export const INSPECTION_FIELDS_BY_SYSTEM = {
   roof: { lastInspection: "roofLastInspection", nextInspection: "roofNextInspection", condition: "roofCondition", issues: "roofIssues", installDate: "roofInstallDate" },
@@ -23,15 +26,57 @@ function isFilled(value) {
   return true;
 }
 
+function isInspectionMaintenanceRecord(record) {
+  return (
+    /inspection/i.test(String(record?.recordType ?? "")) ||
+    /inspection/i.test(String(record?.description ?? ""))
+  );
+}
+
+function latestDateValue(...values) {
+  const valid = values
+    .filter(isFilled)
+    .map((value) => String(value).slice(0, 10))
+    .filter((value) => !Number.isNaN(new Date(value).getTime()))
+    .sort();
+  return valid[valid.length - 1] ?? null;
+}
+
+export function getLatestCompletedInspectionDateForSystem(
+  maintenanceRecords = [],
+  systemType,
+) {
+  if (!Array.isArray(maintenanceRecords) || !systemType) return null;
+
+  const dates = maintenanceRecords
+    .filter(
+      (record) =>
+        String(record?.systemId ?? record?.system_key ?? record?.systemKey ?? "") ===
+          String(systemType) &&
+        isCompletedMaintenanceRecord(record) &&
+        isInspectionMaintenanceRecord(record),
+    )
+    .map((record) => (record?.date ? String(record.date).slice(0, 10) : null))
+    .filter(Boolean)
+    .sort();
+
+  return dates[dates.length - 1] ?? null;
+}
+
 /**
- * Extract custom system name from sectionId (e.g. "custom-Solar Panel-0" -> "Solar Panel").
+ * Extract custom system display name from sectionId.
+ * Persisted keys (custom-interior) use slug parsing; legacy UI ids (custom-Solar-0) strip the index suffix.
  */
 function getCustomSystemName(systemType) {
   if (!systemType || !String(systemType).startsWith("custom-")) return null;
-  const rest = String(systemType).slice(7); // after "custom-"
-  const lastDash = rest.lastIndexOf("-");
-  if (lastDash < 0) return rest;
-  return rest.slice(0, lastDash);
+  const key = String(systemType);
+  if (/^custom-.+-\d+$/.test(key)) {
+    const rest = key.slice(7);
+    const lastDash = rest.lastIndexOf("-");
+    if (lastDash < 0) return rest;
+    return rest.slice(0, lastDash);
+  }
+  return parseCustomSystemName(key);
 }
 
 /**
@@ -45,6 +90,88 @@ function isUpcomingDate(dateStr) {
   today.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
   return d >= today;
+}
+
+/**
+ * Next inspection date to show in overview cards.
+ * Returns null when the scheduled date is past, or a completed inspection
+ * already covers that date (so the highlight card should be hidden).
+ */
+export function resolveDisplayNextInspectionDate(
+  nextInspection,
+  latestCompletedInspectionDate,
+) {
+  if (!isFilled(nextInspection)) return null;
+
+  const nextDate = String(nextInspection).slice(0, 10);
+  if (!isUpcomingDate(nextDate)) return null;
+
+  if (
+    isFilled(latestCompletedInspectionDate) &&
+    String(latestCompletedInspectionDate).slice(0, 10) >= nextDate
+  ) {
+    return null;
+  }
+
+  return nextInspection;
+}
+
+/**
+ * Last completed service date and next due date for overview cards.
+ * Completed records no longer contribute an upcoming next-service date.
+ */
+export function computeSystemServiceSchedule(
+  maintenanceRecords = [],
+  maintenanceEvents = [],
+  systemId,
+  today = new Date().toISOString().slice(0, 10),
+) {
+  const recs = maintenanceRecords.filter(
+    (r) => String(r.systemId ?? r.system_key ?? "") === String(systemId),
+  );
+  const events = maintenanceEvents.filter(
+    (e) => String(e.system_key ?? e.systemKey ?? "") === String(systemId),
+  );
+
+  const serviceDates = recs
+    .filter(isCompletedMaintenanceRecord)
+    .map((r) => r.date)
+    .filter(Boolean)
+    .map((d) => String(d).slice(0, 10))
+    .sort();
+  const lastService = serviceDates[serviceDates.length - 1] ?? null;
+
+  const dueCandidates = [
+    ...recs
+      .filter((r) => !isCompletedMaintenanceRecord(r))
+      .flatMap((r) => [r.nextServiceDate, r.date].filter(Boolean)),
+    ...recs
+      .filter(isCompletedMaintenanceRecord)
+      .map((r) => r.nextServiceDate)
+      .filter(Boolean),
+    ...events
+      .filter((e) =>
+        ["scheduled", "confirmed"].includes(
+          String(e.status ?? "").toLowerCase(),
+        ),
+      )
+      .map((e) => e.scheduled_date ?? e.scheduledDate)
+      .filter(Boolean),
+  ]
+    .map((d) => String(d).slice(0, 10))
+    .sort();
+
+  const upcoming = dueCandidates.find((d) => d >= today) ?? null;
+  const overduePast =
+    !upcoming && dueCandidates.length > 0
+      ? (dueCandidates.filter((d) => d < today).sort().pop() ?? null)
+      : null;
+
+  return {
+    lastService,
+    nextDue: upcoming ?? overduePast,
+    nextDueOverdue: Boolean(overduePast && !upcoming),
+  };
 }
 
 /**
@@ -82,6 +209,7 @@ function getUpcomingEventForSystem(maintenanceEvents, systemType) {
  * @param {boolean} isNewInstall - Whether system is marked as new install
  * @param {Object} customSystemsData - Custom system data (for custom systems)
  * @param {Array} [maintenanceEvents] - Upcoming maintenance events from API
+ * @param {Array} [maintenanceRecords] - Completed maintenance records from API/state
  * @returns {{ needsAttention: boolean, attentionReasons: string[], hasScheduledEvent: boolean, scheduledDate?: string, scheduledTime?: string|null }}
  */
 export function getSystemStatus(
@@ -90,6 +218,7 @@ export function getSystemStatus(
   isNewInstall,
   customSystemsData = {},
   maintenanceEvents = [],
+  maintenanceRecords = [],
 ) {
   let lastInspection = null;
   let nextInspection = null;
@@ -117,8 +246,15 @@ export function getSystemStatus(
     }
   }
 
+  const latestCompletedInspectionDate =
+    getLatestCompletedInspectionDateForSystem(maintenanceRecords, systemType);
+  const recordedLastInspection = latestDateValue(
+    lastInspection,
+    latestCompletedInspectionDate,
+  );
+
   const attentionReasons = [];
-  if (!isNewInstall && !isFilled(lastInspection)) {
+  if (!isNewInstall && !isFilled(recordedLastInspection)) {
     attentionReasons.push("No inspection date recorded");
   }
   if (!isNewInstall && !isFilled(installDate) && (customName || INSPECTION_FIELDS_BY_SYSTEM[systemType]?.installDate)) {
@@ -135,8 +271,13 @@ export function getSystemStatus(
 
   const needsAttention = attentionReasons.length > 0;
 
+  const effectiveNextInspection = resolveDisplayNextInspectionDate(
+    nextInspection,
+    recordedLastInspection,
+  );
+
   // Scheduled Event: from form (nextInspection) OR from maintenance_events (e.g. AI chat scheduling)
-  const fromForm = isFilled(nextInspection) && isUpcomingDate(nextInspection);
+  const fromForm = isFilled(effectiveNextInspection);
   const eventForSystem = getUpcomingEventForSystem(maintenanceEvents, systemType);
   const fromEvents = !!eventForSystem;
   const hasScheduledEvent = fromForm || fromEvents;
@@ -144,8 +285,8 @@ export function getSystemStatus(
   const scheduledDate =
     fromEvents && eventForSystem?.scheduledDate
       ? eventForSystem.scheduledDate
-      : fromForm && nextInspection
-        ? nextInspection
+      : fromForm && effectiveNextInspection
+        ? effectiveNextInspection
         : undefined;
   const scheduledTime = fromEvents ? eventForSystem?.scheduledTime : undefined;
 
@@ -153,6 +294,7 @@ export function getSystemStatus(
     needsAttention,
     attentionReasons,
     hasScheduledEvent,
+    lastInspectionDate: recordedLastInspection ?? null,
     ...(scheduledDate != null && {scheduledDate}),
     ...(scheduledTime !== undefined && {scheduledTime}),
   };

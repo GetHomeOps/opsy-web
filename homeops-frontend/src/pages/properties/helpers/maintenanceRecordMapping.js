@@ -11,6 +11,22 @@ export const RECORD_STATUS = {
   CONTRACTOR_COMPLETED: "contractor_completed",
 };
 
+/** True when a maintenance record represents finished work (not scheduled/upcoming). */
+export function isCompletedMaintenanceRecord(record) {
+  const status = String(record?.status ?? "").trim().toLowerCase();
+  const recordStatus = String(record?.record_status ?? "").trim().toLowerCase();
+  const camelRecordStatus = String(record?.recordStatus ?? "")
+    .trim()
+    .toLowerCase();
+  return (
+    status === "completed" ||
+    recordStatus === RECORD_STATUS.USER_COMPLETED ||
+    recordStatus === RECORD_STATUS.CONTRACTOR_COMPLETED ||
+    camelRecordStatus === RECORD_STATUS.USER_COMPLETED ||
+    camelRecordStatus === RECORD_STATUS.CONTRACTOR_COMPLETED
+  );
+}
+
 /** Fields stored in the `data` object; null/undefined become empty string or [] */
 const DATA_FIELDS = [
   "contractor",
@@ -47,8 +63,34 @@ const DATA_DEFAULTS = {
   checklist_item_id: null,
   hideSendToContractorBanner: false,
   recordType: "",
-  source: "Opsy",
+  source: "Manual",
 };
+
+/** Canonical record types for maintenance records. */
+export const MAINTENANCE_RECORD_TYPE_OPTIONS = [
+  "Inspection",
+  "Maintenance",
+  "Installation",
+  "Repair",
+  "Other",
+];
+
+/**
+ * Resolves the read-only source label for a maintenance record.
+ * @returns {"Manual"|"Contractor"}
+ */
+export function resolveMaintenanceRecordSource(record) {
+  if (!record) return "Manual";
+
+  const stored = String(record.source ?? "").trim().toLowerCase();
+  if (stored === "contractor") return "Contractor";
+
+  const recordStatus = String(record.record_status ?? "").toLowerCase();
+  if (recordStatus === RECORD_STATUS.CONTRACTOR_COMPLETED) return "Contractor";
+  if (record.contractorSubmittedAt) return "Contractor";
+
+  return "Manual";
+}
 
 /**
  * Maps an array of form records to backend payload format.
@@ -203,7 +245,14 @@ export function fromMaintenanceRecordBackend(backend) {
     checklist_item_id: d.checklist_item_id ?? null,
     hideSendToContractorBanner: Boolean(d.hideSendToContractorBanner),
     recordType: d.recordType ?? "",
-    source: d.source ?? "Opsy",
+    source: resolveMaintenanceRecordSource({
+      source: d.source,
+      record_status:
+        backend.recordStatus ??
+        backend.record_status ??
+        (d.requestStatus === "pending" ? RECORD_STATUS.CONTRACTOR_PENDING : null),
+      contractorSubmittedAt: d.contractorSubmittedAt ?? null,
+    }),
     record_status:
       backend.recordStatus ??
       backend.record_status ??
@@ -231,6 +280,92 @@ export function isNewMaintenanceRecord(record) {
   const id = record?.id;
   if (id == null) return true;
   return typeof id === "string" && TEMP_ID_PATTERN.test(id);
+}
+
+/** Returns a numeric backend maintenance record id, or null for temp/missing ids. */
+export function getPersistedMaintenanceId(id) {
+  if (id == null || isNewMaintenanceRecord({id})) return null;
+  const parsed = parseInt(id, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normMaintenanceText(value) {
+  return String(value ?? "").trim();
+}
+
+function normMaintenanceDate(value) {
+  return value == null ? "" : String(value).trim().slice(0, 10);
+}
+
+/**
+ * User-facing title for a maintenance record (list, detail, breadcrumbs).
+ * Prefers the record title (description), then record type.
+ */
+export function getMaintenanceRecordTitle(record, systemName = "System") {
+  const description = normMaintenanceText(record?.description);
+  if (description) return description;
+  const recordType = normMaintenanceText(record?.recordType);
+  if (recordType) return recordType;
+  return `${systemName} Record`;
+}
+
+/**
+ * Finds the persisted backend record that corresponds to an in-memory temp record.
+ * Uses multiple fields so records sharing system/date/contractor stay distinct.
+ */
+export function findPersistedMaintenanceRecord(tempRecord, savedRecords) {
+  if (!tempRecord || !Array.isArray(savedRecords) || savedRecords.length === 0) {
+    return null;
+  }
+
+  const matches = savedRecords.filter(
+    (candidate) =>
+      normMaintenanceText(candidate.systemId) ===
+        normMaintenanceText(tempRecord.systemId) &&
+      normMaintenanceDate(candidate.date) ===
+        normMaintenanceDate(tempRecord.date) &&
+      normMaintenanceText(candidate.contractor) ===
+        normMaintenanceText(tempRecord.contractor) &&
+      normMaintenanceText(candidate.recordType) ===
+        normMaintenanceText(tempRecord.recordType) &&
+      normMaintenanceText(candidate.description) ===
+        normMaintenanceText(tempRecord.description) &&
+      normMaintenanceText(candidate.status) ===
+        normMaintenanceText(tempRecord.status),
+  );
+
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) {
+    const withDetails = matches.find(
+      (candidate) =>
+        normMaintenanceText(candidate.cost) ===
+          normMaintenanceText(tempRecord.cost) &&
+        normMaintenanceDate(candidate.nextServiceDate) ===
+          normMaintenanceDate(tempRecord.nextServiceDate),
+    );
+    return withDetails ?? matches[0];
+  }
+
+  return null;
+}
+
+/**
+ * Resolves the record object to show in read/detail views.
+ * Prefers saved data by ID, then strict temp-record matching.
+ */
+export function resolveMaintenanceRecordForView(record, savedRecords = []) {
+  if (!record) return null;
+
+  const saved = Array.isArray(savedRecords) ? savedRecords : [];
+  if (saved.length === 0) return record;
+
+  if (!isNewMaintenanceRecord(record)) {
+    const byId = saved.find((candidate) => String(candidate.id) === String(record.id));
+    return byId ? {...record, ...byId} : record;
+  }
+
+  const matched = findPersistedMaintenanceRecord(record, saved);
+  return matched ? {...record, ...matched} : record;
 }
 
 /**

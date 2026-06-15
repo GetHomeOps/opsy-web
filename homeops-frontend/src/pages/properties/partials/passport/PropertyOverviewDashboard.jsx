@@ -16,6 +16,8 @@ import SectionCard from "./SectionCard";
 import EmptyStateCard from "./EmptyStateCard";
 import PropertyNotesCard from "./PropertyNotesCard";
 import {StatusBadge} from "./StatusBadge";
+import OverviewFinancialsPreview from "../financials/OverviewFinancialsPreview";
+import aiDocIllustration from "../../../../images/ai-doc-transparent.png";
 import {
   IDENTITY_SECTIONS,
   isSectionComplete,
@@ -25,6 +27,8 @@ import {
   DEFAULT_SYSTEM_IDS,
 } from "../../constants/propertySystems";
 import {countCompletedSystemsWithCustom} from "../../constants/systemSections";
+import {isCompletedMaintenanceRecord} from "../../helpers/maintenanceRecordMapping";
+import {getCompletedChecklistItemIds} from "../../helpers/inspectionAnalysisHelpers";
 
 function formatMonthDay(value) {
   if (!value) return {month: "", day: ""};
@@ -74,6 +78,37 @@ function systemDisplayName(systemKey) {
   return String(systemKey ?? "")
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function isUpcomingMaintenanceEvent(event, maintenanceRecords, todayIso) {
+  const date = event.scheduled_date ?? event.scheduledDate;
+  if (!date || String(date).slice(0, 10) < todayIso) return false;
+
+  const status = String(event.status ?? "scheduled").toLowerCase();
+  if (!["scheduled", "confirmed"].includes(status)) return false;
+
+  const checklistItemId = event.checklist_item_id ?? event.checklistItemId;
+  if (checklistItemId != null) {
+    const completedChecklistIds = getCompletedChecklistItemIds(maintenanceRecords);
+    if (completedChecklistIds.has(Number(checklistItemId))) return false;
+  }
+
+  const eventDate = String(date).slice(0, 10);
+  const eventSystem = event.system_key ?? event.systemKey;
+  if (eventSystem) {
+    const fulfilledByRecord = (maintenanceRecords ?? []).some((record) => {
+      if (!isCompletedMaintenanceRecord(record)) return false;
+      const recordSystem =
+        record.systemId ?? record.system_key ?? record.systemKey;
+      const recordDate = String(record.date ?? "").slice(0, 10);
+      return (
+        String(recordSystem) === String(eventSystem) && recordDate === eventDate
+      );
+    });
+    if (fulfilledByRecord) return false;
+  }
+
+  return true;
 }
 
 function formatRecurrence(source, event = {}) {
@@ -336,10 +371,7 @@ function PropertyOverviewDashboard({
         badgeTone: "amber",
       }));
     const fromEvents = (maintenanceEvents ?? [])
-      .filter((e) => {
-        const d = e.scheduled_date ?? e.scheduledDate;
-        return d && String(d).slice(0, 10) >= todayIso;
-      })
+      .filter((e) => isUpcomingMaintenanceEvent(e, maintenanceRecords, todayIso))
       .map((e, i) => ({
         key: `event-${e.id ?? i}`,
         date: String(e.scheduled_date ?? e.scheduledDate).slice(0, 10),
@@ -412,27 +444,41 @@ function PropertyOverviewDashboard({
             flat
             title="Smart Records & AI Extraction"
             icon={Sparkles}
+            iconClassName="text-[#456564] dark:text-[#7fa3a1]"
           >
             {hasInspectionAnalysis || aiSummaryUpdatedAt ? (
-              <div className="space-y-3">
-                <div>
-                  <p className="text-lg font-bold text-[#456564] dark:text-[#7fa3a1]">
-                    You're all set!
-                  </p>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                    {extractedDetailCount != null
-                      ? `We've extracted ${extractedDetailCount} details from your inspection report.`
-                      : "Your inspection report has been analyzed."}{" "}
-                    Review and confirm to keep your passport accurate.
-                  </p>
+              <div className="relative">
+                <div className="min-w-0 space-y-3 pr-[124px] sm:pr-[138px]">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7fa3a1] shrink-0" />
+                      <p className="text-sm font-bold text-[#456564] dark:text-[#7fa3a1]">
+                        You're all set!
+                      </p>
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                      {extractedDetailCount != null
+                        ? `We've extracted ${extractedDetailCount} details from your inspection report.`
+                        : "Your inspection report has been analyzed."}{" "}
+                      Review and confirm to keep your passport accurate.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onOpenInspectionAnalysis?.()}
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
+                  >
+                    Review Extracted Data
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onOpenInspectionAnalysis?.()}
-                  className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
-                >
-                  Review Extracted Data
-                </button>
+                <div className="absolute right-0 bottom-0 w-[118px] sm:w-[132px]">
+                  <img
+                    src={aiDocIllustration}
+                    alt=""
+                    aria-hidden
+                    className="w-full h-auto object-contain pointer-events-none select-none"
+                  />
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
@@ -661,6 +707,8 @@ function PropertyOverviewDashboard({
           />
         </div>
       </div>
+
+      <OverviewFinancialsPreview />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <SectionCard

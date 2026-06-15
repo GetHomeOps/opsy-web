@@ -563,20 +563,23 @@ function DetailsStep({
   checklistItems = [],
   selectedChecklistItemId,
   setSelectedChecklistItemId,
+  dateOnly = false,
 }) {
   return (
     <div className="space-y-5">
       <div>
         <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-          Scheduling Details
+          {dateOnly ? "Choose a new date" : "Scheduling Details"}
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Choose a date to continue (required). Time is optional; reminder
-          options are on the next step.
+          {dateOnly
+            ? "Update the scheduled date for this event. Time is optional."
+            : "Choose a date to continue (required). Time is optional; reminder options are on the next step."}
         </p>
       </div>
 
-      {(() => {
+      {!dateOnly &&
+        (() => {
         const pendingItems = checklistItems.filter(
           (item) => (item.status || "").toLowerCase() !== "completed",
         );
@@ -611,7 +614,7 @@ function DetailsStep({
         </div>
       )}
 
-      {scheduleType === "inspection" && (
+      {!dateOnly && scheduleType === "inspection" && (
         <div className="rounded-lg border border-[#456564]/20 dark:border-[#7aa3a2]/30 bg-[#456564]/5 dark:bg-[#456564]/10 p-4">
           <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-1.5">
             <Wrench className="w-4 h-4 text-[#456564] dark:text-[#7aa3a2]" />
@@ -1075,6 +1078,16 @@ function getCurrentTimeHHMM() {
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
+function readExistingEventField(event, ...keys) {
+  for (const key of keys) {
+    const value = event?.[key];
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return value;
+    }
+  }
+  return null;
+}
+
 function ScheduleSystemModal({
   isOpen,
   onClose,
@@ -1086,7 +1099,10 @@ function ScheduleSystemModal({
   propertyId,
   propertyData = {},
   checklistItemId = null,
+  mode = "create",
+  existingEvent = null,
 }) {
+  const isReschedule = mode === "reschedule" && existingEvent != null;
   const {accountUrl: paramAccountUrl} = useParams();
   const {currentAccount} = useCurrentAccount();
   const {currentUser} = useAuth();
@@ -1164,17 +1180,80 @@ function ScheduleSystemModal({
 
   useEffect(() => {
     if (isOpen) {
-      setCurrentStep(0);
+      setCurrentStep(isReschedule ? 2 : 0);
       setShowSuccess(false);
       setSaving(false);
       setSubmitError(null);
-      setScheduleType(null);
-      setHasProfessional(null);
-      setSelectedProfessional(null);
+
+      if (isReschedule) {
+        const eventType = String(
+          readExistingEventField(existingEvent, "event_type", "eventType") ?? "",
+        ).toLowerCase();
+        setScheduleType(
+          eventType === "inspection" ? "inspection" : "maintenance",
+        );
+        const contractorName = readExistingEventField(
+          existingEvent,
+          "contractor_name",
+          "contractorName",
+        );
+        setHasProfessional(contractorName ? true : false);
+        setSelectedProfessional(
+          contractorName
+            ? {
+                id: "existing-contractor",
+                sourceId: readExistingEventField(
+                  existingEvent,
+                  "contractor_id",
+                  "contractorId",
+                ),
+                name: contractorName,
+                email:
+                  readExistingEventField(
+                    existingEvent,
+                    "contractor_email",
+                    "contractorEmail",
+                  ) ?? null,
+                source:
+                  readExistingEventField(
+                    existingEvent,
+                    "contractor_source",
+                    "contractorSource",
+                  ) ?? null,
+              }
+            : null,
+        );
+        setScheduledDate(
+          readExistingEventField(
+            existingEvent,
+            "scheduled_date",
+            "scheduledDate",
+          ) ?? "",
+        );
+        setScheduledTime(
+          readExistingEventField(
+            existingEvent,
+            "scheduled_time",
+            "scheduledTime",
+          ) ?? "",
+        );
+        setSelectedChecklistItemId(
+          readExistingEventField(
+            existingEvent,
+            "checklist_item_id",
+            "checklistItemId",
+          ) ?? null,
+        );
+      } else {
+        setScheduleType(null);
+        setHasProfessional(null);
+        setSelectedProfessional(null);
+        setScheduledDate("");
+        setScheduledTime("");
+        setSelectedChecklistItemId(checklistItemId || null);
+      }
+
       setProfessionalSearch("");
-      setScheduledDate("");
-      setScheduledTime("");
-      setSelectedChecklistItemId(checklistItemId || null);
       setMessageBody("");
       setReplyEmail(currentUser?.data?.email || currentUser?.email || "");
       setMaintenanceRecommendations([]);
@@ -1186,7 +1265,14 @@ function ScheduleSystemModal({
       setAlertTime("");
       setSendEmail(true);
     }
-  }, [isOpen, currentUser?.data?.email, currentUser?.email]);
+  }, [
+    isOpen,
+    isReschedule,
+    existingEvent,
+    checklistItemId,
+    currentUser?.data?.email,
+    currentUser?.email,
+  ]);
   useEffect(() => {
     if (!isOpen || !scheduleType || !propId || !systemType || !systemLabel) {
       setMaintenanceRecommendations([]);
@@ -1317,6 +1403,41 @@ function ScheduleSystemModal({
       return;
     }
 
+    if (isReschedule) {
+      const eventId = existingEvent?.id;
+      if (eventId == null || String(eventId).startsWith("record-")) {
+        setSubmitError("This event cannot be rescheduled.");
+        return;
+      }
+      setSaving(true);
+      try {
+        const payload = {
+          scheduled_date: scheduledDate,
+          scheduled_time: effectiveTime,
+        };
+        await AppApi.updateMaintenanceEvent(eventId, payload);
+        onScheduleSuccess?.();
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+          onClose(false);
+        }, 1200);
+      } catch (err) {
+        console.error("Failed to reschedule maintenance event:", err);
+        const msg =
+          err?.messages?.[0] ??
+          err?.message ??
+          "Failed to save. Please try again.";
+        setSubmitError(
+          typeof msg === "string" ? msg : "Failed to save. Please try again.",
+        );
+      } finally {
+        setSaving(false);
+        setSavingAction(null);
+      }
+      return;
+    }
+
     let alertTimingVal = "3d";
     let alertCustomDaysVal = null;
     if (alertEnabled) {
@@ -1414,11 +1535,12 @@ function ScheduleSystemModal({
               <CheckCircle2 className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
             </div>
             <p className="text-base font-semibold text-gray-900 dark:text-white">
-              Scheduled!
+              {isReschedule ? "Rescheduled!" : "Scheduled!"}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {scheduleType === "inspection" ? "Inspection" : "Maintenance"} for{" "}
-              {systemLabel}
+              {isReschedule
+                ? `${systemLabel} — new date saved`
+                : `${scheduleType === "inspection" ? "Inspection" : "Maintenance"} for ${systemLabel}`}
             </p>
           </div>
         </div>
@@ -1442,7 +1564,7 @@ function ScheduleSystemModal({
             </div>
             <div>
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                Schedule
+                {isReschedule ? "Reschedule" : "Schedule"}
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {systemLabel}
@@ -1457,12 +1579,14 @@ function ScheduleSystemModal({
           </button>
         </div>
 
-        <div className="shrink-0">
-          <StepIndicator currentStep={currentStep} steps={STEPS} />
-        </div>
+        {!isReschedule && (
+          <div className="shrink-0">
+            <StepIndicator currentStep={currentStep} steps={STEPS} />
+          </div>
+        )}
 
         <div
-          key={currentStep}
+          key={isReschedule ? "reschedule" : currentStep}
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 -mr-1"
           style={{
             animation: "scheduleStepFadeIn 0.2s ease-out forwards",
@@ -1474,13 +1598,13 @@ function ScheduleSystemModal({
               to { opacity: 1; transform: translateY(0); }
             }
           `}</style>
-          {currentStep === 0 && (
+          {!isReschedule && currentStep === 0 && (
             <TypeStep
               scheduleType={scheduleType}
               setScheduleType={setScheduleType}
             />
           )}
-          {currentStep === 1 && (
+          {!isReschedule && currentStep === 1 && (
             <ProfessionalStep
               hasProfessional={hasProfessional}
               setHasProfessional={setHasProfessional}
@@ -1494,7 +1618,7 @@ function ScheduleSystemModal({
               professionalsPath={professionalsPath}
             />
           )}
-          {currentStep === 2 && (
+          {(isReschedule || currentStep === 2) && (
             <DetailsStep
               scheduledDate={scheduledDate}
               setScheduledDate={setScheduledDate}
@@ -1506,9 +1630,10 @@ function ScheduleSystemModal({
               checklistItems={checklistItems}
               selectedChecklistItemId={selectedChecklistItemId}
               setSelectedChecklistItemId={setSelectedChecklistItemId}
+              dateOnly={isReschedule}
             />
           )}
-          {currentStep === 3 && (
+          {!isReschedule && currentStep === 3 && (
             <MessageStep
               messageBody={messageBody}
               setMessageBody={setMessageBody}
@@ -1546,24 +1671,49 @@ function ScheduleSystemModal({
         )}
 
         <div className="shrink-0 flex flex-col gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={handleBrowseDirectory}
-              className="text-xs text-[#456564] hover:underline font-medium inline-flex items-center gap-1"
-            >
-              Find a professional in the directory
-            </button>
-          </div>
+          {!isReschedule && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleBrowseDirectory}
+                className="text-xs text-[#456564] hover:underline font-medium inline-flex items-center gap-1"
+              >
+                Find a professional in the directory
+              </button>
+            </div>
+          )}
           <div className="flex justify-between">
             <button
               type="button"
-              onClick={currentStep === 0 ? () => onClose(false) : handleBack}
+              onClick={
+                isReschedule || currentStep === 0
+                  ? () => onClose(false)
+                  : handleBack
+              }
               className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
             >
-              {currentStep === 0 ? "Cancel" : "Back"}
+              {isReschedule || currentStep === 0 ? "Cancel" : "Back"}
             </button>
-            {currentStep < STEPS.length - 1 ? (
+            {isReschedule ? (
+              <button
+                type="button"
+                onClick={() => handleSubmit(false)}
+                disabled={!scheduledDate || saving}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="w-4 h-4" />
+                    Save date
+                  </>
+                )}
+              </button>
+            ) : currentStep < STEPS.length - 1 ? (
               <button
                 type="button"
                 onClick={handleNext}

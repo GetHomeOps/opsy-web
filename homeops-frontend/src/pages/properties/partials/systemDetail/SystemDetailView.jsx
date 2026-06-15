@@ -1,33 +1,69 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { ChevronRight, Sparkles, Pencil, Check } from "lucide-react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useContext,
+  useRef,
+} from "react";
+import {createPortal} from "react-dom";
+import {
+  ChevronRight,
+  Sparkles,
+  Pencil,
+  Check,
+  CheckCircle2,
+  Loader2,
+} from "lucide-react";
 import AppApi from "../../../../api/api";
-import { StatusBadge } from "../passport/StatusBadge";
-import { SystemDetailRightRail } from "../passport/SystemDetailCards";
-import { SystemDetailSubNav } from "./SystemDetailSubNav";
-import { SystemEditableFormCards } from "./SystemEditableFormCards";
-import { SystemCustomFormCards } from "./SystemCustomFormCards";
-import { SystemInspectionsFormCards } from "./SystemInspectionsFormCards";
-import { SystemActionItemsTab } from "./SystemActionItemsTab";
-import { SystemMaintenanceTab } from "./SystemMaintenanceTab";
-import { SystemDocumentsTab } from "./SystemDocumentsTab";
-import { SystemHistoryTab } from "./SystemHistoryTab";
-import { SystemQuickActionsCard } from "./SystemQuickActionsCard";
+import {useAuth} from "../../../../context/AuthContext";
+import PropertyContext from "../../../../context/PropertyContext";
+import ModalBlank from "../../../../components/ModalBlank";
+import {StatusBadge} from "../passport/StatusBadge";
+import {SystemDetailRightRail} from "../passport/SystemDetailCards";
+import {SystemDetailSubNav} from "./SystemDetailSubNav";
+import {SystemEditableFormCards} from "./SystemEditableFormCards";
+import {SystemCustomFormCards} from "./SystemCustomFormCards";
+import {SystemInspectionsFormCards} from "./SystemInspectionsFormCards";
+import {SystemActionItemsTab} from "./SystemActionItemsTab";
+import {SystemMaintenanceTab} from "./SystemMaintenanceTab";
+import {SystemDocumentsTab} from "./SystemDocumentsTab";
+import {SystemHistoryTab} from "./SystemHistoryTab";
+import {SystemQuickActionsCard} from "./SystemQuickActionsCard";
+import {ScheduledEventDetailsModal} from "./ScheduledEventDetailsModal";
+import {NextRecommendedActionModal} from "./NextRecommendedActionModal";
+import ScheduleSystemModal from "../ScheduleSystemModal";
+import {CreateMaintenanceRecordPanel} from "../maintenance";
 import SectionCard from "../passport/SectionCard";
 import {
-  getSystemFindingsFromAnalysis,
+  getResolvedSystemFindings,
   filterChecklistItemsForSystem,
   filterPropertyDocumentsForSystem,
+  areAllSystemActionItemsComplete,
+  resolveEffectiveSystemCondition,
+  countOpenSystemActionItems,
 } from "../../helpers/inspectionAnalysisHelpers";
 import {
   resolveCustomSystemBackendKey,
   getDisplayNamesWithCounters,
 } from "../../helpers/systemKeyUtils";
-import { SYSTEM_FIELDS_BY_ID } from "../../constants/systemFieldConfig";
+import {SYSTEM_FIELDS_BY_ID} from "../../constants/systemFieldConfig";
 import {
   buildStandardSystemReadOnlyGroups,
   buildCustomSystemReadOnlyGroups,
   buildInspectionsReadOnlyGroups,
 } from "../../helpers/systemFieldDisplay";
+import {
+  getPersistedMaintenanceId,
+  toMaintenanceRecordPayload,
+  fromMaintenanceRecordBackend,
+} from "../../helpers/maintenanceRecordMapping";
+import {
+  getLatestCompletedInspectionDateForSystem,
+  resolveDisplayNextInspectionDate,
+  getConditionFieldName,
+  getCurrentConditionValue,
+} from "../../helpers/systemStatusHelpers";
 import {
   SystemReadOnlyFormCards,
   SystemCustomReadOnlyFormCards,
@@ -35,6 +71,65 @@ import {
 } from "./SystemReadOnlyFormCards";
 
 const INSPECTION_CHECKLIST_UPDATED_EVENT = "inspection-checklist:updated";
+
+function isPersistedMaintenanceEvent(event) {
+  const id = event?.id;
+  if (id == null) return false;
+  return !String(id).startsWith("record-");
+}
+
+function readScheduledEventField(event, ...keys) {
+  for (const key of keys) {
+    const value = event?.[key];
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return value;
+    }
+  }
+  return null;
+}
+
+function getScheduledEventTitle(event) {
+  return (
+    readScheduledEventField(
+      event,
+      "checklist_item_title",
+      "checklistItemTitle",
+    ) ??
+    readScheduledEventField(event, "title", "system_name", "systemName") ??
+    "this scheduled event"
+  );
+}
+
+function eventToRecordDefaults(event, systemId) {
+  const eventType = String(
+    readScheduledEventField(event, "event_type", "eventType") ?? "",
+  ).toLowerCase();
+  const title =
+    readScheduledEventField(
+      event,
+      "checklist_item_title",
+      "checklistItemTitle",
+    ) ??
+    readScheduledEventField(event, "title") ??
+    "";
+  const checklistItemId = readScheduledEventField(
+    event,
+    "checklist_item_id",
+    "checklistItemId",
+  );
+  return {
+    systemId,
+    description: title,
+    recordType: eventType === "inspection" ? "Inspection" : "Maintenance",
+    contractor:
+      readScheduledEventField(event, "contractor_name", "contractorName") ?? "",
+    status: "Completed",
+    date:
+      readScheduledEventField(event, "scheduled_date", "scheduledDate") ??
+      new Date().toISOString().slice(0, 10),
+    ...(checklistItemId != null ? {checklist_item_id: checklistItemId} : {}),
+  };
+}
 
 /**
  * Full detail view for a single system: sub-nav tabs, editable overview cards,
@@ -68,7 +163,15 @@ export function SystemDetailView({
   resolveInstaller,
   initialOverviewEditing = false,
   onOverviewEditingChange,
+  savedMaintenanceRecords = [],
+  onMaintenanceRecordsChange,
+  onMaintenanceRecordAdded,
+  onFormDirty,
+  onOpenMaintenanceRecord,
+  checklistItems = [],
 }) {
+  const {currentUser} = useAuth();
+  const {setMaintenanceRecords} = useContext(PropertyContext);
   const [activeTab, setActiveTab] = useState("overview");
   const [isOverviewEditing, setIsOverviewEditing] = useState(
     initialOverviewEditing,
@@ -76,6 +179,21 @@ export function SystemDetailView({
   const [uploadTrigger, setUploadTrigger] = useState(0);
   const [scheduleTrigger, setScheduleTrigger] = useState(0);
   const [actionItemCount, setActionItemCount] = useState(0);
+  const [rescheduleEvent, setRescheduleEvent] = useState(null);
+  const [detailsEvent, setDetailsEvent] = useState(null);
+  const [createRecordOpen, setCreateRecordOpen] = useState(false);
+  const [createRecordDefaults, setCreateRecordDefaults] = useState(null);
+  const [completeEventPrompt, setCompleteEventPrompt] = useState(null);
+  const [completingScheduledEvent, setCompletingScheduledEvent] =
+    useState(false);
+  const [nextActionModalOpen, setNextActionModalOpen] = useState(false);
+  const sourceScheduledEventRef = useRef(null);
+
+  const propertyAddress = useMemo(() => {
+    const p = propertyData || {};
+    return [p.address, p.city, p.state].filter(Boolean).join(", ") || "";
+  }, [propertyData?.address, propertyData?.city, propertyData?.state]);
+  const senderName = currentUser?.data?.name || currentUser?.name || "";
 
   useEffect(() => {
     setIsOverviewEditing(initialOverviewEditing);
@@ -86,7 +204,8 @@ export function SystemDetailView({
   const displayNames = getDisplayNamesWithCounters(customNames);
   const customNameIndex = customNames.findIndex(
     (_, i) =>
-      resolveCustomSystemBackendKey(customNames[i], systems) === selectedSystemId,
+      resolveCustomSystemBackendKey(customNames[i], systems) ===
+      selectedSystemId,
   );
   const customSystemName =
     customNameIndex >= 0 ? customNames[customNameIndex] : null;
@@ -98,8 +217,12 @@ export function SystemDetailView({
   const isNewInstall = isNewInstallForSystem(selectedSystemId);
 
   const aiFindings = useMemo(
-    () => getSystemFindingsFromAnalysis(selectedSystemId, inspectionAnalysis),
-    [selectedSystemId, inspectionAnalysis],
+    () =>
+      getResolvedSystemFindings(selectedSystemId, inspectionAnalysis, {
+        checklistItems,
+        maintenanceRecords,
+      }),
+    [selectedSystemId, inspectionAnalysis, checklistItems, maintenanceRecords],
   );
 
   const systemChecklistKey = customSystemName ?? selectedSystemId;
@@ -110,17 +233,21 @@ export function SystemDetailView({
       return;
     }
     try {
-      const items = await AppApi.getInspectionChecklist(propertyId);
-      const sysItems = filterChecklistItemsForSystem(items, systemChecklistKey);
-      const openCount = sysItems.filter((item) => {
-        const status = String(item.status ?? "").toLowerCase();
-        return status === "pending" || status === "in_progress";
-      }).length;
-      setActionItemCount(openCount);
+      const items =
+        checklistItems.length > 0
+          ? checklistItems
+          : await AppApi.getInspectionChecklist(propertyId);
+      setActionItemCount(
+        countOpenSystemActionItems(
+          systemChecklistKey,
+          items,
+          maintenanceRecords,
+        ),
+      );
     } catch {
       setActionItemCount(0);
     }
-  }, [propertyId, systemChecklistKey]);
+  }, [propertyId, systemChecklistKey, checklistItems, maintenanceRecords]);
 
   useEffect(() => {
     loadActionItemCount();
@@ -139,6 +266,31 @@ export function SystemDetailView({
       );
   }, [loadActionItemCount]);
 
+  useEffect(() => {
+    if (!handleInputChange || !selectedSystemId) return;
+    const allComplete = areAllSystemActionItemsComplete(
+      systemChecklistKey,
+      checklistItems,
+      maintenanceRecords,
+    );
+    const stored = getCurrentConditionValue(propertyData, selectedSystemId);
+    const nextCondition = resolveEffectiveSystemCondition(stored, allComplete);
+    if (!nextCondition || nextCondition === stored) return;
+    const fieldName = getConditionFieldName(selectedSystemId, customSystemName);
+    if (!fieldName) return;
+    handleInputChange({
+      target: {name: fieldName, value: nextCondition},
+    });
+  }, [
+    handleInputChange,
+    selectedSystemId,
+    systemChecklistKey,
+    checklistItems,
+    maintenanceRecords,
+    propertyData,
+    customSystemName,
+  ]);
+
   const recommendations = aiFindings?.maintenanceSuggestions ?? [];
   const linkedRecords = systemDetail?.linkedRecords ?? [];
   const systemDocuments = useMemo(
@@ -146,8 +298,120 @@ export function SystemDetailView({
     [propertyDocuments, selectedSystemId],
   );
   const aiInsightCount = documentAnalysisCounts?.[selectedSystemId] ?? 0;
+  const latestCompletedInspectionDate = useMemo(
+    () =>
+      getLatestCompletedInspectionDateForSystem(
+        maintenanceRecords,
+        selectedSystemId,
+      ),
+    [maintenanceRecords, selectedSystemId],
+  );
 
   const openUpload = useCallback(() => setUploadTrigger((n) => n + 1), []);
+
+  const handleCreateRecordForChecklistItem = useCallback(
+    (item) => {
+      const recordType =
+        item.source === "maintenance_suggestion" ? "Maintenance" : "Inspection";
+      setCreateRecordDefaults({
+        systemId: selectedSystemId,
+        description: item.title,
+        recordType,
+        status: "Completed",
+        date: new Date().toISOString().slice(0, 10),
+        checklist_item_id: item.id,
+        notes: item.description || "",
+      });
+      setCreateRecordOpen(true);
+    },
+    [selectedSystemId],
+  );
+
+  const numericPropertyId =
+    propertyData?.identity?.id ?? propertyData?.id ?? propertyId;
+
+  const handleLinkExistingRecordToChecklistItem = useCallback(
+    async (item, record) => {
+      if (!numericPropertyId || !record?.id) return;
+      const payload = toMaintenanceRecordPayload(
+        {
+          ...record,
+          checklist_item_id: item.id,
+          status: "Completed",
+        },
+        numericPropertyId,
+      );
+      const updated = await AppApi.updateMaintenanceRecord(record.id, payload);
+      const uiRecord = fromMaintenanceRecordBackend(updated);
+      const nextRecords = (maintenanceRecords ?? []).map((r) =>
+        String(r.id) === String(record.id) ? uiRecord : r,
+      );
+      onMaintenanceRecordsChange?.(nextRecords, {silent: true});
+      setMaintenanceRecords(nextRecords);
+      onFormDirty?.(true);
+    },
+    [
+      numericPropertyId,
+      maintenanceRecords,
+      onMaintenanceRecordsChange,
+      setMaintenanceRecords,
+      onFormDirty,
+    ],
+  );
+
+  const handleLinkExistingDocumentToChecklistItem = useCallback(
+    async (item, doc) => {
+      if (!numericPropertyId) return;
+      const linkedRecordId =
+        doc.maintenance_record_id ?? doc.maintenanceRecordId;
+      if (linkedRecordId) {
+        const record = (maintenanceRecords ?? []).find(
+          (r) => String(r.id) === String(linkedRecordId),
+        );
+        if (record) {
+          await handleLinkExistingRecordToChecklistItem(item, record);
+          return;
+        }
+      }
+      const recordType =
+        String(doc.document_type ?? "").toLowerCase() === "inspection"
+          ? "Inspection"
+          : "Maintenance";
+      const created = await AppApi.createMaintenanceRecord({
+        ...toMaintenanceRecordPayload(
+          {
+            systemId: selectedSystemId,
+            description: item.title,
+            notes:
+              item.description ||
+              `Linked document: ${doc.document_name || "Document"}`,
+            status: "Completed",
+            date: doc.document_date || new Date().toISOString().slice(0, 10),
+            checklist_item_id: item.id,
+            recordType,
+          },
+          numericPropertyId,
+        ),
+        property_id: numericPropertyId,
+      });
+      const uiRecord = fromMaintenanceRecordBackend(created);
+      const nextRecords = [...(maintenanceRecords ?? []), uiRecord];
+      onMaintenanceRecordsChange?.(nextRecords, {silent: true});
+      setMaintenanceRecords(nextRecords);
+      onMaintenanceRecordAdded?.();
+      onFormDirty?.(true);
+    },
+    [
+      numericPropertyId,
+      selectedSystemId,
+      maintenanceRecords,
+      handleLinkExistingRecordToChecklistItem,
+      onMaintenanceRecordsChange,
+      setMaintenanceRecords,
+      onMaintenanceRecordAdded,
+      onFormDirty,
+    ],
+  );
 
   const setOverviewEditing = useCallback(
     (editing) => {
@@ -160,6 +424,168 @@ export function SystemDetailView({
   const scheduleHandler = handleScheduleInspection(
     selectedSystemId,
     nextInspectionFieldForSystem(selectedSystemId, customSystemName),
+  );
+
+  const handleMaintenanceRecordSubmit = useCallback(
+    (recordData, options = {}) => {
+      if (!recordData) return;
+      if (!(recordData.date != null && String(recordData.date).trim())) return;
+
+      let records = [...(maintenanceRecords ?? [])];
+      if (options.replaceTempId) {
+        records = records.filter(
+          (r) => String(r.id) !== String(options.replaceTempId),
+        );
+      }
+      const recordId = recordData.id;
+      const sysId = recordData.systemId || selectedSystemId;
+      const idx = records.findIndex((r) => String(r.id) === String(recordId));
+      let nextRecords;
+      if (idx >= 0) {
+        nextRecords = records.map((r, i) => (i === idx ? recordData : r));
+      } else {
+        nextRecords = [...records, {...recordData, systemId: sysId}];
+      }
+      onMaintenanceRecordsChange?.(nextRecords, options);
+      setMaintenanceRecords(nextRecords);
+      if (idx < 0 && !options.silent) {
+        onMaintenanceRecordAdded?.();
+      }
+      if (!options.keepPanelOpen) {
+        setCreateRecordOpen(false);
+        setCreateRecordDefaults(null);
+
+        const linkedEvent = sourceScheduledEventRef.current;
+        if (linkedEvent && isPersistedMaintenanceEvent(linkedEvent)) {
+          sourceScheduledEventRef.current = null;
+          setCompleteEventPrompt({
+            event: linkedEvent,
+            recordId: getPersistedMaintenanceId(recordData.id),
+          });
+        }
+      }
+      if (!options.silent) {
+        onFormDirty?.(true);
+      }
+
+      const isInspectionRecord =
+        /inspection/i.test(String(recordData.recordType ?? "")) ||
+        /inspection/i.test(String(recordData.description ?? ""));
+      const recordStatus = String(recordData.status ?? "")
+        .trim()
+        .toLowerCase();
+      const isCompletedRecord =
+        recordStatus === "completed" ||
+        String(recordData.record_status ?? "").toLowerCase() ===
+          "user_completed" ||
+        String(recordData.record_status ?? "").toLowerCase() ===
+          "contractor_completed";
+      if (
+        sysId === selectedSystemId &&
+        isInspectionRecord &&
+        isCompletedRecord &&
+        recordData.date
+      ) {
+        const nextField = nextInspectionFieldForSystem(
+          selectedSystemId,
+          customSystemName,
+        );
+        const currentNext = customSystemName
+          ? customSystemsData[customSystemName]?.nextInspection
+          : propertyData?.[nextField];
+        const recordDate = String(recordData.date).slice(0, 10);
+        if (
+          currentNext &&
+          resolveDisplayNextInspectionDate(currentNext, recordDate) === null
+        ) {
+          handleScheduleInspection(selectedSystemId, nextField)("");
+        }
+      }
+    },
+    [
+      maintenanceRecords,
+      onMaintenanceRecordsChange,
+      onMaintenanceRecordAdded,
+      onFormDirty,
+      handleScheduleInspection,
+      selectedSystemId,
+      customSystemName,
+      customSystemsData,
+      propertyData,
+      nextInspectionFieldForSystem,
+      setMaintenanceRecords,
+    ],
+  );
+
+  const handleCloseCreateRecordPanel = useCallback(() => {
+    setCreateRecordOpen(false);
+    setCreateRecordDefaults(null);
+    sourceScheduledEventRef.current = null;
+  }, []);
+
+  const handleConfirmCompleteScheduledEvent = useCallback(async () => {
+    const prompt = completeEventPrompt;
+    if (!prompt?.event?.id || completingScheduledEvent) return;
+
+    setCompletingScheduledEvent(true);
+    try {
+      await AppApi.updateMaintenanceEvent(prompt.event.id, {
+        status: "completed",
+      });
+
+      const checklistItemId = readScheduledEventField(
+        prompt.event,
+        "checklist_item_id",
+        "checklistItemId",
+      );
+      if (checklistItemId) {
+        try {
+          const maintenanceId = getPersistedMaintenanceId(prompt.recordId);
+          await AppApi.completeChecklistItem(checklistItemId, {
+            maintenanceId,
+          });
+          window.dispatchEvent(
+            new CustomEvent(INSPECTION_CHECKLIST_UPDATED_EVENT),
+          );
+          loadActionItemCount();
+        } catch (err) {
+          console.error("Failed to complete linked checklist item:", err);
+        }
+      }
+
+      onScheduleSuccess?.();
+      setCompleteEventPrompt(null);
+    } catch (err) {
+      console.error("Failed to complete scheduled event:", err);
+    } finally {
+      setCompletingScheduledEvent(false);
+    }
+  }, [
+    completeEventPrompt,
+    completingScheduledEvent,
+    loadActionItemCount,
+    onScheduleSuccess,
+  ]);
+
+  const handleRescheduleEvent = useCallback((event) => {
+    if (isPersistedMaintenanceEvent(event)) {
+      setRescheduleEvent(event);
+      return;
+    }
+    setScheduleTrigger((n) => n + 1);
+  }, []);
+
+  const handleViewEventDetails = useCallback((event) => {
+    setDetailsEvent(event);
+  }, []);
+
+  const handleAddReportFromEvent = useCallback(
+    (event) => {
+      sourceScheduledEventRef.current = event;
+      setCreateRecordDefaults(eventToRecordDefaults(event, selectedSystemId));
+      setCreateRecordOpen(true);
+    },
+    [selectedSystemId],
   );
 
   const overviewReadOnlyContent = () => {
@@ -179,6 +605,7 @@ export function SystemDetailView({
         <SystemCustomReadOnlyFormCards
           groups={buildCustomSystemReadOnlyGroups(systemData, resolveInstaller)}
           nextInspectionValue={systemData.nextInspection}
+          lastInspectionValue={latestCompletedInspectionDate}
           aiFindings={aiFindings}
           linkedRecords={linkedRecords}
           onUploadDocument={openUpload}
@@ -194,6 +621,7 @@ export function SystemDetailView({
           propertyData,
           resolveInstaller,
         )}
+        lastInspectionDate={latestCompletedInspectionDate}
         aiFindings={aiFindings}
         linkedRecords={linkedRecords}
         onUploadDocument={openUpload}
@@ -221,6 +649,7 @@ export function SystemDetailView({
           aiFindings={aiFindings}
           linkedRecords={linkedRecords}
           onUploadDocument={openUpload}
+          lastInspectionDate={latestCompletedInspectionDate}
         />
       );
     }
@@ -234,6 +663,7 @@ export function SystemDetailView({
         aiFindings={aiFindings}
         linkedRecords={linkedRecords}
         onUploadDocument={openUpload}
+        lastInspectionDate={latestCompletedInspectionDate}
       />
     );
   };
@@ -277,10 +707,6 @@ export function SystemDetailView({
               </StatusBadge>
             )}
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 truncate">
-            {propertyData?.propertyName || propertyData?.address || "Property"} ·
-            System ID: {selectedSystemId}
-          </p>
         </div>
         {activeTab === "overview" && (
           <button
@@ -328,14 +754,29 @@ export function SystemDetailView({
               onScheduleSuccess={onScheduleSuccess}
               onOpenAIAssistant={onOpenAIAssistant}
               onScheduleMaintenance={() => setActiveTab("maintenance")}
+              checklistItems={checklistItems}
+              onCreateRecordForChecklistItem={
+                handleCreateRecordForChecklistItem
+              }
+              propertyDocuments={propertyDocuments}
+              onLinkExistingRecord={handleLinkExistingRecordToChecklistItem}
+              onLinkExistingDocument={handleLinkExistingDocumentToChecklistItem}
             />
           )}
           {activeTab === "maintenance" && (
             <SystemMaintenanceTab
               systemId={selectedSystemId}
+              systemLabel={systemLabel}
               maintenanceEvents={maintenanceEvents}
               maintenanceRecords={maintenanceRecords}
+              actionItemCount={actionItemCount}
               onSchedule={() => setScheduleTrigger((n) => n + 1)}
+              onReschedule={handleRescheduleEvent}
+              onViewDetails={handleViewEventDetails}
+              onAddReport={handleAddReportFromEvent}
+              onViewAllRecords={() => setActiveTab("history")}
+              onViewActionItems={() => setActiveTab("action-items")}
+              onOpenRecord={onOpenMaintenanceRecord}
             />
           )}
           {activeTab === "documents" && (
@@ -352,7 +793,11 @@ export function SystemDetailView({
           {activeTab === "history" && (
             <SystemHistoryTab
               systemId={selectedSystemId}
+              systemLabel={systemLabel}
               maintenanceRecords={maintenanceRecords}
+              maintenanceEvents={maintenanceEvents}
+              recommendations={recommendations}
+              onOpenRecord={onOpenMaintenanceRecord}
             />
           )}
         </div>
@@ -366,6 +811,7 @@ export function SystemDetailView({
                 setActiveTab("overview");
                 setOverviewEditing(true);
               }}
+              onNextActionClick={() => setNextActionModalOpen(true)}
             />
           )}
 
@@ -379,11 +825,7 @@ export function SystemDetailView({
             contacts={contacts}
             isNewInstall={isNewInstall}
             onNewInstallChange={(v) =>
-              handleNewInstallChange(
-                selectedSystemId,
-                v,
-                customSystemName,
-              )
+              handleNewInstallChange(selectedSystemId, v, customSystemName)
             }
             onScheduleInspection={scheduleHandler}
             onScheduleSuccess={onScheduleSuccess}
@@ -395,7 +837,10 @@ export function SystemDetailView({
             <SectionCard flat title="Recommendations" icon={Sparkles}>
               <ul className="space-y-2">
                 {recommendations.slice(0, 2).map((rec, i) => (
-                  <li key={i} className="text-sm text-neutral-700 dark:text-neutral-300">
+                  <li
+                    key={i}
+                    className="text-sm text-neutral-700 dark:text-neutral-300"
+                  >
                     {rec.task || rec.rationale || "Maintenance suggestion"}
                   </li>
                 ))}
@@ -413,6 +858,128 @@ export function SystemDetailView({
           )}
         </div>
       </div>
+
+      {rescheduleEvent &&
+        createPortal(
+          <ScheduleSystemModal
+            isOpen
+            mode="reschedule"
+            existingEvent={rescheduleEvent}
+            onClose={() => setRescheduleEvent(null)}
+            systemLabel={systemLabel}
+            systemType={selectedSystemId}
+            contacts={contacts}
+            onSchedule={scheduleHandler}
+            onScheduleSuccess={() => {
+              onScheduleSuccess?.();
+              setRescheduleEvent(null);
+            }}
+            propertyId={propertyId}
+            propertyData={propertyData}
+          />,
+          document.body,
+        )}
+
+      {detailsEvent &&
+        createPortal(
+          <ScheduledEventDetailsModal
+            isOpen
+            event={detailsEvent}
+            systemLabel={systemLabel}
+            onClose={() => setDetailsEvent(null)}
+          />,
+          document.body,
+        )}
+
+      <NextRecommendedActionModal
+        isOpen={nextActionModalOpen}
+        onClose={() => setNextActionModalOpen(false)}
+        systemLabel={systemLabel}
+        nextDue={selectedRow?.nextDue}
+        nextDueOverdue={selectedRow?.nextDueOverdue}
+        lastService={selectedRow?.lastService}
+        onViewMaintenance={() => {
+          setNextActionModalOpen(false);
+          setActiveTab("maintenance");
+        }}
+        onSchedule={() => {
+          setNextActionModalOpen(false);
+          setScheduleTrigger((n) => n + 1);
+        }}
+      />
+
+      <CreateMaintenanceRecordPanel
+        open={createRecordOpen}
+        onClose={handleCloseCreateRecordPanel}
+        systems={systemsToShow}
+        defaultValues={createRecordDefaults}
+        propertyId={propertyId}
+        numericPropertyId={
+          propertyData?.identity?.id ?? propertyData?.id ?? null
+        }
+        contacts={contacts}
+        propertyAddress={propertyAddress}
+        senderName={senderName}
+        savedMaintenanceRecords={savedMaintenanceRecords}
+        onSubmit={handleMaintenanceRecordSubmit}
+        onSendToContractor={handleCloseCreateRecordPanel}
+      />
+
+      {completeEventPrompt &&
+        createPortal(
+          <ModalBlank
+            id="complete-scheduled-event-modal"
+            modalOpen
+            setModalOpen={() =>
+              !completingScheduledEvent && setCompleteEventPrompt(null)
+            }
+            backdropZClassName="z-[160]"
+            dialogZClassName="z-[160]"
+            contentClassName="max-w-lg"
+            closeOnEscape={!completingScheduledEvent}
+            closeOnClickOutside={!completingScheduledEvent}
+          >
+            <div className="p-5 flex gap-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-emerald-100 dark:bg-emerald-900/40">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                  Mark scheduled event as complete?
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                  Your maintenance record was saved. Would you like to mark{" "}
+                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                    {getScheduledEventTitle(completeEventPrompt.event)}
+                  </span>{" "}
+                  as complete? It will be removed from the scheduled panel.
+                </p>
+                <div className="flex flex-wrap justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    disabled={completingScheduledEvent}
+                    onClick={() => setCompleteEventPrompt(null)}
+                    className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300 disabled:opacity-50"
+                  >
+                    Keep scheduled
+                  </button>
+                  <button
+                    type="button"
+                    disabled={completingScheduledEvent}
+                    onClick={handleConfirmCompleteScheduledEvent}
+                    className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 inline-flex items-center gap-1.5"
+                  >
+                    {completingScheduledEvent && (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    )}
+                    Mark complete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ModalBlank>,
+          document.body,
+        )}
     </div>
   );
 }

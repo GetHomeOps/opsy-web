@@ -188,8 +188,14 @@ export function SystemDetailCards({
 }
 
 /** Right rail for the single-system detail view. */
-export function SystemDetailRightRail({row, onEdit, isEditing}) {
+export function SystemDetailRightRail({
+  row,
+  onEdit,
+  isEditing,
+  onNextActionClick,
+}) {
   const percent = Math.round(row?.percent ?? 0);
+  const hasNextAction = Boolean(row?.nextDue);
   return (
     <>
       <SectionCard flat title="System Completion" icon={CheckCircle2}>
@@ -227,28 +233,37 @@ export function SystemDetailRightRail({row, onEdit, isEditing}) {
       </SectionCard>
 
       <SectionCard flat title="Next Recommended Action" icon={Wrench}>
-        {row?.nextDue ? (
-          <div className="flex items-start gap-2.5">
-            <Calendar
-              className={`w-4 h-4 mt-0.5 shrink-0 ${
-                row.nextDueOverdue ? "text-red-500" : "text-emerald-500"
-              }`}
-            />
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                {row.nextDueOverdue ? "Service overdue" : "Upcoming service"}
-              </p>
-              <p
-                className={`text-xs mt-0.5 ${
-                  row.nextDueOverdue
-                    ? "text-red-600 dark:text-red-400 font-medium"
-                    : "text-neutral-500 dark:text-neutral-400"
+        {hasNextAction ? (
+          <button
+            type="button"
+            onClick={onNextActionClick}
+            className="w-full text-left rounded-lg -mx-1 px-1 py-0.5 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors group"
+          >
+            <div className="flex items-start gap-2.5">
+              <Calendar
+                className={`w-4 h-4 mt-0.5 shrink-0 ${
+                  row.nextDueOverdue ? "text-red-500" : "text-emerald-500"
                 }`}
-              >
-                {formatOverviewDate(row.nextDue)}
-              </p>
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200 group-hover:text-[#456564] dark:group-hover:text-[#7aa3a2] transition-colors">
+                  {row.nextDueOverdue ? "Service overdue" : "Upcoming service"}
+                </p>
+                <p
+                  className={`text-xs mt-0.5 ${
+                    row.nextDueOverdue
+                      ? "text-red-600 dark:text-red-400 font-medium"
+                      : "text-neutral-500 dark:text-neutral-400"
+                  }`}
+                >
+                  {formatOverviewDate(row.nextDue)}
+                </p>
+                <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-1">
+                  Tap for details
+                </p>
+              </div>
             </div>
-          </div>
+          </button>
         ) : (
           <p className="text-sm text-neutral-500 dark:text-neutral-400">
             No service scheduled. Use Quick Actions or the Maintenance tab to

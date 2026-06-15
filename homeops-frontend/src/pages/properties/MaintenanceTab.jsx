@@ -17,14 +17,18 @@ import {
   ChevronRight,
   Filter,
 } from "lucide-react";
-import {useParams} from "react-router-dom";
+import {useParams, useSearchParams} from "react-router-dom";
 import {PROPERTY_SYSTEMS, CUSTOM_SYSTEM_DEFAULT_ICON} from "./constants/propertySystems";
 import {
   MaintenanceRecordsTableView,
   MaintenanceRecordReadView,
   CreateMaintenanceRecordPanel,
 } from "./partials/maintenance";
-import {isNewMaintenanceRecord} from "./helpers/maintenanceRecordMapping";
+import {
+  isNewMaintenanceRecord,
+  resolveMaintenanceRecordForView,
+  isCompletedMaintenanceRecord,
+} from "./helpers/maintenanceRecordMapping";
 import PropertyContext from "../../context/PropertyContext";
 import {useAuth} from "../../context/AuthContext";
 import ModalBlank from "../../components/ModalBlank";
@@ -110,8 +114,12 @@ function MaintenanceTab({
   onMaintenanceRecordAdded,
   onFormDirty,
   contacts = [],
+  initialRecordId = null,
+  onInitialRecordConsumed,
 }) {
   const {uid: propertyId, accountUrl} = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const recordIdFromUrl = searchParams.get("recordId");
 
   const [viewMode, setViewMode] = useState("list");
   const [maintenanceSubTab, setMaintenanceSubTab] = useState("records");
@@ -179,11 +187,16 @@ function MaintenanceTab({
     setQuickFilter(null);
   }, []);
 
-  const handleSelectRecord = useCallback((record) => {
-    setSelectedRecord(record);
-    setViewMode("detail");
-    setSuccessMessage(null);
-  }, []);
+  const handleSelectRecord = useCallback(
+    (record) => {
+      setSelectedRecord(
+        resolveMaintenanceRecordForView(record, savedMaintenanceRecordsArray),
+      );
+      setViewMode("detail");
+      setSuccessMessage(null);
+    },
+    [savedMaintenanceRecordsArray],
+  );
 
   const handleOpenCreatePanel = useCallback(() => {
     setEditingRecord(null);
@@ -207,31 +220,45 @@ function MaintenanceTab({
   }, []);
 
   useEffect(() => {
+    const targetId = initialRecordId ?? recordIdFromUrl;
+    if (!targetId) return;
+    const record = (maintenanceRecordsArray ?? []).find(
+      (r) => String(r.id) === String(targetId),
+    );
+    if (record) {
+      setSelectedRecord(
+        resolveMaintenanceRecordForView(record, savedMaintenanceRecordsArray),
+      );
+      setViewMode("detail");
+      setSuccessMessage(null);
+      if (initialRecordId) {
+        onInitialRecordConsumed?.();
+      }
+      if (recordIdFromUrl) {
+        const next = new URLSearchParams(searchParams);
+        next.delete("recordId");
+        setSearchParams(next, {replace: true});
+      }
+    }
+  }, [
+    initialRecordId,
+    recordIdFromUrl,
+    maintenanceRecordsArray,
+    savedMaintenanceRecordsArray,
+    onInitialRecordConsumed,
+    searchParams,
+    setSearchParams,
+  ]);
+
+  useEffect(() => {
     if (!selectedRecord || !isNewMaintenanceRecord(selectedRecord)) return;
 
-    const source = Array.isArray(savedMaintenanceRecordsArray)
-      ? savedMaintenanceRecordsArray
-      : [];
-    if (source.length === 0) return;
-
-    const normDate = (v) => (v == null ? "" : String(v).trim().slice(0, 10));
-    const sameSystem = (candidate) =>
-      String(candidate.systemId || "") === String(selectedRecord.systemId || "");
-    const sameDate = (candidate) =>
-      normDate(candidate.date) === normDate(selectedRecord.date);
-    const sameContractor = (candidate) =>
-      String(candidate.contractor || "").trim() ===
-      String(selectedRecord.contractor || "").trim();
-
-    const matchedRecord = source.find(
-      (candidate) =>
-        sameSystem(candidate) &&
-        sameDate(candidate) &&
-        sameContractor(candidate),
+    const resolved = resolveMaintenanceRecordForView(
+      selectedRecord,
+      savedMaintenanceRecordsArray,
     );
-
-    if (matchedRecord) {
-      setSelectedRecord(matchedRecord);
+    if (resolved && String(resolved.id) !== String(selectedRecord.id)) {
+      setSelectedRecord(resolved);
     }
   }, [savedMaintenanceRecordsArray, selectedRecord]);
 
@@ -416,6 +443,7 @@ function MaintenanceTab({
     const upcoming = records
       .filter(
         (r) =>
+          !isCompletedMaintenanceRecord(r) &&
           r.nextServiceDate &&
           String(r.nextServiceDate).slice(0, 10) >= today,
       )
@@ -425,17 +453,16 @@ function MaintenanceTab({
       );
     const overdue = records.filter(
       (r) =>
-        r.nextServiceDate && String(r.nextServiceDate).slice(0, 10) < today,
+        !isCompletedMaintenanceRecord(r) &&
+        r.nextServiceDate &&
+        String(r.nextServiceDate).slice(0, 10) < today,
     );
-    const completedThisYear = records.filter((r) => {
-      const status = String(r.status ?? "").toLowerCase();
-      const recordStatus = String(r.record_status ?? "").toLowerCase();
-      const isCompleted =
-        status === "completed" ||
-        recordStatus === "user_completed" ||
-        recordStatus === "contractor_completed";
-      return isCompleted && r.date && String(r.date).slice(0, 4) === year;
-    });
+    const completedThisYear = records.filter(
+      (r) =>
+        isCompletedMaintenanceRecord(r) &&
+        r.date &&
+        String(r.date).slice(0, 4) === year,
+    );
     return {upcoming, overdue, completedThisYear};
   }, [maintenanceRecordsArray]);
 

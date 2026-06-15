@@ -7,6 +7,7 @@ import {
   canonicalSystemsMatch,
   resolveFindingSystemType,
 } from "./aiSystemNormalization";
+import {isCompletedMaintenanceRecord} from "./maintenanceRecordMapping";
 
 /** Resolve the display system bucket for a persisted checklist row. */
 export function resolveChecklistItemSystemKey(item) {
@@ -114,4 +115,167 @@ export function getSystemFindingsFromAnalysis(systemType, analysis) {
     return st && matchesSystemForAnalysis(systemType, st);
   });
   return { needsAttention, maintenanceSuggestions };
+}
+
+function normalizeFindingLabel(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function findingLabel(finding, sourceType) {
+  if (sourceType === "maintenance_suggestion") {
+    return normalizeFindingLabel(
+      finding.task || finding.rationale || finding.title,
+    );
+  }
+  return normalizeFindingLabel(
+    finding.title || finding.suggestedAction || finding.task,
+  );
+}
+
+/** Checklist rows addressed by a completed maintenance record. */
+export function getCompletedChecklistItemIds(maintenanceRecords = []) {
+  const ids = new Set();
+  for (const rec of maintenanceRecords) {
+    const cid = rec.checklist_item_id ?? rec.checklistItemId;
+    if (cid == null || cid === "") continue;
+    if (isCompletedMaintenanceRecord(rec)) ids.add(Number(cid));
+  }
+  return ids;
+}
+
+function isChecklistItemOpen(item, completedFromRecords) {
+  const status = String(item?.status ?? "").toLowerCase();
+  if (status === "pending" || status === "in_progress") return true;
+  if (status === "completed") return false;
+  return !completedFromRecords.has(Number(item?.id));
+}
+
+function findChecklistItemForFinding(
+  finding,
+  sourceType,
+  systemItems,
+  analysis,
+) {
+  const allSourceItems =
+    sourceType === "needs_attention"
+      ? (analysis?.needsAttention ?? analysis?.needs_attention ?? [])
+      : (analysis?.maintenanceSuggestions ??
+        analysis?.maintenance_suggestions ??
+        []);
+  const label = findingLabel(finding, sourceType);
+  let sourceIndex = allSourceItems.findIndex(
+    (entry) => findingLabel(entry, sourceType) === label,
+  );
+  if (sourceIndex >= 0) {
+    const matched = systemItems.find(
+      (item) =>
+        item.source === sourceType &&
+        Number(item.source_index) === sourceIndex,
+    );
+    if (matched) return matched;
+  }
+  return (
+    systemItems.find(
+      (item) => normalizeFindingLabel(item.title) === label,
+    ) ?? null
+  );
+}
+
+function isFindingAddressed(
+  finding,
+  sourceType,
+  systemItems,
+  analysis,
+  completedFromRecords,
+) {
+  const item = findChecklistItemForFinding(
+    finding,
+    sourceType,
+    systemItems,
+    analysis,
+  );
+  if (item) return !isChecklistItemOpen(item, completedFromRecords);
+  return false;
+}
+
+/**
+ * AI findings with checklist/maintenance progress applied — hides items that
+ * have been completed or addressed by a finished maintenance record.
+ */
+export function getResolvedSystemFindings(
+  systemType,
+  analysis,
+  {checklistItems = [], maintenanceRecords = []} = {},
+) {
+  const raw = getSystemFindingsFromAnalysis(systemType, analysis);
+  const systemItems = filterChecklistItemsForSystem(checklistItems, systemType);
+  const completedFromRecords = getCompletedChecklistItemIds(maintenanceRecords);
+
+  const needsAttention = (raw.needsAttention ?? []).filter(
+    (finding) =>
+      !isFindingAddressed(
+        finding,
+        "needs_attention",
+        systemItems,
+        analysis,
+        completedFromRecords,
+      ),
+  );
+  const maintenanceSuggestions = (raw.maintenanceSuggestions ?? []).filter(
+    (finding) =>
+      !isFindingAddressed(
+        finding,
+        "maintenance_suggestion",
+        systemItems,
+        analysis,
+        completedFromRecords,
+      ),
+  );
+
+  return {needsAttention, maintenanceSuggestions};
+}
+
+/** True when every checklist row for the system is done or addressed. */
+export function areAllSystemActionItemsComplete(
+  systemKey,
+  checklistItems = [],
+  maintenanceRecords = [],
+) {
+  const items = filterChecklistItemsForSystem(checklistItems, systemKey);
+  if (items.length === 0) return false;
+  const completedFromRecords = getCompletedChecklistItemIds(maintenanceRecords);
+  return items.every((item) => !isChecklistItemOpen(item, completedFromRecords));
+}
+
+/**
+ * When all action items are fulfilled, bump Fair/Poor to Good for display.
+ */
+export function resolveEffectiveSystemCondition(
+  storedCondition,
+  allActionItemsComplete,
+) {
+  const stored = String(storedCondition ?? "").trim();
+  if (!stored) return null;
+  const lower = stored.toLowerCase();
+  if (allActionItemsComplete) {
+    if (lower === "fair" || lower === "poor") return "Good";
+    return stored;
+  }
+  if (lower === "good") return "Fair";
+  return stored;
+}
+
+export function countOpenSystemActionItems(
+  systemKey,
+  checklistItems = [],
+  maintenanceRecords = [],
+) {
+  const items = filterChecklistItemsForSystem(checklistItems, systemKey);
+  const completedFromRecords = getCompletedChecklistItemIds(maintenanceRecords);
+  return items.filter((item) =>
+    isChecklistItemOpen(item, completedFromRecords),
+  ).length;
 }

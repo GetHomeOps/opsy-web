@@ -20,22 +20,65 @@ const currencyFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
-function SpecCell({icon: Icon, label, value}) {
-  const display =
-    value != null && value !== "" ? String(value) : "—";
+function SpecCell({icon: Icon, label, value, hasDivider = false}) {
+  const display = value != null && value !== "" ? String(value) : "—";
 
   return (
-    <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-neutral-200/90 dark:border-neutral-700/60 bg-white dark:bg-neutral-900/60 px-2 py-3 min-w-0 overflow-hidden">
-      <Icon className="w-4 h-4 text-neutral-400 dark:text-neutral-500 shrink-0" />
-      <span
-        className="w-full max-w-full text-center text-[9px] font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wide leading-tight truncate"
-        title={label}
-      >
-        {label}
-      </span>
-      <span className="w-full max-w-full text-center text-sm font-bold text-neutral-900 dark:text-white leading-tight truncate">
-        {display}
-      </span>
+    <div
+      className={`relative flex items-center justify-center gap-2.5 px-3 py-3.5 min-w-0 ${
+        hasDivider
+          ? "before:absolute before:left-0 before:top-1/2 before:h-10 before:w-px before:-translate-y-1/2 before:bg-neutral-200/90 dark:before:bg-neutral-700/70"
+          : ""
+      }`}
+    >
+      <Icon className="w-[18px] h-[18px] text-neutral-400 dark:text-neutral-500 shrink-0" />
+      <div className="min-w-0 flex flex-col gap-0.5">
+        <span className="text-[15px] font-bold text-neutral-900 dark:text-white leading-none truncate">
+          {display}
+        </span>
+        <span
+          className="text-xs text-neutral-500 dark:text-neutral-400 leading-tight truncate"
+          title={label}
+        >
+          {label}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PropertySpecRow({cardData, sqft, propertyType}) {
+  return (
+    <div className="grid grid-cols-5">
+      <SpecCell
+        icon={Bed}
+        label="Bedrooms"
+        value={cardData.rooms ?? cardData.bedCount ?? null}
+      />
+      <SpecCell
+        icon={Bath}
+        label="Bathrooms"
+        value={cardData.bathrooms ?? cardData.bathCount ?? null}
+        hasDivider
+      />
+      <SpecCell
+        icon={Ruler}
+        label="Sq Ft"
+        value={sqft != null ? Number(sqft).toLocaleString() : null}
+        hasDivider
+      />
+      <SpecCell
+        icon={Calendar}
+        label="Year Built"
+        value={cardData.yearBuilt ?? null}
+        hasDivider
+      />
+      <SpecCell
+        icon={Building2}
+        label="Type"
+        value={propertyType}
+        hasDivider
+      />
     </div>
   );
 }
@@ -147,34 +190,12 @@ function PropertyPassportHeader({
             </div>
           </div>
 
-          <div className="shrink-0 pt-2 lg:pt-3">
-            <div className="grid grid-cols-2 min-[480px]:grid-cols-3 2xl:grid-cols-5 gap-2.5">
-              <SpecCell
-                icon={Bed}
-                label="Beds"
-                value={cardData.rooms ?? cardData.bedCount ?? null}
-              />
-              <SpecCell
-                icon={Bath}
-                label="Baths"
-                value={cardData.bathrooms ?? cardData.bathCount ?? null}
-              />
-              <SpecCell
-                icon={Ruler}
-                label="Sq Ft"
-                value={sqft != null ? Number(sqft).toLocaleString() : null}
-              />
-              <SpecCell
-                icon={Calendar}
-                label="Built"
-                value={cardData.yearBuilt ?? null}
-              />
-              <SpecCell
-                icon={Building2}
-                label="Type"
-                value={propertyType}
-              />
-            </div>
+          <div className="shrink-0 -mx-4 md:-mx-6 mt-2 lg:mt-3 border-t border-neutral-200/90 dark:border-neutral-700/60 max-[1350px]:hidden">
+            <PropertySpecRow
+              cardData={cardData}
+              sqft={sqft}
+              propertyType={propertyType}
+            />
           </div>
         </div>
 
@@ -195,9 +216,19 @@ function PropertyPassportHeader({
             />
           </Tooltip>
           {opsymizationSlot && (
-            <div className="flex justify-center shrink-0">{opsymizationSlot}</div>
+            <div className="flex justify-center shrink-0">
+              {opsymizationSlot}
+            </div>
           )}
         </div>
+      </div>
+
+      <div className="hidden max-[1350px]:block border-t border-neutral-200/90 dark:border-neutral-700/60">
+        <PropertySpecRow
+          cardData={cardData}
+          sqft={sqft}
+          propertyType={propertyType}
+        />
       </div>
 
       {cardData.price != null && cardData.price !== "" && (

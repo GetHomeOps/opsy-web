@@ -29,6 +29,11 @@ import {
 import AppApi from "../../../api/api";
 import ModalBlank from "../../../components/ModalBlank";
 import ScheduleSystemModal from "./ScheduleSystemModal";
+import {
+  ChecklistItemCompleteModal,
+  ChecklistItemUncheckModal,
+} from "./systemDetail/ChecklistItemToggleModals";
+import {ChecklistItemSupportModal} from "./systemDetail/ChecklistItemSupportModal";
 import {parseDateInput} from "../../../lib/dateOffset";
 import {
   getSystemLabelFromAiType,
@@ -265,6 +270,7 @@ function SystemEventsModal({events, systemLabel, isOpen, onClose}) {
 function ChecklistItem({
   item,
   onStatusChange,
+  onToggleRequest,
   onDelete,
   linkedEvent = null,
   onViewEvent,
@@ -288,6 +294,10 @@ function ChecklistItem({
 
   const handleToggle = () => {
     if (isSyncing) return;
+    if (onToggleRequest) {
+      onToggleRequest(item, {isChecked});
+      return;
+    }
     const nextStatus = item.status === "completed" ? "pending" : "completed";
     onStatusChange(item.id, nextStatus);
   };
@@ -567,10 +577,18 @@ export default function InspectionChecklistPanel({
   propertyData = {},
   onScheduleSuccess,
   onOpenAIAssistant,
+  onCreateRecordForItem,
+  propertyDocuments = [],
+  onLinkExistingRecord,
+  onLinkExistingDocument,
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncingItemId, setSyncingItemId] = useState(null);
+  const [completePromptItem, setCompletePromptItem] = useState(null);
+  const [uncheckPromptItem, setUncheckPromptItem] = useState(null);
+  const [supportModalItem, setSupportModalItem] = useState(null);
+  const [supportLinking, setSupportLinking] = useState(false);
   const skipNextLoadRef = useRef(false);
   const [expandedSystems, setExpandedSystems] = useState(new Set());
   const [maintenanceEvents, setMaintenanceEvents] = useState([]);
@@ -666,6 +684,76 @@ export default function InspectionChecklistPanel({
     },
     [items, loadData],
   );
+
+  const handleToggleRequest = useCallback((item, {isChecked}) => {
+    if (isChecked) {
+      setUncheckPromptItem(item);
+    } else {
+      setCompletePromptItem(item);
+    }
+  }, []);
+
+  const handleConfirmComplete = useCallback(async () => {
+    if (!completePromptItem) return;
+    const itemId = completePromptItem.id;
+    setCompletePromptItem(null);
+    await handleStatusChange(itemId, "completed");
+  }, [completePromptItem, handleStatusChange]);
+
+  const handleAddRecordForItem = useCallback(() => {
+    if (!completePromptItem) return;
+    setSupportModalItem(completePromptItem);
+    setCompletePromptItem(null);
+  }, [completePromptItem]);
+
+  const handleSupportCreateRecord = useCallback(
+    (item) => {
+      setSupportModalItem(null);
+      onCreateRecordForItem?.(item);
+    },
+    [onCreateRecordForItem],
+  );
+
+  const handleSupportLinkRecord = useCallback(
+    async (item, record) => {
+      if (!onLinkExistingRecord) return;
+      setSupportLinking(true);
+      try {
+        await onLinkExistingRecord(item, record);
+        setSupportModalItem(null);
+        skipNextLoadRef.current = true;
+        emitInspectionChecklistUpdated({skipChecklistReload: true});
+        await loadData({showLoader: false});
+      } finally {
+        setSupportLinking(false);
+      }
+    },
+    [onLinkExistingRecord, loadData],
+  );
+
+  const handleSupportLinkDocument = useCallback(
+    async (item, doc) => {
+      if (!onLinkExistingDocument) return;
+      setSupportLinking(true);
+      try {
+        await onLinkExistingDocument(item, doc);
+        setSupportModalItem(null);
+        skipNextLoadRef.current = true;
+        emitInspectionChecklistUpdated({skipChecklistReload: true});
+        await loadData({showLoader: false});
+      } finally {
+        setSupportLinking(false);
+      }
+    },
+    [onLinkExistingDocument, loadData],
+  );
+
+  const handleConfirmUncheck = useCallback(async () => {
+    if (!uncheckPromptItem) return;
+    const itemId = uncheckPromptItem.id;
+    setUncheckPromptItem(null);
+    await handleStatusChange(itemId, "pending");
+  }, [uncheckPromptItem, handleStatusChange]);
 
   const handleItemCreated = useCallback((newItem) => {
     setItems((prev) => [...prev, newItem]);
@@ -769,6 +857,53 @@ export default function InspectionChecklistPanel({
     [onOpenAIAssistant, systemType, systemLabel],
   );
 
+  const checklistToggleModals = (
+    <>
+      <ChecklistItemCompleteModal
+        isOpen={Boolean(completePromptItem)}
+        item={completePromptItem}
+        onClose={() => !syncingItemId && setCompletePromptItem(null)}
+        onAddRecord={
+          onCreateRecordForItem ||
+          onLinkExistingRecord ||
+          onLinkExistingDocument
+            ? handleAddRecordForItem
+            : undefined
+        }
+        onMarkComplete={handleConfirmComplete}
+        submitting={
+          completePromptItem != null && syncingItemId === completePromptItem.id
+        }
+      />
+      <ChecklistItemUncheckModal
+        isOpen={Boolean(uncheckPromptItem)}
+        item={uncheckPromptItem}
+        onClose={() => !syncingItemId && setUncheckPromptItem(null)}
+        onConfirm={handleConfirmUncheck}
+        submitting={
+          uncheckPromptItem != null && syncingItemId === uncheckPromptItem.id
+        }
+      />
+      <ChecklistItemSupportModal
+        isOpen={Boolean(supportModalItem)}
+        item={supportModalItem}
+        systemLabel={systemLabel}
+        systemId={systemType || systemKey}
+        maintenanceRecords={maintenanceRecords}
+        propertyDocuments={propertyDocuments}
+        linking={supportLinking}
+        onClose={() => !supportLinking && setSupportModalItem(null)}
+        onCreateRecord={handleSupportCreateRecord}
+        onLinkRecord={
+          onLinkExistingRecord ? handleSupportLinkRecord : undefined
+        }
+        onLinkDocument={
+          onLinkExistingDocument ? handleSupportLinkDocument : undefined
+        }
+      />
+    </>
+  );
+
   const toggleSystem = (sysKey) => {
     setExpandedSystems((prev) => {
       const next = new Set(prev);
@@ -834,6 +969,7 @@ export default function InspectionChecklistPanel({
             key={item.id}
             item={item}
             onStatusChange={handleStatusChange}
+            onToggleRequest={handleToggleRequest}
             onDelete={handleDeleteItem}
             linkedEvent={eventsByChecklistItemId[Number(item.id)] || null}
             onViewEvent={handleViewEvent}
@@ -859,6 +995,7 @@ export default function InspectionChecklistPanel({
             key={item.id}
             item={item}
             onStatusChange={handleStatusChange}
+            onToggleRequest={handleToggleRequest}
             onDelete={handleDeleteItem}
             linkedEvent={eventsByChecklistItemId[Number(item.id)] || null}
             onViewEvent={handleViewEvent}
@@ -898,6 +1035,7 @@ export default function InspectionChecklistPanel({
             />,
             document.body,
           )}
+        {checklistToggleModals}
       </div>
     );
   }
@@ -965,6 +1103,7 @@ export default function InspectionChecklistPanel({
                     key={item.id}
                     item={item}
                     onStatusChange={handleStatusChange}
+                    onToggleRequest={handleToggleRequest}
                     onDelete={handleDeleteItem}
                     linkedEvent={
                       eventsByChecklistItemId[Number(item.id)] || null
@@ -992,6 +1131,7 @@ export default function InspectionChecklistPanel({
                     key={item.id}
                     item={item}
                     onStatusChange={handleStatusChange}
+                    onToggleRequest={handleToggleRequest}
                     onDelete={handleDeleteItem}
                     linkedEvent={
                       eventsByChecklistItemId[Number(item.id)] || null
@@ -1044,6 +1184,7 @@ export default function InspectionChecklistPanel({
           />,
           document.body,
         )}
+      {checklistToggleModals}
     </div>
   );
 }

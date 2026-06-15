@@ -5,13 +5,7 @@ import React, {
   useCallback,
   useContext,
 } from "react";
-import {
-  Info,
-  Calendar,
-  X,
-  ArrowLeft,
-  Settings2,
-} from "lucide-react";
+import {Info, Calendar, X, ArrowLeft, Settings2} from "lucide-react";
 import {
   STANDARD_CUSTOM_SYSTEM_FIELDS,
   PROPERTY_SYSTEMS,
@@ -27,14 +21,25 @@ import {
   IS_NEW_INSTALL_FIELD_BY_SYSTEM,
 } from "./constants/systemSections";
 import {NEXT_INSPECTION_FIELD_BY_SYSTEM} from "./constants/systemFieldConfig";
-import {getSystemFindingsFromAnalysis} from "./helpers/inspectionAnalysisHelpers";
+import {
+  getResolvedSystemFindings,
+  areAllSystemActionItemsComplete,
+  resolveEffectiveSystemCondition,
+} from "./helpers/inspectionAnalysisHelpers";
 import {filterSuggestedSystemsNotOnProperty} from "./helpers/suggestedSystemsHelpers";
 import {toDisplaySystemName} from "./helpers/aiSystemNormalization";
 import {
   getConditionFieldName,
   getCurrentConditionValue,
+  computeSystemServiceSchedule,
 } from "./helpers/systemStatusHelpers";
-import {getDisplayNamesWithCounters, buildCustomSystemsForUi, resolveCustomSystemBackendKey, resolveUploadSystemKey} from "./helpers/systemKeyUtils";
+import AppApi from "../../api/api";
+import {
+  getDisplayNamesWithCounters,
+  buildCustomSystemsForUi,
+  resolveCustomSystemBackendKey,
+  resolveUploadSystemKey,
+} from "./helpers/systemKeyUtils";
 import ContactContext from "../../context/ContactContext";
 import ModalBlank from "../../components/ModalBlank";
 import {parseDateInput} from "../../lib/dateOffset";
@@ -105,6 +110,10 @@ function classifySystemField(field) {
 function SystemsTab({
   propertyData,
   maintenanceRecords = [],
+  savedMaintenanceRecords = [],
+  onMaintenanceRecordsChange,
+  onMaintenanceRecordAdded,
+  onFormDirty,
   propertyIdFallback,
   handleInputChange,
   onSilentSystemsUpdate,
@@ -117,6 +126,7 @@ function SystemsTab({
   onOpenInspectionReport,
   onSystemsCompletionChange,
   onOpenSystemsSetup,
+  onOpenMaintenanceRecord,
   aiSidebarOpen: aiSidebarOpenProp,
   onAiSidebarOpenChange,
   onOpenAIAssistant: onOpenAIAssistantProp,
@@ -191,7 +201,40 @@ function SystemsTab({
     propertyIdFallback;
 
   const documentAnalysisCounts = useDocumentAnalysisCounts(propertyId);
+  const [checklistItems, setChecklistItems] = useState([]);
   const [documentFindingsModal, setDocumentFindingsModal] = useState(null);
+
+  const loadChecklistItems = useCallback(async () => {
+    if (!propertyId) {
+      setChecklistItems([]);
+      return;
+    }
+    try {
+      const items = await AppApi.getInspectionChecklist(propertyId, {
+        _t: Date.now(),
+      });
+      setChecklistItems(Array.isArray(items) ? items : []);
+    } catch {
+      setChecklistItems([]);
+    }
+  }, [propertyId]);
+
+  useEffect(() => {
+    loadChecklistItems();
+  }, [loadChecklistItems]);
+
+  useEffect(() => {
+    const handleChecklistUpdated = () => loadChecklistItems();
+    window.addEventListener(
+      "inspection-checklist:updated",
+      handleChecklistUpdated,
+    );
+    return () =>
+      window.removeEventListener(
+        "inspection-checklist:updated",
+        handleChecklistUpdated,
+      );
+  }, [loadChecklistItems]);
 
   const handleOpenDocumentFindings = useCallback((systemKey, systemLabel) => {
     setDocumentFindingsModal({systemKey, systemLabel});
@@ -255,8 +298,8 @@ function SystemsTab({
     const isNewInstallField =
       customDataKey != null
         ? `customSystem_${customDataKey}::isNewInstall`
-        : IS_NEW_INSTALL_FIELD_BY_SYSTEM[systemType] ??
-          `${systemType}IsNewInstall`;
+        : (IS_NEW_INSTALL_FIELD_BY_SYSTEM[systemType] ??
+          `${systemType}IsNewInstall`);
     handleInputChange({
       target: {
         name: isNewInstallField,
@@ -429,53 +472,42 @@ function SystemsTab({
 
   /* ---- Read-only overview table + right-rail data (no behavior changes) ---- */
   const overviewRows = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const recordsFor = (sysId) =>
-      (maintenanceRecords ?? []).filter(
-        (r) => String(r.systemId ?? r.system_key ?? "") === String(sysId),
+    const buildDates = (sysId) =>
+      computeSystemServiceSchedule(
+        maintenanceRecords,
+        maintenanceEvents,
+        sysId,
       );
-    const eventsFor = (sysId) =>
-      (maintenanceEvents ?? []).filter(
-        (e) => String(e.system_key ?? e.systemKey ?? "") === String(sysId),
+
+    const resolveCondition = (sysId, customName, storedCondition, aiStatus) => {
+      const stored =
+        storedCondition ||
+        (aiStatus
+          ? aiStatus.charAt(0).toUpperCase() + aiStatus.slice(1)
+          : null);
+      const allComplete = areAllSystemActionItemsComplete(
+        customName ?? sysId,
+        checklistItems,
+        maintenanceRecords,
       );
-    const buildDates = (sysId) => {
-      const recs = recordsFor(sysId);
-      const serviceDates = recs
-        .map((r) => r.date)
-        .filter(Boolean)
-        .map((d) => String(d).slice(0, 10))
-        .sort();
-      const lastService = serviceDates[serviceDates.length - 1] ?? null;
-      const dueCandidates = [
-        ...recs.map((r) => r.nextServiceDate).filter(Boolean),
-        ...eventsFor(sysId)
-          .map((e) => e.scheduled_date ?? e.scheduledDate)
-          .filter(Boolean),
-      ]
-        .map((d) => String(d).slice(0, 10))
-        .sort();
-      const upcoming = dueCandidates.find((d) => d >= today) ?? null;
-      const overduePast =
-        !upcoming && dueCandidates.length > 0
-          ? dueCandidates[dueCandidates.length - 1]
-          : null;
-      return {
-        lastService,
-        nextDue: upcoming ?? overduePast,
-        nextDueOverdue: Boolean(overduePast),
-      };
+      return resolveEffectiveSystemCondition(stored, allComplete) || null;
     };
 
     const standard = PROPERTY_SYSTEMS.filter((s) =>
       systemIdsToShow.includes(s.id),
     ).map((s) => {
-      const progress = systemsProgress[s.id] ?? {percent: 0, filled: 0, total: 1};
+      const progress = systemsProgress[s.id] ?? {
+        percent: 0,
+        filled: 0,
+        total: 1,
+      };
       const aiStatus = aiConditionBySystem[s.id]?.status;
-      const condition =
-        getCurrentConditionValue(propertyData, s.id) ||
-        (aiStatus
-          ? aiStatus.charAt(0).toUpperCase() + aiStatus.slice(1)
-          : null);
+      const condition = resolveCondition(
+        s.id,
+        null,
+        getCurrentConditionValue(propertyData, s.id),
+        aiStatus,
+      );
       return {
         id: s.id,
         name: s.name,
@@ -496,6 +528,13 @@ function SystemsTab({
     const custom = customNamesForOverview.map((systemName, index) => {
       const sectionId = resolveCustomSystemBackendKey(systemName, systems);
       const systemData = customSystemsData[systemName] ?? {};
+      const aiStatus = aiConditionBySystem[sectionId]?.status;
+      const condition = resolveCondition(
+        sectionId,
+        systemName,
+        getCurrentConditionValue(propertyData, sectionId),
+        aiStatus,
+      );
       const trackable = STANDARD_CUSTOM_SYSTEM_FIELDS.filter(
         (f) => f.type !== "computed-age",
       );
@@ -508,7 +547,7 @@ function SystemsTab({
         customName: systemName,
         name: displayNames[index] ?? systemName,
         icon: CUSTOM_SYSTEM_DEFAULT_ICON,
-        condition: systemData.condition || null,
+        condition: condition || null,
         installer: resolveInstaller(systemData.installer),
         percent: trackable.length > 0 ? (filled / trackable.length) * 100 : 0,
         filled,
@@ -525,6 +564,7 @@ function SystemsTab({
     aiConditionBySystem,
     maintenanceRecords,
     maintenanceEvents,
+    checklistItems,
     resolveInstaller,
     customSystemsData,
     systems,
@@ -619,7 +659,7 @@ function SystemsTab({
         if (resolveCustomSystemBackendKey(name, systems) === systemId) {
           return Boolean(
             customSystemsData?.[name]?.isNewInstall ||
-              newInstallStates[systemId],
+            newInstallStates[systemId],
           );
         }
       }
@@ -666,7 +706,10 @@ function SystemsTab({
           );
         } else {
           value = data[f.key];
-          if (f.type === "date") value = formatOverviewDate(value) ?? value;
+          if (f.key === "condition") {
+            value = selectedRow.condition ?? value;
+          } else if (f.type === "date")
+            value = formatOverviewDate(value) ?? value;
           else if (f.type === "installer") value = resolveInstaller(value);
           else if (f.type === "warranty-select")
             value = value === "yes" ? "Yes" : value === "no" ? "No" : value;
@@ -679,7 +722,8 @@ function SystemsTab({
       let installDateField = null;
       for (const field of fields) {
         let value = propertyData?.[field];
-        if (/Installer$/.test(field)) value = resolveInstaller(value);
+        if (/Condition$/.test(field)) value = selectedRow.condition ?? value;
+        else if (/Installer$/.test(field)) value = resolveInstaller(value);
         else if (/(Date|Inspection)$/.test(field))
           value = formatOverviewDate(value) ?? value;
         else if (/Warranty$/.test(field))
@@ -702,9 +746,10 @@ function SystemsTab({
       }
     }
 
-    const aiFindings = getSystemFindingsFromAnalysis(
+    const aiFindings = getResolvedSystemFindings(
       selectedSystemId,
       inspectionAnalysis,
+      {checklistItems, maintenanceRecords},
     );
     const maintenanceCount = (maintenanceRecords ?? []).filter(
       (r) =>
@@ -733,6 +778,7 @@ function SystemsTab({
     inspectionAnalysis,
     maintenanceRecords,
     maintenanceEvents,
+    checklistItems,
     documentAnalysisCounts,
     resolveInstaller,
   ]);
@@ -746,13 +792,15 @@ function SystemsTab({
             {suggestedSystemsNotOnProperty.length > 0 &&
               onOpenSystemsSetup &&
               overviewRows.length > 0 && (
-              <SystemSuggestedSystemsBanner
-                title={systemsEmptyState.title}
-                description={systemsEmptyState.description}
-                actionLabel={systemsEmptyState.actionLabel}
-                onAction={() => onOpenSystemsSetup(suggestedSystemsNotOnProperty)}
-              />
-            )}
+                <SystemSuggestedSystemsBanner
+                  title={systemsEmptyState.title}
+                  description={systemsEmptyState.description}
+                  actionLabel={systemsEmptyState.actionLabel}
+                  onAction={() =>
+                    onOpenSystemsSetup(suggestedSystemsNotOnProperty)
+                  }
+                />
+              )}
             {overviewRows.length > 0 ? (
               <SystemsOverviewTable
                 rows={overviewRows}
@@ -763,7 +811,9 @@ function SystemsTab({
                 icon={Settings2}
                 title={systemsEmptyState.title}
                 description={systemsEmptyState.description}
-                actionLabel={onOpenSystemsSetup ? systemsEmptyState.actionLabel : undefined}
+                actionLabel={
+                  onOpenSystemsSetup ? systemsEmptyState.actionLabel : undefined
+                }
                 onAction={
                   onOpenSystemsSetup
                     ? () => onOpenSystemsSetup(suggestedSystemsNotOnProperty)
@@ -797,7 +847,10 @@ function SystemsTab({
                   ["Fair", "bg-amber-400"],
                   ["Poor", "bg-red-400"],
                 ].map(([label, dot]) => (
-                  <span key={label} className="inline-flex items-center gap-1.5">
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1.5"
+                  >
                     <span className={`w-2 h-2 rounded-full ${dot}`} />
                     {label}
                   </span>
@@ -851,6 +904,12 @@ function SystemsTab({
           resolveInstaller={resolveInstaller}
           initialOverviewEditing={detailOverviewEditing}
           onOverviewEditingChange={setDetailOverviewEditing}
+          savedMaintenanceRecords={savedMaintenanceRecords}
+          onMaintenanceRecordsChange={onMaintenanceRecordsChange}
+          onMaintenanceRecordAdded={onMaintenanceRecordAdded}
+          onFormDirty={onFormDirty}
+          onOpenMaintenanceRecord={onOpenMaintenanceRecord}
+          checklistItems={checklistItems}
         />
       )}
       {!onAiSidebarOpenChange && (

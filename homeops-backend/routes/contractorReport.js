@@ -180,6 +180,7 @@ router.post("/:token", async function (req, res, next) {
         nextStepsRecommendation ?? existingData.nextStepsRecommendation,
       files: mergedFiles,
       contractorSubmittedAt: new Date().toISOString(),
+      source: "Contractor",
     };
 
     const updatedRecord = await MaintenanceRecord.update(tokenData.maintenanceRecordId, {

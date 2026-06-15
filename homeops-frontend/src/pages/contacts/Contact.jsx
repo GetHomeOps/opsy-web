@@ -3,7 +3,7 @@ import {useNavigate} from "react-router-dom";
 
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
-import { PAGE_LAYOUT } from "../../constants/layout";
+import {PAGE_LAYOUT} from "../../constants/layout";
 import ContactFormContainer from "./ContactFormContainer";
 
 function ContactContainer() {

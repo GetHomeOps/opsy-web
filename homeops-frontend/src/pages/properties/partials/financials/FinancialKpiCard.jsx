@@ -40,6 +40,7 @@ function FinancialKpiCard({
   changeTone = "positive",
   sparkline,
   suffix,
+  className = "",
 }) {
   const changeColors = {
     positive: "text-emerald-600 dark:text-emerald-400",
@@ -48,7 +49,9 @@ function FinancialKpiCard({
   };
 
   return (
-    <section className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 px-4 py-3.5">
+    <section
+      className={`rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 px-4 py-3.5 ${className}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 mb-1">

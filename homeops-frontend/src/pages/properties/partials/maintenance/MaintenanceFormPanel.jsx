@@ -30,6 +30,7 @@ import {normalizeProfessional} from "../../../professionals/utils/normalizeProfe
 import {
   RECORD_STATUS,
   isNewMaintenanceRecord,
+  findPersistedMaintenanceRecord,
 } from "../../helpers/maintenanceRecordMapping";
 import Banner from "../../../../partials/containers/Banner";
 
@@ -484,24 +485,30 @@ function MaintenanceFormPanel({
     const saved = Array.isArray(savedMaintenanceRecords)
       ? savedMaintenanceRecords
       : [];
-    const norm = (v) => (v == null ? "" : String(v).trim().slice(0, 10));
-    const match = saved.find(
-      (r) =>
-        String(r.systemId || "").slice(0, 50) ===
-          String(systemId || "").slice(0, 50) &&
-        norm(r.date) === norm(formData.date) &&
-        (String(r.contractor || "").trim() ===
-          String(formData.contractor || "").trim() ||
-          String(r.workOrderNumber || "").trim() ===
-            String(formData.workOrderNumber || "").trim()),
-    );
-    return match?.id ?? null;
+    const candidate = {
+      ...record,
+      systemId: systemId || record?.systemId,
+      date: formData.date,
+      contractor: formData.contractor,
+      recordType: formData.recordType,
+      description: formData.description,
+      status: formData.status,
+      cost: formData.cost,
+      nextServiceDate: formData.nextServiceDate,
+      workOrderNumber: formData.workOrderNumber,
+    };
+    return findPersistedMaintenanceRecord(candidate, saved)?.id ?? null;
   }, [
-    record?.id,
+    record,
     savedMaintenanceRecords,
     systemId,
     formData.date,
     formData.contractor,
+    formData.recordType,
+    formData.description,
+    formData.status,
+    formData.cost,
+    formData.nextServiceDate,
     formData.workOrderNumber,
   ]);
 
@@ -1277,6 +1284,7 @@ function MaintenanceFormPanel({
         contacts={contacts}
         savedProfessionals={savedProfessionals}
         onSelectContact={handleContractorSelect}
+        showDirectoryLink
       />
 
       {/* Send to contractor email modal */}

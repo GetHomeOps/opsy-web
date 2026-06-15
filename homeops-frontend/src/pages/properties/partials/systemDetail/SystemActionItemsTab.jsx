@@ -1,10 +1,11 @@
 import React, { useMemo } from "react";
-import { AlertTriangle, Wrench, Sparkles } from "lucide-react";
+import { AlertTriangle, CalendarCheck, Wrench, Sparkles } from "lucide-react";
 import SectionCard from "../passport/SectionCard";
 import InspectionChecklistPanel from "../InspectionChecklistPanel";
-import { getSystemFindingsFromAnalysis } from "../../helpers/inspectionAnalysisHelpers";
+import { getResolvedSystemFindings } from "../../helpers/inspectionAnalysisHelpers";
 import { getSystemStatus } from "../../helpers/systemStatusHelpers";
 import EmptyStateCard from "../passport/EmptyStateCard";
+import { formatOverviewDate } from "../passport/SystemsOverviewPanel";
 
 /**
  * Action items tab: inspection checklist + attention reasons + AI recommendations.
@@ -24,6 +25,11 @@ export function SystemActionItemsTab({
   onScheduleSuccess,
   onOpenAIAssistant,
   onScheduleMaintenance,
+  checklistItems = [],
+  onCreateRecordForChecklistItem,
+  propertyDocuments = [],
+  onLinkExistingRecord,
+  onLinkExistingDocument,
 }) {
   const formStatus = useMemo(
     () =>
@@ -33,23 +39,44 @@ export function SystemActionItemsTab({
         isNewInstall,
         customSystemsData,
         maintenanceEvents,
+        maintenanceRecords,
       ),
-    [propertyData, systemId, isNewInstall, customSystemsData, maintenanceEvents],
+    [
+      propertyData,
+      systemId,
+      isNewInstall,
+      customSystemsData,
+      maintenanceEvents,
+      maintenanceRecords,
+    ],
   );
 
   const aiFindings = useMemo(
-    () => getSystemFindingsFromAnalysis(systemId, inspectionAnalysis),
-    [systemId, inspectionAnalysis],
+    () =>
+      getResolvedSystemFindings(systemId, inspectionAnalysis, {
+        checklistItems,
+        maintenanceRecords,
+      }),
+    [systemId, inspectionAnalysis, checklistItems, maintenanceRecords],
   );
 
   const attentionItems = useMemo(() => {
-    const items = [...(formStatus.attentionReasons ?? [])];
+    const items = (formStatus.attentionReasons ?? []).filter(
+      (item) =>
+        !formStatus.lastInspectionDate ||
+        item !== "No inspection date recorded",
+    );
     (aiFindings?.needsAttention ?? []).forEach((n) => {
       const label = n.title || n.suggestedAction || "AI finding";
       if (label && !items.includes(label)) items.push(label);
     });
     return items;
   }, [formStatus, aiFindings]);
+
+  const lastInspectionLabel = formStatus.lastInspectionDate
+    ? (formatOverviewDate(formStatus.lastInspectionDate) ??
+      formStatus.lastInspectionDate)
+    : null;
 
   const recommendations = [
     ...(aiFindings?.maintenanceSuggestions ?? []).map((m) => ({
@@ -89,7 +116,20 @@ export function SystemActionItemsTab({
             propertyData={propertyData}
             onScheduleSuccess={onScheduleSuccess}
             onOpenAIAssistant={onOpenAIAssistant}
+            onCreateRecordForItem={onCreateRecordForChecklistItem}
+            propertyDocuments={propertyDocuments}
+            onLinkExistingRecord={onLinkExistingRecord}
+            onLinkExistingDocument={onLinkExistingDocument}
           />
+        </SectionCard>
+      )}
+
+      {lastInspectionLabel && (
+        <SectionCard flat title="Inspection Status" icon={CalendarCheck}>
+          <div className="flex items-start gap-2.5 text-sm text-neutral-700 dark:text-neutral-300">
+            <CalendarCheck className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+            <span>Last inspection recorded: {lastInspectionLabel}</span>
+          </div>
         </SectionCard>
       )}
 

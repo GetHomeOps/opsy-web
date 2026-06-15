@@ -6,9 +6,9 @@ import AppApi from "../../../api/api";
 import useDocumentUpload from "../../../hooks/useDocumentUpload";
 import { S3_UPLOAD_FOLDER } from "../../../constants/s3UploadFolders";
 import {
-  MAX_DOCUMENT_UPLOAD_LABEL,
   defaultDocumentLabelFromFile,
 } from "../../../constants/documentUpload";
+import DocumentUploadPicker from "./documents/DocumentUploadPicker";
 import UpgradePrompt from "../../../components/UpgradePrompt";
 import { emitDocumentsFiled } from "../helpers/documentAnalysisFlow";
 import { emitPropertyDocumentsChanged } from "../helpers/inspectionFlowSession";
@@ -193,6 +193,7 @@ function UploadDocumentModal({
       if (inspectionReportOnly) {
         setUploadSystemKey("inspectionReport");
         setDocumentType("inspection");
+        setDocumentName("Inspection report");
       } else {
         const valid = systemsToShow.some((s) => s.id === systemType);
         const fallback = systemsToShow[0]?.id ?? "general";
@@ -350,14 +351,12 @@ function UploadDocumentModal({
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             File(s)
           </label>
-          <input
+          <DocumentUploadPicker
             ref={fileInputRef}
-            type="file"
+            files={uploadFiles}
             multiple
-            accept=".pdf,.jpg,.jpeg,.png,.webp,.gif"
-            className="hidden"
-            onChange={(e) => {
-              const files = Array.from(e.target.files || []);
+            disabled={isUploading}
+            onFilesChange={(files) => {
               setUploadFiles(files);
               setUploadError(null);
               if (files.length > 0) {
@@ -366,27 +365,8 @@ function UploadDocumentModal({
                   return defaultDocumentLabelFromFile(files[0]);
                 });
               }
-              e.target.value = "";
             }}
           />
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-5 text-center hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors cursor-pointer group"
-          >
-            <Upload className="w-10 h-10 mx-auto mb-3 text-gray-400 dark:text-gray-500 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors" />
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-              Click to upload or drag and drop
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-500">
-              PDF, JPG, PNG, GIF, WebP — up to {MAX_DOCUMENT_UPLOAD_LABEL} each
-            </p>
-            {uploadFiles.length > 0 && (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 font-medium">
-                {uploadFiles.length} file
-                {uploadFiles.length !== 1 ? "s" : ""} selected
-              </p>
-            )}
-          </div>
         </div>
 
         {isUploading && (

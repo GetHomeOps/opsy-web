@@ -1,7 +1,14 @@
 import React, {useState, useMemo} from "react";
-import {X, Search} from "lucide-react";
+import {ExternalLink, Search, X} from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
+import useCurrentAccount from "../../../hooks/useCurrentAccount";
 import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
+
+function toShareUrl(path) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const cleanPath = (path || "").replace(/^\//, "");
+  return `${origin}/${cleanPath}`;
+}
 
 /**
  * Modal to search and select from all contacts and agents.
@@ -15,7 +22,14 @@ function ContactSearchModal({
   savedProfessionals = [],
   onSelect,
   onSelectContact,
+  showDirectoryLink = false,
 }) {
+  const {currentAccount} = useCurrentAccount();
+  const accountUrl = currentAccount?.url || currentAccount?.name || "";
+  const professionalsSearchPath = accountUrl
+    ? `/${accountUrl}/professionals/search`
+    : "/professionals/search";
+
   const [searchTerm, setSearchTerm] = useState("");
   const bindContactSearchInput =
     useSuppressBrowserAddressAutofill("contact-search-modal");
@@ -211,6 +225,25 @@ function ContactSearchModal({
               </p>
             )}
         </div>
+
+        {showDirectoryLink && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-center">
+            <button
+              type="button"
+              onClick={() =>
+                window.open(
+                  toShareUrl(professionalsSearchPath),
+                  "_blank",
+                  "noopener,noreferrer",
+                )
+              }
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-[#456564] dark:text-[#7aa3a2] hover:underline"
+            >
+              Search contractors directory
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
     </ModalBlank>
   );

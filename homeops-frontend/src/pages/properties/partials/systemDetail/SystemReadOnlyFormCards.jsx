@@ -18,6 +18,7 @@ import {
   groupFieldsBySystemId,
   conditionTone,
 } from "../../helpers/systemFieldDisplay";
+import { resolveDisplayNextInspectionDate } from "../../helpers/systemStatusHelpers";
 
 const GROUP_META = {
   identity: { title: "System Identity", icon: FileText },
@@ -137,8 +138,12 @@ export function SystemReadOnlyFormCards({
   aiFindings,
   linkedRecords = [],
   onUploadDocument,
+  lastInspectionDate,
 }) {
   const fieldGroups = groupFieldsBySystemId(systemId);
+  const lastInspectionField = fieldGroups.inspection?.find((f) =>
+    /LastInspection$/.test(f),
+  );
   const nextInspectionField =
     findNextInspectionFieldName(fieldGroups) ??
     fieldGroups.inspection?.find((f) => /NextInspection$/.test(f));
@@ -148,6 +153,10 @@ export function SystemReadOnlyFormCards({
   const nextInspectionRaw = nextInspectionField
     ? propertyData?.[nextInspectionField]
     : null;
+  const displayNextInspection = resolveDisplayNextInspectionDate(
+    nextInspectionRaw,
+    lastInspectionDate,
+  );
   const nextInspectionLabel =
     nextInspectionDef?.label ?? "Next Inspection";
 
@@ -168,15 +177,25 @@ export function SystemReadOnlyFormCards({
           const otherItems = items.filter(
             (i) => i.fieldName !== nextInspectionField,
           );
+          const displayItems = otherItems.map((item) =>
+            item.fieldName === lastInspectionField && lastInspectionDate
+              ? {
+                  ...item,
+                  value:
+                    formatOverviewDate(lastInspectionDate) ??
+                    lastInspectionDate,
+                }
+              : item,
+          );
           return (
             <SectionCard flat key={groupKey} title={meta.title} icon={meta.icon}>
-              {nextInspectionRaw ? (
+              {displayNextInspection ? (
                 <div className="rounded-xl bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 px-4 py-3 mb-3">
                   <p className="text-[10px] font-medium text-emerald-700/80 dark:text-emerald-300/80 uppercase tracking-[0.08em]">
                     {nextInspectionLabel}
                   </p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-white mt-0.5">
-                    {formatOverviewDate(nextInspectionRaw) ?? nextInspectionRaw}
+                    {formatOverviewDate(displayNextInspection) ?? displayNextInspection}
                   </p>
                 </div>
               ) : (
@@ -185,7 +204,7 @@ export function SystemReadOnlyFormCards({
                 </p>
               )}
               <div className="grid grid-cols-1 gap-y-3">
-                {otherItems.map((item) => (
+                {displayItems.map((item) => (
                   <ReadOnlyField key={item.fieldName} item={item} />
                 ))}
                 {nextInspectionField &&
@@ -243,7 +262,12 @@ export function SystemCustomReadOnlyFormCards({
   linkedRecords = [],
   onUploadDocument,
   nextInspectionValue,
+  lastInspectionValue,
 }) {
+  const displayNextInspection = resolveDisplayNextInspectionDate(
+    nextInspectionValue,
+    lastInspectionValue,
+  );
   const issuesText = (groups.issues ?? [])
     .map((i) => i.value)
     .filter((v) => v != null && String(v).trim() !== "")
@@ -254,6 +278,15 @@ export function SystemCustomReadOnlyFormCards({
       {["identity", "condition", "inspection"].map((groupKey) => {
         const items = (groups[groupKey] ?? []).filter(
           (i) => i.fieldName !== "nextInspection",
+        ).map((item) =>
+          item.fieldName === "lastInspection" && lastInspectionValue
+            ? {
+                ...item,
+                value:
+                  formatOverviewDate(lastInspectionValue) ??
+                  lastInspectionValue,
+              }
+            : item,
         );
         if (!items.length && groupKey !== "inspection") return null;
         const meta = GROUP_META[groupKey];
@@ -261,13 +294,13 @@ export function SystemCustomReadOnlyFormCards({
         if (groupKey === "inspection") {
           return (
             <SectionCard flat key={groupKey} title={meta.title} icon={meta.icon}>
-              {nextInspectionValue ? (
+              {displayNextInspection ? (
                 <div className="rounded-xl bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 px-4 py-3 mb-3">
                   <p className="text-[10px] font-medium text-emerald-700/80 dark:text-emerald-300/80 uppercase tracking-[0.08em]">
                     Next Inspection
                   </p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-white mt-0.5">
-                    {formatOverviewDate(nextInspectionValue) ?? nextInspectionValue}
+                    {formatOverviewDate(displayNextInspection) ?? displayNextInspection}
                   </p>
                 </div>
               ) : (

@@ -20,6 +20,7 @@ import {
   formatAgeFromInstallDate,
 } from "../../constants/systemSections";
 import { formatOverviewDate } from "../passport/SystemsOverviewPanel";
+import { resolveDisplayNextInspectionDate } from "../../helpers/systemStatusHelpers";
 
 const GROUP_FOR_KEY = {
   material: "identity",
@@ -178,6 +179,7 @@ export function SystemCustomFormCards({
   aiFindings,
   linkedRecords = [],
   onUploadDocument,
+  lastInspectionDate,
 }) {
   const grouped = { identity: [], condition: [], inspection: [], issues: [] };
   for (const field of STANDARD_CUSTOM_SYSTEM_FIELDS) {
@@ -186,6 +188,10 @@ export function SystemCustomFormCards({
   }
 
   const nextInspectionVal = systemData.nextInspection;
+  const displayNextInspection = resolveDisplayNextInspectionDate(
+    nextInspectionVal,
+    lastInspectionDate,
+  );
   const aiItems = [
     ...(aiFindings?.needsAttention ?? []).map((n) => ({
       key: `attn-${n.title ?? n.suggestedAction}`,
@@ -210,13 +216,13 @@ export function SystemCustomFormCards({
           const otherFields = fields.filter((f) => f.key !== "nextInspection");
           return (
             <SectionCard flat key={groupKey} title={meta.title} icon={meta.icon}>
-              {nextInspectionVal ? (
+              {displayNextInspection ? (
                 <div className="rounded-xl bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 px-4 py-3 mb-3">
                   <p className="text-[10px] font-medium text-emerald-700/80 dark:text-emerald-300/80 uppercase tracking-[0.08em]">
                     Next Inspection
                   </p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-white mt-0.5">
-                    {formatOverviewDate(nextInspectionVal) ?? nextInspectionVal}
+                    {formatOverviewDate(displayNextInspection) ?? displayNextInspection}
                   </p>
                 </div>
               ) : (

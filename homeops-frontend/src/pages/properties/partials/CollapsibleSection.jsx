@@ -70,6 +70,7 @@ function CollapsibleSection({
             isNewInstall,
             customSystemsData,
             maintenanceEvents,
+            maintenanceRecords,
           )
         : {
             needsAttention: false,
@@ -83,6 +84,7 @@ function CollapsibleSection({
       isNewInstall,
       customSystemsData,
       maintenanceEvents,
+      maintenanceRecords,
     ],
   );
 

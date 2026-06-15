@@ -248,7 +248,12 @@ class InspectionChecklistItem {
       completed_at: new Date().toISOString(),
       completed_by: userId || null,
     };
-    if (maintenanceId !== null) updateData.linked_maintenance_id = maintenanceId;
+    if (maintenanceId != null && maintenanceId !== "") {
+      const parsed = parseInt(maintenanceId, 10);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        updateData.linked_maintenance_id = parsed;
+      }
+    }
     if (notes !== null) updateData.notes = notes;
     return this.update(id, updateData);
   }

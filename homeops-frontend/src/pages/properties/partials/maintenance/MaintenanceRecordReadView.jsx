@@ -27,7 +27,11 @@ import {
 } from "lucide-react";
 import SectionCard from "../passport/SectionCard";
 import {StatusBadge} from "../passport/StatusBadge";
-import {RECORD_STATUS} from "../../helpers/maintenanceRecordMapping";
+import {
+  RECORD_STATUS,
+  getMaintenanceRecordTitle,
+  resolveMaintenanceRecordSource,
+} from "../../helpers/maintenanceRecordMapping";
 import AppApi from "../../../../api/api";
 
 function formatDate(value) {
@@ -75,18 +79,6 @@ function getStatusTone(status) {
   }
 }
 
-function getRecordSource(record) {
-  if (record.source) return record.source;
-  const rs = String(record.record_status ?? "").toLowerCase();
-  if (
-    rs === RECORD_STATUS.CONTRACTOR_COMPLETED ||
-    rs === RECORD_STATUS.CONTRACTOR_PENDING
-  ) {
-    return "Contractor";
-  }
-  return "Opsy";
-}
-
 function getChecklistStatusTone(status) {
   switch (String(status ?? "").toLowerCase()) {
     case "completed":
@@ -130,11 +122,11 @@ function parseFindings(record) {
 /** Inline info item for the record header summary row. */
 function RecordInfoItem({icon: Icon, label, value}) {
   return (
-    <div className="flex items-start gap-2.5 min-w-[8.5rem] flex-1 px-4 first:pl-0 last:pr-0">
+    <div className="flex items-start gap-2.5 min-w-0 min-[1351px]:min-w-[8.5rem] min-[1351px]:flex-1 min-[1351px]:px-4 min-[1351px]:first:pl-0 min-[1351px]:last:pr-0">
       <Icon className="w-4 h-4 text-neutral-400 dark:text-neutral-500 shrink-0 mt-0.5" />
       <div className="min-w-0">
         <p className="text-xs text-neutral-500 dark:text-neutral-400">{label}</p>
-        <p className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
+        <p className="text-sm font-semibold text-neutral-900 dark:text-white max-[1350px]:break-words min-[1351px]:truncate">
           {value ?? "—"}
         </p>
       </div>
@@ -222,10 +214,7 @@ function MaintenanceRecordReadView({
     };
   }, [propertyId, checklistItemId]);
 
-  const title =
-    String(record?.description ?? "").trim() ||
-    record?.recordType ||
-    `${systemName} Record`;
+  const title = getMaintenanceRecordTitle(record, systemName);
 
   const findings = useMemo(() => parseFindings(record), [record]);
   const nextSteps = useMemo(
@@ -233,13 +222,16 @@ function MaintenanceRecordReadView({
     [record],
   );
   const files = Array.isArray(record?.files) ? record.files : [];
-  const source = getRecordSource(record);
+  const source = resolveMaintenanceRecordSource(record);
   const isCompleted = String(record?.status ?? "") === "Completed";
+
+  const recordType = String(record?.recordType ?? "").trim() || "—";
 
   const summaryItems = useMemo(
     () => [
       {icon: Calendar, label: "Service Date", value: formatDate(record?.date)},
       {icon: Wrench, label: "System", value: systemName},
+      {icon: ClipboardList, label: "Type", value: recordType},
       {icon: User, label: "Contractor", value: record?.contractor || "—"},
       {icon: DollarSign, label: "Cost", value: formatCost(record?.cost)},
       {
@@ -249,7 +241,7 @@ function MaintenanceRecordReadView({
       },
       {icon: FileText, label: "Source", value: source},
     ],
-    [record, systemName, source],
+    [record, systemName, source, recordType],
   );
 
   const timeline = useMemo(() => {
@@ -336,24 +328,27 @@ function MaintenanceRecordReadView({
         </div>
       )}
 
+      <nav
+        aria-label="Breadcrumb"
+        className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          className="font-medium hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors"
+        >
+          Maintenance
+        </button>
+        <ChevronRight className="w-3.5 h-3.5 text-neutral-300 dark:text-neutral-600 shrink-0" />
+        <span className="font-medium text-gray-800 dark:text-neutral-200 truncate">
+          {title}
+        </span>
+      </nav>
+
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_17rem] gap-4 items-start">
         <div className="space-y-4 min-w-0">
           {/* Header card */}
           <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 p-4 sm:p-5">
-            <nav className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-3">
-              <button
-                type="button"
-                onClick={onBack}
-                className="hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-              >
-                Maintenance
-              </button>
-              <ChevronRight className="w-3 h-3 shrink-0" />
-              <span className="text-gray-700 dark:text-gray-300 truncate">
-                {title}
-              </span>
-            </nav>
-
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
@@ -406,13 +401,13 @@ function MaintenanceRecordReadView({
               </div>
             </div>
 
-            {/* Summary info row */}
-            <div className="mt-5 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex items-stretch overflow-x-auto">
+            {/* Summary info row — grid below 1350px so labels stay readable */}
+            <div className="mt-5 pt-5 border-t border-neutral-100 dark:border-neutral-800 max-[1350px]:grid max-[1350px]:grid-cols-2 max-[1350px]:sm:grid-cols-3 max-[1350px]:gap-x-6 max-[1350px]:gap-y-4 min-[1351px]:flex min-[1351px]:items-stretch min-[1351px]:overflow-x-auto">
               {summaryItems.map((item, index) => (
                 <React.Fragment key={item.label}>
                   {index > 0 && (
                     <div
-                      className="w-px bg-neutral-100 dark:bg-neutral-800 shrink-0 self-stretch"
+                      className="w-px bg-neutral-100 dark:bg-neutral-800 shrink-0 self-stretch max-[1350px]:hidden"
                       aria-hidden
                     />
                   )}

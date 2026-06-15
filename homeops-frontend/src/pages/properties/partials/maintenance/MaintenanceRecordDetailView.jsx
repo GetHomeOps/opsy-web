@@ -1,4 +1,5 @@
 import React from "react";
+import {getMaintenanceRecordTitle} from "../../helpers/maintenanceRecordMapping";
 import {ChevronRight, ArrowLeft} from "lucide-react";
 import {StatusBadge} from "../passport/StatusBadge";
 
@@ -49,29 +50,30 @@ function MaintenanceRecordDetailView({
   onBack,
   children,
 }) {
-  const title =
-    String(record?.description ?? "").trim() ||
-    (isNewRecord ? "New Maintenance Record" : `${systemName} Record`);
+  const title = isNewRecord
+    ? "New Maintenance Record"
+    : getMaintenanceRecordTitle(record, systemName);
 
   return (
     <div className="flex flex-col min-h-[640px] rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
       {/* Breadcrumb + back */}
       <div className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-3 border-b border-gray-200 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors mb-3"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to records
-        </button>
-
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <nav className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-1">
-              <span>Maintenance</span>
-              <ChevronRight className="w-3 h-3" />
-              <span className="text-gray-700 dark:text-gray-300 truncate">
+            <nav
+              aria-label="Breadcrumb"
+              className="flex items-center gap-1.5 text-sm mb-2"
+            >
+              <button
+                type="button"
+                onClick={onBack}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 -ml-2 font-semibold text-[#456564] dark:text-[#7fa3a1] hover:bg-[#456564]/10 hover:text-[#3a5453] dark:hover:bg-[#5a7a78]/15 dark:hover:text-[#9bc0be] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#456564]/50"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Maintenance
+              </button>
+              <ChevronRight className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+              <span className="text-gray-600 dark:text-gray-300 truncate">
                 {title}
               </span>
             </nav>

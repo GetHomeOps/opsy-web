@@ -369,7 +369,6 @@ function DocumentsPreviewPanel({
                   }
                   fileName={selectedDocument.name}
                   fillHeight
-                  narrowerPdf
                 />
               </div>
             )}

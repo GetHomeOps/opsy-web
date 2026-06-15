@@ -130,10 +130,24 @@ export function resolveFindingSystemType({
 /** True when two identifiers refer to the same canonical property system. */
 export function canonicalSystemsMatch(systemKey, rawType) {
   if (!systemKey || !rawType) return false;
-  const keyIds = mapAiSystemTypeToIds(systemKey);
-  const typeIds = mapAiSystemTypeToIds(rawType);
-  if (keyIds.length > 0 && typeIds.length > 0) {
-    return keyIds.some((id) => typeIds.includes(id));
+  const keysToTry = [systemKey];
+  const typesToTry = [rawType];
+  if (String(systemKey).startsWith("custom-")) {
+    keysToTry.push(String(systemKey).slice(7));
   }
-  return normalizeAiSystemToken(systemKey) === normalizeAiSystemToken(rawType);
+  if (String(rawType).startsWith("custom-")) {
+    typesToTry.push(String(rawType).slice(7));
+  }
+
+  for (const k of keysToTry) {
+    for (const t of typesToTry) {
+      const keyIds = mapAiSystemTypeToIds(k);
+      const typeIds = mapAiSystemTypeToIds(t);
+      if (keyIds.length > 0 && typeIds.length > 0) {
+        if (keyIds.some((id) => typeIds.includes(id))) return true;
+      }
+      if (normalizeAiSystemToken(k) === normalizeAiSystemToken(t)) return true;
+    }
+  }
+  return false;
 }

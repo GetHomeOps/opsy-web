@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useRef} from "react";
+import React, {useState, useEffect, useCallback, useRef, useMemo} from "react";
 import {createPortal} from "react-dom";
 import {X, Upload, Send, Loader2, Sparkles, ClipboardCheck} from "lucide-react";
 import DatePickerInput from "../../../../components/DatePickerInput";
@@ -10,26 +10,14 @@ import AppApi from "../../../../api/api";
 import {normalizeProfessional} from "../../../professionals/utils/normalizeProfessional";
 import {
   RECORD_STATUS,
+  MAINTENANCE_RECORD_TYPE_OPTIONS,
   isNewMaintenanceRecord,
   toMaintenanceRecordPayload,
   fromMaintenanceRecordBackend,
   formatMaterialsUsedForDisplay,
+  findPersistedMaintenanceRecord,
+  resolveMaintenanceRecordSource,
 } from "../../helpers/maintenanceRecordMapping";
-
-const RECORD_TYPE_OPTIONS = [
-  "HVAC Service",
-  "Plumbing Inspection",
-  "Electrical Inspection",
-  "Roof Inspection",
-  "Gutter Cleaning",
-  "Foundation Inspection",
-  "General Maintenance",
-  "Repair",
-  "Inspection",
-  "Other",
-];
-
-const SOURCE_OPTIONS = ["Opsy", "Contractor", "Scheduled", "Manual Entry"];
 
 const EMPTY_FORM = {
   description: "",
@@ -42,7 +30,7 @@ const EMPTY_FORM = {
   status: "Scheduled",
   cost: "",
   workOrderNumber: "",
-  source: "Opsy",
+  source: "Manual",
   nextServiceDate: "",
   recurringReminder: false,
   materialsUsed: "",
@@ -67,6 +55,7 @@ function CreateMaintenanceRecordPanel({
   onClose,
   systems = [],
   record = null,
+  defaultValues = null,
   propertyId,
   numericPropertyId = null,
   contacts = [],
@@ -93,6 +82,15 @@ function CreateMaintenanceRecordPanel({
   const [error, setError] = useState("");
   const [checklistItems, setChecklistItems] = useState([]);
   const [selectedChecklistItemId, setSelectedChecklistItemId] = useState("");
+
+  const recordTypeOptions = useMemo(() => {
+    const options = [...MAINTENANCE_RECORD_TYPE_OPTIONS];
+    const current = String(form.recordType ?? "").trim();
+    if (current && !options.includes(current)) {
+      options.push(current);
+    }
+    return options;
+  }, [form.recordType]);
 
   useEffect(() => {
     AppApi.getSavedProfessionals()
@@ -146,7 +144,7 @@ function CreateMaintenanceRecordPanel({
         status: record.status ?? "Scheduled",
         cost: record.cost ?? "",
         workOrderNumber: record.workOrderNumber ?? "",
-        source: record.source ?? "Opsy",
+        source: resolveMaintenanceRecordSource(record),
         nextServiceDate: record.nextServiceDate
           ? String(record.nextServiceDate).slice(0, 10)
           : "",
@@ -171,14 +169,18 @@ function CreateMaintenanceRecordPanel({
         })),
       );
     } else {
-      setForm(EMPTY_FORM);
+      setForm({...EMPTY_FORM, ...(defaultValues ?? {})});
       setUploadedFiles([]);
-      setSelectedChecklistItemId("");
+      setSelectedChecklistItemId(
+        defaultValues?.checklist_item_id != null
+          ? String(defaultValues.checklist_item_id)
+          : "",
+      );
       newRecordIdRef.current = null;
       persistedRecordIdRef.current = null;
     }
     setError("");
-  }, [open, record]);
+  }, [open, record, defaultValues]);
 
   useEffect(() => {
     if (!open) return;
@@ -297,15 +299,7 @@ function CreateMaintenanceRecordPanel({
       const saved = Array.isArray(savedMaintenanceRecords)
         ? savedMaintenanceRecords
         : [];
-      const norm = (v) => (v == null ? "" : String(v).trim().slice(0, 10));
-      const match = saved.find(
-        (r) =>
-          String(r.systemId || "") === String(recordData.systemId || "") &&
-          norm(r.date) === norm(recordData.date) &&
-          String(r.contractor || "").trim() ===
-            String(recordData.contractor || "").trim(),
-      );
-      return match?.id ?? null;
+      return findPersistedMaintenanceRecord(recordData, saved)?.id ?? null;
     },
     [savedMaintenanceRecords],
   );
@@ -388,6 +382,7 @@ function CreateMaintenanceRecordPanel({
             sendToContractor: true,
             replaceTempId: recordData.id,
             silent: true,
+            persistedRecord: finalRecord,
           });
         }
 
@@ -401,7 +396,36 @@ function CreateMaintenanceRecordPanel({
         return;
       }
 
-      onSubmit?.(recordData, {keepPanelOpen: false});
+      let finalRecord = recordData;
+      const tempId = recordData.id;
+
+      if (isNewMaintenanceRecord(recordData) && numericPropertyId) {
+        const payload = toMaintenanceRecordPayload(
+          recordData,
+          numericPropertyId,
+        );
+        const created = await AppApi.createMaintenanceRecord({
+          ...payload,
+          property_id: numericPropertyId,
+        });
+        finalRecord = {
+          ...recordData,
+          ...fromMaintenanceRecordBackend(created),
+        };
+        newRecordIdRef.current = finalRecord.id;
+      }
+
+      onSubmit?.(finalRecord, {
+        keepPanelOpen: false,
+        replaceTempId: isNewMaintenanceRecord({id: tempId}) ? tempId : undefined,
+        silent: Boolean(
+          numericPropertyId && isNewMaintenanceRecord({id: tempId}),
+        ),
+        persistedRecord:
+          numericPropertyId && !isNewMaintenanceRecord(finalRecord)
+            ? finalRecord
+            : undefined,
+      });
     } catch (err) {
       showError(err?.message || "Failed to create record.");
     } finally {
@@ -446,7 +470,9 @@ function CreateMaintenanceRecordPanel({
   if (!open) return null;
 
   const systemName =
-    systems.find((s) => s.id === form.systemId)?.name ?? "System";
+    systems.find((s) => s.id === form.systemId)?.name ??
+    systems.find((s) => s.id === form.systemId)?.label ??
+    "System";
 
   return createPortal(
     <>
@@ -533,7 +559,7 @@ function CreateMaintenanceRecordPanel({
                   <option value="">Select system</option>
                   {systems.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}
+                      {s.name ?? s.label ?? s.id}
                     </option>
                   ))}
                 </select>
@@ -549,7 +575,7 @@ function CreateMaintenanceRecordPanel({
                   className="form-select w-full"
                 >
                   <option value="">Select record type</option>
-                  {RECORD_TYPE_OPTIONS.map((t) => (
+                  {recordTypeOptions.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
@@ -657,18 +683,12 @@ function CreateMaintenanceRecordPanel({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Source
                 </label>
-                <select
-                  name="source"
-                  value={form.source}
-                  onChange={handleChange}
-                  className="form-select w-full"
+                <div
+                  className="form-input w-full bg-gray-50 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300 cursor-default"
+                  aria-readonly="true"
                 >
-                  {SOURCE_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                  {form.source}
+                </div>
               </div>
             </div>
           </section>
@@ -879,6 +899,7 @@ function CreateMaintenanceRecordPanel({
         contacts={contacts}
         savedProfessionals={savedProfessionals}
         onSelectContact={handleContractorSelect}
+        showDirectoryLink
       />
 
       <SendToContractorModal
