@@ -348,35 +348,38 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
     const usage = { propertiesCount: 0, contactsCount: 0, aiTokensUsed: 0 };
     const userRole = (res.locals.user?.role || "homeowner").toLowerCase();
 
-    try {
-      usage.propertiesCount = await countPropertiesForLimit({
-        accountId,
-        userId,
-        userRole,
-      });
-    } catch (usageErr) {
-      console.warn("[billing/status] properties usage query failed:", usageErr.message);
-    }
-
-    try {
-      const contactsRes = await db.query(
+    // These three usage metrics are independent, so run them concurrently.
+    // Each is still individually resilient: a failing optional table degrades
+    // that single metric to 0 rather than failing the whole billing/status call.
+    const [propertiesUsage, contactsUsage, tokensUsage] = await Promise.allSettled([
+      countPropertiesForLimit({ accountId, userId, userRole }),
+      db.query(
         `SELECT COUNT(*)::int AS "contactsCount" FROM account_contacts WHERE account_id = $1`,
         [accountId]
-      );
-      usage.contactsCount = contactsRes.rows[0]?.contactsCount || 0;
-    } catch (usageErr) {
-      console.warn("[billing/status] contacts usage query failed:", usageErr.message);
-    }
-
-    try {
-      const tokensRes = await db.query(
+      ),
+      db.query(
         `SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0)::bigint AS "aiTokensUsed"
          FROM user_api_usage WHERE user_id = $1 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`,
         [userId]
-      );
-      usage.aiTokensUsed = Number(tokensRes.rows[0]?.aiTokensUsed || 0);
-    } catch (usageErr) {
-      console.warn("[billing/status] token usage query failed:", usageErr.message);
+      ),
+    ]);
+
+    if (propertiesUsage.status === "fulfilled") {
+      usage.propertiesCount = propertiesUsage.value;
+    } else {
+      console.warn("[billing/status] properties usage query failed:", propertiesUsage.reason?.message);
+    }
+
+    if (contactsUsage.status === "fulfilled") {
+      usage.contactsCount = contactsUsage.value.rows[0]?.contactsCount || 0;
+    } else {
+      console.warn("[billing/status] contacts usage query failed:", contactsUsage.reason?.message);
+    }
+
+    if (tokensUsage.status === "fulfilled") {
+      usage.aiTokensUsed = Number(tokensUsage.value.rows[0]?.aiTokensUsed || 0);
+    } else {
+      console.warn("[billing/status] token usage query failed:", tokensUsage.reason?.message);
     }
 
     return res.json({

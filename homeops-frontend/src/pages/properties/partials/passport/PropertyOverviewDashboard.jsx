@@ -17,7 +17,7 @@ import EmptyStateCard from "./EmptyStateCard";
 import PropertyNotesCard from "./PropertyNotesCard";
 import {StatusBadge} from "./StatusBadge";
 import OverviewFinancialsPreview from "../financials/OverviewFinancialsPreview";
-import aiDocIllustration from "../../../../images/ai-doc-transparent.png";
+import aiDocIllustration from "../../../../images/ai-doc.png";
 import {
   IDENTITY_SECTIONS,
   isSectionComplete,
@@ -89,7 +89,8 @@ function isUpcomingMaintenanceEvent(event, maintenanceRecords, todayIso) {
 
   const checklistItemId = event.checklist_item_id ?? event.checklistItemId;
   if (checklistItemId != null) {
-    const completedChecklistIds = getCompletedChecklistItemIds(maintenanceRecords);
+    const completedChecklistIds =
+      getCompletedChecklistItemIds(maintenanceRecords);
     if (completedChecklistIds.has(Number(checklistItemId))) return false;
   }
 
@@ -244,6 +245,16 @@ function countInspectionDetails(analysis) {
   return total > 0 ? total : null;
 }
 
+function isInspectionReport(doc) {
+  const sys = (doc.system_key ?? doc.system ?? "").toLowerCase();
+  const type = (doc.document_type ?? doc.type ?? "").toLowerCase();
+  return (
+    sys === "inspectionreport" ||
+    sys === "inspection_report" ||
+    type === "inspection"
+  );
+}
+
 /**
  * Default Overview tab for the Property Passport workspace.
  */
@@ -253,7 +264,6 @@ function PropertyOverviewDashboard({
   maintenanceEvents = [],
   propertyDocuments = [],
   photosCount = 0,
-  aiSummaryUpdatedAt = null,
   inspectionAnalysis = null,
   scoreCardSlot,
   teamSlot,
@@ -371,7 +381,9 @@ function PropertyOverviewDashboard({
         badgeTone: "amber",
       }));
     const fromEvents = (maintenanceEvents ?? [])
-      .filter((e) => isUpcomingMaintenanceEvent(e, maintenanceRecords, todayIso))
+      .filter((e) =>
+        isUpcomingMaintenanceEvent(e, maintenanceRecords, todayIso),
+      )
       .map((e, i) => ({
         key: `event-${e.id ?? i}`,
         date: String(e.scheduled_date ?? e.scheduledDate).slice(0, 10),
@@ -404,6 +416,10 @@ function PropertyOverviewDashboard({
 
   const extractedDetailCount = countInspectionDetails(inspectionAnalysis);
   const hasInspectionAnalysis = Boolean(inspectionAnalysis);
+  const hasUploadedInspectionReport = useMemo(
+    () => (propertyDocuments ?? []).some(isInspectionReport),
+    [propertyDocuments],
+  );
 
   const linkedRecords = [
     {
@@ -446,60 +462,81 @@ function PropertyOverviewDashboard({
             icon={Sparkles}
             iconClassName="text-[#456564] dark:text-[#7fa3a1]"
           >
-            {hasInspectionAnalysis || aiSummaryUpdatedAt ? (
-              <div className="relative">
-                <div className="min-w-0 space-y-3 pr-[124px] sm:pr-[138px]">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7fa3a1] shrink-0" />
-                      <p className="text-sm font-bold text-[#456564] dark:text-[#7fa3a1]">
-                        You're all set!
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="min-w-0 flex-1 space-y-3">
+                {hasInspectionAnalysis ? (
+                  <>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7fa3a1] shrink-0" />
+                        <p className="text-sm font-bold text-[#456564] dark:text-[#7fa3a1]">
+                          You're all set!
+                        </p>
+                      </div>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        {extractedDetailCount != null
+                          ? `We've extracted ${extractedDetailCount} details from your inspection report.`
+                          : "Your inspection report has been analyzed."}{" "}
+                        Review and confirm to keep your passport accurate.
                       </p>
                     </div>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                      {extractedDetailCount != null
-                        ? `We've extracted ${extractedDetailCount} details from your inspection report.`
-                        : "Your inspection report has been analyzed."}{" "}
-                      Review and confirm to keep your passport accurate.
+                    <button
+                      type="button"
+                      onClick={() => onOpenInspectionAnalysis?.()}
+                      className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
+                    >
+                      Review Extracted Data
+                    </button>
+                  </>
+                ) : hasUploadedInspectionReport ? (
+                  <>
+                    <p className="text-sm font-semibold text-[#456564] dark:text-[#7fa3a1]">
+                      Inspection report ready
                     </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onOpenInspectionAnalysis?.()}
-                    className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
-                  >
-                    Review Extracted Data
-                  </button>
-                </div>
-                <div className="absolute right-0 bottom-0 w-[118px] sm:w-[132px]">
-                  <img
-                    src={aiDocIllustration}
-                    alt=""
-                    aria-hidden
-                    className="w-full h-auto object-contain pointer-events-none select-none"
-                  />
-                </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Run Passport Opsymization to extract condition ratings,
+                      system findings, and maintenance recommendations from
+                      your report.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => onOpenInspectionAnalysis?.()}
+                      className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
+                    >
+                      Run Passport Opsymization
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-[#456564] dark:text-[#7fa3a1]">
+                      No inspection report yet
+                    </p>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Upload an inspection report to run Passport Opsymization and
+                      extract property details automatically.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onUploadInspectionReport?.() ??
+                        onNavigateTab?.("documents")
+                      }
+                      className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
+                    >
+                      Upload Inspection Report
+                    </button>
+                  </>
+                )}
               </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-[#456564] dark:text-[#7fa3a1]">
-                  No inspection report yet
-                </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Upload an inspection report to run Passport Opsymization and
-                  extract property details automatically.
-                </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    onUploadInspectionReport?.() ?? onNavigateTab?.("documents")
-                  }
-                  className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
-                >
-                  Upload Inspection Report
-                </button>
+              <div className="w-[76px] sm:w-[84px] shrink-0 self-start">
+                <img
+                  src={aiDocIllustration}
+                  alt=""
+                  aria-hidden
+                  className="w-full h-auto object-contain pointer-events-none select-none"
+                />
               </div>
-            )}
+            </div>
           </SectionCard>
 
           <SectionCard

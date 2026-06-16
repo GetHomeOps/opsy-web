@@ -39,6 +39,7 @@ function HomeOpsTeam({
     const all = teamMembers ?? [];
     if (viewerIsAdmin) return all;
     return all.filter((m) => {
+      if (m._pending) return true;
       const r = (m?.role ?? "").toLowerCase();
       return r !== "admin" && r !== "super_admin";
     });

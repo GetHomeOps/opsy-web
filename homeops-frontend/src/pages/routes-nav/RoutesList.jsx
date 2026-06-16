@@ -1,4 +1,4 @@
-import React from "react";
+import React, {Suspense, lazy} from "react";
 import {
   Routes,
   Route,
@@ -16,91 +16,95 @@ import AdminRoute from "./AdminRoute";
 import SuperAdminRoute from "./SuperAdminRoute";
 import PublicRoute from "./PublicRoute";
 import OnboardingRoute from "./OnboardingRoute";
-import OnboardingWizard from "../onboarding/OnboardingWizard";
 
-// Public pages (no sidebar/navbar for unauthenticated users)
+// Auth/public entry pages are kept eager so the sign-in flow stays instant
+// (these are small and on the critical path for unauthenticated users).
 import Signin from "../auth/Signin";
 import Signup from "../auth/Signup";
 import AuthCallback from "../auth/AuthCallback";
 import ForgotPassword from "../auth/ForgotPassword";
 import ResetPassword from "../auth/ResetPassword";
 import VerifyEmail from "../auth/VerifyEmail";
-import ContractorReportPage from "../properties/ContractorReportPage";
-import PrivacyPolicy from "../legal/PrivacyPolicy";
-import TermsOfService from "../legal/TermsOfService";
-
-// Private pages (sidebar/navbar only when authenticated, guarded by ProtectedRoute)
-import Account from "../accountSettings/Account";
-import Databases from "../accountSettings/Databases";
 import PageNotFound from "../utility/PageNotFound";
-import Main from "../Main";
-import ContactList from "../contacts/ContactsList";
-import UsersList from "../users/UsersList";
-import User from "../users/User";
-import UsersImport from "../users/usersImport";
-import Contact from "../contacts/Contact";
-import PropertiesList from "../properties/PropertiesList";
-import PropertiesImport from "../properties/propertiesImport";
-import Property from "../properties/Property";
-import UserConfirmationEmail from "../users/UserConfirmationEmail";
-import MaintenanceRecordPage from "../properties/MaintenanceRecordPage";
-import PdfFileExample from "../pdfFileExample";
-import ContactsImport from "../contacts/contactsImport";
-import SubscriptionsList from "../subscriptions/SubscriptionsList";
-import Subscription from "../subscriptions/Subscription";
-import SubscriptionProductsList from "../subscriptions/SubscriptionProductsList";
-import SubscriptionProduct from "../subscriptions/SubscriptionProduct";
-import CouponsList from "../coupons/CouponsList";
-import EmailDeliveryPage from "../emailDelivery/EmailDeliveryPage";
-import CouponForm from "../coupons/CouponForm";
-import ProfessionalDirectory from "../professionals/ProfessionalDirectory";
-import ProfessionalsDirectorySample from "../professionals/ProfessionalsDirectorySample";
-import CategoryDirectoryPage from "../professionals/CategoryDirectoryPage";
-import CategoryDirectoryPageSample from "../professionals/CategoryDirectoryPageSample";
-import MyProfessionals from "../professionals/MyProfessionals";
-import MyProfessionalsSample from "../professionals/MyProfessionalsSample";
-import ProfessionalProfile from "../professionals/ProfessionalProfile";
-import ProfessionalFormContainer from "../professionals/ProfessionalFormContainer";
-import ProfessionalsList from "../professionals/ProfessionalsList";
-import ProfessionalsImport from "../professionals/professionalsImport";
-import CategoriesList from "../professionals/categories/CategoriesList";
-import CategoriesImport from "../professionals/categories/categoriesImport";
-import CategoryFormContainer from "../professionals/categories/CategoryFormContainer";
-import DashboardOverview from "../dashboard/DashboardOverview";
-import AccountAnalytics from "../dashboard/AccountAnalytics";
-import AgentAnalytics from "../dashboard/AgentAnalytics";
-import PropertyAnalytics from "../dashboard/PropertyAnalytics";
-import CostAnalytics from "../dashboard/CostAnalytics";
-import UnitCostDashboard from "../dashboard/UnitCostDashboard";
-import EngagementDashboard from "../dashboard/EngagementDashboard";
-import GrowthDashboard from "../dashboard/GrowthDashboard";
-import InvitationsList from "../invitations/InvitationsList";
-import BillingPage from "../settings/BillingPage";
-import UpgradePlanPage from "../settings/UpgradePlanPage";
-import BillingSuccess from "../billing/BillingSuccess";
-import ConfigurationPage from "../settings/ConfigurationPage";
-import SupportList from "../support/SupportList";
-import SupportNew from "../support/SupportNew";
-import SupportTicket from "../support/SupportTicket";
-import DataAdjustmentRequest from "../support/DataAdjustmentRequest";
-import SupportManagement from "../support/SupportManagement";
-import FeedbackManagement from "../support/FeedbackManagement";
-import DataAdjustmentManagement from "../support/DataAdjustmentManagement";
-import TicketDetailPage from "../support/TicketDetailPage";
-import HelpdeskPage from "../support/HelpdeskPage";
-import ResourcesManagement from "../resources/ResourcesManagement";
-import Resource from "../resources/Resource";
-import ResourceViewerPage from "../resources/ResourceViewerPage";
-import ResourcePreviewPage from "../resources/ResourcePreviewPage";
-import CommunicationsList from "../communications/CommunicationsList";
-import CommunicationComposer from "../communications/CommunicationComposer";
-import CommunicationViewerPage from "../communications/CommunicationViewerPage";
-import ClientMessages from "../network/ClientMessages";
-import AgenciesAdminHub from "../agencies/AgenciesAdminHub";
-import AgencyFormContainer from "../agencies/AgencyFormContainer";
-import AgenciesImport from "../agencies/AgenciesImport";
-import Calendar from "../calendar/Calendar";
-import ComingSoon from "../ComingSoon";
+
+// Everything below is route-level lazy-loaded so the initial JS bundle only
+// contains the auth/public shell. Each page (and its heavy dependencies like
+// charts, rich-text editors and spreadsheet parsers) is fetched on demand.
+const OnboardingWizard = lazy(() => import("../onboarding/OnboardingWizard"));
+const ContractorReportPage = lazy(() => import("../properties/ContractorReportPage"));
+const PrivacyPolicy = lazy(() => import("../legal/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("../legal/TermsOfService"));
+
+const Account = lazy(() => import("../accountSettings/Account"));
+const Databases = lazy(() => import("../accountSettings/Databases"));
+const Main = lazy(() => import("../Main"));
+const ContactList = lazy(() => import("../contacts/ContactsList"));
+const UsersList = lazy(() => import("../users/UsersList"));
+const User = lazy(() => import("../users/User"));
+const UsersImport = lazy(() => import("../users/usersImport"));
+const Contact = lazy(() => import("../contacts/Contact"));
+const PropertiesList = lazy(() => import("../properties/PropertiesList"));
+const PropertiesImport = lazy(() => import("../properties/propertiesImport"));
+const Property = lazy(() => import("../properties/Property"));
+const UserConfirmationEmail = lazy(() => import("../users/UserConfirmationEmail"));
+const MaintenanceRecordPage = lazy(() => import("../properties/MaintenanceRecordPage"));
+const PdfFileExample = lazy(() => import("../pdfFileExample"));
+const ContactsImport = lazy(() => import("../contacts/contactsImport"));
+const SubscriptionsList = lazy(() => import("../subscriptions/SubscriptionsList"));
+const Subscription = lazy(() => import("../subscriptions/Subscription"));
+const SubscriptionProductsList = lazy(() => import("../subscriptions/SubscriptionProductsList"));
+const SubscriptionProduct = lazy(() => import("../subscriptions/SubscriptionProduct"));
+const CouponsList = lazy(() => import("../coupons/CouponsList"));
+const EmailDeliveryPage = lazy(() => import("../emailDelivery/EmailDeliveryPage"));
+const CouponForm = lazy(() => import("../coupons/CouponForm"));
+const ProfessionalDirectory = lazy(() => import("../professionals/ProfessionalDirectory"));
+const ProfessionalsDirectorySample = lazy(() => import("../professionals/ProfessionalsDirectorySample"));
+const CategoryDirectoryPage = lazy(() => import("../professionals/CategoryDirectoryPage"));
+const CategoryDirectoryPageSample = lazy(() => import("../professionals/CategoryDirectoryPageSample"));
+const MyProfessionals = lazy(() => import("../professionals/MyProfessionals"));
+const MyProfessionalsSample = lazy(() => import("../professionals/MyProfessionalsSample"));
+const ProfessionalProfile = lazy(() => import("../professionals/ProfessionalProfile"));
+const ProfessionalFormContainer = lazy(() => import("../professionals/ProfessionalFormContainer"));
+const ProfessionalsList = lazy(() => import("../professionals/ProfessionalsList"));
+const ProfessionalsImport = lazy(() => import("../professionals/professionalsImport"));
+const CategoriesList = lazy(() => import("../professionals/categories/CategoriesList"));
+const CategoriesImport = lazy(() => import("../professionals/categories/categoriesImport"));
+const CategoryFormContainer = lazy(() => import("../professionals/categories/CategoryFormContainer"));
+const DashboardOverview = lazy(() => import("../dashboard/DashboardOverview"));
+const AccountAnalytics = lazy(() => import("../dashboard/AccountAnalytics"));
+const AgentAnalytics = lazy(() => import("../dashboard/AgentAnalytics"));
+const PropertyAnalytics = lazy(() => import("../dashboard/PropertyAnalytics"));
+const CostAnalytics = lazy(() => import("../dashboard/CostAnalytics"));
+const UnitCostDashboard = lazy(() => import("../dashboard/UnitCostDashboard"));
+const EngagementDashboard = lazy(() => import("../dashboard/EngagementDashboard"));
+const GrowthDashboard = lazy(() => import("../dashboard/GrowthDashboard"));
+const InvitationsList = lazy(() => import("../invitations/InvitationsList"));
+const BillingPage = lazy(() => import("../settings/BillingPage"));
+const UpgradePlanPage = lazy(() => import("../settings/UpgradePlanPage"));
+const BillingSuccess = lazy(() => import("../billing/BillingSuccess"));
+const ConfigurationPage = lazy(() => import("../settings/ConfigurationPage"));
+const SupportList = lazy(() => import("../support/SupportList"));
+const SupportNew = lazy(() => import("../support/SupportNew"));
+const SupportTicket = lazy(() => import("../support/SupportTicket"));
+const DataAdjustmentRequest = lazy(() => import("../support/DataAdjustmentRequest"));
+const SupportManagement = lazy(() => import("../support/SupportManagement"));
+const FeedbackManagement = lazy(() => import("../support/FeedbackManagement"));
+const DataAdjustmentManagement = lazy(() => import("../support/DataAdjustmentManagement"));
+const TicketDetailPage = lazy(() => import("../support/TicketDetailPage"));
+const HelpdeskPage = lazy(() => import("../support/HelpdeskPage"));
+const ResourcesManagement = lazy(() => import("../resources/ResourcesManagement"));
+const Resource = lazy(() => import("../resources/Resource"));
+const ResourceViewerPage = lazy(() => import("../resources/ResourceViewerPage"));
+const ResourcePreviewPage = lazy(() => import("../resources/ResourcePreviewPage"));
+const CommunicationsList = lazy(() => import("../communications/CommunicationsList"));
+const CommunicationComposer = lazy(() => import("../communications/CommunicationComposer"));
+const CommunicationViewerPage = lazy(() => import("../communications/CommunicationViewerPage"));
+const ClientMessages = lazy(() => import("../network/ClientMessages"));
+const AgenciesAdminHub = lazy(() => import("../agencies/AgenciesAdminHub"));
+const AgencyFormContainer = lazy(() => import("../agencies/AgencyFormContainer"));
+const AgenciesImport = lazy(() => import("../agencies/AgenciesImport"));
+const Calendar = lazy(() => import("../calendar/Calendar"));
+const ComingSoon = lazy(() => import("../ComingSoon"));
 
 function BillingPlansRedirect() {
   const {accountUrl} = useParams();
@@ -936,7 +940,14 @@ function RoutesList() {
   );
 
   return (
-    <Routes>
+    <Suspense
+      fallback={
+        <div className="flex justify-center items-center h-screen">
+          <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
+        </div>
+      }
+    >
+      <Routes>
       <Route
         path="/"
         element={
@@ -965,7 +976,8 @@ function RoutesList() {
 
       {/* Dynamic fallback based on auth state */}
       <Route path="*" element={<PageNotFound />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
 

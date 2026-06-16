@@ -345,30 +345,34 @@ function HomeownerHome() {
     }
   }, [totalProperties, activeIndex]);
 
-  // ─── Fetch teams for all properties ──────────────────────────────────────────
+  // ─── Fetch the team for the active property only ─────────────────────────────
+  // getAgent() is only ever called for the active (visible) property, so we fetch
+  // teams on demand as the carousel changes instead of firing one request per
+  // property up front. Results are cached per-uid (here and in PropertyContext),
+  // so revisiting a property does not refetch.
   useEffect(() => {
-    if (!properties?.length || !getPropertyTeam) return;
-    properties.forEach((prop) => {
-      const uid = prop.property_uid ?? prop.id;
-      if (!uid || fetchedTeamUidsRef.current.has(uid)) return;
-      fetchedTeamUidsRef.current.add(uid);
-      getPropertyTeam(uid)
-        .then((team) => {
-          const members = (team?.property_users ?? []).map((m) => ({
-            ...m,
-            // API: m.role is global user role (e.g. agent); property_role is owner/editor/viewer.
-            // Keep both — overwriting role with property_role hides agents from getAgent().
-            userRole: m.role,
-            role: m.property_role ?? m.role,
-          }));
-          setPropertyTeams((prev) => ({...prev, [uid]: members}));
-        })
-        .catch(() => {
-          setPropertyTeams((prev) => ({...prev, [uid]: []}));
-          fetchedTeamUidsRef.current.delete(uid);
-        });
-    });
-  }, [properties, getPropertyTeam]);
+    if (!getPropertyTeam) return;
+    const prop = activeProperty;
+    if (!prop) return;
+    const uid = prop.property_uid ?? prop.id;
+    if (!uid || fetchedTeamUidsRef.current.has(uid)) return;
+    fetchedTeamUidsRef.current.add(uid);
+    getPropertyTeam(uid)
+      .then((team) => {
+        const members = (team?.property_users ?? []).map((m) => ({
+          ...m,
+          // API: m.role is global user role (e.g. agent); property_role is owner/editor/viewer.
+          // Keep both — overwriting role with property_role hides agents from getAgent().
+          userRole: m.role,
+          role: m.property_role ?? m.role,
+        }));
+        setPropertyTeams((prev) => ({...prev, [uid]: members}));
+      })
+      .catch(() => {
+        setPropertyTeams((prev) => ({...prev, [uid]: []}));
+        fetchedTeamUidsRef.current.delete(uid);
+      });
+  }, [activeProperty, getPropertyTeam]);
 
   // ─── Fetch full property data for score breakdown (Identity, Systems, Maintenance) ───
   useEffect(() => {

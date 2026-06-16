@@ -168,6 +168,25 @@ function buildTimelineEntries({
     });
   }
 
+  // Completed records can carry a future next-service date (same source as the
+  // overview "Upcoming service" card) without being an open/upcoming record.
+  for (const record of maintenanceRecords.filter((r) =>
+    matchesSystemId(r, systemId),
+  )) {
+    if (!isCompletedMaintenanceRecord(record)) continue;
+    const date = normalizeDate(record.nextServiceDate ?? record.next_service_date);
+    if (!date) continue;
+    addEntry({
+      id: `next-service-${record.id ?? `${date}-upcoming`}`,
+      type: "scheduled",
+      title: "Upcoming service",
+      date,
+      dateLabel: formatOverviewDate(date),
+      subtitle: record.contractor || record.notes || null,
+      isInspection: isInspectionRecord(record),
+    });
+  }
+
   for (const record of maintenanceRecords.filter((r) =>
     matchesSystemId(r, systemId),
   )) {

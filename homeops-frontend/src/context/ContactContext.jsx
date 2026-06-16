@@ -81,9 +81,22 @@ export function ContactProvider({children}) {
     }
   }, [isLoading, currentUser, currentAccount?.id]);
 
+  // Contacts power global search and the agent dashboard count, but are not on
+  // the critical path for first paint. Defer the initial load to browser idle
+  // time so it does not compete with the active page's own data fetches.
   useEffect(() => {
-    fetchContacts();
-  }, [fetchContacts]);
+    if (isLoading || !currentUser) return;
+    const schedule =
+      typeof window !== "undefined" && window.requestIdleCallback
+        ? window.requestIdleCallback
+        : (cb) => setTimeout(cb, 200);
+    const cancel =
+      typeof window !== "undefined" && window.cancelIdleCallback
+        ? window.cancelIdleCallback
+        : clearTimeout;
+    const handle = schedule(() => fetchContacts(), {timeout: 2000});
+    return () => cancel(handle);
+  }, [fetchContacts, isLoading, currentUser]);
 
   const refreshContacts = useCallback(() => {
     fetchContacts();

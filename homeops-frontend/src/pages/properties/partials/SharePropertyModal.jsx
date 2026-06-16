@@ -783,6 +783,7 @@ function SharePropertyModal({
   onUpdateAgentPermissions,
   onTransferOwnership,
   onRemoveMember,
+  onRefreshTeam,
   initialTab = "owner",
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -813,6 +814,7 @@ function SharePropertyModal({
   useEffect(() => {
     if (!modalOpen) return;
     let cancelled = false;
+    onRefreshTeam?.().catch(() => {});
     AppApi.getAgents()
       .then((agents) => {
         if (!cancelled) setPlatformAgents(agents ?? []);
@@ -821,7 +823,7 @@ function SharePropertyModal({
     return () => {
       cancelled = true;
     };
-  }, [modalOpen]);
+  }, [modalOpen, onRefreshTeam]);
 
   const allSystemIds = useMemo(() => {
     const selectedIds = systems?.selectedSystemIds ?? [];
@@ -938,6 +940,7 @@ function SharePropertyModal({
     const visible = isAdminOrSuperAdmin
       ? (teamMembers ?? [])
       : (teamMembers ?? []).filter((m) => {
+          if (m._pending) return true;
           const r = (m?.role ?? "").toLowerCase();
           return r !== "admin" && r !== "super_admin";
         });
@@ -974,6 +977,7 @@ function SharePropertyModal({
     const visible = isAdminOrSuperAdmin
       ? (teamMembers ?? [])
       : (teamMembers ?? []).filter((m) => {
+          if (m._pending) return true;
           const r = (m?.role ?? "").toLowerCase();
           return r !== "admin" && r !== "super_admin";
         });

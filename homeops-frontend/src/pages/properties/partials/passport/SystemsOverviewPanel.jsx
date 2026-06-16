@@ -27,6 +27,14 @@ function healthBarColor(percent) {
 }
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25];
+const DEFAULT_PAGE_SIZE = 10;
+const SYSTEMS_OVERVIEW_PAGE_SIZE_KEY = "homeops:systems-overview-page-size";
+
+function readStoredPageSize() {
+  if (typeof localStorage === "undefined") return DEFAULT_PAGE_SIZE;
+  const raw = Number(localStorage.getItem(SYSTEMS_OVERVIEW_PAGE_SIZE_KEY));
+  return PAGE_SIZE_OPTIONS.includes(raw) ? raw : DEFAULT_PAGE_SIZE;
+}
 
 export function formatOverviewDate(value) {
   if (!value) return null;
@@ -48,7 +56,12 @@ export function formatOverviewDate(value) {
  */
 export function SystemsOverviewTable({rows = [], onJumpToSystem}) {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(readStoredPageSize);
+
+  useEffect(() => {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(SYSTEMS_OVERVIEW_PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, pageCount);

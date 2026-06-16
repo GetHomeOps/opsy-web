@@ -6,31 +6,17 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import {useNavigate, useParams, useLocation, NavLink} from "react-router-dom";
-import {
-  AlertCircle,
-  Phone,
-  Mail,
-  User,
-  Briefcase,
-  Globe,
-  MapPin,
-  Building,
-  CreditCard,
-  FileText,
-  X,
-  ChevronDown,
-} from "lucide-react";
+import {useNavigate, useParams, useLocation} from "react-router-dom";
+import {AlertCircle, User, Building, X, ChevronDown, Settings, Pencil, Copy, Trash2} from "lucide-react";
 import Banner from "../../partials/containers/Banner";
 import ModalBlank from "../../components/ModalBlank";
+import Transition from "../../utils/Transition";
 import {useTranslation} from "react-i18next";
-import DropdownFilter from "../../components/DropdownFilter";
 import contactContext from "../../context/ContactContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
 import {countries} from "../../data/countries";
 import {usStates} from "../../data/states";
-import {motion, AnimatePresence, useAnimationControls} from "framer-motion";
 import SelectDropdown from "./SelectDropdown";
 import {
   mapBackendToFrontend,
@@ -41,6 +27,14 @@ import AppApi from "../../api/api";
 import useImageUpload from "../../hooks/useImageUpload";
 import ImageUploadField from "../../components/ImageUploadField";
 import UpgradePrompt from "../../components/UpgradePrompt";
+import ContactHeader from "./partials/passport/ContactHeader";
+import ContactInformationCard from "./partials/passport/ContactInformationCard";
+import ContactPropertiesCard from "./partials/passport/ContactPropertiesCard";
+import ContactActivityCard from "./partials/passport/ContactActivityCard";
+import ContactAddressCard from "./partials/passport/ContactAddressCard";
+import ContactDocumentsCard from "./partials/passport/ContactDocumentsCard";
+import ContactTagsCard from "./partials/passport/ContactTagsCard";
+import {getMaintenanceRecordDetailPath} from "../properties/helpers/maintenanceRecordNavigation";
 
 const initialState = {
   formData: initialFormData,
@@ -49,6 +43,7 @@ const initialState = {
   contact: null,
   activeTab: 1,
   isNew: false,
+  isEditing: false,
   bannerOpen: false,
   dangerModalOpen: false,
   currentContactIndex: 0,
@@ -79,12 +74,15 @@ function reducer(state, action) {
         ...state,
         contact: action.payload,
         isNew: !action.payload,
+        isEditing: false,
         formData: action.payload
           ? mapBackendToFrontend(action.payload)
           : initialFormData,
         formDataChanged: false,
         isInitialLoad: true,
       };
+    case "SET_EDITING":
+      return {...state, isEditing: action.payload};
     case "SET_ACTIVE_TAB":
       return {...state, activeTab: action.payload};
     case "SET_BANNER":
@@ -150,11 +148,18 @@ function ContactsFormContainer() {
   const [upgradePromptMsg, setUpgradePromptMsg] = useState("");
   const [createTagsModalOpen, setCreateTagsModalOpen] = useState(false);
   const createTagsButtonRef = useRef(null);
+  const actionsTriggerRef = useRef(null);
+  const actionsDropdownRef = useRef(null);
+  const [actionsDropdownOpen, setActionsDropdownOpen] = useState(false);
   const [accountTags, setAccountTags] = useState([]);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState(null);
   const [creatingTag, setCreatingTag] = useState(false);
   const [deletingTagId, setDeletingTagId] = useState(null);
+  const [associations, setAssociations] = useState({
+    properties: [],
+    records: [],
+  });
 
   const TAG_COLOR_OPTIONS = [
     {
@@ -223,15 +228,8 @@ function ContactsFormContainer() {
   });
   const navigate = useNavigate();
   const location = useLocation();
-  const controls = useAnimationControls();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
-
-  // Define tabs here where t is available
-  const tabs = [
-    {id: 1, label: t("general")},
-    {id: 2, label: t("notes")},
-  ];
 
   const {
     createContact,
@@ -305,6 +303,30 @@ function ContactsFormContainer() {
     fetchContact();
   }, [id, contacts, viewMode]);
 
+  // Fetch the contact's associated properties (membership) and the
+  // maintenance/inspection records where the contact is the contractor.
+  useEffect(() => {
+    let cancelled = false;
+    if (id && id !== "new") {
+      AppApi.getContactAssociations(id)
+        .then((res) => {
+          if (cancelled) return;
+          setAssociations({
+            properties: res.properties || [],
+            records: res.records || [],
+          });
+        })
+        .catch(() => {
+          if (!cancelled) setAssociations({properties: [], records: []});
+        });
+    } else {
+      setAssociations({properties: [], records: []});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
   // Banner timeout useEffect with the custom hook
   useAutoCloseBanner(state.bannerOpen, state.bannerMessage, () =>
     dispatch({
@@ -316,6 +338,29 @@ function ContactsFormContainer() {
       },
     }),
   );
+
+  useEffect(() => {
+    const clickHandler = ({target}) => {
+      if (
+        !actionsDropdownOpen ||
+        actionsDropdownRef.current?.contains(target) ||
+        actionsTriggerRef.current?.contains(target)
+      )
+        return;
+      setActionsDropdownOpen(false);
+    };
+    document.addEventListener("click", clickHandler);
+    return () => document.removeEventListener("click", clickHandler);
+  }, [actionsDropdownOpen]);
+
+  useEffect(() => {
+    const keyHandler = ({keyCode}) => {
+      if (!actionsDropdownOpen || keyCode !== 27) return;
+      setActionsDropdownOpen(false);
+    };
+    document.addEventListener("keydown", keyHandler);
+    return () => document.removeEventListener("keydown", keyHandler);
+  }, [actionsDropdownOpen]);
 
   // Clear local preview and uploaded URL when switching to a different contact (not when updating the same one)
   const prevContactIdRef = useRef(null);
@@ -566,38 +611,6 @@ function ContactsFormContainer() {
   function handleBackClick() {
     navigate(`/${accountUrl}/contacts`);
   }
-
-  /* If editing a contact -> return the contact's name
-  If new -> return 'New Contact' */
-  function getPageTitle() {
-    if (state.contact) {
-      return `${state.contact.name}`;
-    }
-    return t("newContact");
-  }
-
-  /* Changes active tab */
-  function handleTabChange(tabId) {
-    dispatch({type: "SET_ACTIVE_TAB", payload: tabId});
-  }
-
-  /* Handles tab click */
-  const handleTabClick = (tabId) => async (e) => {
-    e.preventDefault();
-    const currentIndex = tabs.findIndex((tab) => tab.id === state.activeTab);
-    const newIndex = tabs.findIndex((tab) => tab.id === tabId);
-
-    await controls.start({
-      x: `${newIndex * 100}%`,
-      transition: {
-        type: "spring",
-        stiffness: 300,
-        damping: 25,
-      },
-    });
-
-    handleTabChange(tabId);
-  };
 
   /* Handles New Contact button click */
   function handleNewContact() {
@@ -873,15 +886,6 @@ function ContactsFormContainer() {
     }
   };
 
-  // Add these handlers near the other handlers
-  const handleFormFocus = () => {
-    dispatch({type: "SET_FORM_FOCUS", payload: true});
-  };
-
-  const handleFormBlur = () => {
-    dispatch({type: "SET_FORM_FOCUS", payload: false});
-  };
-
   function handleCancel() {
     if (state.contact) {
       // For existing contacts, reset to original contact data (map from backend format)
@@ -896,6 +900,7 @@ function ContactsFormContainer() {
       // Reset form changed state
       dispatch({type: "SET_FORM_CHANGED", payload: false});
       dispatch({type: "SET_ERRORS", payload: {}}); // Also clear any errors
+      dispatch({type: "SET_EDITING", payload: false}); // Exit edit mode
     } else {
       // For new contacts, reset to initial form data
       dispatch({
@@ -1263,6 +1268,133 @@ function ContactsFormContainer() {
     );
   }
 
+  /* Enter edit mode for an existing contact */
+  const handleEdit = () => dispatch({type: "SET_EDITING", payload: true});
+
+  /* Whether the dashboard is currently in editable mode */
+  const editing = state.isEditing || state.isNew;
+
+  /* ---- Derived view-mode values ---- */
+  const selectedCountry = countries.find(
+    (c) => c.countryCode === state.formData.countryCode,
+  );
+
+  const phoneDisplay = state.formData.phone
+    ? `${selectedCountry?.phoneCode ?? ""} ${state.formData.phone}`.trim()
+    : "";
+
+  const companyName = state.formData.linkedCompany
+    ? companyContacts.find(
+        (c) => String(c.id) === String(state.formData.linkedCompany),
+      )?.name || ""
+    : "";
+
+  const typeLabel =
+    state.formData.contactType === "company" ? t("company") : t("individual");
+
+  const viewImageUrl =
+    imagePreviewUrl ||
+    state.contact?.image_url ||
+    uploadedImageUrl ||
+    (state.formData.image?.startsWith?.("http") ? state.formData.image : null);
+
+  const addressLines = [
+    state.formData.street1,
+    state.formData.street2,
+    [state.formData.city, state.formData.state, state.formData.zip]
+      .filter(Boolean)
+      .join(", "),
+    state.formData.country,
+  ];
+
+  const selectedTagObjects = (state.formData.tags || [])
+    .map((tagId) =>
+      availableTags.find((tagObj) => Number(tagObj.id) === Number(tagId)),
+    )
+    .filter(Boolean);
+
+  const hasNotes = Boolean(
+    state.formData.notes && state.formData.notes.trim() !== "",
+  );
+
+  const associatedProperties = (associations.properties || []).map((p) => ({
+    id: p.id,
+    uid: p.property_uid,
+    name: p.property_name || "Property",
+    address:
+      [p.address || p.address_line_1, p.city, p.state]
+        .filter(Boolean)
+        .join(", ") || "—",
+    image_url: p.main_photo_url || null,
+    relationship: p.property_role,
+  }));
+
+  const contractorRecords = associations.records || [];
+
+  const handleViewProperty = (property) => {
+    if (!property?.uid) return;
+    navigate(`/${accountUrl}/properties/${property.uid}`);
+  };
+
+  const handleViewRecord = (record) => {
+    const path = getMaintenanceRecordDetailPath({
+      accountUrl,
+      propertyId: record.propertyUid,
+      record,
+    });
+    if (path) navigate(path);
+  };
+
+  const headerStats = {
+    properties: associatedProperties.length,
+    documents: contractorRecords.length,
+    notes: hasNotes ? 1 : 0,
+  };
+
+  /* Avatar + URL input slot rendered inside the hero when editing */
+  const imageFieldSlot = (
+    <div className="space-y-2">
+      <ImageUploadField
+        imageSrc={viewImageUrl}
+        hasImage={!!state.formData.image}
+        imageUploading={imageUploading}
+        onUpload={uploadImage}
+        onRemove={handleRemovePhoto}
+        onPasteUrl={() =>
+          dispatch({type: "SET_SHOW_URL_INPUT", payload: true})
+        }
+        showRemove={!!state.formData.image}
+        imageUploadError={imageUploadError}
+        onDismissError={() => setImageUploadError(null)}
+        size="md"
+        placeholder="avatar"
+        alt="Contact"
+        uploadLabel={t("uploadImage") || "Upload photo"}
+        removeLabel={t("removePhoto") || "Remove photo"}
+        pasteUrlLabel={t("pasteUrl") || "Paste URL"}
+        fileInputRef={fileInputRef}
+        menuOpen={state.imageMenuOpen}
+        onMenuToggle={(open) =>
+          dispatch({type: "SET_IMAGE_MENU_OPEN", payload: open})
+        }
+      />
+      {state.showUrlInput && (
+        <input
+          type="text"
+          id="image"
+          className="form-input w-full max-w-[180px]"
+          placeholder={t("imageUrlPlaceholder")}
+          value={state.formData.image}
+          onChange={handleChange}
+          onBlur={() =>
+            dispatch({type: "SET_SHOW_URL_INPUT", payload: false})
+          }
+          autoFocus
+        />
+      )}
+    </div>
+  );
+
   return (
     <div className="relative min-h-screen bg-white dark:bg-gray-800">
       <div className="fixed top-18 right-0 w-auto sm:w-full z-50">
@@ -1469,11 +1601,11 @@ function ContactsFormContainer() {
         </ModalBlank>
       </div>
 
-      <div>
+      <div className="mx-0 sm:mx-4 sm:px-4 lg:px-8 pt-6 pb-2">
         {/* Navigation and Actions */}
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex justify-between items-center gap-3 mb-3">
           <button
-            className="btn text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-600 mb-2 pl-0 focus:outline-none shadow-none"
+            className="btn text-neutral-500 hover:text-neutral-800 dark:text-neutral-300 dark:hover:text-neutral-100 mb-2 pl-0 focus:outline-none shadow-none"
             onClick={handleBackClick}
           >
             <svg
@@ -1487,41 +1619,107 @@ function ContactsFormContainer() {
             <span className="text-lg">{t("contacts")}</span>
           </button>
 
-          <div className="flex items-center gap-3">
-            {state.contact && (
-              <DropdownFilter
-                onDelete={handleDelete}
-                onDuplicate={handleDuplicate}
-                align="right"
-              />
+          <div className="flex items-center gap-2 shrink-0">
+            {!editing && !state.isNew && state.contact && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleEdit}
+                  className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-sm font-medium bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-700/50 text-neutral-700 dark:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit Contact
+                </button>
+                <div className="relative inline-flex">
+                  <button
+                    ref={actionsTriggerRef}
+                    type="button"
+                    className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-700/50 hover:border-neutral-300 dark:hover:border-neutral-600 text-neutral-500 dark:text-neutral-400 transition-colors"
+                    aria-haspopup="true"
+                    aria-expanded={actionsDropdownOpen}
+                    onClick={() => setActionsDropdownOpen(!actionsDropdownOpen)}
+                  >
+                    <span className="sr-only">{t("actions")}</span>
+                    <Settings className="w-4 h-4" />
+                  </button>
+                  <Transition
+                    show={actionsDropdownOpen}
+                    tag="div"
+                    className="origin-top-right z-10 absolute top-full left-0 right-auto min-w-56 bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-700/50 pt-1.5 rounded-xl overflow-hidden mt-1 md:left-auto md:right-0"
+                    style={{
+                      boxShadow:
+                        "0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+                    }}
+                    enter="transition ease-out duration-200 transform"
+                    enterStart="opacity-0 -translate-y-2"
+                    enterEnd="opacity-100 translate-y-0"
+                    leave="transition ease-out duration-200"
+                    leaveStart="opacity-100"
+                    leaveEnd="opacity-0"
+                  >
+                    <div ref={actionsDropdownRef}>
+                      <div className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider pt-1.5 pb-2 px-3">
+                        {t("actions")}
+                      </div>
+                      <ul className="mb-1">
+                        <li>
+                          <button
+                            type="button"
+                            className="w-full flex items-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActionsDropdownOpen(false);
+                              handleDuplicate();
+                            }}
+                          >
+                            <Copy className="w-5 h-5 shrink-0 text-neutral-500 dark:text-neutral-400" />
+                            <span className="text-sm font-medium ml-2">
+                              Duplicate
+                            </span>
+                          </button>
+                        </li>
+                        <li>
+                          <button
+                            type="button"
+                            className="w-full flex items-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActionsDropdownOpen(false);
+                              handleDelete();
+                            }}
+                          >
+                            <Trash2 className="w-5 h-5 shrink-0 text-red-500 dark:text-red-400" />
+                            <span className="text-sm font-medium ml-2">
+                              Delete
+                            </span>
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
+                  </Transition>
+                </div>
+              </>
             )}
             <button
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
+              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm inline-flex items-center gap-1.5 h-9 px-3.5 text-sm font-medium"
               onClick={handleNewContact}
             >
               {t("new")}
             </button>
-          </div>
-        </div>
-
-        <div className="flex justify-end mb-2">
-          {/* Contact Navigation */}
-          <div className="flex items-center">
             {state.contact &&
               (() => {
-                // Use location.state if available, otherwise build from contacts
                 const navState =
                   location.state || buildNavigationState(state.contact.id);
 
                 if (!navState) return null;
 
                 return (
-                  <>
-                    <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
+                  <div className="flex items-center gap-0.5 ml-1 pl-3 border-l border-neutral-200 dark:border-neutral-700">
+                    <span className="text-sm text-neutral-500 dark:text-neutral-400 mr-1.5 tabular-nums">
                       {navState.currentIndex || 1} / {navState.totalItems || 1}
                     </span>
                     <button
-                      className="btn shadow-none p-1"
+                      className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:hover:bg-transparent transition-colors"
                       title="Previous"
                       onClick={() => {
                         if (
@@ -1546,21 +1744,18 @@ function ContactsFormContainer() {
                       }
                     >
                       <svg
-                        className={`fill-current shrink-0 ${
+                        className={`fill-current shrink-0 w-5 h-5 ${
                           !navState.currentIndex || navState.currentIndex <= 1
-                            ? "text-gray-200 dark:text-gray-700"
-                            : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
+                            ? "text-neutral-200 dark:text-neutral-700"
+                            : "text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
                         }`}
-                        width="24"
-                        height="24"
                         viewBox="0 0 18 18"
                       >
                         <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z"></path>
                       </svg>
                     </button>
-
                     <button
-                      className="btn shadow-none p-1"
+                      className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:hover:bg-transparent transition-colors"
                       title="Next"
                       onClick={() => {
                         if (
@@ -1587,634 +1782,454 @@ function ContactsFormContainer() {
                       }
                     >
                       <svg
-                        className={`fill-current shrink-0 ${
+                        className={`fill-current shrink-0 w-5 h-5 ${
                           !navState.currentIndex ||
                           !navState.totalItems ||
                           navState.currentIndex >= navState.totalItems
-                            ? "text-gray-200 dark:text-gray-700"
-                            : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
+                            ? "text-neutral-200 dark:text-neutral-700"
+                            : "text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
                         }`}
-                        width="24"
-                        height="24"
                         viewBox="0 0 18 18"
                       >
                         <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z"></path>
                       </svg>
                     </button>
-                  </>
+                  </div>
                 );
               })()}
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-          <div className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              {/* Image and Name with Info */}
-              <div className="flex items-start gap-3 sm:gap-4 min-w-0 w-full">
-                {/* Photo Section - using shared ImageUploadField */}
-                <ImageUploadField
-                  imageSrc={
-                    imagePreviewUrl ||
-                    state.contact?.image_url ||
-                    uploadedImageUrl ||
-                    (state.formData.image?.startsWith?.("http")
-                      ? state.formData.image
-                      : null)
-                  }
-                  hasImage={!!state.formData.image}
-                  imageUploading={imageUploading}
-                  onUpload={uploadImage}
-                  onRemove={handleRemovePhoto}
-                  onPasteUrl={() =>
-                    dispatch({type: "SET_SHOW_URL_INPUT", payload: true})
-                  }
-                  showRemove={!!state.formData.image}
-                  imageUploadError={imageUploadError}
-                  onDismissError={() => setImageUploadError(null)}
-                  size="md"
-                  placeholder="avatar"
-                  alt="Contact"
-                  uploadLabel={t("uploadImage") || "Upload photo"}
-                  removeLabel={t("removePhoto") || "Remove photo"}
-                  pasteUrlLabel={t("pasteUrl") || "Paste URL"}
-                  fileInputRef={fileInputRef}
-                  menuOpen={state.imageMenuOpen}
-                  onMenuToggle={(open) =>
-                    dispatch({type: "SET_IMAGE_MENU_OPEN", payload: open})
-                  }
-                />
+        <form
+          onSubmit={state.isNew ? handleSubmit : handleUpdate}
+          className="space-y-4"
+        >
+          <ContactHeader
+            headerRef={undefined}
+            name={state.formData.name}
+            email={state.formData.email}
+            phone={phoneDisplay}
+            company={companyName}
+            jobTitle={state.formData.jobPosition}
+            typeLabel={typeLabel}
+            statusLabel="Active"
+            stats={headerStats}
+            imageUrl={viewImageUrl}
+            imageSlot={imageFieldSlot}
+            isEditing={editing}
+            isNew={state.isNew}
+          />
 
-                {/* Contact Name, Type and Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
-                    <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 break-words">
-                      {state.contact ? state.contact.name : getPageTitle()}
-                    </h1>
-                    {state.contact?.contactType && (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300">
-                        {state.contact.contactType === "individual"
-                          ? t("individual")
-                          : t("company")}
-                      </span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+            {/* Left column (70%) */}
+            <div className="lg:col-span-2 space-y-4 min-w-0">
+              <ContactInformationCard
+                isEditing={editing}
+                name={state.formData.name}
+                email={state.formData.email}
+                phone={phoneDisplay}
+                website={state.formData.website}
+                company={companyName}
+                jobTitle={state.formData.jobPosition}
+                typeLabel={typeLabel}
+              >
+                {/* Contact type segmented control */}
+                <div className="flex justify-end mb-5">
+                  <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 overflow-hidden">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={state.formData.contactType === "individual"}
+                      onClick={() => {
+                        dispatch({
+                          type: "SET_FORM_DATA",
+                          payload: {
+                            contactType: "individual",
+                            jobPosition: "",
+                            linkedCompany: "",
+                          },
+                        });
+                        if (state.isInitialLoad) {
+                          dispatch({type: "SET_FORM_CHANGED", payload: true});
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                        state.formData.contactType === "individual"
+                          ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                          : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                      }`}
+                    >
+                      <User
+                        className={`h-3.5 w-3.5 shrink-0 ${
+                          state.formData.contactType === "individual"
+                            ? "text-gray-700 dark:text-gray-300"
+                            : "text-gray-400 dark:text-gray-500"
+                        }`}
+                      />
+                      {t("individual")}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={state.formData.contactType === "company"}
+                      onClick={() => {
+                        dispatch({
+                          type: "SET_FORM_DATA",
+                          payload: {
+                            contactType: "company",
+                            jobPosition: "",
+                            linkedCompany: "",
+                          },
+                        });
+                        if (state.isInitialLoad) {
+                          dispatch({type: "SET_FORM_CHANGED", payload: true});
+                        }
+                      }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors border-l border-gray-200 dark:border-gray-600 ${
+                        state.formData.contactType === "company"
+                          ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                          : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                      }`}
+                    >
+                      <Building
+                        className={`h-3.5 w-3.5 shrink-0 ${
+                          state.formData.contactType === "company"
+                            ? "text-gray-700 dark:text-gray-300"
+                            : "text-gray-400 dark:text-gray-500"
+                        }`}
+                      />
+                      {t("company")}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                  <div>
+                    <label className={getLabelClasses()} htmlFor="name">
+                      {t("name")} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="name"
+                      className={getInputClasses("name")}
+                      type="text"
+                      value={state.formData.name}
+                      onChange={handleChange}
+                      placeholder={t("namePlaceholder")}
+                    />
+                    {state.errors.name && (
+                      <div className="mt-1 flex items-center text-sm text-red-500">
+                        <AlertCircle className="h-4 w-4 mr-1" />
+                        <span>{state.errors.name}</span>
+                      </div>
                     )}
                   </div>
 
-                  {/* Contact Details */}
-                  <div className="space-y-2">
-                    {state.contact?.phone && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
-                        <Phone className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
-                        <span className="truncate">
+                  {state.formData.contactType === "individual" && (
+                    <div>
+                      <label
+                        className={getLabelClasses()}
+                        htmlFor="jobPosition"
+                      >
+                        {t("jobPosition")}
+                      </label>
+                      <input
+                        id="jobPosition"
+                        className={getInputClasses("jobPosition")}
+                        type="text"
+                        value={state.formData.jobPosition}
+                        onChange={handleChange}
+                        placeholder={t("jobPositionPlaceholder")}
+                      />
+                    </div>
+                  )}
+
+                  {state.formData.contactType === "individual" && (
+                    <div>
+                      <label
+                        className={getLabelClasses()}
+                        htmlFor="linkedCompany"
+                      >
+                        {t("linkedCompany")}
+                      </label>
+                      <SelectDropdown
+                        options={companyContacts.map((contact) => ({
+                          id: contact.id,
+                          name: contact.name,
+                        }))}
+                        value={state.formData.linkedCompany}
+                        onChange={handleLinkedCompanyChange}
+                        placeholder={t("selectLinkedCompany")}
+                        name="linkedCompany"
+                        id="linkedCompany"
+                        clearable={true}
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className={getLabelClasses()} htmlFor="phone">
+                      {t("mobilePhone")}
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                           {
                             countries.find(
                               (c) =>
-                                c.countryCode === state.contact.countryCode,
+                                c.countryCode === state.formData.countryCode,
+                            )?.flag
+                          }
+                        </div>
+                        <select
+                          id="countryCode"
+                          className={`${getCountrySelectClasses()} text-gray-400 dark:text-gray-500`}
+                          value={state.formData.countryCode}
+                          onChange={handleCountryChange}
+                        >
+                          {countries.map((country) => (
+                            <option
+                              key={country.id}
+                              value={country.countryCode}
+                            >
+                              {country.flag} {country.name} ({country.phoneCode})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="relative flex-1">
+                        <input
+                          id="phone"
+                          className={`${getInputClasses("phone")}`}
+                          type="tel"
+                          value={state.formData.phone}
+                          onChange={handlePhoneChange}
+                          placeholder={t("phonePlaceholder")}
+                          style={{
+                            paddingLeft: `${
+                              (countries.find(
+                                (c) =>
+                                  c.countryCode === state.formData.countryCode,
+                              )?.phoneCode?.length || 1) *
+                                0.65 +
+                              0.65
+                            }rem`,
+                          }}
+                        />
+                        <div
+                          className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400 text-sm"
+                          style={{paddingRight: "0.2rem"}}
+                        >
+                          {
+                            countries.find(
+                              (c) =>
+                                c.countryCode === state.formData.countryCode,
                             )?.phoneCode
-                          }{" "}
-                          {state.contact.phone}
-                        </span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={getLabelClasses()} htmlFor="email">
+                      {t("email")}
+                    </label>
+                    <input
+                      id="email"
+                      className={getInputClasses("email")}
+                      type="email"
+                      value={state.formData.email}
+                      onChange={handleChange}
+                      placeholder={t("emailPlaceholder")}
+                    />
+                    {state.errors.email && (
+                      <div className="mt-1 flex items-center text-sm text-red-500">
+                        <AlertCircle className="h-4 w-4 mr-1" />
+                        <span>{state.errors.email}</span>
                       </div>
                     )}
-                    {state.contact?.email && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
-                        <Mail className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
-                        <span className="truncate">{state.contact.email}</span>
-                      </div>
-                    )}
-                    {state.contact?.website && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
-                        <Globe className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
-                        <span className="truncate">
-                          {state.contact.website}
-                        </span>
-                      </div>
-                    )}
-                    {state.contact?.jobPosition && (
-                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 min-w-0">
-                        <Briefcase className="w-4 h-4 mr-2 text-[#6E8276] shrink-0" />
-                        <span className="truncate">
-                          {state.contact.jobPosition}
-                        </span>
+                  </div>
+
+                  <div>
+                    <label className={getLabelClasses()} htmlFor="website">
+                      {t("website")}
+                    </label>
+                    <input
+                      id="website"
+                      className={getInputClasses("website")}
+                      type="url"
+                      value={state.formData.website}
+                      onChange={handleChange}
+                      placeholder={t("websitePlaceholder")}
+                    />
+                    {state.errors.website && (
+                      <div className="mt-1 flex items-center text-sm text-red-500">
+                        <AlertCircle className="h-4 w-4 mr-1" />
+                        <span>{state.errors.website}</span>
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
+              </ContactInformationCard>
+
+              <ContactPropertiesCard
+                properties={associatedProperties}
+                onViewProperty={handleViewProperty}
+              />
+
+              {editing && (
+                <ContactActivityCard isEditing>
+                  <textarea
+                    id="notes"
+                    className={`${getInputClasses("notes")} min-h-[120px]`}
+                    value={state.formData.notes}
+                    onChange={handleChange}
+                    placeholder={t("notesPlaceholder") || "Add a note…"}
+                  />
+                </ContactActivityCard>
+              )}
             </div>
 
-            {state.showUrlInput && (
-              <div className="mt-4 max-w-md">
-                <input
-                  type="text"
-                  id="image"
-                  className="form-input w-full"
-                  placeholder={t("imageUrlPlaceholder")}
-                  value={state.formData.image}
-                  onChange={handleChange}
-                  onBlur={() =>
-                    dispatch({type: "SET_SHOW_URL_INPUT", payload: false})
-                  }
-                  autoFocus
-                />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-          <form
-            onSubmit={state.isNew ? handleSubmit : handleUpdate}
-            onFocus={handleFormFocus}
-            onBlur={handleFormBlur}
-          >
-            <div className="border-b border-gray-200 dark:border-gray-700">
-              <div className="px-4 sm:px-6 overflow-x-auto [scrollbar-width:thin]">
-                <nav
-                  className="flex space-x-6 sm:space-x-8 min-w-max"
-                  aria-label="Tabs"
-                >
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={handleTabClick(tab.id)}
-                      className={`
-                        relative py-4 px-1 text-sm font-medium border-b-2 transition-colors duration-200
-                        ${
-                          state.activeTab === tab.id
-                            ? "border-[#6E8276] text-[#6E8276]"
-                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600"
-                        }
-                      `}
+            {/* Right column (30%) */}
+            <div className="space-y-4 min-w-0">
+              <ContactAddressCard isEditing={editing} addressLines={addressLines}>
+                <div className="space-y-4">
+                  <div>
+                    <label className={getLabelClasses()} htmlFor="street1">
+                      {t("street1")}
+                    </label>
+                    <input
+                      id="street1"
+                      className={getInputClasses("street1")}
+                      type="text"
+                      value={state.formData.street1}
+                      onChange={handleChange}
+                      placeholder={t("street1Placeholder")}
+                    />
+                  </div>
+                  <div>
+                    <label className={getLabelClasses()} htmlFor="street2">
+                      {t("street2")}
+                    </label>
+                    <input
+                      id="street2"
+                      className={getInputClasses("street2")}
+                      type="text"
+                      value={state.formData.street2}
+                      onChange={handleChange}
+                      placeholder={t("street2Placeholder")}
+                    />
+                  </div>
+                  <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-5">
+                      <label className={getLabelClasses()} htmlFor="city">
+                        {t("city")}
+                      </label>
+                      <input
+                        id="city"
+                        className={getInputClasses("city")}
+                        type="text"
+                        value={state.formData.city}
+                        onChange={handleChange}
+                        placeholder={t("cityPlaceholder")}
+                      />
+                    </div>
+                    <div className="col-span-4">
+                      <label className={getLabelClasses()} htmlFor="state">
+                        {t("state")}
+                      </label>
+                      <select
+                        id="state"
+                        className={getSelectClasses()}
+                        value={state.formData.state}
+                        onChange={handleChange}
+                        disabled={state.formData.countryCode !== "USA"}
+                      >
+                        {state.formData.countryCode === "USA" ? (
+                          <>
+                            <option value="">Select State</option>
+                            {usStates.map((usState) => (
+                              <option key={usState.code} value={usState.code}>
+                                {usState.code}
+                              </option>
+                            ))}
+                          </>
+                        ) : (
+                          <option value="international">International</option>
+                        )}
+                      </select>
+                    </div>
+                    <div className="col-span-3">
+                      <label className={getLabelClasses()} htmlFor="zip">
+                        {t("zip")}
+                      </label>
+                      <input
+                        id="zip"
+                        className={getInputClasses("zip")}
+                        type="text"
+                        value={state.formData.zip}
+                        onChange={handleChange}
+                        placeholder={t("zipPlaceholder")}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={getLabelClasses()} htmlFor="country">
+                      {t("country")}
+                    </label>
+                    <select
+                      id="country"
+                      className={getSelectClasses()}
+                      value={state.formData.country}
+                      onChange={handleCountryDropdownChange}
                     >
-                      {tab.label}
+                      {countries.map((country) => (
+                        <option key={country.id} value={country.name}>
+                          {country.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </ContactAddressCard>
+
+              <ContactDocumentsCard
+                records={contractorRecords}
+                onViewRecord={handleViewRecord}
+              />
+
+              <ContactTagsCard
+                isEditing={editing}
+                tags={selectedTagObjects}
+                onEdit={handleEdit}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-end">
+                    <button
+                      ref={createTagsButtonRef}
+                      type="button"
+                      onClick={() => setCreateTagsModalOpen(true)}
+                      className="text-xs font-semibold text-[#456564] hover:text-[#34514f] dark:text-[#7fa3a1] transition-colors"
+                    >
+                      {t("createTags") || "Create tags"}
                     </button>
-                  ))}
-                </nav>
-              </div>
-            </div>
-
-            <div className="p-4 sm:p-6">
-              {state.activeTab === 1 && (
-                <div className="space-y-8">
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 sm:p-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                        <User className="h-5 w-5 text-[#6E8276]" />
-                        {t("basicInformation")}
-                      </h3>
-                      {/* Contact Type Segmented Control - stacked to the right */}
-                      <div className="flex justify-end">
-                        <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 overflow-hidden">
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={
-                              state.formData.contactType === "individual"
-                            }
-                            onClick={() => {
-                              dispatch({
-                                type: "SET_FORM_DATA",
-                                payload: {
-                                  contactType: "individual",
-                                  jobPosition: "",
-                                  linkedCompany: "",
-                                },
-                              });
-                              if (state.isInitialLoad) {
-                                dispatch({
-                                  type: "SET_FORM_CHANGED",
-                                  payload: true,
-                                });
-                              }
-                            }}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
-                              state.formData.contactType === "individual"
-                                ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                                : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                            }`}
-                          >
-                            <User
-                              className={`h-3.5 w-3.5 shrink-0 ${
-                                state.formData.contactType === "individual"
-                                  ? "text-gray-700 dark:text-gray-300"
-                                  : "text-gray-400 dark:text-gray-500"
-                              }`}
-                            />
-                            {t("individual")}
-                          </button>
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={
-                              state.formData.contactType === "company"
-                            }
-                            onClick={() => {
-                              dispatch({
-                                type: "SET_FORM_DATA",
-                                payload: {
-                                  contactType: "company",
-                                  jobPosition: "",
-                                  linkedCompany: "",
-                                },
-                              });
-                              if (state.isInitialLoad) {
-                                dispatch({
-                                  type: "SET_FORM_CHANGED",
-                                  payload: true,
-                                });
-                              }
-                            }}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors border-l border-gray-200 dark:border-gray-600 ${
-                              state.formData.contactType === "company"
-                                ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                                : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                            }`}
-                          >
-                            <Building
-                              className={`h-3.5 w-3.5 shrink-0 ${
-                                state.formData.contactType === "company"
-                                  ? "text-gray-700 dark:text-gray-300"
-                                  : "text-gray-400 dark:text-gray-500"
-                              }`}
-                            />
-                            {t("company")}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                      <div>
-                        <label className={getLabelClasses()} htmlFor="name">
-                          {t("name")} <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          id="name"
-                          className={getInputClasses("name")}
-                          type="text"
-                          value={state.formData.name}
-                          onChange={handleChange}
-                          placeholder={t("namePlaceholder")}
-                        />
-                        {state.errors.name && (
-                          <div className="mt-1 flex items-center text-sm text-red-500">
-                            <AlertCircle className="h-4 w-4 mr-1" />
-                            <span>{state.errors.name}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {state.formData.contactType === "individual" && (
-                        <div>
-                          <label
-                            className={getLabelClasses()}
-                            htmlFor="jobPosition"
-                          >
-                            {t("jobPosition")}
-                          </label>
-                          <input
-                            id="jobPosition"
-                            className={getInputClasses("jobPosition")}
-                            type="text"
-                            value={state.formData.jobPosition}
-                            onChange={handleChange}
-                            placeholder={t("jobPositionPlaceholder")}
-                          />
-                        </div>
-                      )}
-
-                      {/* Linked Company Field - Only show for individuals */}
-                      {state.formData.contactType === "individual" && (
-                        <div>
-                          <label
-                            className={getLabelClasses()}
-                            htmlFor="linkedCompany"
-                          >
-                            {t("linkedCompany")}
-                          </label>
-                          <SelectDropdown
-                            options={companyContacts.map((contact) => ({
-                              id: contact.id,
-                              name: contact.name,
-                            }))}
-                            value={state.formData.linkedCompany}
-                            onChange={handleLinkedCompanyChange}
-                            placeholder={t("selectLinkedCompany")}
-                            name="linkedCompany"
-                            id="linkedCompany"
-                            clearable={true}
-                          />
-                        </div>
-                      )}
-
-                      <div>
-                        <label className={getLabelClasses()} htmlFor="phone">
-                          {t("mobilePhone")}
-                        </label>
-                        <div className="flex gap-2">
-                          <div className="relative">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                              {
-                                countries.find(
-                                  (c) =>
-                                    c.countryCode ===
-                                    state.formData.countryCode,
-                                )?.flag
-                              }
-                            </div>
-                            <select
-                              id="countryCode"
-                              className={`${getCountrySelectClasses()} text-gray-400 dark:text-gray-500`}
-                              value={state.formData.countryCode}
-                              onChange={handleCountryChange}
-                            >
-                              {countries.map((country) => (
-                                <option
-                                  key={country.id}
-                                  value={country.countryCode}
-                                >
-                                  {country.flag} {country.name} (
-                                  {country.phoneCode})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="relative flex-1">
-                            <input
-                              id="phone"
-                              className={`${getInputClasses("phone")}`}
-                              type="tel"
-                              value={state.formData.phone}
-                              onChange={handlePhoneChange}
-                              placeholder={t("phonePlaceholder")}
-                              style={{
-                                paddingLeft: `${
-                                  (countries.find(
-                                    (c) =>
-                                      c.countryCode ===
-                                      state.formData.countryCode,
-                                  )?.phoneCode?.length || 1) *
-                                    0.65 +
-                                  0.65
-                                }rem`,
-                              }}
-                            />
-                            <div
-                              className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 dark:text-gray-400 text-sm"
-                              style={{
-                                paddingRight: "0.2rem",
-                              }}
-                            >
-                              {
-                                countries.find(
-                                  (c) =>
-                                    c.countryCode ===
-                                    state.formData.countryCode,
-                                )?.phoneCode
-                              }
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className={getLabelClasses()} htmlFor="email">
-                          {t("email")}
-                        </label>
-                        <input
-                          id="email"
-                          className={getInputClasses("email")}
-                          type="email"
-                          value={state.formData.email}
-                          onChange={handleChange}
-                          placeholder={t("emailPlaceholder")}
-                        />
-                        {state.errors.email && (
-                          <div className="mt-1 flex items-center text-sm text-red-500">
-                            <AlertCircle className="h-4 w-4 mr-1" />
-                            <span>{state.errors.email}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className={getLabelClasses()} htmlFor="website">
-                          {t("website")}
-                        </label>
-                        <input
-                          id="website"
-                          className={getInputClasses("website")}
-                          type="url"
-                          value={state.formData.website}
-                          onChange={handleChange}
-                          placeholder={t("websitePlaceholder")}
-                        />
-                        {state.errors.website && (
-                          <div className="mt-1 flex items-center text-sm text-red-500">
-                            <AlertCircle className="h-4 w-4 mr-1" />
-                            <span>{state.errors.website}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Tags Field */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className={getLabelClasses()} htmlFor="tags">
-                            {t("tags")}
-                          </label>
-                          <button
-                            ref={createTagsButtonRef}
-                            type="button"
-                            onClick={() => setCreateTagsModalOpen(true)}
-                            className="text-sm text-[#6E8276] hover:text-[#456564] dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
-                          >
-                            {t("createTags") || "Create tags"}
-                          </button>
-                        </div>
-                        <TagsDropdown
-                          options={availableTags}
-                          selectedValues={state.formData.tags}
-                          onAdd={handleAddTag}
-                          onRemove={handleRemoveTag}
-                          placeholder={t("selectTags")}
-                          name="tags"
-                          id="tags"
-                        />
-                      </div>
-                    </div>
                   </div>
-
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 sm:p-6">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                      <MapPin className="h-5 w-5 text-[#6E8276]" />
-                      {t("address")}
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                      <div className="md:col-span-3">
-                        <div className="grid grid-cols-1 gap-4">
-                          <div>
-                            <label
-                              className={getLabelClasses()}
-                              htmlFor="street1"
-                            >
-                              {t("street1")}
-                            </label>
-                            <input
-                              id="street1"
-                              className={getInputClasses("street1")}
-                              type="text"
-                              value={state.formData.street1}
-                              onChange={handleChange}
-                              placeholder={t("street1Placeholder")}
-                            />
-                          </div>
-
-                          <div>
-                            <label
-                              className={getLabelClasses()}
-                              htmlFor="street2"
-                            >
-                              {t("street2")}
-                            </label>
-                            <input
-                              id="street2"
-                              className={getInputClasses("street2")}
-                              type="text"
-                              value={state.formData.street2}
-                              onChange={handleChange}
-                              placeholder={t("street2Placeholder")}
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-12 gap-4">
-                            <div className="col-span-5">
-                              <label
-                                className={getLabelClasses()}
-                                htmlFor="city"
-                              >
-                                {t("city")}
-                              </label>
-                              <input
-                                id="city"
-                                className={getInputClasses("city")}
-                                type="text"
-                                value={state.formData.city}
-                                onChange={handleChange}
-                                placeholder={t("cityPlaceholder")}
-                              />
-                            </div>
-
-                            <div className="col-span-4">
-                              <label
-                                className={getLabelClasses()}
-                                htmlFor="state"
-                              >
-                                {t("state")}
-                              </label>
-                              <select
-                                id="state"
-                                className={getSelectClasses()}
-                                value={state.formData.state}
-                                onChange={handleChange}
-                                disabled={state.formData.countryCode !== "USA"}
-                              >
-                                {state.formData.countryCode === "USA" ? (
-                                  <>
-                                    <option value="">Select State</option>
-                                    {usStates.map((state) => (
-                                      <option
-                                        key={state.code}
-                                        value={state.code}
-                                      >
-                                        {state.code}
-                                      </option>
-                                    ))}
-                                  </>
-                                ) : (
-                                  <option value="international">
-                                    International
-                                  </option>
-                                )}
-                              </select>
-                            </div>
-
-                            <div className="col-span-3">
-                              <label
-                                className={getLabelClasses()}
-                                htmlFor="zip"
-                              >
-                                {t("zip")}
-                              </label>
-                              <input
-                                id="zip"
-                                className={getInputClasses("zip")}
-                                type="text"
-                                value={state.formData.zip}
-                                onChange={handleChange}
-                                placeholder={t("zipPlaceholder")}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-4 gap-4">
-                            <div className="col-span-2">
-                              <label
-                                className={getLabelClasses()}
-                                htmlFor="country"
-                              >
-                                {t("country")}
-                              </label>
-                              <select
-                                id="country"
-                                className={getSelectClasses()}
-                                value={state.formData.country}
-                                onChange={handleCountryDropdownChange}
-                              >
-                                {countries.map((country) => (
-                                  <option key={country.id} value={country.name}>
-                                    {country.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <TagsDropdown
+                    options={availableTags}
+                    selectedValues={state.formData.tags}
+                    onAdd={handleAddTag}
+                    onRemove={handleRemoveTag}
+                    placeholder={t("selectTags")}
+                    name="tags"
+                    id="tags"
+                  />
                 </div>
-              )}
-
-              {state.activeTab === 2 && (
-                <div className="space-y-8">
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 sm:p-6">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-[#6E8276]" />
-                      {t("notes")}
-                    </h3>
-                    <div className="grid grid-cols-1 gap-6">
-                      <div>
-                        <textarea
-                          id="notes"
-                          className={`${getInputClasses(
-                            "notes",
-                          )} min-h-[100px]`}
-                          value={state.formData.notes}
-                          onChange={handleChange}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              </ContactTagsCard>
             </div>
+          </div>
 
-            <div
-              className={`${
-                state.formDataChanged || state.isNew ? "sticky" : "hidden"
-              } bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4 rounded-b-lg transition-all duration-200`}
-            >
+          {editing && (
+            <div className="sticky bottom-0 z-20 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border border-neutral-200/80 dark:border-neutral-700/50 rounded-2xl px-4 sm:px-6 py-3.5 shadow-lg">
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
@@ -2225,11 +2240,7 @@ function ContactsFormContainer() {
                 </button>
                 <button
                   type="submit"
-                  className={`btn text-white transition-colors duration-200 shadow-sm min-w-[100px] ${
-                    state.isNew
-                      ? "bg-[#456564] hover:bg-[#34514f]"
-                      : "bg-[#456564] hover:bg-[#34514f]"
-                  }`}
+                  className="btn text-white transition-colors duration-200 shadow-sm min-w-[100px] bg-[#456564] hover:bg-[#34514f]"
                   disabled={state.isSubmitting}
                 >
                   {state.isSubmitting ? (
@@ -2264,8 +2275,9 @@ function ContactsFormContainer() {
                 </button>
               </div>
             </div>
+          )}
+
           </form>
-        </div>
       </div>
       <UpgradePrompt
         open={upgradePromptOpen}

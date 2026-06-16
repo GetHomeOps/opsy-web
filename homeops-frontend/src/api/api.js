@@ -755,6 +755,16 @@ class AppApi {
     return res.contact;
   }
 
+  /** Properties where the contact is a member + records where the contact is
+   *  the contractor. Returns { properties, records }. */
+  static async getContactAssociations(id) {
+    let res = await this.request(`contacts/${id}/associations`);
+    return {
+      properties: res.properties || [],
+      records: res.records || [],
+    };
+  }
+
   static async deleteContact(id) {
     let res = await this.request(`contacts/${id}`, {}, 'DELETE');
     return res;

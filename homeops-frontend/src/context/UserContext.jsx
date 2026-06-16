@@ -58,9 +58,22 @@ export function UserProvider({children}) {
     }
   }, [isLoading, currentUser, currentAccount?.id]);
 
+  // The users list (admin/super-admin only) is not needed for first paint.
+  // Defer the initial load to browser idle time so it does not compete with
+  // the active page's own data fetches.
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    if (isLoading || !currentUser) return;
+    const schedule =
+      typeof window !== "undefined" && window.requestIdleCallback
+        ? window.requestIdleCallback
+        : (cb) => setTimeout(cb, 200);
+    const cancel =
+      typeof window !== "undefined" && window.cancelIdleCallback
+        ? window.cancelIdleCallback
+        : clearTimeout;
+    const handle = schedule(() => fetchUsers(), {timeout: 2000});
+    return () => cancel(handle);
+  }, [fetchUsers, isLoading, currentUser]);
 
   const refetchUsers = useCallback(() => {
     fetchUsers();

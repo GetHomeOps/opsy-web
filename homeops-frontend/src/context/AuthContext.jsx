@@ -87,7 +87,29 @@ export function AuthProvider({children}) {
           let {email} = decode(token);
           AppApi.token = token;
 
-          let currentUser = await AppApi.getCurrentUser(email);
+          // Fast path: a single /auth/bootstrap call returns the user AND their
+          // accounts in one round-trip. Fall back to the two-call sequence
+          // (getCurrentUser -> getUserAccounts) if bootstrap is unavailable.
+          let currentUser = null;
+          let userAccounts = null;
+          try {
+            const bootstrapUser = await AppApi.getAuthBootstrap();
+            if (bootstrapUser?.id) {
+              currentUser = bootstrapUser;
+              userAccounts = bootstrapUser.accounts || [];
+            }
+          } catch (bootstrapErr) {
+            // Auth failures (stale/invalid token) should be handled by the
+            // outer catch; rethrow so we don't fire a redundant fallback call.
+            const status = bootstrapErr?.status;
+            if (status === 404 || status === 401 || status === 403) {
+              throw bootstrapErr;
+            }
+          }
+
+          if (!currentUser) {
+            currentUser = await AppApi.getCurrentUser(email);
+          }
 
           if (!currentUser || !currentUser.id) {
             console.error("Current user or user ID is undefined");
@@ -99,7 +121,9 @@ export function AuthProvider({children}) {
             return;
           }
 
-          let userAccounts = await getUserAccounts(currentUser.id);
+          if (userAccounts === null) {
+            userAccounts = await getUserAccounts(currentUser.id);
+          }
 
           setImpersonation(mergeImpersonation(currentUser, token));
 

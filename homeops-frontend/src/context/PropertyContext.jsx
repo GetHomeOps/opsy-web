@@ -247,9 +247,23 @@ export function PropertyProvider({children}) {
     }
   };
 
+  /** Drop cached team rows for one or more property uid / numeric id keys. */
+  function invalidatePropertyTeamCache(...identifiers) {
+    for (const id of identifiers) {
+      if (id == null) continue;
+      const cacheKey = String(id);
+      propertyTeamCacheRef.current.delete(cacheKey);
+      propertyTeamInflightRef.current.delete(cacheKey);
+    }
+  }
+
   /* Get property team (cached per property uid for the session) */
-  async function getPropertyTeam(propertyId) {
+  async function getPropertyTeam(propertyId, {bypassCache = false} = {}) {
     const cacheKey = String(propertyId);
+    if (bypassCache) {
+      invalidatePropertyTeamCache(propertyId);
+    }
+
     const cache = propertyTeamCacheRef.current;
     if (cache.has(cacheKey)) {
       return cache.get(cacheKey);
@@ -350,6 +364,7 @@ export function PropertyProvider({children}) {
       getPropertyById,
       addUsersToProperty,
       getPropertyTeam,
+      invalidatePropertyTeamCache,
       updateTeam,
       getSystemsByPropertyId,
       updateSystemsForProperty,

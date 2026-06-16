@@ -51,6 +51,20 @@ function filterPropertyTeamForViewer(members, viewerPlatformRole) {
   );
 }
 
+/** Team tab role for a pending invitation — never treat invitees as internal staff. */
+function resolvePendingInvitationTeamRole(inv, matchedUser) {
+  if (inv.intendedPropertyRole) return inv.intendedPropertyRole;
+  const platformRole = String(matchedUser?.role ?? "").toLowerCase();
+  if (
+    platformRole &&
+    platformRole !== "admin" &&
+    platformRole !== "super_admin"
+  ) {
+    return matchedUser.role;
+  }
+  return "homeowner";
+}
+
 /** Attach affiliated agency (name + presigned logo) to agent members on a property team. */
 async function enrichTeamWithAgentAgencies(members) {
   const agentIds = members
@@ -316,8 +330,7 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
          fall back to the invitee's existing platform role (covers older
          invitations created before intended_property_role was stored), then
          finally to the access-level intended_role. */
-      const role =
-        inv.intendedPropertyRole || matchedUser?.role || inv.intendedRole;
+      const role = resolvePendingInvitationTeamRole(inv, matchedUser);
       return {
         email: inv.inviteeEmail,
         name: matchedUser?.name || inv.inviteeEmail,

@@ -39,9 +39,14 @@ import {
 import {
   HealthBadge,
   AgentHomeStats,
-  AgentHomeKpiCharts,
   AgentHomeAgencyCard,
 } from "./components";
+
+// Charts pull in chart.js / react-chartjs-2; lazy-load so the dashboard paints
+// before the charting bundle is fetched.
+const AgentHomeKpiCharts = React.lazy(() =>
+  import("./components/AgentHomeKpiCharts"),
+);
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import PaginationClassic from "../../components/PaginationClassic";
@@ -1210,23 +1215,25 @@ function AgentHome() {
         )}
       </section>
 
-      <AgentHomeKpiCharts
-        t={t}
-        totalProperties={totalProperties}
-        chartOptions={chartOptions}
-        healthDoughnutData={healthDoughnutData}
-        healthDistribution={healthDistribution}
-        stats={stats}
-        engagementLineOptions={engagementLineOptions}
-        engagementCounts={engagementCounts}
-        engagementTrend={engagementTrend}
-        engagementLoading={engagementLoading}
-        healthByPropertyData={healthByPropertyData}
-        teamByPropertyData={teamByPropertyData}
-        isLoadingTeams={isLoadingTeams}
-        propertyVisitsChartData={propertyVisitsChartData}
-        activitiesByPropertyChartData={activitiesByPropertyChartData}
-      />
+      <React.Suspense fallback={null}>
+        <AgentHomeKpiCharts
+          t={t}
+          totalProperties={totalProperties}
+          chartOptions={chartOptions}
+          healthDoughnutData={healthDoughnutData}
+          healthDistribution={healthDistribution}
+          stats={stats}
+          engagementLineOptions={engagementLineOptions}
+          engagementCounts={engagementCounts}
+          engagementTrend={engagementTrend}
+          engagementLoading={engagementLoading}
+          healthByPropertyData={healthByPropertyData}
+          teamByPropertyData={teamByPropertyData}
+          isLoadingTeams={isLoadingTeams}
+          propertyVisitsChartData={propertyVisitsChartData}
+          activitiesByPropertyChartData={activitiesByPropertyChartData}
+        />
+      </React.Suspense>
 
       {/* COMMUNICATIONS — list + link to composer ────────────────────── */}
       <section className="pb-8">

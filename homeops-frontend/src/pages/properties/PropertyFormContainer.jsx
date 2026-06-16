@@ -542,6 +542,7 @@ function PropertyFormContainer() {
     getPropertyById,
     addUsersToProperty,
     getPropertyTeam,
+    invalidatePropertyTeamCache,
     updateProperty,
     updateTeam,
     getSystemsByPropertyId,
@@ -1093,16 +1094,27 @@ function PropertyFormContainer() {
     [users],
   );
 
+  const reloadHomeopsTeam = useCallback(
+    async ({bypassCache = true} = {}) => {
+      if (uid === "new") return [];
+      const team = await getPropertyTeam(uid, {bypassCache});
+      const raw = team?.property_users ?? [];
+      const enriched = enrichPropertyTeamMembers(raw);
+      setHomeopsTeam(enriched);
+      originalTeamRef.current = prepareTeamForProperty(enriched);
+      return enriched;
+    },
+    [uid, getPropertyTeam, enrichPropertyTeamMembers],
+  );
+
   const afterPropertyInvitationAcceptedInApp = useCallback(async () => {
     window.dispatchEvent(new CustomEvent("opsy:notifications-refresh"));
     setInvitationModalOpen(false);
     setInvitationReviewMode(false);
-    const team = await getPropertyTeam(uid);
-    const raw = team?.property_users ?? [];
-    setHomeopsTeam(enrichPropertyTeamMembers(raw));
+    await reloadHomeopsTeam();
     setInvitationAcceptedModalOpen(true);
     refreshProperties?.();
-  }, [uid, getPropertyTeam, enrichPropertyTeamMembers, refreshProperties]);
+  }, [reloadHomeopsTeam, refreshProperties]);
 
   const dismissInvitationAcceptedModal = useCallback(() => {
     setInvitationAcceptedModalOpen(false);
@@ -1126,12 +1138,8 @@ function PropertyFormContainer() {
         String(eventPropertyId) === String(currentPropertyId);
       if (!matchesUid && !matchesId) return;
       try {
-        const team = await getPropertyTeam(uid);
+        await reloadHomeopsTeam();
         if (cancelled) return;
-        const raw = team?.property_users ?? [];
-        const enriched = enrichPropertyTeamMembers(raw);
-        setHomeopsTeam(enriched);
-        originalTeamRef.current = prepareTeamForProperty(enriched);
         refreshProperties?.();
       } catch (err) {
         console.error("[PropertyForm] ownership refresh failed:", err);
@@ -1152,8 +1160,43 @@ function PropertyFormContainer() {
     uid,
     state.property?.identity?.id,
     state.property?.id,
-    getPropertyTeam,
-    enrichPropertyTeamMembers,
+    reloadHomeopsTeam,
+    refreshProperties,
+  ]);
+
+  /* Refresh team when invitations change elsewhere in the app (e.g. accept from notifications). */
+  useEffect(() => {
+    if (typeof window === "undefined" || uid === "new") return;
+    let cancelled = false;
+    const handleTeamChanged = async (event) => {
+      const detail = event?.detail ?? {};
+      const eventUid = detail.propertyUid;
+      const eventPropertyId = detail.propertyId;
+      const currentPropertyId =
+        state.property?.identity?.id ?? state.property?.id;
+      const matchesUid = eventUid != null && String(eventUid) === String(uid);
+      const matchesId =
+        eventPropertyId != null &&
+        currentPropertyId != null &&
+        String(eventPropertyId) === String(currentPropertyId);
+      if (!matchesUid && !matchesId) return;
+      try {
+        await reloadHomeopsTeam();
+        if (!cancelled) refreshProperties?.();
+      } catch (err) {
+        console.error("[PropertyForm] team refresh failed:", err);
+      }
+    };
+    window.addEventListener("opsy:property-team-changed", handleTeamChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("opsy:property-team-changed", handleTeamChanged);
+    };
+  }, [
+    uid,
+    state.property?.identity?.id,
+    state.property?.id,
+    reloadHomeopsTeam,
     refreshProperties,
   ]);
 
@@ -1719,7 +1762,7 @@ function PropertyFormContainer() {
         return;
       }
       try {
-        const team = await getPropertyTeam(uid);
+        const team = await getPropertyTeam(uid, {bypassCache: true});
         const raw = team?.property_users ?? [];
         const enriched = raw.map((m) => {
           const u = users?.find(
@@ -2768,6 +2811,7 @@ function PropertyFormContainer() {
           );
           handleTeamChange(next);
         }}
+        onRefreshTeam={reloadHomeopsTeam}
         onTransferOwnership={async (newOwnerIdStr) => {
           const propertyKey =
             uid !== "new"
@@ -2849,26 +2893,44 @@ function PropertyFormContainer() {
               permissions && Object.keys(permissions).length > 0
                 ? permissions
                 : undefined;
-            const res = await AppApi.createInvitation({
-              type: "property",
-              inviteeEmail: inviteEmail,
-              inviteeName: (inviteDisplayName || "").trim() || undefined,
-              accountId: inviteAccountId,
-              propertyId,
-              intendedRole,
-              ...(intendedPropertyRole ? {intendedPropertyRole} : {}),
-              ...(permissionsForApi ? {permissions: permissionsForApi} : {}),
-              skipInviteEmail: skipInviteEmail === true,
-              ...(invitationEmailNote ? {invitationEmailNote} : {}),
-              ...(invitationEmailMainPlain ? {invitationEmailMainPlain} : {}),
-              ...(invitationEmailCc?.length ? {invitationEmailCc} : {}),
-            });
-            if (res?.invitation?.id) {
-              pendingMember.invitationId = res.invitation.id;
+            try {
+              const res = await AppApi.createInvitation({
+                type: "property",
+                inviteeEmail: inviteEmail,
+                inviteeName: (inviteDisplayName || "").trim() || undefined,
+                accountId: inviteAccountId,
+                propertyId,
+                intendedRole,
+                ...(intendedPropertyRole ? {intendedPropertyRole} : {}),
+                ...(permissionsForApi ? {permissions: permissionsForApi} : {}),
+                skipInviteEmail: skipInviteEmail === true,
+                ...(invitationEmailNote ? {invitationEmailNote} : {}),
+                ...(invitationEmailMainPlain ? {invitationEmailMainPlain} : {}),
+                ...(invitationEmailCc?.length ? {invitationEmailCc} : {}),
+              });
+              invalidatePropertyTeamCache(uid, propertyId);
+              if (res?.invitation?.id) {
+                pendingMember.invitationId = res.invitation.id;
+              }
+              /* Invitation is already persisted — only refresh local list; do not mark property form dirty. */
+              setHomeopsTeam((prev) => [...prev, pendingMember]);
+              window.dispatchEvent(
+                new CustomEvent("opsy:property-team-changed", {
+                  detail: {propertyUid: uid, propertyId},
+                }),
+              );
+              return res;
+            } catch (err) {
+              const msg = String(err?.message ?? "").toLowerCase();
+              if (
+                msg.includes("already been sent") ||
+                msg.includes("already on the property team")
+              ) {
+                invalidatePropertyTeamCache(uid, propertyId);
+                await reloadHomeopsTeam();
+              }
+              throw err;
             }
-            /* Invitation is already persisted — only refresh local list; do not mark property form dirty. */
-            setHomeopsTeam((prev) => [...prev, pendingMember]);
-            return res;
           } else {
             handleTeamChange([...homeopsTeam, pendingMember]);
             return null;
@@ -2881,12 +2943,18 @@ function PropertyFormContainer() {
               : null;
           if (member._pending && member.invitationId) {
             await AppApi.revokeInvitation(member.invitationId);
+            invalidatePropertyTeamCache(uid, propertyId);
             setHomeopsTeam((prev) =>
               prev.filter((m) =>
                 m._pending
                   ? m.invitationId !== member.invitationId
                   : String(m.id) !== String(member.id),
               ),
+            );
+            window.dispatchEvent(
+              new CustomEvent("opsy:property-team-changed", {
+                detail: {propertyUid: uid, propertyId},
+              }),
             );
           } else if (propertyId && member.id) {
             const newTeam = homeopsTeam.filter(
@@ -3765,10 +3833,14 @@ function PropertyFormContainer() {
                       >
                         <Icon className="w-4 h-4" />
                         {tab.label}
-                        {tab.id === "systems" && state.aiSummaryUpdatedAt && (
+                        {tab.id === "systems" && inspectionAnalysis && (
                           <span
                             className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                            title={`AI analysis updated ${new Date(state.aiSummaryUpdatedAt).toLocaleDateString()}`}
+                            title={`Inspection analysis completed${
+                              inspectionAnalysis.createdAt
+                                ? ` ${new Date(inspectionAnalysis.createdAt).toLocaleDateString()}`
+                                : ""
+                            }`}
                           >
                             AI Updated
                           </span>
@@ -3788,7 +3860,6 @@ function PropertyFormContainer() {
                     maintenanceEvents={maintenanceEvents}
                     propertyDocuments={overviewDocuments}
                     photosCount={(state.formData.identity?.photos ?? []).length}
-                    aiSummaryUpdatedAt={state.aiSummaryUpdatedAt}
                     inspectionAnalysis={inspectionAnalysis}
                     onNavigateTab={(tabId) =>
                       dispatch({type: "SET_ACTIVE_TAB", payload: tabId})
@@ -3897,7 +3968,6 @@ function PropertyFormContainer() {
                     inspectionAnalysis={inspectionAnalysis}
                     maintenanceEvents={maintenanceEvents}
                     onScheduleSuccess={fetchMaintenanceEvents}
-                    aiSummaryUpdatedAt={state.aiSummaryUpdatedAt}
                     propertyId={
                       state.property?.id ?? (uid && uid !== "new" ? uid : null)
                     }

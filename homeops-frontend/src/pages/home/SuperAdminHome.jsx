@@ -5,7 +5,13 @@ import PropertyContext from "../../context/PropertyContext";
 import UserContext from "../../context/UserContext";
 import AppApi from "../../api/api";
 import {Loader2} from "lucide-react";
-import {SuperAdminHomeStats, SuperAdminHomeKpiCharts} from "./components";
+import {SuperAdminHomeStats} from "./components";
+
+// Charts pull in chart.js / react-chartjs-2; lazy-load so the dashboard paints
+// before the charting bundle is fetched.
+const SuperAdminHomeKpiCharts = React.lazy(() =>
+  import("./components/SuperAdminHomeKpiCharts"),
+);
 
 /*
  * ════════════════════════════════════════════════════════════════════
@@ -352,27 +358,29 @@ function SuperAdminHome() {
         analyticsLoading={analyticsLoading}
       />
 
-      <SuperAdminHomeKpiCharts
-        t={t}
-        dailyMetrics={dailyMetrics}
-        timeframeDays={timeframeDays}
-        setTimeframeDays={setTimeframeDays}
-        TIMEFRAME_OPTIONS={TIMEFRAME_OPTIONS}
-        chartOptions={chartOptions}
-        accountGrowth={accountGrowth}
-        propertyGrowth={propertyGrowth}
-        userGrowth={userGrowth}
-        analyticsLoading={analyticsLoading}
-        accountAnalytics={accountAnalytics}
-        subscriptionData={subscriptionData}
-        roleDistribution={roleDistribution}
-        roleBarData={roleBarData}
-        platformKpis={platformKpis}
-        totalAccounts={totalAccounts}
-        engagementTrend={engagementTrend}
-        engagementCounts={engagementCounts}
-        summary={summary}
-      />
+      <React.Suspense fallback={null}>
+        <SuperAdminHomeKpiCharts
+          t={t}
+          dailyMetrics={dailyMetrics}
+          timeframeDays={timeframeDays}
+          setTimeframeDays={setTimeframeDays}
+          TIMEFRAME_OPTIONS={TIMEFRAME_OPTIONS}
+          chartOptions={chartOptions}
+          accountGrowth={accountGrowth}
+          propertyGrowth={propertyGrowth}
+          userGrowth={userGrowth}
+          analyticsLoading={analyticsLoading}
+          accountAnalytics={accountAnalytics}
+          subscriptionData={subscriptionData}
+          roleDistribution={roleDistribution}
+          roleBarData={roleBarData}
+          platformKpis={platformKpis}
+          totalAccounts={totalAccounts}
+          engagementTrend={engagementTrend}
+          engagementCounts={engagementCounts}
+          summary={summary}
+        />
+      </React.Suspense>
     </div>
   );
 }

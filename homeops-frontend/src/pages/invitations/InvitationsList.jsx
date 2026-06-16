@@ -70,6 +70,16 @@ function InvitationsList() {
     try {
       await AppApi.acceptInvitationInApp(inv.id);
       window.dispatchEvent(new CustomEvent("opsy:notifications-refresh"));
+      if (inv.type === "property") {
+        window.dispatchEvent(
+          new CustomEvent("opsy:property-team-changed", {
+            detail: {
+              propertyUid: inv.propertyUid ?? null,
+              propertyId: inv.propertyId ?? null,
+            },
+          }),
+        );
+      }
       setReceived((prev) => prev.filter((i) => i.id !== inv.id));
       if (
         inv.type === "property" &&

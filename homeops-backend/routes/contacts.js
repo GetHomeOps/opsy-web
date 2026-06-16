@@ -93,6 +93,18 @@ router.get("/:id", ensureLoggedIn, ensureContactBelongsToUserAccount("id"), asyn
   }
 });
 
+/** GET /:id/associations - Properties where the contact is a member and the
+ *  maintenance/inspection records where the contact is the contractor. */
+router.get("/:id/associations", ensureLoggedIn, ensureContactBelongsToUserAccount("id"), async function (req, res, next) {
+  try {
+    const { properties, records } = await Contact.getAssociations(req.params.id);
+    const propertiesWithUrls = await addPresignedUrlsToItems(properties, "main_photo", "main_photo_url");
+    return res.json({ properties: propertiesWithUrls, records });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** POST / - Create contact. Optionally link to account via accountId in body. */
 router.post("/", ensureLoggedIn, async function (req, res, next) {
   try {

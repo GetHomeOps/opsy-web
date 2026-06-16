@@ -366,6 +366,92 @@ class Contact {
     return this.get(id);
   }
 
+  /** Associations for a contact: properties where the contact is a member
+   *  (matched to a platform user via users.contact_id or email) and the
+   *  maintenance/inspection records where the contact is the contractor.
+   *
+   *  Returns { properties, records }.
+   */
+  static async getAssociations(id) {
+    const propertiesResult = await db.query(
+      `SELECT DISTINCT ON (p.id)
+              p.id,
+              p.property_uid,
+              p.property_name,
+              p.passport_id,
+              p.main_photo,
+              p.address,
+              p.address_line_1,
+              p.city,
+              p.state,
+              p.zip,
+              pu.role AS property_role
+       FROM contacts c
+       JOIN users u
+         ON u.contact_id = c.id
+         OR (
+           c.email IS NOT NULL AND TRIM(c.email) <> ''
+           AND LOWER(TRIM(u.email)) = LOWER(TRIM(c.email))
+         )
+       JOIN property_users pu ON pu.user_id = u.id
+       JOIN properties p ON p.id = pu.property_id
+       WHERE c.id = $1
+       ORDER BY p.id, p.property_name NULLS LAST`,
+      [id]
+    );
+
+    /* Maintenance/inspection records (property_maintenance) where this contact
+     * is the contractor. The contractor is stored as free text inside the
+     * record's `data` JSONB (no FK), so match on email first, then name. */
+    const recordsResult = await db.query(
+      `SELECT pm.id,
+              pm.system_key,
+              pm.completed_at,
+              pm.next_service_date,
+              pm.data,
+              pm.status,
+              p.property_uid,
+              p.property_name,
+              p.address,
+              p.city,
+              p.state
+       FROM property_maintenance pm
+       JOIN properties p ON p.id = pm.property_id
+       JOIN contacts c ON c.id = $1
+       WHERE (
+               c.email IS NOT NULL AND TRIM(c.email) <> ''
+               AND LOWER(TRIM(pm.data->>'contractorEmail')) = LOWER(TRIM(c.email))
+             )
+          OR (
+               c.name IS NOT NULL AND TRIM(c.name) <> ''
+               AND LOWER(TRIM(pm.data->>'contractor')) = LOWER(TRIM(c.name))
+             )
+       ORDER BY pm.completed_at DESC NULLS LAST, pm.id DESC`,
+      [id]
+    );
+
+    const records = recordsResult.rows.map((r) => {
+      const data = r.data || {};
+      return {
+        id: r.id,
+        title: data.description || data.recordType || "Maintenance record",
+        recordType: data.recordType || null,
+        systemKey: r.system_key,
+        status: data.status || r.status || null,
+        date: r.completed_at || r.next_service_date || null,
+        propertyUid: r.property_uid,
+        propertyName: r.property_name,
+        propertyAddress:
+          [r.address, r.city, r.state].filter(Boolean).join(", ") || null,
+      };
+    });
+
+    return {
+      properties: propertiesResult.rows,
+      records,
+    };
+  }
+
   /** Find a contact by email within a specific account. */
   static async getByEmailAndAccount(email, accountId) {
     const result = await db.query(

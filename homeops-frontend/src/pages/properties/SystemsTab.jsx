@@ -133,7 +133,6 @@ function SystemsTab({
   aiSidebarSystemLabel: aiSidebarSystemLabelProp,
   aiSidebarSystemContext: aiSidebarSystemContextProp,
   expandSectionId,
-  aiSummaryUpdatedAt,
   propertyId: propertyIdProp,
   propertyDocuments = [],
 }) {
@@ -822,13 +821,16 @@ function SystemsTab({
                 className="py-16 min-h-[280px]"
               />
             )}
-            {aiSummaryUpdatedAt && propertyId && (
+            {inspectionAnalysis?.createdAt && propertyId && (
               <div className="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400">
                 <span>
-                  AI analysis updated{" "}
-                  {new Date(aiSummaryUpdatedAt).toLocaleDateString(undefined, {
-                    dateStyle: "medium",
-                  })}
+                  Inspection analysis completed{" "}
+                  {new Date(inspectionAnalysis.createdAt).toLocaleDateString(
+                    undefined,
+                    {
+                      dateStyle: "medium",
+                    },
+                  )}
                 </span>
                 <button
                   type="button"

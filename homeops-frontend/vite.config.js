@@ -9,13 +9,25 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Backend API proxy target (default 3000; backend must run on this port for proxy to work)
 const API_PROXY_TARGET = process.env.VITE_API_PROXY_TARGET || 'http://localhost:3000';
 
+// Only expose NODE_ENV and VITE_-prefixed vars to the client. The previous
+// `'process.env': process.env` inlined the ENTIRE build environment into the
+// bundle (size bloat + risk of leaking server-only secrets). process.env stays
+// defined as an object so any `process.env.X` reference resolves to undefined
+// rather than throwing.
+const clientProcessEnv = {
+  NODE_ENV: process.env.NODE_ENV,
+  ...Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => key.startsWith('VITE_')),
+  ),
+};
+
 // https://vitejs.dev/config/
 export default defineConfig({
   test: {
     environment: 'jsdom',
   },
   define: {
-    'process.env': process.env
+    'process.env': clientProcessEnv
   },
   resolve: {
     // Single React instance — avoids duplicate context (e.g. useAuth sees no provider)
@@ -120,6 +132,35 @@ export default defineConfig({
   build: {
     commonjsOptions: {
       transformMixedEsModules: true,
-    }
+    },
+    rollupOptions: {
+      output: {
+        // Split large/independent vendors into their own chunks so the initial
+        // entry stays small and heavy libs are only fetched by the routes that
+        // actually use them (charts, rich-text editors, spreadsheet parsers).
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('react-router')) return 'vendor-router';
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/')
+          ) {
+            return 'vendor-react';
+          }
+          if (id.includes('chart.js') || id.includes('react-chartjs-2')) {
+            return 'vendor-charts';
+          }
+          if (id.includes('@tiptap') || id.includes('prosemirror')) {
+            return 'vendor-editor';
+          }
+          if (id.includes('/xlsx/')) return 'vendor-xlsx';
+          if (id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('/moment/')) return 'vendor-moment';
+          if (id.includes('lucide-react')) return 'vendor-icons';
+          return undefined;
+        },
+      },
+    },
   }
 });
