@@ -3,6 +3,9 @@ import {FileText, Wrench, ClipboardCheck, MapPin, ChevronRight} from "lucide-rea
 import SectionCard from "../../../properties/partials/passport/SectionCard";
 import EmptyStateCard from "../../../properties/partials/passport/EmptyStateCard";
 import {StatusBadge} from "../../../properties/partials/passport/StatusBadge";
+import CardListPagination, {
+  usePaginatedList,
+} from "../../../properties/partials/passport/CardListPagination";
 
 function formatRecordDate(value) {
   if (!value) return null;
@@ -20,11 +23,24 @@ function formatRecordDate(value) {
  * contractor. Shows an empty state until any records exist.
  */
 function ContactDocumentsCard({records = [], onViewRecord}) {
+  const {
+    pageItems,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalItems,
+    pageCount,
+    rangeStart,
+    rangeEnd,
+  } = usePaginatedList(records);
+
   return (
     <SectionCard flat title="Documents" icon={FileText}>
       {records.length > 0 ? (
-        <ul className="space-y-2">
-          {records.map((record) => {
+        <>
+          <ul className="space-y-2">
+            {pageItems.map((record) => {
             const isInspection =
               String(record.recordType || "").toLowerCase() === "inspection";
             const Icon = isInspection ? ClipboardCheck : Wrench;
@@ -59,8 +75,20 @@ function ContactDocumentsCard({records = [], onViewRecord}) {
                 </button>
               </li>
             );
-          })}
-        </ul>
+            })}
+          </ul>
+          <CardListPagination
+            totalItems={totalItems}
+            page={page}
+            pageSize={pageSize}
+            pageCount={pageCount}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="record"
+          />
+        </>
       ) : (
         <EmptyStateCard
           icon={FileText}
