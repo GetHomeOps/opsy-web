@@ -30,7 +30,6 @@ import UpgradePrompt from "../../components/UpgradePrompt";
 import ContactHeader from "./partials/passport/ContactHeader";
 import ContactInformationCard from "./partials/passport/ContactInformationCard";
 import ContactPropertiesCard from "./partials/passport/ContactPropertiesCard";
-import ContactActivityCard from "./partials/passport/ContactActivityCard";
 import ContactAddressCard from "./partials/passport/ContactAddressCard";
 import ContactDocumentsCard from "./partials/passport/ContactDocumentsCard";
 import ContactTagsCard from "./partials/passport/ContactTagsCard";
@@ -1313,10 +1312,6 @@ function ContactsFormContainer() {
     )
     .filter(Boolean);
 
-  const hasNotes = Boolean(
-    state.formData.notes && state.formData.notes.trim() !== "",
-  );
-
   const associatedProperties = (associations.properties || []).map((p) => ({
     id: p.id,
     uid: p.property_uid,
@@ -1348,7 +1343,6 @@ function ContactsFormContainer() {
   const headerStats = {
     properties: associatedProperties.length,
     documents: contractorRecords.length,
-    notes: hasNotes ? 1 : 0,
   };
 
   /* Avatar + URL input slot rendered inside the hero when editing */
@@ -2076,18 +2070,6 @@ function ContactsFormContainer() {
                 properties={associatedProperties}
                 onViewProperty={handleViewProperty}
               />
-
-              {editing && (
-                <ContactActivityCard isEditing>
-                  <textarea
-                    id="notes"
-                    className={`${getInputClasses("notes")} min-h-[120px]`}
-                    value={state.formData.notes}
-                    onChange={handleChange}
-                    placeholder={t("notesPlaceholder") || "Add a note…"}
-                  />
-                </ContactActivityCard>
-              )}
             </div>
 
             {/* Right column (30%) */}

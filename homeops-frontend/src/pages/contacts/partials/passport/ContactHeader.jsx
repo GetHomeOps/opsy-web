@@ -6,8 +6,6 @@ import {
   Briefcase,
   Home,
   FileText,
-  Users,
-  StickyNote,
   User as UserIcon,
 } from "lucide-react";
 
@@ -17,8 +15,6 @@ const PASSPORT_CARD_SHADOW =
 const STAT_ICONS = {
   properties: Home,
   documents: FileText,
-  collaborations: Users,
-  notes: StickyNote,
 };
 
 function StatCell({icon: Icon, label, value, hasDivider}) {
@@ -88,7 +84,6 @@ function ContactHeader({
   const statItems = [
     {id: "properties", label: "Properties", value: stats.properties ?? 0},
     {id: "documents", label: "Records", value: stats.documents ?? 0},
-    {id: "notes", label: "Notes", value: stats.notes ?? 0},
   ];
 
   return (
@@ -150,7 +145,7 @@ function ContactHeader({
 
       {/* Stat row */}
       <div className="border-t border-neutral-200/90 dark:border-neutral-700/60">
-        <div className="grid grid-cols-3">
+        <div className="grid grid-cols-2">
           {statItems.map((item, index) => (
             <StatCell
               key={item.id}
