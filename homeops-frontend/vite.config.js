@@ -63,17 +63,38 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['index.html'],
-        navigateFallback: '/index.html',
-        // Backend endpoints reached via full-page navigation (OAuth start + callbacks,
-        // calendar integration redirects) must hit the server, NOT be served the SPA
-        // shell. Without this denylist the service worker intercepts e.g.
-        // /auth/google/signin and renders the SPA 404 instead of redirecting to Google.
-        // Note: /auth/callback is a real frontend route, so we only deny /auth/google/*.
-        navigateFallbackDenylist: [
-          /^\/auth\/google\//,
-          /^\/calendar-integrations\//,
+        // Disable vite-plugin-pwa's default cache-first NavigationRoute (it defaults
+        // navigateFallback to "index.html"). That route is registered before
+        // runtimeCaching and would otherwise win for every navigation, defeating the
+        // network-first strategy below.
+        navigateFallback: null,
+        // Serve the app shell network-first so a fresh deploy's index.html (with new
+        // hashed asset URLs) is always fetched. The previous setup precached index.html
+        // and served it cache-first via `navigateFallback`, so returning visitors loaded
+        // a stale shell that referenced deleted assets — causing blank screens and
+        // "Refused to apply style / MIME type text/html" errors until the SW updated.
+        //
+        // We intentionally drop `navigateFallback` (a cache-first NavigationRoute that
+        // is registered BEFORE runtimeCaching and would otherwise win for navigations).
+        // The server's SPA rewrite (`/* /index.html 200`) handles deep-link routing, and
+        // NetworkFirst caches visited routes so they still work offline. Backend
+        // full-page navigations (OAuth start, calendar redirects) are excluded so the SW
+        // never intercepts them. Note: /auth/callback is a real frontend route, so only
+        // /auth/google/* is excluded.
+        runtimeCaching: [
+          {
+            urlPattern: ({ request, url }) =>
+              request.mode === 'navigate' &&
+              !/^\/auth\/google\//.test(url.pathname) &&
+              !/^\/calendar-integrations\//.test(url.pathname),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-shell',
+              networkTimeoutSeconds: 3,
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
-        runtimeCaching: [],
       },
     }),
   ],

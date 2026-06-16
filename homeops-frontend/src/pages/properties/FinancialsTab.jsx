@@ -413,11 +413,11 @@ function FinancialsTab({propertyData = {}, onNavigateTab}) {
       </div>
 
       <div
-        className="absolute inset-0 z-10 flex items-center justify-center px-4 bg-white/50 dark:bg-neutral-950/55"
+        className="absolute inset-x-0 top-0 z-10 flex items-start justify-center px-4 pt-12 md:pt-16 pb-8 bg-gradient-to-b from-white/60 via-white/50 to-transparent dark:from-neutral-950/65 dark:via-neutral-950/55 dark:to-transparent pointer-events-none"
         role="status"
         aria-live="polite"
       >
-        <div className="max-w-sm rounded-2xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-6 py-5 text-center shadow-[0_12px_48px_rgba(0,0,0,0.14),0_4px_12px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] dark:ring-white/10">
+        <div className="max-w-sm rounded-2xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-6 py-5 text-center shadow-[0_12px_48px_rgba(0,0,0,0.14),0_4px_12px_rgba(0,0,0,0.08)] ring-1 ring-black/[0.06] dark:ring-white/10 pointer-events-auto">
           <StatusBadge tone="neutral" className="mb-3">
             Coming Soon
           </StatusBadge>
