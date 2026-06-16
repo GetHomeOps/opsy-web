@@ -110,15 +110,28 @@ async function getEffectiveLimits(userId) {
   return getAccountLimits(accRes.rows[0].account_id);
 }
 
+/**
+ * Resolve monthly AI token cap from plan limits.
+ * When AI features are enabled but no token cap is configured (quota 0 with no budget),
+ * treat as no monthly cap — the feature flag is the primary gate.
+ */
+function resolveAiTokenMonthlyQuota(limits) {
+  const quota = limits?.aiTokenMonthlyQuota;
+  if (quota == null || quota < 0) return null;
+  if (quota > 0) return quota;
+  if (limits?.aiFeaturesEnabled === false) return 0;
+  return null;
+}
+
 /** Check if user has AI token quota remaining this month. Returns { allowed, used, quota }. */
 async function checkAiTokenQuota(userId, userRole) {
   if (isAdminRole(userRole)) return { allowed: true, used: 0, quota: 999999 };
   if (BILLING_MOCK_MODE) return { allowed: true, used: 0, quota: 999999 };
 
   const limits = await getEffectiveLimits(userId);
-  const quota = limits.aiTokenMonthlyQuota;
+  const quota = resolveAiTokenMonthlyQuota(limits);
   if (quota === 0) return { allowed: false, used: 0, quota: 0 };
-  if (quota == null || quota < 0) return { allowed: true, used: 0, quota: 999999 };
+  if (quota == null) return { allowed: true, used: 0, quota: 999999 };
 
   const usedRes = await db.query(
     `SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0)::bigint AS used

@@ -273,8 +273,18 @@ export function SystemDetailView({
       checklistItems,
       maintenanceRecords,
     );
+    const hasOpen =
+      countOpenSystemActionItems(
+        systemChecklistKey,
+        checklistItems,
+        maintenanceRecords,
+      ) > 0;
     const stored = getCurrentConditionValue(propertyData, selectedSystemId);
-    const nextCondition = resolveEffectiveSystemCondition(stored, allComplete);
+    const nextCondition = resolveEffectiveSystemCondition(
+      stored,
+      allComplete,
+      hasOpen,
+    );
     if (!nextCondition || nextCondition === stored) return;
     const fieldName = getConditionFieldName(selectedSystemId, customSystemName);
     if (!fieldName) return;

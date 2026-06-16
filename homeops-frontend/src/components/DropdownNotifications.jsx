@@ -12,6 +12,8 @@ import {
   Building2,
   CheckCircle,
   XCircle,
+  ClipboardCheck,
+  FileCheck,
 } from "lucide-react";
 import NavbarDropdownPortal from "./NavbarDropdownPortal";
 import AppApi from "../api/api";
@@ -185,6 +187,10 @@ function DropdownNotifications() {
                   const isAffiliationRejected = n.type === "affiliation_request_rejected";
                   const isCommunication = n.type === "communication_sent" && (n.communicationId ?? n.resourceId);
                   const isResource = n.type === "resource_sent" && n.resourceId;
+                  const isInspectionReviewRequested =
+                    n.type === "inspection_review_requested";
+                  const isInspectionAnalysisReady =
+                    n.type === "inspection_analysis_ready";
                   const acctForProperty = n.accountUrl || accountUrl;
                   const propertyInvitePath =
                     (isInvitation || isInvitationAccepted) &&
@@ -201,8 +207,22 @@ function DropdownNotifications() {
                   const configurationPath = accountUrl
                     ? `/${accountUrl}/settings/configuration`
                     : "/settings/configuration";
+                  const inspectionReviewPath =
+                    isInspectionReviewRequested &&
+                    n.inspectionAnalysisResultId &&
+                    acctForProperty
+                      ? `/${acctForProperty}/helpdesk/inspection-reviews/${n.inspectionAnalysisResultId}`
+                      : null;
+                  const inspectionReadyPath =
+                    isInspectionAnalysisReady && n.propertyUid && acctForProperty
+                      ? `/${acctForProperty}/properties/${n.propertyUid}`
+                      : null;
                   const basePath =
-                    isAffiliationPending
+                    inspectionReviewPath
+                      ? inspectionReviewPath
+                      : inspectionReadyPath
+                      ? inspectionReadyPath
+                      : isAffiliationPending
                       ? affiliationRequestsPath
                       : isAffiliationApproved || isAffiliationRejected
                       ? configurationPath
@@ -388,6 +408,10 @@ function DropdownNotifications() {
                             <CheckCircle className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isAffiliationRejected ? (
                             <XCircle className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isInspectionReviewRequested ? (
+                            <ClipboardCheck className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isInspectionAnalysisReady ? (
+                            <FileCheck className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : (
                             <BookOpen className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           )}

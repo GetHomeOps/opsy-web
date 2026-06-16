@@ -31,6 +31,31 @@ function getExistingSystemKeys(propertySystems = [], customNames = []) {
 }
 
 /**
+ * Build the raw "addable systems" source from an inspection analysis.
+ *
+ * The model's `suggestedSystemsToAdd` list routinely omits catch-all buckets
+ * like "Interior" that only surface as action-item systems. Those still appear
+ * in the "Systems Detected" card (`systemsDetected`), so the customer expects to
+ * be able to add them. We therefore merge both lists — suggestions first so
+ * their reason/confidence win — and let `filterSuggestedSystemsNotOnProperty`
+ * dedupe and drop anything already on the property.
+ *
+ * @param {Object} analysis - Inspection analysis (snake_case or camelCase keys)
+ * @returns {Array} Combined, order-preserving list of candidate systems
+ */
+export function collectAddableSystemsFromAnalysis(analysis) {
+  if (!analysis) return [];
+  const suggested =
+    analysis.suggestedSystemsToAdd ?? analysis.suggested_systems_to_add ?? [];
+  const detected =
+    analysis.systemsDetected ?? analysis.systems_detected ?? [];
+  return [
+    ...(Array.isArray(suggested) ? suggested : []),
+    ...(Array.isArray(detected) ? detected : []),
+  ];
+}
+
+/**
  * Filter suggested systems to only those not already on the property.
  *
  * @param {Array<{ systemType?: string, system_key?: string, reason?: string, confidence?: number }>} suggested

@@ -34,7 +34,7 @@ router.get("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "proper
     const propertyId = req.params.propertyId;
     const [systems, analysis, aiSummary] = await Promise.all([
       System.get(propertyId),
-      InspectionAnalysisResult.getByPropertyId(propertyId),
+      InspectionAnalysisResult.getByPropertyId(propertyId, { approvedOnly: true }),
       getAiSummaryForProperty(propertyId),
     ]);
     const enriched = enrichSystemsWithAiCondition(systems, analysis, aiSummary);
@@ -73,7 +73,7 @@ router.put("/:propertyId/batch", ensureLoggedIn, ensurePropertyAccess({ param: "
     const tUpsert = Date.now();
 
     const [analysis, aiSummary] = await Promise.all([
-      InspectionAnalysisResult.getByPropertyId(propertyId),
+      InspectionAnalysisResult.getByPropertyId(propertyId, { approvedOnly: true }),
       getAiSummaryForProperty(propertyId),
     ]);
     const enriched = enrichSystemsWithAiCondition(upserted, analysis, aiSummary);

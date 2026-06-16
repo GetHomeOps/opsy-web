@@ -16,19 +16,24 @@ import {
   AlertTriangle,
   ArrowRight,
   Headset,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   supportToColumnStatus,
   feedbackToColumnStatus,
   dataAdjustmentToColumnStatus,
 } from "./kanbanConfig";
+import {useAuth} from "../../context/AuthContext";
 
 function HelpdeskPage() {
   const {accountUrl} = useParams();
   const navigate = useNavigate();
+  const {currentUser} = useAuth();
+  const isSuperAdmin = currentUser?.role === "super_admin";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [allTickets, setAllTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [inspectionReviews, setInspectionReviews] = useState([]);
 
   const fetchTickets = useCallback(async () => {
     try {
@@ -45,6 +50,13 @@ function HelpdeskPage() {
   useEffect(() => {
     fetchTickets();
   }, [fetchTickets]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    AppApi.getInspectionReviewQueue()
+      .then((list) => setInspectionReviews(list || []))
+      .catch(() => setInspectionReviews([]));
+  }, [isSuperAdmin]);
 
   const tierToPriority = (tier) => {
     const t = (tier || "").toLowerCase();
@@ -124,6 +136,32 @@ function HelpdeskPage() {
       ringColor: "ring-amber-200 dark:ring-amber-800",
       stats: stats.data_adjustment,
     },
+    ...(isSuperAdmin
+      ? [
+          {
+            key: "inspection_reviews",
+            title: "Inspection Report Reviews",
+            description:
+              "Validate AI inspection analyses before releasing to customers",
+            icon: ClipboardCheck,
+            path: `/${accountUrl}/helpdesk/inspection-reviews`,
+            color: "from-teal-500 to-emerald-600",
+            lightBg: "bg-teal-50 dark:bg-teal-900/20",
+            iconColor: "text-teal-600 dark:text-teal-400",
+            ringColor: "ring-teal-200 dark:ring-teal-800",
+            stats: {
+              total: inspectionReviews.length,
+              newCount: inspectionReviews.filter(
+                (r) => r.reviewStatus === "pending_review",
+              ).length,
+              inProgress: inspectionReviews.filter(
+                (r) => r.reviewStatus === "revision_requested",
+              ).length,
+            },
+            kpiLabels: {new: "New", active: "Further review"},
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -288,7 +326,7 @@ function HelpdeskPage() {
                                 {card.stats.newCount}
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                New
+                                {card.kpiLabels?.new ?? "New"}
                               </p>
                             </div>
                             <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 text-center">
@@ -296,7 +334,7 @@ function HelpdeskPage() {
                                 {card.stats.inProgress}
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                Active
+                                {card.kpiLabels?.active ?? "Active"}
                               </p>
                             </div>
                           </div>

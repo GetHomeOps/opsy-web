@@ -640,8 +640,21 @@ router.get(
             mimeType: row.mime_type,
           };
         }
-        return res.json({ analysis: null, pendingJob, ...runLimitPayload });
+        return res.json({ analysis: null, reviewStatus: null, pendingJob, ...runLimitPayload });
       }
+
+      // Review gate: until a Super Admin approves, the analysis stays hidden from the
+      // customer. We still report `reviewStatus` so the UI can show the progress tracker.
+      if (result.review_status !== "approved") {
+        return res.json({
+          analysis: null,
+          reviewStatus: result.review_status,
+          reviewSubmittedAt: result.review_submitted_at,
+          pendingJob: null,
+          ...runLimitPayload,
+        });
+      }
+
       const payload = {
         analysis: {
           conditionRating: result.condition_rating,
@@ -655,6 +668,8 @@ router.get(
           citations: result.citations,
           createdAt: result.created_at,
         },
+        reviewStatus: "approved",
+        reviewedAt: result.reviewed_at,
         pendingJob: null,
         ...runLimitPayload,
       };

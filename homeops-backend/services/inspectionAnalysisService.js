@@ -16,7 +16,6 @@ const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const { AWS_S3_BUCKET } = require("../config");
 
 const { detectSystemsFromText } = require("./aiChatService");
-const { triggerReanalysisOnInspection } = require("./ai/propertyReanalysisService");
 const {
   CANONICAL_SYSTEMS,
   isExcludedSystem,
@@ -589,6 +588,201 @@ function dropMaintenanceDuplicatedInNeedsAttention(needsAttention, maintenance) 
 function hasValidEvidence(item) {
   const ev = (item?.evidence || item?.rationale || "").toString().trim();
   return ev.length >= MIN_EVIDENCE_LENGTH && !/^(n\/a|none|na|—|–|-)$/i.test(ev);
+}
+
+/* ── Condition ↔ findings reconciliation ── */
+
+/** Severity order (higher = worse) for clamping a system's condition. */
+const CONDITION_SEVERITY_ORDER = { excellent: 0, good: 1, fair: 2, poor: 3 };
+
+/** Canonical key used to match a finding/maintenance item to a detected system. */
+function actionSystemKey(systemType) {
+  const norm = normalizeSystemType(systemType) || systemType || "";
+  return norm.toString().trim().toLowerCase();
+}
+
+/**
+ * Condition implied by a system's surviving action items. This is the SINGLE
+ * source of truth for any system that has items, applied identically whether the
+ * system was detected by the model or appended from the global findings sweep —
+ * so two systems with comparable items always rate the same way.
+ *
+ * The rating reflects the system's OVERALL condition, not the urgency of a
+ * single fix. Urgency/priority ("urgent") signals how SOON a repair is needed,
+ * not how bad the whole system is — a couple of localized safety repairs (a trip
+ * hazard, a loose tread) don't make an otherwise sound exterior "poor". So we
+ * grade by real-world impact and how widespread the issues are:
+ *   - "poor": a genuinely severe/systemic problem in the DEFICIENCY findings
+ *     (needs-attention) — an explicitly critical-severity finding, a CLUSTER of
+ *     high-impact failures (>= 2 items at impact >= 8, e.g. structural damage /
+ *     active water intrusion), OR many serious deficiencies (>= 3) indicating
+ *     widespread trouble. Routine maintenance NEVER drives "poor".
+ *   - "fair": some real (but contained) deficiencies, OR meaningful deferred
+ *     upkeep (the common case for a handful of moderate repairs — including one
+ *     or two localized safety fixes such as a trip hazard or a loose stair tread,
+ *     which are urgent to address but do NOT mean the whole system is poor).
+ *   - "good": only minor/cosmetic items (e.g. a single routine maintenance task).
+ *   - null: no items (caller keeps/caps the model's holistic rating).
+ *
+ * Two deliberate guards against over-rating:
+ *  1. The extraction prompts score any safety hazard at impact 8-10, so a lone
+ *     urgent-but-localized repair (a trip hazard) routinely carries impact 8. We
+ *     therefore do NOT treat a single high-impact item as "poor"; "poor" reflects
+ *     breadth/severity, not the urgency of one fix.
+ *  2. Maintenance suggestions are routine UPKEEP, not deficiencies, and the model
+ *     frequently over-scores their impact (e.g. "reapply caulking" at impact 6).
+ *     They are weighted far lower than needs-attention findings and can lift a
+ *     system to "fair" at most — never "poor".
+ */
+const SERIOUS_IMPACT_THRESHOLD = 6;
+const CRITICAL_IMPACT_THRESHOLD = 8;
+const WIDESPREAD_SERIOUS_COUNT = 3;
+/** Number of high-impact (impact >= 8) failures that together signal "poor". */
+const SEVERE_CLUSTER_COUNT = 2;
+
+/**
+ * A reconciliation item is "upkeep" (a maintenance suggestion) rather than a
+ * deficiency (needs-attention) finding. Needs-attention items always carry a
+ * `severity` and a `title`; maintenance items carry a `task` and no `severity`.
+ */
+function isUpkeepItem(it) {
+  return it.task !== undefined || it.severity === undefined || it.severity === null;
+}
+
+function conditionFromItems(items) {
+  if (!items || items.length === 0) return null;
+  let maxDefectImpact = 0;
+  let seriousCount = 0; // deficiencies: high severity or impact >= SERIOUS_IMPACT_THRESHOLD
+  let severeCount = 0; // deficiencies: critical severity or impact >= CRITICAL_IMPACT_THRESHOLD
+  let hasCriticalSeverity = false;
+  let upkeepCount = 0;
+  let maxUpkeepImpact = 0;
+
+  for (const it of items) {
+    const impact = typeof it.impactScore === "number" ? it.impactScore : 5;
+    if (isUpkeepItem(it)) {
+      upkeepCount++;
+      maxUpkeepImpact = Math.max(maxUpkeepImpact, impact);
+      continue;
+    }
+    const sev = (it.severity || "").toLowerCase();
+    maxDefectImpact = Math.max(maxDefectImpact, impact);
+    if (sev === "critical") hasCriticalSeverity = true;
+    if (sev === "critical" || impact >= CRITICAL_IMPACT_THRESHOLD) severeCount++;
+    if (sev === "critical" || sev === "high" || impact >= SERIOUS_IMPACT_THRESHOLD) {
+      seriousCount++;
+    }
+  }
+
+  // "poor" requires genuinely systemic DEFICIENCIES: an explicitly critical
+  // finding, a cluster of high-impact failures, or many serious deficiencies —
+  // NOT a single localized safety repair, and NEVER routine maintenance alone.
+  if (
+    hasCriticalSeverity ||
+    severeCount >= SEVERE_CLUSTER_COUNT ||
+    seriousCount >= WIDESPREAD_SERIOUS_COUNT
+  ) {
+    return "poor";
+  }
+  // "fair" for contained deficiencies OR meaningful deferred upkeep (a
+  // non-trivial task, or several routine ones).
+  if (
+    seriousCount >= 1 ||
+    maxDefectImpact >= 4 ||
+    maxUpkeepImpact >= SERIOUS_IMPACT_THRESHOLD ||
+    upkeepCount >= 2
+  ) {
+    return "fair";
+  }
+  return "good";
+}
+
+/**
+ * Reconcile the detected-systems list with the action items that actually
+ * survive into the final checklist, using ONE symmetric rule so the "Systems
+ * detected" card and the checklist never disagree and comparable systems always
+ * rate the same way:
+ *
+ * - A system WITH action items takes its condition straight from
+ *   `conditionFromItems` (model rating ignored), so the badge reflects the
+ *   overall severity of the issues and is consistent whether or not the model
+ *   happened to enumerate the system (e.g. a few moderate exterior repairs read
+ *   "fair", not "poor").
+ * - A system WITHOUT action items keeps its model rating but is capped at "good"
+ *   (a "fair"/"poor" rating with nothing to fix offers the customer no path to
+ *   improve, so it can't read worse than "good"; "excellent" is preserved).
+ * - Any system that has items but no detected-systems entry (e.g. "interior"
+ *   from the global sweep) is appended, so every checklist system also shows in
+ *   the card with a rating.
+ */
+function reconcileSystemConditionsWithFindings(
+  systemsDetected,
+  needsAttention,
+  maintenanceSuggestions,
+) {
+  const itemsBySystem = new Map();
+  const addItem = (systemType, item) => {
+    const key = actionSystemKey(systemType);
+    if (!key) return;
+    if (!itemsBySystem.has(key)) {
+      itemsBySystem.set(key, { items: [], systemType });
+    }
+    itemsBySystem.get(key).items.push(item);
+  };
+  for (const n of needsAttention || []) addItem(n.systemType, n);
+  for (const m of maintenanceSuggestions || []) addItem(m.systemType, m);
+
+  const GOOD_ORDER = CONDITION_SEVERITY_ORDER.good;
+  const seenKeys = new Set();
+  const reconciled = (systemsDetected || []).map((s) => {
+    seenKeys.add(actionSystemKey(s.systemType));
+    const current = (s.condition || "").toLowerCase();
+    const currentOrder = CONDITION_SEVERITY_ORDER[current];
+    if (currentOrder === undefined) return s; // leave unexpected values untouched
+
+    const entry = itemsBySystem.get(actionSystemKey(s.systemType));
+    const itemCondition = conditionFromItems(entry ? entry.items : []);
+
+    // No action items → can't read worse than "good"; preserve good/excellent.
+    if (!itemCondition) {
+      if (currentOrder <= GOOD_ORDER) return s;
+      return {
+        ...s,
+        condition: "good",
+        conditionRationale: s.conditionRationale
+          ? `${s.conditionRationale} No action items were identified for this system, so its condition is shown as "good".`
+          : `No action items were identified for this system, so its condition is shown as "good".`,
+      };
+    }
+
+    // Has action items → condition is derived from them, identically to appended
+    // systems, so two systems with comparable items always match.
+    if (current === itemCondition) return s;
+    return {
+      ...s,
+      condition: itemCondition,
+      conditionRationale: s.conditionRationale
+        ? `${s.conditionRationale} Condition shown as "${itemCondition}" to match the severity of its action items.`
+        : `Condition shown as "${itemCondition}" to match the severity of its action items.`,
+    };
+  });
+
+  // Append any action-item system that isn't already in the detected list, so
+  // the systems card covers everything that appears on the checklist.
+  for (const [key, { items, systemType }] of itemsBySystem) {
+    if (!key || seenKeys.has(key) || isExcludedSystem(systemType)) continue;
+    seenKeys.add(key);
+    const condition = conditionFromItems(items) || "good";
+    reconciled.push({
+      systemType: normalizeSystemType(systemType) || systemType,
+      condition,
+      confidence: 0.6,
+      conditionRationale: `Condition shown as "${condition}" based on the action items identified for this system in the report.`,
+      evidence: items.find((it) => it.evidence)?.evidence || null,
+    });
+  }
+
+  return reconciled;
 }
 
 /**
@@ -1205,6 +1399,47 @@ async function runAnalysis(jobId) {
     dropMaintenanceDuplicatedInNeedsAttention(needsAttention, dedupedMaintenanceSuggestions)
   );
 
+  // Reconcile per-system condition ratings against the action items that
+  // actually survived evidence-gating and dedup. Without this, a system can be
+  // rated "poor"/"fair" while having zero matching action items — a contradiction
+  // that leaves the customer no way to improve the rating. We clamp each system's
+  // condition toward "good" so a worse-than-good rating always has actionable work.
+  const reconciledSystemsDetected = reconcileSystemConditionsWithFindings(
+    systemsDetected,
+    needsAttention,
+    maintenanceSuggestions,
+  );
+
+  // The reconcile step appends action-item-only systems (e.g. "interior" from
+  // the global findings sweep) to systemsDetected so they appear in the card.
+  // The model's suggestedSystemsToAdd list, however, routinely omits these
+  // catch-all buckets, so they'd never be offered when the customer adds missing
+  // systems to the property. Mirror them into suggestedSystemsToAdd so every
+  // detected system that carries action items can actually be created.
+  const actionItemSystemKeys = new Set();
+  for (const n of needsAttention) {
+    const k = actionSystemKey(n.systemType);
+    if (k) actionItemSystemKeys.add(k);
+  }
+  for (const m of maintenanceSuggestions) {
+    const k = actionSystemKey(m.systemType);
+    if (k) actionItemSystemKeys.add(k);
+  }
+  for (const s of reconciledSystemsDetected) {
+    const key = (s.systemType || "").toString().toLowerCase();
+    if (!key || suggestedSystemsToAddSeen.has(key)) continue;
+    if (isExcludedSystem(s.systemType)) continue;
+    if (!actionItemSystemKeys.has(actionSystemKey(s.systemType))) continue;
+    suggestedSystemsToAddSeen.add(key);
+    suggestedSystemsToAdd.push({
+      systemType: s.systemType,
+      reason:
+        s.conditionRationale ||
+        "Identified in the inspection report with action items",
+      confidence: s.confidence ?? 0.6,
+    });
+  }
+
   // If the AI couldn't determine a condition AND found no actionable content,
   // the document almost certainly isn't an inspection report (or is unreadable).
   // Fail with a clear, user-facing message instead of inserting "unknown" — which
@@ -1235,7 +1470,7 @@ async function runAnalysis(jobId) {
       condition_rating: validCondition,
       condition_confidence: hasValidCondition ? (condition.confidence ?? null) : null,
       condition_rationale: condition.rationale ?? null,
-      systems_detected: systemsDetected,
+      systems_detected: reconciledSystemsDetected,
       needs_attention: needsAttention,
       suggested_systems_to_add: suggestedSystemsToAdd,
       maintenance_suggestions: maintenanceSuggestions,
@@ -1243,17 +1478,22 @@ async function runAnalysis(jobId) {
       citations: parsed.citations || [],
     });
 
-    // Auto-generate checklist items from the analysis
-    const InspectionChecklistItem = require("../models/inspectionChecklistItem");
-    await InspectionChecklistItem.generateFromAnalysis(result).catch((err) =>
-      console.error("[inspectionAnalysis] Checklist generation failed:", err.message)
-    );
-
+    // The analysis enters the review queue in `pending_review`. Downstream/dependent
+    // outputs (checklist items, property AI reanalysis) are intentionally NOT generated
+    // here — they are released only when a Super Admin approves the analysis. This keeps
+    // unreviewed AI findings fully hidden from the customer.
     await InspectionAnalysisJob.updateStatus(jobId, { status: "completed", progress: "Done" });
 
-    triggerReanalysisOnInspection(job.property_id, result).catch((err) =>
-      console.error("[propertyReanalysis] Inspection trigger failed:", err.message)
-    );
+    // Alert Super Admins that a new analysis needs review (in-app + ops email).
+    try {
+      const { notifyAdminsReviewReady } = require("./inspectionReviewNotifyService");
+      const detail = await InspectionAnalysisResult.getReviewDetail(result.id);
+      notifyAdminsReviewReady(detail).catch((err) =>
+        console.error("[inspectionReviewNotify] admin alert failed:", err.message)
+      );
+    } catch (err) {
+      console.error("[inspectionReviewNotify] admin alert setup failed:", err.message);
+    }
   } catch (err) {
     console.error("[inspectionAnalysis] Save result error:", err);
     const isConditionConstraint =

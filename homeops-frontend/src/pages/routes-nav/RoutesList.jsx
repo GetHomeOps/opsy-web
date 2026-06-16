@@ -92,6 +92,8 @@ const FeedbackManagement = lazy(() => import("../support/FeedbackManagement"));
 const DataAdjustmentManagement = lazy(() => import("../support/DataAdjustmentManagement"));
 const TicketDetailPage = lazy(() => import("../support/TicketDetailPage"));
 const HelpdeskPage = lazy(() => import("../support/HelpdeskPage"));
+const InspectionReviewQueue = lazy(() => import("../inspectionReviews/InspectionReviewQueue"));
+const InspectionReviewDetail = lazy(() => import("../inspectionReviews/InspectionReviewDetail"));
 const ResourcesManagement = lazy(() => import("../resources/ResourcesManagement"));
 const Resource = lazy(() => import("../resources/Resource"));
 const ResourceViewerPage = lazy(() => import("../resources/ResourceViewerPage"));
@@ -725,6 +727,22 @@ function RoutesList() {
           <AdminRoute>
             <HelpdeskPage />
           </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/helpdesk/inspection-reviews"
+        element={
+          <SuperAdminRoute>
+            <InspectionReviewQueue />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/helpdesk/inspection-reviews/:reviewId"
+        element={
+          <SuperAdminRoute>
+            <InspectionReviewDetail />
+          </SuperAdminRoute>
         }
       />
       <Route

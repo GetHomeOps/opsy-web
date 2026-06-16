@@ -23,9 +23,14 @@ import {
   RefreshCw,
 } from "lucide-react";
 import {useInspectionAnalysis} from "../../../hooks/useInspectionAnalysis";
+import useBillingStatus from "../../../hooks/useBillingStatus";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
-import {filterSuggestedSystemsNotOnProperty} from "../helpers/suggestedSystemsHelpers";
+import {
+  filterSuggestedSystemsNotOnProperty,
+  collectAddableSystemsFromAnalysis,
+} from "../helpers/suggestedSystemsHelpers";
 import InspectionChecklistPanel from "./InspectionChecklistPanel";
+import InspectionReviewTracker from "./InspectionReviewTracker";
 
 const CONDITION_BADGES = {
   excellent:
@@ -126,6 +131,8 @@ export default function InspectionAnalysisModalContent({
 }) {
   const navigate = useNavigate();
   const {accountUrl} = useParams();
+  const {limits, isAdmin} = useBillingStatus();
+  const aiFeaturesEnabled = isAdmin || limits?.aiFeaturesEnabled !== false;
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
     : "/professionals";
@@ -141,6 +148,7 @@ export default function InspectionAnalysisModalContent({
     reportMeta,
     completedRunCount,
     maxAnalysisRuns,
+    reviewStatus,
   } = useInspectionAnalysis(propertyId);
   const [missingSystems, setMissingSystems] = useState([]);
   const [rerunNotice, setRerunNotice] = useState(null);
@@ -214,8 +222,7 @@ export default function InspectionAnalysisModalContent({
       setMissingSystems([]);
       return;
     }
-    const raw =
-      data.suggested_systems_to_add ?? data.suggestedSystemsToAdd ?? [];
+    const raw = collectAddableSystemsFromAnalysis(data);
     if (!Array.isArray(raw) || raw.length === 0) {
       setMissingSystems([]);
       return;
@@ -279,7 +286,7 @@ export default function InspectionAnalysisModalContent({
     const parsed = parseQuotaFromError(error);
     const used = parsed?.used ?? 0;
     const quota = parsed?.quota ?? 0;
-    const isFreePlan = quota === 0;
+    const aiNotIncluded = !aiFeaturesEnabled;
 
     const quotaFeatures = [
       {
@@ -313,12 +320,14 @@ export default function InspectionAnalysisModalContent({
             <ArrowUpCircle className="w-8 h-8 text-amber-500 dark:text-amber-400" />
           </div>
           <h3 className="text-xl font-semibold text-neutral-800 dark:text-neutral-100 mb-2">
-            {isFreePlan ? "AI analysis not included" : "AI usage limit reached"}
+            {aiNotIncluded ? "AI analysis not included" : "AI usage limit reached"}
           </h3>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-md">
-            {isFreePlan
-              ? "Your free plan does not include AI analysis. Please upgrade."
-              : `You've used all your AI tokens for this month (${used.toLocaleString()}/${quota.toLocaleString()}). Upgrade your plan for more.`}
+            {aiNotIncluded
+              ? "Your current plan does not include AI analysis. Please upgrade."
+              : quota > 0
+                ? `You've used all your AI tokens for this month (${used.toLocaleString()}/${quota.toLocaleString()}). Upgrade your plan for more.`
+                : "You've reached your AI usage limit for this month. Upgrade your plan for more."}
           </p>
           <button
             type="button"
@@ -386,6 +395,15 @@ export default function InspectionAnalysisModalContent({
           ) : null}
         </div>
       </div>
+      </>
+    );
+  }
+
+  if (status === "pending_review") {
+    return (
+      <>
+        <AnalysisModalHeader onClose={onClose} />
+        <InspectionReviewTracker reviewStatus={reviewStatus || "pending_review"} />
       </>
     );
   }
@@ -656,6 +674,24 @@ export default function InspectionAnalysisModalContent({
           </div>
         ) : null}
         <div className="p-6 space-y-6">
+        {/* Reviewed & approved banner */}
+        <section className="rounded-xl border border-[#456564]/20 dark:border-[#456564]/30 bg-[#456564]/[0.05] dark:bg-[#456564]/10 p-4">
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 w-9 h-9 rounded-lg bg-[#456564]/15 dark:bg-[#456564]/25 flex items-center justify-center">
+              <FileCheck className="w-5 h-5 text-[#456564] dark:text-[#7aa3a2]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
+                Reviewed and analyzed by Opsy.
+              </p>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-0.5 leading-relaxed">
+                Your inspection report has been reviewed and approved. Here's
+                what we found.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Summary */}
         <section>
           <h3 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2">

@@ -198,6 +198,7 @@ export const SIDEBAR_CONFIG = [
           "helpdesk/support",
           "helpdesk/feedback",
           "helpdesk/data-adjustments",
+          "helpdesk/inspection-reviews",
         ],
         icon: icon(Headset),
         roles: "adminOnly",

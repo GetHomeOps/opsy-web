@@ -146,7 +146,7 @@ async function getSystemContextFromDb(propertyId, systemId) {
       `SELECT systems_detected, needs_attention, maintenance_suggestions
        FROM inspection_analysis_results r
        JOIN inspection_analysis_jobs j ON j.id = r.job_id
-       WHERE r.property_id = $1 AND j.status = 'completed'
+       WHERE r.property_id = $1 AND j.status = 'completed' AND r.review_status = 'approved'
        ORDER BY r.created_at DESC LIMIT 1`,
       [propertyId]
     ),
@@ -350,7 +350,7 @@ router.get(
         `SELECT r.created_at AS analysis_date
          FROM inspection_analysis_results r
          JOIN inspection_analysis_jobs j ON j.id = r.job_id
-         WHERE r.property_id = $1 AND j.status = 'completed'
+         WHERE r.property_id = $1 AND j.status = 'completed' AND r.review_status = 'approved'
          ORDER BY r.created_at DESC LIMIT 1`,
         [resolvedId]
       );
@@ -605,7 +605,7 @@ router.post(
         const analysisRes = await db.query(
           `SELECT maintenance_suggestions FROM inspection_analysis_results r
            JOIN inspection_analysis_jobs j ON j.id = r.job_id
-           WHERE r.property_id = $1 AND j.status = 'completed'
+           WHERE r.property_id = $1 AND j.status = 'completed' AND r.review_status = 'approved'
            ORDER BY r.created_at DESC LIMIT 1`,
           [resolvedId]
         );

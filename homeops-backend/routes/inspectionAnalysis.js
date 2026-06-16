@@ -42,18 +42,23 @@ router.get(
       if (job.status === "completed") {
         const result = await InspectionAnalysisResult.getByJobId(jobId);
         if (result) {
-          response.result = {
-            conditionRating: result.condition_rating,
-            conditionConfidence: result.condition_confidence,
-            conditionRationale: result.condition_rationale,
-            systemsDetected: result.systems_detected,
-            needsAttention: result.needs_attention,
-            suggestedSystemsToAdd: result.suggested_systems_to_add,
-            maintenanceSuggestions: result.maintenance_suggestions,
-            summary: result.summary,
-            citations: result.citations,
-            createdAt: result.created_at,
-          };
+          response.reviewStatus = result.review_status;
+          // Review gate: only release the findings once a Super Admin has approved.
+          // While pending_review / revision_requested, the UI shows a progress tracker.
+          if (result.review_status === "approved") {
+            response.result = {
+              conditionRating: result.condition_rating,
+              conditionConfidence: result.condition_confidence,
+              conditionRationale: result.condition_rationale,
+              systemsDetected: result.systems_detected,
+              needsAttention: result.needs_attention,
+              suggestedSystemsToAdd: result.suggested_systems_to_add,
+              maintenanceSuggestions: result.maintenance_suggestions,
+              summary: result.summary,
+              citations: result.citations,
+              createdAt: result.created_at,
+            };
+          }
         }
       }
 

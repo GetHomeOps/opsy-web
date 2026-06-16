@@ -103,8 +103,19 @@ const WATER_HEATING_KEYWORDS =
   /\b(water heater|hot water|tankless water|tpr valve|anode rod|expansion tank)\b/i;
 
 /**
+ * Appliances we do NOT track as their own property system. Per the analysis
+ * convention, an explicit recommendation about an appliance is kept but
+ * attributed to "interior". The garbage disposal in particular is frequently
+ * mis-tagged onto AC/plumbing, so its grinder phrasing is included here.
+ */
+const APPLIANCE_KEYWORDS =
+  /\b(garbage disposal|garbage disposer|disposal grinder|waste disposal|disposer|dishwasher|refrigerator|fridge|freezer|oven|stove|range hood|cooktop|microwave|washing machine|washer|dryer)\b/i;
+
+/**
  * Resolve the canonical system for a finding using text + declared systemType.
- * Corrects cases like furnace/chimney tasks tagged as waterHeating.
+ * Corrects cases like furnace/chimney tasks tagged as waterHeating, and
+ * re-routes appliance findings (e.g. garbage disposal mis-tagged onto AC) to
+ * "interior".
  */
 function resolveFindingSystemType({
   systemType,
@@ -128,6 +139,18 @@ function resolveFindingSystemType({
   }
   if (hasWaterHeating && !hasSpaceHeating && declared === "heating") {
     return "waterHeating";
+  }
+
+  // Appliance findings belong under "interior" (we don't track appliances as
+  // their own system). Don't override a clearly space/water-heating finding —
+  // those were already resolved above and shouldn't be pulled into interior.
+  if (
+    APPLIANCE_KEYWORDS.test(text) &&
+    !hasSpaceHeating &&
+    !hasWaterHeating &&
+    declared !== "interior"
+  ) {
+    return "interior";
   }
 
   return declared;

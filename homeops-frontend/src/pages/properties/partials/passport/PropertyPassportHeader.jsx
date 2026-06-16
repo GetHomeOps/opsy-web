@@ -92,6 +92,7 @@ function PropertyPassportHeader({
   cardData = {},
   imageSlot,
   hasImage,
+  imagePlaceholder = false,
   headerRef,
   opsymizationSlot,
 }) {
@@ -126,7 +127,9 @@ function PropertyPassportHeader({
             className={`relative w-full aspect-[16/9] sm:aspect-[2/1] lg:aspect-[4/3] rounded-xl overflow-hidden border transition-all duration-300 ${
               hasImage
                 ? "border-neutral-200/80 dark:border-neutral-600/50 bg-neutral-50/50 dark:bg-neutral-800/30 shadow-sm"
-                : "border-2 border-dashed border-neutral-200 dark:border-neutral-600 bg-neutral-50/30 dark:bg-neutral-800/20"
+                : imagePlaceholder
+                  ? "border-neutral-200/80 dark:border-neutral-600/50 bg-neutral-900 shadow-sm"
+                  : "border-2 border-dashed border-neutral-200 dark:border-neutral-600 bg-neutral-50/30 dark:bg-neutral-800/20"
             }`}
           >
             <div className="absolute inset-0">{imageSlot}</div>

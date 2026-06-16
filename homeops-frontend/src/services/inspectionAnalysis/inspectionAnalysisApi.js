@@ -69,7 +69,14 @@ export async function fetchInspectionAnalysisState(propertyId, reportS3Key) {
     typeof envelope?.maxAnalysisRuns === "number"
       ? envelope.maxAnalysisRuns
       : 2;
-  return { analysis, pendingJob, completedRunCount, maxAnalysisRuns };
+  return {
+    analysis,
+    pendingJob,
+    completedRunCount,
+    maxAnalysisRuns,
+    reviewStatus: envelope?.reviewStatus ?? null,
+    reviewSubmittedAt: envelope?.reviewSubmittedAt ?? null,
+  };
 }
 
 /**
@@ -102,6 +109,7 @@ export async function getJobStatus(jobId) {
     status: res.status ?? "unknown",
     progress: res.progress ?? null,
     errorMessage: res.errorMessage ?? res.error_message ?? null,
+    reviewStatus: res.reviewStatus ?? null,
   };
   if (res.status === "completed" && res.result) {
     out.result = parseInspectionAnalysis(res.result);

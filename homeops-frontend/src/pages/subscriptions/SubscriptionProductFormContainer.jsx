@@ -737,8 +737,10 @@ function SubscriptionProductFormContainer() {
         maxContacts: Number(state.formData.maxContacts) || 25,
         maxViewers: Number(state.formData.maxViewers) || 2,
         maxTeamMembers: Number(state.formData.maxTeamMembers) || 5,
-        aiTokenMonthlyQuota:
-          Number(state.formData.aiTokenMonthlyQuota) || 50000,
+        aiTokenMonthlyQuota: (() => {
+          const n = Number(state.formData.aiTokenMonthlyQuota);
+          return Number.isFinite(n) ? n : 50000;
+        })(),
         aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd
           ? Number(state.formData.aiTokenMonthlyValueUsd)
           : null,
@@ -819,8 +821,10 @@ function SubscriptionProductFormContainer() {
           maxContacts: Number(state.formData.maxContacts) || 25,
           maxViewers: Number(state.formData.maxViewers) || 2,
           maxTeamMembers: Number(state.formData.maxTeamMembers) || 5,
-          aiTokenMonthlyQuota:
-            Number(state.formData.aiTokenMonthlyQuota) || 50000,
+          aiTokenMonthlyQuota: (() => {
+            const n = Number(state.formData.aiTokenMonthlyQuota);
+            return Number.isFinite(n) ? n : 50000;
+          })(),
           aiTokenMonthlyValueUsd: state.formData.aiTokenMonthlyValueUsd
             ? Number(state.formData.aiTokenMonthlyValueUsd)
             : null,

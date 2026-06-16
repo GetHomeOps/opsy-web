@@ -105,7 +105,7 @@ async function getMaintenanceAdvice({
   }
 
   const [analysis, aiSummary] = await Promise.all([
-    InspectionAnalysisResult.getByPropertyId(resolvedId),
+    InspectionAnalysisResult.getByPropertyId(resolvedId, { approvedOnly: true }),
     getAiSummaryForProperty(resolvedId),
   ]);
 

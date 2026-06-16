@@ -113,7 +113,7 @@ async function buildFocusedContext(propertyId, intent, existingSummary) {
       `SELECT condition_rating, condition_rationale, summary, r.created_at
        FROM inspection_analysis_results r
        JOIN inspection_analysis_jobs j ON j.id = r.job_id
-       WHERE r.property_id = $1 AND j.status = 'completed'
+       WHERE r.property_id = $1 AND j.status = 'completed' AND r.review_status = 'approved'
        ORDER BY r.created_at DESC LIMIT 1`,
       [propertyId]
     );
@@ -150,7 +150,7 @@ async function buildFocusedContext(propertyId, intent, existingSummary) {
     const analysisRes = await db.query(
       `SELECT r.created_at FROM inspection_analysis_results r
        JOIN inspection_analysis_jobs j ON j.id = r.job_id
-       WHERE r.property_id = $1 AND j.status = 'completed'
+       WHERE r.property_id = $1 AND j.status = 'completed' AND r.review_status = 'approved'
        ORDER BY r.created_at DESC LIMIT 1`,
       [propertyId]
     );
@@ -163,7 +163,7 @@ async function buildFocusedContext(propertyId, intent, existingSummary) {
       `SELECT systems_detected, needs_attention, maintenance_suggestions, r.created_at
        FROM inspection_analysis_results r
        JOIN inspection_analysis_jobs j ON j.id = r.job_id
-       WHERE r.property_id = $1 AND j.status = 'completed'
+       WHERE r.property_id = $1 AND j.status = 'completed' AND r.review_status = 'approved'
        ORDER BY r.created_at DESC LIMIT 1`,
       [propertyId]
     );

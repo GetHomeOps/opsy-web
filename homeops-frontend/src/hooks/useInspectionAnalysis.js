@@ -126,6 +126,8 @@ export function useInspectionAnalysis(propertyId) {
   const [analysisProgress, setAnalysisProgress] = useState(null);
   const [completedRunCount, setCompletedRunCount] = useState(0);
   const [maxAnalysisRuns, setMaxAnalysisRuns] = useState(2);
+  /** Review gate: 'pending_review' | 'revision_requested' | 'approved' | null */
+  const [reviewStatus, setReviewStatus] = useState(null);
 
   const cacheRef = useRef(new Map());
   const abortRef = useRef(null);
@@ -207,6 +209,7 @@ export function useInspectionAnalysis(propertyId) {
         if (job.status === "completed" && job.result) {
           setData(job.result);
           setStatus("ready");
+          setReviewStatus("approved");
           setAnalysisProgress(null);
           setCompletedRunCount((prev) => {
             const next = prev + 1;
@@ -217,9 +220,21 @@ export function useInspectionAnalysis(propertyId) {
               reportMeta: meta,
               completedRunCount: next,
               maxAnalysisRuns: prevEntry.maxAnalysisRuns ?? 2,
+              reviewStatus: "approved",
             });
             return next;
           });
+          emitInspectionAnalysisDerivedUpdates(propertyId);
+          return;
+        }
+        // Analysis finished but is awaiting (or in) human review: the backend withholds
+        // the findings. Show the customer status tracker instead of results.
+        if (job.status === "completed") {
+          setData(null);
+          setReviewStatus(job.reviewStatus || "pending_review");
+          setStatus("pending_review");
+          setAnalysisProgress(null);
+          setCompletedRunCount((prev) => prev + 1);
           emitInspectionAnalysisDerivedUpdates(propertyId);
           return;
         }
@@ -246,6 +261,7 @@ export function useInspectionAnalysis(propertyId) {
       setAnalysisProgress(null);
       setCompletedRunCount(0);
       setMaxAnalysisRuns(2);
+      setReviewStatus(null);
       return;
     }
 
@@ -256,6 +272,7 @@ export function useInspectionAnalysis(propertyId) {
       setReportMeta(cached.reportMeta ?? null);
       setCompletedRunCount(cached.completedRunCount ?? 0);
       setMaxAnalysisRuns(cached.maxAnalysisRuns ?? 2);
+      setReviewStatus(cached.reviewStatus ?? "approved");
       setStatus("ready");
       setError(null);
       setAnalysisProgress(null);
@@ -284,6 +301,7 @@ export function useInspectionAnalysis(propertyId) {
           pendingJob,
           completedRunCount: runCount,
           maxAnalysisRuns: runMax,
+          reviewStatus: reviewStatusRes,
         } = await fetchInspectionAnalysisState(propertyId, reportS3Key);
         return {
           documents,
@@ -293,6 +311,7 @@ export function useInspectionAnalysis(propertyId) {
           pendingJob,
           completedRunCount: runCount,
           maxAnalysisRuns: runMax,
+          reviewStatusRes,
         };
       };
 
@@ -304,6 +323,7 @@ export function useInspectionAnalysis(propertyId) {
         pendingJob,
         completedRunCount,
         maxAnalysisRuns,
+        reviewStatusRes,
       } = await fetchDocsAndState();
 
       const syncRunLimits = (c, m) => {
@@ -341,6 +361,7 @@ export function useInspectionAnalysis(propertyId) {
             pendingJob,
             completedRunCount,
             maxAnalysisRuns,
+            reviewStatusRes,
           } = await fetchDocsAndState());
           if (loadRunGen !== pollGenerationRef.current) return;
           if (analysisRes || pendingJob || report) break;
@@ -350,6 +371,18 @@ export function useInspectionAnalysis(propertyId) {
       }
 
       if (loadRunGen !== pollGenerationRef.current) return;
+
+      // A completed analysis exists but is gated behind human review: the backend returns
+      // no findings, only a reviewStatus. Show the customer progress tracker.
+      if (!analysisRes && reviewStatusRes && reviewStatusRes !== "approved") {
+        setReviewStatus(reviewStatusRes);
+        setData(null);
+        setStatus("pending_review");
+        setAnalysisProgress(null);
+        if (report) setReportMeta(metaFromReport(report));
+        syncRunLimits(completedRunCount, maxAnalysisRuns);
+        return;
+      }
 
       if (!analysisRes && !pendingJob && !report) {
         flow = getInspectionFlowState(propertyId);
@@ -400,12 +433,14 @@ export function useInspectionAnalysis(propertyId) {
         setReportMeta(meta);
         setData(analysisRes);
         setStatus("ready");
+        setReviewStatus("approved");
         syncRunLimits(completedRunCount, maxAnalysisRuns);
         cacheRef.current.set(cacheKey, {
           data: analysisRes,
           reportMeta: meta,
           completedRunCount,
           maxAnalysisRuns,
+          reviewStatus: "approved",
         });
         return;
       }
@@ -605,6 +640,7 @@ export function useInspectionAnalysis(propertyId) {
     analysisProgress,
     completedRunCount,
     maxAnalysisRuns,
+    reviewStatus,
     refresh,
     load,
     startAnalysis,

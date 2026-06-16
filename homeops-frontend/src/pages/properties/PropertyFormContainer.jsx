@@ -171,6 +171,7 @@ import useGooglePlacesAutocomplete, {
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import useBillingStatus from "../../hooks/useBillingStatus";
 import ImageUploadField from "../../components/ImageUploadField";
+import homePlaceholder from "../../images/home_placeholder.png";
 import {useTranslation} from "react-i18next";
 import Transition from "../../utils/Transition";
 
@@ -3609,6 +3610,7 @@ function PropertyFormContainer() {
           headerRef={invitationMainCardRef}
           cardData={cardData}
           hasImage={Boolean(heroImageUrl)}
+          imagePlaceholder={!heroImageUrl}
           opsymizationSlot={
             !isInvitationView &&
             uid !== "new" &&
@@ -3769,7 +3771,8 @@ function PropertyFormContainer() {
               onDismissError={() => setMainPhotoUploadError(null)}
               size="xl"
               placeholder="generic"
-              emptyLabel="Add image"
+              emptyBackgroundSrc={!heroImageUrl ? homePlaceholder : undefined}
+              showEmptyUploadButton={!heroImageUrl}
               alt={cardData.address || "Property"}
               uploadLabel="Upload photo"
               removeLabel="Remove photo"

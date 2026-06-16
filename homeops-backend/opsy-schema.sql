@@ -1087,6 +1087,8 @@ CREATE TABLE notifications (
     property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
     ownership_transfer_request_id UUID REFERENCES property_ownership_transfer_requests(id) ON DELETE CASCADE,
     affiliation_request_id INTEGER,
+    -- inspection_analysis_result_id is added via ALTER after inspection_analysis_results is created (see below).
+    inspection_analysis_result_id INTEGER,
     title VARCHAR(500),
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -1097,6 +1099,7 @@ CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
 CREATE INDEX idx_notifications_read_at ON notifications(read_at) WHERE read_at IS NULL;
 CREATE INDEX idx_notifications_property_id ON notifications(property_id) WHERE property_id IS NOT NULL;
 CREATE INDEX idx_notifications_otr_id ON notifications(ownership_transfer_request_id) WHERE ownership_transfer_request_id IS NOT NULL;
+CREATE INDEX idx_notifications_inspection_result_id ON notifications(inspection_analysis_result_id) WHERE inspection_analysis_result_id IS NOT NULL;
 
 CREATE TABLE comm_attachments (
     id SERIAL PRIMARY KEY,
@@ -1180,10 +1183,29 @@ CREATE TABLE inspection_analysis_results (
     maintenance_suggestions JSONB DEFAULT '[]',
     summary TEXT,
     citations JSONB DEFAULT '[]',
+    -- Human review gate: findings stay hidden from the customer until a Super Admin approves.
+    review_status VARCHAR(30) NOT NULL DEFAULT 'pending_review'
+        CHECK (review_status IN ('pending_review', 'approved', 'revision_requested')),
+    reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMPTZ,
+    review_notes TEXT,
+    review_submitted_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX idx_inspection_analysis_results_property ON inspection_analysis_results(property_id);
+CREATE INDEX idx_inspection_analysis_results_review_status ON inspection_analysis_results(review_status);
+
+-- Link notifications to an inspection analysis review (defined here because notifications
+-- is created earlier in this file, before inspection_analysis_results exists).
+ALTER TABLE notifications
+    ADD CONSTRAINT fk_notifications_inspection_result
+    FOREIGN KEY (inspection_analysis_result_id)
+    REFERENCES inspection_analysis_results(id) ON DELETE CASCADE;
+
+CREATE INDEX idx_notifications_inspection_result_id
+    ON notifications(inspection_analysis_result_id)
+    WHERE inspection_analysis_result_id IS NOT NULL;
 
 -- ============================================================
 -- Inspection Checklist Items (per-finding tracking from analysis)

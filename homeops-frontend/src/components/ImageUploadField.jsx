@@ -1,5 +1,5 @@
 import React, {useRef, useState} from "react";
-import {User, ImagePlus, X, Loader2, AlertCircle} from "lucide-react";
+import {User, ImagePlus, X, Loader2, AlertCircle, Upload} from "lucide-react";
 
 const PLACEHOLDER_FALLBACK =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239CA3AF'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z'%3E%3C/path%3E%3C/svg%3E";
@@ -36,6 +36,8 @@ const SIZES = {
  * @param {boolean} [props.menuOpen] - Whether menu is open (controlled)
  * @param {Function} [props.onMenuToggle] - (open: boolean) => void
  * @param {string} [props.emptyLabel] - Label shown below icon when empty (e.g. "Add image")
+ * @param {string} [props.emptyBackgroundSrc] - Background image when empty (e.g. property placeholder)
+ * @param {boolean} [props.showEmptyUploadButton=false] - Orange upload button over empty background
  */
 function ImageUploadField({
   imageSrc,
@@ -55,6 +57,8 @@ function ImageUploadField({
   removeLabel = "Remove photo",
   pasteUrlLabel = "Paste URL",
   emptyLabel,
+  emptyBackgroundSrc,
+  showEmptyUploadButton = false,
   fileInputRef,
   menuOpen = false,
   onMenuToggle,
@@ -69,8 +73,16 @@ function ImageUploadField({
   const isBusy = imageUploading || imageLoading;
   const isEmpty = !imageSrc && !isBusy;
   const isXl = size === "xl";
+  const hasEmptyPlaceholder = isEmpty && !!emptyBackgroundSrc;
+  const areaOpensPicker = !hasEmptyPlaceholder;
 
   const handleAreaClick = () => {
+    if (isBusy || !areaOpensPicker) return;
+    inputRef?.current?.click();
+  };
+
+  const handleUploadButtonClick = (e) => {
+    e.stopPropagation();
     if (isBusy) return;
     inputRef?.current?.click();
   };
@@ -95,12 +107,14 @@ function ImageUploadField({
                   ? ""
                   : " ring-2 ring-gray-200 dark:ring-gray-600 ring-offset-2 dark:ring-offset-gray-800"
               }`
-            : "bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-750 border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:from-gray-100 hover:to-gray-200 dark:hover:from-gray-650 dark:hover:to-gray-700"
+            : hasEmptyPlaceholder
+              ? "bg-neutral-900 cursor-default"
+              : "bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-750 border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:from-gray-100 hover:to-gray-200 dark:hover:from-gray-650 dark:hover:to-gray-700"
         }`}
         onClick={handleAreaClick}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === "Enter" && handleAreaClick()}
+        role={areaOpensPicker ? "button" : undefined}
+        tabIndex={areaOpensPicker ? 0 : undefined}
+        onKeyDown={(e) => areaOpensPicker && e.key === "Enter" && handleAreaClick()}
         onMouseEnter={() => hasImage && setShowOverlay(true)}
         onMouseLeave={() => setShowOverlay(false)}
       >
@@ -158,6 +172,29 @@ function ImageUploadField({
                   {uploadLabel}
                 </span>
               </div>
+            )}
+          </>
+        ) : hasEmptyPlaceholder ? (
+          <>
+            <img
+              src={emptyBackgroundSrc}
+              alt=""
+              aria-hidden
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            {showEmptyUploadButton && (
+              <button
+                type="button"
+                onClick={handleUploadButtonClick}
+                className="absolute z-10 flex items-center gap-2 rounded-full bg-[#C26E4E] hover:bg-[#B56346] text-white pl-1 pr-4 py-1 shadow-md transition-colors"
+                style={{top: "52%", right: "6%"}}
+                aria-label={uploadLabel}
+              >
+                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white shrink-0">
+                  <Upload className="w-4 h-4 text-[#C26E4E]" strokeWidth={2.5} />
+                </span>
+                <span className="text-sm font-bold tracking-wide">UPLOAD</span>
+              </button>
             )}
           </>
         ) : (

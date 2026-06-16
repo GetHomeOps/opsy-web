@@ -68,3 +68,22 @@ export function columnToSupportStatus(colId) {
 export function columnToFeedbackStatus(colId) {
   return FEEDBACK_COLUMNS.find((c) => c.id === colId)?.status ?? "new";
 }
+
+/** Inspection review queue columns (maps to review_status) */
+export const INSPECTION_REVIEW_COLUMNS = [
+  { id: "new", title: "New" },
+  { id: "in_progress", title: "Further Review" },
+  { id: "completed", title: "Approved" },
+];
+
+export function inspectionReviewToColumnStatus(reviewStatus) {
+  if (reviewStatus === "approved") return "completed";
+  if (reviewStatus === "revision_requested") return "in_progress";
+  return "new";
+}
+
+export function columnToInspectionReviewStatus(colId) {
+  if (colId === "completed") return "approved";
+  if (colId === "in_progress") return "revision_requested";
+  return "pending_review";
+}

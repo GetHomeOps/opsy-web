@@ -84,6 +84,7 @@
   --color-yellow-950: #342809;
 
   --font-inter: "Inter", "sans-serif";
+  --font-auth-serif: "Playfair Display", Georgia, "Times New Roman", serif;
   --font-family-sans: var(--font-inter);
 
   --text-xs: 0.75rem;
@@ -173,6 +174,10 @@ button {
     "Helvetica Neue",
     Arial,
     sans-serif !important;
+}
+
+.font-auth-serif {
+  font-family: var(--font-auth-serif) !important;
 }
 
 /* Google Places Autocomplete dropdown – must sit above modals (z-[200]) */

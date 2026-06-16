@@ -1374,6 +1374,52 @@ class AppApi {
     return res;
   }
 
+  /* --------- Inspection Analysis Review (Super Admin) --------- */
+
+  static async getInspectionReviewQueue(status) {
+    const query = status ? { status } : {};
+    const res = await this.request("inspection-reviews", query, "GET");
+    return res.items || [];
+  }
+
+  static async getInspectionReview(id) {
+    const res = await this.request(`inspection-reviews/${id}`);
+    return res.review;
+  }
+
+  static async approveInspectionReview(id) {
+    const res = await this.request(`inspection-reviews/${id}/approve`, {}, "POST");
+    return res.review;
+  }
+
+  static async requestInspectionRevisions(id, { notes, needsAttention, maintenanceSuggestions } = {}) {
+    const body = {};
+    if (notes !== undefined) body.notes = notes;
+    if (needsAttention !== undefined) body.needsAttention = needsAttention;
+    if (maintenanceSuggestions !== undefined) body.maintenanceSuggestions = maintenanceSuggestions;
+    const res = await this.request(`inspection-reviews/${id}/request-revisions`, body, "POST");
+    return res.review;
+  }
+
+  static async updateInspectionReviewAnalysis(id, analysis = {}) {
+    const res = await this.request(`inspection-reviews/${id}/analysis`, analysis, "PATCH");
+    return res.review;
+  }
+
+  static async updateInspectionReviewStatus(id, status) {
+    const res = await this.request(`inspection-reviews/${id}/status`, { status }, "PATCH");
+    return res.review;
+  }
+
+  static async saveInspectionReviewFeedback(id, { comment, suggestedImprovements } = {}) {
+    const res = await this.request(
+      `inspection-reviews/${id}/feedback`,
+      { comment, suggestedImprovements },
+      "PATCH",
+    );
+    return res.review;
+  }
+
   /* --------- Document Analysis (per-document after filing) --------- */
 
   static async startDocumentAnalysis(propertyDocumentId) {

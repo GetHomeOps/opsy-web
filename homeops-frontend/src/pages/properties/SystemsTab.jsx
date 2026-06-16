@@ -24,9 +24,13 @@ import {NEXT_INSPECTION_FIELD_BY_SYSTEM} from "./constants/systemFieldConfig";
 import {
   getResolvedSystemFindings,
   areAllSystemActionItemsComplete,
+  countOpenSystemActionItems,
   resolveEffectiveSystemCondition,
 } from "./helpers/inspectionAnalysisHelpers";
-import {filterSuggestedSystemsNotOnProperty} from "./helpers/suggestedSystemsHelpers";
+import {
+  filterSuggestedSystemsNotOnProperty,
+  collectAddableSystemsFromAnalysis,
+} from "./helpers/suggestedSystemsHelpers";
 import {toDisplaySystemName} from "./helpers/aiSystemNormalization";
 import {
   getConditionFieldName,
@@ -484,12 +488,21 @@ function SystemsTab({
         (aiStatus
           ? aiStatus.charAt(0).toUpperCase() + aiStatus.slice(1)
           : null);
+      const systemKey = customName ?? sysId;
       const allComplete = areAllSystemActionItemsComplete(
-        customName ?? sysId,
+        systemKey,
         checklistItems,
         maintenanceRecords,
       );
-      return resolveEffectiveSystemCondition(stored, allComplete) || null;
+      const hasOpen =
+        countOpenSystemActionItems(
+          systemKey,
+          checklistItems,
+          maintenanceRecords,
+        ) > 0;
+      return (
+        resolveEffectiveSystemCondition(stored, allComplete, hasOpen) || null
+      );
     };
 
     const standard = PROPERTY_SYSTEMS.filter((s) =>
@@ -589,10 +602,7 @@ function SystemsTab({
   );
 
   const suggestedSystemsNotOnProperty = useMemo(() => {
-    const raw =
-      inspectionAnalysis?.suggestedSystemsToAdd ??
-      inspectionAnalysis?.suggested_systems_to_add ??
-      [];
+    const raw = collectAddableSystemsFromAnalysis(inspectionAnalysis);
     return filterSuggestedSystemsNotOnProperty(
       raw,
       systems,

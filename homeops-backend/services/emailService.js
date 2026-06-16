@@ -842,6 +842,48 @@ async function trySendWelcomeEmailForUser({ userId, accountId }) {
 }
 
 /**
+ * Notify a customer by email that their reviewed inspection analysis is ready to view.
+ */
+async function sendInspectionAnalysisReadyEmail({ to, userName, propertyLabel, viewUrl, usage }) {
+  const toAddr = to && String(to).trim();
+  if (!toAddr) {
+    return { success: false, reason: "no_recipient" };
+  }
+  const greeting = userName ? `Hi ${escapeHtml(userName)},` : "Hi,";
+  const safeCta = viewUrl ? escapeHtmlAttr(viewUrl) : "#";
+  const propertyLine = propertyLabel
+    ? `<p style="margin: 12px 0; line-height: 1.6;">Property: <strong>${escapeHtml(propertyLabel)}</strong></p>`
+    : "";
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color: #456564; margin: 0 0 12px;">Your inspection analysis is ready</h2>
+      <p style="margin: 12px 0; line-height: 1.6;">${greeting}</p>
+      <p style="margin: 12px 0; line-height: 1.6;">Your inspection analysis is ready. Log in to view your results.</p>
+      ${propertyLine}
+      <p style="margin: 24px 0;">
+        <a href="${safeCta}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View my results</a>
+      </p>
+      <p style="color: #6b7280; font-size: 13px; line-height: 1.6;">Opsy uses both AI and human review to analyze inspection reports. Our findings are intended to help inform decisions, not replace professional judgment.</p>
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  return emailProviderRouter.deliver({
+    emailType: "inspection_analysis_ready",
+    to: toAddr,
+    subject: "Your inspection analysis is ready",
+    html,
+    mergeData: {
+      brandName,
+      recipientFirstName: userName || "",
+      propertyLabel: propertyLabel || "",
+      viewUrl: viewUrl || "",
+    },
+    usage,
+  });
+}
+
+/**
  * Notify a recipient by email that a communication is available in Opsy (in-app is primary).
  */
 async function sendCommunicationNotifyEmail({ to, userName, subjectLine, viewUrl, usage }) {
@@ -1123,6 +1165,7 @@ module.exports = {
   sendScheduleNotificationEmail,
   sendProfessionalContactEmail,
   sendCommunicationNotifyEmail,
+  sendInspectionAnalysisReadyEmail,
   sendSupportTicketReceivedEmail,
   sendSupportTicketReplyEmail,
   getOpsTeamNotifyRecipients,

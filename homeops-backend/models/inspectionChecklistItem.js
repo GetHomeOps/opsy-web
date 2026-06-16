@@ -6,6 +6,15 @@ const { resolveFindingSystemType } = require("../services/systemTypes");
 
 class InspectionChecklistItem {
 
+  /** Remove all checklist items derived from a given analysis result (used before re-generating). */
+  static async deleteByAnalysisResult(analysisResultId) {
+    if (!analysisResultId) return;
+    await db.query(
+      `DELETE FROM inspection_checklist_items WHERE analysis_result_id = $1`,
+      [analysisResultId]
+    );
+  }
+
   /**
    * Auto-generate checklist items from an inspection analysis result.
    * Merges needs_attention and maintenance_suggestions into individual trackable rows.
