@@ -120,10 +120,15 @@ function withSinglePopularFlag(plans) {
 /** A plan is shown for the selected interval only when that interval is one of its
  *  active billing intervals. Plans without interval metadata (hardcoded fallback plans,
  *  or free plans with no plan_prices rows) are treated as available on every interval. */
+function normalizeBillingInterval(interval) {
+  if (!interval) return null;
+  return interval === "annual" ? "year" : interval;
+}
+
 function isPlanAvailableForInterval(plan, billingInterval) {
   const intervals = plan?.activeBillingIntervals;
   if (!Array.isArray(intervals) || intervals.length === 0) return true;
-  const normalized = billingInterval === "annual" ? "year" : billingInterval;
+  const normalized = normalizeBillingInterval(billingInterval);
   return intervals.includes(normalized);
 }
 
@@ -198,6 +203,21 @@ function UpgradePlanPage() {
   }, [accountId, loadPlans]);
 
   const currentPlanCode = billing?.plan?.code;
+  const currentBillingInterval = normalizeBillingInterval(
+    billing?.subscription?.billingInterval,
+  );
+
+  useEffect(() => {
+    if (currentBillingInterval === "month" || currentBillingInterval === "year") {
+      setBillingInterval(currentBillingInterval);
+    }
+  }, [currentBillingInterval]);
+
+  function isSamePlanAndInterval(planCode, interval) {
+    if (planCode !== currentPlanCode) return false;
+    if (!currentBillingInterval) return true;
+    return normalizeBillingInterval(interval) === currentBillingInterval;
+  }
 
   function isZeroCostPlan(plan) {
     const intervalPrice = plan?.stripePrices?.[billingInterval];
@@ -212,7 +232,7 @@ function UpgradePlanPage() {
   }
 
   async function handleSelectPlan(plan) {
-    if (plan.code === currentPlanCode) return;
+    if (isSamePlanAndInterval(plan.code, billingInterval)) return;
 
     if (isSuperAdmin && planAudience === "agent") return;
 
@@ -510,7 +530,14 @@ function UpgradePlanPage() {
                   const isCurrent =
                     !isSuperAdmin &&
                     !isAgentPricingView &&
-                    plan.code === currentPlanCode;
+                    isSamePlanAndInterval(plan.code, billingInterval);
+                  const isIntervalSwitch =
+                    !isSuperAdmin &&
+                    !isAgentPricingView &&
+                    plan.code === currentPlanCode &&
+                    currentBillingInterval &&
+                    normalizeBillingInterval(billingInterval) !==
+                      currentBillingInterval;
                   const planIdx = getPlanTierIndex(plan.code);
                   const isUpgrade = currentIdx >= 0 && planIdx > currentIdx;
                   const isDowngrade = currentIdx >= 0 && planIdx < currentIdx;
@@ -608,10 +635,10 @@ function UpgradePlanPage() {
                           disabled={ctaDisabled}
                           className={`mb-6 w-full py-2.5 rounded-lg text-sm font-semibold transition-[opacity,transform] duration-200 ease-out disabled:cursor-not-allowed motion-reduce:transition-none ${
                             superAdminCannotSelectPaid
-                              ? isPopular || isUpgrade
+                              ? isPopular || isUpgrade || isIntervalSwitch
                                 ? "bg-violet-600 text-white shadow-sm opacity-[0.58]"
                                 : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white opacity-[0.58]"
-                              : isPopular || isUpgrade
+                              : isPopular || isUpgrade || isIntervalSwitch
                                 ? "bg-violet-600 hover:bg-violet-700 text-white shadow-sm disabled:opacity-50"
                                 : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white disabled:opacity-50"
                           }`}
@@ -621,6 +648,10 @@ function UpgradePlanPage() {
                               <Loader2 className="w-4 h-4 animate-spin" />
                               Redirecting…
                             </span>
+                          ) : isIntervalSwitch ? (
+                            billingInterval === "year"
+                              ? "Switch to yearly"
+                              : "Switch to monthly"
                           ) : isUpgrade ? (
                             "Upgrade"
                           ) : isDowngrade ? (

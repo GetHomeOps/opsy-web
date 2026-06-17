@@ -298,9 +298,11 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
     const subRes = await db.query(
       `SELECT asub.id, asub.status, asub.current_period_start AS "currentPeriodStart",
               asub.current_period_end AS "currentPeriodEnd", asub.cancel_at_period_end AS "cancelAtPeriodEnd",
-              sp.code, sp.name, sp.trial_days AS "trialDays"
+              sp.code, sp.name, sp.trial_days AS "trialDays",
+              COALESCE(pp.billing_interval, sp.billing_interval, 'month') AS "billingInterval"
        FROM account_subscriptions asub
        JOIN subscription_products sp ON sp.id = asub.subscription_product_id
+       LEFT JOIN plan_prices pp ON pp.stripe_price_id = asub.stripe_price_id
        WHERE asub.account_id = $1 AND asub.status IN ('active', 'trialing')
        ORDER BY asub.current_period_end DESC NULLS LAST
        LIMIT 1`,
@@ -398,6 +400,7 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
         currentPeriodStart: subscription.currentPeriodStart,
         currentPeriodEnd: subscription.currentPeriodEnd,
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+        billingInterval: subscription.billingInterval,
       } : null,
       plan,
       limits,
