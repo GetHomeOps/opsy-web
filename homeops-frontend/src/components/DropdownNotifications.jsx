@@ -193,6 +193,8 @@ function DropdownNotifications() {
                   const isInspectionAnalysisReady =
                     n.type === "inspection_analysis_ready";
                   const isHelpdeskTicket = n.type === "helpdesk_ticket_created";
+                  const isHelpdeskTicketUserReply =
+                    n.type === "helpdesk_ticket_user_reply";
                   const isHelpdeskTicketReply = n.type === "helpdesk_ticket_reply";
                   const acctForProperty = n.accountUrl || accountUrl;
                   const propertyInvitePath =
@@ -227,7 +229,7 @@ function DropdownNotifications() {
                         ? "data-adjustments"
                         : "support";
                   const helpdeskTicketPath =
-                    isHelpdeskTicket &&
+                    (isHelpdeskTicket || isHelpdeskTicketUserReply) &&
                     n.supportTicketId &&
                     (n.supportTicketAccountUrl || acctForProperty)
                       ? `/${n.supportTicketAccountUrl || acctForProperty}/helpdesk/${helpdeskTicketSegment}/${n.supportTicketId}`
@@ -242,7 +244,8 @@ function DropdownNotifications() {
                     supportTicketReplyPath
                       ? supportTicketReplyPath
                       : helpdeskTicketPath
-                      : inspectionReviewPath
+                        ? helpdeskTicketPath
+                        : inspectionReviewPath
                       ? inspectionReviewPath
                       : inspectionReadyPath
                       ? inspectionReadyPath
@@ -436,7 +439,7 @@ function DropdownNotifications() {
                             <ClipboardCheck className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isInspectionAnalysisReady ? (
                             <FileCheck className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
-                          ) : isHelpdeskTicket ? (
+                          ) : isHelpdeskTicket || isHelpdeskTicketUserReply ? (
                             <Headset className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isHelpdeskTicketReply ? (
                             <Headset className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />

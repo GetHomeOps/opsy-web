@@ -6,7 +6,10 @@ const { BadRequestError, UnauthorizedError, ForbiddenError } = require("../expre
 const SupportTicket = require("../models/supportTicket");
 const User = require("../models/user");
 const Account = require("../models/account");
-const { notifyNewSupportOrFeedbackTicket } = require("../services/opsTeamNotifyService");
+const {
+  notifyNewSupportOrFeedbackTicket,
+  notifyUserReplyOnHelpdeskTicket,
+} = require("../services/opsTeamNotifyService");
 const {
   postAutomatedInitialReply,
   notifyUserTicketCreated,
@@ -155,17 +158,23 @@ router.post("/:id/replies", ensureLoggedIn, async function (req, res, next) {
       body: body.trim(),
     });
 
+    const latestReply = (updated.replies || [])
+      .slice()
+      .reverse()
+      .find((r) => !r.isAutomated && r.role === role);
+
     // Notify the ticket creator by email when an agent replies (skip user→self replies).
-    if (role === "admin") {
-      const latestReply = (updated.replies || [])
-        .slice()
-        .reverse()
-        .find((r) => !r.isAutomated && r.role === "admin");
-      if (latestReply) {
-        notifyUserAdminReply(updated, latestReply).catch((e) =>
-          console.error("[ticketNotify] admin reply email:", e.message)
-        );
-      }
+    if (role === "admin" && latestReply) {
+      notifyUserAdminReply(updated, latestReply).catch((e) =>
+        console.error("[ticketNotify] admin reply email:", e.message)
+      );
+    }
+
+    // Bell notification for platform admins when the requester replies.
+    if (role === "user" && latestReply) {
+      notifyUserReplyOnHelpdeskTicket(updated, latestReply).catch((e) =>
+        console.error("[opsTeamNotify] user reply bell:", e.message)
+      );
     }
 
     return res.status(201).json({ ticket: updated });

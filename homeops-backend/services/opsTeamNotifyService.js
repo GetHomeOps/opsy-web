@@ -3,7 +3,8 @@
 /**
  * Internal ops alerts to OPS_TEAM_NOTIFY_EMAIL (default HeyOpsy@heyopsy.com).
  * Uses AWS SES when configured; otherwise logs (see emailService.sendOpsTeamInternalNotification).
- * Also creates in-app bell notifications for platform admins on new helpdesk tickets.
+ * Also creates in-app bell notifications for platform admins on new helpdesk tickets
+ * and when a requester replies on an existing ticket.
  */
 
 const db = require("../db");
@@ -63,6 +64,33 @@ async function notifyNewUserAccount({ userId, email, name, role, source }) {
     await sendOpsTeamInternalNotification({ subject: `New account: ${email || name || userId}`, innerHtml: inner });
   } catch (err) {
     console.error("[opsTeamNotify] new account:", err.message);
+  }
+}
+
+async function notifyUserReplyOnHelpdeskTicket(ticket, reply) {
+  if (!ticket?.id || !reply || reply.isAutomated || reply.role !== "user") return;
+  if (!HELPDESK_TICKET_TYPES.includes(ticket.type)) return;
+
+  const typeLabel = TYPE_LABELS[ticket.type] || "Helpdesk";
+  const subjectSnippet = (ticket.subject || "").slice(0, 120);
+  const authorName =
+    reply.authorName || reply.authorEmail || ticket.createdByName || "User";
+  const title = `${authorName} replied on ${typeLabel.toLowerCase()} ticket: ${subjectSnippet}`;
+
+  try {
+    const adminIds = await getPlatformAdminUserIds();
+    for (const userId of adminIds) {
+      await Notification.create({
+        userId,
+        type: "helpdesk_ticket_user_reply",
+        title,
+        supportTicketId: ticket.id,
+      }).catch((e) =>
+        console.error("[opsTeamNotify] helpdesk user reply bell:", e.message)
+      );
+    }
+  } catch (err) {
+    console.error("[opsTeamNotify] platform admin lookup:", err.message);
   }
 }
 
@@ -142,5 +170,6 @@ async function notifyPropertyMissingAgent(prop) {
 module.exports = {
   notifyNewUserAccount,
   notifyNewSupportOrFeedbackTicket,
+  notifyUserReplyOnHelpdeskTicket,
   notifyPropertyMissingAgent,
 };
