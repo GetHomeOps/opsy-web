@@ -28,21 +28,28 @@ function SectionCard({
     >
       {(title || action) && (
         <div className="px-4 md:px-5 pt-4 pb-2">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between md:gap-3">
+            <div className="min-w-0 md:flex-1">
+              <div className="flex items-center gap-2 min-w-0">
                 {Icon && (
                   <Icon
                     className={`w-4 h-4 shrink-0 ${iconClassName ?? "text-neutral-400 dark:text-neutral-500"}`}
                   />
                 )}
-                <h3 className="text-sm font-semibold text-neutral-900 dark:text-white truncate">
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-white truncate min-w-0">
                   {title}
                 </h3>
-                {badge}
+                {badge && (
+                  <span className="hidden md:inline-flex shrink-0">{badge}</span>
+                )}
               </div>
+              {badge && <div className="mt-1 md:hidden">{badge}</div>}
             </div>
-            {action && <div className="shrink-0">{action}</div>}
+            {action && (
+              <div className="shrink-0 flex flex-wrap items-center justify-start md:justify-end gap-2">
+                {action}
+              </div>
+            )}
           </div>
           {description && (
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">

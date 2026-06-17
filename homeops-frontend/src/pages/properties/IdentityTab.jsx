@@ -768,7 +768,7 @@ function IdentityTab({
       }
       action={
         hasSavedProperty ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">
             {attomRefresh && (
               <button
                 type="button"
