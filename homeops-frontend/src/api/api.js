@@ -57,6 +57,56 @@ export function getApiErrorMessage(err, fallback = "Something went wrong.") {
   return fallback;
 }
 
+/** Default timeout (ms) for auth/startup requests. A hung connection on a cold
+ * mobile/PWA launch must not leave the app stuck on the loading spinner, so the
+ * startup auth calls abort and become retryable instead of waiting forever. */
+export const AUTH_REQUEST_TIMEOUT_MS = 15000;
+
+/** True for transient failures worth retrying (network/timeout + gateway errors).
+ * Distinguishes "the network wasn't ready yet" from a definitive auth rejection. */
+export function isTransientApiError(err) {
+  const status = err?.status;
+  return status === 0 || status === 502 || status === 503 || status === 504;
+}
+
+/** fetch() with an optional AbortController timeout. A falsy timeoutMs means no
+ * timeout, preserving long-running requests (uploads, AI/document analysis). */
+async function fetchWithTimeout(resource, options = {}, timeoutMs) {
+  if (!timeoutMs) return fetch(resource, options);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(resource, {...options, signal: controller.signal});
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** fetchWithTimeout that normalizes aborts/offline failures into an ApiError with
+ * status 0 so callers can tell a transient network problem apart from an auth
+ * rejection (401/403) and decide whether to retry vs. sign the user out. */
+async function fetchOrThrow(resource, options, timeoutMs) {
+  try {
+    return await fetchWithTimeout(resource, options, timeoutMs);
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      throw new ApiError(
+        ["Request timed out. Please check your connection and try again."],
+        0,
+        "NETWORK_TIMEOUT",
+      );
+    }
+    if (err instanceof TypeError) {
+      throw new ApiError(
+        ["Network error. Please check your connection and try again."],
+        0,
+        "NETWORK_ERROR",
+      );
+    }
+    throw err;
+  }
+}
+
 class AppApi {
   static token;
   static _refreshPromise = null;
@@ -126,11 +176,11 @@ class AppApi {
         const refreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
         if (!refreshToken) throw new Error("No refresh token");
 
-        const resp = await fetch(`${BASE_URL}/auth/refresh`, {
+        const resp = await fetchOrThrow(`${BASE_URL}/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken }),
-        });
+        }, AUTH_REQUEST_TIMEOUT_MS);
 
         if (!resp.ok) throw new Error("Refresh failed");
 
@@ -140,6 +190,10 @@ class AppApi {
         localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, data.refreshToken);
         return data.accessToken;
       } catch (err) {
+        // Transient network failures/timeouts (status 0) are NOT a sign the session
+        // is invalid — keep the tokens and let the caller retry. Only a genuine
+        // refresh rejection clears credentials and bounces to sign-in.
+        if (err?.status === 0) throw err;
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
         AppApi.token = null;
@@ -154,7 +208,7 @@ class AppApi {
     return AppApi._refreshPromise;
   }
 
-  static async request(endpoint, data = {}, method = "GET", customHeaders = {}) {
+  static async request(endpoint, data = {}, method = "GET", customHeaders = {}, { timeoutMs } = {}) {
     const url = buildApiUrl(endpoint);
     const token = await AppApi.ensureValidToken(endpoint);
     const headers = {
@@ -173,7 +227,7 @@ class AppApi {
     if (import.meta.env.DEV) {
       console.debug("[API request]", { endpoint, method, status: "(pending)" });
     }
-    let resp = await fetch(url, { method, body, headers });
+    let resp = await fetchOrThrow(url, { method, body, headers }, timeoutMs);
     if (import.meta.env.DEV) {
       console.debug("[API response]", { endpoint, status: resp.status });
     }
@@ -183,8 +237,11 @@ class AppApi {
         await AppApi.refreshAccessToken();
         const newToken = AppApi.getToken();
         if (newToken) headers.Authorization = `Bearer ${newToken}`;
-        resp = await fetch(url, { method, body, headers });
-      } catch {
+        resp = await fetchOrThrow(url, { method, body, headers }, timeoutMs);
+      } catch (refreshErr) {
+        // A transient network failure during the retry shouldn't masquerade as an
+        // expired session — let it bubble up (status 0) so callers can retry.
+        if (refreshErr?.status === 0) throw refreshErr;
         throw new ApiError(["Session expired. Please sign in again."], 401);
       }
     }
@@ -238,8 +295,8 @@ class AppApi {
 
   /* --------- Users --------- */
 
-  static async getCurrentUser(username) {
-    let res = await this.request(`users/${username}`);
+  static async getCurrentUser(username, options = {}) {
+    let res = await this.request(`users/${username}`, {}, "GET", {}, options);
     const user = res.user;
     if (res.impersonation) {
       user.impersonation = res.impersonation;
@@ -316,8 +373,8 @@ class AppApi {
   }
 
   /** Fetch current authenticated user + accounts in one request. */
-  static async getAuthBootstrap() {
-    const res = await this.request("auth/bootstrap");
+  static async getAuthBootstrap(options = {}) {
+    const res = await this.request("auth/bootstrap", {}, "GET", {}, options);
     return res.user;
   }
 
@@ -403,8 +460,8 @@ class AppApi {
     return res.accountUser;
   }
 
-  static async getUserAccounts(userId) {
-    let res = await this.request(`accounts/user/${userId}`);
+  static async getUserAccounts(userId, options = {}) {
+    let res = await this.request(`accounts/user/${userId}`, {}, "GET", {}, options);
     return res.accounts;
   }
 

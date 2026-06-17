@@ -372,6 +372,10 @@ export default function useGooglePlacesAutocomplete({
 
     const handleBlur = () => {
       setTimeout(() => {
+        // Mobile browsers fire spurious blur events when the visual viewport
+        // pans/resizes for the on-screen keyboard. Only dismiss when focus has
+        // actually left the input, otherwise the dropdown vanishes mid-typing.
+        if (document.activeElement === inputElement) return;
         setSuggestions([]);
         setHighlightedIndex(-1);
       }, 200);
@@ -394,14 +398,23 @@ export default function useGooglePlacesAutocomplete({
     if (!el || suggestionsRef.current.length === 0) return;
     const rect = el.getBoundingClientRect();
     const m = DROPDOWN_VIEWPORT_MARGIN_PX;
-    const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - m);
-    const spaceAbove = Math.max(0, rect.top - m);
+    // Use the visual viewport so the on-screen keyboard (mobile/PWA) is excluded
+    // from the available space. window.innerHeight ignores the keyboard, which
+    // pushes the dropdown off-screen or behind the keyboard on phones.
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    const visibleTop = vv ? vv.offsetTop : 0;
+    const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    const spaceBelow = Math.max(0, visibleBottom - rect.bottom - m);
+    const spaceAbove = Math.max(0, rect.top - visibleTop - m);
     const openUpward =
       spaceBelow < DROPDOWN_FLIP_MIN_SPACE_BELOW_PX &&
       spaceAbove > spaceBelow;
-    const maxHeight = Math.min(
-      DROPDOWN_MAX_HEIGHT_CAP_PX,
-      openUpward ? spaceAbove : spaceBelow
+    const maxHeight = Math.max(
+      0,
+      Math.min(
+        DROPDOWN_MAX_HEIGHT_CAP_PX,
+        openUpward ? spaceAbove : spaceBelow
+      )
     );
 
     if (openUpward) {
@@ -436,10 +449,16 @@ export default function useGooglePlacesAutocomplete({
     if (scrollParent) {
       scrollParent.addEventListener("scroll", handleScrollOrResize);
     }
+    // Reposition when the mobile keyboard opens/closes or the page is pinch-panned.
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    vv?.addEventListener("resize", handleScrollOrResize);
+    vv?.addEventListener("scroll", handleScrollOrResize);
     return () => {
       window.removeEventListener("resize", handleScrollOrResize);
       window.removeEventListener("scroll", handleScrollOrResize, true);
       scrollParent?.removeEventListener("scroll", handleScrollOrResize);
+      vv?.removeEventListener("resize", handleScrollOrResize);
+      vv?.removeEventListener("scroll", handleScrollOrResize);
     };
   }, [suggestions, updateDropdownPosition]);
 
@@ -482,7 +501,9 @@ export default function useGooglePlacesAutocomplete({
                       ? "places-autocomplete-item-active"
                       : ""
                   }`}
-                  onMouseDown={(e) => {
+                  onPointerDown={(e) => {
+                    // preventDefault keeps focus on the input (no blur dismissal)
+                    // and fires for both mouse and touch, unlike onMouseDown.
                     e.preventDefault();
                     selectSuggestion(suggestion);
                   }}

@@ -7,9 +7,28 @@ import {
   useRef,
 } from "react";
 import useLocalStorage from "../hooks/useLocalStorage";
-import AppApi from "../api/api";
+import AppApi, {AUTH_REQUEST_TIMEOUT_MS, isTransientApiError} from "../api/api";
 import {jwtDecode as decode} from "jwt-decode";
 import {markPostLogoutRedirectReset} from "../utils/authNavigation";
+
+/** Retry a time-boxed startup request a few times on transient network/timeout
+ * errors. On a cold mobile/PWA launch the network often isn't ready for the first
+ * second or two; without this the initial auth fetch hangs and the app is stuck on
+ * the loading spinner until the user force-quits and relaunches. Definitive errors
+ * (auth rejections, etc.) throw immediately so they aren't masked by retries. */
+async function withStartupRetry(fn, {attempts = 3, baseDelayMs = 800} = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientApiError(err) || attempt === attempts - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, baseDelayMs * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
 
 export const TOKEN_STORAGE_ID = "app-token";
 export const REFRESH_TOKEN_STORAGE_ID = "app-refresh-token";
@@ -90,10 +109,14 @@ export function AuthProvider({children}) {
           // Fast path: a single /auth/bootstrap call returns the user AND their
           // accounts in one round-trip. Fall back to the two-call sequence
           // (getCurrentUser -> getUserAccounts) if bootstrap is unavailable.
+          // Every startup call is time-boxed + retried so a cold-launch network
+          // blip can't leave the app stuck on the loading spinner forever.
           let currentUser = null;
           let userAccounts = null;
           try {
-            const bootstrapUser = await AppApi.getAuthBootstrap();
+            const bootstrapUser = await withStartupRetry(() =>
+              AppApi.getAuthBootstrap({timeoutMs: AUTH_REQUEST_TIMEOUT_MS}),
+            );
             if (bootstrapUser?.id) {
               currentUser = bootstrapUser;
               userAccounts = bootstrapUser.accounts || [];
@@ -108,7 +131,9 @@ export function AuthProvider({children}) {
           }
 
           if (!currentUser) {
-            currentUser = await AppApi.getCurrentUser(email);
+            currentUser = await withStartupRetry(() =>
+              AppApi.getCurrentUser(email, {timeoutMs: AUTH_REQUEST_TIMEOUT_MS}),
+            );
           }
 
           if (!currentUser || !currentUser.id) {
@@ -122,7 +147,9 @@ export function AuthProvider({children}) {
           }
 
           if (userAccounts === null) {
-            userAccounts = await getUserAccounts(currentUser.id);
+            userAccounts = await withStartupRetry(() =>
+              getUserAccounts(currentUser.id, {timeoutMs: AUTH_REQUEST_TIMEOUT_MS}),
+            );
           }
 
           setImpersonation(mergeImpersonation(currentUser, token));
@@ -317,9 +344,9 @@ export function AuthProvider({children}) {
     return userId;
   }
 
-  async function getUserAccounts(userId) {
+  async function getUserAccounts(userId, options = {}) {
     try {
-      return await AppApi.getUserAccounts(userId);
+      return await AppApi.getUserAccounts(userId, options);
     } catch (error) {
       const errorMessage = Array.isArray(error)
         ? error.join(" ")
