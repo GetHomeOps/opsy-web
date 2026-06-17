@@ -117,6 +117,16 @@ function withSinglePopularFlag(plans) {
   });
 }
 
+/** A plan is shown for the selected interval only when that interval is one of its
+ *  active billing intervals. Plans without interval metadata (hardcoded fallback plans,
+ *  or free plans with no plan_prices rows) are treated as available on every interval. */
+function isPlanAvailableForInterval(plan, billingInterval) {
+  const intervals = plan?.activeBillingIntervals;
+  if (!Array.isArray(intervals) || intervals.length === 0) return true;
+  const normalized = billingInterval === "annual" ? "year" : billingInterval;
+  return intervals.includes(normalized);
+}
+
 function UpgradePlanPage() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -338,6 +348,12 @@ function UpgradePlanPage() {
   const homeownerCurrentIdx = getPlanTierIndex(planCodeForTierIndex);
   const currentIdx = homeownerCurrentIdx;
 
+  /* Hide plans whose selected interval is deactivated (e.g. monthly price toggled off in admin)
+     so a plan only appears under the billing interval it's actually offered for. */
+  const visiblePlans = plans.filter((p) =>
+    isPlanAvailableForInterval(p, billingInterval),
+  );
+
   return (
     <div className="flex h-[100dvh] overflow-hidden">
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
@@ -457,7 +473,7 @@ function UpgradePlanPage() {
               <div className="flex justify-center py-20">
                 <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
               </div>
-            ) : plans.length === 0 ? (
+            ) : visiblePlans.length === 0 ? (
               <div className="mx-auto max-w-md rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-6 py-10 text-center">
                 <AlertCircle className="w-6 h-6 mx-auto text-gray-400 dark:text-gray-500 mb-3" />
                 <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
@@ -481,16 +497,16 @@ function UpgradePlanPage() {
             ) : (
               <div
                 className={`grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 items-start mx-auto ${
-                  plans.length === 1
+                  visiblePlans.length === 1
                     ? "lg:grid-cols-1 max-w-sm"
-                    : plans.length === 2
+                    : visiblePlans.length === 2
                       ? "lg:grid-cols-2 max-w-2xl"
-                      : plans.length === 3
+                      : visiblePlans.length === 3
                         ? "lg:grid-cols-3 max-w-4xl"
                         : "lg:grid-cols-4 max-w-6xl"
                 }`}
               >
-                {plans.map((plan) => {
+                {visiblePlans.map((plan) => {
                   const isCurrent =
                     !isSuperAdmin &&
                     !isAgentPricingView &&

@@ -1000,12 +1000,21 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
         if (!password || !name) {
           throw new BadRequestError("Name and password are required for new users");
         }
+        /* Force invited new users through onboarding so they must pick a plan,
+           exactly like self-signup. Without onboarding_completed=false the row
+           falls back to the DB default (true) and ProtectedRoute would let them
+           into the app on the auto-created free subscription without choosing a
+           plan. role_locked pins them to the homeowner plans they were created
+           with so onboarding skips the role picker and goes straight to plan
+           selection. */
         const newUser = await User.register({
           name,
           email: invitation.inviteeEmail,
           password,
           role: 'homeowner',
           is_active: true,
+          onboarding_completed: false,
+          role_locked: true,
         });
         user = newUser;
         createdNewUserViaInvite = true;

@@ -317,6 +317,17 @@ function plansHaveYearlyPrice(plans) {
   );
 }
 
+/** A plan is shown for the selected interval only when that interval is one of its
+ *  active billing intervals (the backend deactivates intervals per plan). Plans without
+ *  interval metadata — hardcoded fallback plans, or free plans with no plan_prices rows —
+ *  are treated as available on every interval so we never hide them by accident. */
+function isPlanAvailableForInterval(plan, billingInterval) {
+  const intervals = plan?.activeBillingIntervals;
+  if (!Array.isArray(intervals) || intervals.length === 0) return true;
+  const normalized = billingInterval === "annual" ? "year" : billingInterval;
+  return intervals.includes(normalized);
+}
+
 function Step2Plan({
   role,
   plan,
@@ -348,7 +359,12 @@ function Step2Plan({
     (p) => p.stripePrices?.year || p.stripePrices?.annual,
   );
   const showIntervalToggle = hasPaidPlans && hasMonthly && hasYearly;
-  const colCount = Math.min(Math.max(plans.length, 1), 5);
+  /* Only show plans whose selected interval is active. A plan whose monthly price was
+     deactivated in admin disappears from the "Pay Monthly" tab and shows under "Pay Annually". */
+  const visiblePlans = plans.filter((p) =>
+    isPlanAvailableForInterval(p, billingInterval),
+  );
+  const colCount = Math.min(Math.max(visiblePlans.length, 1), 5);
   const gridColsMap = {
     1: "md:grid-cols-1",
     2: "md:grid-cols-2",
@@ -422,7 +438,7 @@ function Step2Plan({
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
         </div>
-      ) : plans.length === 0 ? (
+      ) : visiblePlans.length === 0 ? (
         <div className="mt-10 mx-auto max-w-md rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/60 px-6 py-10 text-center">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200">
             No plans available right now
@@ -436,7 +452,7 @@ function Step2Plan({
         <div
           className={`mt-10 flex flex-col gap-5 md:grid md:grid-rows-[auto_auto_1fr_auto_auto] md:gap-5 ${gridCols}`}
         >
-          {plans.map((p, index) => {
+          {visiblePlans.map((p, index) => {
             const planId = p.code || p.id;
             const isSelected = plan === planId;
             const isPopular = p.popular;
@@ -746,6 +762,15 @@ export default function OnboardingWizard() {
   const selectedPlan = availablePlans.find((p) => (p.code || p.id) === plan);
   const isFreePlan =
     Boolean(plan) && isZeroCostPlan(selectedPlan, billingInterval);
+
+  /* If the selected plan isn't offered for the chosen billing interval (e.g. its monthly
+     price was deactivated), drop the stale selection so the user can't continue with it. */
+  useEffect(() => {
+    if (!plan || !selectedPlan) return;
+    if (!isPlanAvailableForInterval(selectedPlan, billingInterval)) {
+      setPlan(null);
+    }
+  }, [plan, selectedPlan, billingInterval]);
 
   const canContinue =
     (step === 1 && role) || (step === 2 && plan) || step === 3;
