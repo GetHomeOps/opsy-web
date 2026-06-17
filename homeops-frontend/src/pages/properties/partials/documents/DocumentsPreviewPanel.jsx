@@ -17,7 +17,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import {getMaintenanceRecordDetailPath} from "../../helpers/maintenanceRecordNavigation";
-import {getDocumentAnalysisFailureMessage} from "../../helpers/documentAnalysisFlow";
+import {getDocumentAnalysisFailureMessage, dismissDocumentAnalysisFailure, isDocumentAnalysisFailureDismissed} from "../../helpers/documentAnalysisFlow";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -66,8 +66,17 @@ function DocumentsPreviewPanel({
   );
 
   useEffect(() => {
-    setAnalysisFailureDismissed(false);
-  }, [selectedDocument?.id, analysisFailureMessage]);
+    if (!selectedDocument?.id || !documentAnalysisItem) {
+      setAnalysisFailureDismissed(false);
+      return;
+    }
+    setAnalysisFailureDismissed(
+      isDocumentAnalysisFailureDismissed(
+        selectedDocument.id,
+        documentAnalysisItem,
+      ),
+    );
+  }, [selectedDocument?.id, documentAnalysisItem]);
 
   const maintenanceRecordPath = useMemo(() => {
     if (
@@ -381,7 +390,13 @@ function DocumentsPreviewPanel({
                   )}
                   <button
                     type="button"
-                    onClick={() => setAnalysisFailureDismissed(true)}
+                    onClick={() => {
+                      dismissDocumentAnalysisFailure(
+                        selectedDocument.id,
+                        documentAnalysisItem,
+                      );
+                      setAnalysisFailureDismissed(true);
+                    }}
                     className="p-0.5 rounded hover:bg-amber-200/60 dark:hover:bg-amber-900/40 text-amber-600/70 dark:text-amber-300/70"
                     aria-label="Dismiss"
                   >

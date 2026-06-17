@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Upload,
 } from "lucide-react";
+import {DOCUMENT_ANALYSIS_TROUBLE_LABEL} from "../../helpers/documentAnalysisFlow";
 
 const PAGE_SIZE = 8;
 
@@ -56,14 +57,14 @@ function AiExtractionBadge({status, errorMessage}) {
     return (
       <div className="max-w-[14rem]">
         <span
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400"
-          title={errorMessage || "Analysis failed"}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+          title={errorMessage || "AI is having a hard time analyzing this document"}
         >
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          Failed
+          {DOCUMENT_ANALYSIS_TROUBLE_LABEL}
         </span>
         {errorMessage ? (
-          <p className="text-[10px] leading-snug text-red-600/90 dark:text-red-400/90 mt-0.5 line-clamp-2">
+          <p className="text-[10px] leading-snug text-amber-700/80 dark:text-amber-400/80 mt-0.5 line-clamp-2">
             {errorMessage}
           </p>
         ) : null}

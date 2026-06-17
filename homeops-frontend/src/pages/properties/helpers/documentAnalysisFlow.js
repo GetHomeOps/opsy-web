@@ -87,6 +87,57 @@ export function emitRequestDocumentAnalysis(propertyId, document) {
   );
 }
 
+/** User-facing label when AI document analysis did not succeed (avoid "failed"). */
+export const DOCUMENT_ANALYSIS_TROUBLE_LABEL = "Hard to analyze";
+
+const ANALYSIS_FAILURE_DISMISS_STORAGE_KEY =
+  "opsy-doc-analysis-failure-dismissed";
+
+function readAnalysisFailureDismissMap() {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(ANALYSIS_FAILURE_DISMISS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAnalysisFailureDismissMap(map) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(ANALYSIS_FAILURE_DISMISS_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+/** Stable key so a new analysis attempt re-shows the banner after dismiss. */
+export function getDocumentAnalysisFailureDismissSignature(analysisItem) {
+  if (!analysisItem) return "";
+  const id = analysisItem.id ?? analysisItem.documentAnalysisId ?? "";
+  const msg =
+    analysisItem.errorMessage ??
+    analysisItem.error_message ??
+    "";
+  return `${id}:${msg}`;
+}
+
+export function isDocumentAnalysisFailureDismissed(documentId, analysisItem) {
+  if (!documentId || !analysisItem) return false;
+  const map = readAnalysisFailureDismissMap();
+  const signature = getDocumentAnalysisFailureDismissSignature(analysisItem);
+  return map[String(documentId)] === signature;
+}
+
+export function dismissDocumentAnalysisFailure(documentId, analysisItem) {
+  if (!documentId || !analysisItem) return;
+  const map = readAnalysisFailureDismissMap();
+  map[String(documentId)] = getDocumentAnalysisFailureDismissSignature(analysisItem);
+  writeAnalysisFailureDismissMap(map);
+}
+
 /** User-facing message when AI document analysis did not succeed. */
 export function getDocumentAnalysisFailureMessage(analysisItem) {
   if (!analysisItem || analysisItem.status !== "failed") return null;

@@ -56,6 +56,7 @@ import {
   emitReopenDocumentAnalysis,
   emitRequestDocumentAnalysis,
   getDocumentAnalysisFailureMessage,
+  DOCUMENT_ANALYSIS_TROUBLE_LABEL,
 } from "./helpers/documentAnalysisFlow";
 import {useDocumentAnalysisStatus} from "../../hooks/useDocumentAnalysisStatus";
 import UpgradePrompt from "../../components/UpgradePrompt";
@@ -1770,19 +1771,19 @@ function DocumentsTab({
                                 status === "completed"
                                   ? "emerald"
                                   : status === "failed"
-                                    ? "red"
+                                    ? "amber"
                                     : "amber"
                               }
                             >
                               {status === "completed"
                                 ? "Analyzed"
                                 : status === "failed"
-                                  ? "Failed"
+                                  ? DOCUMENT_ANALYSIS_TROUBLE_LABEL
                                   : "Analyzing"}
                             </StatusBadge>
                           </div>
                           {status === "failed" && errorMessage ? (
-                            <p className="text-[11px] leading-snug text-red-600 dark:text-red-400 pl-6 pr-1">
+                            <p className="text-[11px] leading-snug text-amber-700/80 dark:text-amber-400/80 pl-6 pr-1 line-clamp-2">
                               {errorMessage}
                             </p>
                           ) : null}
