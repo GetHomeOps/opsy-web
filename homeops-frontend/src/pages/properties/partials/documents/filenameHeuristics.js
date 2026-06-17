@@ -143,5 +143,6 @@ export function inferDocumentTypeFromFolder(systemKey, existingType = null) {
     return "inspection";
   }
   if (existingType) return existingType;
+  if (systemKey === "other") return "other";
   return "receipt";
 }

@@ -87,7 +87,7 @@ export function emitRequestDocumentAnalysis(propertyId, document) {
   );
 }
 
-/** User-facing message when AI document analysis failed. */
+/** User-facing message when AI document analysis did not succeed. */
 export function getDocumentAnalysisFailureMessage(analysisItem) {
   if (!analysisItem || analysisItem.status !== "failed") return null;
   const raw =
@@ -95,7 +95,7 @@ export function getDocumentAnalysisFailureMessage(analysisItem) {
     analysisItem.error_message ??
     null;
   if (typeof raw === "string" && raw.trim()) return raw.trim();
-  return "AI analysis could not complete. Try a clearer scan or re-upload the document.";
+  return "We're having a hard time reading this document. Try a clearer scan or re-upload.";
 }
 
 /**

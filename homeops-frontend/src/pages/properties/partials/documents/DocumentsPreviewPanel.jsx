@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from "react";
+import React, {useEffect, useMemo, useState} from "react";
 import {Link} from "react-router-dom";
 import {
   X,
@@ -58,11 +58,16 @@ function DocumentsPreviewPanel({
 }) {
   // Details column is on the left; keep it collapsed by default so preview gets full width.
   const [metadataOpen, setMetadataOpen] = useState(false);
+  const [analysisFailureDismissed, setAnalysisFailureDismissed] = useState(false);
 
   const analysisFailureMessage = useMemo(
     () => getDocumentAnalysisFailureMessage(documentAnalysisItem),
     [documentAnalysisItem],
   );
+
+  useEffect(() => {
+    setAnalysisFailureDismissed(false);
+  }, [selectedDocument?.id, analysisFailureMessage]);
 
   const maintenanceRecordPath = useMemo(() => {
     if (
@@ -353,27 +358,35 @@ function DocumentsPreviewPanel({
             </div>
           )}
           <div className="flex-1 min-h-0 overflow-y-auto p-4">
-            {analysisFailureMessage && (
-              <div className="mb-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                      AI analysis failed
-                    </p>
-                    <p className="text-xs text-red-700 dark:text-red-300 mt-1 leading-relaxed">
-                      {analysisFailureMessage}
-                    </p>
-                    {showDocumentAnalysis && (
-                      <button
-                        type="button"
-                        onClick={() => onAnalyzeDocument?.(selectedDocument)}
-                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-900/60 text-red-700 dark:text-red-200 transition-colors"
-                      >
-                        Retry analysis
-                      </button>
-                    )}
-                  </div>
+            {analysisFailureMessage && !analysisFailureDismissed && (
+              <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200/80 dark:border-amber-800/50 bg-amber-50/60 dark:bg-amber-900/10 px-3 py-2">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-amber-900 dark:text-amber-100 leading-snug">
+                    AI is having a hard time analyzing this document
+                  </p>
+                  <p className="text-[11px] text-amber-800/80 dark:text-amber-200/80 mt-0.5 leading-snug line-clamp-2">
+                    {analysisFailureMessage}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {showDocumentAnalysis && (
+                    <button
+                      type="button"
+                      onClick={() => onAnalyzeDocument?.(selectedDocument)}
+                      className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-100 transition-colors"
+                    >
+                      Retry
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAnalysisFailureDismissed(true)}
+                    className="p-0.5 rounded hover:bg-amber-200/60 dark:hover:bg-amber-900/40 text-amber-600/70 dark:text-amber-300/70"
+                    aria-label="Dismiss"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             )}

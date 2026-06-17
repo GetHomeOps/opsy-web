@@ -107,6 +107,14 @@ const systemCategories = [
   },
 ];
 
+// Permanent catch-all folder for documents that don't fit a system category.
+const OTHER_FOLDER = {
+  id: "other",
+  label: "Other",
+  icon: File,
+  color: "text-gray-500",
+};
+
 // Document types – matches API document_type values
 const documentTypes = [
   {id: "contract", label: "Contract", icon: FileText},
@@ -319,7 +327,9 @@ function DocumentsTab({
         color: "text-gray-600",
       }),
     );
-    return [inspectionReport, ...selected, ...custom].filter(Boolean);
+    return [inspectionReport, ...selected, ...custom, OTHER_FOLDER].filter(
+      Boolean,
+    );
   }, [visibleSystemIds, customSystemNames, propertySystems]);
 
   const allowedSystemKeys = useMemo(
