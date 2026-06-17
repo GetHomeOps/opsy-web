@@ -6,13 +6,14 @@
  * Handles user-facing notifications for support/feedback tickets:
  *   - Automated in-thread acknowledgment reply posted when a ticket is created.
  *   - Confirmation email to the creator on ticket create (mirrors the auto-reply copy).
- *   - Reply notification email to the creator whenever an agent posts a reply.
+ *   - Reply notification email and in-app bell alert when an agent posts a reply.
  *
  * Emails are sent via AWS SES (see emailService.js). Internal ops alerts live in
  * opsTeamNotifyService.js — this file is exclusively for the submitting user.
  */
 
 const SupportTicket = require("../models/supportTicket");
+const Notification = require("../models/notification");
 const {
   sendSupportTicketReceivedEmail,
   sendSupportTicketReplyEmail,
@@ -157,9 +158,34 @@ async function notifyUserAdminReply(ticket, reply) {
   if (reply.isAutomated) return;
   if (reply.role !== "admin") return;
   if (reply.authorId && ticket.createdBy && reply.authorId === ticket.createdBy) return;
+  if (!["support", "feedback"].includes(ticket.type)) return;
 
   const to = ticket.createdByEmail;
   if (!to) return;
+
+  const subjectSnippet = (ticket.subject || "").slice(0, 100);
+  const title =
+    ticket.type === "feedback"
+      ? `New reply on your feedback: ${subjectSnippet}`
+      : `New reply on your support ticket: ${subjectSnippet}`;
+
+  if (ticket.createdBy) {
+    try {
+      await Notification.create({
+        userId: ticket.createdBy,
+        type: "helpdesk_ticket_reply",
+        title,
+        supportTicketId: ticket.id,
+      });
+    } catch (err) {
+      console.error(
+        "[ticketNotify] failed to create bell notification on admin reply",
+        ticket?.id,
+        err.message
+      );
+    }
+  }
+
   try {
     await sendSupportTicketReplyEmail({
       to,

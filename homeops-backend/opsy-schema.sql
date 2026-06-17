@@ -1087,6 +1087,7 @@ CREATE TABLE notifications (
     property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
     ownership_transfer_request_id UUID REFERENCES property_ownership_transfer_requests(id) ON DELETE CASCADE,
     affiliation_request_id INTEGER,
+    support_ticket_id INTEGER REFERENCES support_tickets(id) ON DELETE CASCADE,
     -- inspection_analysis_result_id is added via ALTER after inspection_analysis_results is created (see below).
     inspection_analysis_result_id INTEGER,
     title VARCHAR(500),
@@ -1100,6 +1101,7 @@ CREATE INDEX idx_notifications_read_at ON notifications(read_at) WHERE read_at I
 CREATE INDEX idx_notifications_property_id ON notifications(property_id) WHERE property_id IS NOT NULL;
 CREATE INDEX idx_notifications_otr_id ON notifications(ownership_transfer_request_id) WHERE ownership_transfer_request_id IS NOT NULL;
 CREATE INDEX idx_notifications_inspection_result_id ON notifications(inspection_analysis_result_id) WHERE inspection_analysis_result_id IS NOT NULL;
+CREATE INDEX idx_notifications_support_ticket_id ON notifications(support_ticket_id) WHERE support_ticket_id IS NOT NULL;
 
 CREATE TABLE comm_attachments (
     id SERIAL PRIMARY KEY,

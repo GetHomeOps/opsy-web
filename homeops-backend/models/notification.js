@@ -20,12 +20,13 @@ class Notification {
       ownershipTransferRequestId,
       affiliationRequestId,
       inspectionAnalysisResultId,
+      supportTicketId,
     } = data;
     const run = queryFn || ((text, params) => db.query(text, params));
     const result = await run(
-      `INSERT INTO notifications (user_id, type, resource_id, communication_id, title, invitation_id, maintenance_record_id, homeowner_inquiry_id, conversation_message_id, property_id, ownership_transfer_request_id, affiliation_request_id, inspection_analysis_result_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       RETURNING id, user_id AS "userId", type, resource_id AS "resourceId", communication_id AS "communicationId", title, invitation_id AS "invitationId", maintenance_record_id AS "maintenanceRecordId", homeowner_inquiry_id AS "homeownerInquiryId", conversation_message_id AS "conversationMessageId", property_id AS "propertyId", ownership_transfer_request_id AS "ownershipTransferRequestId", affiliation_request_id AS "affiliationRequestId", inspection_analysis_result_id AS "inspectionAnalysisResultId", read_at AS "readAt", created_at AS "createdAt"`,
+      `INSERT INTO notifications (user_id, type, resource_id, communication_id, title, invitation_id, maintenance_record_id, homeowner_inquiry_id, conversation_message_id, property_id, ownership_transfer_request_id, affiliation_request_id, inspection_analysis_result_id, support_ticket_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       RETURNING id, user_id AS "userId", type, resource_id AS "resourceId", communication_id AS "communicationId", title, invitation_id AS "invitationId", maintenance_record_id AS "maintenanceRecordId", homeowner_inquiry_id AS "homeownerInquiryId", conversation_message_id AS "conversationMessageId", property_id AS "propertyId", ownership_transfer_request_id AS "ownershipTransferRequestId", affiliation_request_id AS "affiliationRequestId", inspection_analysis_result_id AS "inspectionAnalysisResultId", support_ticket_id AS "supportTicketId", read_at AS "readAt", created_at AS "createdAt"`,
       [
         userId,
         type,
@@ -40,6 +41,7 @@ class Notification {
         ownershipTransferRequestId || null,
         affiliationRequestId || null,
         inspectionAnalysisResultId || null,
+        supportTicketId || null,
       ]
     );
     return result.rows[0];
@@ -65,12 +67,13 @@ class Notification {
   /** List notifications for a user (unread first, then by date) */
   static async listForUser(userId, { limit = 20 } = {}) {
     const result = await db.query(
-      `SELECT n.id, n.user_id AS "userId", n.type, n.resource_id AS "resourceId", n.communication_id AS "communicationId", n.title, n.invitation_id AS "invitationId", n.maintenance_record_id AS "maintenanceRecordId", n.homeowner_inquiry_id AS "homeownerInquiryId", n.property_id AS "propertyId", n.ownership_transfer_request_id AS "ownershipTransferRequestId", n.affiliation_request_id AS "affiliationRequestId", n.inspection_analysis_result_id AS "inspectionAnalysisResultId", n.read_at AS "readAt", n.created_at AS "createdAt",
+      `SELECT n.id, n.user_id AS "userId", n.type, n.resource_id AS "resourceId", n.communication_id AS "communicationId", n.title, n.invitation_id AS "invitationId", n.maintenance_record_id AS "maintenanceRecordId", n.homeowner_inquiry_id AS "homeownerInquiryId", n.property_id AS "propertyId", n.ownership_transfer_request_id AS "ownershipTransferRequestId", n.affiliation_request_id AS "affiliationRequestId", n.inspection_analysis_result_id AS "inspectionAnalysisResultId", n.support_ticket_id AS "supportTicketId", n.read_at AS "readAt", n.created_at AS "createdAt",
               r.subject AS "resourceSubject", r.type AS "resourceType",
               COALESCE(p.property_uid, p_miss.property_uid) AS "propertyUid",
               COALESCE(a.url, a_miss.url) AS "accountUrl",
               p_maint.property_uid AS "maintenancePropertyUid", a_maint.url AS "maintenanceAccountUrl",
-              p_miss.property_uid AS "missingAgentPropertyUid", a_miss.url AS "missingAgentAccountUrl"
+              p_miss.property_uid AS "missingAgentPropertyUid", a_miss.url AS "missingAgentAccountUrl",
+              st.type AS "supportTicketType", a_ticket.url AS "supportTicketAccountUrl"
        FROM notifications n
        LEFT JOIN resources r ON r.id = n.resource_id
        LEFT JOIN invitations i ON i.id = n.invitation_id AND n.type IN ('property_invitation', 'property_invitation_accepted')
@@ -81,6 +84,8 @@ class Notification {
        LEFT JOIN accounts a_maint ON a_maint.id = p_maint.account_id
        LEFT JOIN properties p_miss ON p_miss.id = n.property_id
        LEFT JOIN accounts a_miss ON a_miss.id = p_miss.account_id
+       LEFT JOIN support_tickets st ON st.id = n.support_ticket_id
+       LEFT JOIN accounts a_ticket ON a_ticket.id = st.account_id
        WHERE n.user_id = $1
        ORDER BY n.read_at IS NULL DESC, n.created_at DESC
        LIMIT $2`,

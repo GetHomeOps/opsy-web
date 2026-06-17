@@ -14,6 +14,7 @@ import {
   XCircle,
   ClipboardCheck,
   FileCheck,
+  Headset,
 } from "lucide-react";
 import NavbarDropdownPortal from "./NavbarDropdownPortal";
 import AppApi from "../api/api";
@@ -191,6 +192,8 @@ function DropdownNotifications() {
                     n.type === "inspection_review_requested";
                   const isInspectionAnalysisReady =
                     n.type === "inspection_analysis_ready";
+                  const isHelpdeskTicket = n.type === "helpdesk_ticket_created";
+                  const isHelpdeskTicketReply = n.type === "helpdesk_ticket_reply";
                   const acctForProperty = n.accountUrl || accountUrl;
                   const propertyInvitePath =
                     (isInvitation || isInvitationAccepted) &&
@@ -217,8 +220,29 @@ function DropdownNotifications() {
                     isInspectionAnalysisReady && n.propertyUid && acctForProperty
                       ? `/${acctForProperty}/properties/${n.propertyUid}`
                       : null;
+                  const helpdeskTicketSegment =
+                    n.supportTicketType === "feedback"
+                      ? "feedback"
+                      : n.supportTicketType === "data_adjustment"
+                        ? "data-adjustments"
+                        : "support";
+                  const helpdeskTicketPath =
+                    isHelpdeskTicket &&
+                    n.supportTicketId &&
+                    (n.supportTicketAccountUrl || acctForProperty)
+                      ? `/${n.supportTicketAccountUrl || acctForProperty}/helpdesk/${helpdeskTicketSegment}/${n.supportTicketId}`
+                      : null;
+                  const supportTicketReplyPath =
+                    isHelpdeskTicketReply &&
+                    n.supportTicketId &&
+                    (n.supportTicketAccountUrl || acctForProperty)
+                      ? `/${n.supportTicketAccountUrl || acctForProperty}/settings/support/${n.supportTicketId}`
+                      : null;
                   const basePath =
-                    inspectionReviewPath
+                    supportTicketReplyPath
+                      ? supportTicketReplyPath
+                      : helpdeskTicketPath
+                      : inspectionReviewPath
                       ? inspectionReviewPath
                       : inspectionReadyPath
                       ? inspectionReadyPath
@@ -412,6 +436,10 @@ function DropdownNotifications() {
                             <ClipboardCheck className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : isInspectionAnalysisReady ? (
                             <FileCheck className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isHelpdeskTicket ? (
+                            <Headset className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
+                          ) : isHelpdeskTicketReply ? (
+                            <Headset className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           ) : (
                             <BookOpen className="w-4 h-4 text-[#456564] dark:text-[#5a7a78]" />
                           )}

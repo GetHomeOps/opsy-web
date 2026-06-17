@@ -3,10 +3,21 @@
 /**
  * Internal ops alerts to OPS_TEAM_NOTIFY_EMAIL (default HeyOpsy@heyopsy.com).
  * Uses AWS SES when configured; otherwise logs (see emailService.sendOpsTeamInternalNotification).
+ * Also creates in-app bell notifications for platform admins on new helpdesk tickets.
  */
 
+const db = require("../db");
+const Notification = require("../models/notification");
 const { sendOpsTeamInternalNotification } = require("./emailService");
 const { APP_BASE_URL } = require("../config");
+
+const HELPDESK_TICKET_TYPES = ["support", "feedback", "data_adjustment"];
+
+const TYPE_LABELS = {
+  support: "Support",
+  feedback: "Feedback",
+  data_adjustment: "Data adjustment",
+};
 
 function escapeHtml(s) {
   if (s == null) return "";
@@ -29,6 +40,13 @@ function detailsTable(rows) {
   return `<table style="border-collapse: collapse; font-size: 14px; margin: 12px 0;">${body}</table>`;
 }
 
+async function getPlatformAdminUserIds() {
+  const r = await db.query(
+    `SELECT id FROM users WHERE role IN ('admin', 'super_admin') AND is_active = true`
+  );
+  return r.rows.map((row) => row.id);
+}
+
 async function notifyNewUserAccount({ userId, email, name, role, source }) {
   const base = (APP_BASE_URL || "").replace(/\/$/, "");
   const inner = `
@@ -49,8 +67,28 @@ async function notifyNewUserAccount({ userId, email, name, role, source }) {
 }
 
 async function notifyNewSupportOrFeedbackTicket(ticket) {
-  if (!ticket || !["support", "feedback"].includes(ticket.type)) return;
-  const typeLabel = ticket.type === "feedback" ? "Feedback" : "Support";
+  if (!ticket?.id || !HELPDESK_TICKET_TYPES.includes(ticket.type)) return;
+
+  const typeLabel = TYPE_LABELS[ticket.type] || "Helpdesk";
+  const subjectSnippet = (ticket.subject || "").slice(0, 120);
+  const title = `New ${typeLabel.toLowerCase()} ticket: ${subjectSnippet}`;
+
+  try {
+    const adminIds = await getPlatformAdminUserIds();
+    for (const userId of adminIds) {
+      await Notification.create({
+        userId,
+        type: "helpdesk_ticket_created",
+        title,
+        supportTicketId: ticket.id,
+      }).catch((e) =>
+        console.error("[opsTeamNotify] helpdesk bell:", e.message)
+      );
+    }
+  } catch (err) {
+    console.error("[opsTeamNotify] platform admin lookup:", err.message);
+  }
+
   const descBlock = ticket.description
     ? `<div style="margin: 12px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 14px; color: #111827; white-space: pre-wrap;">${escapeHtml(ticket.description)}</div>`
     : "";
