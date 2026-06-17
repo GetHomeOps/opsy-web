@@ -55,6 +55,7 @@ import {
   emitDocumentsFiled,
   emitReopenDocumentAnalysis,
   emitRequestDocumentAnalysis,
+  getDocumentAnalysisFailureMessage,
 } from "./helpers/documentAnalysisFlow";
 import {useDocumentAnalysisStatus} from "../../hooks/useDocumentAnalysisStatus";
 import UpgradePrompt from "../../components/UpgradePrompt";
@@ -345,7 +346,15 @@ function DocumentsTab({
       .map((doc) => {
         const item = getAnalysisItem(doc.id);
         if (!item) return null;
-        return {doc, status: String(item.status ?? "").toLowerCase()};
+        const status = String(item.status ?? "").toLowerCase();
+        return {
+          doc,
+          status,
+          errorMessage:
+            status === "failed"
+              ? getDocumentAnalysisFailureMessage(item)
+              : null,
+        };
       })
       .filter(Boolean);
     const analyzed = withAnalysis.filter((e) => e.status === "completed");
@@ -757,11 +766,19 @@ function DocumentsTab({
     [getAnalysisItem],
   );
 
+  const getAnalysisErrorMessage = useCallback(
+    (docId) => {
+      const item = getAnalysisItem(docId);
+      return getDocumentAnalysisFailureMessage(item);
+    },
+    [getAnalysisItem],
+  );
+
   const handleAnalyzeDocument = useCallback(
     (doc) => {
       if (!propertyId || !doc) return;
       const analysisItem = getAnalysisItem(doc.id);
-      const uiState = getDocumentAnalysisUiState(doc.id);
+      const uiState = getDocumentAnalysisUiState(analysisItem);
       if (uiState.action === "reopen") {
         emitReopenDocumentAnalysis(propertyId, doc, analysisItem);
       } else {
@@ -1194,6 +1211,7 @@ function DocumentsTab({
                 onOpenAIReport={onOpenAIReport}
                 onAnalyzeDocument={handleAnalyzeDocument}
                 documentAnalysisState={getDocumentAnalysisUiState(selectedDocument?.id)}
+                documentAnalysisItem={getAnalysisItem(selectedDocument?.id)}
                 getDocumentIcon={getDocumentIcon}
                 getFileTypeColor={getFileTypeColor}
                 systemCategories={systemCategories}
@@ -1234,6 +1252,7 @@ function DocumentsTab({
                 documentTypes={documentTypes}
                 getFileTypeColor={getFileTypeColor}
                 getAnalysisStatus={getAnalysisStatus}
+                getAnalysisErrorMessage={getAnalysisErrorMessage}
                 onSelectDocument={handleDocumentSelect}
                 onOpenInNewTab={handleOpenInNewTab}
                 onDelete={handleDelete}
@@ -1724,32 +1743,39 @@ function DocumentsTab({
                     </div>
                   </div>
                   <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                    {smartRecordsSummary.recent.map(({doc, status}) => (
+                    {smartRecordsSummary.recent.map(({doc, status, errorMessage}) => (
                       <li key={`analysis-${doc.id}`}>
                         <button
                           type="button"
                           onClick={() => handleDocumentSelect(doc)}
-                          className="w-full flex items-center gap-2.5 py-2 first:pt-0 last:pb-0 text-left group"
+                          className="w-full flex flex-col gap-1 py-2 first:pt-0 last:pb-0 text-left group"
                         >
-                          <FileText className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                          <span className="text-sm text-neutral-800 dark:text-neutral-200 truncate flex-1">
-                            {doc.document_name || doc.file_name || "Document"}
-                          </span>
-                          <StatusBadge
-                            tone={
-                              status === "completed"
-                                ? "emerald"
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <FileText className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                            <span className="text-sm text-neutral-800 dark:text-neutral-200 truncate flex-1">
+                              {doc.document_name || doc.file_name || "Document"}
+                            </span>
+                            <StatusBadge
+                              tone={
+                                status === "completed"
+                                  ? "emerald"
+                                  : status === "failed"
+                                    ? "red"
+                                    : "amber"
+                              }
+                            >
+                              {status === "completed"
+                                ? "Analyzed"
                                 : status === "failed"
-                                  ? "red"
-                                  : "amber"
-                            }
-                          >
-                            {status === "completed"
-                              ? "Analyzed"
-                              : status === "failed"
-                                ? "Failed"
-                                : "Analyzing"}
-                          </StatusBadge>
+                                  ? "Failed"
+                                  : "Analyzing"}
+                            </StatusBadge>
+                          </div>
+                          {status === "failed" && errorMessage ? (
+                            <p className="text-[11px] leading-snug text-red-600 dark:text-red-400 pl-6 pr-1">
+                              {errorMessage}
+                            </p>
+                          ) : null}
                         </button>
                       </li>
                     ))}

@@ -95,6 +95,8 @@ function PropertyPassportHeader({
   imagePlaceholder = false,
   headerRef,
   opsymizationSlot,
+  /** Optional control shown top-right of the identity column (e.g. agent coverage offer). */
+  sponsorshipOfferSlot = null,
 }) {
   const [addressCopied, setAddressCopied] = useState(false);
 
@@ -138,14 +140,17 @@ function PropertyPassportHeader({
 
         {/* Property identity */}
         <div className="flex-1 min-w-0 flex flex-col px-4 md:px-6 py-4 lg:py-5 lg:min-h-[220px]">
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="relative inline-flex">
-              <Shield className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white dark:border-neutral-900" />
-            </span>
-            <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.12em]">
-              Opsy Digital Passport
-            </span>
+          <div className="flex items-start justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="relative inline-flex">
+                <Shield className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white dark:border-neutral-900" />
+              </span>
+              <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.12em]">
+                Opsy Digital Passport
+              </span>
+            </div>
+            {sponsorshipOfferSlot}
           </div>
 
           <div className="flex-1 flex flex-col justify-center min-h-0 py-3 lg:py-4">

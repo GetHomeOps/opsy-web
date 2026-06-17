@@ -1153,6 +1153,113 @@ function humanizeStatus(status) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Build a deep link to an account's billing page for email CTAs. */
+async function buildAccountBillingUrl(accountId) {
+  const base = (APP_BASE_URL || "http://localhost:5173").replace(/\/$/, "");
+  if (!accountId) return `${base}/settings/billing`;
+  try {
+    const accRes = await db.query(`SELECT url, name FROM accounts WHERE id = $1`, [accountId]);
+    const slug = String(accRes.rows[0]?.url || accRes.rows[0]?.name || "home").replace(
+      /^\/+|\/+$/g,
+      ""
+    );
+    return `${base}/${slug}/settings/billing`;
+  } catch {
+    return `${base}/settings/billing`;
+  }
+}
+
+/**
+ * Lifecycle emails for agent-subsidized (sponsored) property billing.
+ * `kind` is one of: active | grace_started | grace_reminder | ended.
+ * In-app notifications remain the primary channel; these emails ensure the
+ * high-stakes grace deadline is seen.
+ */
+async function sendSponsorshipLifecycleEmail({
+  to,
+  userName,
+  kind,
+  propertyLabel,
+  agentName,
+  graceEndsOn,
+  billingUrl,
+  usage,
+}) {
+  const toAddr = to && String(to).trim();
+  if (!toAddr) return { success: false, reason: "no_recipient" };
+
+  const greeting = userName ? `Hi ${escapeHtml(userName)},` : "Hi,";
+  const property = escapeHtml(propertyLabel || "your property");
+  const agent = escapeHtml(agentName || "your agent");
+  const deadline = graceEndsOn ? escapeHtml(graceEndsOn) : null;
+  const safeCta = billingUrl ? escapeHtmlAttr(billingUrl) : "#";
+
+  let heading;
+  let subject;
+  let bodyHtml;
+  let ctaLabel = `Open billing`;
+
+  if (kind === "active") {
+    heading = "Your agent now covers this property";
+    subject = `${agent} now covers ${propertyLabel || "your property"} — ${brandName}`;
+    bodyHtml = `<p style="margin: 12px 0; line-height: 1.6;">${agent}'s plan now covers <strong>${property}</strong>. You won't be charged for this property. You can subscribe again anytime to take back control.</p>`;
+  } else if (kind === "grace_started") {
+    heading = "Action needed: agent coverage is ending";
+    subject = `Action needed: coverage for ${propertyLabel || "your property"} is ending — ${brandName}`;
+    bodyHtml = `
+      <p style="margin: 12px 0; line-height: 1.6;">${agent} is no longer covering <strong>${property}</strong>.</p>
+      <p style="margin: 12px 0; line-height: 1.6;">You have a 30-day grace period${deadline ? ` (until <strong>${deadline}</strong>)` : ""} to resume your own plan. If you don't, this property will move to the free plan with reduced limits and AI turned off.</p>`;
+    ctaLabel = "Resume my plan";
+  } else if (kind === "grace_reminder") {
+    heading = "Reminder: agent coverage is ending soon";
+    subject = `Reminder: coverage for ${propertyLabel || "your property"} ends${deadline ? ` ${graceEndsOn}` : " soon"} — ${brandName}`;
+    bodyHtml = `
+      <p style="margin: 12px 0; line-height: 1.6;">Agent coverage for <strong>${property}</strong> ends${deadline ? ` on <strong>${deadline}</strong>` : " soon"}.</p>
+      <p style="margin: 12px 0; line-height: 1.6;">Subscribe before then to keep your premium features for this property.</p>`;
+    ctaLabel = "Resume my plan";
+  } else {
+    heading = "Agent coverage has ended";
+    subject = `Agent coverage for ${propertyLabel || "your property"} has ended — ${brandName}`;
+    bodyHtml = `
+      <p style="margin: 12px 0; line-height: 1.6;">Agent coverage for <strong>${property}</strong> has ended and it has moved to the free plan.</p>
+      <p style="margin: 12px 0; line-height: 1.6;">Subscribe anytime to restore premium features for this property.</p>`;
+    ctaLabel = "Subscribe";
+  }
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color: #456564; margin: 0 0 12px;">${escapeHtml(heading)}</h2>
+      <p style="margin: 12px 0; line-height: 1.6;">${greeting}</p>
+      ${bodyHtml}
+      <p style="margin: 24px 0;">
+        <a href="${safeCta}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">${escapeHtml(ctaLabel)}</a>
+      </p>
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  try {
+    return await emailProviderRouter.deliver({
+      emailType: `sponsorship_${kind}`,
+      to: toAddr,
+      subject,
+      html,
+      mergeData: {
+        brandName,
+        userName: userName || "",
+        propertyLabel: propertyLabel || "",
+        agentName: agentName || "",
+        graceEndsOn: graceEndsOn || "",
+        billingUrl: billingUrl || "",
+      },
+      usage,
+    });
+  } catch (err) {
+    console.warn(`[emailService] sponsorship ${kind} email failed:`, err.message);
+    return { success: false, reason: "send_failed" };
+  }
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendEmailVerificationEmail,
@@ -1168,6 +1275,8 @@ module.exports = {
   sendInspectionAnalysisReadyEmail,
   sendSupportTicketReceivedEmail,
   sendSupportTicketReplyEmail,
+  sendSponsorshipLifecycleEmail,
+  buildAccountBillingUrl,
   getOpsTeamNotifyRecipients,
   sendOpsTeamInternalNotification,
 };

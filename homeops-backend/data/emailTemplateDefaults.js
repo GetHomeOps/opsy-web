@@ -101,6 +101,37 @@ const DEFAULTS = {
 <p style="margin: 24px 0;"><a href="{{viewUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View and reply</a></p>
 <p style="color: #6b7280; font-size: 13px; margin-top: 20px;">Replies to this email are not monitored — please use the ticket link above so the entire thread stays with your request.</p>`,
   },
+  sponsorship_active: {
+    subject: "{{agentName}} now covers {{propertyLabel}} — {{brandName}}",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">Your agent now covers this property</h2>
+<p style="margin: 12px 0; line-height: 1.6;">Hi {{userName}},</p>
+<p style="margin: 12px 0; line-height: 1.6;">{{agentName}}'s plan now covers <strong>{{propertyLabel}}</strong>. You won't be charged for this property. You can subscribe again anytime to take back control.</p>
+<p style="margin: 24px 0;"><a href="{{billingUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Open billing</a></p>`,
+  },
+  sponsorship_grace_started: {
+    subject: "Action needed: coverage for {{propertyLabel}} is ending — {{brandName}}",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">Action needed: agent coverage is ending</h2>
+<p style="margin: 12px 0; line-height: 1.6;">Hi {{userName}},</p>
+<p style="margin: 12px 0; line-height: 1.6;">{{agentName}} is no longer covering <strong>{{propertyLabel}}</strong>.</p>
+<p style="margin: 12px 0; line-height: 1.6;">You have a 30-day grace period (until <strong>{{graceEndsOn}}</strong>) to resume your own plan. If you don't, this property will move to the free plan with reduced limits and AI turned off.</p>
+<p style="margin: 24px 0;"><a href="{{billingUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Resume my plan</a></p>`,
+  },
+  sponsorship_grace_reminder: {
+    subject: "Reminder: coverage for {{propertyLabel}} ends {{graceEndsOn}} — {{brandName}}",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">Reminder: agent coverage is ending soon</h2>
+<p style="margin: 12px 0; line-height: 1.6;">Hi {{userName}},</p>
+<p style="margin: 12px 0; line-height: 1.6;">Agent coverage for <strong>{{propertyLabel}}</strong> ends on <strong>{{graceEndsOn}}</strong>.</p>
+<p style="margin: 12px 0; line-height: 1.6;">Subscribe before then to keep your premium features for this property.</p>
+<p style="margin: 24px 0;"><a href="{{billingUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Resume my plan</a></p>`,
+  },
+  sponsorship_ended: {
+    subject: "Agent coverage for {{propertyLabel}} has ended — {{brandName}}",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">Agent coverage has ended</h2>
+<p style="margin: 12px 0; line-height: 1.6;">Hi {{userName}},</p>
+<p style="margin: 12px 0; line-height: 1.6;">Agent coverage for <strong>{{propertyLabel}}</strong> has ended and it has moved to the free plan.</p>
+<p style="margin: 12px 0; line-height: 1.6;">Subscribe anytime to restore premium features for this property.</p>
+<p style="margin: 24px 0;"><a href="{{billingUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Subscribe</a></p>`,
+  },
 };
 
 function getDefaultSesTemplate(emailType) {
@@ -252,6 +283,34 @@ function getSampleMergeData(emailType) {
         '<div style="padding:14px;background:#f9fafb;">We reset your session. Please try again.</div>',
       metaHtml: "",
       viewUrl: "https://app.heyopsy.com/support/sample",
+    },
+    sponsorship_active: {
+      ...base,
+      userName: "Alex",
+      propertyLabel: "205 E 95th St, New York, NY",
+      agentName: "Jane Smith",
+      billingUrl: "https://app.heyopsy.com/home/settings/billing",
+    },
+    sponsorship_grace_started: {
+      ...base,
+      userName: "Alex",
+      propertyLabel: "205 E 95th St, New York, NY",
+      agentName: "Jane Smith",
+      graceEndsOn: "July 17, 2026",
+      billingUrl: "https://app.heyopsy.com/home/settings/billing",
+    },
+    sponsorship_grace_reminder: {
+      ...base,
+      userName: "Alex",
+      propertyLabel: "205 E 95th St, New York, NY",
+      graceEndsOn: "July 17, 2026",
+      billingUrl: "https://app.heyopsy.com/home/settings/billing",
+    },
+    sponsorship_ended: {
+      ...base,
+      userName: "Alex",
+      propertyLabel: "205 E 95th St, New York, NY",
+      billingUrl: "https://app.heyopsy.com/home/settings/billing",
     },
   };
   return samples[emailType] || base;

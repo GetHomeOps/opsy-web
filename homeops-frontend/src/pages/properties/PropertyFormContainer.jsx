@@ -160,6 +160,12 @@ import {useAttomRefresh} from "./hooks/useAttomRefresh";
 import {getPropertyAssistantHeaderLines} from "./helpers/propertyAssistantHeader";
 import InspectionReportModal from "./partials/InspectionReportModal";
 import InviteAgentBenefitsModal from "./partials/InviteAgentBenefitsModal";
+import SponsorshipOfferModal from "../settings/partials/SponsorshipOfferModal";
+import {
+  dismissSponsorshipIcon,
+  isSponsorshipIconDismissed,
+  snoozeSponsorshipOffer,
+} from "../../components/SponsorshipOfferWatcher";
 import ModalBlank from "../../components/ModalBlank";
 import InspectionAnalysisModalContent from "./partials/InspectionAnalysisModalContent";
 import useImageUpload from "../../hooks/useImageUpload";
@@ -170,8 +176,10 @@ import useGooglePlacesAutocomplete, {
 } from "../../hooks/useGooglePlacesAutocomplete";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import useBillingStatus from "../../hooks/useBillingStatus";
+import useSponsorshipEligibility from "../../hooks/useSponsorshipEligibility";
 import ImageUploadField from "../../components/ImageUploadField";
 import homePlaceholder from "../../images/home_placeholder.png";
+import paymentPlanIcon from "../../images/payment_plan.png";
 import {useTranslation} from "react-i18next";
 import Transition from "../../utils/Transition";
 
@@ -559,6 +567,46 @@ function PropertyFormContainer() {
   const {contacts} = useContext(ContactContext);
   const {currentUser} = useAuth();
   const {plan, limits, isAdmin} = useBillingStatus();
+  const {
+    eligibility: sponsorshipEligibility,
+    eligiblePropertyUid,
+    refresh: refreshSponsorshipEligibility,
+  } = useSponsorshipEligibility();
+  const [sponsorshipOfferOpen, setSponsorshipOfferOpen] = useState(false);
+  /* The hero icon shows whenever the homeowner is eligible for agent coverage.
+     Clicking "Not now" persists a dismissal (it stays hidden across navigation), but
+     that dismissal is scoped to the current eligibility episode: it auto-clears the
+     moment eligibility lapses (see useSponsorshipEligibility), so a newly confirmed
+     agent surfaces the icon again. The offer always remains reachable from Billing,
+     and the separate 14-day snooze only governs the global auto-popup. */
+  const [sponsorshipOfferDismissed, setSponsorshipOfferDismissed] = useState(
+    () => isSponsorshipIconDismissed(currentAccount?.id),
+  );
+  const showSponsorshipOfferOnHero =
+    !isInvitationView &&
+    !sponsorshipOfferDismissed &&
+    eligiblePropertyUid != null &&
+    uid !== "new" &&
+    String(uid) === eligiblePropertyUid;
+
+  /* Re-read the persisted dismissal when the account changes or eligibility resolves
+     (the hook clears it while not eligible, so a fresh episode shows the icon). */
+  useEffect(() => {
+    setSponsorshipOfferDismissed(isSponsorshipIconDismissed(currentAccount?.id));
+  }, [currentAccount?.id, eligiblePropertyUid]);
+
+  async function handleAcceptSponsorship() {
+    await AppApi.acceptSponsorship({accountId: currentAccount?.id});
+    setSponsorshipOfferOpen(false);
+    await refreshSponsorshipEligibility();
+  }
+
+  function handleDismissSponsorshipOffer() {
+    snoozeSponsorshipOffer(currentAccount?.id);
+    dismissSponsorshipIcon(currentAccount?.id);
+    setSponsorshipOfferDismissed(true);
+    setSponsorshipOfferOpen(false);
+  }
   const accountUrl =
     accountUrlParam || currentAccount?.url || currentAccount?.name || "";
   const isPaidUser =
@@ -1191,7 +1239,10 @@ function PropertyFormContainer() {
     window.addEventListener("opsy:property-team-changed", handleTeamChanged);
     return () => {
       cancelled = true;
-      window.removeEventListener("opsy:property-team-changed", handleTeamChanged);
+      window.removeEventListener(
+        "opsy:property-team-changed",
+        handleTeamChanged,
+      );
     };
   }, [
     uid,
@@ -1589,14 +1640,18 @@ function PropertyFormContainer() {
 
   const handleAttomRefreshFailed = useCallback(
     (message) => {
+      const normalized =
+        message &&
+        /could not be found|verify the address/i.test(String(message))
+          ? "We couldn't find public records for this address. Your property is saved — enter details manually on the Identity tab, or use Refresh property data to try again."
+          : message ||
+            "Public records lookup failed. Double-check the address and try again.";
       dispatch({
         type: "SET_BANNER",
         payload: {
           open: true,
           type: "error",
-          message:
-            message ||
-            "ATTOM lookup failed. Double-check the address and try again.",
+          message: normalized,
         },
       });
     },
@@ -2647,6 +2702,83 @@ function PropertyFormContainer() {
   // Systems to show in Systems tab: only those with included=true (from modal selection)
   const visibleSystemIds = state.formData.systems?.selectedSystemIds ?? [];
 
+  const propertyOverviewDashboard = (readOnly = false) => (
+    <PropertyOverviewDashboard
+      readOnly={readOnly}
+      propertyData={mergedFormData}
+      maintenanceRecords={state.formData.maintenanceRecords ?? []}
+      maintenanceEvents={maintenanceEvents}
+      propertyDocuments={overviewDocuments}
+      photosCount={(state.formData.identity?.photos ?? []).length}
+      inspectionAnalysis={inspectionAnalysis}
+      onNavigateTab={
+        readOnly
+          ? undefined
+          : (tabId) => dispatch({type: "SET_ACTIVE_TAB", payload: tabId})
+      }
+      onCompleteOutstandingTasks={
+        readOnly ? undefined : handleCompleteOutstandingTasks
+      }
+      onOpenInspectionAnalysis={
+        readOnly ? undefined : openInspectionAnalysisWithPlanCheck
+      }
+      onUploadInspectionReport={
+        readOnly
+          ? undefined
+          : () => {
+              dispatch({type: "SET_ACTIVE_TAB", payload: "documents"});
+              setDocumentsUploadModalRequested(true);
+            }
+      }
+      notes={propertyNotes}
+      notesLoading={propertyNotesLoading}
+      notesSaving={propertyNotesSaving}
+      currentUserId={currentUser?.id}
+      onAddNote={readOnly ? undefined : handleAddPropertyNote}
+      onUpdateNote={readOnly ? undefined : handleUpdatePropertyNote}
+      onDeleteNote={readOnly ? undefined : handleDeletePropertyNote}
+      scoreCardSlot={
+        <ScoreCard
+          variant="overview"
+          propertyData={mergedFormData}
+          onCompleteOutstandingTasks={
+            readOnly ? undefined : handleCompleteOutstandingTasks
+          }
+          propertyId={
+            uid !== "new"
+              ? (state.property?.identity?.id ?? state.property?.id ?? uid)
+              : null
+          }
+          maintenanceRecords={state.formData.maintenanceRecords ?? []}
+        />
+      }
+      teamSlot={
+        <HomeOpsTeam
+          compact
+          teamMembers={homeopsTeam}
+          isLoadingTeam={uid !== "new" && !hasResolvedTeamForCta}
+          hideAddButton={readOnly}
+          onOpenShareModal={
+            readOnly
+              ? undefined
+              : () => {
+                  setShareModalInitialTab("owner");
+                  setShareModalOpen(true);
+                }
+          }
+          onMemberClick={
+            readOnly
+              ? undefined
+              : (tab) => {
+                  setShareModalInitialTab(tab);
+                  setShareModalOpen(true);
+                }
+          }
+        />
+      }
+    />
+  );
+
   const handleOpenSystemsSetup = useCallback((suggested = []) => {
     if (Array.isArray(suggested) && suggested.length > 0) {
       setExternalSuggestedSystems(suggested);
@@ -3611,6 +3743,31 @@ function PropertyFormContainer() {
           cardData={cardData}
           hasImage={Boolean(heroImageUrl)}
           imagePlaceholder={!heroImageUrl}
+          sponsorshipOfferSlot={
+            showSponsorshipOfferOnHero ? (
+              <button
+                type="button"
+                onClick={() => setSponsorshipOfferOpen(true)}
+                title={t("sponsorship.agentCanCover", {
+                  defaultValue: "Your agent can cover this property",
+                })}
+                aria-label={t("sponsorship.agentCanCover", {
+                  defaultValue: "Your agent can cover this property",
+                })}
+                className="group relative inline-flex items-center justify-center w-11 h-11 rounded-full shrink-0 bg-gradient-to-br from-emerald-50 via-white to-emerald-100/90 dark:from-emerald-950/60 dark:via-neutral-900 dark:to-emerald-900/30 shadow-[0_0_0_1px_rgba(52,211,153,0.35),0_6px_18px_-4px_rgba(16,185,129,0.35)] ring-1 ring-emerald-300/70 dark:ring-emerald-600/40 hover:shadow-[0_0_0_1px_rgba(52,211,153,0.55),0_10px_24px_-4px_rgba(16,185,129,0.45)] hover:scale-[1.03] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+              >
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 rounded-full bg-emerald-400/10 blur-[1px] group-hover:bg-emerald-400/15 transition-colors"
+                />
+                <img
+                  src={paymentPlanIcon}
+                  alt=""
+                  className="relative z-10 w-9 h-9 object-contain drop-shadow-sm"
+                />
+              </button>
+            ) : null
+          }
           opsymizationSlot={
             !isInvitationView &&
             uid !== "new" &&
@@ -3718,79 +3875,117 @@ function PropertyFormContainer() {
             ) : undefined
           }
           imageSlot={
-            <ImageUploadField
-              imageSrc={
-                mainPhotoPreviewUrl ||
-                (state.formData.identity?.mainPhoto !== ""
-                  ? cardData.mainPhotoUrl
-                  : null) ||
-                (state.formData.identity?.mainPhoto !== ""
-                  ? cardData.mainPhoto?.startsWith?.("blob:")
-                    ? cardData.mainPhoto
-                    : null
-                  : null) ||
-                (mainPhotoPresignedKey === mainPhotoKey
-                  ? mainPhotoPresignedUrl
-                  : null) ||
-                mainPhotoUploadedUrl
-              }
-              hasImage={
-                !!(
-                  state.formData.identity?.mainPhoto ||
+            isInvitationView ? (
+              heroImageUrl ? (
+                <img
+                  src={heroImageUrl}
+                  alt={cardData.address || "Property"}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <img
+                  src={homePlaceholder}
+                  alt=""
+                  aria-hidden
+                  className="w-full h-full object-cover"
+                />
+              )
+            ) : (
+              <ImageUploadField
+                imageSrc={
                   mainPhotoPreviewUrl ||
-                  mainPhotoUploadedUrl ||
-                  (state.formData.identity?.mainPhoto !== "" &&
-                    (cardData.mainPhoto || cardData.mainPhotoUrl))
-                )
-              }
-              imageUploading={mainPhotoUploading}
-              onUpload={uploadMainPhoto}
-              onRemove={() => {
-                clearMainPhotoPreview();
-                clearMainPhotoUploadedUrl();
-                clearMainPhotoPresignedUrl();
-                dispatch({
-                  type: "SET_IDENTITY_FORM_DATA",
-                  payload: {mainPhoto: ""},
-                });
-                if (state.isInitialLoad) {
-                  dispatch({type: "SET_FORM_CHANGED", payload: true});
+                  (state.formData.identity?.mainPhoto !== ""
+                    ? cardData.mainPhotoUrl
+                    : null) ||
+                  (state.formData.identity?.mainPhoto !== ""
+                    ? cardData.mainPhoto?.startsWith?.("blob:")
+                      ? cardData.mainPhoto
+                      : null
+                    : null) ||
+                  (mainPhotoPresignedKey === mainPhotoKey
+                    ? mainPhotoPresignedUrl
+                    : null) ||
+                  mainPhotoUploadedUrl
                 }
-              }}
-              onPasteUrl={null}
-              showRemove={
-                !!(
-                  state.formData.identity?.mainPhoto ||
-                  mainPhotoPreviewUrl ||
-                  mainPhotoUploadedUrl ||
-                  (state.formData.identity?.mainPhoto !== "" &&
-                    (cardData.mainPhoto || cardData.mainPhotoUrl))
-                )
-              }
-              imageUploadError={null}
-              onDismissError={() => setMainPhotoUploadError(null)}
-              size="xl"
-              placeholder="generic"
-              emptyBackgroundSrc={!heroImageUrl ? homePlaceholder : undefined}
-              showEmptyUploadButton={!heroImageUrl}
-              alt={cardData.address || "Property"}
-              uploadLabel="Upload photo"
-              removeLabel="Remove photo"
-              fileInputRef={mainPhotoInputRef}
-              menuOpen={mainPhotoMenuOpen}
-              onMenuToggle={setMainPhotoMenuOpen}
-            />
+                hasImage={
+                  !!(
+                    state.formData.identity?.mainPhoto ||
+                    mainPhotoPreviewUrl ||
+                    mainPhotoUploadedUrl ||
+                    (state.formData.identity?.mainPhoto !== "" &&
+                      (cardData.mainPhoto || cardData.mainPhotoUrl))
+                  )
+                }
+                imageUploading={mainPhotoUploading}
+                onUpload={uploadMainPhoto}
+                onRemove={() => {
+                  clearMainPhotoPreview();
+                  clearMainPhotoUploadedUrl();
+                  clearMainPhotoPresignedUrl();
+                  dispatch({
+                    type: "SET_IDENTITY_FORM_DATA",
+                    payload: {mainPhoto: ""},
+                  });
+                  if (state.isInitialLoad) {
+                    dispatch({type: "SET_FORM_CHANGED", payload: true});
+                  }
+                }}
+                onPasteUrl={null}
+                showRemove={
+                  !!(
+                    state.formData.identity?.mainPhoto ||
+                    mainPhotoPreviewUrl ||
+                    mainPhotoUploadedUrl ||
+                    (state.formData.identity?.mainPhoto !== "" &&
+                      (cardData.mainPhoto || cardData.mainPhotoUrl))
+                  )
+                }
+                imageUploadError={null}
+                onDismissError={() => setMainPhotoUploadError(null)}
+                size="xl"
+                placeholder="generic"
+                emptyBackgroundSrc={!heroImageUrl ? homePlaceholder : undefined}
+                showEmptyUploadButton={!heroImageUrl}
+                alt={cardData.address || "Property"}
+                uploadLabel="Upload photo"
+                removeLabel="Remove photo"
+                fileInputRef={mainPhotoInputRef}
+                menuOpen={mainPhotoMenuOpen}
+                onMenuToggle={setMainPhotoMenuOpen}
+              />
+            )
           }
         />
 
-        {/* HomeOps Team — standalone in invitation view only (tabs are hidden there).
-            Otherwise the team lives inside the Overview tab. */}
+        <SponsorshipOfferModal
+          open={sponsorshipOfferOpen}
+          eligibility={sponsorshipEligibility}
+          onConfirm={handleAcceptSponsorship}
+          onClose={() => setSponsorshipOfferOpen(false)}
+          onDismiss={handleDismissSponsorshipOffer}
+        />
+
+        {/* Overview preview for pending invitations — full overview tab, read-only. */}
         {isInvitationView && (
-          <HomeOpsTeam
-            teamMembers={homeopsTeam}
-            isLoadingTeam={uid !== "new" && !hasResolvedTeamForCta}
-            hideAddButton
-          />
+          <section
+            className="rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900"
+            style={{
+              boxShadow:
+                "0 4px 24px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+            }}
+          >
+            <div className="border-b border-neutral-100 dark:border-neutral-800 px-4 py-3">
+              <h2 className="text-sm font-semibold text-neutral-900 dark:text-white">
+                Overview
+              </h2>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                Preview this property before accepting the invitation.
+              </p>
+            </div>
+            <div className="px-4 md:px-5 pt-4 pb-2">
+              {propertyOverviewDashboard(true)}
+            </div>
+          </section>
         )}
 
         {!isInvitationView && (
@@ -3856,68 +4051,7 @@ function PropertyFormContainer() {
               <div
                 className={`px-4 md:px-5 pt-4 ${state.formDataChanged || state.isNew ? "pb-5" : "pb-2"}`}
               >
-                {state.activeTab === "overview" && (
-                  <PropertyOverviewDashboard
-                    propertyData={mergedFormData}
-                    maintenanceRecords={state.formData.maintenanceRecords ?? []}
-                    maintenanceEvents={maintenanceEvents}
-                    propertyDocuments={overviewDocuments}
-                    photosCount={(state.formData.identity?.photos ?? []).length}
-                    inspectionAnalysis={inspectionAnalysis}
-                    onNavigateTab={(tabId) =>
-                      dispatch({type: "SET_ACTIVE_TAB", payload: tabId})
-                    }
-                    onCompleteOutstandingTasks={handleCompleteOutstandingTasks}
-                    onOpenInspectionAnalysis={
-                      openInspectionAnalysisWithPlanCheck
-                    }
-                    onUploadInspectionReport={() => {
-                      dispatch({type: "SET_ACTIVE_TAB", payload: "documents"});
-                      setDocumentsUploadModalRequested(true);
-                    }}
-                    notes={propertyNotes}
-                    notesLoading={propertyNotesLoading}
-                    notesSaving={propertyNotesSaving}
-                    currentUserId={currentUser?.id}
-                    onAddNote={handleAddPropertyNote}
-                    onUpdateNote={handleUpdatePropertyNote}
-                    onDeleteNote={handleDeletePropertyNote}
-                    scoreCardSlot={
-                      <ScoreCard
-                        variant="overview"
-                        propertyData={mergedFormData}
-                        onCompleteOutstandingTasks={
-                          handleCompleteOutstandingTasks
-                        }
-                        propertyId={
-                          uid !== "new"
-                            ? (state.property?.identity?.id ??
-                              state.property?.id ??
-                              uid)
-                            : null
-                        }
-                        maintenanceRecords={
-                          state.formData.maintenanceRecords ?? []
-                        }
-                      />
-                    }
-                    teamSlot={
-                      <HomeOpsTeam
-                        compact
-                        teamMembers={homeopsTeam}
-                        isLoadingTeam={uid !== "new" && !hasResolvedTeamForCta}
-                        onOpenShareModal={() => {
-                          setShareModalInitialTab("owner");
-                          setShareModalOpen(true);
-                        }}
-                        onMemberClick={(tab) => {
-                          setShareModalInitialTab(tab);
-                          setShareModalOpen(true);
-                        }}
-                      />
-                    }
-                  />
-                )}
+                {state.activeTab === "overview" && propertyOverviewDashboard()}
 
                 {state.activeTab === "identity" && (
                   <IdentityTab

@@ -35,7 +35,7 @@ function formatDate(dateString) {
   });
 }
 
-function AiExtractionBadge({status}) {
+function AiExtractionBadge({status, errorMessage}) {
   if (status === "completed") {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
@@ -54,10 +54,20 @@ function AiExtractionBadge({status}) {
   }
   if (status === "failed") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400">
-        <AlertCircle className="w-3.5 h-3.5" />
-        Failed
-      </span>
+      <div className="max-w-[14rem]">
+        <span
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400"
+          title={errorMessage || "Analysis failed"}
+        >
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          Failed
+        </span>
+        {errorMessage ? (
+          <p className="text-[10px] leading-snug text-red-600/90 dark:text-red-400/90 mt-0.5 line-clamp-2">
+            {errorMessage}
+          </p>
+        ) : null}
+      </div>
     );
   }
   return (
@@ -75,6 +85,7 @@ function DocumentRow({
   documentTypes,
   getFileTypeColor,
   analysisStatus,
+  analysisErrorMessage,
   onSelect,
   onOpenInNewTab,
   onDelete,
@@ -124,7 +135,10 @@ function DocumentRow({
         </span>
       </td>
       <td className="px-4 py-3 hidden md:table-cell">
-        <AiExtractionBadge status={analysisStatus} />
+        <AiExtractionBadge
+          status={analysisStatus}
+          errorMessage={analysisErrorMessage}
+        />
       </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
@@ -171,6 +185,7 @@ function DocumentsTableView({
   documentTypes = [],
   getFileTypeColor,
   getAnalysisStatus,
+  getAnalysisErrorMessage,
   onSelectDocument,
   onOpenInNewTab,
   onDelete,
@@ -284,6 +299,7 @@ function DocumentsTableView({
                   documentTypes={documentTypes}
                   getFileTypeColor={getFileTypeColor}
                   analysisStatus={getAnalysisStatus?.(doc.id)}
+                  analysisErrorMessage={getAnalysisErrorMessage?.(doc.id)}
                   onSelect={onSelectDocument}
                   onOpenInNewTab={onOpenInNewTab}
                   onDelete={onDelete}

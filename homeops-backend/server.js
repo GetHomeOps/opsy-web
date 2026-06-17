@@ -19,6 +19,8 @@ const User = require('./models/user');
 const Account = require('./models/account');
 const SubscriptionProduct = require('./models/subscriptionProduct');
 const { ensureStripePlans } = require('./services/planSeedService');
+const { ensurePropertySponsorshipSchema } = require('./services/propertySponsorshipSchema');
+const { startSponsorshipSweeper } = require('./services/sponsorshipScheduler');
 const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
 const { recoverPendingJobs: recoverAttomLookupJobs } = require('./services/attomLookupQueue');
 const fs = require('fs');
@@ -95,6 +97,12 @@ async function startServer() {
     }
 
     try {
+      await ensurePropertySponsorshipSchema();
+    } catch (sponsorshipErr) {
+      console.warn('[startup] Property sponsorship schema ensure failed:', sponsorshipErr.message);
+    }
+
+    try {
       await ensureProfessionalCategories();
     } catch (catErr) {
       console.warn('[startup] Professional categories seed failed:', catErr.message);
@@ -104,6 +112,12 @@ async function startServer() {
       await recoverAttomLookupJobs();
     } catch (attomErr) {
       console.warn('[startup] ATTOM lookup queue recovery failed:', attomErr.message);
+    }
+
+    try {
+      startSponsorshipSweeper();
+    } catch (sweepErr) {
+      console.warn('[startup] Sponsorship sweeper failed to start:', sweepErr.message);
     }
 
     app.listen(PORT, '0.0.0.0', () => {

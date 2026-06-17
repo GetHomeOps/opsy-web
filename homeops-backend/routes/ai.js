@@ -427,12 +427,12 @@ router.post(
 
       await ensurePropertyAccessForUser(resolvedId, userId, res.locals.user.role);
 
-      const aiAllowed = await checkAiFeaturesAllowed(userId, res.locals.user?.role);
+      const aiAllowed = await checkAiFeaturesAllowed(userId, res.locals.user?.role, { propertyId: resolvedId });
       if (!aiAllowed.allowed) {
         throw new ForbiddenError(aiAllowed.message || "Opsy assistant is not available on your plan.");
       }
 
-      const quotaCheck = await checkAiTokenQuota(userId, res.locals.user?.role);
+      const quotaCheck = await checkAiTokenQuota(userId, res.locals.user?.role, { propertyId: resolvedId });
       if (!quotaCheck.allowed) {
         throw new ForbiddenError(
           `AI token quota exceeded (${quotaCheck.used}/${quotaCheck.quota} this month). Upgrade your plan for more.`

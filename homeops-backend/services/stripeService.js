@@ -390,6 +390,7 @@ async function handleSubscriptionUpdated(subscription) {
       if (status === "canceled") {
         const pendingPlan = subscription.metadata?.pending_downgrade_plan || null;
         await ensureFreePlanFallback(accountRes.rows[0].account_id, pendingPlan);
+        await reconcileSponsorshipsAfterCancellation(accountRes.rows[0].account_id);
       }
     } else if (periodStart && periodEnd) {
       // Never downgrade active/trialing to incomplete from a stale event payload
@@ -408,6 +409,9 @@ async function handleSubscriptionUpdated(subscription) {
          WHERE stripe_subscription_id = $4 ${noDowngrade}`,
         [status, priceId, cancelAtPeriodEnd, subId]
       );
+    }
+    if (status === "active" || status === "trialing") {
+      await reconcileBeneficiaryResubscribed(accountRes.rows[0].account_id);
     }
     return;
   }
@@ -458,11 +462,14 @@ async function handleSubscriptionUpdated(subscription) {
        WHERE account_id = $1 AND stripe_subscription_id IS NULL AND status = 'active'`,
       [accountId]
     );
+    // The beneficiary is paying for themselves again — release any agent coverage/grace.
+    await reconcileBeneficiaryResubscribed(accountId);
   }
 
   if (status === "canceled") {
     const pendingPlan = subscription.metadata?.pending_downgrade_plan || null;
     await ensureFreePlanFallback(accountId, pendingPlan);
+    await reconcileSponsorshipsAfterCancellation(accountId);
   }
 }
 
@@ -855,6 +862,39 @@ async function ensureFreePlanFallback(accountId, pendingPlanCode) {
   );
 
   console.info(`[billing] ensureFreePlanFallback: inserted free plan for account=${accountId}`);
+}
+
+/**
+ * After a subscription is canceled/ended, reconcile property sponsorships for the account:
+ *  - As beneficiary (homeowner whose paid period ended): activate any pending sponsorship,
+ *    so the agent's plan takes over coverage at the period boundary.
+ *  - As sponsor (agent who canceled their plan): end the sponsorships they fund.
+ * Lazy-required to avoid a circular dependency with propertySponsorshipService.
+ */
+async function reconcileSponsorshipsAfterCancellation(accountId) {
+  if (!accountId) return;
+  try {
+    const sponsorship = require("./propertySponsorshipService");
+    await sponsorship.activatePendingForAccount(accountId);
+    await sponsorship.endSponsorshipsForCanceledSponsor(accountId);
+  } catch (err) {
+    console.warn(`[sponsorship] reconcile after cancellation failed for account=${accountId}:`, err.message);
+  }
+}
+
+/**
+ * When an account's paid subscription becomes active, release any agent coverage they
+ * were receiving as a beneficiary (they're paying for themselves again). Lazy-required
+ * to avoid a circular dependency with propertySponsorshipService.
+ */
+async function reconcileBeneficiaryResubscribed(accountId) {
+  if (!accountId) return;
+  try {
+    const sponsorship = require("./propertySponsorshipService");
+    await sponsorship.handleBeneficiaryResubscribed(accountId);
+  } catch (err) {
+    console.warn(`[sponsorship] beneficiary resubscribe reconcile failed for account=${accountId}:`, err.message);
+  }
 }
 
 /**

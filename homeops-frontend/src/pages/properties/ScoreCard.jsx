@@ -287,14 +287,16 @@ function ScoreCard({
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onCompleteOutstandingTasks}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-[#456564] dark:text-[#7fa3a1] hover:underline"
-        >
-          View Completion Details
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        {onCompleteOutstandingTasks && (
+          <button
+            type="button"
+            onClick={onCompleteOutstandingTasks}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#456564] dark:text-[#7fa3a1] hover:underline"
+          >
+            View Completion Details
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     );
   }

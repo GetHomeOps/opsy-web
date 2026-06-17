@@ -24,7 +24,7 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import propertyContext from "../../context/PropertyContext";
 import {useAuth} from "../../context/AuthContext";
-import AppApi from "../../api/api";
+import AppApi, {getApiErrorMessage} from "../../api/api";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import BulkInviteModal from "./partials/BulkInviteModal";
 import homePlaceholder from "../../images/home_placeholder.png";
@@ -380,7 +380,6 @@ function PropertiesList() {
       accountUrl,
       onLimitReached: () => setPropertyLimitUpgradeOpen(true),
     });
-
   /* Surface the upgrade prompt when redirected here because the new-property
    * flow hit the plan limit (otherwise the redirect looks like a silent reload). */
   useEffect(() => {
@@ -924,8 +923,8 @@ function PropertiesList() {
     if (selectedProperties.length === 0) return;
     dispatch({type: "SET_DANGER_MODAL", payload: false});
     dispatch({type: "SET_SUBMITTING", payload: true});
+    const deletedIds = [...selectedProperties];
     try {
-      const deletedIds = [...selectedProperties];
       setSelectedProperties((prev) =>
         prev.filter((id) => !deletedIds.includes(id)),
       );
@@ -949,12 +948,23 @@ function PropertiesList() {
         },
       });
     } catch (error) {
+      setSelectedProperties((prev) => [...new Set([...prev, ...deletedIds])]);
+      const forbiddenMessage = t("propertyDeleteForbiddenMessage", {
+        defaultValue:
+          "Only property owners can delete properties. Agents and other team members do not have permission.",
+      });
+      const genericMessage = t("propertyDeleteErrorMessage", {
+        defaultValue: "Error deleting properties. Please try again.",
+      });
       dispatch({
         type: "SET_BANNER",
         payload: {
           open: true,
           type: "error",
-          message: "Error deleting properties. Please try again.",
+          message:
+            error?.status === 403
+              ? forbiddenMessage
+              : getApiErrorMessage(error, genericMessage),
         },
       });
     } finally {

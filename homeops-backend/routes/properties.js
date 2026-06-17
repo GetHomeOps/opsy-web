@@ -13,6 +13,7 @@ const { canCreateProperty, checkAiTokenQuota, checkAiFeaturesAllowed, getAccount
 const { onPropertyCreated } = require("../services/resourceAutoSend");
 const { syncPropertyMissingAgentAdminNotifications } = require("../services/propertyMissingAgentNotifications");
 const { assertAtMostOneAgentOnProperty } = require("../services/propertyAgentPolicy");
+const propertySponsorshipService = require("../services/propertySponsorshipService");
 const InspectionAnalysisJob = require("../models/inspectionAnalysisJob");
 const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const { enqueue } = require("../services/inspectionAnalysisQueue");
@@ -555,11 +556,11 @@ router.post(
       const { s3Key, fileName, mimeType } = req.body || {};
 
       if (userRole !== "super_admin" && userRole !== "admin") {
-        const aiAllowed = await checkAiFeaturesAllowed(userId, userRole);
+        const aiAllowed = await checkAiFeaturesAllowed(userId, userRole, { propertyId });
         if (!aiAllowed.allowed) {
           throw new ForbiddenError(aiAllowed.message || "AI inspection analysis is not available on your plan.");
         }
-        const quotaCheck = await checkAiTokenQuota(userId, userRole);
+        const quotaCheck = await checkAiTokenQuota(userId, userRole, { propertyId });
         if (!quotaCheck.allowed) {
           throw new ForbiddenError(
             `AI token quota exceeded (${quotaCheck.used}/${quotaCheck.quota} this month). Upgrade your plan for more.`
@@ -1097,6 +1098,12 @@ router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: 
     } catch (missingAgentErr) {
       console.error("[propertyMissingAgent] PATCH team:", missingAgentErr.message);
     }
+    /* If the sponsoring agent was removed from the team, end the sponsorship. */
+    try {
+      await propertySponsorshipService.reconcileForProperty(propertyId);
+    } catch (sponsorshipErr) {
+      console.error("[sponsorship] PATCH team reconcile:", sponsorshipErr.message);
+    }
     return res.status(201).json({ property_users });
   } catch (err) {
     return next(err);
@@ -1104,7 +1111,14 @@ router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: 
 });
 
 /** DELETE /:propertyId - Delete property. Requires property owner role. */
-router.delete("/:propertyId", ensureLoggedIn, ensurePropertyOwner("propertyId"), async function (req, res, next) {
+router.delete(
+  "/:propertyId",
+  ensureLoggedIn,
+  ensurePropertyOwner(
+    "propertyId",
+    "Only property owners can delete properties. Agents and other team members do not have permission.",
+  ),
+  async function (req, res, next) {
   try {
     await Property.remove(req.params.propertyId);
     return res.json({ deleted: true });

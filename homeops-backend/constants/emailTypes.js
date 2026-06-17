@@ -165,6 +165,54 @@ const SWITCHABLE_EMAIL_TYPES = {
       { key: "brandName", description: "Product brand name" },
     ],
   },
+  sponsorship_active: {
+    label: "Agent coverage started",
+    description: "Sent to a homeowner when their agent's plan begins covering their property.",
+    customerIoDefaultEvent: "sponsorship_active",
+    mergeVariables: [
+      { key: "userName", description: "Homeowner name" },
+      { key: "propertyLabel", description: "Property address/label" },
+      { key: "agentName", description: "Sponsoring agent name" },
+      { key: "billingUrl", description: "Link to the billing page" },
+      { key: "brandName", description: "Product brand name" },
+    ],
+  },
+  sponsorship_grace_started: {
+    label: "Agent coverage grace started",
+    description: "Sent when an agent leaves/drops their plan, starting the homeowner's 30-day grace period.",
+    customerIoDefaultEvent: "sponsorship_grace_started",
+    mergeVariables: [
+      { key: "userName", description: "Homeowner name" },
+      { key: "propertyLabel", description: "Property address/label" },
+      { key: "agentName", description: "Former sponsoring agent name" },
+      { key: "graceEndsOn", description: "Date the grace period ends" },
+      { key: "billingUrl", description: "Link to the billing page" },
+      { key: "brandName", description: "Product brand name" },
+    ],
+  },
+  sponsorship_grace_reminder: {
+    label: "Agent coverage grace reminder",
+    description: "Reminder sent during the grace period that coverage ends soon.",
+    customerIoDefaultEvent: "sponsorship_grace_reminder",
+    mergeVariables: [
+      { key: "userName", description: "Homeowner name" },
+      { key: "propertyLabel", description: "Property address/label" },
+      { key: "graceEndsOn", description: "Date the grace period ends" },
+      { key: "billingUrl", description: "Link to the billing page" },
+      { key: "brandName", description: "Product brand name" },
+    ],
+  },
+  sponsorship_ended: {
+    label: "Agent coverage ended",
+    description: "Sent when the grace period expires and the property reverts to the free plan.",
+    customerIoDefaultEvent: "sponsorship_ended",
+    mergeVariables: [
+      { key: "userName", description: "Homeowner name" },
+      { key: "propertyLabel", description: "Property address/label" },
+      { key: "billingUrl", description: "Link to the billing page" },
+      { key: "brandName", description: "Product brand name" },
+    ],
+  },
 };
 
 const EMAIL_TYPE_KEYS = Object.keys(SWITCHABLE_EMAIL_TYPES);

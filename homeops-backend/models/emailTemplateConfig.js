@@ -57,6 +57,12 @@ class EmailTemplateConfig {
     for (const emailType of EMAIL_TYPE_KEYS) {
       const meta = SWITCHABLE_EMAIL_TYPES[emailType];
       const defaults = getDefaultSesTemplate(emailType);
+      if (!defaults) {
+        console.warn(
+          `[EmailTemplateConfig] No SES defaults for "${emailType}"; skipping seed row`
+        );
+        continue;
+      }
       await db.query(
         `INSERT INTO email_template_configs (
            email_type, provider, is_switchable, label, description,

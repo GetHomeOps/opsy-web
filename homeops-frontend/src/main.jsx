@@ -6,7 +6,15 @@ import ThemeProvider from "./utils/ThemeContext";
 import App from "./App";
 import "./i18n";
 
-registerSW({immediate: true});
+// In dev, unregister any stale production/PWA service workers so Safari does not
+// intercept localhost requests or enter an auto-update reload loop.
+if (import.meta.env.DEV && "serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    registrations.forEach((registration) => registration.unregister());
+  });
+} else if (import.meta.env.PROD) {
+  registerSW({immediate: true});
+}
 
 class ErrorBoundary extends React.Component {
   constructor(props) {

@@ -8,6 +8,7 @@ import {PROPERTY_SYSTEMS} from "../properties/constants/propertySystems";
 import {getSystemLabelFromAiType} from "../properties/helpers/aiSystemNormalization";
 import {groupUnifiedChecklistItems} from "./inspectionFindingsGrouping";
 import {parseReviewNotes, hasReviewFeedback} from "./reviewFeedbackUtils";
+import {ReviewStatusBadge} from "./reviewStatusStyles";
 import {
   Loader2,
   ArrowLeft,
@@ -536,13 +537,12 @@ function InspectionReviewDetail() {
                       {review?.propertyAddress || "Inspection review"}
                     </span>
                   </h1>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Inspection analysis #{review?.id || reviewId} ·{" "}
-                    {review?.reviewStatus === "approved"
-                      ? "Approved"
-                      : review?.reviewStatus === "revision_requested"
-                        ? "Further review"
-                        : "New"}
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+                    <span>Inspection analysis #{review?.id || reviewId}</span>
+                    <ReviewStatusBadge
+                      status={review?.reviewStatus}
+                      size="md"
+                    />
                   </p>
                 </div>
               </div>

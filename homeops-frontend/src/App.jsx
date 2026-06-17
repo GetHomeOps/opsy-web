@@ -7,6 +7,7 @@ import {UserProvider} from "./context/UserContext";
 import {PropertyProvider} from "./context/PropertyContext";
 import {AgencyProvider} from "./context/AgencyContext";
 import TierLimitBanner from "./components/TierLimitBanner";
+import SponsorshipOfferWatcher from "./components/SponsorshipOfferWatcher";
 import PageViewTracker from "./components/PageViewTracker";
 import GoogleAnalyticsTracker from "./components/GoogleAnalyticsTracker";
 
@@ -28,6 +29,7 @@ function App() {
           <PropertyProvider>
             <AgencyProvider>
               <TierLimitBanner />
+              <SponsorshipOfferWatcher />
               <GoogleAnalyticsTracker />
               <PageViewTracker />
               <RoutesList />

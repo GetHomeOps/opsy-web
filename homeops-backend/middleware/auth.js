@@ -272,8 +272,8 @@ function ensurePropertyAccess(options = {}) {
   };
 }
 
-/** Require owner role on property. */
-function ensurePropertyOwner(paramName = "propertyId") {
+/** Require owner role on property. Optional forbiddenMessage overrides the default 403 copy. */
+function ensurePropertyOwner(paramName = "propertyId", forbiddenMessage) {
   return async function _ensurePropertyOwner(req, res, next) {
     try {
       const user = res.locals.user;
@@ -302,7 +302,9 @@ function ensurePropertyOwner(paramName = "propertyId") {
         [propertyId, user.id]
       );
       if (result.rows.length > 0) return next();
-      throw new ForbiddenError("Only the property owner can perform this action.");
+      throw new ForbiddenError(
+        forbiddenMessage || "Only the property owner can perform this action.",
+      );
     } catch (err) {
       return next(err);
     }

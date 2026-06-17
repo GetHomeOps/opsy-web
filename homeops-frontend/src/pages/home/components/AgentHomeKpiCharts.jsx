@@ -16,6 +16,14 @@ import {
 } from "lucide-react";
 import "./chartConfig";
 
+function formatEngagementEventType(t, eventType) {
+  if (!eventType || eventType === "—") return "—";
+  const key = `agentHome.engagementEvents.${eventType}`;
+  const translated = t(key);
+  if (translated !== key) return translated;
+  return String(eventType).replace(/_/g, " ");
+}
+
 function AgentHomeKpiCharts({
   t,
   totalProperties,
@@ -296,7 +304,7 @@ function AgentHomeKpiCharts({
                     ),
                     datasets: [
                       {
-                        label: "Events",
+                        label: t("agentHome.eventsChartLabel") || "Events",
                         data: engagementTrend.map((d) => d.count ?? 0),
                         borderColor: "#456564",
                         backgroundColor: "rgba(69, 101, 100, 0.15)",
@@ -367,8 +375,11 @@ function AgentHomeKpiCharts({
                 <div className="h-48 flex items-center justify-center">
                   <Doughnut
                     data={{
-                      labels: engagementCounts.map(
-                        (c) => c.eventType ?? c.event_type ?? "—",
+                      labels: engagementCounts.map((c) =>
+                        formatEngagementEventType(
+                          t,
+                          c.eventType ?? c.event_type,
+                        ),
                       ),
                       datasets: [
                         {
@@ -406,7 +417,10 @@ function AgentHomeKpiCharts({
                       className="flex items-center justify-between text-sm"
                     >
                       <span className="text-gray-600 dark:text-gray-400 truncate">
-                        {c.eventType ?? c.event_type}
+                        {formatEngagementEventType(
+                          t,
+                          c.eventType ?? c.event_type,
+                        )}
                       </span>
                       <span className="font-semibold text-gray-900 dark:text-white">
                         {c.count ?? 0}

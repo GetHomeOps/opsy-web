@@ -18,6 +18,7 @@ const planModel = require("../models/plan");
 const Coupon = require("../models/coupon");
 const { BILLING_MOCK_MODE } = require("../config");
 const { countPropertiesForLimit } = require("../services/tierService");
+const propertySponsorshipService = require("../services/propertySponsorshipService");
 const { wrapStripeErrors } = require("../utils/stripeErrors");
 
 const router = express.Router();
@@ -394,6 +395,25 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
       console.warn("[billing/status] token usage query failed:", tokensUsage.reason?.message);
     }
 
+    // Agent-subsidized billing: offer eligibility + current sponsorship state.
+    // Resilient: a failure here degrades to null rather than failing billing/status.
+    let sponsorship = null;
+    const [eligibilityRes, stateRes] = await Promise.allSettled([
+      propertySponsorshipService.getEligibility({ userId, accountId, userRole }),
+      propertySponsorshipService.getSponsorshipState(accountId),
+    ]);
+    sponsorship = {
+      eligibility:
+        eligibilityRes.status === "fulfilled" ? eligibilityRes.value : { eligible: false },
+      asBeneficiary: stateRes.status === "fulfilled" ? stateRes.value.asBeneficiary : null,
+    };
+    if (eligibilityRes.status === "rejected") {
+      console.warn("[billing/status] sponsorship eligibility failed:", eligibilityRes.reason?.message);
+    }
+    if (stateRes.status === "rejected") {
+      console.warn("[billing/status] sponsorship state failed:", stateRes.reason?.message);
+    }
+
     return res.json({
       subscription: subscription ? {
         status: subscription.status,
@@ -405,9 +425,111 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
       plan,
       limits,
       usage,
+      sponsorship,
       hasStripeBilling,
       mockMode: false,
     });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** Resolve the caller's account id (defaults to their primary account) and assert access. */
+async function resolveAccessibleAccountId(req, res) {
+  const userId = res.locals.user?.id;
+  if (!userId) throw new ForbiddenError("Authentication required");
+  let accountId = req.body?.accountId || req.query?.accountId || null;
+  if (accountId) accountId = parseInt(accountId, 10);
+  if (!accountId) {
+    const acc = await db.query(
+      `SELECT account_id FROM account_users WHERE user_id = $1 ORDER BY (account_id IN (SELECT id FROM accounts WHERE owner_user_id = $1)) DESC LIMIT 1`,
+      [userId]
+    );
+    if (!acc.rows[0]) throw new BadRequestError("No account found.");
+    accountId = acc.rows[0].account_id;
+  }
+  const isAdminOrSuper = ["super_admin", "admin"].includes(res.locals.user?.role);
+  if (!isAdminOrSuper) {
+    const hasAccess = await db.query(
+      `SELECT 1 FROM account_users WHERE account_id = $1 AND user_id = $2`,
+      [accountId, userId]
+    );
+    if (!hasAccess.rows[0]) throw new ForbiddenError("Access denied to this account");
+  }
+  return { userId, accountId };
+}
+
+/** POST /billing/sponsorship/accept — homeowner transfers billing to their agent's plan. */
+router.post("/sponsorship/accept", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
+  try {
+    const { userId, accountId } = await resolveAccessibleAccountId(req, res);
+    const userRole = (res.locals.user?.role || "homeowner").toLowerCase();
+    const result = await propertySponsorshipService.acceptOffer({ userId, accountId, userRole });
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+}));
+
+/** POST /billing/sponsorship/cancel — homeowner cancels a pending offer (keep paying). */
+router.post("/sponsorship/cancel", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
+  try {
+    const { userId, accountId } = await resolveAccessibleAccountId(req, res);
+    const result = await propertySponsorshipService.cancelPendingOffer({ userId, accountId });
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+}));
+
+/** POST /billing/sponsorship/:id/end — agent or homeowner ends an active sponsorship. */
+router.post("/sponsorship/:id/end", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
+  try {
+    const { userId, accountId } = await resolveAccessibleAccountId(req, res);
+    const result = await propertySponsorshipService.endSponsorshipByParticipant({
+      sponsorshipId: req.params.id,
+      actorUserId: userId,
+      actorAccountId: accountId,
+    });
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+}));
+
+/** GET /billing/sponsorship/sponsored — properties this account currently sponsors (agent view). */
+router.get("/sponsorship/sponsored", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const { accountId } = await resolveAccessibleAccountId(req, res);
+    const properties = await propertySponsorshipService.listSponsoredProperties(accountId);
+    return res.json({ properties });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /billing/sponsorship/eligibility — lightweight offer eligibility + current state.
+ *  Used by the global offer prompt so it can re-check right after a team change without
+ *  pulling the full billing/status payload. */
+router.get("/sponsorship/eligibility", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const { userId, accountId } = await resolveAccessibleAccountId(req, res);
+    const userRole = (res.locals.user?.role || "homeowner").toLowerCase();
+    const [eligibility, state] = await Promise.all([
+      propertySponsorshipService.getEligibility({ userId, accountId, userRole }),
+      propertySponsorshipService.getSponsorshipState(accountId),
+    ]);
+    return res.json({ eligibility, asBeneficiary: state.asBeneficiary });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST /billing/admin/run-grace-sweep — manually run the sponsorship grace/pending sweep (Super Admin). */
+router.post("/admin/run-grace-sweep", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
+  try {
+    const result = await propertySponsorshipService.runSponsorshipSweep();
+    return res.json({ message: "Sponsorship sweep complete", ...result });
   } catch (err) {
     return next(err);
   }

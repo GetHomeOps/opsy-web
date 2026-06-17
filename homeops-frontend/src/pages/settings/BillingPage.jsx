@@ -6,6 +6,8 @@ import {
   Loader2,
   FileText,
   ExternalLink,
+  ShieldCheck,
+  Home,
 } from "lucide-react";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
@@ -13,6 +15,11 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import {PAGE_LAYOUT} from "../../constants/layout";
+import SponsorshipOfferModal from "./partials/SponsorshipOfferModal";
+import {
+  isSponsorshipOfferSnoozed,
+  snoozeSponsorshipOffer,
+} from "../../components/SponsorshipOfferWatcher";
 
 /**
  * Billing page — current plan, usage vs limits, Stripe Customer Portal.
@@ -36,6 +43,11 @@ function BillingPage() {
   const [error, setError] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [reactivateLoading, setReactivateLoading] = useState(false);
+  const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [sponsorshipLoading, setSponsorshipLoading] = useState(false);
+  const [sponsoredProperties, setSponsoredProperties] = useState([]);
+  const [offerDismissed, setOfferDismissed] = useState(false);
+  const [stopCoverageConfirm, setStopCoverageConfirm] = useState(false);
 
   const accountId = currentAccount?.id;
   const userRole = (currentUser?.role || "homeowner").toLowerCase();
@@ -61,6 +73,14 @@ function BillingPage() {
       setBilling(statusRes);
       setPlans(plansRes);
       setInvoices(invoicesRes);
+      if (targetRole === "agent") {
+        const sponsored = await AppApi.getSponsoredProperties(accountId)
+          .then((r) => r?.properties || [])
+          .catch(() => []);
+        setSponsoredProperties(sponsored);
+      } else {
+        setSponsoredProperties([]);
+      }
     } catch (err) {
       setError(err?.message || "Failed to load billing data");
     } finally {
@@ -73,6 +93,22 @@ function BillingPage() {
       window.history.replaceState({}, "");
     }
   }, [location.state?.planChanged]);
+
+  useEffect(() => {
+    setOfferDismissed(isSponsorshipOfferSnoozed(accountId));
+  }, [accountId]);
+
+  useEffect(() => {
+    const onSnoozed = (event) => {
+      if (event.detail?.accountId === accountId) {
+        setOfferDismissed(true);
+        setOfferModalOpen(false);
+      }
+    };
+    window.addEventListener("opsy:sponsorship-offer-snoozed", onSnoozed);
+    return () =>
+      window.removeEventListener("opsy:sponsorship-offer-snoozed", onSnoozed);
+  }, [accountId]);
 
   useEffect(() => {
     if (!accountId) {
@@ -102,6 +138,40 @@ function BillingPage() {
       setError(err?.message || "Failed to reactivate subscription.");
     } finally {
       setReactivateLoading(false);
+    }
+  }
+
+  async function handleAcceptSponsorship() {
+    await AppApi.acceptSponsorship({accountId});
+    setOfferModalOpen(false);
+    await fetchBilling();
+  }
+
+  async function handleCancelSponsorship() {
+    if (!accountId) return;
+    setSponsorshipLoading(true);
+    setError(null);
+    try {
+      await AppApi.cancelSponsorship({accountId});
+      await fetchBilling();
+    } catch (err) {
+      setError(err?.message || "Could not cancel the agent-coverage offer.");
+    } finally {
+      setSponsorshipLoading(false);
+    }
+  }
+
+  async function handleEndSponsorship(sponsorshipId) {
+    if (!accountId || !sponsorshipId) return;
+    setSponsorshipLoading(true);
+    setError(null);
+    try {
+      await AppApi.endSponsorship({sponsorshipId, accountId});
+      await fetchBilling();
+    } catch (err) {
+      setError(err?.message || "Could not end coverage.");
+    } finally {
+      setSponsorshipLoading(false);
     }
   }
 
@@ -137,6 +207,13 @@ function BillingPage() {
   const limits = billing?.limits;
   const usage = billing?.usage || {};
   const hasStripeBilling = Boolean(billing?.hasStripeBilling || billing?.mockMode);
+
+  const sponsorship = billing?.sponsorship || {};
+  const sponsorshipEligible = Boolean(sponsorship.eligibility?.eligible);
+  const sponsorBeneficiary = sponsorship.asBeneficiary || null;
+  const sponsorPending = sponsorBeneficiary?.status === "pending";
+  const sponsorActive = sponsorBeneficiary?.status === "active";
+  const sponsorGrace = sponsorBeneficiary?.status === "grace";
 
   if (!accountId) {
     return (
@@ -184,6 +261,160 @@ function BillingPage() {
               </div>
             )}
 
+            {!loading && sponsorshipEligible && !sponsorBeneficiary && !offerDismissed && (
+              <div className="mb-6 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/20 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                <ShieldCheck className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                    Your agent can cover this property
+                  </p>
+                  <p className="mt-0.5 text-sm text-emerald-800/90 dark:text-emerald-300/90">
+                    {sponsorship.eligibility?.agent?.name || "Your agent"} is your
+                    agent for{" "}
+                    {sponsorship.eligibility?.property?.label || "this property"} and
+                    can include it in their plan — so you stop paying while keeping
+                    full access.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOfferModalOpen(true)}
+                  className="shrink-0 btn bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
+                >
+                  Learn more
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    snoozeSponsorshipOffer(accountId);
+                    setOfferDismissed(true);
+                  }}
+                  className="shrink-0 text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300"
+                  aria-label="Dismiss"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+
+            {!loading && sponsorPending && (
+              <div className="mb-6 rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                <ShieldCheck className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    Agent coverage scheduled
+                  </p>
+                  <p className="mt-0.5 text-sm text-amber-800/90 dark:text-amber-300/90">
+                    {sponsorBeneficiary.sponsorName}'s plan will cover{" "}
+                    {sponsorBeneficiary.propertyLabel}
+                    {sponsorBeneficiary.effectiveAt
+                      ? ` on ${formatDate(sponsorBeneficiary.effectiveAt)}`
+                      : " at the end of your billing period"}
+                    . You keep full access until then.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelSponsorship}
+                  disabled={sponsorshipLoading}
+                  className="shrink-0 btn border border-amber-500 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-sm font-semibold disabled:opacity-50"
+                >
+                  {sponsorshipLoading ? "Working…" : "Keep paying instead"}
+                </button>
+              </div>
+            )}
+
+            {!loading && sponsorActive && (
+              <div className="mb-6 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/20 px-5 py-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <ShieldCheck className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                      Covered by {sponsorBeneficiary.sponsorName}
+                    </p>
+                    <p className="mt-0.5 text-sm text-emerald-800/90 dark:text-emerald-300/90">
+                      {sponsorBeneficiary.propertyLabel} is included in your
+                      agent's plan — there's no charge to you. Subscribe anytime to
+                      take back control.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/${accountUrl}/settings/upgrade`)}
+                      className="btn bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold"
+                    >
+                      Subscribe
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStopCoverageConfirm(true)}
+                      className="btn border border-emerald-600 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-sm font-semibold"
+                    >
+                      Stop coverage
+                    </button>
+                  </div>
+                </div>
+                {stopCoverageConfirm && (
+                  <div className="mt-4 rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+                    <p className="text-sm text-amber-800 dark:text-amber-300">
+                      Stop agent coverage now? This property will drop to the free
+                      plan (reduced limits and AI turned off) unless you subscribe.
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setStopCoverageConfirm(false);
+                          await handleEndSponsorship(sponsorBeneficiary.id);
+                        }}
+                        disabled={sponsorshipLoading}
+                        className="btn-sm bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold disabled:opacity-50"
+                      >
+                        {sponsorshipLoading ? "Working…" : "Yes, stop coverage"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStopCoverageConfirm(false)}
+                        disabled={sponsorshipLoading}
+                        className="btn-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-sm disabled:opacity-50"
+                      >
+                        Keep coverage
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!loading && sponsorGrace && (
+              <div className="mb-6 rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                <ShieldCheck className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    Agent coverage is ending
+                  </p>
+                  <p className="mt-0.5 text-sm text-amber-800/90 dark:text-amber-300/90">
+                    {sponsorBeneficiary.sponsorName} is no longer covering{" "}
+                    {sponsorBeneficiary.propertyLabel}. You have until{" "}
+                    <strong>
+                      {sponsorBeneficiary.graceUntil
+                        ? formatDate(sponsorBeneficiary.graceUntil)
+                        : "the end of your grace period"}
+                    </strong>{" "}
+                    to subscribe before this property moves to the free plan.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/${accountUrl}/settings/upgrade`)}
+                  className="shrink-0 btn bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold"
+                >
+                  Resume my plan
+                </button>
+              </div>
+            )}
+
             {error && (
               <div className="mb-6 rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
                 {error}
@@ -202,6 +433,16 @@ function BillingPage() {
                       {t("settings.currentPlan") || "Current Plan"}
                     </h2>
                     <div className="flex items-center gap-3">
+                      {sponsorshipEligible && !sponsorBeneficiary && (
+                        <button
+                          type="button"
+                          onClick={() => setOfferModalOpen(true)}
+                          className="btn bg-emerald-600 text-white hover:bg-emerald-700 inline-flex items-center gap-2"
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                          Let my agent cover it
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() =>
@@ -415,6 +656,70 @@ function BillingPage() {
                   </section>
                 )}
 
+                {targetRole === "agent" && sponsoredProperties.length > 0 && (
+                  <section className="rounded-xl bg-white dark:bg-gray-800 shadow-xs overflow-hidden">
+                    <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700/60">
+                      <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                        Properties you cover
+                      </h2>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        These clients' properties are billed under your plan at no
+                        extra charge.
+                        {limits?.maxProperties != null && (
+                          <>
+                            {" "}
+                            You're using{" "}
+                            <strong>
+                              {usage.propertiesCount ?? 0}/{limits.maxProperties}
+                            </strong>{" "}
+                            of your plan's property capacity.
+                          </>
+                        )}
+                      </p>
+                      {limits?.maxProperties != null &&
+                        (usage.propertiesCount ?? 0) >= limits.maxProperties && (
+                          <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                            You've reached your plan's property limit. Upgrade to
+                            cover more client properties.
+                          </p>
+                        )}
+                    </div>
+                    <div className="p-6 space-y-3">
+                      {sponsoredProperties.map((sp) => (
+                        <div
+                          key={sp.id}
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-[#456564]/15 flex items-center justify-center shrink-0">
+                              <Home className="w-4 h-4 text-[#456564]" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                {sp.propertyLabel}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {sp.beneficiaryName}
+                                {sp.status === "pending"
+                                  ? ` • starts ${formatDate(sp.effectiveAt)}`
+                                  : " • active"}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleEndSponsorship(sp.id)}
+                            disabled={sponsorshipLoading}
+                            className="shrink-0 btn-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-sm disabled:opacity-50"
+                          >
+                            End coverage
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
                 {plans.length > 0 && (
                   <section className="rounded-xl bg-white dark:bg-gray-800 shadow-xs overflow-hidden">
                     <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700/60">
@@ -480,6 +785,13 @@ function BillingPage() {
           </div>
         </main>
       </div>
+
+      <SponsorshipOfferModal
+        open={offerModalOpen}
+        eligibility={sponsorship.eligibility}
+        onConfirm={handleAcceptSponsorship}
+        onClose={() => setOfferModalOpen(false)}
+      />
     </div>
   );
 }

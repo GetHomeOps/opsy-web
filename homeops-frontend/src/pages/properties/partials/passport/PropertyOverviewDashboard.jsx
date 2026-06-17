@@ -271,6 +271,7 @@ function PropertyOverviewDashboard({
   notesLoading = false,
   notesSaving = false,
   currentUserId = null,
+  readOnly = false,
   onNavigateTab,
   onCompleteOutstandingTasks,
   onOpenInspectionAnalysis,
@@ -480,13 +481,15 @@ function PropertyOverviewDashboard({
                         Review and confirm to keep your passport accurate.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onOpenInspectionAnalysis?.()}
-                      className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
-                    >
-                      Review Extracted Data
-                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenInspectionAnalysis?.()}
+                        className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
+                      >
+                        Review Extracted Data
+                      </button>
+                    )}
                   </>
                 ) : hasUploadedInspectionReport ? (
                   <>
@@ -498,13 +501,15 @@ function PropertyOverviewDashboard({
                       system findings, and maintenance recommendations from
                       your report.
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => onOpenInspectionAnalysis?.()}
-                      className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
-                    >
-                      Run Passport Opsymization
-                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenInspectionAnalysis?.()}
+                        className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
+                      >
+                        Run Passport Opsymization
+                      </button>
+                    )}
                   </>
                 ) : (
                   <>
@@ -512,19 +517,22 @@ function PropertyOverviewDashboard({
                       No inspection report yet
                     </p>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      Upload an inspection report to run Passport Opsymization and
-                      extract property details automatically.
+                      {readOnly
+                        ? "No inspection report has been uploaded yet."
+                        : "Upload an inspection report to run Passport Opsymization and extract property details automatically."}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onUploadInspectionReport?.() ??
-                        onNavigateTab?.("documents")
-                      }
-                      className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
-                    >
-                      Upload Inspection Report
-                    </button>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onUploadInspectionReport?.() ??
+                          onNavigateTab?.("documents")
+                        }
+                        className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-[#456564] dark:text-[#7fa3a1] hover:border-[#456564]/50 hover:bg-[#456564]/5 transition-colors"
+                      >
+                        Upload Inspection Report
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -544,13 +552,15 @@ function PropertyOverviewDashboard({
             title="Upcoming Maintenance"
             icon={Calendar}
             action={
-              <button
-                type="button"
-                onClick={() => onNavigateTab?.("maintenance")}
-                className="text-xs font-semibold text-[#456564] dark:text-[#7fa3a1] hover:underline"
-              >
-                View Calendar
-              </button>
+              readOnly ? null : (
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab?.("maintenance")}
+                  className="text-xs font-semibold text-[#456564] dark:text-[#7fa3a1] hover:underline"
+                >
+                  View Calendar
+                </button>
+              )
             }
           >
             {upcomingItems.length > 0 ? (
@@ -559,6 +569,61 @@ function PropertyOverviewDashboard({
                   {upcomingItems.map((item, index) => {
                     const {month, day} = formatMonthDay(item.date);
                     const days = daysUntil(item.date);
+                    const rowClassName = `w-full flex items-center gap-3.5 text-left ${
+                      index === 0 ? "pt-0 pb-2" : "py-2"
+                    }`;
+                    const rowContent = (
+                      <>
+                        <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-white dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 shadow-sm shrink-0">
+                          <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase leading-none tracking-wide">
+                            {month}
+                          </span>
+                          <span className="text-lg font-bold text-neutral-900 dark:text-white leading-none mt-1">
+                            {day}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">
+                            {item.label}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {item.frequency && (
+                              <span className="inline-flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
+                                <Clock
+                                  className="w-3.5 h-3.5 shrink-0"
+                                  aria-hidden
+                                />
+                                {item.frequency}
+                              </span>
+                            )}
+                            <StatusBadge
+                              tone={item.badgeTone}
+                              className="!rounded uppercase tracking-wide !text-[10px] font-bold !px-2 !py-0.5"
+                            >
+                              {item.badge}
+                            </StatusBadge>
+                          </div>
+                        </div>
+                        {days != null && (
+                          <span
+                            className={`shrink-0 inline-flex items-center gap-0.5 text-xs font-semibold ${
+                              readOnly ? "" : "group-hover:underline"
+                            } ${
+                              days <= 7
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-[#456564] dark:text-[#7fa3a1]"
+                            }`}
+                          >
+                            {days === 0
+                              ? "Today"
+                              : `In ${days} day${days === 1 ? "" : "s"}`}
+                            {!readOnly && (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                          </span>
+                        )}
+                      </>
+                    );
                     return (
                       <li
                         key={item.key}
@@ -568,78 +633,39 @@ function PropertyOverviewDashboard({
                             : undefined
                         }
                       >
-                        <button
-                          type="button"
-                          onClick={() => onNavigateTab?.("maintenance")}
-                          className={`w-full flex items-center gap-3.5 text-left group ${
-                            index === 0 ? "pt-0 pb-2" : "py-2"
-                          }`}
-                        >
-                          <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-white dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700/60 shadow-sm shrink-0">
-                            <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 uppercase leading-none tracking-wide">
-                              {month}
-                            </span>
-                            <span className="text-lg font-bold text-neutral-900 dark:text-white leading-none mt-1">
-                              {day}
-                            </span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">
-                              {item.label}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              {item.frequency && (
-                                <span className="inline-flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
-                                  <Clock
-                                    className="w-3.5 h-3.5 shrink-0"
-                                    aria-hidden
-                                  />
-                                  {item.frequency}
-                                </span>
-                              )}
-                              <StatusBadge
-                                tone={item.badgeTone}
-                                className="!rounded uppercase tracking-wide !text-[10px] font-bold !px-2 !py-0.5"
-                              >
-                                {item.badge}
-                              </StatusBadge>
-                            </div>
-                          </div>
-                          {days != null && (
-                            <span
-                              className={`shrink-0 inline-flex items-center gap-0.5 text-xs font-semibold group-hover:underline ${
-                                days <= 7
-                                  ? "text-amber-600 dark:text-amber-400"
-                                  : "text-[#456564] dark:text-[#7fa3a1]"
-                              }`}
-                            >
-                              {days === 0
-                                ? "Today"
-                                : `In ${days} day${days === 1 ? "" : "s"}`}
-                              <ChevronRight className="w-4 h-4" />
-                            </span>
-                          )}
-                        </button>
+                        {readOnly ? (
+                          <div className={rowClassName}>{rowContent}</div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => onNavigateTab?.("maintenance")}
+                            className={`${rowClassName} group`}
+                          >
+                            {rowContent}
+                          </button>
+                        )}
                       </li>
                     );
                   })}
                 </ul>
-                <button
-                  type="button"
-                  onClick={() => onNavigateTab?.("maintenance")}
-                  className="mt-4 w-full inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg text-sm font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors"
-                >
-                  View All Maintenance
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab?.("maintenance")}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-1 px-3 py-2.5 rounded-lg text-sm font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors"
+                  >
+                    View All Maintenance
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </>
             ) : (
               <EmptyStateCard
                 icon={Calendar}
                 title="No upcoming maintenance"
                 description="Schedule services or add next-service dates to maintenance records to see them here."
-                actionLabel="Open Maintenance"
-                onAction={() => onNavigateTab?.("maintenance")}
+                actionLabel={readOnly ? undefined : "Open Maintenance"}
+                onAction={readOnly ? undefined : () => onNavigateTab?.("maintenance")}
               />
             )}
           </SectionCard>
@@ -662,13 +688,15 @@ function PropertyOverviewDashboard({
             title="Recent Documents"
             icon={FileText}
             action={
-              <button
-                type="button"
-                onClick={() => onNavigateTab?.("documents")}
-                className="text-xs font-semibold text-[#456564] dark:text-[#7fa3a1] hover:underline"
-              >
-                View All
-              </button>
+              readOnly ? null : (
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab?.("documents")}
+                  className="text-xs font-semibold text-[#456564] dark:text-[#7fa3a1] hover:underline"
+                >
+                  View All
+                </button>
+              )
             }
           >
             {recentDocuments.length > 0 ? (
@@ -676,6 +704,27 @@ function PropertyOverviewDashboard({
                 <ul>
                   {recentDocuments.map((doc, index) => {
                     const uploadedLabel = formatUploadedLabel(doc);
+                    const rowClassName = `w-full flex items-center gap-3 text-left ${
+                      index === 0 ? "pt-0 pb-2" : "py-2"
+                    }`;
+                    const rowContent = (
+                      <>
+                        <DocumentTypeIcon doc={doc} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                            {doc.document_name ?? doc.name}
+                          </p>
+                          {uploadedLabel && (
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                              {uploadedLabel}
+                            </p>
+                          )}
+                        </div>
+                        {!readOnly && (
+                          <ChevronRight className="w-4 h-4 text-neutral-300 dark:text-neutral-600 group-hover:text-[#456564] dark:group-hover:text-[#7fa3a1] shrink-0 transition-colors" />
+                        )}
+                      </>
+                    );
                     return (
                       <li
                         key={doc.id}
@@ -685,46 +734,39 @@ function PropertyOverviewDashboard({
                             : undefined
                         }
                       >
-                        <button
-                          type="button"
-                          onClick={() => onNavigateTab?.("documents")}
-                          className={`w-full flex items-center gap-3 text-left group ${
-                            index === 0 ? "pt-0 pb-2" : "py-2"
-                          }`}
-                        >
-                          <DocumentTypeIcon doc={doc} />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
-                              {doc.document_name ?? doc.name}
-                            </p>
-                            {uploadedLabel && (
-                              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                {uploadedLabel}
-                              </p>
-                            )}
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-neutral-300 dark:text-neutral-600 group-hover:text-[#456564] dark:group-hover:text-[#7fa3a1] shrink-0 transition-colors" />
-                        </button>
+                        {readOnly ? (
+                          <div className={rowClassName}>{rowContent}</div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => onNavigateTab?.("documents")}
+                            className={`${rowClassName} group`}
+                          >
+                            {rowContent}
+                          </button>
+                        )}
                       </li>
                     );
                   })}
                 </ul>
-                <button
-                  type="button"
-                  onClick={() => onNavigateTab?.("documents")}
-                  className="mt-3 w-full inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  Open Documents
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab?.("documents")}
+                    className="mt-3 w-full inline-flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    Open Documents
+                  </button>
+                )}
               </>
             ) : (
               <EmptyStateCard
                 icon={FileText}
                 title="Browse your documents"
                 description="Uploads, inbox items, and filed documents live in the Documents tab."
-                actionLabel="Open Documents"
-                onAction={() => onNavigateTab?.("documents")}
+                actionLabel={readOnly ? undefined : "Open Documents"}
+                onAction={readOnly ? undefined : () => onNavigateTab?.("documents")}
               />
             )}
           </SectionCard>
@@ -733,20 +775,23 @@ function PropertyOverviewDashboard({
         <div className="space-y-4 min-w-0">
           {teamSlot}
 
-          <PropertyNotesCard
-            notes={notes}
-            loading={notesLoading}
-            saving={notesSaving}
-            currentUserId={currentUserId}
-            onAddNote={onAddNote}
-            onUpdateNote={onUpdateNote}
-            onDeleteNote={onDeleteNote}
-          />
+          {!readOnly && (
+            <PropertyNotesCard
+              notes={notes}
+              loading={notesLoading}
+              saving={notesSaving}
+              currentUserId={currentUserId}
+              onAddNote={onAddNote}
+              onUpdateNote={onUpdateNote}
+              onDeleteNote={onDeleteNote}
+            />
+          )}
         </div>
       </div>
 
       <OverviewFinancialsPreview />
 
+      {!readOnly && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <SectionCard
           flat
@@ -820,6 +865,7 @@ function PropertyOverviewDashboard({
           </ul>
         </SectionCard>
       </div>
+      )}
     </div>
   );
 }

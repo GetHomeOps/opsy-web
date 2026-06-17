@@ -1,4 +1,4 @@
-import React, {useState} from "react";
+import React, {useMemo, useState} from "react";
 import {Link} from "react-router-dom";
 import {
   X,
@@ -16,6 +16,8 @@ import {
   Wrench,
   ArrowLeft,
 } from "lucide-react";
+import {getMaintenanceRecordDetailPath} from "../../helpers/maintenanceRecordNavigation";
+import {getDocumentAnalysisFailureMessage} from "../../helpers/documentAnalysisFlow";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -46,6 +48,7 @@ function DocumentsPreviewPanel({
   onOpenAIReport,
   onAnalyzeDocument,
   documentAnalysisState,
+  documentAnalysisItem = null,
   getDocumentIcon,
   getFileTypeColor,
   systemCategories = [],
@@ -55,6 +58,26 @@ function DocumentsPreviewPanel({
 }) {
   // Details column is on the left; keep it collapsed by default so preview gets full width.
   const [metadataOpen, setMetadataOpen] = useState(false);
+
+  const analysisFailureMessage = useMemo(
+    () => getDocumentAnalysisFailureMessage(documentAnalysisItem),
+    [documentAnalysisItem],
+  );
+
+  const maintenanceRecordPath = useMemo(() => {
+    if (
+      !selectedDocument?.maintenance_record_id ||
+      !accountUrl ||
+      !propertyUid
+    ) {
+      return null;
+    }
+    return getMaintenanceRecordDetailPath({
+      accountUrl,
+      propertyId: propertyUid,
+      record: {id: selectedDocument.maintenance_record_id},
+    });
+  }, [accountUrl, propertyUid, selectedDocument?.maintenance_record_id]);
 
   if (!selectedDocument) {
     return (
@@ -196,17 +219,13 @@ function DocumentsPreviewPanel({
                   </p>
                 </div>
 
-                {selectedDocument.maintenance_record_id &&
-                  accountUrl &&
-                  propertyUid && (
+                {maintenanceRecordPath && (
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1 block">
                       Linked to
                     </label>
                     <Link
-                      to={`/${accountUrl}/properties/${propertyUid}/maintenance/${encodeURIComponent(
-                        selectedDocument.system || "roof",
-                      )}/${selectedDocument.maintenance_record_id}`}
+                      to={maintenanceRecordPath}
                       className="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
                     >
                       <Wrench className="w-4 h-4" />
@@ -287,11 +306,9 @@ function DocumentsPreviewPanel({
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate min-w-0 flex-1">
                 {selectedDocument.name}
               </span>
-              {selectedDocument.maintenance_record_id && accountUrl && propertyUid && (
+              {maintenanceRecordPath && (
                 <Link
-                  to={`/${accountUrl}/properties/${propertyUid}/maintenance/${encodeURIComponent(
-                    selectedDocument.system || "roof",
-                  )}/${selectedDocument.maintenance_record_id}`}
+                  to={maintenanceRecordPath}
                   className="btn-sm border border-indigo-500 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0"
                   title="View maintenance record"
                 >
@@ -336,6 +353,30 @@ function DocumentsPreviewPanel({
             </div>
           )}
           <div className="flex-1 min-h-0 overflow-y-auto p-4">
+            {analysisFailureMessage && (
+              <div className="mb-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50/80 dark:bg-red-900/20 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                      AI analysis failed
+                    </p>
+                    <p className="text-xs text-red-700 dark:text-red-300 mt-1 leading-relaxed">
+                      {analysisFailureMessage}
+                    </p>
+                    {showDocumentAnalysis && (
+                      <button
+                        type="button"
+                        onClick={() => onAnalyzeDocument?.(selectedDocument)}
+                        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-900/60 text-red-700 dark:text-red-200 transition-colors"
+                      >
+                        Retry analysis
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             {selectedDocument.document_key && presignedLoading ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />

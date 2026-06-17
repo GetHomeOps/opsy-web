@@ -9,23 +9,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-const STATUS_STYLES = {
-  pending_review: {
-    bg: "bg-blue-50 dark:bg-blue-900/25",
-    text: "text-blue-700 dark:text-blue-300",
-    label: "New",
-  },
-  revision_requested: {
-    bg: "bg-amber-50 dark:bg-amber-900/25",
-    text: "text-amber-700 dark:text-amber-300",
-    label: "Further review",
-  },
-  approved: {
-    bg: "bg-emerald-50 dark:bg-emerald-900/25",
-    text: "text-emerald-700 dark:text-emerald-300",
-    label: "Approved",
-  },
-};
+import {ReviewStatusBadge} from "./reviewStatusStyles";
 
 function InspectionReviewCard({
   item,
@@ -36,8 +20,6 @@ function InspectionReviewCard({
   suggestFurtherReview = false,
 }) {
   const didDragRef = useRef(false);
-  const statusStyle =
-    STATUS_STYLES[item.reviewStatus] || STATUS_STYLES.pending_review;
 
   const handleDragStart = useCallback(
     (e) => {
@@ -92,11 +74,7 @@ function InspectionReviewCard({
             </p>
           )}
           <div className="flex items-center gap-2 mb-1.5">
-            <span
-              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusStyle.bg} ${statusStyle.text}`}
-            >
-              {statusStyle.label}
-            </span>
+            <ReviewStatusBadge status={item.reviewStatus} />
             <span className="text-[10px] text-gray-400">#{item.id}</span>
           </div>
           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 flex items-start gap-1.5">

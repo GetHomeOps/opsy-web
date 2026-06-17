@@ -87,6 +87,17 @@ export function emitRequestDocumentAnalysis(propertyId, document) {
   );
 }
 
+/** User-facing message when AI document analysis failed. */
+export function getDocumentAnalysisFailureMessage(analysisItem) {
+  if (!analysisItem || analysisItem.status !== "failed") return null;
+  const raw =
+    analysisItem.errorMessage ??
+    analysisItem.error_message ??
+    null;
+  if (typeof raw === "string" && raw.trim()) return raw.trim();
+  return "AI analysis could not complete. Try a clearer scan or re-upload the document.";
+}
+
 /**
  * @returns {{ showAnalyze: boolean, analyzing: boolean, label: string, action: "start" | "reopen" }}
  */

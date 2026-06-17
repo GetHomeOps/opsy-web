@@ -197,8 +197,14 @@ class AppApi {
         localStorage.removeItem(TOKEN_STORAGE_KEY);
         localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
         AppApi.token = null;
-        const returnTo = typeof window !== "undefined" && window.location?.pathname ? encodeURIComponent(window.location.pathname + window.location.search) : "";
-        window.location.href = returnTo ? `/signin?returnTo=${returnTo}` : "/signin";
+        const path = typeof window !== "undefined" ? window.location?.pathname || "" : "";
+        const isPublicAuthPath = /^\/(signin|signup|forgot-password|reset-password|verify-email|auth\/callback)(\/|$)/.test(path);
+        if (!isPublicAuthPath) {
+          const returnTo = typeof window !== "undefined" && window.location?.pathname
+            ? encodeURIComponent(window.location.pathname + window.location.search)
+            : "";
+          window.location.href = returnTo ? `/signin?returnTo=${returnTo}` : "/signin";
+        }
         throw err;
       } finally {
         AppApi._refreshPromise = null;
@@ -594,6 +600,41 @@ class AppApi {
     const params = accountId ? { accountId } : {};
     const res = await this.request(`billing/status`, params);
     return res;
+  }
+
+  /* --------- Agent-subsidized property billing --------- */
+
+  /** Homeowner: transfer billing of their single property to their agent's plan. */
+  static async acceptSponsorship({ accountId } = {}) {
+    const body = {};
+    if (accountId != null) body.accountId = accountId;
+    return this.request(`billing/sponsorship/accept`, body, "POST");
+  }
+
+  /** Homeowner: cancel a pending agent-coverage offer (keep paying). */
+  static async cancelSponsorship({ accountId } = {}) {
+    const body = {};
+    if (accountId != null) body.accountId = accountId;
+    return this.request(`billing/sponsorship/cancel`, body, "POST");
+  }
+
+  /** End an active sponsorship (agent or homeowner). */
+  static async endSponsorship({ sponsorshipId, accountId } = {}) {
+    const body = {};
+    if (accountId != null) body.accountId = accountId;
+    return this.request(`billing/sponsorship/${sponsorshipId}/end`, body, "POST");
+  }
+
+  /** Agent: list properties currently covered by this account's plan. */
+  static async getSponsoredProperties(accountId) {
+    const params = accountId ? { accountId } : {};
+    return this.request(`billing/sponsorship/sponsored`, params);
+  }
+
+  /** Homeowner: lightweight agent-coverage eligibility + current sponsorship state. */
+  static async getSponsorshipEligibility(accountId) {
+    const params = accountId ? { accountId } : {};
+    return this.request(`billing/sponsorship/eligibility`, params);
   }
 
   static async getBillingPaymentMethod(accountId) {

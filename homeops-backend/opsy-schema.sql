@@ -249,6 +249,17 @@ CREATE TABLE properties (
     property_uid VARCHAR(12) UNIQUE,
     account_id INTEGER NOT NULL REFERENCES accounts(id),
 
+    -- When set, this property's plan entitlements (limits/features) resolve from the
+    -- sponsoring account's subscription instead of `account_id`'s. Used by agent-subsidized
+    -- billing: a homeowner stops paying and their agent's plan covers the property.
+    -- Kept in sync with the active row in `property_sponsorships`.
+    active_sponsor_account_id INTEGER REFERENCES accounts(id),
+
+    -- When an agent leaves/drops their plan, coverage enters a 30-day grace period.
+    -- During grace the property keeps its prior (snapshotted) entitlements until this
+    -- timestamp, then reverts to the beneficiary's own account plan. NULL when not in grace.
+    grace_until TIMESTAMPTZ,
+
     -- Identity & Address
     passport_id VARCHAR(255),
     property_name VARCHAR(255),
@@ -331,6 +342,9 @@ CREATE TABLE properties (
 );
 
 CREATE INDEX idx_properties_account_id ON properties(account_id);
+CREATE INDEX idx_properties_active_sponsor
+    ON properties(active_sponsor_account_id)
+    WHERE active_sponsor_account_id IS NOT NULL;
 
 CREATE TABLE property_users (
     property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
@@ -367,6 +381,46 @@ CREATE UNIQUE INDEX idx_otr_one_pending_per_property
 CREATE INDEX idx_otr_to_user_pending
     ON property_ownership_transfer_requests (to_user_id)
     WHERE status = 'pending';
+
+-- Agent-subsidized property billing.
+-- A paying homeowner can hand billing of an agent-managed property to the agent's plan.
+-- 'pending'  = scheduled; homeowner keeps paid access until effective_at (their period end)
+-- 'active'   = sponsor's plan now covers the property (properties.active_sponsor_account_id set)
+-- 'grace'    = agent left/dropped their plan; homeowner has 30 days (grace_until) to resume
+-- 'ended'    = coverage stopped (grace expired, or homeowner resubscribed)
+-- 'declined' = offer cancelled before it took effect
+CREATE TABLE property_sponsorships (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    sponsor_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    sponsor_agent_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    beneficiary_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    beneficiary_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'active', 'grace', 'ended', 'declined')),
+    -- When the subsidy takes effect (homeowner's current paid period end).
+    effective_at TIMESTAMPTZ,
+    -- Grace period bookkeeping (set when an active sponsorship loses its sponsor).
+    grace_until TIMESTAMPTZ,
+    grace_plan_code VARCHAR(100),
+    grace_reminded_at TIMESTAMPTZ,
+    ended_at TIMESTAMPTZ,
+    ended_reason VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- At most one in-flight (pending, active, or grace) sponsorship per property.
+CREATE UNIQUE INDEX idx_property_sponsorships_one_live_per_property
+    ON property_sponsorships (property_id)
+    WHERE status IN ('pending', 'active', 'grace');
+
+CREATE INDEX idx_property_sponsorships_sponsor
+    ON property_sponsorships (sponsor_account_id)
+    WHERE status IN ('pending', 'active', 'grace');
+CREATE INDEX idx_property_sponsorships_beneficiary
+    ON property_sponsorships (beneficiary_account_id);
+CREATE INDEX idx_property_sponsorships_status ON property_sponsorships (status);
 
 -- ============================================================
 -- Property Systems, Maintenance, Documents

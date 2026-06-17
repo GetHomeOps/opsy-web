@@ -196,7 +196,16 @@ function DropdownNotifications() {
                   const isHelpdeskTicketUserReply =
                     n.type === "helpdesk_ticket_user_reply";
                   const isHelpdeskTicketReply = n.type === "helpdesk_ticket_reply";
+                  const isSponsorship =
+                    n.type === "property_sponsorship_offered" ||
+                    n.type === "property_sponsorship_active" ||
+                    n.type === "property_sponsorship_grace" ||
+                    n.type === "property_sponsorship_ended";
                   const acctForProperty = n.accountUrl || accountUrl;
+                  const sponsorshipPath =
+                    isSponsorship && acctForProperty
+                      ? `/${acctForProperty}/settings/billing`
+                      : null;
                   const propertyInvitePath =
                     (isInvitation || isInvitationAccepted) &&
                     n.propertyUid &&
@@ -241,7 +250,9 @@ function DropdownNotifications() {
                       ? `/${n.supportTicketAccountUrl || acctForProperty}/settings/support/${n.supportTicketId}`
                       : null;
                   const basePath =
-                    supportTicketReplyPath
+                    sponsorshipPath
+                      ? sponsorshipPath
+                      : supportTicketReplyPath
                       ? supportTicketReplyPath
                       : helpdeskTicketPath
                         ? helpdeskTicketPath

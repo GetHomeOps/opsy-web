@@ -31,6 +31,8 @@ export function useAttomRefresh(propertyId, opts = {}) {
   const completionHandledRef = useRef(false);
   const failureHandledRef = useRef(false);
   const manualRefreshRequestedRef = useRef(false);
+  /** When true, failures are logged but do not invoke onFail (background auto-pull). */
+  const silentRefreshRef = useRef(false);
 
   const isActive = jobStatus === "queued" || jobStatus === "processing";
 
@@ -68,6 +70,7 @@ export function useAttomRefresh(propertyId, opts = {}) {
     completionHandledRef.current = false;
     failureHandledRef.current = false;
     manualRefreshRequestedRef.current = false;
+    silentRefreshRef.current = false;
     if (!propertyId) {
       setJobStatus(null);
       setJobError(null);
@@ -127,13 +130,17 @@ export function useAttomRefresh(propertyId, opts = {}) {
     ) {
       failureHandledRef.current = true;
       manualRefreshRequestedRef.current = false;
+      const wasSilent = silentRefreshRef.current;
+      silentRefreshRef.current = false;
       setModalView("result");
-      if (typeof onFail === "function") {
+      if (typeof onFail === "function" && !wasSilent) {
         try {
           onFail(jobError);
         } catch (err) {
           console.error("[useAttomRefresh] onFail error:", err);
         }
+      } else if (wasSilent && jobError) {
+        console.info("[useAttomRefresh] silent background lookup failed:", jobError);
       }
     }
   }, [jobStatus, initialLoaded, jobError, onComplete, onFail]);
@@ -151,7 +158,7 @@ export function useAttomRefresh(propertyId, opts = {}) {
           setConfirmOpen(true);
           setModalView("result");
         }
-        if (typeof onFail === "function") onFail(message);
+        if (typeof onFail === "function" && !silent) onFail(message);
         return;
       }
       if (!silent) {
@@ -162,6 +169,7 @@ export function useAttomRefresh(propertyId, opts = {}) {
       completionHandledRef.current = false;
       failureHandledRef.current = false;
       manualRefreshRequestedRef.current = true;
+      silentRefreshRef.current = silent;
       try {
         const res = await AppApi.refreshPropertyAttomLookup(propertyId);
         if (res?.lookupCount != null) setLookupCount(Number(res.lookupCount) || 0);
@@ -176,7 +184,11 @@ export function useAttomRefresh(propertyId, opts = {}) {
           setModalView("result");
         }
         manualRefreshRequestedRef.current = false;
-        if (typeof onFail === "function") onFail(message);
+        silentRefreshRef.current = false;
+        if (typeof onFail === "function" && !silent) onFail(message);
+        else if (silent) {
+          console.info("[useAttomRefresh] silent background lookup failed:", message);
+        }
       }
     },
     [propertyId, syncLatestJob, onFail, isAtLookupLimit, lookupLimit],

@@ -23,6 +23,42 @@ function isAdminRole(role) {
   return role === "super_admin" || role === "admin";
 }
 
+/** Normalize a plan_limits row, converting a USD AI budget into a token quota. */
+function applyAiTokenQuota(row) {
+  let aiTokenMonthlyQuota = row.aiTokenMonthlyQuota;
+  if (row.aiTokenMonthlyValueUsd != null && row.aiTokenMonthlyValueUsd > 0) {
+    const pricePerToken = row.aiTokenPriceUsd != null && row.aiTokenPriceUsd > 0
+      ? Number(row.aiTokenPriceUsd) : AI_TOKEN_COST_USD;
+    if (pricePerToken > 0) {
+      aiTokenMonthlyQuota = Math.floor(row.aiTokenMonthlyValueUsd / pricePerToken);
+    }
+  }
+  return { ...DEFAULT_LIMITS, ...row, aiTokenMonthlyQuota };
+}
+
+/** Resolve plan limits directly from a plan (subscription_products) code. Used for the
+ *  grace-period snapshot so entitlements stay deterministic even if the sponsor's live
+ *  plan later changes. Falls back to DEFAULT_LIMITS when the code is unknown. */
+async function getLimitsForPlanCode(planCode) {
+  if (!planCode) return { ...DEFAULT_LIMITS };
+  const limRes = await db.query(
+    `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
+            pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
+            pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+            pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
+            pl.ai_token_price_usd AS "aiTokenPriceUsd",
+            pl.max_documents_per_system AS "maxDocumentsPerSystem",
+            COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
+     FROM plan_limits pl
+     JOIN subscription_products sp ON sp.id = pl.subscription_product_id
+     WHERE sp.code = $1
+     LIMIT 1`,
+    [planCode]
+  );
+  if (limRes.rows[0]) return applyAiTokenQuota(limRes.rows[0]);
+  return { ...DEFAULT_LIMITS };
+}
+
 async function getAccountLimits(accountId) {
   const subRes = await db.query(
     `SELECT asub.subscription_product_id
@@ -123,12 +159,16 @@ function resolveAiTokenMonthlyQuota(limits) {
   return null;
 }
 
-/** Check if user has AI token quota remaining this month. Returns { allowed, used, quota }. */
-async function checkAiTokenQuota(userId, userRole) {
+/** Check if user has AI token quota remaining this month. Returns { allowed, used, quota }.
+ *  Pass { propertyId } so agent-subsidized properties inherit the sponsor's quota cap.
+ *  Usage is always metered per user; only the cap is resolved from the property plan. */
+async function checkAiTokenQuota(userId, userRole, { propertyId } = {}) {
   if (isAdminRole(userRole)) return { allowed: true, used: 0, quota: 999999 };
   if (BILLING_MOCK_MODE) return { allowed: true, used: 0, quota: 999999 };
 
-  const limits = await getEffectiveLimits(userId);
+  const limits = propertyId
+    ? await getPropertyEntitlements(propertyId)
+    : await getEffectiveLimits(userId);
   const quota = resolveAiTokenMonthlyQuota(limits);
   if (quota === 0) return { allowed: false, used: 0, quota: 0 };
   if (quota == null) return { allowed: true, used: 0, quota: 999999 };
@@ -142,12 +182,15 @@ async function checkAiTokenQuota(userId, userRole) {
   return { allowed: used < quota, used, quota };
 }
 
-/** Whether inspection analysis + AI chat are allowed for this user’s plan (admins / mock bypass). */
-async function checkAiFeaturesAllowed(userId, userRole) {
+/** Whether inspection analysis + AI chat are allowed for this user’s plan (admins / mock bypass).
+ *  Pass { propertyId } so agent-subsidized properties inherit the sponsor's AI entitlement. */
+async function checkAiFeaturesAllowed(userId, userRole, { propertyId } = {}) {
   if (isAdminRole(userRole)) return { allowed: true };
   if (BILLING_MOCK_MODE) return { allowed: true };
 
-  const limits = await getEffectiveLimits(userId);
+  const limits = propertyId
+    ? await getPropertyEntitlements(propertyId)
+    : await getEffectiveLimits(userId);
   const enabled = limits.aiFeaturesEnabled !== false;
   return {
     allowed: enabled,
@@ -158,11 +201,237 @@ async function checkAiFeaturesAllowed(userId, userRole) {
 }
 
 async function countAccountOwnedProperties(accountId) {
+  /* Exclude properties whose billing has been handed to a sponsoring (agent) account.
+     Those no longer burden the homeowner's plan, letting them sit on a free tier. */
   const countRes = await db.query(
-    `SELECT COUNT(*)::int AS count FROM properties WHERE account_id = $1`,
+    `SELECT COUNT(*)::int AS count
+     FROM properties
+     WHERE account_id = $1 AND active_sponsor_account_id IS NULL`,
     [accountId]
   );
   return countRes.rows[0]?.count ?? 0;
+}
+
+/**
+ * Resolve the effective plan limits/features for a single property.
+ *
+ * When the property is sponsored (agent-subsidized), entitlements derive from the
+ * sponsoring account's subscription; otherwise from the property's owning account.
+ * Returns the limits object augmented with { sponsored, sourceAccountId }.
+ *
+ * Note (bounded inheritance): account-scoped limits such as `maxContacts` are NOT
+ * inherited via this helper — they remain on the beneficiary's own account. This
+ * resolver is for property-scoped entitlements (documents-per-system, property
+ * feature flags, AI usage tied to a property).
+ */
+async function getPropertyEntitlements(propertyId) {
+  const res = await db.query(
+    `SELECT p.account_id AS "accountId",
+            p.active_sponsor_account_id AS "sponsorAccountId",
+            p.grace_until AS "graceUntil",
+            ps.grace_plan_code AS "gracePlanCode"
+     FROM properties p
+     LEFT JOIN property_sponsorships ps
+       ON ps.property_id = p.id AND ps.status = 'grace'
+     WHERE p.id = $1`,
+    [propertyId]
+  );
+  const row = res.rows[0];
+  if (!row) return { ...DEFAULT_LIMITS, sponsored: false, grace: false, sourceAccountId: null };
+
+  // During the grace period, entitlements resolve from the snapshotted plan code so
+  // they stay stable even if the sponsor account has since downgraded.
+  const inGrace =
+    row.graceUntil && new Date(row.graceUntil) > new Date();
+  if (inGrace) {
+    const limits = await getLimitsForPlanCode(row.gracePlanCode);
+    return {
+      ...limits,
+      sponsored: true,
+      grace: true,
+      sourceAccountId: row.sponsorAccountId || row.accountId,
+    };
+  }
+
+  const sourceAccountId = row.sponsorAccountId || row.accountId;
+  const limits = await getAccountLimits(sourceAccountId);
+  return { ...limits, sponsored: Boolean(row.sponsorAccountId), grace: false, sourceAccountId };
+}
+
+/** Whether an account has any active/trialing subscription (paid or free). */
+async function accountHasActiveSubscription(accountId) {
+  if (!accountId) return false;
+  const res = await db.query(
+    `SELECT 1 FROM account_subscriptions
+     WHERE account_id = $1 AND status IN ('active', 'trialing') LIMIT 1`,
+    [accountId]
+  );
+  return res.rows.length > 0;
+}
+
+/** Whether an account's active subscription is a paid (non-zero-cost) plan. */
+async function accountHasActivePaidSubscription(accountId) {
+  if (!accountId) return false;
+  const res = await db.query(
+    `SELECT 1
+     FROM account_subscriptions asub
+     JOIN subscription_products sp ON sp.id = asub.subscription_product_id
+     LEFT JOIN plan_prices pp ON pp.stripe_price_id = asub.stripe_price_id
+     WHERE asub.account_id = $1
+       AND asub.status IN ('active', 'trialing')
+       AND (
+         COALESCE(pp.unit_amount, 0) > 0
+         OR (asub.stripe_price_id IS NULL AND COALESCE(sp.price::float, 0) > 0)
+       )
+     LIMIT 1`,
+    [accountId]
+  );
+  return res.rows.length > 0;
+}
+
+/** Resolve a user's primary account id (prefers the account they own). */
+async function resolvePrimaryAccountId(userId) {
+  if (!userId) return null;
+  const res = await db.query(
+    `SELECT au.account_id
+     FROM account_users au
+     LEFT JOIN accounts a ON a.id = au.account_id
+     WHERE au.user_id = $1
+     ORDER BY (a.owner_user_id = $1) DESC
+     LIMIT 1`,
+    [userId]
+  );
+  return res.rows[0]?.account_id ?? null;
+}
+
+function buildPropertyLabel(row) {
+  const parts = [row?.address, row?.city, row?.state].filter(Boolean);
+  return parts.length ? parts.join(", ") : "your property";
+}
+
+/**
+ * Determine whether a homeowner can hand their (single) agent-managed property's
+ * billing to the agent's plan, so they stop paying.
+ *
+ * Conditions:
+ *  - user is a homeowner currently on a paid plan
+ *  - their account owns exactly one (non-sponsored) property
+ *  - that property has an agent (platform-role agent) on the team
+ *  - the agent's account has an active plan with remaining property capacity
+ *  - the property is not already sponsored/pending
+ *
+ * @returns {Promise<{eligible: boolean, reason?: string, property?, agent?, accessUntil?}>}
+ */
+async function getSponsorshipEligibility({ userId, accountId, userRole }) {
+  const role = (userRole || "homeowner").toLowerCase();
+  if (isAdminRole(role) || role === "agent") {
+    return { eligible: false, reason: "not_homeowner" };
+  }
+  if (!accountId) return { eligible: false, reason: "no_account" };
+
+  // Must currently be paying (so there is something to save them).
+  if (!(await accountHasActivePaidSubscription(accountId))) {
+    return { eligible: false, reason: "not_on_paid_plan" };
+  }
+
+  // Exactly one owned, not-yet-sponsored property.
+  const propsRes = await db.query(
+    `SELECT id, property_uid AS uid, address, city, state
+     FROM properties
+     WHERE account_id = $1 AND active_sponsor_account_id IS NULL
+     ORDER BY id ASC`,
+    [accountId]
+  );
+  if (propsRes.rows.length !== 1) {
+    return { eligible: false, reason: "not_single_property" };
+  }
+  const property = propsRes.rows[0];
+
+  // Already sponsored / pending?
+  const existing = await db.query(
+    `SELECT 1 FROM property_sponsorships
+     WHERE property_id = $1 AND status IN ('pending', 'active') LIMIT 1`,
+    [property.id]
+  );
+  if (existing.rows.length > 0) {
+    return { eligible: false, reason: "already_sponsored" };
+  }
+
+  // Find the agent on the property.
+  const agentRes = await db.query(
+    `SELECT u.id AS "userId", u.name, u.email
+     FROM property_users pu
+     JOIN users u ON u.id = pu.user_id
+     WHERE pu.property_id = $1 AND LOWER(u.role::text) = 'agent'
+     ORDER BY pu.created_at ASC
+     LIMIT 1`,
+    [property.id]
+  );
+  if (!agentRes.rows[0]) {
+    return { eligible: false, reason: "no_agent" };
+  }
+  const agent = agentRes.rows[0];
+
+  const agentAccountId = await resolvePrimaryAccountId(agent.userId);
+  if (!agentAccountId) return { eligible: false, reason: "agent_no_account" };
+
+  if (!(await accountHasActiveSubscription(agentAccountId))) {
+    return { eligible: false, reason: "agent_no_plan" };
+  }
+
+  // Agent capacity. The property already counts toward the agent's limit, so
+  // "has room" means the agent is not over their plan's property cap.
+  const agentLimits = await getAccountLimits(agentAccountId);
+  const agentCount = await countAgentManagedProperties(agent.userId);
+  if (agentLimits.maxProperties != null && agentCount > agentLimits.maxProperties) {
+    return {
+      eligible: false,
+      reason: "agent_limit_reached",
+      agent: { userId: agent.userId, name: agent.name, email: agent.email, accountId: agentAccountId },
+    };
+  }
+
+  // Agent plan display name (for the offer modal's entitlements summary).
+  const agentPlanRes = await db.query(
+    `SELECT sp.name
+     FROM account_subscriptions asub
+     JOIN subscription_products sp ON sp.id = asub.subscription_product_id
+     WHERE asub.account_id = $1 AND asub.status IN ('active', 'trialing')
+     ORDER BY asub.current_period_end DESC NULLS LAST
+     LIMIT 1`,
+    [agentAccountId]
+  );
+  const agentPlanName = agentPlanRes.rows[0]?.name || null;
+
+  // When does paid access run until?
+  const periodRes = await db.query(
+    `SELECT current_period_end AS "currentPeriodEnd"
+     FROM account_subscriptions
+     WHERE account_id = $1 AND status IN ('active', 'trialing')
+     ORDER BY current_period_end DESC NULLS LAST
+     LIMIT 1`,
+    [accountId]
+  );
+
+  return {
+    eligible: true,
+    property: { id: property.id, uid: property.uid, label: buildPropertyLabel(property) },
+    agent: {
+      userId: agent.userId,
+      name: agent.name || agent.email,
+      email: agent.email,
+      accountId: agentAccountId,
+      planName: agentPlanName,
+      entitlements: {
+        maxProperties: agentLimits.maxProperties ?? null,
+        maxContacts: agentLimits.maxContacts ?? null,
+        aiTokenMonthlyQuota: agentLimits.aiTokenMonthlyQuota ?? null,
+        maxDocumentsPerSystem: agentLimits.maxDocumentsPerSystem ?? null,
+        aiFeaturesEnabled: agentLimits.aiFeaturesEnabled !== false,
+      },
+    },
+    accessUntil: periodRes.rows[0]?.currentPeriodEnd || null,
+  };
 }
 
 /** Distinct properties where the user is on the team with platform role agent. */
@@ -325,7 +594,11 @@ async function getViewerInviteEligibilityByProperty(accountId, propertyIds, user
 /** Check if a document can be uploaded to a specific system on a property. */
 async function canUploadDocumentToSystem(accountId, propertyId, systemKey, userRole) {
   if (isAdminRole(userRole)) return { allowed: true, current: 0, max: 999999 };
-  const limits = await getAccountLimits(accountId);
+  /* Resolve from the property's effective plan so agent-subsidized properties
+     inherit the sponsor's document allowance (property-scoped entitlement). */
+  const limits = propertyId
+    ? await getPropertyEntitlements(propertyId)
+    : await getAccountLimits(accountId);
   const max = limits.maxDocumentsPerSystem ?? 5;
 
   const countRes = await db.query(
@@ -338,7 +611,13 @@ async function canUploadDocumentToSystem(accountId, propertyId, systemKey, userR
 
 module.exports = {
   getAccountLimits,
+  getLimitsForPlanCode,
   getEffectiveLimits,
+  getPropertyEntitlements,
+  accountHasActiveSubscription,
+  accountHasActivePaidSubscription,
+  resolvePrimaryAccountId,
+  getSponsorshipEligibility,
   countAccountOwnedProperties,
   countAgentManagedProperties,
   countPropertiesForLimit,
