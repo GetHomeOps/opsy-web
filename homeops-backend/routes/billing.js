@@ -271,8 +271,17 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
       [accountId]
     );
     if (!acc.rows[0]) {
-      return res.json({ subscription: null, plan: null, limits: null, usage: null, mockMode: BILLING_MOCK_MODE });
+      return res.json({
+        subscription: null,
+        plan: null,
+        limits: null,
+        usage: null,
+        hasStripeBilling: false,
+        mockMode: BILLING_MOCK_MODE,
+      });
     }
+
+    const hasStripeBilling = Boolean(acc.rows[0].stripe_customer_id);
 
     if (BILLING_MOCK_MODE) {
       const plan = await planModel.getByCode("homeowner_maintain").catch(() => null);
@@ -281,6 +290,7 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
         plan: plan || null,
         limits: plan?.limits || null,
         usage: { propertiesCount: 0, contactsCount: 0, aiTokensUsed: 0 },
+        hasStripeBilling: true,
         mockMode: true,
       });
     }
@@ -392,6 +402,7 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
       plan,
       limits,
       usage,
+      hasStripeBilling,
       mockMode: false,
     });
   } catch (err) {

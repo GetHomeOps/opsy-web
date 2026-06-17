@@ -136,6 +136,7 @@ function BillingPage() {
   const plan = billing?.plan;
   const limits = billing?.limits;
   const usage = billing?.usage || {};
+  const hasStripeBilling = Boolean(billing?.hasStripeBilling || billing?.mockMode);
 
   if (!accountId) {
     return (
@@ -211,9 +212,10 @@ function BillingPage() {
                         <Sparkles className="w-4 h-4" />
                         Upgrade plan
                       </button>
-                      {(sub?.status === "active" ||
-                        sub?.status === "trialing" ||
-                        billing?.mockMode) && (
+                      {hasStripeBilling &&
+                        (sub?.status === "active" ||
+                          sub?.status === "trialing" ||
+                          billing?.mockMode) && (
                         <button
                           type="button"
                           onClick={handleManageBilling}
@@ -420,8 +422,11 @@ function BillingPage() {
                         {t("settings.availablePlans") || "Available Plans"}
                       </h2>
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {t("settings.upgradeDescription") ||
-                          "Upgrade via Manage billing above."}
+                        {hasStripeBilling
+                          ? t("settings.upgradeDescriptionWithPortal") ||
+                            "Upgrade your plan or use Manage billing above for payment methods and invoices."
+                          : t("settings.upgradeDescription") ||
+                            "Upgrade to unlock more features."}
                       </p>
                     </div>
                     <div className="p-6">

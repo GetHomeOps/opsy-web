@@ -1,6 +1,8 @@
 import React, {useState, useMemo, useEffect, useCallback} from "react";
 import DonutChart from "../../partials/propertyFeatures/DonutChart";
 import AppApi from "../../api/api";
+import {getPassportStage} from "./constants/passportStages";
+import PassportStageIcon from "./partials/passport/PassportStageIcon";
 import {
   Shield,
   Settings,
@@ -269,60 +271,20 @@ function ScoreCard({
 
   const totalScore = (identityScore + systemsScore + maintenanceScore) / 3;
 
-  const scoreRingColorClass = "text-green-500 dark:text-green-400";
-
-  const overviewItems = [
-    {
-      id: "identity",
-      label: "Identity",
-      complete: completedIdentitySections === identitySections.length,
-    },
-    {
-      id: "systems",
-      label: "Systems",
-      complete: currentSystems === systemItems.length && systemItems.length > 0,
-    },
-    {
-      id: "maintenance",
-      label: "Maintenance",
-      complete:
-        currentMaintenance === systemItems.length && systemItems.length > 0,
-    },
-  ];
+  const passportStage = getPassportStage(totalScore);
 
   if (variant === "overview") {
     return (
       <div className="space-y-3" data-section-id="health-status">
-        <div className="flex items-center gap-4">
-          <div className="shrink-0">
-            <DonutChart
-              percentage={Math.round(totalScore)}
-              size={96}
-              strokeWidth={9}
-              colorClass={scoreRingColorClass}
-            />
-          </div>
-          <div className="min-w-0 flex-1 space-y-2">
-            <ul className="space-y-2">
-              {overviewItems.map((item) => (
-                <li key={item.id} className="flex items-center gap-2">
-                  {item.complete ? (
-                    <CheckCircle2 className="w-4 h-4 text-green-500 dark:text-green-400 shrink-0" />
-                  ) : (
-                    <div className="w-4 h-4 rounded-full border-2 border-neutral-300 dark:border-neutral-600 shrink-0" />
-                  )}
-                  <span
-                    className={`text-sm ${
-                      item.complete
-                        ? "text-neutral-800 dark:text-neutral-200"
-                        : "text-neutral-500 dark:text-neutral-400"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                </li>
-              ))}
-            </ul>
+        <div className="flex items-start gap-3">
+          <PassportStageIcon stage={passportStage.id} size={100} />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+              Stage {passportStage.id} — {passportStage.name}
+            </p>
+            <p className="text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+              {passportStage.description}
+            </p>
           </div>
         </div>
         <button

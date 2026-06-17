@@ -136,7 +136,11 @@ async function createPortalSession(accountId, userId, returnUrl) {
   );
   if (!acc.rows[0]) throw new Error("Account access denied");
   const stripeCustomerId = acc.rows[0].stripe_customer_id;
-  if (!stripeCustomerId) throw new Error("No billing account found. Subscribe to a plan first.");
+  if (!stripeCustomerId) {
+    throw new BadRequestError(
+      "No Stripe billing account linked yet. Upgrade to a paid plan to manage payment methods and invoices."
+    );
+  }
 
   const session = await stripe.billingPortal.sessions.create({
     customer: stripeCustomerId,
