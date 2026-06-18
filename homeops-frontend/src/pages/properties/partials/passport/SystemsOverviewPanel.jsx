@@ -146,22 +146,8 @@ export function SystemsOverviewTable({rows = [], onJumpToSystem}) {
                   <td className="px-3 py-2.5 hidden md:table-cell text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
                     {formatOverviewDate(row.lastService) ?? "—"}
                   </td>
-                  <td className="px-3 py-2.5 hidden md:table-cell whitespace-nowrap">
-                    {row.nextDue ? (
-                      <span
-                        className={
-                          row.nextDueOverdue
-                            ? "text-red-600 dark:text-red-400 font-medium"
-                            : "text-neutral-600 dark:text-neutral-400"
-                        }
-                      >
-                        {formatOverviewDate(row.nextDue)}
-                      </span>
-                    ) : (
-                      <span className="text-neutral-400 dark:text-neutral-600">
-                        —
-                      </span>
-                    )}
+                  <td className="px-3 py-2.5 hidden md:table-cell text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                    {formatOverviewDate(row.nextDue) ?? "—"}
                   </td>
                   <td className="px-3 py-2.5 hidden lg:table-cell text-neutral-600 dark:text-neutral-400 truncate max-w-[10rem]">
                     {row.installer ?? "—"}

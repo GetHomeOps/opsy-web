@@ -747,6 +747,8 @@ function MaintenanceTab({
               selectedRecord?.property_id ??
               propertyId
             }
+            propertyUid={propertyId}
+            accountUrl={accountUrl || propertyData?.accountUrl || ""}
             systemName={getSystemName(selectedRecord.systemId)}
             systemCondition={getSystemCondition(selectedRecord.systemId)}
             successMessage={successMessage}

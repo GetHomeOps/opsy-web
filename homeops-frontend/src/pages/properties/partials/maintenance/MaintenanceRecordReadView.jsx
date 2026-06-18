@@ -7,7 +7,6 @@ import {
   Trash2,
   ExternalLink,
   FileText,
-  Download,
   CheckCircle2,
   Calendar,
   CalendarClock,
@@ -33,6 +32,10 @@ import {
   resolveMaintenanceRecordSource,
 } from "../../helpers/maintenanceRecordMapping";
 import AppApi from "../../../../api/api";
+import {
+  openPropertyDocumentInNewTab,
+  resolvePropertyDocumentIdFromLinkedFile,
+} from "../../helpers/propertyDocumentNavigation";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -125,7 +128,9 @@ function RecordInfoItem({icon: Icon, label, value}) {
     <div className="flex items-start gap-2.5 min-w-0 min-[1351px]:min-w-[8.5rem] min-[1351px]:flex-1 min-[1351px]:px-4 min-[1351px]:first:pl-0 min-[1351px]:last:pr-0">
       <Icon className="w-4 h-4 text-neutral-400 dark:text-neutral-500 shrink-0 mt-0.5" />
       <div className="min-w-0">
-        <p className="text-xs text-neutral-500 dark:text-neutral-400">{label}</p>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          {label}
+        </p>
         <p className="text-sm font-semibold text-neutral-900 dark:text-white max-[1350px]:break-words min-[1351px]:truncate">
           {value ?? "—"}
         </p>
@@ -165,6 +170,8 @@ function HeaderActionButton({
 function MaintenanceRecordReadView({
   record,
   propertyId,
+  propertyUid,
+  accountUrl,
   systemName,
   systemCondition,
   successMessage,
@@ -178,7 +185,7 @@ function MaintenanceRecordReadView({
   const fileInputRef = useRef(null);
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [uploadError, setUploadError] = useState("");
-  const [downloadingKey, setDownloadingKey] = useState(null);
+  const [openingDocumentKey, setOpeningDocumentKey] = useState(null);
   const [linkedTask, setLinkedTask] = useState(null);
   const [linkedTaskLoading, setLinkedTaskLoading] = useState(false);
 
@@ -279,7 +286,12 @@ function MaintenanceRecordReadView({
         const doc = await AppApi.uploadDocument(file);
         const key = doc?.key ?? doc?.s3Key ?? null;
         if (key) {
-          uploaded.push({name: file.name, size: file.size, type: file.type, key});
+          uploaded.push({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            key,
+          });
         }
       }
       if (uploaded.length > 0) {
@@ -294,17 +306,47 @@ function MaintenanceRecordReadView({
     }
   };
 
-  const handleDownloadFile = async (file) => {
+  const handleOpenLinkedDocument = async (file) => {
     const key = file?.key ?? file?.document_key;
     if (!key) return;
-    setDownloadingKey(key);
+
+    const canOpenInDocumentsTab = accountUrl && propertyUid && propertyId;
+    if (!canOpenInDocumentsTab) {
+      try {
+        const url = await AppApi.getPresignedPreviewUrl(key);
+        if (url) window.open(url, "_blank", "noopener,noreferrer");
+      } catch {
+        // Presign failed; nothing actionable for the user here
+      }
+      return;
+    }
+
+    setOpeningDocumentKey(key);
     try {
+      const docs = await AppApi.getPropertyDocuments(propertyId);
+      const propertyDocuments = Array.isArray(docs) ? docs : [];
+      const documentId = resolvePropertyDocumentIdFromLinkedFile(
+        file,
+        propertyDocuments,
+        record?.id,
+      );
+      if (
+        documentId &&
+        openPropertyDocumentInNewTab({
+          accountUrl,
+          propertyId: propertyUid,
+          documentId,
+        })
+      ) {
+        return;
+      }
+
       const url = await AppApi.getPresignedPreviewUrl(key);
-      if (url) window.open(url, "_blank", "noopener");
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
     } catch {
-      // Presign failed; nothing actionable for the user here
+      // Lookup or presign failed; nothing actionable for the user here
     } finally {
-      setDownloadingKey(null);
+      setOpeningDocumentKey(null);
     }
   };
 
@@ -504,8 +546,9 @@ function MaintenanceRecordReadView({
                       <li key={`${file.name}-${idx}`}>
                         <button
                           type="button"
-                          onClick={() => handleDownloadFile(file)}
+                          onClick={() => handleOpenLinkedDocument(file)}
                           disabled={!key}
+                          title="Open in Documents tab"
                           className="w-full flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0 text-left group disabled:cursor-default"
                         >
                           <div className="flex items-center gap-2 min-w-0">
@@ -522,10 +565,10 @@ function MaintenanceRecordReadView({
                             </div>
                           </div>
                           {key &&
-                            (downloadingKey === key ? (
+                            (openingDocumentKey === key ? (
                               <Loader2 className="w-4 h-4 text-gray-400 shrink-0 animate-spin" />
                             ) : (
-                              <Download className="w-4 h-4 text-gray-400 shrink-0 group-hover:text-[#456564]" />
+                              <ExternalLink className="w-4 h-4 text-gray-400 shrink-0 group-hover:text-[#456564]" />
                             ))}
                         </button>
                       </li>
@@ -534,8 +577,8 @@ function MaintenanceRecordReadView({
                 </ul>
               ) : (
                 <p className="text-sm text-gray-400 italic">
-                  No documents linked. Uploaded files are filed in the
-                  Documents tab and analyzed by AI.
+                  No documents linked. Uploaded files are filed in the Documents
+                  tab and analyzed by AI.
                 </p>
               )}
             </SectionCard>

@@ -1,4 +1,5 @@
 import React, {useState, useMemo, useEffect, useCallback, useRef} from "react";
+import {useSearchParams} from "react-router-dom";
 import {
   DndContext,
   PointerSensor,
@@ -231,6 +232,10 @@ function DocumentsTab({
   openUploadModalForInspectionReport = false,
   onUploadModalOpened,
 }) {
+  const [searchParams] = useSearchParams();
+  const documentIdFromUrl = searchParams.get("documentId");
+  const openedDocumentIdRef = useRef(null);
+
   const propertyId = propertyData?.id ?? propertyData?.identity?.id;
   const {getUiState: getDocumentAnalysisUiState, getAnalysisItem} =
     useDocumentAnalysisStatus(propertyId);
@@ -566,6 +571,27 @@ function DocumentsTab({
     },
     [documents],
   );
+
+  // Deep-link from maintenance records (or elsewhere): ?tab=documents&documentId=123
+  useEffect(() => {
+    if (!documentIdFromUrl || loading || documents.length === 0) return;
+    if (openedDocumentIdRef.current === documentIdFromUrl) return;
+
+    const rawDoc = documents.find(
+      (doc) => String(doc.id) === String(documentIdFromUrl),
+    );
+    if (!rawDoc) return;
+
+    openedDocumentIdRef.current = documentIdFromUrl;
+    const uiDoc = toUIDoc(rawDoc);
+    setInboxSelected(false);
+    setSelectedFolder(
+      rawDoc.system_key && rawDoc.system_key !== "general"
+        ? rawDoc.system_key
+        : null,
+    );
+    handleSelectDocument(uiDoc);
+  }, [documentIdFromUrl, loading, documents, handleSelectDocument]);
 
   const handleDelete = useCallback((docId) => {
     setDeleteTargetId(docId);
