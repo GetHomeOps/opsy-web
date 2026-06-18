@@ -39,8 +39,6 @@ import {
   getResolvedSystemFindings,
   filterChecklistItemsForSystem,
   filterPropertyDocumentsForSystem,
-  areAllSystemActionItemsComplete,
-  resolveEffectiveSystemCondition,
   countOpenSystemActionItems,
 } from "../../helpers/inspectionAnalysisHelpers";
 import {
@@ -266,37 +264,24 @@ export function SystemDetailView({
       );
   }, [loadActionItemCount]);
 
+  // Keep the stored condition field in sync with the authoritative, reconciled
+  // condition (inspection report analysis as the source of truth, reconciled by
+  // action-item completion). selectedRow.condition is that resolved value.
   useEffect(() => {
     if (!handleInputChange || !selectedSystemId) return;
-    const allComplete = areAllSystemActionItemsComplete(
-      systemChecklistKey,
-      checklistItems,
-      maintenanceRecords,
-    );
-    const hasOpen =
-      countOpenSystemActionItems(
-        systemChecklistKey,
-        checklistItems,
-        maintenanceRecords,
-      ) > 0;
+    const effective = selectedRow?.condition;
+    if (!effective) return;
     const stored = getCurrentConditionValue(propertyData, selectedSystemId);
-    const nextCondition = resolveEffectiveSystemCondition(
-      stored,
-      allComplete,
-      hasOpen,
-    );
-    if (!nextCondition || nextCondition === stored) return;
+    if (effective === stored) return;
     const fieldName = getConditionFieldName(selectedSystemId, customSystemName);
     if (!fieldName) return;
     handleInputChange({
-      target: {name: fieldName, value: nextCondition},
+      target: {name: fieldName, value: effective},
     });
   }, [
     handleInputChange,
     selectedSystemId,
-    systemChecklistKey,
-    checklistItems,
-    maintenanceRecords,
+    selectedRow,
     propertyData,
     customSystemName,
   ]);

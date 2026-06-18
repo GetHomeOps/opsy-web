@@ -251,30 +251,27 @@ export function areAllSystemActionItemsComplete(
 }
 
 /**
- * Reconcile a stored condition with the system's action items:
+ * Reconcile a condition (sourced from the inspection report analysis) with the
+ * system's action items. The report condition is the source of truth, so this
+ * only ever *improves* the rating — it never downgrades it:
  * - When the system has action items and all are fulfilled, bump Fair/Poor to Good.
- * - When the system still has open action items, a "Good" rating is inconsistent,
- *   so downgrade it to Fair.
- * - When the system has no action items at all, leave the stored condition untouched
- *   (e.g. a system detected as "Good" by the inspection analysis must stay "Good").
+ * - Otherwise the report condition is left untouched (open action items are
+ *   tracked separately and do not drag the report's rating down).
+ * - "Excellent" is only ever granted by the report analysis, never by completion.
  *
  * @param {string} storedCondition
  * @param {boolean} allActionItemsComplete - True only when there are items and all are done.
- * @param {boolean} hasOpenActionItems - True when at least one action item is still open.
  */
 export function resolveEffectiveSystemCondition(
   storedCondition,
   allActionItemsComplete,
-  hasOpenActionItems = false,
 ) {
   const stored = String(storedCondition ?? "").trim();
   if (!stored) return null;
   const lower = stored.toLowerCase();
-  if (allActionItemsComplete) {
-    if (lower === "fair" || lower === "poor") return "Good";
-    return stored;
+  if (allActionItemsComplete && (lower === "fair" || lower === "poor")) {
+    return "Good";
   }
-  if (hasOpenActionItems && lower === "good") return "Fair";
   return stored;
 }
 

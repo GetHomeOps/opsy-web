@@ -24,7 +24,6 @@ import {NEXT_INSPECTION_FIELD_BY_SYSTEM} from "./constants/systemFieldConfig";
 import {
   getResolvedSystemFindings,
   areAllSystemActionItemsComplete,
-  countOpenSystemActionItems,
   resolveEffectiveSystemCondition,
 } from "./helpers/inspectionAnalysisHelpers";
 import {
@@ -483,26 +482,21 @@ function SystemsTab({
       );
 
     const resolveCondition = (sysId, customName, storedCondition, aiStatus) => {
-      const stored =
-        storedCondition ||
-        (aiStatus
-          ? aiStatus.charAt(0).toUpperCase() + aiStatus.slice(1)
-          : null);
+      // The inspection report analysis is the source of truth for a system's
+      // condition. A manually stored value is only used when the report has no
+      // condition for this system. Completing all action items then improves a
+      // Fair/Poor system to Good; Excellent only ever comes from the report.
+      const reportCondition = aiStatus
+        ? aiStatus.charAt(0).toUpperCase() + aiStatus.slice(1)
+        : null;
+      const stored = reportCondition || storedCondition || null;
       const systemKey = customName ?? sysId;
       const allComplete = areAllSystemActionItemsComplete(
         systemKey,
         checklistItems,
         maintenanceRecords,
       );
-      const hasOpen =
-        countOpenSystemActionItems(
-          systemKey,
-          checklistItems,
-          maintenanceRecords,
-        ) > 0;
-      return (
-        resolveEffectiveSystemCondition(stored, allComplete, hasOpen) || null
-      );
+      return resolveEffectiveSystemCondition(stored, allComplete) || null;
     };
 
     const standard = PROPERTY_SYSTEMS.filter((s) =>

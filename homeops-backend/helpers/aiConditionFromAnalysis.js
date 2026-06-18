@@ -120,7 +120,12 @@ function computeAiConditionFromSummaryState(systemKey, summaryState) {
 
 /**
  * Enrich systems array with aiCondition per system.
- * Prefers property_ai_summary_state (reanalysis) over inspection_analysis_results when available.
+ *
+ * The inspection report analysis is the single source of truth for a system's
+ * condition. The incremental re-analysis state is only used as a fallback for
+ * systems the report did not cover, and is capped so that an "excellent" rating
+ * can only ever originate from the inspection report analysis.
+ *
  * @param {Array} systems - From property_systems
  * @param {Object|null} analysis - Inspection analysis for property
  * @param {Object|null} aiSummaryState - Property AI summary state from reanalysis
@@ -128,17 +133,25 @@ function computeAiConditionFromSummaryState(systemKey, summaryState) {
  */
 function enrichSystemsWithAiCondition(systems, analysis, aiSummaryState = null) {
   if (!Array.isArray(systems)) return systems;
-  const hasReanalysis = aiSummaryState && (aiSummaryState.updated_systems || []).length > 0;
 
   return systems.map((s) => {
     const systemKey = s.system_key || s.systemKey;
-    let aiCondition = null;
-    if (hasReanalysis) {
-      aiCondition = computeAiConditionFromSummaryState(systemKey, aiSummaryState);
+
+    // Source of truth: inspection report analysis.
+    let aiCondition = analysis
+      ? computeAiConditionForSystem(systemKey, analysis)
+      : null;
+
+    // Fallback for systems not covered by the report. Never let this source
+    // grant "excellent" — that rating is reserved for the report analysis.
+    if (!aiCondition && aiSummaryState) {
+      const fromSummary = computeAiConditionFromSummaryState(systemKey, aiSummaryState);
+      if (fromSummary) {
+        if (fromSummary.status === "excellent") fromSummary.status = "good";
+        aiCondition = fromSummary;
+      }
     }
-    if (!aiCondition && analysis) {
-      aiCondition = computeAiConditionForSystem(systemKey, analysis);
-    }
+
     return { ...s, aiCondition: aiCondition || undefined };
   });
 }
