@@ -205,9 +205,35 @@ app.use("/agencies-admin", agenciesAdminRoutes);
 // Serve React SPA when frontend build is present (same-origin deployment)
 const publicPath = path.join(__dirname, 'public');
 if (fs.existsSync(publicPath)) {
-  app.use(express.static(publicPath));
-  // SPA fallback: serve index.html for non-API GET requests
-  app.get('*', (req, res) => {
+  app.use(
+    express.static(publicPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          // Fingerprinted build assets are content-hashed, so a URL never changes
+          // meaning — cache them aggressively.
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (
+          filePath.endsWith('index.html') ||
+          filePath.endsWith('sw.js') ||
+          filePath.endsWith('manifest.webmanifest')
+        ) {
+          // The app shell + service worker must always revalidate so a new deploy's
+          // hashed asset references are picked up immediately instead of a stale shell
+          // pointing at deleted bundles.
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    })
+  );
+  // SPA fallback: only serve index.html for actual navigations. Requests that look
+  // like a static file (have an extension) must fall through to a real 404 when the
+  // file is missing — otherwise a stale client asking for a deleted hashed bundle
+  // gets index.html back and throws "MIME type text/html" / shows a blank screen.
+  app.get('*', (req, res, next) => {
+    if (path.extname(req.path)) {
+      return next();
+    }
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(publicPath, 'index.html'));
   });
 }
