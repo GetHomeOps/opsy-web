@@ -213,6 +213,43 @@ const SWITCHABLE_EMAIL_TYPES = {
       { key: "brandName", description: "Product brand name" },
     ],
   },
+  helpdesk_inspection_review_created: {
+    label: "Helpdesk: inspection report review",
+    description:
+      "Internal alert when a new inspection report review is queued. Recipients: kino@heyopsy.com and dev@heyopsy.com.",
+    customerIoDefaultEvent: "helpdesk_inspection_review_created",
+    mergeVariables: [
+      { key: "propertyAddress", description: "Property address" },
+      { key: "customerName", description: "Customer / uploader name" },
+      { key: "customerEmail", description: "Customer email" },
+      { key: "reviewId", description: "Inspection analysis result ID" },
+      { key: "jobId", description: "Analysis job ID" },
+      { key: "uploadedAt", description: "Upload timestamp (formatted)" },
+      { key: "reviewUrl", description: "Link to the review in Helpdesk" },
+      { key: "detailsHtml", description: "Pre-rendered details table HTML" },
+      { key: "brandName", description: "Product brand name" },
+    ],
+  },
+  helpdesk_ticket_created_ops: {
+    label: "Helpdesk: new ticket (ops)",
+    description:
+      "Internal alert when a support, feedback, or data adjustment ticket is created. Recipient: dev@heyopsy.com.",
+    customerIoDefaultEvent: "helpdesk_ticket_created_ops",
+    mergeVariables: [
+      { key: "ticketId", description: "Ticket ID" },
+      { key: "ticketType", description: "support, feedback, or data_adjustment" },
+      { key: "ticketTypeLabel", description: "Human-readable ticket type" },
+      { key: "ticketSubject", description: "Ticket subject" },
+      { key: "ticketUrl", description: "Link to the ticket in Helpdesk" },
+      { key: "accountName", description: "Account name" },
+      { key: "accountId", description: "Account ID" },
+      { key: "createdByName", description: "Submitter name" },
+      { key: "createdByEmail", description: "Submitter email" },
+      { key: "descriptionHtml", description: "Pre-rendered description block HTML" },
+      { key: "detailsHtml", description: "Pre-rendered details table HTML" },
+      { key: "brandName", description: "Product brand name" },
+    ],
+  },
 };
 
 const EMAIL_TYPE_KEYS = Object.keys(SWITCHABLE_EMAIL_TYPES);

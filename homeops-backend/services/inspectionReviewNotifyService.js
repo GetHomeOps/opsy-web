@@ -11,17 +11,11 @@
 
 const db = require("../db");
 const Notification = require("../models/notification");
-const { sendOpsTeamInternalNotification, sendInspectionAnalysisReadyEmail } = require("./emailService");
+const {
+  sendHelpdeskInspectionReviewCreatedEmail,
+  sendInspectionAnalysisReadyEmail,
+} = require("./emailService");
 const { APP_BASE_URL } = require("../config");
-
-function escapeHtml(s) {
-  if (s == null) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 function base() {
   return (APP_BASE_URL || "").replace(/\/$/, "");
@@ -37,13 +31,6 @@ function formatPropertyAddress(row) {
     row.property_name ||
     (row.property_uid ? `Property ${row.property_uid}` : `Property #${row.property_id}`)
   );
-}
-
-function reviewLink(row) {
-  const b = base();
-  const acct = (row.account_url || "").replace(/^\/+|\/+$/g, "");
-  if (!b || !acct || !row.id) return b || "";
-  return `${b}/${acct}/helpdesk/inspection-reviews/${row.id}`;
 }
 
 function propertyLink(row) {
@@ -75,8 +62,6 @@ async function notifyAdminsReviewReady(detail) {
   if (!detail?.id) return;
 
   const propertyAddress = formatPropertyAddress(detail);
-  const customerName = detail.uploader_name || detail.owner_name || "Customer";
-  const link = reviewLink(detail);
   const title = `New inspection analysis to review — ${propertyAddress}`;
 
   // In-app bell for each Super Admin
@@ -97,22 +82,9 @@ async function notifyAdminsReviewReady(detail) {
     console.error("[inspectionReviewNotify] super admin lookup:", err.message);
   }
 
-  // Internal ops email
-  const uploadedAt = detail.uploaded_at ? new Date(detail.uploaded_at).toLocaleString() : "";
-  const inner = `
-      <p style="font-size: 15px; color: #111827;">A new AI inspection analysis is ready for review.</p>
-      <table style="border-collapse: collapse; font-size: 14px; margin: 12px 0;">
-        <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Property address</td><td>${escapeHtml(propertyAddress)}</td></tr>
-        <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Customer</td><td>${escapeHtml(customerName)}${detail.uploader_email ? ` (${escapeHtml(detail.uploader_email)})` : ""}</td></tr>
-        <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Inspection ID</td><td>#${escapeHtml(String(detail.id))} (job #${escapeHtml(String(detail.job_id))})</td></tr>
-        <tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Uploaded</td><td>${escapeHtml(uploadedAt)}</td></tr>
-        ${link ? `<tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Review page</td><td><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></td></tr>` : ""}
-      </table>`;
+  // Internal ops email (kino@heyopsy.com + dev@heyopsy.com)
   try {
-    await sendOpsTeamInternalNotification({
-      subject: `Inspection review needed: ${propertyAddress.slice(0, 90)}`,
-      innerHtml: inner,
-    });
+    await sendHelpdeskInspectionReviewCreatedEmail(detail);
   } catch (err) {
     console.error("[inspectionReviewNotify] ops email:", err.message);
   }

@@ -132,6 +132,21 @@ const DEFAULTS = {
 <p style="margin: 12px 0; line-height: 1.6;">Subscribe anytime to restore premium features for this property.</p>
 <p style="margin: 24px 0;"><a href="{{billingUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Subscribe</a></p>`,
   },
+  helpdesk_inspection_review_created: {
+    subject: "Inspection review needed: {{propertyAddress}}",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">New inspection report review</h2>
+<p style="margin: 12px 0; line-height: 1.6;">A new AI inspection analysis is ready for review on the Helpdesk.</p>
+{{detailsHtml}}
+<p style="margin: 24px 0;"><a href="{{reviewUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Open review</a></p>`,
+  },
+  helpdesk_ticket_created_ops: {
+    subject: "{{ticketTypeLabel}} ticket #{{ticketId}}: {{ticketSubject}}",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">New {{ticketTypeLabel}} ticket</h2>
+<p style="margin: 12px 0; line-height: 1.6;">A new helpdesk ticket was submitted.</p>
+{{detailsHtml}}
+{{descriptionHtml}}
+<p style="margin: 24px 0;"><a href="{{ticketUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View ticket</a></p>`,
+  },
 };
 
 function getDefaultSesTemplate(emailType) {
@@ -311,6 +326,34 @@ function getSampleMergeData(emailType) {
       userName: "Alex",
       propertyLabel: "205 E 95th St, New York, NY",
       billingUrl: "https://app.heyopsy.com/home/settings/billing",
+    },
+    helpdesk_inspection_review_created: {
+      ...base,
+      propertyAddress: "205 E 95th St, New York, NY",
+      customerName: "Maria Garcia",
+      customerEmail: "maria@example.com",
+      reviewId: "42",
+      jobId: "108",
+      uploadedAt: "Jun 19, 2026, 3:45 PM",
+      reviewUrl: "https://app.heyopsy.com/home/helpdesk/inspection-reviews/42",
+      detailsHtml:
+        '<table style="border-collapse: collapse; margin: 12px 0;"><tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Property</td><td>205 E 95th St, New York, NY</td></tr></table>',
+    },
+    helpdesk_ticket_created_ops: {
+      ...base,
+      ticketId: "101",
+      ticketType: "support",
+      ticketTypeLabel: "Support",
+      ticketSubject: "Cannot upload inspection report",
+      ticketUrl: "https://app.heyopsy.com/home/helpdesk/support/101",
+      accountName: "Home account",
+      accountId: "12",
+      createdByName: "Alex Johnson",
+      createdByEmail: "alex@example.com",
+      descriptionHtml:
+        '<div style="margin: 12px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px;">The upload fails after 30 seconds.</div>',
+      detailsHtml:
+        '<table style="border-collapse: collapse; margin: 12px 0;"><tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Subject</td><td>Cannot upload inspection report</td></tr></table>',
     },
   };
   return samples[emailType] || base;

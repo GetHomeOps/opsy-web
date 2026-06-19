@@ -75,8 +75,8 @@ router.get("/account/:accountId", ensureLoggedIn, ensureUserCanAccessAccountByPa
       userId,
       userRole
     );
-    const contactsWithUrls = await addPresignedUrlsToItems(contacts, "image", "image_url");
-    return res.json({ contacts: contactsWithUrls });
+    // List view does not render contact photos; skip per-row S3 presigning here.
+    return res.json({ contacts });
   } catch (err) {
     return next(err);
   }

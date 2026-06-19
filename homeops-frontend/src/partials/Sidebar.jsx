@@ -13,6 +13,7 @@ import {
   SHOW_PROFESSIONALS_SAMPLE_NAV,
   COMING_SOON,
 } from "./sidebarConfig";
+import {prefetchContactsList} from "../pages/routes-nav/routePrefetch";
 
 /**
  * Stripe-style submenu flyout — when sidebar is collapsed, hovering over an expandable
@@ -418,6 +419,9 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
         ? `${linkBase} ${linkActive}`
         : `${linkBase} ${linkInactive}`;
 
+    const prefetchRoute =
+      item.path === "contacts" ? prefetchContactsList : undefined;
+
     return (
       <SidebarTooltip
         key={item.id}
@@ -429,6 +433,8 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
           end
           to={path}
           aria-label={item.label}
+          onMouseEnter={prefetchRoute}
+          onFocus={prefetchRoute}
           className={({isActive}) =>
             isActive || active
               ? isChild

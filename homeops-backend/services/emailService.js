@@ -1146,6 +1146,228 @@ function detailsTableTicket(rows) {
   return `<table style="border-collapse: collapse; margin: 12px 0;">${body}</table>`;
 }
 
+function parseRecipientList(raw, fallback) {
+  const source = (raw && String(raw).trim()) || fallback || "";
+  if (!source.trim()) return [];
+  return [...new Set(source.split(/[,;]+/).map((s) => s.trim()).filter(Boolean))];
+}
+
+/** Internal Helpdesk alert recipients for new inspection report reviews. */
+function getHelpdeskInspectionReviewOpsRecipients() {
+  return parseRecipientList(
+    process.env.HELPDESK_INSPECTION_REVIEW_OPS_EMAIL,
+    "kino@heyopsy.com,dev@heyopsy.com"
+  );
+}
+
+/** Internal Helpdesk alert recipient for new support / feedback / data adjustment tickets. */
+function getHelpdeskTicketOpsRecipients() {
+  return parseRecipientList(process.env.HELPDESK_TICKET_OPS_EMAIL, "dev@heyopsy.com");
+}
+
+async function deliverToRecipients({
+  emailType,
+  recipients,
+  subject,
+  html,
+  mergeData,
+  usage,
+}) {
+  const toList = Array.isArray(recipients)
+    ? recipients.filter((r) => r && String(r).trim())
+    : [];
+  if (!toList.length) {
+    console.warn(`[emailService] ${emailType}: no recipients configured`);
+    return { success: false, reason: "no_recipients" };
+  }
+  let lastResult = { success: false };
+  for (const to of toList) {
+    try {
+      lastResult = await emailProviderRouter.deliver({
+        emailType,
+        to,
+        subject,
+        html,
+        mergeData,
+        usage: { ...usage, emailType },
+      });
+    } catch (err) {
+      console.error(`[emailService] ${emailType} to ${to}:`, err.message);
+      lastResult = { success: false, reason: "send_failed" };
+    }
+  }
+  return lastResult;
+}
+
+function buildHelpdeskTicketOpsUrl(ticket) {
+  const base = (APP_BASE_URL || "").replace(/\/$/, "");
+  if (!base || !ticket?.id) return base || "";
+  const accountUrl = ticket.accountUrl
+    ? String(ticket.accountUrl).replace(/^\/+|\/+$/g, "")
+    : null;
+  if (!accountUrl) return `${base}/helpdesk/support/${ticket.id}`;
+  if (ticket.type === "feedback") {
+    return `${base}/${accountUrl}/helpdesk/feedback/${ticket.id}`;
+  }
+  if (ticket.type === "data_adjustment") {
+    return `${base}/${accountUrl}/helpdesk/data-adjustments/${ticket.id}`;
+  }
+  return `${base}/${accountUrl}/helpdesk/support/${ticket.id}`;
+}
+
+const HELPDESK_TICKET_TYPE_LABELS = {
+  support: "Support",
+  feedback: "Feedback",
+  data_adjustment: "Data adjustment",
+};
+
+/**
+ * Internal ops email when a new inspection report review is queued.
+ * Recipients: kino@heyopsy.com and dev@heyopsy.com (override via env).
+ */
+async function sendHelpdeskInspectionReviewCreatedEmail(detail) {
+  if (!detail?.id) return { success: false, reason: "no_detail" };
+
+  const propertyAddress =
+    detail.propertyAddress ||
+    detail.address ||
+    [
+      detail.address_line_1,
+      detail.city,
+      detail.state,
+      detail.zip,
+    ]
+      .filter(Boolean)
+      .join(", ") ||
+    detail.property_name ||
+    (detail.property_uid ? `Property ${detail.property_uid}` : `Property #${detail.property_id}`);
+
+  const customerName = detail.uploader_name || detail.owner_name || "Customer";
+  const customerEmail = detail.uploader_email || "";
+  const uploadedAt = detail.uploaded_at
+    ? new Date(detail.uploaded_at).toLocaleString()
+    : "";
+
+  const base = (APP_BASE_URL || "").replace(/\/$/, "");
+  const acct = (detail.account_url || "").replace(/^\/+|\/+$/g, "");
+  const reviewUrl =
+    base && acct && detail.id
+      ? `${base}/${acct}/helpdesk/inspection-reviews/${detail.id}`
+      : base || "";
+
+  const detailsHtml = detailsTableTicket([
+    ["Property address", propertyAddress],
+    [
+      "Customer",
+      customerEmail
+        ? `${customerName} (${customerEmail})`
+        : customerName,
+    ],
+    ["Inspection ID", `#${detail.id} (job #${detail.job_id})`],
+    ["Uploaded", uploadedAt],
+    ["Review page", reviewUrl],
+  ]);
+
+  const subject = `Inspection review needed: ${String(propertyAddress).slice(0, 90)}`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+      <h2 style="color: #456564; margin: 0 0 12px;">New inspection report review</h2>
+      <p style="margin: 12px 0; line-height: 1.6;">A new AI inspection analysis is ready for review on the Helpdesk.</p>
+      ${detailsHtml}
+      ${reviewUrl ? `<p style="margin: 24px 0;"><a href="${escapeHtmlAttr(reviewUrl)}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Open review</a></p>` : ""}
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  const mergeData = {
+    brandName,
+    propertyAddress,
+    customerName,
+    customerEmail,
+    reviewId: String(detail.id),
+    jobId: detail.job_id != null ? String(detail.job_id) : "",
+    uploadedAt,
+    reviewUrl,
+    detailsHtml,
+  };
+
+  return deliverToRecipients({
+    emailType: "helpdesk_inspection_review_created",
+    recipients: getHelpdeskInspectionReviewOpsRecipients(),
+    subject,
+    html,
+    mergeData,
+  });
+}
+
+/**
+ * Internal ops email when a support, feedback, or data adjustment ticket is created.
+ * Recipient: dev@heyopsy.com (override via env).
+ */
+async function sendHelpdeskTicketCreatedOpsEmail(ticket) {
+  if (!ticket?.id) return { success: false, reason: "no_ticket" };
+
+  const ticketTypeLabel =
+    HELPDESK_TICKET_TYPE_LABELS[ticket.type] || "Helpdesk";
+  const ticketUrl = buildHelpdeskTicketOpsUrl(ticket);
+  const accountLabel = ticket.accountName
+    ? `${ticket.accountName} (ID ${ticket.accountId})`
+    : ticket.accountId != null
+      ? String(ticket.accountId)
+      : "";
+
+  const descriptionHtml = ticket.description
+    ? `<div style="margin: 12px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 14px; color: #111827; white-space: pre-wrap;">${escapeHtml(ticket.description)}</div>`
+    : "";
+
+  const detailsHtml = detailsTableTicket([
+    ["Subject", ticket.subject],
+    ["Type", ticketTypeLabel],
+    ["Account", accountLabel],
+    [
+      "Created by",
+      ticket.createdByName || ticket.createdByEmail ||
+        (ticket.createdBy != null ? `User ${ticket.createdBy}` : ""),
+    ],
+    ["Ticket page", ticketUrl],
+  ]);
+
+  const subject = `${ticketTypeLabel} ticket #${ticket.id}: ${(ticket.subject || "").slice(0, 80)}`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+      <h2 style="color: #456564; margin: 0 0 12px;">New ${escapeHtml(ticketTypeLabel)} ticket</h2>
+      <p style="margin: 12px 0; line-height: 1.6;">A new helpdesk ticket was submitted.</p>
+      ${detailsHtml}
+      ${descriptionHtml}
+      ${ticketUrl ? `<p style="margin: 24px 0;"><a href="${escapeHtmlAttr(ticketUrl)}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View ticket</a></p>` : ""}
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  const mergeData = {
+    brandName,
+    ticketId: String(ticket.id),
+    ticketType: ticket.type || "",
+    ticketTypeLabel,
+    ticketSubject: ticket.subject || "",
+    ticketUrl,
+    accountName: ticket.accountName || "",
+    accountId: ticket.accountId != null ? String(ticket.accountId) : "",
+    createdByName: ticket.createdByName || "",
+    createdByEmail: ticket.createdByEmail || "",
+    descriptionHtml,
+    detailsHtml,
+  };
+
+  return deliverToRecipients({
+    emailType: "helpdesk_ticket_created_ops",
+    recipients: getHelpdeskTicketOpsRecipients(),
+    subject,
+    html,
+    mergeData,
+  });
+}
+
 function humanizeStatus(status) {
   if (!status) return null;
   return String(status)
@@ -1275,6 +1497,10 @@ module.exports = {
   sendInspectionAnalysisReadyEmail,
   sendSupportTicketReceivedEmail,
   sendSupportTicketReplyEmail,
+  sendHelpdeskInspectionReviewCreatedEmail,
+  sendHelpdeskTicketCreatedOpsEmail,
+  getHelpdeskInspectionReviewOpsRecipients,
+  getHelpdeskTicketOpsRecipients,
   sendSponsorshipLifecycleEmail,
   buildAccountBillingUrl,
   getOpsTeamNotifyRecipients,

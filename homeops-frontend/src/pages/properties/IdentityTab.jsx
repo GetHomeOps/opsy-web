@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Loader2,
   CheckCircle2,
+  Shield,
 } from "lucide-react";
 import SectionCard from "./partials/passport/SectionCard";
 import {StatusBadge} from "./partials/passport/StatusBadge";
@@ -434,6 +435,25 @@ const SECTION_ICONS = {
 /** Shared width for property name + address in identity sections. */
 const IDENTITY_PRIMARY_FIELD_WRAP = "col-span-full min-w-0";
 
+/** Identity tab fields stored as integers in the API payload. */
+const INTEGER_IDENTITY_FIELDS = new Set([
+  "yearBuilt",
+  "sqFtTotal",
+  "sqFtFinished",
+  "garageSqFt",
+  "totalDwellingSqFt",
+  "bedCount",
+  "bathCount",
+  "fullBaths",
+  "threeQuarterBaths",
+  "halfBaths",
+  "numberOfShowers",
+  "numberOfBathtubs",
+  "fireplaces",
+  "totalCoveredParking",
+  "totalUncoveredParking",
+]);
+
 const READONLY_FIELD_LABELS = {
   propertyName: "Property Name",
   address: "Full Address",
@@ -592,6 +612,8 @@ function EditableSectionCard({
   addressInputExtraProps,
   /** Saved properties lock non-primary fields; new properties show label/value placeholders. */
   lockNonEditableFields = true,
+  /** Super admin direct edit — all identity fields are inputs. */
+  allowAllFieldEdits = false,
 }) {
   const Icon = SECTION_ICONS[section.id] ?? Home;
   const {filled, total} = getSectionProgress(propertyData, section);
@@ -659,6 +681,31 @@ function EditableSectionCard({
               </div>
             );
           }
+          if (allowAllFieldEdits) {
+            const label = READONLY_FIELD_LABELS[fieldName] ?? fieldName;
+            const fieldValue = getFieldValue(propertyData, fieldName);
+            const isInteger = INTEGER_IDENTITY_FIELDS.has(fieldName);
+            return (
+              <div
+                key={fieldName}
+                className={identityPrimaryFieldClass(fieldName) || "min-w-0"}
+              >
+                <Field
+                  onChange={handleInputChange}
+                  label={label}
+                  name={fieldName}
+                  value={
+                    fieldValue == null || fieldValue === ""
+                      ? ""
+                      : String(fieldValue)
+                  }
+                  type={isInteger ? "number" : "text"}
+                  inputClassName={BORDERED_INPUT_CLASS}
+                  error={errors[fieldName]}
+                />
+              </div>
+            );
+          }
           if (lockNonEditableFields) {
             return (
               <LockedValue
@@ -698,11 +745,13 @@ function IdentityTab({
   formDataChanged = false,
   attomRefresh = null,
   onCancelEdit,
+  isSuperAdmin = false,
 }) {
   /* View/edit toggle: read-only label/value cards by default; the existing
    * form is shown in edit mode. New (unsaved) properties always start in
    * edit mode since there is nothing to display yet. */
   const [editOverride, setEditOverride] = useState(null);
+  const [adminEditMode, setAdminEditMode] = useState(false);
   const hasSavedProperty = Boolean(
     savedPropertyData?.id ?? propertyData?.id,
   );
@@ -715,6 +764,7 @@ function IdentityTab({
     prevFormDataChangedRef.current = formDataChanged;
     if (wasChanged && !formDataChanged && hasSavedProperty) {
       setEditOverride(false);
+      setAdminEditMode(false);
     }
   }, [formDataChanged, hasSavedProperty]);
 
@@ -741,11 +791,18 @@ function IdentityTab({
 
   const handleCancelEdit = useCallback(() => {
     onCancelEdit?.();
+    setAdminEditMode(false);
     setEditOverride(false);
   }, [onCancelEdit]);
 
   const handleDoneEdit = useCallback(() => {
+    setAdminEditMode(false);
     setEditOverride(false);
+  }, []);
+
+  const handleStartAdminEdit = useCallback(() => {
+    setAdminEditMode(true);
+    setEditOverride(true);
   }, []);
 
   return (
@@ -828,14 +885,27 @@ function IdentityTab({
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={() => setEditOverride(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                Edit Identity
-              </button>
+              <>
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleStartAdminEdit}
+                    title="Edit any identity field directly without a data adjustment request"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-violet-200 dark:border-violet-800/60 text-violet-700 dark:text-violet-300 hover:border-violet-300 dark:hover:border-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors"
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    Direct Edit
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setEditOverride(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit Identity
+                </button>
+              </>
             )}
           </div>
         ) : null
@@ -866,7 +936,8 @@ function IdentityTab({
               AutocompleteWrapper={AutocompleteWrapper}
               supportDataAdjustmentUrl={supportDataAdjustmentUrl}
               addressInputExtraProps={addressInputExtraProps}
-              lockNonEditableFields={hasSavedProperty}
+              lockNonEditableFields={hasSavedProperty && !adminEditMode}
+              allowAllFieldEdits={adminEditMode}
             />
           ))}
         </div>

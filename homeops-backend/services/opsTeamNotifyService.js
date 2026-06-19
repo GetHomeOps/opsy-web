@@ -1,15 +1,19 @@
 "use strict";
 
 /**
- * Internal ops alerts to OPS_TEAM_NOTIFY_EMAIL (default HeyOpsy@heyopsy.com).
- * Uses AWS SES when configured; otherwise logs (see emailService.sendOpsTeamInternalNotification).
+ * Internal ops alerts for helpdesk tickets and other platform events.
+ * Helpdesk ticket creates email dev@heyopsy.com; inspection reviews email kino + dev.
+ * Other ops alerts use OPS_TEAM_NOTIFY_EMAIL (default HeyOpsy@heyopsy.com).
  * Also creates in-app bell notifications for platform admins on new helpdesk tickets
  * and when a requester replies on an existing ticket.
  */
 
 const db = require("../db");
 const Notification = require("../models/notification");
-const { sendOpsTeamInternalNotification } = require("./emailService");
+const {
+  sendHelpdeskTicketCreatedOpsEmail,
+  sendOpsTeamInternalNotification,
+} = require("./emailService");
 const { APP_BASE_URL } = require("../config");
 
 const HELPDESK_TICKET_TYPES = ["support", "feedback", "data_adjustment"];
@@ -117,22 +121,8 @@ async function notifyNewSupportOrFeedbackTicket(ticket) {
     console.error("[opsTeamNotify] platform admin lookup:", err.message);
   }
 
-  const descBlock = ticket.description
-    ? `<div style="margin: 12px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 14px; color: #111827; white-space: pre-wrap;">${escapeHtml(ticket.description)}</div>`
-    : "";
-  const inner = `
-      <p style="font-size: 15px; color: #111827;">New ${escapeHtml(typeLabel.toLowerCase())} ticket #${escapeHtml(String(ticket.id))}.</p>
-      ${detailsTable([
-        ["Subject", ticket.subject],
-        ["Account", ticket.accountName ? `${ticket.accountName} (ID ${ticket.accountId})` : ticket.accountId != null ? String(ticket.accountId) : ""],
-        ["Created by", ticket.createdByName || ticket.createdByEmail || (ticket.createdBy != null ? `User ${ticket.createdBy}` : "")],
-      ])}
-      ${descBlock}`;
   try {
-    await sendOpsTeamInternalNotification({
-      subject: `${typeLabel} ticket #${ticket.id}: ${(ticket.subject || "").slice(0, 80)}`,
-      innerHtml: inner,
-    });
+    await sendHelpdeskTicketCreatedOpsEmail(ticket);
   } catch (err) {
     console.error("[opsTeamNotify] support ticket:", err.message);
   }

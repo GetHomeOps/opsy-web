@@ -1903,6 +1903,20 @@ function PropertyFormContainer() {
       "rooms",
       "bathrooms",
       "yearBuilt",
+      "sqFtTotal",
+      "sqFtFinished",
+      "garageSqFt",
+      "totalDwellingSqFt",
+      "bedCount",
+      "bathCount",
+      "fullBaths",
+      "threeQuarterBaths",
+      "halfBaths",
+      "numberOfShowers",
+      "numberOfBathtubs",
+      "fireplaces",
+      "totalCoveredParking",
+      "totalUncoveredParking",
     ];
     const processed = numericFields.includes(name)
       ? value === ""
@@ -2140,19 +2154,13 @@ function PropertyFormContainer() {
     if (!state.property) return;
 
     const saved = mergeFormDataFromTabs(state.property);
-    const identityFields = [
-      "propertyName",
-      "address",
+    const identityFieldKeys = [
+      ...IDENTITY_SECTIONS.flatMap((s) => s.fields ?? []),
       "fullAddress",
-      "addressLine1",
       "addressLine2",
-      "city",
-      "state",
-      "zip",
-      "county",
     ];
     const payload = {};
-    for (const key of identityFields) {
+    for (const key of identityFieldKeys) {
       payload[key] = saved[key] ?? saved.identity?.[key] ?? null;
     }
     dispatch({type: "SET_IDENTITY_FORM_DATA_SILENT", payload});
@@ -4069,6 +4077,9 @@ function PropertyFormContainer() {
                     formDataChanged={state.formDataChanged}
                     attomRefresh={attomRefresh}
                     onCancelEdit={handleCancelIdentityEdit}
+                    isSuperAdmin={
+                      (currentUser?.role ?? "").toLowerCase() === "super_admin"
+                    }
                   />
                 )}
 

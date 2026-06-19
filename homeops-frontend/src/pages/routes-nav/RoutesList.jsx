@@ -16,6 +16,7 @@ import AdminRoute from "./AdminRoute";
 import SuperAdminRoute from "./SuperAdminRoute";
 import PublicRoute from "./PublicRoute";
 import OnboardingRoute from "./OnboardingRoute";
+import {contactsListImport} from "./routePrefetch";
 
 // Auth/public entry pages are kept eager so the sign-in flow stays instant
 // (these are small and on the critical path for unauthenticated users).
@@ -38,7 +39,7 @@ const TermsOfService = lazy(() => import("../legal/TermsOfService"));
 const Account = lazy(() => import("../accountSettings/Account"));
 const Databases = lazy(() => import("../accountSettings/Databases"));
 const Main = lazy(() => import("../Main"));
-const ContactList = lazy(() => import("../contacts/ContactsList"));
+const ContactList = lazy(contactsListImport);
 const UsersList = lazy(() => import("../users/UsersList"));
 const User = lazy(() => import("../users/User"));
 const UsersImport = lazy(() => import("../users/usersImport"));
