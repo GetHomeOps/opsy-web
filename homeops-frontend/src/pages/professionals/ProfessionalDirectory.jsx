@@ -1,13 +1,15 @@
-import React, {useState, useEffect, useCallback} from "react";
+import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useNavigate} from "react-router-dom";
 import {ArrowRight, Bookmark, Loader2, Search} from "lucide-react";
 
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
+import {useAuth} from "../../context/AuthContext";
 import {LocationBar, CategorySectionRow, ProfessionalCard} from "./components";
 import AppApi from "../../api/api";
 import {normalizeProfessional} from "./utils/normalizeProfessional";
+import {filterVisibleCategories} from "./utils/categoryVisibility";
 
 const PLACEHOLDER_IMG =
   "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -107,9 +109,18 @@ function ProfessionalDirectory() {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const {currentAccount} = useCurrentAccount();
+  const {currentUser} = useAuth();
   const accountUrl = currentAccount?.url || "";
 
-  const categorySections = mapHierarchyToSections(hierarchy);
+  const categorySections = useMemo(() => {
+    const userRole = currentUser?.role;
+    return mapHierarchyToSections(hierarchy)
+      .map((section) => ({
+        ...section,
+        categories: filterVisibleCategories(section.categories, userRole),
+      }))
+      .filter((section) => section.categories.length > 0);
+  }, [hierarchy, currentUser?.role]);
   const savedProsTeaser = savedPros
     .slice(0, 4)
     .map(normalizeProfessional)

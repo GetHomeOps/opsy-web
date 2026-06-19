@@ -5,9 +5,11 @@ import {ArrowLeft, SlidersHorizontal, X, Search, Loader2} from "lucide-react";
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
+import {useAuth} from "../../context/AuthContext";
 import {LocationBar, ProfessionalCard, FiltersSidebar} from "./components";
 import AppApi from "../../api/api";
 import {normalizeProfessional} from "./utils/normalizeProfessional";
+import {filterVisibleCategories} from "./utils/categoryVisibility";
 
 const RESULTS_PER_PAGE = 10;
 
@@ -24,9 +26,17 @@ function flattenCategories(hierarchy) {
   if (!hierarchy?.length) return [];
   const flat = [];
   for (const parent of hierarchy) {
-    flat.push({id: parent.id, name: parent.name});
+    flat.push({
+      id: parent.id,
+      name: parent.name,
+      professional_count: parent.professional_count ?? 0,
+    });
     for (const child of parent.children || []) {
-      flat.push({id: child.id, name: child.name});
+      flat.push({
+        id: child.id,
+        name: child.name,
+        professional_count: child.professional_count ?? 0,
+      });
     }
   }
   flat.sort((a, b) => {
@@ -42,14 +52,28 @@ function flattenCategories(hierarchy) {
 function CategoryDirectoryPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const {currentAccount} = useCurrentAccount();
+  const {currentUser} = useAuth();
   const accountUrl = currentAccount?.url || "";
 
   const categoryParam = searchParams.get("category");
   const cityParam = searchParams.get("city");
   const stateParam = searchParams.get("state");
+
+  const syncFiltersToUrl = useCallback(
+    (nextFilters, nextLocation) => {
+      const params = new URLSearchParams();
+      if (nextFilters.categoryId) {
+        params.set("category", String(nextFilters.categoryId));
+      }
+      if (nextLocation?.city) params.set("city", nextLocation.city);
+      if (nextLocation?.state) params.set("state", nextLocation.state);
+      setSearchParams(params, {replace: true});
+    },
+    [setSearchParams],
+  );
 
   const [location, setLocation] = useState(() => {
     if (cityParam && stateParam) {
@@ -75,10 +99,27 @@ function CategoryDirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const flatCategories = useMemo(
-    () => flattenCategories(categories),
-    [categories],
-  );
+  const flatCategories = useMemo(() => {
+    const all = flattenCategories(categories);
+    const visible = filterVisibleCategories(all, currentUser?.role);
+    const selectedId = filters.categoryId;
+    if (
+      selectedId &&
+      !visible.some((cat) => String(cat.id) === String(selectedId))
+    ) {
+      const selected = all.find(
+        (cat) => String(cat.id) === String(selectedId),
+      );
+      if (selected) visible.push(selected);
+    }
+    return visible.sort((a, b) => {
+      const cmp = (a.name || "").localeCompare(b.name || "", undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      return cmp !== 0 ? cmp : String(a.id).localeCompare(String(b.id));
+    });
+  }, [categories, currentUser?.role, filters.categoryId]);
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(searchTerm), 300);
@@ -132,9 +173,21 @@ function CategoryDirectoryPage() {
   useEffect(() => {
     setFilters((prev) => ({
       ...prev,
-      categoryId: categoryParam || prev.categoryId,
+      categoryId: categoryParam || null,
     }));
   }, [categoryParam]);
+
+  useEffect(() => {
+    if (cityParam && stateParam) {
+      setLocation({
+        label: `${cityParam}, ${stateParam}`,
+        city: cityParam,
+        state: stateParam,
+      });
+    } else if (!cityParam && !stateParam) {
+      setLocation(null);
+    }
+  }, [cityParam, stateParam]);
 
   const toggleSave = useCallback(
     async (proId) => {
@@ -175,6 +228,19 @@ function CategoryDirectoryPage() {
     setFilters(EMPTY_FILTERS);
     setLocation(null);
     setPage(1);
+    setSearchParams(new URLSearchParams(), {replace: true});
+  };
+
+  const handleFilterChange = (nextFilters) => {
+    setFilters(nextFilters);
+    setPage(1);
+    syncFiltersToUrl(nextFilters, location);
+  };
+
+  const handleLocationChange = (loc) => {
+    setLocation(loc);
+    setPage(1);
+    syncFiltersToUrl(filters, loc);
   };
 
   const categoryName =
@@ -269,17 +335,11 @@ function CategoryDirectoryPage() {
                 <div className="sticky top-8 space-y-3">
                   <LocationBar
                     value={location}
-                    onChange={(loc) => {
-                      setLocation(loc);
-                      setPage(1);
-                    }}
+                    onChange={handleLocationChange}
                   />
                   <FiltersSidebar
                     filters={filters}
-                    onFilterChange={(f) => {
-                      setFilters(f);
-                      setPage(1);
-                    }}
+                    onFilterChange={handleFilterChange}
                     onClearFilters={clearFilters}
                     categories={flatCategories}
                   />
@@ -309,17 +369,11 @@ function CategoryDirectoryPage() {
                     <div className="p-3 space-y-3">
                       <LocationBar
                         value={location}
-                        onChange={(loc) => {
-                          setLocation(loc);
-                          setPage(1);
-                        }}
+                        onChange={handleLocationChange}
                       />
                       <FiltersSidebar
                         filters={filters}
-                        onFilterChange={(f) => {
-                          setFilters(f);
-                          setPage(1);
-                        }}
+                        onFilterChange={handleFilterChange}
                         onClearFilters={clearFilters}
                         categories={flatCategories}
                       />
