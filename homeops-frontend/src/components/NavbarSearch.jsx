@@ -1,6 +1,6 @@
 import React, {useState, useRef, useEffect, useContext, useMemo} from "react";
 import {useNavigate} from "react-router-dom";
-import {Search, Building2, FileText, User} from "lucide-react";
+import {Search, Building2, FileText, User, X} from "lucide-react";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useSuppressBrowserAddressAutofill from "../hooks/useSuppressBrowserAddressAutofill";
 import {useAuth} from "../context/AuthContext";
@@ -259,19 +259,31 @@ function NavbarSearch({disabled = false}) {
     ? "bg-gray-200/80 dark:bg-gray-800/60 text-gray-500 dark:text-gray-500 cursor-not-allowed"
     : "bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 focus-within:bg-gray-200 dark:focus-within:bg-gray-700";
   const searchInput = (
-    <input
-      ref={inputRef}
-      type="text"
-      value={query}
-      onChange={(e) => setQuery(e.target.value)}
-      placeholder="Search properties, contacts, pages, billing & pricing…"
-      disabled={disabled}
-      className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
-      aria-label="Search"
-      {...bindDesktopSearchInput({
-        onFocus: () => !disabled && setOpen(true),
-      })}
-    />
+    <>
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search properties, contacts, pages, billing & pricing…"
+        disabled={disabled}
+        className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-0 focus:outline-none focus:border-none disabled:cursor-not-allowed disabled:placeholder-gray-400/70"
+        aria-label="Search"
+        {...bindDesktopSearchInput({
+          onFocus: () => !disabled && setOpen(true),
+        })}
+      />
+      {query ? (
+        <button
+          type="button"
+          onClick={() => setQuery("")}
+          className="shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200/80 dark:text-gray-500 dark:hover:text-gray-300 dark:hover:bg-gray-600/50 transition-colors"
+          aria-label="Clear search"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      ) : null}
+    </>
   );
 
   const dropdownPanelClassName =
@@ -426,6 +438,16 @@ function NavbarSearch({disabled = false}) {
                   onFocus: () => !disabled && setOpen(true),
                 })}
               />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200/80 dark:text-gray-500 dark:hover:text-gray-300 dark:hover:bg-gray-600/50 transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              ) : null}
             </div>
           </div>
           {showDropdown && (

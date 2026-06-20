@@ -17,6 +17,7 @@ import ListDropdown from "../../partials/buttons/ListDropdown";
 import PaginationClassic from "../../components/PaginationClassic";
 import Banner from "../../partials/containers/Banner";
 import AgenciesTable from "./AgenciesTable";
+import SearchInput from "../../components/SearchInput";
 
 const PAGE_STORAGE_KEY = "agencies_list_page";
 const SEARCH_DEBOUNCE_MS = 300;
@@ -714,31 +715,17 @@ function AgenciesManage() {
 
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row gap-2.5">
-          <div className="relative flex-1 min-w-0">
-            <input
-              type="text"
-              className="form-input w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#456564] dark:focus:border-[#456564] rounded-lg shadow-sm text-sm"
-              placeholder="Search agencies..."
-              value={state.searchTerm}
-              onChange={handleSearchChange}
-            />
-            <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none pl-3">
-              <svg
-                className="shrink-0 fill-current text-gray-400 dark:text-gray-500 ml-1"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-              >
-                <path d="M7 14c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zM7 2C4.243 2 2 4.243 2 7s2.243 5 5 5 5-2.243 5-5-2.243-5-5-5z" />
-                <path d="M15.707 14.293L13.314 11.9a8.019 8.019 0 01-1.414 1.414l2.393 2.393a.997.997 0 001.414 0 .999.999 0 000-1.414z" />
-              </svg>
-            </div>
-            {state.refreshing && (
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+          <SearchInput
+            placeholder="Search agencies..."
+            value={state.searchTerm}
+            onChange={handleSearchChange}
+            inputClassName="form-input w-full pl-10 pr-9 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#456564] dark:focus:border-[#456564] rounded-lg shadow-sm text-sm"
+            rightSlot={
+              state.refreshing ? (
                 <Loader2 className="w-4 h-4 text-[#456564] animate-spin" />
-              </div>
-            )}
-          </div>
+              ) : null
+            }
+          />
 
           <div className="flex items-center gap-2 shrink-0">
             <FilterDropdown

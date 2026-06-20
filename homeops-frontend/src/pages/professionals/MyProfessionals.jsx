@@ -5,7 +5,6 @@ import {
   ChevronDown,
   Bookmark,
   Loader2,
-  Search,
   LayoutGrid,
   List,
   Star,
@@ -18,6 +17,7 @@ import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {ProfessionalCard} from "./components";
 import AppApi from "../../api/api";
+import SearchInput from "../../components/SearchInput";
 import {normalizeProfessional} from "./utils/normalizeProfessional";
 
 const RATING_OPTIONS = [
@@ -216,16 +216,14 @@ function MyProfessionals() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="relative flex-1 sm:w-72">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search saved pros…"
-                      className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] focus:bg-white dark:focus:bg-gray-800 transition-all"
-                    />
-                  </div>
+                  <SearchInput
+                    className="relative flex-1 sm:w-72"
+                    icon="lucide"
+                    placeholder="Search saved pros…"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    inputClassName="w-full pl-10 pr-9 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] focus:bg-white dark:focus:bg-gray-800 transition-all"
+                  />
                   <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden shrink-0">
                     <button
                       type="button"

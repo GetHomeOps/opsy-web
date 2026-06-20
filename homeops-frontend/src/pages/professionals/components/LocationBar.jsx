@@ -1,4 +1,11 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+} from "react";
+import { createPortal } from "react-dom";
 import { MapPin, Search, X } from "lucide-react";
 import { MOCK_LOCATIONS } from "../data/mockData";
 
@@ -6,7 +13,10 @@ function LocationBar({ value, onChange, className = "" }) {
   const [query, setQuery] = useState(value?.label || "");
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
+  const [dropdownRect, setDropdownRect] = useState(null);
   const wrapperRef = useRef(null);
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
   const inputRef = useRef(null);
 
   const filtered = query.trim()
@@ -19,11 +29,39 @@ function LocationBar({ value, onChange, className = "" }) {
     setQuery(value?.label || "");
   }, [value]);
 
+  const updateDropdownPosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setDropdownRect({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setDropdownRect(null);
+      return;
+    }
+    updateDropdownPosition();
+    window.addEventListener("resize", updateDropdownPosition);
+    window.addEventListener("scroll", updateDropdownPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateDropdownPosition);
+      window.removeEventListener("scroll", updateDropdownPosition, true);
+    };
+  }, [open, query, filtered.length, updateDropdownPosition]);
+
   useEffect(() => {
     function handleClickOutside(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        setOpen(false);
+      if (
+        wrapperRef.current?.contains(e.target) ||
+        dropdownRef.current?.contains(e.target)
+      ) {
+        return;
       }
+      setOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -61,9 +99,64 @@ function LocationBar({ value, onChange, className = "" }) {
     inputRef.current?.focus();
   };
 
+  const dropdownStyle = dropdownRect
+    ? {
+        top: dropdownRect.top,
+        left: dropdownRect.left,
+        width: dropdownRect.width,
+      }
+    : null;
+
+  const dropdownMenu =
+    open &&
+    filtered.length > 0 &&
+    dropdownStyle &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        ref={dropdownRef}
+        className="fixed z-[250] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-56 overflow-y-auto"
+        style={dropdownStyle}
+      >
+        {filtered.map((loc, idx) => (
+          <button
+            key={loc.zip}
+            type="button"
+            onClick={() => select(loc)}
+            className={`flex items-center gap-2.5 w-full px-3 py-2 text-left text-sm transition-colors ${
+              idx === highlightIdx
+                ? "bg-[#456564]/10 dark:bg-[#456564]/20 text-[#456564] dark:text-[#7aa3a2]"
+                : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+            <span>{loc.label}</span>
+          </button>
+        ))}
+      </div>,
+      document.body,
+    );
+
+  const emptyDropdown =
+    open &&
+    query.trim() &&
+    filtered.length === 0 &&
+    dropdownStyle &&
+    typeof document !== "undefined" &&
+    createPortal(
+      <div
+        ref={dropdownRef}
+        className="fixed z-[250] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg p-3 text-sm text-gray-500 dark:text-gray-400 text-center"
+        style={dropdownStyle}
+      >
+        No matching locations found
+      </div>,
+      document.body,
+    );
+
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>
-      <div className="relative">
+      <div ref={triggerRef} className="relative">
         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
         <input
           ref={inputRef}
@@ -101,31 +194,8 @@ function LocationBar({ value, onChange, className = "" }) {
         </div>
       </div>
 
-      {open && filtered.length > 0 && (
-        <div className="absolute z-[100] mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg max-h-56 overflow-y-auto">
-          {filtered.map((loc, idx) => (
-            <button
-              key={loc.zip}
-              type="button"
-              onClick={() => select(loc)}
-              className={`flex items-center gap-2.5 w-full px-3 py-2 text-left text-sm transition-colors ${
-                idx === highlightIdx
-                  ? "bg-[#456564]/10 dark:bg-[#456564]/20 text-[#456564] dark:text-[#7aa3a2]"
-                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-              }`}
-            >
-              <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-400" />
-              <span>{loc.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {open && query.trim() && filtered.length === 0 && (
-        <div className="absolute z-[100] mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-          No matching locations found
-        </div>
-      )}
+      {dropdownMenu}
+      {emptyDropdown}
     </div>
   );
 }

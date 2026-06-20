@@ -10,6 +10,7 @@ import {
   MOCK_PROFESSIONALS,
   SERVICE_CATEGORIES,
 } from "./data/mockData";
+import SearchInput from "../../components/SearchInput";
 
 const RESULTS_PER_PAGE = 10;
 
@@ -172,19 +173,17 @@ function CategoryDirectoryPageSample() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="relative flex-1 sm:w-80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => {
-                        setSearchTerm(e.target.value);
-                        setPage(1);
-                      }}
-                      placeholder="Search by name or keyword…"
-                      className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] transition-all"
-                    />
-                  </div>
+                  <SearchInput
+                    className="relative flex-1 sm:w-80"
+                    icon="lucide"
+                    placeholder="Search by name or keyword…"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setPage(1);
+                    }}
+                    inputClassName="w-full pl-9 pr-9 py-2 text-xs rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-[#456564]/30 focus:border-[#456564] transition-all"
+                  />
                   <button
                     type="button"
                     onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}

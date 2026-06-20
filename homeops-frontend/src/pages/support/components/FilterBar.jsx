@@ -1,5 +1,6 @@
 import React from "react";
-import { Search, X } from "lucide-react";
+import { X } from "lucide-react";
+import SearchInput from "../../../components/SearchInput";
 
 /**
  * Odoo-style filter bar: search + compact filter dropdowns.
@@ -24,16 +25,14 @@ function FilterBar({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={searchPlaceholder}
-            className="form-input pl-9 pr-4 py-2 text-sm w-full rounded-lg border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-violet-500/20"
-          />
-        </div>
+        <SearchInput
+          className="relative flex-1 min-w-[200px] max-w-md"
+          icon="lucide"
+          placeholder={searchPlaceholder}
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          inputClassName="form-input pl-9 pr-9 py-2 text-sm w-full rounded-lg border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-violet-500/20"
+        />
 
         {/* Filter dropdowns */}
         <div className="flex flex-wrap items-center gap-2">
