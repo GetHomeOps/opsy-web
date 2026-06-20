@@ -12,6 +12,9 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
 import ProfessionalsTable from "./ProfessionalsTable";
 import useDropdownAlignment from "../../hooks/useDropdownAlignment";
+import usePersistListUiSession, {
+  HYDRATE_LIST_UI,
+} from "../../hooks/usePersistListUiSession";
 
 const PAGE_STORAGE_KEY = "professionals_list_page";
 
@@ -87,6 +90,17 @@ function reducer(state, action) {
       return {...state, professionals: action.payload, loading: false};
     case "SET_LOADING":
       return {...state, loading: action.payload};
+    case HYDRATE_LIST_UI: {
+      const p = action.payload || {};
+      const next = {...state};
+      if (typeof p.searchTerm === "string") next.searchTerm = p.searchTerm;
+      if (Array.isArray(p.activeFilters)) next.activeFilters = p.activeFilters;
+      if (Number.isFinite(Number(p.itemsPerPage)))
+        next.itemsPerPage = Number(p.itemsPerPage);
+      if (Number.isFinite(Number(p.currentPage)))
+        next.currentPage = Number(p.currentPage);
+      return next;
+    }
     default:
       return state;
   }
@@ -289,6 +303,7 @@ function ProfessionalsList() {
   const navigate = useNavigate();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
+  const listScopeId = accountUrl ? `professionals:${accountUrl}` : "";
   const [selectedItems, setSelectedItems] = useState([]);
   const exportGuardRef = useRef(false);
   const [sortConfig, setSortConfig] = useState({
@@ -301,6 +316,14 @@ function ProfessionalsList() {
     currentPage:
       Number(localStorage.getItem(PAGE_STORAGE_KEY)) || base.currentPage,
   }));
+
+  usePersistListUiSession(listScopeId, {
+    dispatch,
+    searchTerm: state.searchTerm,
+    activeFilters: state.activeFilters,
+    itemsPerPage: state.itemsPerPage,
+    currentPage: state.currentPage,
+  });
 
   /* ─── Load Professionals from API ──────────────────────────── */
 

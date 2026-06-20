@@ -38,7 +38,7 @@ function ProjectImageCarousel({photos}) {
 
   return (
     <div
-      className="relative w-full h-full overflow-hidden bg-gray-100 dark:bg-gray-700 group/carousel"
+      className="relative w-full h-full overflow-hidden bg-white group/carousel"
     >
       {displayPhotos.map((photo, idx) => (
         <img
@@ -46,7 +46,7 @@ function ProjectImageCarousel({photos}) {
           src={photo.url || PLACEHOLDER_IMG}
           alt={photo.caption}
           loading="lazy"
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+          className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${
             idx === current ? "opacity-100" : "opacity-0"
           }`}
         />
@@ -122,11 +122,11 @@ function ProfessionalCard({
         onClick={goToProfile}
         className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-200/60 dark:border-gray-700/50 bg-gray-50/80 dark:bg-gray-800/60 shadow-sm cursor-pointer group hover:bg-gray-100/90 dark:hover:bg-gray-800/90 hover:border-[#456564]/25 dark:hover:border-[#7aa3a2]/30 hover:shadow-md transition-all duration-200"
       >
-        <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 ring-1 ring-gray-200/80 dark:ring-gray-600/50">
+        <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-white ring-1 ring-gray-200/80 dark:ring-gray-600/50">
           <img
             src={mainImage}
             alt=""
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
             loading="lazy"
           />
         </div>
@@ -165,11 +165,11 @@ function ProfessionalCard({
         onClick={goToProfile}
         className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 shadow-sm overflow-hidden cursor-pointer group"
       >
-        <div className="aspect-[4/3] w-full overflow-hidden bg-gray-100 dark:bg-gray-700">
+        <div className="aspect-[4/3] w-full overflow-hidden bg-white">
           <img
             src={mainImage}
             alt=""
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
             loading="lazy"
           />
         </div>
@@ -215,11 +215,11 @@ function ProfessionalCard({
         onClick={goToProfile}
         className="flex items-center gap-4 p-3.5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 cursor-pointer group"
       >
-        <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden">
+        <div className="shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-white">
           <img
             src={professional.projectPhotos[0]?.url || professional.photoUrl || PLACEHOLDER_IMG}
             alt={professional.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -267,7 +267,7 @@ function ProfessionalCard({
               <img
                 src={professional.photoUrl || PLACEHOLDER_IMG}
                 alt=""
-                className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 shrink-0 mt-0.5"
+                className="w-10 h-10 rounded-full object-contain bg-white ring-2 ring-gray-100 dark:ring-gray-700 shrink-0 mt-0.5"
               />
               <div className="min-w-0">
                 <h3 className="text-[15px] font-bold text-gray-900 dark:text-white group-hover:text-[#456564] dark:group-hover:text-[#7aa3a2] transition-colors truncate leading-snug">
