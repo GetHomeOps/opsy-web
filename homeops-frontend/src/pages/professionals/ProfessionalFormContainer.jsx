@@ -1647,13 +1647,13 @@ function ProfessionalFormContainer() {
                           return (
                             <div
                               key={photo.id}
-                              className="relative group rounded-xl overflow-hidden aspect-[4/3] bg-gray-100 dark:bg-gray-700"
+                              className="relative group rounded-xl overflow-hidden aspect-[4/3] bg-white"
                             >
                               {imgSrc ? (
                                 <img
                                   src={imgSrc}
                                   alt={photo.caption || "Project photo"}
-                                  className="w-full h-full object-cover"
+                                  className="w-full h-full object-contain"
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center">

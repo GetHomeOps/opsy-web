@@ -457,13 +457,13 @@ function ProfessionalProfile() {
             </button>
 
             {/* ═══ Hero Carousel ═══ */}
-            <div className="relative rounded-t-2xl overflow-hidden bg-gray-900 aspect-[21/7] group">
+            <div className="relative rounded-t-2xl overflow-hidden bg-white aspect-[21/7] group">
               {photos.map((photo, idx) => (
                 <img
                   key={photo.id}
                   src={photo.url}
                   alt={photo.caption}
-                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                  className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${
                     idx === carouselIdx ? "opacity-100" : "opacity-0"
                   }`}
                   loading={idx === 0 ? "eager" : "lazy"}
@@ -519,7 +519,7 @@ function ProfessionalProfile() {
                     <img
                       src={professional.photoUrl}
                       alt={professional.name}
-                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-md shrink-0"
+                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-contain bg-white ring-2 ring-white dark:ring-gray-700 shadow-md shrink-0"
                     />
                     <div className="min-w-0">
                       <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight truncate">
@@ -744,12 +744,12 @@ function ProfessionalProfile() {
                     {photos.map((photo) => (
                       <div
                         key={photo.id}
-                        className="relative aspect-[4/3] rounded-lg overflow-hidden group cursor-pointer"
+                        className="relative aspect-[4/3] rounded-lg overflow-hidden bg-white group cursor-pointer"
                       >
                         <img
                           src={photo.url}
                           alt={photo.caption}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                           loading="lazy"
                         />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-end">

@@ -42,6 +42,9 @@ export function compressImageForUpload(file, options = {}) {
         resolve(file);
         return;
       }
+      // JPEG has no alpha — fill white so transparent PNG areas don't flatten to black.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
 
       canvas.toBlob(

@@ -35,7 +35,7 @@ function ProfileHeader({
         <img
           src={professional.photoUrl || PLACEHOLDER_IMG}
           alt={professional.name}
-          className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover ring-2 ring-white dark:ring-gray-700 shadow-md shrink-0"
+          className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-contain bg-white ring-2 ring-white dark:ring-gray-700 shadow-md shrink-0"
         />
         <div className="min-w-0 flex-1">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight truncate">
