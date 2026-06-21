@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import {markPostLoginWelcomeGreeting} from "../../utils/authNavigation";
+import {isDemoSite} from "../../utils/demoSite";
 import {useTranslation} from "react-i18next";
 import AppApi, {API_BASE_URL} from "../../api/api";
 import "../../i18n";
@@ -66,6 +67,12 @@ function Signup() {
   }, [step]);
 
   const {t} = useTranslation();
+
+  useEffect(() => {
+    if (isDemoSite()) {
+      navigate("/signin", {replace: true, state: {demoSignupDisabled: true}});
+    }
+  }, [navigate]);
 
   /** Reset OAuth loading when page is restored from back-forward cache or when
    *  tab regains focus (e.g. user started OAuth, cancelled at Google, then hit Back). */

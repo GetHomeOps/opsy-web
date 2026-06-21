@@ -47,6 +47,7 @@ const {
   isEmailAnActiveAgentUser,
   propertyHasAgentMemberOrPendingAgentInvitation,
 } = require("./propertyAgentPolicy");
+const { isDemoEnvironment } = require("../helpers/demoEnvironment");
 const {
   shouldAutoTransferOwnershipOnHomeownerInvite,
   transferPropertyOwnership,
@@ -999,6 +1000,9 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
       } else {
         if (!password || !name) {
           throw new BadRequestError("Name and password are required for new users");
+        }
+        if (isDemoEnvironment()) {
+          throw new ForbiddenError("Account registration is disabled on the demo site.");
         }
         /* Force invited new users through onboarding so they must pick a plan,
            exactly like self-signup. Without onboarding_completed=false the row

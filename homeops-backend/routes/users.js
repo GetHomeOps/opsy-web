@@ -32,45 +32,10 @@ const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/p
 const db = require("../db");
 const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
 const { createAccountInvitation } = require("../services/invitationService");
+const { assertDemoResetAllowed } = require("../helpers/demoEnvironment");
 
 const router = express.Router();
-const DEMO_HOSTNAME = "demo.heyopsy.com";
 const DEMO_HOMEOWNER_RESET_EMAIL = "hello-homeowner@heyopsy.com";
-
-function hostnameFromUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== "string") return null;
-  try {
-    return new URL(rawUrl).hostname?.toLowerCase() || null;
-  } catch {
-    return null;
-  }
-}
-
-function hostnameFromHostHeader(rawHost) {
-  if (!rawHost || typeof rawHost !== "string") return null;
-  return rawHost.split(",")[0].trim().split(":")[0].toLowerCase();
-}
-
-function getRequestHostname(req) {
-  const originHost = hostnameFromUrl(req.get("origin"));
-  if (originHost) return originHost;
-  const refererHost = hostnameFromUrl(req.get("referer"));
-  if (refererHost) return refererHost;
-  const forwardedHost = hostnameFromHostHeader(req.get("x-forwarded-host"));
-  if (forwardedHost) return forwardedHost;
-  return hostnameFromHostHeader(req.get("host"));
-}
-
-function assertDemoResetAllowed(req) {
-  const appOriginHost = hostnameFromUrl(process.env.APP_WEB_ORIGIN);
-  const requestHost = getRequestHostname(req);
-  if (appOriginHost !== DEMO_HOSTNAME) {
-    throw new ForbiddenError("Demo reset is only available in the demo environment.");
-  }
-  if (requestHost !== DEMO_HOSTNAME) {
-    throw new ForbiddenError("Demo reset can only be triggered from demo.heyopsy.com.");
-  }
-}
 
 /** POST / - Admin-created user. Creates user as pending (is_active=false,
  *  onboarding_completed=false) and, by default, immediately sends an invitation

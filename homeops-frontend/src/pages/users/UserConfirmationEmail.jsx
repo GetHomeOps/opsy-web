@@ -3,6 +3,7 @@ import {useSearchParams, useLocation, useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import AppApi from "../../api/api";
 import {useAuth} from "../../context/AuthContext";
+import {isDemoSite} from "../../utils/demoSite";
 import {Check, AlertCircle, Loader2} from "lucide-react";
 import AuthLayout from "../auth/AuthLayout";
 import AuthCardShell from "../auth/AuthCardShell";
@@ -162,6 +163,17 @@ function UserConfirmationEmail() {
           {t("invitationMessage") ||
             "You've been invited to join Opsy. Please confirm your information and set up your password to get started."}
         </p>
+
+        {isDemoSite() ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-6">
+            <p className="text-sm text-amber-900">
+              {t(
+                "invitation.demoSignupDisabled",
+                "New account registration is disabled on the demo site. Contact your administrator if you need access.",
+              )}
+            </p>
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">

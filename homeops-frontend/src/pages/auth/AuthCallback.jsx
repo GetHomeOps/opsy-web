@@ -6,6 +6,7 @@ import {
   consumePostLogoutRedirectReset,
   markPostLoginWelcomeGreeting,
 } from "../../utils/authNavigation";
+import {isDemoSite} from "../../utils/demoSite";
 import OpsyMascot from "../../images/opsy3.png";
 
 const ERROR_MESSAGES = {
@@ -13,6 +14,8 @@ const ERROR_MESSAGES = {
     "An account with this email already exists. Please sign in instead.",
   no_account:
     "No account found with this Google account. Please sign up first.",
+  signup_disabled:
+    "Account registration is disabled on the demo site. Sign in with an existing demo account.",
   invalid_state: "Invalid or expired request. Please try again.",
   missing_params: "Invalid callback. Please try again.",
   no_email: "Google did not provide an email. Please try another account.",
@@ -78,6 +81,18 @@ function AuthCallback() {
         return;
       }
       if (params.error === "no_account") {
+        if (isDemoSite()) {
+          navigate("/signin", {
+            replace: true,
+            state: {
+              demoSignupDisabled: true,
+              oauthNoAccount: true,
+              oauthNoAccountMessage:
+                "No account found with this Google account. The demo site does not allow new sign-ups.",
+            },
+          });
+          return;
+        }
         navigate("/signup", {
           replace: true,
           state: {
@@ -149,17 +164,19 @@ function AuthCallback() {
                 <button
                   type="button"
                   onClick={() => navigate("/signin", {replace: true})}
-                  className="flex-1 py-3 px-6 bg-[#456564] hover:bg-[#3a5554] text-white rounded-xl font-semibold text-sm transition-colors shadow-sm hover:shadow-md"
+                  className={`${isDemoSite() ? "w-full" : "flex-1"} py-3 px-6 bg-[#456564] hover:bg-[#3a5554] text-white rounded-xl font-semibold text-sm transition-colors shadow-sm hover:shadow-md`}
                 >
                   Sign in
                 </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/signup", {replace: true})}
-                  className="flex-1 py-3 px-6 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl font-semibold text-sm transition-colors"
-                >
-                  Sign up
-                </button>
+                {!isDemoSite() ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/signup", {replace: true})}
+                    className="flex-1 py-3 px-6 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl font-semibold text-sm transition-colors"
+                  >
+                    Sign up
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>

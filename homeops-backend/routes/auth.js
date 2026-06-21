@@ -64,6 +64,10 @@ const PlatformEngagement = require("../models/platformEngagement");
 const RefreshToken = require("../models/refreshToken");
 const ImpersonationAudit = require("../models/impersonationAudit");
 const db = require("../db");
+const {
+  assertPublicSignupAllowed,
+  isDemoEnvironment,
+} = require("../helpers/demoEnvironment");
 
 function getClientMeta(req) {
   const forwarded = req.headers["x-forwarded-for"];
@@ -196,6 +200,7 @@ router.get("/check-email", async function (req, res, next) {
 });
 
 router.post("/register", async function (req, res, next) {
+  assertPublicSignupAllowed();
   const userData = req.body.userData || req.body;
   if (!userData || typeof userData !== "object") {
     throw new BadRequestError("User data (name, email, password) is required");
@@ -656,6 +661,9 @@ router.get("/google/signin", function (req, res, next) {
 });
 
 router.get("/google/signup", function (req, res, next) {
+  if (isDemoEnvironment()) {
+    return res.redirect(redirectWithError("signup_disabled"));
+  }
   if (!GOOGLE_CLIENT_ID) {
     return res.status(503).json({ error: { message: "Google sign-up is not configured" } });
   }
@@ -723,6 +731,7 @@ async function handleGoogleCallback(req, res, next, intent) {
         }
       }
       if (!user) {
+        assertPublicSignupAllowed();
         await db.query("BEGIN");
         try {
           const newUser = await User.registerGoogle({
@@ -785,6 +794,9 @@ async function handleGoogleCallback(req, res, next, intent) {
     return res.redirect(redirectWithToken(accessToken, refreshToken));
   } catch (err) {
     console.error("Google callback error:", err.message);
+    if (err instanceof ForbiddenError) {
+      return res.redirect(redirectWithError("signup_disabled"));
+    }
     return res.redirect(redirectWithError("oauth_failed"));
   }
 }

@@ -22,6 +22,7 @@ import {
   isPostLogoutRedirectResetPending,
   markPostLoginWelcomeGreeting,
 } from "../../utils/authNavigation";
+import {isDemoSite} from "../../utils/demoSite";
 import "../../i18n";
 
 import AuthLayout from "./AuthLayout";
@@ -42,6 +43,8 @@ function Signin() {
   const {login, completeMfaLogin, currentUser} = useAuth();
   const fromSignup = location.state?.fromSignup;
   const signupEmail = location.state?.email;
+  const demoSignupDisabled = location.state?.demoSignupDisabled;
+  const oauthNoAccountMessage = location.state?.oauthNoAccountMessage;
   const [formData, setFormData] = useState({
     email: signupEmail ?? "",
     password: "",
@@ -228,23 +231,43 @@ function Signin() {
   }
 
   const signInFooter = !mfaTicket ? (
-    <div className="text-center space-y-4">
-      <p className="font-auth-serif text-sm text-gray-500">
-        {t("noAccount")}
-      </p>
-      <Link to="/signup" className={authSecondaryButtonClass}>
-        {t("signin.createAccount", "Create an account")}
-      </Link>
-      <a
-        href="/privacy-policy"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-xs text-[#C5A87F] hover:text-[#2D4A44] hover:underline inline-flex items-center justify-center gap-1"
-      >
-        {t("privacyPolicy.link") || "Privacy Policy"}
-        <ExternalLink className="w-3 h-3 shrink-0" />
-      </a>
-    </div>
+    isDemoSite() ? (
+      <div className="text-center space-y-4">
+        <p className="font-auth-serif text-sm text-gray-500">
+          {t(
+            "signin.demoSignInOnly",
+            "Demo site — sign in with an existing account. New accounts are not available here.",
+          )}
+        </p>
+        <a
+          href="/privacy-policy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-[#C5A87F] hover:text-[#2D4A44] hover:underline inline-flex items-center justify-center gap-1"
+        >
+          {t("privacyPolicy.link") || "Privacy Policy"}
+          <ExternalLink className="w-3 h-3 shrink-0" />
+        </a>
+      </div>
+    ) : (
+      <div className="text-center space-y-4">
+        <p className="font-auth-serif text-sm text-gray-500">
+          {t("noAccount")}
+        </p>
+        <Link to="/signup" className={authSecondaryButtonClass}>
+          {t("signin.createAccount", "Create an account")}
+        </Link>
+        <a
+          href="/privacy-policy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-[#C5A87F] hover:text-[#2D4A44] hover:underline inline-flex items-center justify-center gap-1"
+        >
+          {t("privacyPolicy.link") || "Privacy Policy"}
+          <ExternalLink className="w-3 h-3 shrink-0" />
+        </a>
+      </div>
+    )
   ) : null;
 
   return (
@@ -260,6 +283,18 @@ function Signin() {
                 "signup.emailExistsSignIn",
                 "An account with this email already exists. Sign in below.",
               )}
+            </p>
+          </div>
+        )}
+
+        {(demoSignupDisabled || oauthNoAccountMessage) && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-5">
+            <p className="text-sm text-amber-900">
+              {oauthNoAccountMessage ||
+                t(
+                  "signin.demoSignupDisabled",
+                  "New account registration is disabled on the demo site. Sign in with an existing demo account.",
+                )}
             </p>
           </div>
         )}

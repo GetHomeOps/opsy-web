@@ -10,6 +10,7 @@ import "../../css/style.css";
 
 import {Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
+import {isDemoSite} from "../../utils/demoSite";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
@@ -165,9 +166,17 @@ function RoutesList() {
       <Route
         path="/signup"
         element={
-          <PublicRoute>
-            <Signup />
-          </PublicRoute>
+          isDemoSite() ? (
+            <Navigate
+              to="/signin"
+              replace
+              state={{demoSignupDisabled: true}}
+            />
+          ) : (
+            <PublicRoute>
+              <Signup />
+            </PublicRoute>
+          )
         }
       />
       <Route path="/auth/callback" element={<AuthCallback />} />
