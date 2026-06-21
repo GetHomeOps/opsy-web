@@ -63,6 +63,7 @@ const Subscription = require("../models/subscription");
 const PlatformEngagement = require("../models/platformEngagement");
 const RefreshToken = require("../models/refreshToken");
 const ImpersonationAudit = require("../models/impersonationAudit");
+const customerIoProvider = require("../services/emailProviders/customerIoProvider");
 const db = require("../db");
 const {
   assertPublicSignupAllowed,
@@ -140,6 +141,21 @@ function userMayReceiveAuthTokens(user) {
   return true;
 }
 
+/** Sync login to Customer.io for journey exit and engagement segments. */
+function syncCustomerIoLogin(user, source = "password") {
+  if (!user?.email) return;
+  customerIoProvider
+    .trackUserLoggedIn({
+      userEmail: user.email,
+      userName: user.name,
+      userId: user.id,
+      source,
+    })
+    .catch((err) =>
+      console.error("[customerIo] trackUserLoggedIn:", err.message)
+    );
+}
+
 async function issueTokenPair(user, impersonator = null) {
   const accessToken = createAccessToken(user, impersonator);
   const refreshToken = createRefreshToken(user, impersonator);
@@ -177,6 +193,7 @@ router.post("/token", async function (req, res, next) {
     try {
       await PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: {} });
     } catch (logErr) { /* don't block login */ }
+    syncCustomerIoLogin(user, "password");
 
     return res.json(tokens);
   } catch (err) {
@@ -510,6 +527,7 @@ router.post("/mfa/verify", mfaVerifyLimiter, async function (req, res, next) {
     try {
       await PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: {} });
     } catch (logErr) { /* don't block login */ }
+    syncCustomerIoLogin(user, "mfa");
 
     return res.json(tokens);
   } catch (err) {
@@ -559,6 +577,8 @@ router.post("/verify-email", async function (req, res, next) {
     try {
       await PlatformEngagement.logEvent({ userId: user.id, eventType: "email_verified_login", eventData: {} });
     } catch (logErr) { /* don't block */ }
+    syncCustomerIoLogin(user, "email_verified");
+
     return res.json({ ...tokens, emailVerified: true });
   } catch (err) {
     return next(err);
@@ -790,6 +810,7 @@ async function handleGoogleCallback(req, res, next, intent) {
     const { accessToken, refreshToken } = await issueTokenPair(user);
     PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: { provider: "google" } })
       .catch(() => { });
+    syncCustomerIoLogin(user, intent === "signup" ? "google_signup" : "google");
 
     return res.redirect(redirectWithToken(accessToken, refreshToken));
   } catch (err) {

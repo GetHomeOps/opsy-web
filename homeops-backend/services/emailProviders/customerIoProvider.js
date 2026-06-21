@@ -7,6 +7,7 @@
  *      CUSTOMER_IO_REGION (us|eu, default us)
  */
 
+const db = require("../../db");
 const { EMAIL_BRAND_NAME } = require("../../config");
 const { buildSeasonalMaintenanceEventFields } = require("../../helpers/seasonalMaintenance");
 
@@ -213,6 +214,29 @@ async function deliverViaCustomerIo({ to, config, messageData, replyTo, cc, usag
 
 const PROPERTY_INVITATION_ACCEPTED_EVENT = "property_invitation_accepted";
 const PROPERTY_ADDED_EVENT = "property_added";
+const LOGGED_IN_EVENT = "logged_in";
+const PROPERTY_DELETED_EVENT = "property_deleted";
+const PROPERTY_INVITATION_DECLINED_EVENT = "property_invitation_declined";
+const PROPERTY_INVITATION_REVOKED_EVENT = "property_invitation_revoked";
+
+/** Fire-and-forget Customer.io track; logs errors, never throws. */
+async function trackLifecycleEvent({ email, eventName, data = {}, attributes = {} }) {
+  if (!isCustomerIoConfigured()) return;
+
+  const normalizedEmail = String(email || "").trim();
+  if (!normalizedEmail) return;
+
+  try {
+    await identifyPerson({ email: normalizedEmail, attributes });
+    await trackEvent({
+      email: normalizedEmail,
+      eventName,
+      data: { brandName: EMAIL_BRAND_NAME, ...data },
+    });
+  } catch (err) {
+    console.error(`[customerIoProvider] ${eventName}:`, err.message);
+  }
+}
 
 /**
  * Track property invitation acceptance for Customer.io journeys (exit / branch).
@@ -317,6 +341,151 @@ async function trackPropertyAdded({
   }
 }
 
+/**
+ * Track app login for Customer.io segments and journey exit rules.
+ * Updates last_login_at on the person profile.
+ */
+async function trackUserLoggedIn({
+  userEmail,
+  userName = "",
+  userId,
+  source = "password",
+}) {
+  const nowUnix = Math.floor(Date.now() / 1000);
+  const displayName = String(userName || "").trim();
+  await trackLifecycleEvent({
+    email: userEmail,
+    eventName: LOGGED_IN_EVENT,
+    attributes: {
+      ...(displayName ? { name: displayName } : {}),
+      last_login_at: nowUnix,
+    },
+    data: {
+      userId: userId ?? null,
+      source: String(source || "password").trim(),
+      loggedInAt: nowUnix,
+    },
+  });
+}
+
+async function trackPropertyInvitationDeclined({
+  inviteeEmail,
+  invitationId,
+  propertyId,
+  propertyAddress = "",
+  invitationType = "property",
+}) {
+  await trackLifecycleEvent({
+    email: inviteeEmail,
+    eventName: PROPERTY_INVITATION_DECLINED_EVENT,
+    data: {
+      invitationId: invitationId ?? null,
+      propertyId: propertyId ?? null,
+      propertyAddress: String(propertyAddress || "").trim(),
+      invitationType: String(invitationType || "property").trim(),
+    },
+  });
+}
+
+async function trackPropertyInvitationRevoked({
+  inviteeEmail,
+  invitationId,
+  propertyId,
+  propertyAddress = "",
+  invitationType = "property",
+}) {
+  await trackLifecycleEvent({
+    email: inviteeEmail,
+    eventName: PROPERTY_INVITATION_REVOKED_EVENT,
+    data: {
+      invitationId: invitationId ?? null,
+      propertyId: propertyId ?? null,
+      propertyAddress: String(propertyAddress || "").trim(),
+      invitationType: String(invitationType || "property").trim(),
+    },
+  });
+}
+
+async function trackPropertyDeleted({
+  userEmail,
+  propertyId,
+  propertyAddress = "",
+  propertyUid = "",
+  reason = "deleted",
+}) {
+  await trackLifecycleEvent({
+    email: userEmail,
+    eventName: PROPERTY_DELETED_EVENT,
+    data: {
+      propertyId: propertyId ?? null,
+      propertyAddress: String(propertyAddress || "").trim(),
+      propertyUid: String(propertyUid || "").trim(),
+      reason: String(reason || "deleted").trim(),
+    },
+  });
+}
+
+/**
+ * Notify invitees and team members that a property was deleted so Customer.io
+ * journeys can exit. Call before Property.remove().
+ */
+async function notifyCustomerIoPropertyDeleted(propertyId) {
+  if (!isCustomerIoConfigured()) return;
+
+  const id = Number(propertyId);
+  if (!id || Number.isNaN(id)) return;
+
+  try {
+    const [propRes, inviteRes, memberRes] = await Promise.all([
+      db.query(
+        `SELECT address, property_uid FROM properties WHERE id = $1`,
+        [id]
+      ),
+      db.query(
+        `SELECT DISTINCT LOWER(TRIM(invitee_email)) AS email
+         FROM invitations
+         WHERE property_id = $1`,
+        [id]
+      ),
+      db.query(
+        `SELECT DISTINCT LOWER(TRIM(u.email)) AS email
+         FROM property_users pu
+         JOIN users u ON u.id = pu.user_id
+         WHERE pu.property_id = $1 AND u.email IS NOT NULL`,
+        [id]
+      ),
+    ]);
+
+    const propertyRow = propRes.rows[0];
+    if (!propertyRow) return;
+
+    const propertyAddress = String(propertyRow.address || "").trim();
+    const propertyUid = String(propertyRow.property_uid || "").trim();
+    const emails = new Set();
+    for (const row of [...inviteRes.rows, ...memberRes.rows]) {
+      const email = String(row.email || "").trim();
+      if (email) emails.add(email);
+    }
+
+    await Promise.all(
+      [...emails].map((email) =>
+        trackPropertyDeleted({
+          userEmail: email,
+          propertyId: id,
+          propertyAddress,
+          propertyUid,
+          reason: "deleted",
+        })
+      )
+    );
+  } catch (err) {
+    console.error(
+      "[customerIoProvider] notifyCustomerIoPropertyDeleted:",
+      err.message
+    );
+  }
+}
+
 module.exports = {
   isCustomerIoConfigured,
   identifyPerson,
@@ -325,8 +494,17 @@ module.exports = {
   deliverViaCustomerIo,
   trackPropertyInvitationAccepted,
   trackPropertyAdded,
+  trackUserLoggedIn,
+  trackPropertyInvitationDeclined,
+  trackPropertyInvitationRevoked,
+  trackPropertyDeleted,
+  notifyCustomerIoPropertyDeleted,
   PROPERTY_INVITATION_ACCEPTED_EVENT,
   PROPERTY_ADDED_EVENT,
+  LOGGED_IN_EVENT,
+  PROPERTY_DELETED_EVENT,
+  PROPERTY_INVITATION_DECLINED_EVENT,
+  PROPERTY_INVITATION_REVOKED_EVENT,
   getCustomerIoWorkspaceUrl,
   getRegion,
 };

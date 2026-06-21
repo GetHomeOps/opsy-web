@@ -17,8 +17,43 @@ const {
 const { canInviteViewer, canAddTeamMember } = require("../services/tierService");
 const db = require("../db");
 const { buildPropertyInvitationDefaultMainPlain } = require("../services/emailService");
+const customerIoProvider = require("../services/emailProviders/customerIoProvider");
 
 const router = express.Router();
+
+async function resolveInvitationPropertyAddress(propertyId) {
+  if (!propertyId) return "";
+  try {
+    const res = await db.query(
+      `SELECT address FROM properties WHERE id = $1`,
+      [propertyId]
+    );
+    return String(res.rows[0]?.address || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function syncCustomerIoInvitationCancelled(invitation, action) {
+  if (!invitation?.inviteeEmail) return;
+  const payload = {
+    inviteeEmail: invitation.inviteeEmail,
+    invitationId: invitation.id,
+    propertyId: invitation.propertyId ?? null,
+    propertyAddress: "",
+    invitationType: invitation.type || "property",
+  };
+  resolveInvitationPropertyAddress(invitation.propertyId).then((propertyAddress) => {
+    payload.propertyAddress = propertyAddress;
+    const track =
+      action === "declined"
+        ? customerIoProvider.trackPropertyInvitationDeclined
+        : customerIoProvider.trackPropertyInvitationRevoked;
+    track(payload).catch((err) =>
+      console.error(`[customerIo] invitation ${action}:`, err.message)
+    );
+  });
+}
 
 const INVITE_NOTE_MAX = 4000;
 const INVITE_MAIN_MAX = 10000;
@@ -294,6 +329,7 @@ router.post("/:id/decline", ensureLoggedIn, async function (req, res, next) {
     const result = await Invitation.decline(req.params.id);
     if (invitation.type === "property") {
       await Notification.deletePropertyInvitationNotifications(req.params.id);
+      syncCustomerIoInvitationCancelled(invitation, "declined");
     }
     return res.json(result);
   } catch (err) {
@@ -315,6 +351,7 @@ router.post("/:id/revoke", ensureLoggedIn, async function (req, res, next) {
     const result = await Invitation.revoke(req.params.id);
     if (invitation.type === "property") {
       await Notification.deletePropertyInvitationNotifications(req.params.id);
+      syncCustomerIoInvitationCancelled(invitation, "revoked");
     }
     return res.json(result);
   } catch (err) {

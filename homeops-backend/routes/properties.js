@@ -1120,6 +1120,7 @@ router.delete(
   ),
   async function (req, res, next) {
   try {
+    await customerIoProvider.notifyCustomerIoPropertyDeleted(req.params.propertyId);
     await Property.remove(req.params.propertyId);
     return res.json({ deleted: true });
   } catch (err) {
