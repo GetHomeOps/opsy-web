@@ -17,6 +17,7 @@
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
 const { sqlForPartialUpdate } = require("../helpers/sql");
+const { onSystemCreated } = require("../services/systemRecommendationGenerator");
 
 class System {
   /** Create a new system for a property.
@@ -30,6 +31,7 @@ class System {
     const hasDate = next_service_date != null && next_service_date !== "";
     const includedVal = included === undefined ? true : Boolean(included);
 
+    let row;
     if (hasDate) {
       const result = await db.query(
         `INSERT INTO property_systems (property_id, system_key, data, next_service_date, included)
@@ -37,16 +39,19 @@ class System {
          RETURNING id, property_id, system_key, data, next_service_date, included`,
         [property_id, system_key, JSON.stringify(data), next_service_date, includedVal]
       );
-      return result.rows[0];
+      row = result.rows[0];
+    } else {
+      const result = await db.query(
+        `INSERT INTO property_systems (property_id, system_key, data, next_service_date, included)
+         VALUES ($1, $2, $3, NULL, $4)
+         RETURNING id, property_id, system_key, data, next_service_date, included`,
+        [property_id, system_key, JSON.stringify(data), includedVal]
+      );
+      row = result.rows[0];
     }
 
-    const result = await db.query(
-      `INSERT INTO property_systems (property_id, system_key, data, next_service_date, included)
-       VALUES ($1, $2, $3, NULL, $4)
-       RETURNING id, property_id, system_key, data, next_service_date, included`,
-      [property_id, system_key, JSON.stringify(data), includedVal]
-    );
-    return result.rows[0];
+    await onSystemCreated(row.property_id, row.system_key, { included: row.included });
+    return row;
   }
 
   /** Get all systems for a property.
@@ -164,6 +169,16 @@ class System {
       RETURNING id, property_id, system_key, data, next_service_date, included`;
 
     const result = await db.query(sql, values);
+
+    // Generate default recommendations for any genuinely new systems. The
+    // dedup guard (recommendations_generated_at) means updates to existing
+    // systems are no-ops, so this is safe to call for every returned row.
+    await Promise.all(
+      result.rows.map((row) =>
+        onSystemCreated(row.property_id, row.system_key, { included: row.included })
+      )
+    );
+
     return result.rows;
   }
 }

@@ -8,6 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { SESClient, SendEmailCommand, SendRawEmailCommand } = require("@aws-sdk/client-ses");
 const { EMAIL_BRAND_NAME, APP_BASE_URL } = require("../../config");
+const { shouldSuppressOutboundEmail } = require("../../helpers/demoEnvironment");
 
 const brandName = EMAIL_BRAND_NAME;
 const FOOTER_IMAGE_CID = "opsy-footer-image";
@@ -155,6 +156,14 @@ function replaceCidWithUrl(html, cid, url) {
 }
 
 async function sendViaSes({ to, subject, html, replyTo, usage, cc }) {
+  if (shouldSuppressOutboundEmail()) {
+    console.info("[sesProvider] outbound email suppressed (demo)", {
+      to: String(to || "").replace(/(.{2}).*(@.*)/, "$1…$2"),
+      subject: subject ? String(subject).slice(0, 80) : "",
+    });
+    return { success: true, provider: "ses", suppressed: true };
+  }
+
   const ccList = Array.isArray(cc)
     ? [...new Set(cc.map((e) => String(e || "").trim()).filter(Boolean))]
     : [];

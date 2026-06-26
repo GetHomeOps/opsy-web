@@ -21,6 +21,8 @@ import SearchInput from "../../components/SearchInput";
 import UsersTable from "./UsersTable";
 import ListDropdown from "../../partials/buttons/ListDropdown";
 import {useAuth} from "../../context/AuthContext";
+import useCurrentAccount from "../../hooks/useCurrentAccount";
+import {canCreateUsersOnDemo} from "../../utils/demoSite";
 import usePersistListUiSession, {
   HYDRATE_LIST_UI,
 } from "../../hooks/usePersistListUiSession";
@@ -169,13 +171,18 @@ function UsersList() {
     sortConfig,
     handleSort,
     deleteUser,
+    createUserInvitation,
     refetchUsers,
   } = useContext(userContext);
   const {t, i18n} = useTranslation();
   const navigate = useNavigate();
   const {accountUrl} = useParams();
   const {currentUser, startImpersonation, impersonation} = useAuth();
+  const {currentAccount} = useCurrentAccount();
+  const canCreateUser = canCreateUsersOnDemo(currentUser);
   const [impersonateTarget, setImpersonateTarget] = useState(null);
+  const [resendingInvitationUserId, setResendingInvitationUserId] =
+    useState(null);
   const listScopeId = accountUrl ? `users:${accountUrl}` : "";
 
   // Set up component's initial state
@@ -539,6 +546,61 @@ function UsersList() {
     }
   }
 
+  async function handleResendInvitation(user) {
+    const email = user?.email;
+    if (!user?.id || !email) return;
+    if (!currentAccount?.id) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message:
+            t("invitationAccountMissing") ||
+            "Could not determine an account to send the invitation from.",
+        },
+      });
+      return;
+    }
+    setResendingInvitationUserId(user.id);
+    try {
+      const result = await createUserInvitation({
+        inviteeEmail: email,
+        accountId: currentAccount.id,
+        intendedRole: "member",
+        type: "account",
+      });
+      if (result?.invitation) {
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "success",
+            message:
+              t("confirmationEmailMessage")?.replace("{{email}}", email) ||
+              `Invitation email sent to ${email}.`,
+          },
+        });
+      } else {
+        throw new Error("No invitation returned");
+      }
+    } catch (error) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: getApiErrorMessage(
+            error,
+            "Failed to send invitation email. Please try again.",
+          ),
+        },
+      });
+    } finally {
+      setResendingInvitationUserId(null);
+    }
+  }
+
   function handleImpersonateClick(user) {
     const isActive = user?.isActive ?? user?.is_active ?? false;
     if (!isActive) {
@@ -833,28 +895,32 @@ function UsersList() {
 
               {/* Right: Actions */}
               <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
-                <ListDropdown
-                  align="right"
-                  hasSelection={selectedItems.length > 0}
-                  onImport={() => navigate(`/${accountUrl}/users/import`)}
-                  onDelete={handleDeleteClick}
-                />
+                {canCreateUser ? (
+                  <>
+                    <ListDropdown
+                      align="right"
+                      hasSelection={selectedItems.length > 0}
+                      onImport={() => navigate(`/${accountUrl}/users/import`)}
+                      onDelete={handleDeleteClick}
+                    />
 
-                {/* Add User button */}
-                <button
-                  className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
-                  onClick={handleNewUserClick}
-                >
-                  <svg
-                    className="fill-current shrink-0 xs:hidden"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                  >
-                    <path d="M15 7H9V1c0-.6-.4-1-1-1S7 .4 7 1v6H1c-.6 0-1 .4-1 1s.4 1 1 1h6v6c0 .6.4 1 1 1s1-.4 1-1V9h6c.6 0 1-.4 1-1s-.4-1-1-1z" />
-                  </svg>
-                  <span className="max-xs:sr-only">{t("addUser")}</span>
-                </button>
+                    {/* Add User button */}
+                    <button
+                      className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+                      onClick={handleNewUserClick}
+                    >
+                      <svg
+                        className="fill-current shrink-0 xs:hidden"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                      >
+                        <path d="M15 7H9V1c0-.6-.4-1-1-1S7 .4 7 1v6H1c-.6 0-1 .4-1 1s.4 1 1 1h6v6c0 .6.4 1 1 1s1-.4 1-1V9h6c.6 0 1-.4 1-1s-.4-1-1-1z" />
+                      </svg>
+                      <span className="max-xs:sr-only">{t("addUser")}</span>
+                    </button>
+                  </>
+                ) : null}
               </div>
             </div>
             {/* Search bar with filter */}
@@ -955,6 +1021,8 @@ function UsersList() {
                 currentUserId={currentUser?.id}
                 onImpersonate={handleImpersonateClick}
                 onReconcileBilling={handleReconcileBilling}
+                onResendInvitation={handleResendInvitation}
+                resendingInvitationUserId={resendingInvitationUserId}
               />
               {/* Pagination */}
               {filteredUsers.length > 0 && (

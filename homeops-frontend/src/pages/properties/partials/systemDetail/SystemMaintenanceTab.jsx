@@ -458,8 +458,7 @@ function MaintenanceRecordRow({record, systemLabel, today, onOpen}) {
   const typeLabel = getRecordTypeLabel(record);
   const vendor = String(record?.contractor ?? "").trim() || "—";
 
-  // Only completed records are openable on the Maintenance tab.
-  const openable = isCompletedRecord(record) && record?.id != null && !!onOpen;
+  const openable = record?.id != null && !!onOpen;
   const handleClick = openable ? () => onOpen(record) : undefined;
 
   return (

@@ -116,11 +116,23 @@ router.patch(
   ensurePropertyAccess({ param: "propertyId" }),
   async function (req, res, next) {
     try {
-      const { status, notes, linked_maintenance_id } = req.body;
+      const {
+        status,
+        notes,
+        linked_maintenance_id,
+        frequency,
+        frequency_unit,
+        last_performed_date,
+        next_due_date,
+      } = req.body;
       const updateData = {};
       if (status !== undefined) updateData.status = status;
       if (notes !== undefined) updateData.notes = notes;
       if (linked_maintenance_id !== undefined) updateData.linked_maintenance_id = linked_maintenance_id;
+      if (frequency !== undefined) updateData.frequency = frequency;
+      if (frequency_unit !== undefined) updateData.frequency_unit = frequency_unit;
+      if (last_performed_date !== undefined) updateData.last_performed_date = last_performed_date;
+      if (next_due_date !== undefined) updateData.next_due_date = next_due_date;
 
       if (status === "completed") {
         updateData.completed_at = new Date().toISOString();
@@ -143,12 +155,22 @@ router.post(
   ensurePropertyAccess({ param: "propertyId" }),
   async function (req, res, next) {
     try {
-      const { maintenanceId, notes } = req.body || {};
-      const item = await InspectionChecklistItem.complete(req.params.itemId, {
-        userId: res.locals.user.id,
-        maintenanceId: maintenanceId || null,
-        notes: notes || null,
-      });
+      const { maintenanceId, notes, last_performed_date: lastPerformedDate } = req.body || {};
+      const existing = await InspectionChecklistItem.get(req.params.itemId);
+      let item;
+      if (InspectionChecklistItem.isRecurringItem(existing)) {
+        item = await InspectionChecklistItem.recordPerformed(req.params.itemId, {
+          maintenanceId: maintenanceId || null,
+          lastPerformedDate: lastPerformedDate || null,
+        });
+      } else {
+        item = await InspectionChecklistItem.complete(req.params.itemId, {
+          userId: res.locals.user.id,
+          maintenanceId: maintenanceId || null,
+          notes: notes || null,
+          lastPerformedDate: lastPerformedDate || null,
+        });
+      }
       return res.json({ item });
     } catch (err) {
       return next(err);

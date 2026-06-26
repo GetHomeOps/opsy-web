@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useMemo, useRef, useContext} from "react";
+import React, {useState, useCallback, useMemo, useRef, useContext, useEffect} from "react";
 import {useNavigate} from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
@@ -17,6 +17,8 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import UserContext from "../../context/UserContext";
+import {useAuth} from "../../context/AuthContext";
+import {canCreateUsersOnDemo} from "../../utils/demoSite";
 import {
   Download,
   Upload,
@@ -159,7 +161,15 @@ function UsersImport() {
   const navigate = useNavigate();
   const {currentAccount} = useCurrentAccount();
   const {createUser} = useContext(UserContext);
+  const {currentUser} = useAuth();
   const accountUrl = currentAccount?.url || "";
+  const canCreateUser = canCreateUsersOnDemo(currentUser);
+
+  useEffect(() => {
+    if (!canCreateUser) {
+      navigate(`/${accountUrl}/users`, {replace: true});
+    }
+  }, [canCreateUser, accountUrl, navigate]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);

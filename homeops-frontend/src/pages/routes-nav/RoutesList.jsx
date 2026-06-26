@@ -56,6 +56,7 @@ const SubscriptionsList = lazy(() => import("../subscriptions/SubscriptionsList"
 const Subscription = lazy(() => import("../subscriptions/Subscription"));
 const SubscriptionProductsList = lazy(() => import("../subscriptions/SubscriptionProductsList"));
 const SubscriptionProduct = lazy(() => import("../subscriptions/SubscriptionProduct"));
+const SystemRecommendationsList = lazy(() => import("../superadmin/systemRecommendations/SystemRecommendationsList"));
 const CouponsList = lazy(() => import("../coupons/CouponsList"));
 const EmailDeliveryPage = lazy(() => import("../emailDelivery/EmailDeliveryPage"));
 const CouponForm = lazy(() => import("../coupons/CouponForm"));
@@ -678,6 +679,14 @@ function RoutesList() {
         element={
           <SuperAdminRoute>
             <SubscriptionProductsList />
+          </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/system-recommendations"
+        element={
+          <SuperAdminRoute>
+            <SystemRecommendationsList />
           </SuperAdminRoute>
         }
       />

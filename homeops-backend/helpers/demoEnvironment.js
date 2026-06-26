@@ -51,6 +51,12 @@ function assertPublicSignupAllowed() {
   }
 }
 
+/** True when outbound email and Customer.io lifecycle calls should be suppressed. */
+function shouldSuppressOutboundEmail() {
+  if (process.env.SUPPRESS_OUTBOUND_EMAIL === "true") return true;
+  return isDemoEnvironment();
+}
+
 function assertDemoResetAllowed(req) {
   const appOriginHost = hostnameFromUrl(process.env.APP_WEB_ORIGIN);
   const requestHost = getRequestHostname(req);
@@ -68,6 +74,7 @@ module.exports = {
   hostnameFromHostHeader,
   getRequestHostname,
   isDemoEnvironment,
+  shouldSuppressOutboundEmail,
   assertPublicSignupAllowed,
   assertDemoResetAllowed,
 };

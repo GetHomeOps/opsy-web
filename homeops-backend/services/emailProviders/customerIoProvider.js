@@ -9,6 +9,7 @@
 
 const db = require("../../db");
 const { EMAIL_BRAND_NAME } = require("../../config");
+const { shouldSuppressOutboundEmail } = require("../../helpers/demoEnvironment");
 const { buildSeasonalMaintenanceEventFields } = require("../../helpers/seasonalMaintenance");
 
 function getRegion() {
@@ -48,6 +49,13 @@ function getAppAuthHeader() {
 }
 
 async function customerIoFetch(url, options = {}) {
+  if (shouldSuppressOutboundEmail()) {
+    console.info("[customerIoProvider] Customer.io call suppressed (demo)", {
+      url: String(url || "").slice(0, 120),
+    });
+    return null;
+  }
+
   const res = await fetch(url, options);
   if (!res.ok) {
     const body = await res.text().catch(() => "");

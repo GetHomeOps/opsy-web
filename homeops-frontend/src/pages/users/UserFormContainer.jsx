@@ -26,15 +26,13 @@ import contactContext from "../../context/ContactContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
 import {useAuth} from "../../context/AuthContext";
-import AppApi, {
-  API_ERROR_CODES,
-  getApiErrorMessage,
-} from "../../api/api";
+import AppApi, {API_ERROR_CODES, getApiErrorMessage} from "../../api/api";
 import SelectDropdown from "../contacts/SelectDropdown";
 import useImageUpload from "../../hooks/useImageUpload";
-import { S3_UPLOAD_FOLDER } from "../../constants/s3UploadFolders";
+import {S3_UPLOAD_FOLDER} from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import ImageUploadField from "../../components/ImageUploadField";
+import {isDemoSite, canCreateUsersOnDemo} from "../../utils/demoSite";
 
 const initialFormData = {
   name: "",
@@ -60,6 +58,8 @@ const initialState = {
   isActive: false,
   ownershipTransferModalOpen: false,
   sendInviteOnCreate: true,
+  provisionDemoOnCreate: false,
+  demoPassword: "12345678",
 };
 
 function reducer(state, action) {
@@ -115,6 +115,14 @@ function reducer(state, action) {
       };
     case "SET_SEND_INVITE_ON_CREATE":
       return {...state, sendInviteOnCreate: !!action.payload};
+    case "SET_PROVISION_DEMO_ON_CREATE":
+      return {
+        ...state,
+        provisionDemoOnCreate: !!action.payload,
+        sendInviteOnCreate: action.payload ? false : state.sendInviteOnCreate,
+      };
+    case "SET_DEMO_PASSWORD":
+      return {...state, demoPassword: action.payload};
     default:
       return state;
   }
@@ -132,6 +140,8 @@ function UsersFormContainer() {
   const {currentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
+  const isDemoSuperAdmin = isDemoSite() && currentUser?.role === "super_admin";
+  const canCreateUser = canCreateUsersOnDemo(currentUser);
   const userPhotoInputRef = useRef(null);
 
   const {
@@ -220,6 +230,12 @@ function UsersFormContainer() {
     }
     fetchUser();
   }, [id, users]);
+
+  useEffect(() => {
+    if (id === "new" && !canCreateUser) {
+      navigate(`/${accountUrl}/users`, {replace: true});
+    }
+  }, [id, canCreateUser, accountUrl, navigate]);
 
   // Clear user photo preview/presigned when switching to a different user
   useEffect(() => {
@@ -410,8 +426,10 @@ function UsersFormContainer() {
 
     if (!validateForm()) return;
 
-    // Generate a random password
-    const randomPassword = generateRandomPassword();
+    // Password for new user (random unless provisioning a demo account)
+    const password = state.provisionDemoOnCreate
+      ? state.demoPassword || "12345678"
+      : generateRandomPassword();
 
     const userData = {
       name: state.formData.name || "",
@@ -419,11 +437,14 @@ function UsersFormContainer() {
       phone: state.formData.phone || "",
       role: state.formData.role || "",
       contact: state.formData.contact || 0,
-      password: randomPassword,
-      is_active: false,
+      password,
+      is_active: state.provisionDemoOnCreate ? true : false,
       image: state.formData.image || undefined,
       accountId: currentAccount?.id,
-      sendInvite: state.sendInviteOnCreate,
+      sendInvite: state.provisionDemoOnCreate
+        ? false
+        : state.sendInviteOnCreate,
+      ...(state.provisionDemoOnCreate ? {provisionDemoAccount: true} : {}),
     };
 
     dispatch({type: "SET_SUBMITTING", payload: true});
@@ -433,6 +454,8 @@ function UsersFormContainer() {
 
       const invitationEmailSent = res?.invitationEmailSent === true;
       const invitationSkipped = res?.invitationSkipped === true;
+      const provisioned = res?.provisioned === true;
+      const demoSummary = res?.demoSummary;
 
       if (res && res.id) {
         dispatch({type: "SET_USER", payload: res});
@@ -450,7 +473,18 @@ function UsersFormContainer() {
         });
         let inviteSuffix;
         let bannerType;
-        if (invitationSkipped) {
+
+        if (provisioned && demoSummary) {
+          inviteSuffix = ` ${t("demoAccountProvisionedSuffix", {
+            defaultValue:
+              "Active {{plan}} plan applied. {{count}} sample propert{{countSuffix}} ready. Login password: {{password}}",
+            plan: demoSummary.planLabel || demoSummary.planCode,
+            count: demoSummary.propertyCount || 0,
+            countSuffix: demoSummary.propertyCount === 1 ? "y" : "ies",
+            password: password,
+          })}`;
+          bannerType = "success";
+        } else if (invitationSkipped) {
           inviteSuffix = ` ${t("invitationEmailSkippedSuffix", {
             defaultValue:
               "No invitation email was sent. Use “Resend invitation email” when you're ready.",
@@ -571,6 +605,19 @@ function UsersFormContainer() {
 
     if (!state.formData.role) {
       newErrors.role = t("roleValidationErrorMessage") || "Role is required";
+    } else if (
+      state.provisionDemoOnCreate &&
+      state.formData.role !== "agent" &&
+      state.formData.role !== "homeowner"
+    ) {
+      newErrors.role =
+        t("demoProvisionRoleError") ||
+        "Demo provisioning supports Agent and Homeowner roles only.";
+    }
+
+    if (state.provisionDemoOnCreate && !state.demoPassword?.trim()) {
+      newErrors.demoPassword =
+        t("demoAccountPasswordRequired") || "Login password is required.";
     }
 
     dispatch({type: "SET_ERRORS", payload: newErrors});
@@ -763,6 +810,12 @@ function UsersFormContainer() {
       currentUser?.role === "superAdmin" ||
       currentUser?.role === "super_admin"
     ) {
+      if (state.isNew && state.provisionDemoOnCreate && isDemoSuperAdmin) {
+        return [
+          {id: "agent", name: "Agent"},
+          {id: "homeowner", name: "Homeowner"},
+        ];
+      }
       return [
         {id: "admin", name: "Admin"},
         {id: "agent", name: "Agent"},
@@ -780,7 +833,13 @@ function UsersFormContainer() {
       {id: "agent", name: "Agent"},
       {id: "homeowner", name: "Homeowner"},
     ];
-  }, [currentUser?.role, isSuperAdminUser]);
+  }, [
+    currentUser?.role,
+    isSuperAdminUser,
+    state.isNew,
+    state.provisionDemoOnCreate,
+    isDemoSuperAdmin,
+  ]);
 
   // Handler for role change
   function handleRoleChange(value) {
@@ -885,8 +944,7 @@ function UsersFormContainer() {
           const matchesAccount =
             accountId && Number(sub.accountId) === Number(accountId);
           const matchesEmail =
-            userEmail &&
-            (sub.userEmail || "").toLowerCase() === userEmail;
+            userEmail && (sub.userEmail || "").toLowerCase() === userEmail;
           return matchesAccount || matchesEmail;
         });
       }
@@ -953,13 +1011,12 @@ function UsersFormContainer() {
     navigate(`/${accountUrl}/properties`);
   };
 
-  const profileUserRoleKey = (
+  const profileUserRoleKey =
     state.user?.role === "super_admin" || state.user?.role === "superAdmin"
       ? "super_admin"
       : String(state.user?.role || "")
           .toLowerCase()
-          .replace(/\s+/g, "_")
-  );
+          .replace(/\s+/g, "_");
   const isProfileAgentUser = profileUserRoleKey === "agent";
 
   // When clicking on a Property smart button, take the user straight to the
@@ -1189,6 +1246,7 @@ function UsersFormContainer() {
             <button
               className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
               onClick={handleNewUser}
+              hidden={!canCreateUser}
             >
               {t("new") || "New"}
             </button>
@@ -1255,7 +1313,9 @@ function UsersFormContainer() {
                     <MailOpen className="w-4 h-4 flex-shrink-0" />
                     <span className="text-sm font-semibold whitespace-nowrap">
                       Invited{" "}
-                      <span className="font-normal">{invitedPropertyCount}</span>
+                      <span className="font-normal">
+                        {invitedPropertyCount}
+                      </span>
                     </span>
                   </button>
                 ) : (
@@ -1603,8 +1663,8 @@ function UsersFormContainer() {
                     </div>
                   </div>
 
-                  {/* Send invitation toggle (new user only) */}
-                  {state.isNew && (
+                  {/* Send invitation toggle (new user only, not when provisioning demo) */}
+                  {state.isNew && !state.provisionDemoOnCreate && (
                     <div className="mt-6 flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40">
                       <div className="flex items-start gap-2 min-w-0">
                         <Mail className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
@@ -1650,6 +1710,84 @@ function UsersFormContainer() {
                       </button>
                     </div>
                   )}
+
+                  {/* Demo provision toggle (demo super_admin, new user only) */}
+                  {state.isNew && isDemoSuperAdmin && (
+                    <div className="mt-6 flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-[#456564]/30 dark:border-[#7aa3a2]/40 bg-[#456564]/5 dark:bg-gray-800/40">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Briefcase className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                            {t("provisionDemoAccountOnCreate") ||
+                              "Provision ready-to-use demo account"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {state.provisionDemoOnCreate
+                              ? t("provisionDemoAccountOnCreateHelperOn") ||
+                                "Creates an active paid account with sample properties, inspections, maintenance, messages, contacts, and contractors. No invitation email."
+                              : t("provisionDemoAccountOnCreateHelperOff") ||
+                                "Create a pending user without sample data (optional invitation email)."}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={state.provisionDemoOnCreate}
+                        aria-label={
+                          t("provisionDemoAccountOnCreate") ||
+                          "Provision ready-to-use demo account"
+                        }
+                        onClick={() =>
+                          dispatch({
+                            type: "SET_PROVISION_DEMO_ON_CREATE",
+                            payload: !state.provisionDemoOnCreate,
+                          })
+                        }
+                        className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                          state.provisionDemoOnCreate
+                            ? "bg-[#456564]"
+                            : "bg-gray-300 dark:bg-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            state.provisionDemoOnCreate ? "left-6" : "left-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  )}
+
+                  {state.isNew &&
+                    state.provisionDemoOnCreate &&
+                    isDemoSuperAdmin && (
+                      <div className="mt-4">
+                        <label
+                          className={getLabelClasses()}
+                          htmlFor="demoPassword"
+                        >
+                          {t("demoAccountPassword") || "Login password"}
+                        </label>
+                        <input
+                          id="demoPassword"
+                          type="text"
+                          className={getInputClasses()}
+                          value={state.demoPassword}
+                          onChange={(e) =>
+                            dispatch({
+                              type: "SET_DEMO_PASSWORD",
+                              payload: e.target.value,
+                            })
+                          }
+                          placeholder="12345678"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {t("demoAccountPasswordHelper") ||
+                            "Share this password with the prospect so they can sign in immediately."}
+                        </p>
+                      </div>
+                    )}
                 </div>
               </div>
             </div>

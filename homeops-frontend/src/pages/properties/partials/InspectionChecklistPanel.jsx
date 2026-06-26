@@ -25,6 +25,7 @@ import {
   User,
   Clock,
   Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import AppApi from "../../../api/api";
 import ModalBlank from "../../../components/ModalBlank";
@@ -43,6 +44,15 @@ import {
   filterChecklistItemsForSystem,
   resolveChecklistItemSystemKey,
 } from "../helpers/inspectionAnalysisHelpers";
+import {
+  getEffectiveLastPerformedDate,
+  splitInspectionActionItems,
+  todayDateString,
+} from "../helpers/actionItemFormatters";
+import { isCompletedMaintenanceRecord } from "../helpers/maintenanceRecordMapping";
+import SystemActionItemsTables from "./systemDetail/actionItems/SystemActionItemsTables";
+import RecommendationDateEditor from "./systemDetail/actionItems/RecommendationDateEditor";
+import ActionItemDetailModal from "./systemDetail/actionItems/ActionItemDetailModal";
 
 const INSPECTION_CHECKLIST_UPDATED_EVENT = "inspection-checklist:updated";
 
@@ -51,6 +61,26 @@ function emitInspectionChecklistUpdated(detail = {}) {
   window.dispatchEvent(
     new CustomEvent(INSPECTION_CHECKLIST_UPDATED_EVENT, {detail}),
   );
+}
+
+/** Labeled divider between checklist item groups (e.g. inspection vs recommendations). */
+function SectionDivider({label}) {
+  return (
+    <div className="flex items-center gap-2 my-3">
+      <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
+      <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+        {label}
+      </span>
+      <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
+    </div>
+  );
+}
+
+/** Short human date for read-only chips (e.g. "Jun 2026"). */
+function formatShortDate(value) {
+  const d = parseDateInput(value);
+  if (!d || Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", {month: "short", year: "numeric"});
 }
 
 /** Checked vs unchecked - only two states for UI. */
@@ -272,6 +302,7 @@ function ChecklistItem({
   onStatusChange,
   onToggleRequest,
   onDelete,
+  onUpdateItem,
   linkedEvent = null,
   onViewEvent,
   isAddressedByMaintenance = false,
@@ -280,6 +311,21 @@ function ChecklistItem({
   onAIPromptItem,
 }) {
   const isUserCreated = item.source === "user_created";
+  const isDefaultRecommendation = item.source === "default_recommendation";
+  // user_created and generated default recommendations are user-managed:
+  // they can be edited away (deleted) by the homeowner.
+  const isUserManaged = isUserCreated || isDefaultRecommendation;
+  const [editorOpen, setEditorOpen] = useState(false);
+  const lastChip = formatShortDate(item.last_performed_date);
+  const nextChip = formatShortDate(item.next_due_date);
+  const recurrenceLabel =
+    item.frequency && item.frequency_unit
+      ? item.frequency === 1
+        ? `Every ${String(item.frequency_unit).replace(/s$/, "")}`
+        : `Every ${item.frequency} ${item.frequency_unit}`
+      : item.lifecycle_replacement_years
+        ? `Replace ~${item.lifecycle_replacement_years} yrs`
+        : null;
   const explicitlyIncomplete = ["pending", "in_progress"].includes(
     String(item.status ?? "").toLowerCase(),
   );
@@ -316,6 +362,7 @@ function ChecklistItem({
     PRIORITY_PILL_STYLES[effectivePriority] || PRIORITY_PILL_STYLES.medium;
 
   return (
+    <div>
     <div
       className={`group flex items-start gap-3 py-2.5 px-3 rounded-lg border border-l-[3px] transition-all duration-200 ${
         isChecked
@@ -349,6 +396,33 @@ function ChecklistItem({
               My ToDo
             </span>
           )}
+          {isDefaultRecommendation && (
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400 flex-shrink-0">
+              Recommended
+            </span>
+          )}
+          {recurrenceLabel && (
+            <span
+              className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-400 flex-shrink-0 ${
+                isChecked ? "opacity-45" : ""
+              }`}
+            >
+              <RefreshCw className="w-2.5 h-2.5" strokeWidth={2.25} />
+              {recurrenceLabel}
+            </span>
+          )}
+          {lastChip && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700/40 dark:text-gray-400 flex-shrink-0">
+              <Clock className="w-2.5 h-2.5" strokeWidth={2.25} />
+              Last: {lastChip}
+            </span>
+          )}
+          {nextChip && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400 flex-shrink-0">
+              <Calendar className="w-2.5 h-2.5" strokeWidth={2.25} />
+              Next: {nextChip}
+            </span>
+          )}
           {effectivePriority && effectivePriority !== "medium" && (
             <span
               className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full transition-opacity duration-150 flex-shrink-0 ${pillStyle} ${
@@ -359,8 +433,29 @@ function ChecklistItem({
               {effectivePriority}
             </span>
           )}
-          {!isChecked && (onScheduleItem || onAIPromptItem) && (
+          {!isChecked &&
+            (onScheduleItem ||
+              onAIPromptItem ||
+              (isDefaultRecommendation && onUpdateItem)) && (
             <div className="inline-flex items-center gap-1 flex-shrink-0 ml-auto pl-2">
+              {isDefaultRecommendation && onUpdateItem && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditorOpen((v) => !v);
+                  }}
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-all duration-150 ${
+                    editorOpen
+                      ? "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50"
+                      : "text-gray-500 dark:text-gray-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-transparent hover:border-blue-200 dark:hover:border-blue-800/50"
+                  }`}
+                  title="Set last performed, frequency and next due dates"
+                >
+                  <Clock className="w-3 h-3" />
+                  <span className="hidden sm:inline">Dates</span>
+                </button>
+              )}
               {onScheduleItem && (
                 <button
                   type="button"
@@ -445,17 +540,27 @@ function ChecklistItem({
             <Calendar className="w-3.5 h-3.5" />
           </button>
         )}
-        {isUserCreated && onDelete && (
+        {isUserManaged && onDelete && (
           <button
             type="button"
             onClick={() => onDelete(item.id)}
             className="opacity-0 group-hover:opacity-100 inline-flex items-center px-1.5 py-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-150"
-            title="Delete ToDo"
+            title={isUserCreated ? "Delete ToDo" : "Remove recommendation"}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
+    </div>
+    {isDefaultRecommendation && onUpdateItem && editorOpen && (
+      <RecommendationDateEditor
+        item={item}
+        onSave={(patch) => onUpdateItem(item.id, patch)}
+        onClose={() => setEditorOpen(false)}
+        onDelete={onDelete}
+        className="mt-1.5 ml-8 mr-1 mb-1"
+      />
+    )}
     </div>
   );
 }
@@ -588,6 +693,7 @@ export default function InspectionChecklistPanel({
   const [completePromptItem, setCompletePromptItem] = useState(null);
   const [uncheckPromptItem, setUncheckPromptItem] = useState(null);
   const [supportModalItem, setSupportModalItem] = useState(null);
+  const [pendingCompleteDate, setPendingCompleteDate] = useState(null);
   const [supportLinking, setSupportLinking] = useState(false);
   const skipNextLoadRef = useRef(false);
   const [expandedSystems, setExpandedSystems] = useState(new Set());
@@ -598,6 +704,7 @@ export default function InspectionChecklistPanel({
   const [systemEventsModalEvents, setSystemEventsModalEvents] = useState([]);
   const [systemEventsModalLabel, setSystemEventsModalLabel] = useState("");
   const [scheduleForItem, setScheduleForItem] = useState(null);
+  const [detailItem, setDetailItem] = useState(null);
 
   const loadData = useCallback(
     async ({showLoader = true} = {}) => {
@@ -650,10 +757,13 @@ export default function InspectionChecklistPanel({
   }, [loadData]);
 
   const handleStatusChange = useCallback(
-    async (itemId, newStatus) => {
+    async (itemId, newStatus, { lastPerformedDate } = {}) => {
       const item = items.find((i) => i.id === itemId);
       if (!item) return;
       setSyncingItemId(itemId);
+      const performedDate = lastPerformedDate
+        ? String(lastPerformedDate).slice(0, 10)
+        : null;
       // Optimistic update: apply immediately for instant feedback
       setItems((prev) =>
         prev.map((i) =>
@@ -663,13 +773,17 @@ export default function InspectionChecklistPanel({
                 status: newStatus,
                 completed_at:
                   newStatus === "completed" ? new Date().toISOString() : null,
+                last_performed_date:
+                  newStatus === "completed" ? performedDate : i.last_performed_date,
               }
             : i,
         ),
       );
       try {
         if (newStatus === "completed") {
-          await AppApi.completeChecklistItem(itemId);
+          await AppApi.completeChecklistItem(itemId, {
+            lastPerformedDate: performedDate,
+          });
         } else {
           await AppApi.updateChecklistItem(itemId, {status: newStatus});
         }
@@ -693,34 +807,49 @@ export default function InspectionChecklistPanel({
     }
   }, []);
 
-  const handleConfirmComplete = useCallback(async () => {
-    if (!completePromptItem) return;
-    const itemId = completePromptItem.id;
-    setCompletePromptItem(null);
-    await handleStatusChange(itemId, "completed");
-  }, [completePromptItem, handleStatusChange]);
+  const handleConfirmComplete = useCallback(
+    async (lastPerformedDate) => {
+      if (!completePromptItem) return;
+      const itemId = completePromptItem.id;
+      setCompletePromptItem(null);
+      await handleStatusChange(itemId, "completed", { lastPerformedDate });
+    },
+    [completePromptItem, handleStatusChange],
+  );
 
-  const handleAddRecordForItem = useCallback(() => {
-    if (!completePromptItem) return;
-    setSupportModalItem(completePromptItem);
-    setCompletePromptItem(null);
-  }, [completePromptItem]);
+  const handleAddRecordForItem = useCallback(
+    (lastPerformedDate) => {
+      if (!completePromptItem) return;
+      setPendingCompleteDate(
+        lastPerformedDate ? String(lastPerformedDate).slice(0, 10) : null,
+      );
+      setSupportModalItem(completePromptItem);
+      setCompletePromptItem(null);
+    },
+    [completePromptItem],
+  );
 
   const handleSupportCreateRecord = useCallback(
-    (item) => {
+    (item, lastPerformedDate) => {
       setSupportModalItem(null);
-      onCreateRecordForItem?.(item);
+      setPendingCompleteDate(null);
+      onCreateRecordForItem?.(item, lastPerformedDate ?? pendingCompleteDate);
     },
-    [onCreateRecordForItem],
+    [onCreateRecordForItem, pendingCompleteDate],
   );
 
   const handleSupportLinkRecord = useCallback(
-    async (item, record) => {
+    async (item, record, lastPerformedDate) => {
       if (!onLinkExistingRecord) return;
       setSupportLinking(true);
       try {
-        await onLinkExistingRecord(item, record);
+        await onLinkExistingRecord(
+          item,
+          record,
+          lastPerformedDate ?? pendingCompleteDate,
+        );
         setSupportModalItem(null);
+        setPendingCompleteDate(null);
         skipNextLoadRef.current = true;
         emitInspectionChecklistUpdated({skipChecklistReload: true});
         await loadData({showLoader: false});
@@ -728,16 +857,21 @@ export default function InspectionChecklistPanel({
         setSupportLinking(false);
       }
     },
-    [onLinkExistingRecord, loadData],
+    [onLinkExistingRecord, loadData, pendingCompleteDate],
   );
 
   const handleSupportLinkDocument = useCallback(
-    async (item, doc) => {
+    async (item, doc, lastPerformedDate) => {
       if (!onLinkExistingDocument) return;
       setSupportLinking(true);
       try {
-        await onLinkExistingDocument(item, doc);
+        await onLinkExistingDocument(
+          item,
+          doc,
+          lastPerformedDate ?? pendingCompleteDate,
+        );
         setSupportModalItem(null);
+        setPendingCompleteDate(null);
         skipNextLoadRef.current = true;
         emitInspectionChecklistUpdated({skipChecklistReload: true});
         await loadData({showLoader: false});
@@ -745,7 +879,7 @@ export default function InspectionChecklistPanel({
         setSupportLinking(false);
       }
     },
-    [onLinkExistingDocument, loadData],
+    [onLinkExistingDocument, loadData, pendingCompleteDate],
   );
 
   const handleConfirmUncheck = useCallback(async () => {
@@ -782,17 +916,71 @@ export default function InspectionChecklistPanel({
     [items],
   );
 
+  const handleUpdateItem = useCallback(async (itemId, patch) => {
+    // Optimistically apply, then persist; revert on failure.
+    let previous = null;
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id === itemId) {
+          previous = i;
+          return {...i, ...patch};
+        }
+        return i;
+      }),
+    );
+    try {
+      const updated = await AppApi.updateChecklistItem(itemId, patch);
+      if (updated) {
+        setItems((prev) => prev.map((i) => (i.id === itemId ? updated : i)));
+      }
+      skipNextLoadRef.current = true;
+      emitInspectionChecklistUpdated();
+    } catch (err) {
+      console.error("[InspectionChecklistPanel] Update failed:", err);
+      if (previous) {
+        setItems((prev) => prev.map((i) => (i.id === itemId ? previous : i)));
+      }
+    }
+  }, []);
+
   const completedChecklistItemIds = useMemo(() => {
     const ids = new Set();
     for (const rec of maintenanceRecords || []) {
       const cid = rec.checklist_item_id ?? rec.checklistItemId;
-      const status = (rec.status ?? "").toString();
-      if (cid != null && status.toLowerCase() === "completed") {
+      if (cid != null && isCompletedMaintenanceRecord(rec)) {
         ids.add(Number(cid));
       }
     }
     return ids;
   }, [maintenanceRecords]);
+
+  const recordsByChecklistItemId = useMemo(() => {
+    const map = {};
+    for (const rec of maintenanceRecords || []) {
+      if (!isCompletedMaintenanceRecord(rec)) continue;
+      const cid = rec.checklist_item_id ?? rec.checklistItemId;
+      if (cid == null) continue;
+      const date = rec.date ?? rec.completed_at;
+      if (!date) continue;
+      const dateStr = String(date).slice(0, 10);
+      const key = Number(cid);
+      if (!map[key] || dateStr > map[key]) {
+        map[key] = dateStr;
+      }
+    }
+    return map;
+  }, [maintenanceRecords]);
+
+  const handleAddRecordFromRow = useCallback(
+    (item) => {
+      const lastDate =
+        getEffectiveLastPerformedDate(item, recordsByChecklistItemId) ||
+        todayDateString();
+      setPendingCompleteDate(lastDate);
+      setSupportModalItem(item);
+    },
+    [recordsByChecklistItemId],
+  );
 
   const groupedItems = useMemo(() => {
     const groups = {};
@@ -810,12 +998,38 @@ export default function InspectionChecklistPanel({
   );
 
   const eventsByChecklistItemId = useMemo(() => {
-    const map = {};
+    const grouped = {};
     for (const ev of maintenanceEvents || []) {
       const cid = ev.checklist_item_id ?? ev.checklistItemId;
-      if (cid != null) {
-        map[Number(cid)] = ev;
+      if (cid == null) continue;
+      const key = Number(cid);
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(ev);
+    }
+
+    const today = todayDateString();
+    const map = {};
+    for (const [key, events] of Object.entries(grouped)) {
+      const scheduled = events.filter(
+        (ev) => String(ev.status ?? "").toLowerCase() === "scheduled",
+      );
+      const pool = scheduled.length > 0 ? scheduled : events;
+      let best = pool[0];
+      for (const ev of pool) {
+        const date = String(ev.scheduled_date ?? ev.scheduledDate ?? "").slice(
+          0,
+          10,
+        );
+        const bestDate = String(
+          best.scheduled_date ?? best.scheduledDate ?? "",
+        ).slice(0, 10);
+        if (!bestDate || (date >= today && (bestDate < today || date < bestDate))) {
+          best = ev;
+        } else if (bestDate < today && date > bestDate) {
+          best = ev;
+        }
       }
+      map[Number(key)] = best;
     }
     return map;
   }, [maintenanceEvents]);
@@ -892,7 +1106,12 @@ export default function InspectionChecklistPanel({
         maintenanceRecords={maintenanceRecords}
         propertyDocuments={propertyDocuments}
         linking={supportLinking}
-        onClose={() => !supportLinking && setSupportModalItem(null)}
+        lastPerformedDate={pendingCompleteDate}
+        onClose={() => {
+          if (supportLinking) return;
+          setSupportModalItem(null);
+          setPendingCompleteDate(null);
+        }}
         onCreateRecord={handleSupportCreateRecord}
         onLinkRecord={
           onLinkExistingRecord ? handleSupportLinkRecord : undefined
@@ -944,78 +1163,80 @@ export default function InspectionChecklistPanel({
       sysItems,
       completedChecklistItemIds,
     );
-    const inspectionItems = sysItems.filter((i) => i.source !== "user_created");
+    const { findingItems, recurrentItems } = splitInspectionActionItems(sysItems);
+    const recommendationItems = sysItems.filter(
+      (i) => i.source === "default_recommendation",
+    );
     const userItems = sysItems.filter((i) => i.source === "user_created");
     const hasAnyItems = sysItems.length > 0;
+    const tableHandlers = {
+      onStatusChange: handleStatusChange,
+      onToggleRequest: handleToggleRequest,
+      onDelete: handleDeleteItem,
+      onUpdateItem: handleUpdateItem,
+      onScheduleItem: propertyId ? handleScheduleItem : undefined,
+      onAIPromptItem: onOpenAIAssistant ? handleAIPromptItem : undefined,
+      onViewEvent: handleViewEvent,
+      onViewItem: (item) => setDetailItem(item),
+      onAddRecord:
+        onCreateRecordForItem || onLinkExistingRecord || onLinkExistingDocument
+          ? handleAddRecordFromRow
+          : undefined,
+      syncingItemId,
+      showSchedule: Boolean(propertyId),
+    };
+
     return (
-      <div className="space-y-2">
-        <style>{`
-          .checklist-h-scroll { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent; }
-          .dark .checklist-h-scroll { scrollbar-color: rgba(255,255,255,0.15) transparent; }
-          .checklist-h-scroll::-webkit-scrollbar { height: 3px; }
-          .checklist-h-scroll::-webkit-scrollbar-track { background: transparent; }
-          .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
-          .dark .checklist-h-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); }
-        `}</style>
-        {hasAnyItems && (
+      <div className="space-y-4">
+        {(hasAnyItems || propertyId) && (
           <ProgressBar
             completed={sysProgress.completed}
             total={sysProgress.total}
-            className="mb-3"
+            className="mb-1"
           />
         )}
-        {inspectionItems.map((item) => (
-          <ChecklistItem
-            key={item.id}
-            item={item}
-            onStatusChange={handleStatusChange}
-            onToggleRequest={handleToggleRequest}
-            onDelete={handleDeleteItem}
-            linkedEvent={eventsByChecklistItemId[Number(item.id)] || null}
-            onViewEvent={handleViewEvent}
-            isAddressedByMaintenance={completedChecklistItemIds.has(
-              Number(item.id),
-            )}
-            isSyncing={syncingItemId === item.id}
-            onScheduleItem={propertyId ? handleScheduleItem : undefined}
-            onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
-          />
-        ))}
-        {userItems.length > 0 && inspectionItems.length > 0 && (
-          <div className="flex items-center gap-2 my-3">
-            <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
-            <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-              My ToDos
-            </span>
-            <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
+        {!hasAnyItems && (
+          <div className="flex flex-col items-center justify-center py-4 text-center">
+            <ClipboardList className="w-8 h-8 text-gray-300 dark:text-gray-600 mb-2" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No action items for this system yet.
+            </p>
           </div>
         )}
-        {userItems.map((item) => (
-          <ChecklistItem
-            key={item.id}
-            item={item}
-            onStatusChange={handleStatusChange}
-            onToggleRequest={handleToggleRequest}
-            onDelete={handleDeleteItem}
-            linkedEvent={eventsByChecklistItemId[Number(item.id)] || null}
-            onViewEvent={handleViewEvent}
-            isAddressedByMaintenance={completedChecklistItemIds.has(
-              Number(item.id),
-            )}
-            isSyncing={syncingItemId === item.id}
-            onScheduleItem={propertyId ? handleScheduleItem : undefined}
-            onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
-          />
-        ))}
-        <AddTodoForm
+        <SystemActionItemsTables
+          findingItems={findingItems}
+          recurrentItems={recurrentItems}
+          recommendationItems={recommendationItems}
+          userItems={userItems}
+          systemLabel={systemLabel}
           systemKey={systemKey}
           propertyId={propertyId}
+          completedChecklistItemIds={completedChecklistItemIds}
+          recordsByChecklistItemId={recordsByChecklistItemId}
+          eventsByChecklistItemId={eventsByChecklistItemId}
           onItemCreated={handleItemCreated}
+          handlers={tableHandlers}
         />
         <EventDetailInlineModal
           event={selectedEventForDetail}
           isOpen={eventDetailOpen}
           onClose={setEventDetailOpen}
+        />
+        <ActionItemDetailModal
+          item={detailItem}
+          isOpen={Boolean(detailItem)}
+          onClose={() => setDetailItem(null)}
+          linkedEvent={
+            detailItem
+              ? eventsByChecklistItemId[Number(detailItem.id)] || null
+              : null
+          }
+          completedChecklistItemIds={completedChecklistItemIds}
+          recordsByChecklistItemId={recordsByChecklistItemId}
+          onScheduleItem={propertyId ? handleScheduleItem : undefined}
+          onToggleRequest={handleToggleRequest}
+          onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
+          showSchedule={Boolean(propertyId)}
         />
         {scheduleForItem &&
           createPortal(
@@ -1066,10 +1287,30 @@ export default function InspectionChecklistPanel({
           sysItems,
           completedChecklistItemIds,
         );
-        const inspectionItems = sysItems.filter(
-          (i) => i.source !== "user_created",
+        const { findingItems, recurrentItems } =
+          splitInspectionActionItems(sysItems);
+        const recommendationItems = sysItems.filter(
+          (i) => i.source === "default_recommendation",
         );
         const userItems = sysItems.filter((i) => i.source === "user_created");
+        const renderGroupedItem = (item) => (
+          <ChecklistItem
+            key={item.id}
+            item={item}
+            onStatusChange={handleStatusChange}
+            onToggleRequest={handleToggleRequest}
+            onDelete={handleDeleteItem}
+            onUpdateItem={handleUpdateItem}
+            linkedEvent={eventsByChecklistItemId[Number(item.id)] || null}
+            onViewEvent={handleViewEvent}
+            isAddressedByMaintenance={completedChecklistItemIds.has(
+              Number(item.id),
+            )}
+            isSyncing={syncingItemId === item.id}
+            onScheduleItem={propertyId ? handleScheduleItem : undefined}
+            onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
+          />
+        );
         return (
           <div
             key={sysKey}
@@ -1098,53 +1339,34 @@ export default function InspectionChecklistPanel({
             </button>
             {isExpanded && (
               <div className="px-3 pb-3 space-y-2">
-                {inspectionItems.map((item) => (
-                  <ChecklistItem
-                    key={item.id}
-                    item={item}
-                    onStatusChange={handleStatusChange}
-                    onToggleRequest={handleToggleRequest}
-                    onDelete={handleDeleteItem}
-                    linkedEvent={
-                      eventsByChecklistItemId[Number(item.id)] || null
-                    }
-                    onViewEvent={handleViewEvent}
-                    isAddressedByMaintenance={completedChecklistItemIds.has(
-                      Number(item.id),
-                    )}
-                    isSyncing={syncingItemId === item.id}
-                    onScheduleItem={propertyId ? handleScheduleItem : undefined}
-                    onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
-                  />
-                ))}
-                {userItems.length > 0 && inspectionItems.length > 0 && (
-                  <div className="flex items-center gap-2 my-3">
-                    <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
-                    <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                      My ToDos
-                    </span>
-                    <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700/50" />
-                  </div>
-                )}
-                {userItems.map((item) => (
-                  <ChecklistItem
-                    key={item.id}
-                    item={item}
-                    onStatusChange={handleStatusChange}
-                    onToggleRequest={handleToggleRequest}
-                    onDelete={handleDeleteItem}
-                    linkedEvent={
-                      eventsByChecklistItemId[Number(item.id)] || null
-                    }
-                    onViewEvent={handleViewEvent}
-                    isAddressedByMaintenance={completedChecklistItemIds.has(
-                      Number(item.id),
-                    )}
-                    isSyncing={syncingItemId === item.id}
-                    onScheduleItem={propertyId ? handleScheduleItem : undefined}
-                    onAIPromptItem={onOpenAIAssistant ? handleAIPromptItem : undefined}
-                  />
-                ))}
+                {findingItems.length > 0 &&
+                  (recurrentItems.length > 0 ||
+                    recommendationItems.length > 0 ||
+                    userItems.length > 0) && (
+                    <SectionDivider label="From Inspection Report" />
+                  )}
+                {findingItems.map(renderGroupedItem)}
+                {recurrentItems.length > 0 &&
+                  (findingItems.length > 0 ||
+                    recommendationItems.length > 0 ||
+                    userItems.length > 0) && (
+                    <SectionDivider label="Recurrent Maintenance" />
+                  )}
+                {recurrentItems.map(renderGroupedItem)}
+                {recommendationItems.length > 0 &&
+                  (findingItems.length > 0 ||
+                    recurrentItems.length > 0 ||
+                    userItems.length > 0) && (
+                    <SectionDivider label="Recommended Maintenance" />
+                  )}
+                {recommendationItems.map(renderGroupedItem)}
+                {userItems.length > 0 &&
+                  (findingItems.length > 0 ||
+                    recurrentItems.length > 0 ||
+                    recommendationItems.length > 0) && (
+                    <SectionDivider label="My ToDos" />
+                  )}
+                {userItems.map(renderGroupedItem)}
                 <AddTodoForm
                   systemKey={sysKey}
                   propertyId={propertyId}

@@ -4,6 +4,22 @@ const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
 const { resolveFindingSystemType } = require("../services/systemTypes");
 
+/** Build a human-readable "suggested when" string from a template's cadence. */
+function buildSuggestedWhen(tpl) {
+  const { frequency, frequency_unit, lifecycle_replacement_years } = tpl || {};
+  if (frequency && frequency_unit) {
+    if (frequency === 1) {
+      const singular = String(frequency_unit).replace(/s$/, "");
+      return `Every ${singular}`;
+    }
+    return `Every ${frequency} ${frequency_unit}`;
+  }
+  if (lifecycle_replacement_years) {
+    return `After ~${lifecycle_replacement_years} years`;
+  }
+  return null;
+}
+
 class InspectionChecklistItem {
 
   /** Remove all checklist items derived from a given analysis result (used before re-generating). */
@@ -109,6 +125,54 @@ class InspectionChecklistItem {
     return result.rows;
   }
 
+  /**
+   * Generate Action Items for a system by copying its active default
+   * recommendation templates into inspection_checklist_items.
+   *
+   * Source is 'default_recommendation'. Frequency / lifecycle data is copied
+   * structurally and also folded into a human-readable suggested_when string.
+   * Returns the inserted rows (empty array when there are no templates).
+   */
+  static async generateDefaultRecommendations({ propertyId, systemKey, templates }) {
+    if (!propertyId || !systemKey) {
+      throw new BadRequestError("propertyId and systemKey are required");
+    }
+    if (!Array.isArray(templates) || templates.length === 0) return [];
+
+    const values = [];
+    const placeholders = [];
+    let idx = 1;
+
+    for (const tpl of templates) {
+      placeholders.push(
+        `($${idx++}, $${idx++}, 'default_recommendation', $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, 'pending')`
+      );
+      values.push(
+        propertyId,
+        systemKey,
+        (tpl.title || "Maintenance task").slice(0, 500),
+        tpl.description || null,
+        tpl.priority || "medium",
+        buildSuggestedWhen(tpl),
+        tpl.frequency ?? null,
+        tpl.frequency_unit || null,
+        tpl.lifecycle_replacement_years ?? null,
+        tpl.id ?? null
+      );
+    }
+
+    const result = await db.query(
+      `INSERT INTO inspection_checklist_items
+         (property_id, system_key, source, title, description, priority,
+          suggested_when, frequency, frequency_unit, lifecycle_replacement_years,
+          template_id, status)
+       VALUES ${placeholders.join(", ")}
+       RETURNING *`,
+      values
+    );
+    return result.rows;
+  }
+
   /** Create a user-defined checklist item (not derived from analysis). */
   static async createUserItem({ propertyId, systemKey, title, description, priority }) {
     if (!propertyId || !systemKey || !title) {
@@ -124,11 +188,12 @@ class InspectionChecklistItem {
     return result.rows[0];
   }
 
-  /** Delete a user-created checklist item. Only user_created items can be deleted. */
+  /** Delete a user-managed checklist item. user_created and generated
+   *  default_recommendation items can be deleted; inspection-derived items cannot. */
   static async deleteUserItem(id) {
     const item = await this.get(id);
-    if (item.source !== "user_created") {
-      throw new BadRequestError("Only user-created items can be deleted");
+    if (!["user_created", "default_recommendation"].includes(item.source)) {
+      throw new BadRequestError("Only user-managed items can be deleted");
     }
     await db.query(`DELETE FROM inspection_checklist_items WHERE id = $1`, [id]);
     return item;
@@ -215,7 +280,17 @@ class InspectionChecklistItem {
 
   /** Update status, notes, or linked_maintenance_id. */
   static async update(id, data) {
-    const allowedFields = ["status", "notes", "linked_maintenance_id", "completed_at", "completed_by"];
+    const allowedFields = [
+      "status",
+      "notes",
+      "linked_maintenance_id",
+      "completed_at",
+      "completed_by",
+      "frequency",
+      "frequency_unit",
+      "last_performed_date",
+      "next_due_date",
+    ];
     const setClauses = [];
     const params = [];
     let idx = 1;
@@ -248,10 +323,41 @@ class InspectionChecklistItem {
     return result.rows[0];
   }
 
+  /** True when an action item should recur (recommended or has structural cadence). */
+  static isRecurringItem(item) {
+    if (!item) return false;
+    if (item.source === "default_recommendation") return true;
+    if (item.frequency && item.frequency_unit) return true;
+    if (item.lifecycle_replacement_years) return true;
+    return false;
+  }
+
+  /**
+   * Record that recurring maintenance was performed without completing the item.
+   * Updates last_performed_date and keeps the item active for the next cycle.
+   */
+  static async recordPerformed(id, { maintenanceId = null, lastPerformedDate = null } = {}) {
+    const updateData = {
+      status: "pending",
+      completed_at: null,
+      completed_by: null,
+    };
+    if (maintenanceId != null && maintenanceId !== "") {
+      const parsed = parseInt(maintenanceId, 10);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        updateData.linked_maintenance_id = parsed;
+      }
+    }
+    if (lastPerformedDate) {
+      updateData.last_performed_date = String(lastPerformedDate).slice(0, 10);
+    }
+    return this.update(id, updateData);
+  }
+
   /**
    * Mark an item as completed, optionally linking to a maintenance record.
    */
-  static async complete(id, { userId, maintenanceId = null, notes = null } = {}) {
+  static async complete(id, { userId, maintenanceId = null, notes = null, lastPerformedDate = null } = {}) {
     const updateData = {
       status: "completed",
       completed_at: new Date().toISOString(),
@@ -264,6 +370,9 @@ class InspectionChecklistItem {
       }
     }
     if (notes !== null) updateData.notes = notes;
+    if (lastPerformedDate) {
+      updateData.last_performed_date = String(lastPerformedDate).slice(0, 10);
+    }
     return this.update(id, updateData);
   }
 }

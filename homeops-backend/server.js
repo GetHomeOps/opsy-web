@@ -20,6 +20,7 @@ const Account = require('./models/account');
 const SubscriptionProduct = require('./models/subscriptionProduct');
 const { ensureStripePlans } = require('./services/planSeedService');
 const { ensurePropertySponsorshipSchema } = require('./services/propertySponsorshipSchema');
+const { ensureSystemRecommendationTemplateSchema } = require('./services/systemRecommendationTemplateSchema');
 const { startSponsorshipSweeper } = require('./services/sponsorshipScheduler');
 const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
 const { recoverPendingJobs: recoverAttomLookupJobs } = require('./services/attomLookupQueue');
@@ -100,6 +101,12 @@ async function startServer() {
       await ensurePropertySponsorshipSchema();
     } catch (sponsorshipErr) {
       console.warn('[startup] Property sponsorship schema ensure failed:', sponsorshipErr.message);
+    }
+
+    try {
+      await ensureSystemRecommendationTemplateSchema();
+    } catch (recErr) {
+      console.warn('[startup] System recommendation template schema ensure failed:', recErr.message);
     }
 
     try {

@@ -20,6 +20,8 @@ function UsersTable({
   currentUserId,
   onImpersonate,
   onReconcileBilling,
+  onResendInvitation,
+  resendingInvitationUserId,
 }) {
   const {t} = useTranslation();
 
@@ -166,6 +168,8 @@ function UsersTable({
           isImpersonating={isImpersonating}
           onImpersonate={onImpersonate}
           onReconcileBilling={onReconcileBilling}
+          onResendInvitation={onResendInvitation}
+          resendingInvitation={resendingInvitationUserId === item.id}
         />
       ),
     },

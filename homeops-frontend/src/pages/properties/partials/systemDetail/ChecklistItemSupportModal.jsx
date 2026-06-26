@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from "react";
+import React, {useEffect, useMemo, useState} from "react";
 import {
   ArrowLeft,
   FileText,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import ModalBlank from "../../../../components/ModalBlank";
 import {formatOverviewDate} from "../passport/SystemsOverviewPanel";
+import {todayDateString} from "../../helpers/actionItemFormatters";
 import {matchesSystemForAnalysis} from "../../helpers/inspectionAnalysisHelpers";
 
 function formatRecordLabel(record) {
@@ -41,6 +42,7 @@ export function ChecklistItemSupportModal({
   maintenanceRecords = [],
   propertyDocuments = [],
   systemId,
+  lastPerformedDate: initialLastPerformedDate = null,
   onClose,
   onCreateRecord,
   onLinkRecord,
@@ -48,6 +50,15 @@ export function ChecklistItemSupportModal({
   linking = false,
 }) {
   const [linkError, setLinkError] = useState(null);
+  const [lastPerformedDate, setLastPerformedDate] = useState(
+    initialLastPerformedDate || todayDateString(),
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      setLastPerformedDate(initialLastPerformedDate || todayDateString());
+    }
+  }, [isOpen, item?.id, initialLastPerformedDate]);
 
   const systemRecords = useMemo(() => {
     return (maintenanceRecords ?? []).filter(
@@ -80,7 +91,7 @@ export function ChecklistItemSupportModal({
   const handleLinkRecord = async (record) => {
     setLinkError(null);
     try {
-      await onLinkRecord?.(item, record);
+      await onLinkRecord?.(item, record, lastPerformedDate);
     } catch (err) {
       setLinkError(err?.message || "Failed to link record");
     }
@@ -89,7 +100,7 @@ export function ChecklistItemSupportModal({
   const handleLinkDocument = async (doc) => {
     setLinkError(null);
     try {
-      await onLinkDocument?.(item, doc);
+      await onLinkDocument?.(item, doc, lastPerformedDate);
     } catch (err) {
       setLinkError(err?.message || "Failed to link document");
     }
@@ -141,6 +152,27 @@ export function ChecklistItemSupportModal({
           </div>
         )}
 
+        <div className="mb-5">
+          <label
+            htmlFor="checklist-support-last-performed"
+            className="block text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1"
+          >
+            Last performed
+          </label>
+          <input
+            id="checklist-support-last-performed"
+            type="date"
+            className="form-input w-full text-sm py-2 dark:bg-gray-700/50 dark:border-gray-600"
+            value={lastPerformedDate}
+            onChange={(e) => setLastPerformedDate(e.target.value)}
+            disabled={linking}
+            required
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+            When was this work done? Used for the linked record and Next Due.
+          </p>
+        </div>
+
         <div className="space-y-5">
           {onCreateRecord && (
             <div>
@@ -149,8 +181,8 @@ export function ChecklistItemSupportModal({
               </p>
               <button
                 type="button"
-                disabled={linking}
-                onClick={() => onCreateRecord?.(item)}
+                disabled={linking || !lastPerformedDate}
+                onClick={() => onCreateRecord?.(item, lastPerformedDate)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[#456564]/30 dark:border-[#5a7a78]/40 hover:bg-[#456564]/5 dark:hover:bg-[#456564]/10 transition-colors text-left disabled:opacity-50"
               >
                 <span className="w-8 h-8 rounded-lg bg-[#456564]/10 dark:bg-[#456564]/25 flex items-center justify-center shrink-0">

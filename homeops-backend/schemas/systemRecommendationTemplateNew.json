@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://example.com/systemRecommendationTemplateNew.json",
+  "type": "object",
+  "properties": {
+    "system_key": {"type": "string", "minLength": 1, "maxLength": 50},
+    "title": {"type": "string", "minLength": 1, "maxLength": 500},
+    "description": {"type": ["string", "null"]},
+    "frequency": {"type": ["integer", "null"], "minimum": 1},
+    "frequency_unit": {"type": ["string", "null"], "enum": ["days", "weeks", "months", "years", null]},
+    "priority": {"type": "string", "enum": ["urgent", "high", "medium", "low"]},
+    "lifecycle_replacement_years": {"type": ["integer", "null"], "minimum": 1},
+    "active": {"type": "boolean"},
+    "sort_order": {"type": ["integer", "null"], "minimum": 0}
+  },
+  "required": ["system_key", "title"],
+  "additionalProperties": false
+}

@@ -30,6 +30,7 @@ import {
   Inbox,
   Tag,
   Mail,
+  Wrench,
 } from "lucide-react";
 
 const ICON_SIZE = 18;
@@ -233,6 +234,13 @@ export const SIDEBAR_CONFIG = [
             roles: "superAdminOnly",
           },
         ],
+      },
+      {
+        id: "system-recommendations",
+        label: "Recommendations",
+        path: "system-recommendations",
+        icon: icon(Wrench),
+        roles: "superAdminOnly",
       },
       {
         id: "email-delivery",

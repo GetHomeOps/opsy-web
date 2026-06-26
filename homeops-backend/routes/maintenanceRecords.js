@@ -18,6 +18,73 @@ const maintenanceRecordsBatchSchema = require("../schemas/maintenanceRecordsBatc
 const maintenanceRecordUpdateSchema = require("../schemas/maintenanceRecord.json");
 const router = express.Router();
 
+function parseMaintenanceData(maintenance) {
+  const raw = maintenance?.data;
+  if (!raw) return {};
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) ?? {};
+    } catch (_) {
+      return {};
+    }
+  }
+  return raw || {};
+}
+
+function resolveChecklistItemId(maintenance, body = {}) {
+  const fromBody = body.checklist_item_id ?? body.data?.checklist_item_id;
+  if (fromBody != null && fromBody !== "") {
+    const parsed = Number(fromBody);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  const fromData = parseMaintenanceData(maintenance).checklist_item_id;
+  if (fromData != null && fromData !== "") {
+    const parsed = Number(fromData);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+}
+
+function isCompletedMaintenanceStatus(status) {
+  return String(status ?? "").trim().toLowerCase() === "completed";
+}
+
+async function syncChecklistItemFromMaintenanceRecord(maintenance, userId) {
+  const checklistItemId = resolveChecklistItemId(maintenance);
+  if (!checklistItemId) return;
+
+  if (isCompletedMaintenanceStatus(maintenance.status)) {
+    const lastPerformedDate = maintenance.completed_at;
+    try {
+      const item = await InspectionChecklistItem.get(checklistItemId);
+      if (InspectionChecklistItem.isRecurringItem(item)) {
+        await InspectionChecklistItem.recordPerformed(checklistItemId, {
+          maintenanceId: maintenance.id,
+          lastPerformedDate,
+        });
+      } else {
+        await InspectionChecklistItem.complete(checklistItemId, {
+          userId,
+          maintenanceId: maintenance.id,
+          lastPerformedDate,
+        });
+      }
+    } catch (err) {
+      console.error("[inspectionChecklist] Auto-sync failed:", err.message);
+    }
+    return;
+  }
+
+  try {
+    await InspectionChecklistItem.update(checklistItemId, {
+      status: "in_progress",
+      linked_maintenance_id: maintenance.id,
+    });
+  } catch (err) {
+    console.error("[inspectionChecklist] Auto-link failed:", err.message);
+  }
+}
+
 /** Set req.params.propertyId from maintenance record id so ensurePropertyAccess can run.
  *  Skips the DB lookup when the client provides property_id in the body or query. */
 async function loadPropertyIdFromRecord(req, res, next) {
@@ -84,18 +151,10 @@ router.post("/record/:PropertyId", ensureLoggedIn, ensurePropertyAccess({ param:
       property_id: propertyId,
     });
 
-    const checklistItemId = req.body.checklist_item_id || (req.body.data && req.body.data.checklist_item_id);
-    if (checklistItemId && maintenanceRecord.status === "Completed") {
-      InspectionChecklistItem.complete(checklistItemId, {
-        userId: res.locals.user?.id,
-        maintenanceId: maintenanceRecord.id,
-      }).catch((err) => console.error("[inspectionChecklist] Auto-complete failed:", err.message));
-    } else if (checklistItemId) {
-      InspectionChecklistItem.update(checklistItemId, {
-        status: "in_progress",
-        linked_maintenance_id: maintenanceRecord.id,
-      }).catch((err) => console.error("[inspectionChecklist] Auto-link failed:", err.message));
-    }
+    syncChecklistItemFromMaintenanceRecord(
+      maintenanceRecord,
+      res.locals.user?.id,
+    ).catch((err) => console.error("[inspectionChecklist] Sync failed:", err.message));
 
     syncMaintenanceRecordDocuments(maintenanceRecord, { analyzeUser: res.locals.user }).catch((err) =>
       console.error("[maintenanceRecordDocuments] Sync failed:", err.message)
@@ -134,13 +193,10 @@ router.patch("/:recordId", ensureLoggedIn, loadPropertyIdFromRecord, ensurePrope
     syncMaintenanceRecordDocuments(maintenance, { analyzeUser: res.locals.user }).catch((err) =>
       console.error("[maintenanceRecordDocuments] Sync failed:", err.message)
     );
-    const checklistItemId = req.body.checklist_item_id || (req.body.data && req.body.data.checklist_item_id);
-    if (checklistItemId && maintenance.status === "Completed") {
-      InspectionChecklistItem.complete(checklistItemId, {
-        userId: res.locals.user?.id,
-        maintenanceId: maintenance.id,
-      }).catch((err) => console.error("[inspectionChecklist] Auto-complete failed:", err.message));
-    }
+    syncChecklistItemFromMaintenanceRecord(
+      maintenance,
+      res.locals.user?.id,
+    ).catch((err) => console.error("[inspectionChecklist] Sync failed:", err.message));
 
     triggerReanalysisOnMaintenance(maintenance.property_id, maintenance).catch((err) =>
       console.error("[propertyReanalysis] Maintenance trigger failed:", err.message)

@@ -14,6 +14,7 @@ import {
   COMING_SOON,
 } from "./sidebarConfig";
 import {prefetchContactsList} from "../pages/routes-nav/routePrefetch";
+import {isDemoSite, canAccessUsersOnDemo} from "../utils/demoSite";
 
 /**
  * Stripe-style submenu flyout — when sidebar is collapsed, hovering over an expandable
@@ -257,7 +258,9 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const isAdmin = currentUser?.role === "admin";
   const isAgent = currentUser?.role === "agent";
   const isHomeowner = currentUser?.role === "homeowner";
-  const canManageUsers = isSuperAdmin || isAdmin;
+  const canManageUsers = isDemoSite()
+    ? canAccessUsersOnDemo(currentUser)
+    : isSuperAdmin || isAdmin;
   /** Agent/homeowner: show Professionals as a section link; admin/super_admin: keep Directory collapsible. */
   const usesFlatProfessionalsNav = !canManageUsers && (isAgent || isHomeowner);
 

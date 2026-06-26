@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -7,6 +7,7 @@ import {
   X,
 } from "lucide-react";
 import ModalBlank from "../../../../components/ModalBlank";
+import { todayDateString } from "../../helpers/actionItemFormatters";
 
 /** Prompt to add a supporting record before marking an action item complete. */
 export function ChecklistItemCompleteModal({
@@ -17,7 +18,17 @@ export function ChecklistItemCompleteModal({
   onMarkComplete,
   submitting = false,
 }) {
+  const [lastPerformedDate, setLastPerformedDate] = useState(todayDateString());
+
+  useEffect(() => {
+    if (isOpen) {
+      setLastPerformedDate(todayDateString());
+    }
+  }, [isOpen, item?.id]);
+
   if (!isOpen || !item) return null;
+
+  const canSubmit = Boolean(lastPerformedDate);
 
   return (
     <ModalBlank
@@ -63,6 +74,27 @@ export function ChecklistItemCompleteModal({
           </button>
         </div>
 
+        <div className="mt-4">
+          <label
+            htmlFor="checklist-complete-last-performed"
+            className="block text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1"
+          >
+            Last performed
+          </label>
+          <input
+            id="checklist-complete-last-performed"
+            type="date"
+            className="form-input w-full text-sm py-2 dark:bg-gray-700/50 dark:border-gray-600"
+            value={lastPerformedDate}
+            onChange={(e) => setLastPerformedDate(e.target.value)}
+            disabled={submitting}
+            required
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+            When was this work done? This updates Last Performed and Next Due.
+          </p>
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-2 mt-6 justify-end">
           <button
             type="button"
@@ -75,8 +107,8 @@ export function ChecklistItemCompleteModal({
           <button
             type="button"
             className="btn-sm border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 flex items-center justify-center gap-1.5"
-            onClick={onMarkComplete}
-            disabled={submitting}
+            onClick={() => onMarkComplete?.(lastPerformedDate)}
+            disabled={submitting || !canSubmit}
           >
             <ClipboardList className="w-3.5 h-3.5" />
             {submitting ? "Saving…" : "Mark complete"}
@@ -85,8 +117,8 @@ export function ChecklistItemCompleteModal({
             <button
               type="button"
               className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white flex items-center justify-center gap-1.5"
-              onClick={onAddRecord}
-              disabled={submitting}
+              onClick={() => onAddRecord(lastPerformedDate)}
+              disabled={submitting || !canSubmit}
             >
               <FileText className="w-3.5 h-3.5" />
               Add / link record

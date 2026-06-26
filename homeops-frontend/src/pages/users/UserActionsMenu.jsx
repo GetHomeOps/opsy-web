@@ -1,5 +1,6 @@
 import React, {useState, useRef, useEffect} from "react";
-import {MoreHorizontal, UserRound, CreditCard} from "lucide-react";
+import {MoreHorizontal, UserRound, CreditCard, Mail} from "lucide-react";
+import {useTranslation} from "react-i18next";
 import NavbarDropdownPortal from "../../components/NavbarDropdownPortal";
 
 function isSuperAdminUserRole(role) {
@@ -17,7 +18,10 @@ export default function UserActionsMenu({
   isImpersonating = false,
   onImpersonate,
   onReconcileBilling,
+  onResendInvitation,
+  resendingInvitation = false,
 }) {
+  const {t} = useTranslation();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
   const triggerRef = useRef(null);
@@ -52,7 +56,11 @@ export default function UserActionsMenu({
     !user?.hasActivePaidSubscription &&
     typeof onReconcileBilling === "function";
 
-  if (!canImpersonate && !canReconcile) {
+  const isPending = !(user?.isActive ?? user?.is_active ?? false);
+  const canResendInvitation =
+    isPending && typeof onResendInvitation === "function";
+
+  if (!canImpersonate && !canReconcile && !canResendInvitation) {
     return <span className="text-gray-400">-</span>;
   }
 
@@ -85,6 +93,27 @@ export default function UserActionsMenu({
       >
         <div onClick={(e) => e.stopPropagation()}>
           <ul className="py-1">
+            {canResendInvitation && (
+              <li>
+                <button
+                  type="button"
+                  disabled={resendingInvitation}
+                  className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 text-left disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpen(false);
+                    onResendInvitation(user);
+                  }}
+                >
+                  <Mail className="w-4 h-4 shrink-0 text-[#456564] dark:text-[#8fa3a2]" />
+                  <span className="text-sm font-medium ml-2 text-gray-800 dark:text-gray-100">
+                    {resendingInvitation
+                      ? t("sending") || "Sending..."
+                      : t("resendInvitationEmail") || "Resend invitation email"}
+                  </span>
+                </button>
+              </li>
+            )}
             {canImpersonate && (
               <li>
                 <button

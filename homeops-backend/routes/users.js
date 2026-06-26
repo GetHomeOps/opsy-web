@@ -32,7 +32,8 @@ const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/p
 const db = require("../db");
 const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
 const { createAccountInvitation } = require("../services/invitationService");
-const { assertDemoResetAllowed } = require("../helpers/demoEnvironment");
+const { assertDemoResetAllowed, isDemoEnvironment } = require("../helpers/demoEnvironment");
+const { provisionDemoAccount } = require("../services/demoAccountProvisioner");
 
 const router = express.Router();
 const DEMO_HOMEOWNER_RESET_EMAIL = "hello-homeowner@heyopsy.com";
@@ -50,6 +51,10 @@ const DEMO_HOMEOWNER_RESET_EMAIL = "hello-homeowner@heyopsy.com";
  *  "Resend invitation email" action in the user form. */
 router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
   try {
+    if (isDemoEnvironment() && res.locals.user?.role !== "super_admin") {
+      throw new ForbiddenError("User creation is restricted to super admins on the demo site.");
+    }
+
     const {
       name,
       email,
@@ -61,9 +66,26 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       accountId,
       sendInvite,
       sendInvitationEmail,
+      provisionDemoAccount: provisionDemoAccountFlag,
     } = req.body;
+
+    const wantsProvision =
+      provisionDemoAccountFlag === true || provisionDemoAccountFlag === "true";
+
+    if (wantsProvision) {
+      if (!isDemoEnvironment()) {
+        throw new BadRequestError("Demo account provisioning is only available on the demo site.");
+      }
+      if (res.locals.user?.role !== "super_admin") {
+        throw new ForbiddenError("Only super admins can provision demo accounts.");
+      }
+      if (role !== "homeowner" && role !== "agent") {
+        throw new BadRequestError("Demo provisioning supports homeowner and agent roles only.");
+      }
+    }
+
     const shouldSendInvite =
-      sendInvite === false || sendInvitationEmail === false ? false : true;
+      wantsProvision || sendInvite === false || sendInvitationEmail === false ? false : true;
 
     /* Lock the role for admin-created homeowner/agent users so they can
        only see plans matching the role the admin chose during onboarding,
@@ -77,8 +99,8 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       phone,
       role,
       contact,
-      is_active: false,
-      onboarding_completed: false,
+      is_active: wantsProvision ? true : false,
+      onboarding_completed: wantsProvision ? undefined : false,
       role_locked: isLockableRole,
     });
 
@@ -86,17 +108,30 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       await User.update({ id: newUser.id, image });
     }
 
-    notifyNewUserAccount({
-      userId: newUser.id,
-      email: newUser.email,
-      name: newUser.name,
-      role: newUser.role || "homeowner",
-      source: "admin_created_user",
-    }).catch((e) => console.error("[opsTeamNotify] admin create user:", e.message));
+    if (!isDemoEnvironment()) {
+      notifyNewUserAccount({
+        userId: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        role: newUser.role || "homeowner",
+        source: "admin_created_user",
+      }).catch((e) => console.error("[opsTeamNotify] admin create user:", e.message));
+    }
+
+    let demoSummary = null;
+    if (wantsProvision) {
+      demoSummary = await provisionDemoAccount({
+        userId: newUser.id,
+        role,
+        name,
+        email,
+        phone,
+      });
+    }
 
     const inviterUserId = res.locals.user?.id;
     let resolvedAccountId = accountId ? Number(accountId) : null;
-    if (!resolvedAccountId && inviterUserId) {
+    if (!resolvedAccountId && inviterUserId && !wantsProvision) {
       try {
         const inviterAccounts = await Account.getUserAccounts(inviterUserId);
         resolvedAccountId = inviterAccounts?.[0]?.id || null;
@@ -110,9 +145,11 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
     let invitationSkipped = false;
     if (!shouldSendInvite) {
       invitationSkipped = true;
-      console.info(
-        `[users.create] sendInvite=false; skipping invitation email for ${newUser.email}.`
-      );
+      if (!wantsProvision) {
+        console.info(
+          `[users.create] sendInvite=false; skipping invitation email for ${newUser.email}.`
+        );
+      }
     } else if (resolvedAccountId) {
       try {
         const inviteResult = await createAccountInvitation({
@@ -126,14 +163,21 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       } catch (inviteErr) {
         console.error("[users.create] failed to send invitation email:", inviteErr.message);
       }
-    } else {
+    } else if (!wantsProvision) {
       console.warn(
         `[users.create] No accountId resolved for invitation to ${newUser.email}; skipping auto-invite.`
       );
     }
 
     const user = await User.getById(newUser.id);
-    return res.status(201).json({ user, invitation, invitationEmailSent, invitationSkipped });
+    return res.status(201).json({
+      user,
+      invitation,
+      invitationEmailSent,
+      invitationSkipped,
+      provisioned: wantsProvision,
+      demoSummary,
+    });
   } catch (err) {
     return next(err);
   }

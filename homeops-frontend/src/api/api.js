@@ -76,7 +76,7 @@ async function fetchWithTimeout(resource, options = {}, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(resource, {...options, signal: controller.signal});
+    return await fetch(resource, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -439,6 +439,8 @@ class AppApi {
         invitationEmailSent: res.invitationEmailSent === true,
         invitationSkipped: res.invitationSkipped === true,
         invitation: res.invitation || null,
+        provisioned: res.provisioned === true,
+        demoSummary: res.demoSummary || null,
       };
     }
     return res.user;
@@ -1006,7 +1008,7 @@ class AppApi {
 
   static async createMaintenanceRecord(data) {
     const propertyId = data.property_id;
-    const {property_id: _propertyId, ...body} = data;
+    const { property_id: _propertyId, ...body } = data;
     let res = await this.request(`maintenance/record/${propertyId}`, body, 'POST');
     return res.maintenanceRecord ?? res.maintenance;
   }
@@ -1110,7 +1112,7 @@ class AppApi {
    *   occurrence in the same recurrence series; "single" (default) deletes only
    *   this occurrence.
    */
-  static async deleteMaintenanceEvent(eventId, {scope} = {}) {
+  static async deleteMaintenanceEvent(eventId, { scope } = {}) {
     const path =
       scope === "series"
         ? `maintenance-events/${eventId}/series`
@@ -1396,6 +1398,39 @@ class AppApi {
     return res.product;
   }
 
+  /* --------- System Recommendation Templates (Super Admin) --------- */
+
+  /** List default maintenance recommendation templates grouped by system. */
+  static async getSystemRecommendationTemplates() {
+    const res = await this.request(`system-recommendation-templates`);
+    return { grouped: res.grouped || {}, templates: res.templates || [] };
+  }
+
+  static async createSystemRecommendationTemplate(data) {
+    const res = await this.request(`system-recommendation-templates`, data, "POST");
+    return res.template;
+  }
+
+  static async updateSystemRecommendationTemplate(id, data) {
+    const res = await this.request(`system-recommendation-templates/${id}`, data, "PATCH");
+    return res.template;
+  }
+
+  static async deleteSystemRecommendationTemplate(id) {
+    const res = await this.request(`system-recommendation-templates/${id}`, {}, "DELETE");
+    return res;
+  }
+
+  /** Persist a new ordering of templates within a single system. */
+  static async reorderSystemRecommendationTemplates(systemKey, orderedIds) {
+    const res = await this.request(
+      `system-recommendation-templates/reorder`,
+      { systemKey, orderedIds },
+      "PUT",
+    );
+    return res.templates || [];
+  }
+
   /* --------- Email Delivery (Super Admin) --------- */
 
   static async getEmailDeliverySettings() {
@@ -1603,10 +1638,11 @@ class AppApi {
     return res.item;
   }
 
-  static async completeChecklistItem(itemId, { maintenanceId, notes } = {}) {
+  static async completeChecklistItem(itemId, { maintenanceId, notes, lastPerformedDate } = {}) {
     const res = await this.request(`inspection-checklist/${itemId}/complete`, {
       maintenanceId: maintenanceId || null,
       notes: notes || null,
+      last_performed_date: lastPerformedDate || null,
     }, "POST");
     return res.item;
   }

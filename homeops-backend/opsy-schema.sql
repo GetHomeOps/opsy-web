@@ -433,6 +433,7 @@ CREATE TABLE property_systems (
     data JSONB DEFAULT '{}',
     next_service_date DATE,
     included BOOLEAN DEFAULT TRUE,
+    recommendations_generated_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(property_id, system_key)
@@ -1272,13 +1273,19 @@ CREATE TABLE inspection_checklist_items (
     analysis_result_id INTEGER REFERENCES inspection_analysis_results(id) ON DELETE CASCADE,
     property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     system_key VARCHAR(50) NOT NULL,
-    source VARCHAR(30) NOT NULL CHECK (source IN ('needs_attention', 'maintenance_suggestion', 'user_created')),
+    source VARCHAR(30) NOT NULL CHECK (source IN ('needs_attention', 'maintenance_suggestion', 'user_created', 'default_recommendation')),
     source_index INTEGER,
     title VARCHAR(500) NOT NULL,
     description TEXT,
     severity VARCHAR(20),
     priority VARCHAR(20),
     suggested_when VARCHAR(100),
+    frequency INTEGER,
+    frequency_unit VARCHAR(20),
+    lifecycle_replacement_years INTEGER,
+    template_id INTEGER,
+    last_performed_date DATE,
+    next_due_date DATE,
     evidence TEXT,
     status VARCHAR(30) NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'in_progress', 'completed', 'deferred', 'not_applicable')),
@@ -1294,6 +1301,28 @@ CREATE INDEX idx_checklist_property ON inspection_checklist_items(property_id);
 CREATE INDEX idx_checklist_system ON inspection_checklist_items(property_id, system_key);
 CREATE INDEX idx_checklist_status ON inspection_checklist_items(property_id, status);
 CREATE INDEX idx_checklist_analysis ON inspection_checklist_items(analysis_result_id);
+
+-- ============================================================
+-- System Recommendation Templates (Super Admin-managed library)
+-- Copied into inspection_checklist_items when a canonical system is added.
+-- ============================================================
+
+CREATE TABLE system_recommendation_templates (
+    id SERIAL PRIMARY KEY,
+    system_key VARCHAR(50) NOT NULL,
+    title VARCHAR(500) NOT NULL,
+    description TEXT,
+    frequency INTEGER,
+    frequency_unit VARCHAR(20),
+    priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+    lifecycle_replacement_years INTEGER,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_system_rec_templates_system ON system_recommendation_templates(system_key, sort_order);
 
 ALTER TABLE maintenance_events
     ADD CONSTRAINT fk_maintenance_events_checklist

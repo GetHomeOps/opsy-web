@@ -70,6 +70,10 @@ import {
 
 const INSPECTION_CHECKLIST_UPDATED_EVENT = "inspection-checklist:updated";
 
+function notifyChecklistUpdated() {
+  window.dispatchEvent(new CustomEvent(INSPECTION_CHECKLIST_UPDATED_EVENT));
+}
+
 function isPersistedMaintenanceEvent(event) {
   const id = event?.id;
   if (id == null) return false;
@@ -305,15 +309,19 @@ export function SystemDetailView({
   const openUpload = useCallback(() => setUploadTrigger((n) => n + 1), []);
 
   const handleCreateRecordForChecklistItem = useCallback(
-    (item) => {
+    (item, lastPerformedDate) => {
       const recordType =
         item.source === "maintenance_suggestion" ? "Maintenance" : "Inspection";
+      const performedDate =
+        lastPerformedDate != null
+          ? String(lastPerformedDate).slice(0, 10)
+          : new Date().toISOString().slice(0, 10);
       setCreateRecordDefaults({
         systemId: selectedSystemId,
         description: item.title,
         recordType,
         status: "Completed",
-        date: new Date().toISOString().slice(0, 10),
+        date: performedDate,
         checklist_item_id: item.id,
         notes: item.description || "",
       });
@@ -326,13 +334,18 @@ export function SystemDetailView({
     propertyData?.identity?.id ?? propertyData?.id ?? propertyId;
 
   const handleLinkExistingRecordToChecklistItem = useCallback(
-    async (item, record) => {
+    async (item, record, lastPerformedDate) => {
       if (!numericPropertyId || !record?.id) return;
+      const performedDate =
+        lastPerformedDate != null
+          ? String(lastPerformedDate).slice(0, 10)
+          : record.date;
       const payload = toMaintenanceRecordPayload(
         {
           ...record,
           checklist_item_id: item.id,
           status: "Completed",
+          date: performedDate,
         },
         numericPropertyId,
       );
@@ -344,6 +357,7 @@ export function SystemDetailView({
       onMaintenanceRecordsChange?.(nextRecords, {silent: true});
       setMaintenanceRecords(nextRecords);
       onFormDirty?.(true);
+      notifyChecklistUpdated();
     },
     [
       numericPropertyId,
@@ -355,8 +369,12 @@ export function SystemDetailView({
   );
 
   const handleLinkExistingDocumentToChecklistItem = useCallback(
-    async (item, doc) => {
+    async (item, doc, lastPerformedDate) => {
       if (!numericPropertyId) return;
+      const performedDate =
+        lastPerformedDate != null
+          ? String(lastPerformedDate).slice(0, 10)
+          : null;
       const linkedRecordId =
         doc.maintenance_record_id ?? doc.maintenanceRecordId;
       if (linkedRecordId) {
@@ -364,7 +382,11 @@ export function SystemDetailView({
           (r) => String(r.id) === String(linkedRecordId),
         );
         if (record) {
-          await handleLinkExistingRecordToChecklistItem(item, record);
+          await handleLinkExistingRecordToChecklistItem(
+            item,
+            record,
+            performedDate,
+          );
           return;
         }
       }
@@ -381,7 +403,10 @@ export function SystemDetailView({
               item.description ||
               `Linked document: ${doc.document_name || "Document"}`,
             status: "Completed",
-            date: doc.document_date || new Date().toISOString().slice(0, 10),
+            date:
+              performedDate ||
+              doc.document_date ||
+              new Date().toISOString().slice(0, 10),
             checklist_item_id: item.id,
             recordType,
           },
@@ -395,6 +420,7 @@ export function SystemDetailView({
       setMaintenanceRecords(nextRecords);
       onMaintenanceRecordAdded?.();
       onFormDirty?.(true);
+      notifyChecklistUpdated();
     },
     [
       numericPropertyId,
@@ -461,6 +487,10 @@ export function SystemDetailView({
       }
       if (!options.silent) {
         onFormDirty?.(true);
+      }
+
+      if (recordData.checklist_item_id != null) {
+        notifyChecklistUpdated();
       }
 
       const isInspectionRecord =

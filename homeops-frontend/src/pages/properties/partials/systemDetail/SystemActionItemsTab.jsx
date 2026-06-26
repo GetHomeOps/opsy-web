@@ -1,11 +1,37 @@
 import React, { useMemo } from "react";
-import { AlertTriangle, CalendarCheck, Wrench, Sparkles } from "lucide-react";
+import { AlertTriangle, CalendarCheck, ClipboardList } from "lucide-react";
 import SectionCard from "../passport/SectionCard";
 import InspectionChecklistPanel from "../InspectionChecklistPanel";
-import { getResolvedSystemFindings } from "../../helpers/inspectionAnalysisHelpers";
+import {
+  filterChecklistItemsForSystem,
+  getResolvedSystemFindings,
+} from "../../helpers/inspectionAnalysisHelpers";
 import { getSystemStatus } from "../../helpers/systemStatusHelpers";
+import { countPriorities } from "../../helpers/actionItemFormatters";
 import EmptyStateCard from "../passport/EmptyStateCard";
 import { formatOverviewDate } from "../passport/SystemsOverviewPanel";
+
+function PriorityLegend({ items = [] }) {
+  const counts = countPriorities(items);
+  const entries = [
+    { key: "high", label: "High", dot: "bg-red-500", count: counts.urgent + counts.high },
+    { key: "medium", label: "Medium", dot: "bg-amber-500", count: counts.medium },
+    { key: "low", label: "Low", dot: "bg-emerald-500", count: counts.low },
+  ].filter((e) => e.count > 0);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
+      {entries.map((entry) => (
+        <span key={entry.key} className="inline-flex items-center gap-1.5">
+          <span className={`w-2 h-2 rounded-full ${entry.dot}`} />
+          {entry.count} {entry.label}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Action items tab: inspection checklist + attention reasons + AI recommendations.
@@ -31,6 +57,13 @@ export function SystemActionItemsTab({
   onLinkExistingRecord,
   onLinkExistingDocument,
 }) {
+  const systemChecklistKey = systemName ?? systemId;
+
+  const systemChecklistItems = useMemo(
+    () => filterChecklistItemsForSystem(checklistItems, systemChecklistKey),
+    [checklistItems, systemChecklistKey],
+  );
+
   const formStatus = useMemo(
     () =>
       getSystemStatus(
@@ -60,6 +93,24 @@ export function SystemActionItemsTab({
     [systemId, inspectionAnalysis, checklistItems, maintenanceRecords],
   );
 
+  const persistedFindingTitles = useMemo(() => {
+    const titles = new Set();
+    for (const item of systemChecklistItems) {
+      if (["needs_attention", "maintenance_suggestion"].includes(item.source)) {
+        if (item.title) titles.add(String(item.title).trim().toLowerCase());
+      }
+    }
+    return titles;
+  }, [systemChecklistItems]);
+
+  const hasPersistedMaintenanceSuggestions = useMemo(
+    () =>
+      systemChecklistItems.some(
+        (item) => item.source === "maintenance_suggestion",
+      ),
+    [systemChecklistItems],
+  );
+
   const attentionItems = useMemo(() => {
     const items = (formStatus.attentionReasons ?? []).filter(
       (item) =>
@@ -68,27 +119,36 @@ export function SystemActionItemsTab({
     );
     (aiFindings?.needsAttention ?? []).forEach((n) => {
       const label = n.title || n.suggestedAction || "AI finding";
-      if (label && !items.includes(label)) items.push(label);
+      const normalized = String(label).trim().toLowerCase();
+      if (
+        label &&
+        !items.includes(label) &&
+        !persistedFindingTitles.has(normalized)
+      ) {
+        items.push(label);
+      }
     });
     return items;
-  }, [formStatus, aiFindings]);
+  }, [formStatus, aiFindings, persistedFindingTitles]);
 
   const lastInspectionLabel = formStatus.lastInspectionDate
     ? (formatOverviewDate(formStatus.lastInspectionDate) ??
       formStatus.lastInspectionDate)
     : null;
 
-  const recommendations = [
-    ...(aiFindings?.maintenanceSuggestions ?? []).map((m) => ({
+  const recommendations = useMemo(() => {
+    if (hasPersistedMaintenanceSuggestions) return [];
+    return (aiFindings?.maintenanceSuggestions ?? []).map((m) => ({
       text: m.task || m.rationale || "Maintenance suggestion",
       when: m.suggestedWhen,
-    })),
-  ];
+    }));
+  }, [aiFindings, hasPersistedMaintenanceSuggestions]);
 
   const hasContent =
     attentionItems.length > 0 ||
     recommendations.length > 0 ||
-    propertyId;
+    propertyId ||
+    systemChecklistItems.length > 0;
 
   if (!hasContent) {
     return (
@@ -104,10 +164,20 @@ export function SystemActionItemsTab({
   return (
     <div className="space-y-4">
       {propertyId && (
-        <SectionCard flat title="Inspection Checklist" icon={Wrench}>
+        <SectionCard
+          flat
+          title="Action Items"
+          description="Track and manage both inspection-based and recommended maintenance tasks."
+          icon={ClipboardList}
+          action={
+            systemChecklistItems.length > 0 ? (
+              <PriorityLegend items={systemChecklistItems} />
+            ) : undefined
+          }
+        >
           <InspectionChecklistPanel
             propertyId={propertyId}
-            systemKey={systemName ?? systemId}
+            systemKey={systemChecklistKey}
             maintenanceRecords={maintenanceRecords}
             compact
             contacts={contacts}
@@ -150,7 +220,7 @@ export function SystemActionItemsTab({
       )}
 
       {recommendations.length > 0 && (
-        <SectionCard flat title="Recommendations" icon={Sparkles}>
+        <SectionCard flat title="Recommendations" icon={ClipboardList}>
           <ul className="space-y-3">
             {recommendations.map((rec, i) => (
               <li key={i} className="text-sm">
