@@ -155,6 +155,51 @@ class Conversation {
   }
 
   /**
+   * List conversations where the current user is the assigned agent,
+   * across all client (homeowner) accounts.
+   */
+  static async listForAgent({ agentUserId, limit = 50 }) {
+    const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const result = await db.query(
+      `SELECT c.id, c.account_id AS "accountId", c.property_id AS "propertyId",
+              p.property_uid AS "propertyUid", p.address,
+              c.homeowner_user_id AS "homeownerUserId",
+              ho.name AS "homeownerName", ho.email AS "homeownerEmail",
+              c.agent_user_id AS "agentUserId",
+              ag.name AS "agentName",
+              c.homeowner_last_read_at AS "homeownerLastReadAt",
+              c.agent_last_read_at AS "agentLastReadAt",
+              c.last_message_at AS "lastMessageAt",
+              c.created_at AS "createdAt",
+              lm.kind AS "lastMessageKind",
+              lm.payload AS "lastMessagePayload",
+              lm.sender_user_id AS "lastMessageSenderId",
+              lm.created_at AS "lastMessageCreatedAt",
+              (SELECT COUNT(*)::int FROM conversation_messages cm
+               WHERE cm.conversation_id = c.id
+                 AND cm.created_at > COALESCE(c.agent_last_read_at, '1970-01-01')
+                 AND cm.sender_user_id = c.homeowner_user_id
+              ) AS "unreadCount"
+       FROM conversations c
+       JOIN users ho ON ho.id = c.homeowner_user_id
+       JOIN users ag ON ag.id = c.agent_user_id
+       JOIN properties p ON p.id = c.property_id
+       LEFT JOIN LATERAL (
+         SELECT cm.kind, cm.payload, cm.sender_user_id, cm.created_at
+         FROM conversation_messages cm
+         WHERE cm.conversation_id = c.id
+         ORDER BY cm.created_at DESC
+         LIMIT 1
+       ) lm ON true
+       WHERE c.agent_user_id = $1
+       ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
+       LIMIT $2`,
+      [agentUserId, lim]
+    );
+    return result.rows;
+  }
+
+  /**
    * List conversations where the current user is the homeowner.
    * Used by homeowner-side views.
    */

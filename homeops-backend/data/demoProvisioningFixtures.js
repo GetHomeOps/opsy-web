@@ -9,46 +9,94 @@ const DEMO_BROADCAST_COMMUNICATIONS = [
   {
     subject: "Welcome to Opsy — your home passport is ready",
     content: {
+      layout: "classic",
       body:
-        "Welcome to Opsy! Your property passport is set up and ready to use. " +
-        "Review your home systems, track maintenance, and message me anytime with questions. " +
-        "I'm here to help you stay ahead of seasonal upkeep.",
+        "<p>Hi there,</p>" +
+        "<p>Welcome to <strong>Opsy</strong>! Your property passport is set up and ready to use. " +
+        "Inside you'll find your home systems, maintenance history, and inspection insights — all in one place.</p>" +
+        "<p>I'm here whenever you have questions about upkeep, contractors, or anything around the home. " +
+        "Just reply in Opsy or send me a message anytime.</p>" +
+        "<p>Looking forward to helping you stay ahead of seasonal maintenance.</p>" +
+        "<p>Best,<br/>Your Opsy agent</p>",
+      templateTheme: {
+        primaryColor: "#456564",
+        secondaryColor: "#f8faf9",
+        brandName: "Opsy",
+        footerText: "You're receiving this because you're connected with your agent on Opsy.",
+      },
     },
     sentDaysAgo: 14,
   },
   {
     subject: "Seasonal maintenance suggestions for your home",
     content: {
+      layout: "newsletter",
       body:
-        "As we head into the rainy season here in the Pacific Northwest, a few items worth prioritizing:\n\n" +
-        "• Clean gutters and downspouts before heavy rain\n" +
-        "• Schedule a furnace tune-up and replace HVAC filters\n" +
-        "• Check exterior caulking around windows and doors\n" +
-        "• Test smoke and CO detectors\n\n" +
-        "Reply in Opsy if you'd like help coordinating any of these.",
+        "<p>As we head into the rainy season here in the Pacific Northwest, a few items are worth prioritizing on your home maintenance checklist:</p>" +
+        "<ul>" +
+        "<li><strong>Gutters &amp; downspouts</strong> — clean before heavy rain to prevent water intrusion</li>" +
+        "<li><strong>Furnace tune-up</strong> — schedule service and replace HVAC filters</li>" +
+        "<li><strong>Exterior caulking</strong> — check around windows and doors</li>" +
+        "<li><strong>Safety devices</strong> — test smoke and CO detectors</li>" +
+        "</ul>" +
+        "<p>Reply in Opsy if you'd like help coordinating any of these — I'm happy to line up trusted contractors.</p>",
+      newsletterTagline: "Your seasonal home care guide",
+      newsletterInThisIssueLabel: "Priority items",
+      newsletterFeaturedLabel: "Top recommendation",
+      templateTheme: {
+        primaryColor: "#456564",
+        secondaryColor: "#f8faf9",
+        brandName: "Opsy",
+        footerText: "Questions? Reply in Opsy — I'm happy to help coordinate any of these.",
+      },
     },
     sentDaysAgo: 7,
   },
   {
     subject: "Follow up on your inspection checklist",
     content: {
+      layout: "classic",
       body:
-        "I've reviewed the inspection analysis for your property. A few items are flagged for attention — " +
-        "please open your inspection checklist in Opsy and let me know which repairs you'd like to tackle first. " +
-        "I can recommend trusted local contractors for any of the work.",
+        "<p>Hi,</p>" +
+        "<p>I've reviewed the inspection analysis for your property. A few items are flagged for attention — " +
+        "please open your <strong>inspection checklist</strong> in Opsy and let me know which repairs you'd like to tackle first.</p>" +
+        "<p>I work with trusted local contractors and can make introductions for:</p>" +
+        "<ul>" +
+        "<li>Roofing and gutter work</li>" +
+        "<li>HVAC tune-ups and filter replacement</li>" +
+        "<li>Plumbing and electrical repairs</li>" +
+        "</ul>" +
+        "<p>Reply here with your priorities and I'll line up next steps.</p>" +
+        "<p>Best,<br/>Your Opsy agent</p>",
+      templateTheme: {
+        primaryColor: "#456564",
+        secondaryColor: "#f8faf9",
+        brandName: "Opsy",
+        footerText: "Sent via Opsy · Your home management platform",
+      },
     },
     sentDaysAgo: 3,
   },
   {
-    subject: "Spring prep checklist",
+    subject: "Spring prep checklist for your home",
     content: {
+      layout: "announcement",
+      announcementBadge: "Seasonal update",
       body:
-        "Spring is a great time to refresh your home maintenance plan:\n\n" +
-        "• AC condenser coil cleaning before summer heat\n" +
-        "• Exterior paint and siding touch-ups\n" +
-        "• Deck and patio inspection\n" +
-        "• Irrigation system startup check\n\n" +
-        "Your Opsy passport tracks due dates — reach out if you want me to schedule anything.",
+        "<p>Spring is a great time to refresh your home maintenance plan. Here are the items I recommend tackling over the next few weeks:</p>" +
+        "<ul>" +
+        "<li><strong>AC condenser</strong> — coil cleaning before summer heat</li>" +
+        "<li><strong>Exterior</strong> — paint and siding touch-ups</li>" +
+        "<li><strong>Outdoor living</strong> — deck and patio inspection</li>" +
+        "<li><strong>Irrigation</strong> — system startup check</li>" +
+        "</ul>" +
+        "<p>Your Opsy passport tracks due dates automatically. Reach out if you'd like me to schedule anything.</p>",
+      templateTheme: {
+        primaryColor: "#456564",
+        secondaryColor: "#f8faf9",
+        brandName: "Opsy",
+        footerText: "Powered by Opsy · Home management made simple",
+      },
     },
     sentDaysAgo: 1,
   },
@@ -449,6 +497,7 @@ const CONVERSATION_THREADS = {
           message:
             "Hi — I reviewed the inspection report. The missing shingles near the ridge line worry me. How urgent is that repair?",
         },
+        daysAgo: 5,
       },
       {
         sender: "agent",
@@ -458,6 +507,7 @@ const CONVERSATION_THREADS = {
             "Good question. I'd prioritize it before the first heavy rain — probably within the next few weeks. " +
             "It's not an emergency today, but water intrusion at the ridge can spread quickly. I can line up a roofer for a walk-through.",
         },
+        daysAgo: 5,
       },
       {
         sender: "homeowner",
@@ -465,6 +515,7 @@ const CONVERSATION_THREADS = {
         payload: {
           message: "That would be great. Also, the furnace filter note — should we schedule the tune-up now or wait until fall?",
         },
+        daysAgo: 4,
       },
       {
         sender: "agent",
@@ -473,6 +524,7 @@ const CONVERSATION_THREADS = {
           message:
             "Let's schedule the tune-up now while HVAC companies have availability. I'll send a few dates from Cascade HVAC — they're reliable for this neighborhood.",
         },
+        daysAgo: 4,
       },
       {
         sender: "homeowner",
@@ -481,6 +533,16 @@ const CONVERSATION_THREADS = {
           referralType: "Roofer",
           notes: "Licensed roofer for ridge-line shingle repair. Prefer someone who has worked on Mercer Island homes.",
         },
+        daysAgo: 2,
+      },
+      {
+        sender: "agent",
+        kind: "text",
+        payload: {
+          message:
+            "I'll introduce you to Tom at Northwest Roofing — he's done great work for other clients on the Island. Expect a call within a day or two.",
+        },
+        daysAgo: 2,
       },
     ],
     inquiries: [
@@ -498,6 +560,7 @@ const CONVERSATION_THREADS = {
         payload: {
           message: "The furnace tune-up is done — thanks for coordinating that. What's next on our maintenance list?",
         },
+        daysAgo: 6,
       },
       {
         sender: "agent",
@@ -507,6 +570,26 @@ const CONVERSATION_THREADS = {
             "Great — I saw the service report come through. Next up I'd recommend gutter cleaning before the rains hit, " +
             "and we still have the roof inspection on the calendar for later this month.",
         },
+        daysAgo: 6,
+      },
+      {
+        sender: "homeowner",
+        kind: "text",
+        payload: {
+          message:
+            "Gutters make sense. Any tips for keeping them clear between professional cleanings? We have a lot of maples on the property.",
+        },
+        daysAgo: 5,
+      },
+      {
+        sender: "agent",
+        kind: "text",
+        payload: {
+          message:
+            "Maples are the worst for gutters! I'd suggest gutter guards on the south side where the canopy is heaviest, " +
+            "and a quick visual check after windstorms. I can add a reminder in Opsy for a mid-season check in November.",
+        },
+        daysAgo: 5,
       },
       {
         sender: "homeowner",
@@ -514,6 +597,7 @@ const CONVERSATION_THREADS = {
         payload: {
           message: "Gutters make sense. Can you send someone for the week of the 15th?",
         },
+        daysAgo: 3,
       },
       {
         sender: "agent",
@@ -522,6 +606,7 @@ const CONVERSATION_THREADS = {
           message:
             "Absolutely — I'll reach out to Northwest Roofing and confirm a morning slot. I'll add it to your Opsy calendar once booked.",
         },
+        daysAgo: 3,
       },
     ],
     inquiries: [
@@ -538,8 +623,9 @@ const CONVERSATION_THREADS = {
         kind: "text",
         payload: {
           message:
-            "Hi Sarah — could you recommend a good roofer for the missing shingles we discussed?",
+            "Hi — could you recommend a good roofer for the missing shingles we discussed?",
         },
+        daysAgo: 7,
       },
       {
         sender: "agent",
@@ -549,6 +635,7 @@ const CONVERSATION_THREADS = {
             "I have a few trusted contractors — Northwest Roofing has done great work for other clients on the Island. " +
             "I can introduce you and coordinate a walk-through if you'd like.",
         },
+        daysAgo: 7,
       },
       {
         sender: "homeowner",
@@ -557,6 +644,7 @@ const CONVERSATION_THREADS = {
           referralType: "Roofer",
           notes: "Looking for licensed roofer for ridge-line repair, prefer local referrals.",
         },
+        daysAgo: 5,
       },
       {
         sender: "agent",
@@ -565,6 +653,7 @@ const CONVERSATION_THREADS = {
           message:
             "I'll send Tom at Northwest Roofing your way — he knows these rooflines well. Expect a call within a day or two.",
         },
+        daysAgo: 5,
       },
       {
         sender: "homeowner",
@@ -572,6 +661,7 @@ const CONVERSATION_THREADS = {
         payload: {
           message: "Perfect, thank you! Also — guest bath drain is still slow. Any plumber you'd recommend?",
         },
+        daysAgo: 3,
       },
       {
         sender: "agent",
@@ -580,6 +670,26 @@ const CONVERSATION_THREADS = {
           message:
             "Sound Plumbing Pros handled a similar issue for another homeowner last month. I'll share their contact and can loop them in if you want.",
         },
+        daysAgo: 3,
+      },
+      {
+        sender: "homeowner",
+        kind: "refer_agent",
+        payload: {
+          referName: "Megan & David Park",
+          referContact: "megan.park@email.com",
+          note: "Friends buying on Mercer Island this spring — they'd love an agent who knows the area and helps with home maintenance.",
+        },
+        daysAgo: 1,
+      },
+      {
+        sender: "agent",
+        kind: "text",
+        payload: {
+          message:
+            "Thank you so much for the referral, Alex! I'll reach out to Megan and David this week. Really appreciate you thinking of me.",
+        },
+        daysAgo: 1,
       },
     ],
     inquiries: [
@@ -604,6 +714,7 @@ const CONVERSATION_THREADS = {
         payload: {
           message: "Thanks for setting up our home profile. When should we schedule the HVAC service?",
         },
+        daysAgo: 4,
       },
       {
         sender: "agent",
@@ -612,6 +723,7 @@ const CONVERSATION_THREADS = {
           message:
             "I have a few trusted contractors — I'll share options and can coordinate scheduling for you.",
         },
+        daysAgo: 4,
       },
       {
         sender: "homeowner",
@@ -619,6 +731,7 @@ const CONVERSATION_THREADS = {
         payload: {
           message: "Sounds good. Let's aim for sometime in the next two weeks.",
         },
+        daysAgo: 3,
       },
     ],
     inquiries: [

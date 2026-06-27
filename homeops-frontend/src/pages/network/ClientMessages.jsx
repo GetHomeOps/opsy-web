@@ -19,6 +19,7 @@ function ClientMessages() {
   const {currentAccount} = useCurrentAccount();
   const {currentUser} = useAuth();
   const isHomeownerViewer = currentUser?.role === "homeowner";
+  const isAgentViewer = currentUser?.role === "agent";
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -33,25 +34,32 @@ function ClientMessages() {
 
   const selectedConv = conversations.find((c) => c.id === selectedConvId) || null;
 
-  // Fetch conversations list (homeowners: /conversations/mine; agents/admins: account-scoped)
+  // Fetch conversations list (homeowners: /mine; agents: /as-agent; admins: account-scoped)
   const fetchConversations = useCallback(async (silent = false) => {
     if (isHomeownerViewer) {
+      if (!currentUser?.id) return;
+    } else if (isAgentViewer) {
       if (!currentUser?.id) return;
     } else if (!currentAccount?.id) {
       return;
     }
     try {
       if (!silent) setLoadingConversations(true);
-      const list = isHomeownerViewer
-        ? await AppApi.getMyConversations()
-        : await AppApi.getConversations(currentAccount.id);
+      let list;
+      if (isHomeownerViewer) {
+        list = await AppApi.getMyConversations();
+      } else if (isAgentViewer) {
+        list = await AppApi.getAgentConversations();
+      } else {
+        list = await AppApi.getConversations(currentAccount.id);
+      }
       setConversations(list);
     } catch {
       if (!silent) setConversations([]);
     } finally {
       if (!silent) setLoadingConversations(false);
     }
-  }, [isHomeownerViewer, currentAccount?.id, currentUser?.id]);
+  }, [isHomeownerViewer, isAgentViewer, currentAccount?.id, currentUser?.id]);
 
   useEffect(() => {
     fetchConversations();
@@ -59,10 +67,10 @@ function ClientMessages() {
 
   // Poll conversations
   useEffect(() => {
-    if (isHomeownerViewer ? !currentUser?.id : !currentAccount?.id) return;
+    if (isHomeownerViewer || isAgentViewer ? !currentUser?.id : !currentAccount?.id) return;
     const interval = setInterval(() => fetchConversations(true), POLL_CONVERSATIONS_MS);
     return () => clearInterval(interval);
-  }, [isHomeownerViewer, currentAccount?.id, currentUser?.id, fetchConversations]);
+  }, [isHomeownerViewer, isAgentViewer, currentAccount?.id, currentUser?.id, fetchConversations]);
 
   // Fetch messages for selected conversation
   const fetchMessages = useCallback(async (convId, silent = false) => {

@@ -569,22 +569,16 @@ function AgentHome() {
           label: "AI",
           data: data.map((d) => d.ai),
           backgroundColor: "#8b5cf6",
-          borderRadius: 4,
-          borderSkipped: false,
         },
         {
           label: t("agentHome.documentsLabel") || "Documents",
           data: data.map((d) => d.documents),
           backgroundColor: "#3b82f6",
-          borderRadius: 4,
-          borderSkipped: false,
         },
         {
           label: t("agentHome.maintenanceLabel") || "Maintenance",
           data: data.map((d) => d.maintenance),
           backgroundColor: "#f59e0b",
-          borderRadius: 4,
-          borderSkipped: false,
         },
       ],
     };

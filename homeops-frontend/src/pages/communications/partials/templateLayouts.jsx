@@ -445,61 +445,84 @@ export function ClassicLayout({
   const linkAtts = (form.attachments || []).filter(
     (a) => a.type === "video_link" || a.type === "web_link",
   );
+  const cardBg =
+    bgColor === "#f9fafb" || bgColor === "#ffffff" ? "#f3f4f6" : bgColor;
 
   return (
-    <div style={{ backgroundColor: bgColor }}>
-      {/* Header */}
+    <div style={{ backgroundColor: cardBg }}>
+      {/* Header with subtle gradient */}
       <div
-        className="px-5 py-4 text-center"
-        style={{ backgroundColor: primaryColor }}
+        className="px-5 py-5 text-center relative overflow-hidden"
+        style={{
+          background: `linear-gradient(135deg, ${primaryColor} 0%, ${primaryColor}dd 50%, ${primaryColor}bb 100%)`,
+        }}
       >
-        <LogoOrBrand
-          template={template}
-          primaryColor={primaryColor}
-          editable={editable}
-          onUpdateTemplate={onUpdateTemplate}
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 50%, white 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
         />
+        <div className="relative">
+          <LogoOrBrand
+            template={template}
+            primaryColor={primaryColor}
+            editable={editable}
+            onUpdateTemplate={onUpdateTemplate}
+          />
+        </div>
       </div>
 
-      <div className="px-5 py-5">
-        {/* Subject */}
-        <h2 className="text-lg font-bold mb-3" style={{ color: "#1f2937" }}>
-          {form.subject || "Subject line"}
-        </h2>
-
-        {/* Preview image */}
-        {previewImageUrl && (
-          <div className="mb-4 rounded-lg overflow-hidden">
+      {/* Content card */}
+      <div className="px-4 py-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden max-w-lg mx-auto">
+          {previewImageUrl && (
             <img
               src={previewImageUrl}
               alt=""
-              className="w-full h-auto max-h-56 object-cover"
+              className="w-full h-44 object-cover"
+            />
+          )}
+
+          <div className="px-5 py-6">
+            <h2
+              className="text-xl font-bold mb-1 leading-snug"
+              style={{ color: "#111827" }}
+            >
+              {form.subject || "Subject line"}
+            </h2>
+            <div
+              className="w-10 h-0.5 rounded-full mb-5"
+              style={{ backgroundColor: primaryColor }}
+            />
+
+            <BodyContent content={form.content} viewMode={viewMode} />
+
+            {linkAtts.length > 0 && (
+              <div className="mt-6 space-y-2">
+                {linkAtts.map((att, idx) => (
+                  <SecondaryLink key={idx} att={att} />
+                ))}
+              </div>
+            )}
+
+            <FileAttachments
+              attachments={form.attachments || []}
+              attachmentUrls={attachmentUrls}
             />
           </div>
-        )}
-
-        <BodyContent content={form.content} viewMode={viewMode} />
-
-        {/* Link CTA blocks */}
-        {linkAtts.length > 0 && (
-          <div className="mt-5 space-y-2">
-            {linkAtts.map((att, idx) => (
-              <SecondaryLink key={idx} att={att} />
-            ))}
-          </div>
-        )}
-
-        <FileAttachments
-          attachments={form.attachments || []}
-          attachmentUrls={attachmentUrls}
-        />
+        </div>
       </div>
 
-      <FooterArea
+      <RichFooter
         footerText={footerText}
         primaryColor={primaryColor}
+        template={template}
         editable={editable}
         onUpdateTemplate={onUpdateTemplate}
+        showSocialAdd={false}
       />
     </div>
   );

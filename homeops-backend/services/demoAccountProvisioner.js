@@ -481,23 +481,38 @@ async function seedConversation({
     agentUserId,
   });
 
+  const existingMsgs = await db.query(
+    `SELECT id FROM conversation_messages WHERE conversation_id = $1 LIMIT 1`,
+    [conv.id]
+  );
+  if (existingMsgs.rows.length > 0) {
+    return { conversationId: conv.id, messageCount: 0, skipped: true };
+  }
+
   const thread = getConversationThread(focus);
   const messageDefs = thread.messages.map((m) => ({
     senderUserId: m.sender === "agent" ? agentUserId : homeownerUserId,
     kind: m.kind,
     payload: m.payload,
+    daysAgo: m.daysAgo ?? 0,
   }));
 
   const msgValues = [];
   const msgPlaceholders = [];
   let idx = 1;
+  let msgIdx = 0;
   for (const m of messageDefs) {
-    msgPlaceholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}::jsonb)`);
-    msgValues.push(conv.id, m.senderUserId, m.kind, JSON.stringify(m.payload));
+    const createdAt = new Date();
+    createdAt.setDate(createdAt.getDate() - m.daysAgo);
+    createdAt.setHours(createdAt.getHours() - msgIdx++);
+    msgPlaceholders.push(
+      `($${idx++}, $${idx++}, $${idx++}, $${idx++}::jsonb, $${idx++}::timestamptz)`
+    );
+    msgValues.push(conv.id, m.senderUserId, m.kind, JSON.stringify(m.payload), createdAt.toISOString());
   }
 
   await db.query(
-    `INSERT INTO conversation_messages (conversation_id, sender_user_id, kind, payload)
+    `INSERT INTO conversation_messages (conversation_id, sender_user_id, kind, payload, created_at)
      VALUES ${msgPlaceholders.join(", ")}`,
     msgValues
   );
@@ -516,6 +531,55 @@ async function seedConversation({
   await Promise.all(inquiryPromises);
 
   return { conversationId: conv.id, messageCount: messageDefs.length };
+}
+
+/**
+ * Backfill demo conversations for an agent whose client properties may be missing message threads.
+ * Safe to run multiple times (skips conversations that already have messages).
+ */
+async function backfillAgentDemoConversations(agentUserId) {
+  if (!isDemoEnvironment()) {
+    throw new BadRequestError("Demo conversation backfill is only available on the demo site.");
+  }
+
+  const propsRes = await db.query(
+    `SELECT p.id AS "propertyId", p.account_id AS "accountId",
+            owner_pu.user_id AS "homeownerUserId"
+     FROM properties p
+     JOIN property_users agent_pu
+       ON agent_pu.property_id = p.id AND agent_pu.user_id = $1 AND agent_pu.role = 'editor'
+     JOIN property_users owner_pu
+       ON owner_pu.property_id = p.id AND owner_pu.role = 'owner'
+     ORDER BY p.id`,
+    [agentUserId]
+  );
+
+  const focusByOwner = {
+    "Noel Jones": "inspections",
+    "Tatum Walker": "maintenance",
+    "Alex Jackson": "messages",
+  };
+  const results = [];
+
+  for (const row of propsRes.rows) {
+    const ownerRes = await db.query(
+      `SELECT owner_name FROM properties WHERE id = $1`,
+      [row.propertyId]
+    );
+    const ownerName = ownerRes.rows[0]?.owner_name;
+    const focus = focusByOwner[ownerName] || "balanced";
+
+    const result = await seedConversation({
+      accountId: row.accountId,
+      propertyId: row.propertyId,
+      homeownerUserId: row.homeownerUserId,
+      agentUserId,
+      focus,
+    });
+    results.push({ propertyId: row.propertyId, ...result });
+  }
+
+  return { agentUserId, properties: results.length, results };
 }
 
 async function seedBroadcastCommunications({ accountId, agentUserId, homeownerUserIds }) {
@@ -722,4 +786,5 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
 module.exports = {
   provisionDemoAccount,
   provisionActivePaidPlan,
+  backfillAgentDemoConversations,
 };

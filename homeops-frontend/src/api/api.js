@@ -2231,6 +2231,11 @@ class AppApi {
     return res.conversations ?? [];
   }
 
+  static async getAgentConversations(params = {}) {
+    const res = await this.request("conversations/as-agent", params);
+    return res.conversations ?? [];
+  }
+
   static async createConversation({ accountId, propertyUid, agentUserId }) {
     const res = await this.request("conversations", { accountId, propertyUid, agentUserId }, "POST");
     return res.conversation;

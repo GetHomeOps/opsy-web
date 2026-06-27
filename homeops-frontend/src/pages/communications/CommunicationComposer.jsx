@@ -29,8 +29,22 @@ import {
 } from "lucide-react";
 
 const INITIAL_FORM = {
-  subject: "",
-  content: {body: ""},
+  subject: "Follow up on your inspection checklist",
+  content: {
+    layout: "classic",
+    body:
+      "<p>Hi,</p>" +
+      "<p>I've reviewed the inspection analysis for your property. A few items are flagged for attention — " +
+      "please open your <strong>inspection checklist</strong> in Opsy and let me know which repairs you'd like to tackle first.</p>" +
+      "<p>I can recommend trusted local contractors for any of the work. Just reply here with your priorities.</p>" +
+      "<p>Best,<br/>Your Opsy agent</p>",
+    templateTheme: {
+      primaryColor: "#456564",
+      secondaryColor: "#f8faf9",
+      brandName: "Opsy",
+      footerText: "Sent via Opsy · Your home management platform",
+    },
+  },
   imageKey: null,
   templateId: null,
   recipientMode: "",

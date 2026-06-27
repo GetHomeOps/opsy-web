@@ -77,6 +77,23 @@ router.get("/mine", ensureLoggedIn, async (req, res, next) => {
   }
 });
 
+/** GET /as-agent — List conversations across all client accounts for the current agent. */
+router.get("/as-agent", ensureLoggedIn, async (req, res, next) => {
+  try {
+    const user = res.locals.user;
+    if (user.role !== "agent") {
+      return res.status(403).json({ error: { message: "Only agents can use this endpoint." } });
+    }
+    const conversations = await Conversation.listForAgent({
+      agentUserId: user.id,
+      limit: req.query.limit,
+    });
+    return res.json({ conversations });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** GET /:id/messages — Paginated message history for a conversation. */
 router.get("/:id/messages", ensureLoggedIn, async (req, res, next) => {
   try {
