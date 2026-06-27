@@ -707,6 +707,7 @@ function ContactsList() {
             setModalOpen={(open) =>
               dispatch({type: "SET_DANGER_MODAL", payload: open})
             }
+            contentClassName="max-w-lg"
           >
             <div className="p-5 flex space-x-4">
               {/* Icon */}
@@ -721,7 +722,7 @@ function ContactsList() {
                 </svg>
               </div>
               {/* Content */}
-              <div>
+              <div className="flex-1 min-w-0">
                 {/* Modal header */}
                 <div className="mb-2">
                   <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
@@ -740,7 +741,7 @@ function ContactsList() {
                   </div>
                 </div>
                 {/* Modal footer */}
-                <div className="flex flex-wrap justify-end space-x-2">
+                <div className="flex flex-wrap justify-end gap-2">
                   <button
                     className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
                     onClick={(e) => {

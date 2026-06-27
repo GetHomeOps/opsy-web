@@ -203,7 +203,8 @@ function UsersFormContainer() {
           if (existingUser) {
             dispatch({type: "SET_USER", payload: existingUser});
           } else if (users.length > 0) {
-            // If users array is populated but user not found, show error
+            // Drop stale profile data when the URL id is not in the loaded list.
+            dispatch({type: "SET_USER", payload: null});
             dispatch({
               type: "SET_BANNER",
               payload: {
@@ -212,9 +213,12 @@ function UsersFormContainer() {
                 message: t("userNotFoundErrorMessage") || "User not found",
               },
             });
+          } else {
+            // Users still loading — clear previous profile so we never show the wrong user.
+            dispatch({type: "SET_USER", payload: null});
           }
-          // If users array is empty, wait for UserContext to load users
         } catch (err) {
+          dispatch({type: "SET_USER", payload: null});
           dispatch({
             type: "SET_BANNER",
             payload: {
@@ -229,7 +233,7 @@ function UsersFormContainer() {
       }
     }
     fetchUser();
-  }, [id, users]);
+  }, [id, users, t]);
 
   useEffect(() => {
     if (id === "new" && !canCreateUser) {
@@ -374,6 +378,7 @@ function UsersFormContainer() {
     const email = (user?.email || state.user?.email || state.formData?.email || "").trim();
     if (!email) return null;
 
+    setResendingInvitation(true);
     try {
       const existingInvitationId =
         state.user?.invitation?.id || state.user?.pendingInvitationId || null;
@@ -449,8 +454,33 @@ function UsersFormContainer() {
         },
       });
       return null;
+    } finally {
+      setResendingInvitation(false);
     }
   }
+
+  const isPendingUser =
+    state.user && !(state.user.isActive || state.user.is_active);
+
+  // Prefer live user ids from context; fall back to route state only when still valid.
+  const navigableUserIds = useMemo(() => {
+    const routeIds = location.state?.visibleContactIds;
+    if (Array.isArray(routeIds) && routeIds.length > 0 && users.length > 0) {
+      const validRouteIds = routeIds.filter((routeId) =>
+        users.some((user) => Number(user.id) === Number(routeId)),
+      );
+      if (validRouteIds.length > 0) return validRouteIds;
+    }
+    if (users.length > 0) return users.map((user) => user.id);
+    return Array.isArray(routeIds) ? routeIds : [];
+  }, [location.state?.visibleContactIds, users]);
+
+  const navigableUserIndex =
+    id && id !== "new"
+      ? navigableUserIds.findIndex(
+          (userId) => Number(userId) === Number(id),
+        )
+      : -1;
 
   // Generate a random password
   function generateRandomPassword() {
@@ -745,15 +775,46 @@ function UsersFormContainer() {
       // Close modal immediately when Accept is clicked
       dispatch({type: "SET_DANGER_MODAL", payload: false});
 
+      const userIdToDelete = state.user?.id;
+      if (!userIdToDelete) {
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "error",
+            message: t("userNotFoundErrorMessage") || "User not found",
+          },
+        });
+        return;
+      }
+
+      if (Number(userIdToDelete) !== Number(id)) {
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "error",
+            message:
+              t("userDeletePageOutOfSync") ||
+              "This page is out of date. Refresh the users list and try again.",
+          },
+        });
+        return;
+      }
+
       // Find the current user index in the users array (before deletion)
-      const userIndex = users.findIndex((user) => user.id === Number(id));
+      const userIndex = users.findIndex(
+        (user) => user.id === Number(userIdToDelete),
+      );
 
       // Delete the user (this updates the context)
-      await deleteUser(id);
+      await deleteUser(userIdToDelete);
 
       // Navigate first based on remaining users
       // Calculate remaining users by filtering out the deleted one from the current users array
-      const remainingUsers = users.filter((user) => user.id !== Number(id));
+      const remainingUsers = users.filter(
+        (user) => user.id !== Number(userIdToDelete),
+      );
 
       if (remainingUsers.length === 0) {
         // If this was the last user, go to users list
@@ -926,6 +987,7 @@ function UsersFormContainer() {
   const [invitedPropertyCount, setInvitedPropertyCount] = useState(0);
   const [agentPropertyCount, setAgentPropertyCount] = useState(0);
   const [agentPropertyUids, setAgentPropertyUids] = useState([]);
+  const [resendingInvitation, setResendingInvitation] = useState(false);
 
   // Handler for contact change
   function handleContactChange(value) {
@@ -1159,6 +1221,7 @@ function UsersFormContainer() {
           setModalOpen={(open) =>
             dispatch({type: "SET_DANGER_MODAL", payload: open})
           }
+          contentClassName="max-w-lg"
         >
           <div className="p-5 flex space-x-4">
             {/* Icon */}
@@ -1173,7 +1236,7 @@ function UsersFormContainer() {
               </svg>
             </div>
             {/* Content */}
-            <div>
+            <div className="flex-1 min-w-0">
               {/* Modal header */}
               <div className="mb-2">
                 <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
@@ -1191,7 +1254,7 @@ function UsersFormContainer() {
                 </div>
               </div>
               {/* Modal footer */}
-              <div className="flex flex-wrap justify-end space-x-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
                   onClick={(e) => {
@@ -1295,6 +1358,12 @@ function UsersFormContainer() {
                 onDelete={
                   state.user?.role === "super_admin" ? undefined : handleDelete
                 }
+                onResendInvitation={
+                  isPendingUser
+                    ? () => sendUserInvitation(state.user)
+                    : undefined
+                }
+                resendingInvitation={resendingInvitation}
                 align="right"
               />
             )}
@@ -1432,18 +1501,9 @@ function UsersFormContainer() {
 
               {/* Activated/Pending Status - Informational only */}
               {state.user &&
-                (!state.user.isActive && !state.user.is_active ? (
-                  <div className="shrink-0 flex items-center gap-3">
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437] whitespace-nowrap">
-                      <span>Pending</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => sendUserInvitation(state.user)}
-                      className="text-sm font-medium text-[#456564] dark:text-[#8fa3a2] hover:underline whitespace-nowrap"
-                    >
-                      {t("resendInvitationEmail") || "Resend invitation email"}
-                    </button>
+                (isPendingUser ? (
+                  <div className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437] whitespace-nowrap">
+                    <span>Pending</span>
                   </div>
                 ) : (
                   <div className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold shadow-sm bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d] whitespace-nowrap">
@@ -1455,42 +1515,32 @@ function UsersFormContainer() {
 
           {/* User Navigation */}
           <div className="flex items-center shrink-0">
-            {state.user && location.state && (
+            {state.user && navigableUserIds.length > 1 && navigableUserIndex >= 0 && (
               <>
                 <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
-                  {location.state.currentIndex || 1} /{" "}
-                  {location.state.totalItems || 1}
+                  {navigableUserIndex + 1} / {navigableUserIds.length}
                 </span>
                 <button
                   className="btn shadow-none p-1"
                   title="Previous"
                   onClick={() => {
-                    if (
-                      location.state?.visibleContactIds &&
-                      location.state.currentIndex > 1
-                    ) {
-                      const prevIndex = location.state.currentIndex - 2;
-                      const prevUserId =
-                        location.state.visibleContactIds[prevIndex];
+                    if (navigableUserIndex > 0) {
+                      const prevUserId = navigableUserIds[navigableUserIndex - 1];
                       navigate(`/${accountUrl}/users/${prevUserId}`, {
                         state: {
                           ...location.state,
-                          currentIndex: location.state.currentIndex - 1,
+                          currentIndex: navigableUserIndex,
+                          totalItems: navigableUserIds.length,
+                          visibleContactIds: navigableUserIds,
                         },
                       });
                     }
                   }}
-                  disabled={
-                    !location.state ||
-                    !location.state.currentIndex ||
-                    location.state.currentIndex <= 1
-                  }
+                  disabled={navigableUserIndex <= 0}
                 >
                   <svg
                     className={`fill-current shrink-0 ${
-                      !location.state ||
-                      !location.state.currentIndex ||
-                      location.state.currentIndex <= 1
+                      navigableUserIndex <= 0
                         ? "text-gray-200 dark:text-gray-700"
                         : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
                     }`}
@@ -1506,34 +1556,23 @@ function UsersFormContainer() {
                   className="btn shadow-none p-1"
                   title="Next"
                   onClick={() => {
-                    if (
-                      location.state?.visibleContactIds &&
-                      location.state.currentIndex < location.state.totalItems
-                    ) {
-                      const nextIndex = location.state.currentIndex;
-                      const nextUserId =
-                        location.state.visibleContactIds[nextIndex];
+                    if (navigableUserIndex < navigableUserIds.length - 1) {
+                      const nextUserId = navigableUserIds[navigableUserIndex + 1];
                       navigate(`/${accountUrl}/users/${nextUserId}`, {
                         state: {
                           ...location.state,
-                          currentIndex: location.state.currentIndex + 1,
+                          currentIndex: navigableUserIndex + 2,
+                          totalItems: navigableUserIds.length,
+                          visibleContactIds: navigableUserIds,
                         },
                       });
                     }
                   }}
-                  disabled={
-                    !location.state ||
-                    !location.state.currentIndex ||
-                    !location.state.totalItems ||
-                    location.state.currentIndex >= location.state.totalItems
-                  }
+                  disabled={navigableUserIndex >= navigableUserIds.length - 1}
                 >
                   <svg
                     className={`fill-current shrink-0 ${
-                      !location.state ||
-                      !location.state.currentIndex ||
-                      !location.state.totalItems ||
-                      location.state.currentIndex >= location.state.totalItems
+                      navigableUserIndex >= navigableUserIds.length - 1
                         ? "text-gray-200 dark:text-gray-700"
                         : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
                     }`}

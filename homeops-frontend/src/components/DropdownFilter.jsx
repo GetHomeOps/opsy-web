@@ -2,7 +2,13 @@ import React, {useState, useRef, useEffect} from "react";
 import Transition from "../utils/Transition";
 import {useTranslation} from "react-i18next";
 
-function DropdownFilter({align, onDelete, onDuplicate}) {
+function DropdownFilter({
+  align,
+  onDelete,
+  onDuplicate,
+  onResendInvitation,
+  resendingInvitation = false,
+}) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const trigger = useRef(null);
@@ -48,6 +54,12 @@ function DropdownFilter({align, onDelete, onDuplicate}) {
     setDropdownOpen(false);
   }
 
+  function handleResendInvitation(e) {
+    e.stopPropagation();
+    setDropdownOpen(false);
+    if (typeof onResendInvitation === "function") onResendInvitation();
+  }
+
   return (
     <div className="relative inline-flex">
       <button
@@ -88,6 +100,38 @@ function DropdownFilter({align, onDelete, onDuplicate}) {
             Actions
           </div>
           <ul className="mb-1">
+            {typeof onResendInvitation === "function" && (
+              <li>
+                <button
+                  type="button"
+                  disabled={resendingInvitation}
+                  className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={handleResendInvitation}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-[#456564] dark:text-[#8fa3a2]"
+                  >
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10" />
+                    <path d="M3 7l9 6l9 -6" />
+                  </svg>
+                  <span className="text-sm font-medium ml-2">
+                    {resendingInvitation
+                      ? t("sending") || "Sending..."
+                      : t("resendInvitationEmail") || "Resend invitation email"}
+                  </span>
+                </button>
+              </li>
+            )}
             <li>
               <button
                 className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
