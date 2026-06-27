@@ -520,6 +520,8 @@
   "responsibleValidationErrorMessage": "Responsible is required",
   "results": "results",
   "resendInvitationEmail": "Resend invitation email",
+  "sending": "Sending...",
+  "invitationAccountMissing": "Could not determine an account to send the invitation from.",
   "sendInvitationEmailOnCreate": "Send invitation email on create",
   "sendInvitationEmailOnCreateHelperOff": "Create this user without emailing them. You can send an invitation later.",
   "sendInvitationEmailOnCreateHelperOn": "The user will get an email to set their password and finish onboarding.",

@@ -140,6 +140,31 @@ async function resolveInviteeFirstName(emailLower, accountId) {
   return firstNameFromFullName(contactRes.rows[0]?.name);
 }
 
+/** Customer.io merge fields for account (agent/admin) invitations. */
+async function buildAccountInvitationInviterMergeData(inviterUserId) {
+  if (!inviterUserId) {
+    return {
+      senderFirstName: "",
+      avatarUrl: "",
+    };
+  }
+
+  const inviterRes = await db.query(
+    `SELECT name, image, avatar_url FROM users WHERE id = $1`,
+    [inviterUserId]
+  );
+  const inviter = inviterRes.rows[0] || {};
+  const inviterFullName = inviter.name || "";
+  const hasPhoto = userHasUsableAvatar(inviter.image, inviter.avatar_url);
+
+  return {
+    senderFirstName: firstNameFromFullName(inviterFullName),
+    avatarUrl: hasPhoto
+      ? buildPublicAvatarUrl(inviterUserId, inviterFullName)
+      : "",
+  };
+}
+
 /** Customer.io merge fields for agent → homeowner property invitations. */
 async function buildPropertyInvitationAgentMergeData(inviterUserId, invitation) {
   if (!inviterUserId || !invitation) {
@@ -691,13 +716,15 @@ async function createAccountInvitation({ inviterUserId, inviteeEmail, accountId,
     expiresAt,
   });
 
+  let emailSent = false;
   try {
     await sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type: "account" });
+    emailSent = true;
   } catch (err) {
     console.error("[invitationService] Failed to send invitation email:", err.message);
   }
 
-  return { invitation, token };
+  return { invitation, token, emailSent };
 }
 
 /** Build invite URL and send email. Used after create and resend. */
@@ -759,6 +786,7 @@ async function sendInvitationEmailForInvitation({
 
   let inviterName = null;
   let agentMergeData = {};
+  let accountInviterMergeData = {};
   let missingDataMerge = { ...EMPTY_MISSING_DATA_MERGE };
   let recipientFirstName = "";
   if (type === "property") {
@@ -775,11 +803,19 @@ async function sendInvitationEmailForInvitation({
         invitation.propertyId
       );
     }
-  } else if (inviterUserId) {
-    const inviter = await db.query(`SELECT name FROM users WHERE id = $1`, [
-      inviterUserId,
-    ]);
-    inviterName = inviter.rows[0]?.name || null;
+  } else {
+    recipientFirstName =
+      firstNameFromFullName(inviteeName) ||
+      (await resolveInviteeFirstName(emailNorm, invitation.accountId));
+    accountInviterMergeData = await buildAccountInvitationInviterMergeData(
+      inviterUserId
+    );
+    if (inviterUserId) {
+      const inviter = await db.query(`SELECT name FROM users WHERE id = $1`, [
+        inviterUserId,
+      ]);
+      inviterName = inviter.rows[0]?.name || null;
+    }
   }
   const emailType = type === "property" ? "invitation_property" : "invitation_account";
   await sendInvitationEmail({
@@ -797,6 +833,7 @@ async function sendInvitationEmailForInvitation({
     cc: type === "property" && Array.isArray(cc) && cc.length > 0 ? cc : null,
     recipientFirstName,
     ...agentMergeData,
+    ...accountInviterMergeData,
     ...missingDataMerge,
     usage:
       invitation.accountId && inviterUserId

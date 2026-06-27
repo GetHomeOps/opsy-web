@@ -43,6 +43,21 @@ Create journeys/campaigns in Customer.io triggered by these events:
 2. Use liquid variables from event data, e.g. `{{ event.inviteUrl }}`, `{{ event.inviterName }}`, `{{ event.propertyAddress }}`, `{{ event.personalNote }}`
 3. Add follow-up steps (wait 3 days → send reminder if invitation not accepted)
 
+### Example: account invitation journey (agent onboarding)
+
+1. Create a campaign triggered by `account_invitation_sent`
+2. **Always prefix event payload fields with `event.`** — bare `{{ inviteUrl }}` will fail at send time with “undefined variable”
+3. Common merge fields from Opsy:
+
+| Opsy field | Customer.io liquid |
+|------------|-------------------|
+| Accept link | `{{ event.inviteUrl }}` |
+| Inviter first name | `{{ event.senderFirstName \| default: "HomeOps Team" }}` |
+| Inviter avatar | `{{ event.avatarUrl \| default: 'https://heyopsy.com/email/opsy-mark.png' }}` |
+| Invitee first name | `{{ event.inviteeName \| default: event.recipientFirstName \| default: "there" }}` |
+| Inviter full name | `{{ event.inviterName }}` |
+| Brand | `{{ event.brandName }}` |
+
 ### Admin: test a journey from Email Delivery
 
 In **Email Delivery**, each email type can use **Test Customer.io event** (next to **Send test email**) when Customer.io is configured.

@@ -371,17 +371,30 @@ function UsersFormContainer() {
   };
 
   async function sendUserInvitation(user) {
-    try {
-      const result = await createUserInvitation({
-        inviteeEmail: user?.email || state.user?.email || state.formData?.email,
-        accountId: currentAccount?.id,
-        intendedRole: "member",
-        type: "account",
-      });
+    const email = (user?.email || state.user?.email || state.formData?.email || "").trim();
+    if (!email) return null;
 
-      if (result?.invitation) {
-        const email =
-          user?.email || state.user?.email || state.formData?.email || "";
+    try {
+      const existingInvitationId =
+        state.user?.invitation?.id || state.user?.pendingInvitationId || null;
+
+      let invitationId = existingInvitationId;
+      if (!invitationId && currentAccount?.id) {
+        const pendingInvitations = await AppApi.getAccountInvitations(
+          currentAccount.id,
+          {status: "pending"},
+        );
+        const match = (pendingInvitations || []).find(
+          (inv) =>
+            inv.type === "account" &&
+            String(inv.inviteeEmail || "").trim().toLowerCase() ===
+              email.toLowerCase(),
+        );
+        invitationId = match?.id || null;
+      }
+
+      if (invitationId) {
+        await AppApi.resendInvitation(invitationId);
         dispatch({
           type: "SET_BANNER",
           payload: {
@@ -392,6 +405,37 @@ function UsersFormContainer() {
               `Invitation email sent to ${email}. Please check your email for the confirmation link.`,
           },
         });
+        return {invitation: {id: invitationId}};
+      }
+
+      const result = await createUserInvitation({
+        inviteeEmail: email,
+        accountId: currentAccount?.id,
+        intendedRole: "member",
+        type: "account",
+      });
+
+      if (result?.invitation) {
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "success",
+            message:
+              t("confirmationEmailMessage")?.replace("{{email}}", email) ||
+              `Invitation email sent to ${email}. Please check your email for the confirmation link.`,
+          },
+        });
+        if (state.user) {
+          dispatch({
+            type: "SET_USER",
+            payload: {
+              ...state.user,
+              invitation: result.invitation,
+              pendingInvitationId: result.invitation.id,
+            },
+          });
+        }
         return result;
       }
     } catch (error) {
@@ -458,7 +502,18 @@ function UsersFormContainer() {
       const demoSummary = res?.demoSummary;
 
       if (res && res.id) {
-        dispatch({type: "SET_USER", payload: res});
+        dispatch({
+          type: "SET_USER",
+          payload: {
+            ...res,
+            ...(res.invitation
+              ? {
+                  invitation: res.invitation,
+                  pendingInvitationId: res.invitation.id,
+                }
+              : {}),
+          },
+        });
 
         navigate(`/${accountUrl}/users/${res.id}`, {
           state: {

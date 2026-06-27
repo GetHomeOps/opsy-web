@@ -159,7 +159,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
           intendedRole: "member",
         });
         invitation = inviteResult?.invitation || null;
-        invitationEmailSent = !!invitation;
+        invitationEmailSent = inviteResult?.emailSent === true;
       } catch (inviteErr) {
         console.error("[users.create] failed to send invitation email:", inviteErr.message);
       }

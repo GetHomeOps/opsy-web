@@ -519,6 +519,8 @@
   "responsiblePlaceholder": "Introduce el responsable",
   "responsibleValidationErrorMessage": "El responsable es obligatorio",
   "resendInvitationEmail": "Reenviar correo de invitación",
+  "sending": "Enviando...",
+  "invitationAccountMissing": "No se pudo determinar una cuenta desde la cual enviar la invitación.",
   "sendInvitationEmailOnCreate": "Enviar correo de invitación al crear",
   "sendInvitationEmailOnCreateHelperOff": "Crea este usuario sin enviarle un correo. Puedes enviar la invitación más adelante.",
   "sendInvitationEmailOnCreateHelperOn": "El usuario recibirá un correo para configurar su contraseña y completar el registro.",

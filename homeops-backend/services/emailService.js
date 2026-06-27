@@ -240,6 +240,8 @@ async function sendInvitationEmail({
   missingDataItem2Body = "",
   missingDataItem3Title = "",
   missingDataItem3Body = "",
+  senderFirstName = "",
+  avatarUrl = "",
 }) {
   const isProperty = type === "property";
   const emailType = isProperty ? "property_invitation" : "account_invitation";
@@ -377,7 +379,12 @@ async function sendInvitationEmail({
           missingDataItem3Title: missingDataItem3Title || "",
           missingDataItem3Body: missingDataItem3Body || "",
         }
-      : {}),
+      : {
+          recipientFirstName: resolvedRecipientFirstName,
+          senderFirstName:
+            senderFirstName || firstNameFromUser(inviterName) || "",
+          avatarUrl: avatarUrl || "",
+        }),
   };
 
   return emailProviderRouter.deliver({
