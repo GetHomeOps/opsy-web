@@ -148,7 +148,19 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
 
     const inviterUserId = res.locals.user?.id;
     let resolvedAccountId = accountId ? Number(accountId) : null;
-    if (!resolvedAccountId && inviterUserId && !wantsProvision) {
+    /* Homeowner/agent invitees need an account scoped to them (not the admin's
+       platform account) so the invitation email can always be created. */
+    if (shouldSendInvite && isLockableRole && !wantsProvision) {
+      try {
+        const userAccount = await Account.linkNewUserToAccount({
+          name: newUser.name || name,
+          userId: newUser.id,
+        });
+        resolvedAccountId = userAccount.id;
+      } catch (acctErr) {
+        console.error("[users.create] failed to create invitee account:", acctErr.message);
+      }
+    } else if (!resolvedAccountId && inviterUserId && !wantsProvision) {
       try {
         const inviterAccounts = await Account.getUserAccounts(inviterUserId);
         resolvedAccountId = inviterAccounts?.[0]?.id || null;
@@ -203,8 +215,11 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
     const totalMs = Date.now() - t0;
     console.info("[users.create] timing", {
       email: newUser.email,
+      role,
       wantsProvision,
       shouldSendInvite,
+      resolvedAccountId,
+      invitationEmailQueued,
       registerMs,
       provisionMs,
       inviteMs,

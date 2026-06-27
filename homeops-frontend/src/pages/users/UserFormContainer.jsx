@@ -650,7 +650,7 @@ function UsersFormContainer() {
               "No invitation email was sent. Use “Resend invitation email” when you're ready.",
           })}`;
           bannerType = "success";
-        } else if (invitationEmailQueued) {
+        } else if (invitationEmailQueued || res?.invitation) {
           inviteSuffix = ` ${t("invitationEmailQueuedSuffix", {
             defaultValue:
               "An invitation email is being sent to set up their account.",
