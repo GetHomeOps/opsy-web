@@ -437,13 +437,20 @@ class AppApi {
       return {
         ...res.user,
         invitationEmailSent: res.invitationEmailSent === true,
+        invitationEmailQueued: res.invitationEmailQueued === true,
         invitationSkipped: res.invitationSkipped === true,
         invitation: res.invitation || null,
         provisioned: res.provisioned === true,
+        provisionStatus: res.provisionStatus || null,
         demoSummary: res.demoSummary || null,
       };
     }
     return res.user;
+  }
+
+  static async getUserProvisionStatus(userId) {
+    let res = await this.request(`users/${userId}/provision-status`, {}, "GET");
+    return res;
   }
 
   static async deleteUser(id) {

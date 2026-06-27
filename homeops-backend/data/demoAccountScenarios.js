@@ -116,9 +116,24 @@ const INSPECTION_FIXTURE = {
 };
 
 const SYNTHETIC_HOMEOWNERS = [
-  { name: "Noel Moore", phone: "2065551001", avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&fit=crop&q=80" },
-  { name: "Noel Jones", phone: "2065551002", avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&fit=crop&q=80" },
-  { name: "Ava Chen", phone: "2065551003", avatar_url: "https://images.unsplash.com/photo-1438761681033-6461eaded4ea?w=400&fit=crop&q=80" },
+  {
+    name: "Noel Jones",
+    email: "noel.jones@gmail.com",
+    phone: "2065551002",
+    avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&fit=crop&q=80",
+  },
+  {
+    name: "Tatum Walker",
+    email: "tatum.walker@outlook.com",
+    phone: "2065551003",
+    avatar_url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&fit=crop&q=80",
+  },
+  {
+    name: "Alex Jackson",
+    email: "alex.jackson@heyopsy.com",
+    phone: "2065551004",
+    avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&fit=crop&q=80",
+  },
 ];
 
 function propertyTemplateByIndex(index) {
@@ -127,6 +142,7 @@ function propertyTemplateByIndex(index) {
     throw new Error(`demo-properties.json missing index ${index}`);
   }
   return {
+    index: entry.index,
     address: entry.address,
     main_photo: entry.main_photo,
     homeowner: entry.homeowner,
@@ -158,6 +174,14 @@ function getScenarioForRole(role) {
   throw new Error(`Unsupported demo role: ${role}`);
 }
 
+const {
+  DEMO_BROADCAST_COMMUNICATIONS,
+  getIdentityFixtureForIndex,
+  getSystemFixturesForProperty,
+  getMaintenanceRecordsForProperty,
+  getConversationThread,
+} = require("./demoProvisioningFixtures");
+
 module.exports = {
   DEMO_AGENT_PERSONA,
   PLAN_BY_ROLE,
@@ -166,5 +190,10 @@ module.exports = {
   DEMO_CONTRACTORS,
   INSPECTION_FIXTURE,
   SYNTHETIC_HOMEOWNERS,
+  DEMO_BROADCAST_COMMUNICATIONS,
+  getIdentityFixtureForIndex,
+  getSystemFixturesForProperty,
+  getMaintenanceRecordsForProperty,
+  getConversationThread,
   getScenarioForRole,
 };

@@ -31,9 +31,15 @@ const userUpdateSchema = require("../schemas/userUpdate.json");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
 const db = require("../db");
 const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
-const { createAccountInvitation } = require("../services/invitationService");
+const {
+  createAccountInvitation,
+  sendAccountInvitationEmailInBackground,
+} = require("../services/invitationService");
 const { assertDemoResetAllowed, isDemoEnvironment } = require("../helpers/demoEnvironment");
-const { provisionDemoAccount } = require("../services/demoAccountProvisioner");
+const {
+  enqueueDemoProvision,
+  getProvisionStatus,
+} = require("../services/demoProvisionQueue");
 
 const router = express.Router();
 const DEMO_HOMEOWNER_RESET_EMAIL = "hello-homeowner@heyopsy.com";
@@ -50,6 +56,11 @@ const DEMO_HOMEOWNER_RESET_EMAIL = "hello-homeowner@heyopsy.com";
  *  contacted yet. The invitation can still be sent later via the existing
  *  "Resend invitation email" action in the user form. */
 router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
+  const t0 = Date.now();
+  let registerMs = 0;
+  let provisionMs = 0;
+  let inviteMs = 0;
+
   try {
     if (isDemoEnvironment() && res.locals.user?.role !== "super_admin") {
       throw new ForbiddenError("User creation is restricted to super admins on the demo site.");
@@ -92,6 +103,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
        and so the role can't be tampered with via the API. Internal roles
        (admin/super_admin) don't need locking. */
     const isLockableRole = role === "homeowner" || role === "agent";
+    const registerStart = Date.now();
     const newUser = await User.register({
       name,
       email,
@@ -103,6 +115,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       onboarding_completed: wantsProvision ? undefined : false,
       role_locked: isLockableRole,
     });
+    registerMs = Date.now() - registerStart;
 
     if (image) {
       await User.update({ id: newUser.id, image });
@@ -119,14 +132,18 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
     }
 
     let demoSummary = null;
+    let provisionStatus = null;
     if (wantsProvision) {
-      demoSummary = await provisionDemoAccount({
+      const provisionStart = Date.now();
+      enqueueDemoProvision({
         userId: newUser.id,
         role,
         name,
         email,
         phone,
       });
+      provisionMs = Date.now() - provisionStart;
+      provisionStatus = "pending";
     }
 
     const inviterUserId = res.locals.user?.id;
@@ -142,6 +159,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
 
     let invitation = null;
     let invitationEmailSent = false;
+    let invitationEmailQueued = false;
     let invitationSkipped = false;
     if (!shouldSendInvite) {
       invitationSkipped = true;
@@ -151,18 +169,30 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
         );
       }
     } else if (resolvedAccountId) {
+      const inviteStart = Date.now();
       try {
         const inviteResult = await createAccountInvitation({
           inviterUserId,
           inviteeEmail: newUser.email,
           accountId: resolvedAccountId,
           intendedRole: "member",
+          skipEmail: true,
         });
         invitation = inviteResult?.invitation || null;
-        invitationEmailSent = inviteResult?.emailSent === true;
+        if (invitation && inviteResult?.token) {
+          invitationEmailQueued = true;
+          sendAccountInvitationEmailInBackground({
+            invitation,
+            token: inviteResult.token,
+            inviterUserId,
+          }).catch((emailErr) => {
+            console.error("[users.create] background invitation email:", emailErr.message);
+          });
+        }
       } catch (inviteErr) {
-        console.error("[users.create] failed to send invitation email:", inviteErr.message);
+        console.error("[users.create] failed to create invitation:", inviteErr.message);
       }
+      inviteMs = Date.now() - inviteStart;
     } else if (!wantsProvision) {
       console.warn(
         `[users.create] No accountId resolved for invitation to ${newUser.email}; skipping auto-invite.`
@@ -170,12 +200,25 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
     }
 
     const user = await User.getById(newUser.id);
+    const totalMs = Date.now() - t0;
+    console.info("[users.create] timing", {
+      email: newUser.email,
+      wantsProvision,
+      shouldSendInvite,
+      registerMs,
+      provisionMs,
+      inviteMs,
+      totalMs,
+    });
+
     return res.status(201).json({
       user,
       invitation,
       invitationEmailSent,
+      invitationEmailQueued,
       invitationSkipped,
-      provisioned: wantsProvision,
+      provisioned: wantsProvision && provisionStatus === "complete",
+      provisionStatus,
       demoSummary,
     });
   } catch (err) {
@@ -392,6 +435,32 @@ router.post("/demo/reset-homeowner-profile", ensureLoggedIn, async function (req
     } finally {
       client.release();
     }
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /:userId/provision-status — Poll async demo account provisioning (demo site). */
+router.get("/:userId/provision-status", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    if (!isDemoEnvironment()) {
+      return res.json({ status: null, demoSummary: null });
+    }
+    const userId = parseInt(req.params.userId, 10);
+    if (!Number.isFinite(userId)) {
+      throw new BadRequestError("Invalid user id");
+    }
+    const status = getProvisionStatus(userId);
+    if (!status) {
+      return res.json({ status: null, demoSummary: null });
+    }
+    return res.json({
+      status: status.status,
+      demoSummary: status.demoSummary,
+      error: status.error,
+      startedAt: status.startedAt,
+      completedAt: status.completedAt,
+    });
   } catch (err) {
     return next(err);
   }

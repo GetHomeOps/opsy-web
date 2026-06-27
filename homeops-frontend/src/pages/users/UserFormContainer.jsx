@@ -12,6 +12,8 @@ import {
   Briefcase,
   Building2,
   CreditCard,
+  Eye,
+  EyeOff,
   Mail,
   MailOpen,
   User,
@@ -33,6 +35,17 @@ import {S3_UPLOAD_FOLDER} from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import ImageUploadField from "../../components/ImageUploadField";
 import {isDemoSite, canCreateUsersOnDemo} from "../../utils/demoSite";
+
+function generateRandomPassword() {
+  const length = 16;
+  const charset =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return password;
+}
 
 const initialFormData = {
   name: "",
@@ -59,7 +72,7 @@ const initialState = {
   ownershipTransferModalOpen: false,
   sendInviteOnCreate: true,
   provisionDemoOnCreate: false,
-  demoPassword: "12345678",
+  demoPassword: "",
 };
 
 function reducer(state, action) {
@@ -120,6 +133,7 @@ function reducer(state, action) {
         ...state,
         provisionDemoOnCreate: !!action.payload,
         sendInviteOnCreate: action.payload ? false : state.sendInviteOnCreate,
+        demoPassword: action.payload ? generateRandomPassword() : "",
       };
     case "SET_DEMO_PASSWORD":
       return {...state, demoPassword: action.payload};
@@ -130,6 +144,8 @@ function reducer(state, action) {
 
 function UsersFormContainer() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [showDemoPassword, setShowDemoPassword] = useState(false);
+  const [provisionPolling, setProvisionPolling] = useState(null);
   const {id} = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -320,6 +336,66 @@ function UsersFormContainer() {
     };
   }, [id, state.user?.id]);
 
+  useEffect(() => {
+    if (!provisionPolling?.userId) return undefined;
+
+    let cancelled = false;
+    let intervalId = null;
+
+    async function pollProvisionStatus() {
+      try {
+        const statusRes = await AppApi.getUserProvisionStatus(
+          provisionPolling.userId,
+        );
+        if (cancelled) return;
+
+        if (statusRes?.status === "complete" && statusRes.demoSummary) {
+          setProvisionPolling(null);
+          const demoSummary = statusRes.demoSummary;
+          const successBase = t("userCreatedSuccessfullyMessage", {
+            defaultValue: "User created successfully",
+          });
+          const suffix = ` ${t("demoAccountProvisionedSuffix", {
+            defaultValue:
+              "Active {{plan}} plan applied. {{count}} sample propert{{countSuffix}} ready. Login password: {{password}}",
+            plan: demoSummary.planLabel || demoSummary.planCode,
+            count: demoSummary.propertyCount || 0,
+            countSuffix: demoSummary.propertyCount === 1 ? "y" : "ies",
+            password: provisionPolling.password || "",
+          })}`;
+          dispatch({
+            type: "SET_BANNER",
+            payload: {
+              open: true,
+              type: "success",
+              message: `${successBase}.${suffix}`,
+            },
+          });
+        } else if (statusRes?.status === "failed") {
+          setProvisionPolling(null);
+          dispatch({
+            type: "SET_BANNER",
+            payload: {
+              open: true,
+              type: "error",
+              message: `Demo account setup failed: ${statusRes.error || "Unknown error"}`,
+            },
+          });
+        }
+      } catch (pollErr) {
+        console.error("Error polling demo provision status:", pollErr);
+      }
+    }
+
+    pollProvisionStatus();
+    intervalId = setInterval(pollProvisionStatus, 1500);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [provisionPolling, t]);
+
   // Banner timeout useEffect with the custom hook
   useAutoCloseBanner(state.bannerOpen, state.bannerMessage, () =>
     dispatch({
@@ -482,18 +558,6 @@ function UsersFormContainer() {
         )
       : -1;
 
-  // Generate a random password
-  function generateRandomPassword() {
-    const length = 16;
-    const charset =
-      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-    let password = "";
-    for (let i = 0; i < length; i++) {
-      password += charset.charAt(Math.floor(Math.random() * charset.length));
-    }
-    return password;
-  }
-
   /* Handles submit button */
   async function handleSubmit(evt) {
     evt.preventDefault();
@@ -502,7 +566,7 @@ function UsersFormContainer() {
 
     // Password for new user (random unless provisioning a demo account)
     const password = state.provisionDemoOnCreate
-      ? state.demoPassword || "12345678"
+      ? state.demoPassword
       : generateRandomPassword();
 
     const userData = {
@@ -527,8 +591,10 @@ function UsersFormContainer() {
       const res = await createUser(userData);
 
       const invitationEmailSent = res?.invitationEmailSent === true;
+      const invitationEmailQueued = res?.invitationEmailQueued === true;
       const invitationSkipped = res?.invitationSkipped === true;
       const provisioned = res?.provisioned === true;
+      const provisionStatus = res?.provisionStatus;
       const demoSummary = res?.demoSummary;
 
       if (res && res.id) {
@@ -559,7 +625,14 @@ function UsersFormContainer() {
         let inviteSuffix;
         let bannerType;
 
-        if (provisioned && demoSummary) {
+        if (provisionStatus === "pending") {
+          setProvisionPolling({userId: res.id, password});
+          inviteSuffix = ` ${t("demoAccountProvisioningSuffix", {
+            defaultValue:
+              "Sample data is being set up — this usually takes a few seconds.",
+          })}`;
+          bannerType = "success";
+        } else if (provisioned && demoSummary) {
           inviteSuffix = ` ${t("demoAccountProvisionedSuffix", {
             defaultValue:
               "Active {{plan}} plan applied. {{count}} sample propert{{countSuffix}} ready. Login password: {{password}}",
@@ -573,6 +646,12 @@ function UsersFormContainer() {
           inviteSuffix = ` ${t("invitationEmailSkippedSuffix", {
             defaultValue:
               "No invitation email was sent. Use “Resend invitation email” when you're ready.",
+          })}`;
+          bannerType = "success";
+        } else if (invitationEmailQueued) {
+          inviteSuffix = ` ${t("invitationEmailQueuedSuffix", {
+            defaultValue:
+              "An invitation email is being sent to set up their account.",
           })}`;
           bannerType = "success";
         } else if (invitationEmailSent) {
@@ -1863,19 +1942,62 @@ function UsersFormContainer() {
                         >
                           {t("demoAccountPassword") || "Login password"}
                         </label>
-                        <input
-                          id="demoPassword"
-                          type="text"
-                          className={getInputClasses()}
-                          value={state.demoPassword}
-                          onChange={(e) =>
-                            dispatch({
-                              type: "SET_DEMO_PASSWORD",
-                              payload: e.target.value,
-                            })
-                          }
-                          placeholder="12345678"
-                        />
+                        <div className="flex gap-2">
+                          <div className="relative flex-1 min-w-0">
+                            <input
+                              id="demoPassword"
+                              type={showDemoPassword ? "text" : "password"}
+                              className={`${getInputClasses("demoPassword")} pr-11`}
+                              value={state.demoPassword}
+                              onChange={(e) =>
+                                dispatch({
+                                  type: "SET_DEMO_PASSWORD",
+                                  payload: e.target.value,
+                                })
+                              }
+                              autoComplete="new-password"
+                            />
+                            <button
+                              type="button"
+                              className="absolute inset-y-0 right-0 flex items-center justify-center px-3 rounded-md text-gray-400 hover:text-[#456564] dark:hover:text-[#7aa3a2] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#456564]/25"
+                              onClick={() => setShowDemoPassword((v) => !v)}
+                              aria-pressed={showDemoPassword}
+                              aria-controls="demoPassword"
+                              aria-label={
+                                showDemoPassword
+                                  ? t("hidePassword", "Hide password")
+                                  : t("showPassword", "Show password")
+                              }
+                            >
+                              {showDemoPassword ? (
+                                <EyeOff
+                                  className="w-5 h-5 shrink-0"
+                                  aria-hidden
+                                />
+                              ) : (
+                                <Eye className="w-5 h-5 shrink-0" aria-hidden />
+                              )}
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-[#8fa3a2] dark:hover:border-[#8fa3a2] text-gray-800 dark:text-gray-300 transition-colors duration-200 shadow-sm shrink-0"
+                            onClick={() =>
+                              dispatch({
+                                type: "SET_DEMO_PASSWORD",
+                                payload: generateRandomPassword(),
+                              })
+                            }
+                          >
+                            {t("generatePassword") || "Generate password"}
+                          </button>
+                        </div>
+                        {state.errors.demoPassword && (
+                          <div className="mt-1 flex items-center text-sm text-red-500">
+                            <AlertCircle className="h-4 w-4 mr-1" />
+                            <span>{state.errors.demoPassword}</span>
+                          </div>
+                        )}
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           {t("demoAccountPasswordHelper") ||
                             "Share this password with the prospect so they can sign in immediately."}

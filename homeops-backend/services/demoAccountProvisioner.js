@@ -6,32 +6,73 @@
  */
 
 const db = require("../db");
+const bcrypt = require("bcrypt");
 const { BadRequestError } = require("../expressError");
+const { BCRYPT_WORK_FACTOR } = require("../config");
 const { isDemoEnvironment } = require("../helpers/demoEnvironment");
 const { generatePassportId } = require("../helpers/properties");
 const Account = require("../models/account");
 const Contact = require("../models/contact");
 const User = require("../models/user");
 const Property = require("../models/property");
-const System = require("../models/system");
 const MaintenanceRecord = require("../models/maintenanceRecord");
 const MaintenanceEvent = require("../models/maintenanceEvent");
 const InspectionChecklistItem = require("../models/inspectionChecklistItem");
 const Conversation = require("../models/conversation");
-const ConversationMessage = require("../models/conversationMessage");
 const HomeownerAgentInquiry = require("../models/homeownerAgentInquiry");
 const Professional = require("../models/professional");
-const SavedProfessional = require("../models/savedProfessional");
+const Communication = require("../models/communication");
+const Notification = require("../models/notification");
+const { syncMaintenanceRecordDocuments } = require("./maintenanceRecordDocumentsService");
+const { onSystemCreated } = require("./systemRecommendationGenerator");
 const {
   DEMO_AGENT_PERSONA,
   SYSTEM_KEYS,
   ACCOUNT_CONTACTS,
   DEMO_CONTRACTORS,
   INSPECTION_FIXTURE,
+  DEMO_BROADCAST_COMMUNICATIONS,
+  getIdentityFixtureForIndex,
+  getSystemFixturesForProperty,
+  getMaintenanceRecordsForProperty,
+  getConversationThread,
   getScenarioForRole,
 } = require("../data/demoAccountScenarios");
 
 const INTERNAL_PASSWORD = "demo-internal-not-for-login";
+
+let cachedInternalPasswordHash = null;
+
+async function getCachedInternalPasswordHash() {
+  if (!cachedInternalPasswordHash) {
+    cachedInternalPasswordHash = await bcrypt.hash(INTERNAL_PASSWORD, BCRYPT_WORK_FACTOR);
+  }
+  return cachedInternalPasswordHash;
+}
+
+/** Register @demo.internal users with a shared precomputed password hash (no bcrypt per provision). */
+async function registerInternalUserDirect({ email, name, phone, role, avatarUrl }) {
+  const existing = await User.get(email).catch(() => null);
+  if (existing?.id) return existing;
+
+  const hashedPassword = await getCachedInternalPasswordHash();
+  const result = await db.query(
+    `INSERT INTO users
+       (email, password_hash, name, phone, role, contact_id, is_active, role_locked,
+        auth_provider, email_verified, onboarding_completed)
+     VALUES ($1, $2, $3, $4, $5, 0, true, true, 'local', true, true)
+     RETURNING id, email, name, phone, role, contact_id AS "contact", is_active`,
+    [email, hashedPassword, name, phone || null, role]
+  );
+  const user = result.rows[0];
+  if (avatarUrl) {
+    await db.query(
+      `UPDATE users SET avatar_url = $2, updated_at = NOW() WHERE id = $1`,
+      [user.id, avatarUrl]
+    );
+  }
+  return user;
+}
 
 function formatYmd(date) {
   const y = date.getFullYear();
@@ -48,6 +89,12 @@ function daysFromNow(days) {
 
 function daysAgo(days) {
   return daysFromNow(-days);
+}
+
+function isoDaysAgo(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
 }
 
 async function provisionActivePaidPlan(accountId, planCode) {
@@ -98,29 +145,7 @@ async function provisionActivePaidPlan(accountId, planCode) {
 }
 
 async function findOrCreateInternalUser({ email, name, phone, role, avatarUrl }) {
-  const existing = await User.get(email).catch(() => null);
-  if (existing?.id) return existing;
-
-  const user = await User.register({
-    name,
-    email,
-    password: INTERNAL_PASSWORD,
-    phone,
-    role,
-    is_active: true,
-    role_locked: true,
-  });
-
-  await db.query(
-    `UPDATE users
-     SET email_verified = true,
-         onboarding_completed = true,
-         avatar_url = COALESCE($2, avatar_url),
-         updated_at = NOW()
-     WHERE id = $1`,
-    [user.id, avatarUrl || null]
-  );
-
+  const user = await registerInternalUserDirect({ email, name, phone, role, avatarUrl });
   return await User.getById(user.id);
 }
 
@@ -133,30 +158,34 @@ async function findOrCreateDemoAgentPersona() {
   });
 }
 
-async function createSyntheticHomeowner({ name, phone, avatarUrl, suffix }) {
-  const email = `provision-hw-${suffix}@demo.internal`;
+async function createSyntheticHomeowner({ name, email, phone, avatarUrl }) {
   const existing = await User.get(email).catch(() => null);
-  if (existing?.id) return existing;
+  if (existing?.id) {
+    const accountRes = await db.query(
+      `SELECT a.id, a.url, a.name
+       FROM accounts a
+       JOIN account_users au ON au.account_id = a.id
+       WHERE au.user_id = $1 AND au.role = 'owner'
+       ORDER BY a.id
+       LIMIT 1`,
+      [existing.id]
+    );
+    const accountRow = accountRes.rows[0];
+    if (accountRow) {
+      return {
+        user: await User.getById(existing.id),
+        account: { id: accountRow.id, url: accountRow.url, name: accountRow.name },
+      };
+    }
+  }
 
-  const user = await User.register({
-    name,
+  const user = await registerInternalUserDirect({
     email,
-    password: INTERNAL_PASSWORD,
+    name,
     phone,
     role: "homeowner",
-    is_active: true,
-    role_locked: true,
+    avatarUrl,
   });
-
-  await db.query(
-    `UPDATE users
-     SET email_verified = true,
-         onboarding_completed = true,
-         avatar_url = COALESCE($2, avatar_url),
-         updated_at = NOW()
-     WHERE id = $1`,
-    [user.id, avatarUrl || null]
-  );
 
   const account = await Account.linkNewUserToAccount({ name, userId: user.id });
   const contact = await Contact.create({ name, email, phone });
@@ -182,8 +211,8 @@ async function setupBaseAccount({ userId, name, email, phone, role, planCode }) 
   return account;
 }
 
-async function createPropertyOnAccount({ accountId, template }) {
-  const { address, main_photo } = template;
+async function createPropertyOnAccount({ accountId, template, syntheticHomeowner }) {
+  const { address, main_photo, index } = template;
   const property = await Property.create({
     account_id: accountId,
     property_name: address.address_line_1,
@@ -195,20 +224,46 @@ async function createPropertyOnAccount({ accountId, template }) {
     zip: address.zip,
     passport_id: generatePassportId({ state: address.state, zip: address.zip }),
   });
+
+  if (index != null) {
+    const identityFixture = getIdentityFixtureForIndex(index, syntheticHomeowner);
+    if (identityFixture) {
+      await Property.updateProperty(property.id, identityFixture);
+    }
+  }
+
   return property;
 }
 
-async function seedSystems(propertyId) {
-  const nextService = daysFromNow(90);
+async function seedSystems(propertyId, propertyIndex) {
+  const systemFixtures = getSystemFixturesForProperty(propertyIndex ?? 2, daysFromNow);
+  const values = [];
+  const placeholders = [];
+  let idx = 1;
+
   for (const system_key of SYSTEM_KEYS) {
-    await System.create({
-      property_id: propertyId,
+    const fixture = systemFixtures[system_key];
+    placeholders.push(`($${idx++}, $${idx++}, $${idx++}::jsonb, $${idx++}, $${idx++})`);
+    values.push(
+      propertyId,
       system_key,
-      data: { demo: true },
-      next_service_date: nextService,
-      included: true,
-    });
+      JSON.stringify(fixture?.data ?? {}),
+      fixture?.next_service_date ?? daysFromNow(90),
+      true
+    );
   }
+
+  await db.query(
+    `INSERT INTO property_systems (property_id, system_key, data, next_service_date, included)
+     VALUES ${placeholders.join(", ")}`,
+    values
+  );
+
+  await Promise.all(
+    SYSTEM_KEYS.map((system_key) =>
+      onSystemCreated(propertyId, system_key, { included: true })
+    )
+  );
 }
 
 async function seedInspectionAnalysis(propertyId, userId) {
@@ -243,73 +298,76 @@ async function seedInspectionAnalysis(propertyId, userId) {
   const items = await InspectionChecklistItem.generateFromAnalysis(analysisResult);
 
   const statuses = ["completed", "in_progress", "pending", "pending"];
+  const updatePromises = [];
   for (let i = 0; i < items.length; i++) {
     const status = statuses[i % statuses.length];
     if (status !== "pending") {
-      await InspectionChecklistItem.update(items[i].id, {
-        status,
-        ...(status === "completed"
-          ? { completed_at: new Date().toISOString(), completed_by: userId }
-          : {}),
-      });
+      updatePromises.push(
+        InspectionChecklistItem.update(items[i].id, {
+          status,
+          ...(status === "completed"
+            ? { completed_at: new Date().toISOString(), completed_by: userId }
+            : {}),
+        })
+      );
     }
   }
+  await Promise.all(updatePromises);
 
   return { jobId, analysisResultId: analysisResult.id, itemCount: items.length };
 }
 
-async function seedMaintenanceRecords(propertyId) {
-  await MaintenanceRecord.createMany([
-    {
-      property_id: propertyId,
-      system_key: "heating",
-      completed_at: daysAgo(120),
-      next_service_date: daysFromNow(60),
-      status: "completed",
-      data: { task: "Annual furnace tune-up", demo: true },
-    },
-    {
-      property_id: propertyId,
-      system_key: "gutters",
-      completed_at: daysAgo(200),
-      next_service_date: daysFromNow(30),
-      status: "pending",
-      data: { task: "Gutter cleaning", demo: true },
-    },
-    {
-      property_id: propertyId,
-      system_key: "roof",
-      completed_at: null,
-      next_service_date: daysFromNow(14),
-      status: "pending",
-      data: { task: "Roof inspection", demo: true },
-    },
-  ]);
+async function seedMaintenanceRecords(propertyId, propertyIndex, focus, createdByUserId) {
+  const records = getMaintenanceRecordsForProperty(
+    propertyIndex ?? 2,
+    propertyId,
+    focus,
+    daysAgo,
+    daysFromNow
+  );
+  const created = await MaintenanceRecord.createMany(records);
+
+  const user = { id: createdByUserId };
+  for (const record of created) {
+    let data = record.data;
+    if (typeof data === "string") {
+      try {
+        data = JSON.parse(data);
+      } catch {
+        data = {};
+      }
+    }
+    const files = data?.files;
+    if (Array.isArray(files) && files.length > 0) {
+      await syncMaintenanceRecordDocuments({ ...record, data }, { analyzeUser: user });
+    }
+  }
 }
 
 async function seedMaintenanceEvents(propertyId, createdByUserId, focus) {
-  await MaintenanceEvent.create({
-    property_id: propertyId,
-    system_key: "heating",
-    system_name: "Heating",
-    scheduled_date: daysAgo(45),
-    status: "completed",
-    event_type: "maintenance",
-    created_by: createdByUserId,
-  });
-
-  await MaintenanceEvent.create({
-    property_id: propertyId,
-    system_key: "plumbing",
-    system_name: "Plumbing",
-    scheduled_date: daysFromNow(21),
-    status: "scheduled",
-    event_type: "maintenance",
-    created_by: createdByUserId,
-  });
+  const events = [
+    {
+      property_id: propertyId,
+      system_key: "heating",
+      system_name: "Heating",
+      scheduled_date: daysAgo(45),
+      status: "completed",
+      event_type: "maintenance",
+      created_by: createdByUserId,
+    },
+    {
+      property_id: propertyId,
+      system_key: "plumbing",
+      system_name: "Plumbing",
+      scheduled_date: daysFromNow(21),
+      status: "scheduled",
+      event_type: "maintenance",
+      created_by: createdByUserId,
+    },
+  ];
 
   if (focus === "maintenance" || focus === "balanced") {
-    await MaintenanceEvent.create({
+    events.push({
       property_id: propertyId,
       system_key: "gutters",
       system_name: "Gutters",
@@ -320,34 +378,92 @@ async function seedMaintenanceEvents(propertyId, createdByUserId, focus) {
       created_by: createdByUserId,
     });
   }
+
+  await Promise.all(events.map((event) => MaintenanceEvent.create(event)));
 }
 
-async function seedAccountContacts(accountId, ownerUserId) {
-  const created = [];
+async function seedAccountContacts(accountId) {
+  if (ACCOUNT_CONTACTS.length === 0) return [];
+
+  const contactValues = [];
+  const contactPlaceholders = [];
+  let idx = 1;
+
   for (const c of ACCOUNT_CONTACTS) {
-    const contact = await Contact.create({
-      name: c.name,
-      email: c.email,
-      phone: c.phone,
-      notes: c.company,
-    });
-    await Contact.addToAccount({ contactId: contact.id, accountId });
-    created.push(contact);
+    contactPlaceholders.push(
+      `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`
+    );
+    contactValues.push(
+      c.name,
+      null,
+      1,
+      c.phone,
+      c.email,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      c.company,
+      null
+    );
   }
-  return created;
+
+  const contactRes = await db.query(
+    `INSERT INTO contacts
+       (name, image, type, phone, email, website, street1, street2, city, state, zip_code, country, country_code, notes, role)
+     VALUES ${contactPlaceholders.join(", ")}
+     RETURNING id`,
+    contactValues
+  );
+
+  const linkValues = [];
+  const linkPlaceholders = [];
+  idx = 1;
+  for (const row of contactRes.rows) {
+    linkPlaceholders.push(`($${idx++}, $${idx++}, $${idx++})`);
+    linkValues.push(row.id, accountId, null);
+  }
+
+  await db.query(
+    `INSERT INTO account_contacts (contact_id, account_id, added_by_user_id)
+     VALUES ${linkPlaceholders.join(", ")}`,
+    linkValues
+  );
+
+  return contactRes.rows;
 }
 
 async function seedContractors(accountId, userId) {
-  const professionals = [];
-  for (const row of DEMO_CONTRACTORS) {
-    const pro = await Professional.create({
-      ...row,
-      account_id: accountId,
-      is_verified: true,
-    });
-    professionals.push(pro);
-    await SavedProfessional.save(userId, pro.id);
+  const professionals = await Promise.all(
+    DEMO_CONTRACTORS.map((row) =>
+      Professional.create({
+        ...row,
+        account_id: accountId,
+        is_verified: true,
+      })
+    )
+  );
+
+  if (professionals.length > 0) {
+    const values = [];
+    const placeholders = [];
+    let idx = 1;
+    for (const pro of professionals) {
+      placeholders.push(`($${idx++}, $${idx++})`);
+      values.push(userId, pro.id);
+    }
+    await db.query(
+      `INSERT INTO saved_professionals (user_id, professional_id)
+       VALUES ${placeholders.join(", ")}
+       ON CONFLICT DO NOTHING`,
+      values
+    );
   }
+
   return professionals;
 }
 
@@ -365,67 +481,81 @@ async function seedConversation({
     agentUserId,
   });
 
-  const homeownerMsg = await ConversationMessage.create({
-    conversationId: conv.id,
-    senderUserId: homeownerUserId,
-    kind: "text",
-    payload: {
-      message:
-        focus === "messages"
-          ? "Hi Sarah — could you recommend a good roofer for the missing shingles we discussed?"
-          : "Thanks for setting up our home profile. When should we schedule the HVAC service?",
-    },
-  });
-  await Conversation.updateLastMessageAt(conv.id);
+  const thread = getConversationThread(focus);
+  const messageDefs = thread.messages.map((m) => ({
+    senderUserId: m.sender === "agent" ? agentUserId : homeownerUserId,
+    kind: m.kind,
+    payload: m.payload,
+  }));
 
-  await ConversationMessage.create({
-    conversationId: conv.id,
-    senderUserId: agentUserId,
-    kind: "text",
-    payload: {
-      message:
-        "I have a few trusted contractors — I'll share options and can coordinate scheduling for you.",
-    },
-  });
-  await Conversation.updateLastMessageAt(conv.id);
-
-  if (focus === "messages" || focus === "balanced") {
-    await ConversationMessage.create({
-      conversationId: conv.id,
-      senderUserId: homeownerUserId,
-      kind: "referral_request",
-      payload: {
-        referralType: "Roofer",
-        notes: "Looking for licensed roofer for ridge-line repair, prefer local referrals.",
-      },
-    });
-    await Conversation.updateLastMessageAt(conv.id);
+  const msgValues = [];
+  const msgPlaceholders = [];
+  let idx = 1;
+  for (const m of messageDefs) {
+    msgPlaceholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}::jsonb)`);
+    msgValues.push(conv.id, m.senderUserId, m.kind, JSON.stringify(m.payload));
   }
 
-  await HomeownerAgentInquiry.create({
-    accountId,
-    propertyId,
-    senderUserId: homeownerUserId,
-    agentUserId,
-    kind: "message",
-    payload: { message: "Can you review the inspection findings before we book contractors?" },
-  });
+  await db.query(
+    `INSERT INTO conversation_messages (conversation_id, sender_user_id, kind, payload)
+     VALUES ${msgPlaceholders.join(", ")}`,
+    msgValues
+  );
+  await Conversation.updateLastMessageAt(conv.id);
 
-  if (focus === "messages") {
-    await HomeownerAgentInquiry.create({
+  const inquiryPromises = (thread.inquiries || []).map((inq) =>
+    HomeownerAgentInquiry.create({
       accountId,
       propertyId,
       senderUserId: homeownerUserId,
       agentUserId,
-      kind: "referral_request",
-      payload: {
-        referralType: "Plumber",
-        notes: "Guest bath drain is slow — need someone this week if possible.",
-      },
-    });
-  }
+      kind: inq.kind,
+      payload: inq.payload,
+    })
+  );
+  await Promise.all(inquiryPromises);
 
-  return { conversationId: conv.id, messageCount: focus === "messages" ? 4 : 3 };
+  return { conversationId: conv.id, messageCount: messageDefs.length };
+}
+
+async function seedBroadcastCommunications({ accountId, agentUserId, homeownerUserIds }) {
+  if (!homeownerUserIds.length) return [];
+
+  const created = [];
+  for (const template of DEMO_BROADCAST_COMMUNICATIONS) {
+    const comm = await Communication.create({
+      account_id: accountId,
+      subject: template.subject,
+      content: template.content,
+      recipient_mode: "selected_homeowners",
+      recipient_ids: homeownerUserIds,
+      status: "draft",
+      created_by: agentUserId,
+    });
+
+    await Communication.update(comm.id, {
+      status: "sent",
+      sent_at: isoDaysAgo(template.sentDaysAgo),
+      recipient_count: homeownerUserIds.length,
+    });
+
+    for (const uid of homeownerUserIds) {
+      await db.query(
+        `INSERT INTO comm_recipients (communication_id, user_id, channel, status, delivered_at)
+         VALUES ($1, $2, 'in_app', 'delivered', NOW())`,
+        [comm.id, uid]
+      );
+    }
+
+    await Notification.createForUsers(homeownerUserIds, {
+      type: "communication_sent",
+      communicationId: comm.id,
+      title: `New: ${template.subject}`,
+    });
+
+    created.push(comm);
+  }
+  return created;
 }
 
 async function seedPropertyPortfolio({
@@ -435,10 +565,12 @@ async function seedPropertyPortfolio({
   agentUserId,
   createdByUserId,
   focus = "balanced",
+  syntheticHomeowner,
 }) {
   const property = await createPropertyOnAccount({
     accountId: propertyAccountId,
     template,
+    syntheticHomeowner,
   });
 
   await Property.addUserToProperty({
@@ -452,7 +584,7 @@ async function seedPropertyPortfolio({
     role: "editor",
   });
 
-  await seedSystems(property.id);
+  await seedSystems(property.id, template.index);
 
   let inspection = null;
   if (focus === "inspections" || focus === "balanced") {
@@ -467,7 +599,7 @@ async function seedPropertyPortfolio({
     });
   }
 
-  await seedMaintenanceRecords(property.id);
+  await seedMaintenanceRecords(property.id, template.index, focus, createdByUserId);
   await seedMaintenanceEvents(property.id, createdByUserId, focus);
 
   const conversation = await seedConversation({
@@ -513,7 +645,7 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
       planCode,
     });
 
-    await seedAccountContacts(account.id, userId);
+    await seedAccountContacts(account.id);
     await seedContractors(account.id, userId);
 
     if (role === "homeowner") {
@@ -528,32 +660,42 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
       });
       propertySummaries.push(summary);
     } else {
-      for (let i = 0; i < scenario.properties.length; i++) {
-        const template = scenario.properties[i];
-        const suffix = `${userId}-${i + 1}-${Date.now()}`;
-        const synthetic = await createSyntheticHomeowner({
-          name: template.syntheticHomeowner.name,
-          phone: template.syntheticHomeowner.phone,
-          avatarUrl: template.syntheticHomeowner.avatar_url,
-          suffix,
-        });
+      const homeownerUserIds = [];
+      const summaries = await Promise.all(
+        scenario.properties.map(async (template) => {
+          const synthetic = await createSyntheticHomeowner({
+            name: template.syntheticHomeowner.name,
+            email: template.syntheticHomeowner.email,
+            phone: template.syntheticHomeowner.phone,
+            avatarUrl: template.syntheticHomeowner.avatar_url,
+          });
 
-        await Account.addUserToAccount({
-          userId,
-          accountId: synthetic.account.id,
-          role: "member",
-        });
+          homeownerUserIds.push(synthetic.user.id);
 
-        const summary = await seedPropertyPortfolio({
-          template,
-          propertyAccountId: synthetic.account.id,
-          ownerUserId: synthetic.user.id,
-          agentUserId: userId,
-          createdByUserId: userId,
-          focus: template.focus || "balanced",
-        });
-        propertySummaries.push(summary);
-      }
+          await Account.addUserToAccount({
+            userId,
+            accountId: synthetic.account.id,
+            role: "member",
+          });
+
+          return seedPropertyPortfolio({
+            template,
+            propertyAccountId: synthetic.account.id,
+            ownerUserId: synthetic.user.id,
+            agentUserId: userId,
+            createdByUserId: userId,
+            focus: template.focus || "balanced",
+            syntheticHomeowner: template.syntheticHomeowner,
+          });
+        })
+      );
+      propertySummaries.push(...summaries);
+
+      await seedBroadcastCommunications({
+        accountId: account.id,
+        agentUserId: userId,
+        homeownerUserIds,
+      });
     }
 
     return {

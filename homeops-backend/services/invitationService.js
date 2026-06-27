@@ -700,7 +700,13 @@ async function createBulkPropertyInvitations({
   return { succeeded, failed };
 }
 
-async function createAccountInvitation({ inviterUserId, inviteeEmail, accountId, intendedRole }) {
+async function createAccountInvitation({
+  inviterUserId,
+  inviteeEmail,
+  accountId,
+  intendedRole,
+  skipEmail = false,
+}) {
   const { token, tokenHash } = generateInvitationToken();
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + INVITATION_EXPIRY_HOURS);
@@ -716,6 +722,10 @@ async function createAccountInvitation({ inviterUserId, inviteeEmail, accountId,
     expiresAt,
   });
 
+  if (skipEmail) {
+    return { invitation, token, emailSent: false, emailQueued: false };
+  }
+
   let emailSent = false;
   try {
     await sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type: "account" });
@@ -724,7 +734,24 @@ async function createAccountInvitation({ inviterUserId, inviteeEmail, accountId,
     console.error("[invitationService] Failed to send invitation email:", err.message);
   }
 
-  return { invitation, token, emailSent };
+  return { invitation, token, emailSent, emailQueued: false };
+}
+
+/** Send account invitation email without blocking the caller (e.g. admin user create). */
+function sendAccountInvitationEmailInBackground({ invitation, token, inviterUserId }) {
+  if (!invitation || !token) return Promise.resolve({ emailSent: false });
+
+  return sendInvitationEmailForInvitation({
+    invitation,
+    token,
+    inviterUserId,
+    type: "account",
+  })
+    .then(() => ({ emailSent: true }))
+    .catch((err) => {
+      console.error("[invitationService] Background invitation email failed:", err.message);
+      return { emailSent: false };
+    });
 }
 
 /** Build invite URL and send email. Used after create and resend. */
@@ -1338,6 +1365,7 @@ module.exports = {
   createPropertyInvitation,
   createBulkPropertyInvitations,
   createAccountInvitation,
+  sendAccountInvitationEmailInBackground,
   acceptInvitation,
   acceptInvitationForLoggedInUser,
   resendInvitation,
