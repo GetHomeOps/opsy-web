@@ -70,7 +70,7 @@ const initialState = {
   isInitialLoad: true,
   isActive: false,
   ownershipTransferModalOpen: false,
-  sendInviteOnCreate: true,
+  sendInviteOnCreate: !isDemoSite(),
   provisionDemoOnCreate: false,
   demoPassword: "",
 };
@@ -581,7 +581,9 @@ function UsersFormContainer() {
       accountId: currentAccount?.id,
       sendInvite: state.provisionDemoOnCreate
         ? false
-        : state.sendInviteOnCreate,
+        : isDemoSite()
+          ? false
+          : state.sendInviteOnCreate,
       ...(state.provisionDemoOnCreate ? {provisionDemoAccount: true} : {}),
     };
 
@@ -1836,8 +1838,8 @@ function UsersFormContainer() {
                     </div>
                   </div>
 
-                  {/* Send invitation toggle (new user only, not when provisioning demo) */}
-                  {state.isNew && !state.provisionDemoOnCreate && (
+                  {/* Send invitation toggle (new user only, not on demo or when provisioning demo) */}
+                  {state.isNew && !state.provisionDemoOnCreate && !isDemoSite() && (
                     <div className="mt-6 flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40">
                       <div className="flex items-start gap-2 min-w-0">
                         <Mail className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
@@ -1899,7 +1901,7 @@ function UsersFormContainer() {
                               ? t("provisionDemoAccountOnCreateHelperOn") ||
                                 "Creates an active paid account with sample properties, inspections, maintenance, messages, contacts, and contractors. No invitation email."
                               : t("provisionDemoAccountOnCreateHelperOff") ||
-                                "Create a pending user without sample data (optional invitation email)."}
+                                "Create a pending user without sample data."}
                           </p>
                         </div>
                       </div>
