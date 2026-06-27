@@ -6,6 +6,40 @@ import ThemeProvider from "./utils/ThemeContext";
 import App from "./App";
 import "./i18n";
 
+/** Set when a new service worker activated mid-session; applied on the next visit. */
+const PWA_RELOAD_PENDING_KEY = "opsy-pwa-reload-pending";
+
+function applyDeferredPwaReload() {
+  if (import.meta.env.DEV) return;
+  try {
+    if (sessionStorage.getItem(PWA_RELOAD_PENDING_KEY)) {
+      sessionStorage.removeItem(PWA_RELOAD_PENDING_KEY);
+      window.location.reload();
+    }
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+function registerAppServiceWorker() {
+  registerSW({
+    immediate: true,
+    onNeedReload() {
+      // registerType: autoUpdate + skipWaiting() normally hard-reloads the tab as
+      // soon as a deploy is detected — after the dashboard is already visible.
+      // Defer to the next visit so the session isn't interrupted mid-page.
+      try {
+        sessionStorage.setItem(PWA_RELOAD_PENDING_KEY, "1");
+      } catch {
+        window.location.reload();
+      }
+    },
+  });
+}
+
+// Apply a deferred SW update before React mounts (brief spinner, no dashboard flash).
+applyDeferredPwaReload();
+
 // In dev, unregister any stale production/PWA service workers so Safari does not
 // intercept localhost requests or enter an auto-update reload loop.
 if (import.meta.env.DEV && "serviceWorker" in navigator) {
@@ -13,7 +47,11 @@ if (import.meta.env.DEV && "serviceWorker" in navigator) {
     registrations.forEach((registration) => registration.unregister());
   });
 } else if (import.meta.env.PROD) {
-  registerSW({immediate: true});
+  if (document.readyState === "complete") {
+    registerAppServiceWorker();
+  } else {
+    window.addEventListener("load", registerAppServiceWorker, {once: true});
+  }
 }
 
 class ErrorBoundary extends React.Component {
