@@ -3,6 +3,7 @@ import DonutChart from "../../partials/propertyFeatures/DonutChart";
 import AppApi from "../../api/api";
 import {getPassportStage} from "./constants/passportStages";
 import PassportStageIcon from "./partials/passport/PassportStageIcon";
+import PassportStageSkeleton from "./partials/passport/PassportStageSkeleton";
 import {
   Shield,
   Settings,
@@ -45,6 +46,7 @@ function ScoreCard({
   onCompleteOutstandingTasks,
   propertyId,
   maintenanceRecords = [],
+  propertyDetailsLoading = false,
   variant = "default",
 }) {
   const [scorecardOpen, setScorecardOpen] = useState(false);
@@ -53,6 +55,9 @@ function ScoreCard({
   const [maintenanceOpen, setMaintenanceOpen] = useState(false);
   const [checklistProgress, setChecklistProgress] = useState(null);
   const [checklistItems, setChecklistItems] = useState(null);
+  const [checklistDataLoaded, setChecklistDataLoaded] = useState(
+    () => !propertyId,
+  );
 
   // Identity: compute completion from actual form sections
   const identitySections = IDENTITY_SECTIONS;
@@ -105,7 +110,13 @@ function ScoreCard({
     } catch (_) {
       setChecklistProgress(null);
       setChecklistItems(null);
+    } finally {
+      setChecklistDataLoaded(true);
     }
+  }, [propertyId]);
+
+  useEffect(() => {
+    setChecklistDataLoaded(!propertyId);
   }, [propertyId]);
 
   // Fetch checklist data on mount and whenever checklist changes in-panel.
@@ -273,7 +284,14 @@ function ScoreCard({
 
   const passportStage = getPassportStage(totalScore);
 
+  const isStageLoading =
+    Boolean(propertyId) && (!checklistDataLoaded || propertyDetailsLoading);
+
   if (variant === "overview") {
+    if (isStageLoading) {
+      return <PassportStageSkeleton />;
+    }
+
     return (
       <div className="space-y-3" data-section-id="health-status">
         <div className="flex items-start gap-3">

@@ -664,6 +664,7 @@ function PropertyFormContainer() {
   const [hasResolvedTeamForCta, setHasResolvedTeamForCta] = useState(
     uid === "new",
   );
+  const [propertyDetailsLoading, setPropertyDetailsLoading] = useState(false);
   const [inviteAgentBenefitsOpen, setInviteAgentBenefitsOpen] = useState(false);
   const [mainPhotoMenuOpen, setMainPhotoMenuOpen] = useState(false);
   const {handleAddProperty, isChecking: addPropertyChecking} =
@@ -1313,120 +1314,125 @@ function PropertyFormContainer() {
   useEffect(() => {
     async function loadPropertyAndSystems() {
       if (uid === "new") return;
-      /* Use preloaded data from create flow to avoid blank/loading state */
-      const preloaded = location.state?.createdProperty;
-      const preloadedUid = location.state?.createdPropertyUid;
-      if (preloaded && preloadedUid === uid) {
-        dispatch({
-          type: "SET_PROPERTY",
-          payload: preloaded,
-        });
-        const propertyId = preloaded.identity?.id ?? preloaded.id;
-        if (propertyId) {
-          const systemsRes = await getSystemsByPropertyId(propertyId);
+      setPropertyDetailsLoading(true);
+      try {
+        /* Use preloaded data from create flow to avoid blank/loading state */
+        const preloaded = location.state?.createdProperty;
+        const preloadedUid = location.state?.createdPropertyUid;
+        if (preloaded && preloadedUid === uid) {
+          dispatch({
+            type: "SET_PROPERTY",
+            payload: preloaded,
+          });
+          const propertyId = preloaded.identity?.id ?? preloaded.id;
+          if (propertyId) {
+            const systemsRes = await getSystemsByPropertyId(propertyId);
+            const systemsArr = systemsRes?.systems ?? systemsRes ?? [];
+            dispatch({type: "SET_SYSTEMS", payload: systemsArr});
+            if (systemsRes?.aiSummaryUpdatedAt) {
+              dispatch({
+                type: "SET_AI_SUMMARY_UPDATED_AT",
+                payload: systemsRes.aiSummaryUpdatedAt,
+              });
+            }
+          }
+          return;
+        }
+        /* Instant display: when navigating from Properties list, show list property immediately while full fetch runs */
+        const listProperty = location.state?.property;
+        const listPropertyUid =
+          listProperty?.property_uid ??
+          listProperty?.propertyUid ??
+          listProperty?.id;
+        if (listProperty && listPropertyUid === uid) {
+          const flat = mapPropertyFromBackend(listProperty) ?? listProperty;
+          const tabbed = splitFormDataByTabs(flat);
+          dispatch({
+            type: "SET_PROPERTY",
+            payload: {
+              ...tabbed,
+              maintenanceRecords: tabbed.maintenanceRecords ?? [],
+              systems: tabbed.systems ?? {
+                selectedSystemIds: [],
+                customSystemNames: [],
+                customSystemsData: {},
+              },
+            },
+          });
+        }
+        try {
+          const [property, systemsRes, rawRecords] = await Promise.all([
+            getPropertyById(uid),
+            getSystemsByPropertyId(uid),
+            getMaintenanceRecordsByPropertyId(uid),
+          ]);
           const systemsArr = systemsRes?.systems ?? systemsRes ?? [];
-          dispatch({type: "SET_SYSTEMS", payload: systemsArr});
           if (systemsRes?.aiSummaryUpdatedAt) {
             dispatch({
               type: "SET_AI_SUMMARY_UPDATED_AT",
               payload: systemsRes.aiSummaryUpdatedAt,
             });
           }
-        }
-        return;
-      }
-      /* Instant display: when navigating from Properties list, show list property immediately while full fetch runs */
-      const listProperty = location.state?.property;
-      const listPropertyUid =
-        listProperty?.property_uid ??
-        listProperty?.propertyUid ??
-        listProperty?.id;
-      if (listProperty && listPropertyUid === uid) {
-        const flat = mapPropertyFromBackend(listProperty) ?? listProperty;
-        const tabbed = splitFormDataByTabs(flat);
-        dispatch({
-          type: "SET_PROPERTY",
-          payload: {
-            ...tabbed,
-            maintenanceRecords: tabbed.maintenanceRecords ?? [],
-            systems: tabbed.systems ?? {
-              selectedSystemIds: [],
-              customSystemNames: [],
-              customSystemsData: {},
-            },
-          },
-        });
-      }
-      try {
-        const [property, systemsRes, rawRecords] = await Promise.all([
-          getPropertyById(uid),
-          getSystemsByPropertyId(uid),
-          getMaintenanceRecordsByPropertyId(uid),
-        ]);
-        const systemsArr = systemsRes?.systems ?? systemsRes ?? [];
-        if (systemsRes?.aiSummaryUpdatedAt) {
+          const maintenanceRecords = mapMaintenanceRecordsFromBackend(
+            rawRecords ?? [],
+          );
+          setMaintenanceRecords(maintenanceRecords);
+          originalMaintenanceRecordIdsRef.current = new Set(
+            (maintenanceRecords ?? [])
+              .filter((r) => !isNewMaintenanceRecord(r))
+              .map((r) => r.id),
+          );
+          const includedSystems = (systemsArr ?? []).filter(
+            (s) => s.included !== false,
+          );
+          const flat = mapPropertyFromBackend(property) ?? property;
+          const tabbed = splitFormDataByTabs(flat);
+          const fromSystems = mapSystemsFromBackend(includedSystems);
+          const selectedIdsFromBackend = includedSystems
+            .map((s) => s.system_key ?? s.systemKey)
+            .filter((k) => k && !k.startsWith("custom-"));
+          const customNamesFromBackend = Object.keys(
+            fromSystems.customSystemsData ?? {},
+          );
           dispatch({
-            type: "SET_AI_SUMMARY_UPDATED_AT",
-            payload: systemsRes.aiSummaryUpdatedAt,
-          });
-        }
-        const maintenanceRecords = mapMaintenanceRecordsFromBackend(
-          rawRecords ?? [],
-        );
-        setMaintenanceRecords(maintenanceRecords);
-        originalMaintenanceRecordIdsRef.current = new Set(
-          (maintenanceRecords ?? [])
-            .filter((r) => !isNewMaintenanceRecord(r))
-            .map((r) => r.id),
-        );
-        const includedSystems = (systemsArr ?? []).filter(
-          (s) => s.included !== false,
-        );
-        const flat = mapPropertyFromBackend(property) ?? property;
-        const tabbed = splitFormDataByTabs(flat);
-        const fromSystems = mapSystemsFromBackend(includedSystems);
-        const selectedIdsFromBackend = includedSystems
-          .map((s) => s.system_key ?? s.systemKey)
-          .filter((k) => k && !k.startsWith("custom-"));
-        const customNamesFromBackend = Object.keys(
-          fromSystems.customSystemsData ?? {},
-        );
-        dispatch({
-          type: "SET_PROPERTY",
-          payload: {
-            ...tabbed,
-            maintenanceRecords: maintenanceRecords ?? [],
-            systems: {
-              ...tabbed.systems,
-              ...fromSystems,
-              selectedSystemIds:
-                selectedIdsFromBackend.length > 0
-                  ? selectedIdsFromBackend
-                  : (tabbed.systems.selectedSystemIds ?? []),
-              customSystemNames:
-                customNamesFromBackend.length > 0
-                  ? customNamesFromBackend
-                  : (tabbed.systems.customSystemNames ?? []),
-              customSystemsData:
-                fromSystems.customSystemsData ??
-                tabbed.systems.customSystemsData ??
-                {},
+            type: "SET_PROPERTY",
+            payload: {
+              ...tabbed,
+              maintenanceRecords: maintenanceRecords ?? [],
+              systems: {
+                ...tabbed.systems,
+                ...fromSystems,
+                selectedSystemIds:
+                  selectedIdsFromBackend.length > 0
+                    ? selectedIdsFromBackend
+                    : (tabbed.systems.selectedSystemIds ?? []),
+                customSystemNames:
+                  customNamesFromBackend.length > 0
+                    ? customNamesFromBackend
+                    : (tabbed.systems.customSystemNames ?? []),
+                customSystemsData:
+                  fromSystems.customSystemsData ??
+                  tabbed.systems.customSystemsData ??
+                  {},
+              },
             },
-          },
-        });
-        dispatch({type: "SET_SYSTEMS", payload: systemsArr ?? []});
-      } catch (err) {
-        if (err instanceof ApiError) {
-          if (isPropertyNotFoundError(err)) {
-            dispatch({type: "SET_PROPERTY_NOT_FOUND", payload: true});
-          } else if (err.status === 403) {
-            dispatch({type: "SET_PROPERTY_ACCESS_DENIED", payload: true});
+          });
+          dispatch({type: "SET_SYSTEMS", payload: systemsArr ?? []});
+        } catch (err) {
+          if (err instanceof ApiError) {
+            if (isPropertyNotFoundError(err)) {
+              dispatch({type: "SET_PROPERTY_NOT_FOUND", payload: true});
+            } else if (err.status === 403) {
+              dispatch({type: "SET_PROPERTY_ACCESS_DENIED", payload: true});
+            } else {
+              throw err;
+            }
           } else {
             throw err;
           }
-        } else {
-          throw err;
         }
+      } finally {
+        setPropertyDetailsLoading(false);
       }
     }
     loadPropertyAndSystems();
@@ -2749,6 +2755,7 @@ function PropertyFormContainer() {
         <ScoreCard
           variant="overview"
           propertyData={mergedFormData}
+          propertyDetailsLoading={propertyDetailsLoading}
           onCompleteOutstandingTasks={
             readOnly ? undefined : handleCompleteOutstandingTasks
           }

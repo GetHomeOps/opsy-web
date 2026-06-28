@@ -4,7 +4,7 @@ const express = require("express");
 const { ensureLoggedIn } = require("../middleware/auth");
 const { BadRequestError } = require("../expressError");
 const {
-  fetchAttomBasicProfile,
+  fetchAttomExpandedProfile,
   mapAttomToFields,
 } = require("../services/attomLookupService");
 
@@ -14,7 +14,7 @@ const router = new express.Router();
 router.post("/property-details", ensureLoggedIn, async function (req, res, next) {
   try {
     const { address, addressLine1, city, state, zip } = req.body ?? {};
-    const lookup = await fetchAttomBasicProfile({
+    const lookup = await fetchAttomExpandedProfile({
       address,
       addressLine1,
       city,

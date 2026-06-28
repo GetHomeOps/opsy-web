@@ -5,7 +5,7 @@
  *
  * Backs `attom_lookup_jobs` (see opsy-schema.sql).
  *
- * A job represents one pending/attempted call to ATTOM's /property/basicprofile
+ * A job represents one pending/attempted call to ATTOM's /property/expandedprofile
  * for a given property. Triggered either from bulk import (auto) or the
  * IdentityTab "Refresh property data" button (manual_refresh).
  *

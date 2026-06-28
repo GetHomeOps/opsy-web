@@ -1,0 +1,39 @@
+name: Demo Contacts Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Optional agent email (leave blank for all demo accounts)"
+        required: false
+        type: string
+
+jobs:
+  backfill-demo-contacts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: homeops-backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: homeops-backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Backfill demo account contacts
+        env:
+          DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+        run: |
+          if [ -n "${{ inputs.email }}" ]; then
+            node scripts/backfill-demo-account-contacts.js --email="${{ inputs.email }}"
+          else
+            node scripts/backfill-demo-account-contacts.js
+          fi

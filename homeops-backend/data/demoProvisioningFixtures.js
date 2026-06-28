@@ -866,8 +866,20 @@ function getAgentCalendarEventsForProperty(index, propertyId, ownerName, daysAgo
   return byIndex[index] || [];
 }
 
+/**
+ * Maps seeded maintenance events to action items by system_key + title substring.
+ * Used after provisioning to populate the Scheduled column on action items.
+ */
+const DEMO_EVENT_ACTION_ITEM_LINKS = [
+  { system_key: "roof", titleContains: "Missing shingles" },
+  { system_key: "plumbing", titleContains: "Slow drain" },
+  { system_key: "gutters", titleContains: "Clean gutters" },
+  { system_key: "heating", titleContains: "Furnace filter" },
+];
+
 module.exports = {
   DEMO_BROADCAST_COMMUNICATIONS,
+  DEMO_EVENT_ACTION_ITEM_LINKS,
   getIdentityFixtureForIndex,
   getSystemFixturesForProperty,
   getMaintenanceRecordsForProperty,

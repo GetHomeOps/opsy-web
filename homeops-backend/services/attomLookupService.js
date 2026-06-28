@@ -8,7 +8,7 @@
  *  - services/attomLookupQueue.js (background jobs for bulk import + manual refresh)
  *
  * The service owns:
- *  - fetchAttomBasicProfile: the HTTP call + classified error status
+ *  - fetchAttomExpandedProfile: the HTTP call + classified error status
  *  - mapAttomToFields:       converts ATTOM response into flat camelCase fields
  *  - ATTOM_LOOKUP_FIELDS:    allowlist of camelCase keys the backend is allowed to
  *                            persist onto a property (mirrors the frontend
@@ -24,6 +24,7 @@ const AttomLookupJob = require("../models/attomLookupJob");
 
 const ATTOM_API_KEY = process.env.ATTOM_API_KEY;
 const ATTOM_BASE_URL = "https://api.gateway.attomdata.com/propertyapi/v1.0.0";
+const ATTOM_PROPERTY_ENDPOINT = "/property/expandedprofile";
 
 /**
  * Allowlist of camelCase fields the worker may write onto a property.
@@ -343,7 +344,7 @@ function mapAttomToFields(prop, fullData) {
 }
 
 /**
- * Call ATTOM's /property/basicprofile endpoint.
+ * Call ATTOM's /property/expandedprofile endpoint.
  *
  * Returns a classified result shape (never throws) so the route and the background
  * worker can both inspect `.status` and decide what to do (retry, fail, surface).
@@ -357,7 +358,7 @@ function mapAttomToFields(prop, fullData) {
  *   message?: string,
  * }>}
  */
-async function fetchAttomBasicProfile(input) {
+async function fetchAttomExpandedProfile(input) {
   if (!ATTOM_API_KEY) {
     return { status: "missing_config", message: "ATTOM API key is not configured" };
   }
@@ -383,7 +384,7 @@ async function fetchAttomBasicProfile(input) {
 
   const fullAddress = `${streetAddress}, ${cityStateZip}`;
   const params = new URLSearchParams({ address: fullAddress });
-  const url = `${ATTOM_BASE_URL}/property/basicprofile?${params.toString()}`;
+  const url = `${ATTOM_BASE_URL}${ATTOM_PROPERTY_ENDPOINT}?${params.toString()}`;
 
   let response;
   try {
@@ -620,7 +621,7 @@ async function runAttomLookupJob(jobId) {
 
   property = await backfillPropertyStreetLine1(property);
 
-  const lookup = await fetchAttomBasicProfile({
+  const lookup = await fetchAttomExpandedProfile({
     addressLine1: property.address_line_1,
     address: property.address,
     city: property.city,
@@ -695,7 +696,7 @@ module.exports = {
   ATTOM_LOOKUP_FIELDS_SET,
   CAMEL_TO_SNAKE_COLUMN,
   deriveStreetLine1,
-  fetchAttomBasicProfile,
+  fetchAttomExpandedProfile,
   mapAttomToFields,
   buildColumnUpdatesFromPrediction,
   backfillPropertyStreetLine1,

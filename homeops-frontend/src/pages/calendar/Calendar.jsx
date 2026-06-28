@@ -682,8 +682,6 @@ function Calendar() {
                     {daysInMonth.map((day) => {
                       const dayEvents = getEventsForDay(day);
                       const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                      const visibleEvents = dayEvents.slice(0, 3);
-                      const overflowCount = dayEvents.length - visibleEvents.length;
                       return (
                         <div
                           className={`relative bg-white dark:bg-gray-800 h-20 sm:h-28 lg:h-36 overflow-hidden group cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${monthDayCellRingClass(day)}`}
@@ -707,8 +705,11 @@ function Calendar() {
                           >
                             {day}
                           </span>
-                          <div className="h-full flex flex-col p-0.5 sm:p-1.5 pt-7 sm:pt-8 gap-1 overflow-hidden">
-                            {visibleEvents.map((event) => (
+                          <div
+                            className="h-full min-h-0 flex flex-col p-0.5 sm:p-1.5 pt-7 sm:pt-8 gap-1 overflow-y-auto overscroll-contain"
+                            onWheel={(e) => e.stopPropagation()}
+                          >
+                            {dayEvents.map((event) => (
                               <button
                                 type="button"
                                 className="relative w-full text-left shrink-0 hover:opacity-90 transition-opacity"
@@ -754,19 +755,6 @@ function Calendar() {
                                 </div>
                               </button>
                             ))}
-                            {overflowCount > 0 && (
-                              <button
-                                type="button"
-                                className="self-start text-xs text-gray-500 dark:text-gray-300 font-medium whitespace-nowrap text-center sm:py-0.5 px-0.5 sm:px-2 border border-gray-200 dark:border-gray-700/60 rounded-lg shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                }}
-                              >
-                                <span className="md:hidden">+</span>
-                                <span>{overflowCount}</span>{" "}
-                                <span className="hidden md:inline">more</span>
-                              </button>
-                            )}
                           </div>
                         </div>
                       );

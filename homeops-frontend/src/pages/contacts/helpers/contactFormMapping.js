@@ -88,7 +88,7 @@ export function mapBackendToFrontend(backendData) {
     country: backendData.country || country?.name || "United States",
     notes: backendData.notes || "",
     // Keep UI-only fields (not in backend)
-    jobPosition: backendData.jobPosition || "",
+    jobPosition: backendData.role || backendData.jobPosition || "",
     linkedCompany: backendData.linkedCompany || "",
     // tags from backend: [{ id, name, color }, ...] -> form stores tag ids
     tags: Array.isArray(backendData.tags)
@@ -136,6 +136,7 @@ export function mapFrontendToBackend(formData) {
         ? formData.countryCode.substring(0, 2).toUpperCase()
         : "US"),
     notes: formData.notes || "",
+    role: formData.jobPosition || null,
     tagIds: Array.isArray(formData.tags)
       ? formData.tags.map((id) => Number(id)).filter((n) => !Number.isNaN(n))
       : [],

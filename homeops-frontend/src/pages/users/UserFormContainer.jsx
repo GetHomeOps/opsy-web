@@ -162,7 +162,7 @@ function UsersFormContainer() {
   const {currentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
-  const isDemoSuperAdmin = isDemoSite() && currentUser?.role === "super_admin";
+  const isDemoSuperAdmin = isDemoSite() && canCreateUsersOnDemo(currentUser);
   const canCreateUser = canCreateUsersOnDemo(currentUser);
   const userPhotoInputRef = useRef(null);
 
@@ -465,7 +465,12 @@ function UsersFormContainer() {
   };
 
   async function sendUserInvitation(user) {
-    const email = (user?.email || state.user?.email || state.formData?.email || "").trim();
+    const email = (
+      user?.email ||
+      state.user?.email ||
+      state.formData?.email ||
+      ""
+    ).trim();
     if (!email) return null;
 
     setResendingInvitation(true);
@@ -482,8 +487,9 @@ function UsersFormContainer() {
         const match = (pendingInvitations || []).find(
           (inv) =>
             inv.type === "account" &&
-            String(inv.inviteeEmail || "").trim().toLowerCase() ===
-              email.toLowerCase(),
+            String(inv.inviteeEmail || "")
+              .trim()
+              .toLowerCase() === email.toLowerCase(),
         );
         invitationId = match?.id || null;
       }
@@ -567,9 +573,7 @@ function UsersFormContainer() {
 
   const navigableUserIndex =
     id && id !== "new"
-      ? navigableUserIds.findIndex(
-          (userId) => Number(userId) === Number(id),
-        )
+      ? navigableUserIds.findIndex((userId) => Number(userId) === Number(id))
       : -1;
 
   /* Handles submit button */
@@ -1044,15 +1048,13 @@ function UsersFormContainer() {
     isDemoSuperAdmin,
   ]);
 
-  const isDemoProvisionedUser =
+  const isDemoManagedUser =
     !state.isNew &&
-    isDemoSuperAdmin &&
-    (state.user?.role === "agent" || state.user?.role === "homeowner") &&
-    (state.user?.isActive || state.user?.is_active);
+    (state.user?.role === "agent" || state.user?.role === "homeowner");
 
   const showDemoPasswordField =
     isDemoSuperAdmin &&
-    ((state.isNew && state.provisionDemoOnCreate) || isDemoProvisionedUser);
+    ((state.isNew && state.provisionDemoOnCreate) || isDemoManagedUser);
 
   // Handler for role change
   function handleRoleChange(value) {
@@ -1612,76 +1614,80 @@ function UsersFormContainer() {
 
           {/* User Navigation */}
           <div className="flex items-center shrink-0">
-            {state.user && navigableUserIds.length > 1 && navigableUserIndex >= 0 && (
-              <>
-                <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
-                  {navigableUserIndex + 1} / {navigableUserIds.length}
-                </span>
-                <button
-                  className="btn shadow-none p-1"
-                  title="Previous"
-                  onClick={() => {
-                    if (navigableUserIndex > 0) {
-                      const prevUserId = navigableUserIds[navigableUserIndex - 1];
-                      navigate(`/${accountUrl}/users/${prevUserId}`, {
-                        state: {
-                          ...location.state,
-                          currentIndex: navigableUserIndex,
-                          totalItems: navigableUserIds.length,
-                          visibleContactIds: navigableUserIds,
-                        },
-                      });
-                    }
-                  }}
-                  disabled={navigableUserIndex <= 0}
-                >
-                  <svg
-                    className={`fill-current shrink-0 ${
-                      navigableUserIndex <= 0
-                        ? "text-gray-200 dark:text-gray-700"
-                        : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
-                    }`}
-                    width="24"
-                    height="24"
-                    viewBox="0 0 18 18"
+            {state.user &&
+              navigableUserIds.length > 1 &&
+              navigableUserIndex >= 0 && (
+                <>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">
+                    {navigableUserIndex + 1} / {navigableUserIds.length}
+                  </span>
+                  <button
+                    className="btn shadow-none p-1"
+                    title="Previous"
+                    onClick={() => {
+                      if (navigableUserIndex > 0) {
+                        const prevUserId =
+                          navigableUserIds[navigableUserIndex - 1];
+                        navigate(`/${accountUrl}/users/${prevUserId}`, {
+                          state: {
+                            ...location.state,
+                            currentIndex: navigableUserIndex,
+                            totalItems: navigableUserIds.length,
+                            visibleContactIds: navigableUserIds,
+                          },
+                        });
+                      }
+                    }}
+                    disabled={navigableUserIndex <= 0}
                   >
-                    <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z"></path>
-                  </svg>
-                </button>
+                    <svg
+                      className={`fill-current shrink-0 ${
+                        navigableUserIndex <= 0
+                          ? "text-gray-200 dark:text-gray-700"
+                          : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
+                      }`}
+                      width="24"
+                      height="24"
+                      viewBox="0 0 18 18"
+                    >
+                      <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z"></path>
+                    </svg>
+                  </button>
 
-                <button
-                  className="btn shadow-none p-1"
-                  title="Next"
-                  onClick={() => {
-                    if (navigableUserIndex < navigableUserIds.length - 1) {
-                      const nextUserId = navigableUserIds[navigableUserIndex + 1];
-                      navigate(`/${accountUrl}/users/${nextUserId}`, {
-                        state: {
-                          ...location.state,
-                          currentIndex: navigableUserIndex + 2,
-                          totalItems: navigableUserIds.length,
-                          visibleContactIds: navigableUserIds,
-                        },
-                      });
-                    }
-                  }}
-                  disabled={navigableUserIndex >= navigableUserIds.length - 1}
-                >
-                  <svg
-                    className={`fill-current shrink-0 ${
-                      navigableUserIndex >= navigableUserIds.length - 1
-                        ? "text-gray-200 dark:text-gray-700"
-                        : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
-                    }`}
-                    width="24"
-                    height="24"
-                    viewBox="0 0 18 18"
+                  <button
+                    className="btn shadow-none p-1"
+                    title="Next"
+                    onClick={() => {
+                      if (navigableUserIndex < navigableUserIds.length - 1) {
+                        const nextUserId =
+                          navigableUserIds[navigableUserIndex + 1];
+                        navigate(`/${accountUrl}/users/${nextUserId}`, {
+                          state: {
+                            ...location.state,
+                            currentIndex: navigableUserIndex + 2,
+                            totalItems: navigableUserIds.length,
+                            visibleContactIds: navigableUserIds,
+                          },
+                        });
+                      }
+                    }}
+                    disabled={navigableUserIndex >= navigableUserIds.length - 1}
                   >
-                    <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z"></path>
-                  </svg>
-                </button>
-              </>
-            )}
+                    <svg
+                      className={`fill-current shrink-0 ${
+                        navigableUserIndex >= navigableUserIds.length - 1
+                          ? "text-gray-200 dark:text-gray-700"
+                          : "text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-600"
+                      }`}
+                      width="24"
+                      height="24"
+                      viewBox="0 0 18 18"
+                    >
+                      <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z"></path>
+                    </svg>
+                  </button>
+                </>
+              )}
           </div>
         </div>
 
@@ -1855,52 +1861,54 @@ function UsersFormContainer() {
                   </div>
 
                   {/* Send invitation toggle (new user only, not on demo or when provisioning demo) */}
-                  {state.isNew && !state.provisionDemoOnCreate && !isDemoSite() && (
-                    <div className="mt-6 flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40">
-                      <div className="flex items-start gap-2 min-w-0">
-                        <Mail className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                            {t("sendInvitationEmailOnCreate") ||
-                              "Send invitation email on create"}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            {state.sendInviteOnCreate
-                              ? t("sendInvitationEmailOnCreateHelperOn") ||
-                                "The user will get an email to set their password and finish onboarding."
-                              : t("sendInvitationEmailOnCreateHelperOff") ||
-                                "Create this user without emailing them. You can send an invitation later."}
-                          </p>
+                  {state.isNew &&
+                    !state.provisionDemoOnCreate &&
+                    !isDemoSite() && (
+                      <div className="mt-6 flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Mail className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                              {t("sendInvitationEmailOnCreate") ||
+                                "Send invitation email on create"}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              {state.sendInviteOnCreate
+                                ? t("sendInvitationEmailOnCreateHelperOn") ||
+                                  "The user will get an email to set their password and finish onboarding."
+                                : t("sendInvitationEmailOnCreateHelperOff") ||
+                                  "Create this user without emailing them. You can send an invitation later."}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={state.sendInviteOnCreate}
-                        aria-label={
-                          t("sendInvitationEmailOnCreate") ||
-                          "Send invitation email on create"
-                        }
-                        onClick={() =>
-                          dispatch({
-                            type: "SET_SEND_INVITE_ON_CREATE",
-                            payload: !state.sendInviteOnCreate,
-                          })
-                        }
-                        className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
-                          state.sendInviteOnCreate
-                            ? "bg-[#456564]"
-                            : "bg-gray-300 dark:bg-gray-600"
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                            state.sendInviteOnCreate ? "left-6" : "left-1"
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={state.sendInviteOnCreate}
+                          aria-label={
+                            t("sendInvitationEmailOnCreate") ||
+                            "Send invitation email on create"
+                          }
+                          onClick={() =>
+                            dispatch({
+                              type: "SET_SEND_INVITE_ON_CREATE",
+                              payload: !state.sendInviteOnCreate,
+                            })
+                          }
+                          className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                            state.sendInviteOnCreate
+                              ? "bg-[#456564]"
+                              : "bg-gray-300 dark:bg-gray-600"
                           }`}
-                        />
-                      </button>
-                    </div>
-                  )}
+                        >
+                          <span
+                            className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                              state.sendInviteOnCreate ? "left-6" : "left-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    )}
 
                   {/* Demo provision toggle (demo super_admin, new user only) */}
                   {state.isNew && isDemoSuperAdmin && (
@@ -1951,78 +1959,78 @@ function UsersFormContainer() {
                   )}
 
                   {showDemoPasswordField && (
-                      <div className="mt-4">
-                        <label
-                          className={getLabelClasses()}
-                          htmlFor="demoPassword"
-                        >
-                          {t("demoAccountPassword") || "Login password"}
-                        </label>
-                        <div className="flex gap-2">
-                          <div className="relative flex-1 min-w-0">
-                            <input
-                              id="demoPassword"
-                              type={showDemoPassword ? "text" : "password"}
-                              className={`${getInputClasses("demoPassword")} pr-11`}
-                              value={state.demoPassword}
-                              onChange={(e) =>
-                                dispatch({
-                                  type: "SET_DEMO_PASSWORD",
-                                  payload: e.target.value,
-                                })
-                              }
-                              autoComplete="new-password"
-                            />
-                            <button
-                              type="button"
-                              className="absolute inset-y-0 right-0 flex items-center justify-center px-3 rounded-md text-gray-400 hover:text-[#456564] dark:hover:text-[#7aa3a2] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#456564]/25"
-                              onClick={() => setShowDemoPassword((v) => !v)}
-                              aria-pressed={showDemoPassword}
-                              aria-controls="demoPassword"
-                              aria-label={
-                                showDemoPassword
-                                  ? t("hidePassword", "Hide password")
-                                  : t("showPassword", "Show password")
-                              }
-                            >
-                              {showDemoPassword ? (
-                                <EyeOff
-                                  className="w-5 h-5 shrink-0"
-                                  aria-hidden
-                                />
-                              ) : (
-                                <Eye className="w-5 h-5 shrink-0" aria-hidden />
-                              )}
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            className="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-[#8fa3a2] dark:hover:border-[#8fa3a2] text-gray-800 dark:text-gray-300 transition-colors duration-200 shadow-sm shrink-0"
-                            onClick={() =>
+                    <div className="mt-4">
+                      <label
+                        className={getLabelClasses()}
+                        htmlFor="demoPassword"
+                      >
+                        {t("demoAccountPassword") || "Login password"}
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1 min-w-0">
+                          <input
+                            id="demoPassword"
+                            type={showDemoPassword ? "text" : "password"}
+                            className={`${getInputClasses("demoPassword")} pr-11`}
+                            value={state.demoPassword}
+                            onChange={(e) =>
                               dispatch({
                                 type: "SET_DEMO_PASSWORD",
-                                payload: generateRandomPassword(),
+                                payload: e.target.value,
                               })
                             }
+                            autoComplete="new-password"
+                          />
+                          <button
+                            type="button"
+                            className="absolute inset-y-0 right-0 flex items-center justify-center px-3 rounded-md text-gray-400 hover:text-[#456564] dark:hover:text-[#7aa3a2] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#456564]/25"
+                            onClick={() => setShowDemoPassword((v) => !v)}
+                            aria-pressed={showDemoPassword}
+                            aria-controls="demoPassword"
+                            aria-label={
+                              showDemoPassword
+                                ? t("hidePassword", "Hide password")
+                                : t("showPassword", "Show password")
+                            }
                           >
-                            {t("generatePassword") || "Generate password"}
+                            {showDemoPassword ? (
+                              <EyeOff
+                                className="w-5 h-5 shrink-0"
+                                aria-hidden
+                              />
+                            ) : (
+                              <Eye className="w-5 h-5 shrink-0" aria-hidden />
+                            )}
                           </button>
                         </div>
-                        {state.errors.demoPassword && (
-                          <div className="mt-1 flex items-center text-sm text-red-500">
-                            <AlertCircle className="h-4 w-4 mr-1" />
-                            <span>{state.errors.demoPassword}</span>
-                          </div>
-                        )}
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {state.isNew
-                            ? t("demoAccountPasswordHelper") ||
-                              "Share this password with the prospect so they can sign in immediately."
-                            : t("demoAccountPasswordEditHelper") ||
-                              "Copy or update the login password shared with this demo prospect. Saving updates their sign-in credentials."}
-                        </p>
+                        <button
+                          type="button"
+                          className="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-[#8fa3a2] dark:hover:border-[#8fa3a2] text-gray-800 dark:text-gray-300 transition-colors duration-200 shadow-sm shrink-0"
+                          onClick={() =>
+                            dispatch({
+                              type: "SET_DEMO_PASSWORD",
+                              payload: generateRandomPassword(),
+                            })
+                          }
+                        >
+                          {t("generatePassword") || "Generate password"}
+                        </button>
                       </div>
-                    )}
+                      {state.errors.demoPassword && (
+                        <div className="mt-1 flex items-center text-sm text-red-500">
+                          <AlertCircle className="h-4 w-4 mr-1" />
+                          <span>{state.errors.demoPassword}</span>
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {state.isNew
+                          ? t("demoAccountPasswordHelper") ||
+                            "Share this password with the prospect so they can sign in immediately."
+                          : t("demoAccountPasswordEditHelper") ||
+                            "Copy or update the login password shared with this demo prospect. Saving updates their sign-in credentials."}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

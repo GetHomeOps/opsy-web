@@ -72,7 +72,12 @@ export function ContactProvider({children}) {
         fetchedContacts = await AppApi.getContactsByAccountId(currentAccount.id);
       }
 
-      setContacts(fetchedContacts || []);
+      setContacts(
+        (fetchedContacts || []).map((c) => ({
+          ...c,
+          job_position: c.job_position || c.role || "",
+        })),
+      );
     } catch (err) {
       console.error("There was an error retrieving contacts:", err);
       setContacts([]);

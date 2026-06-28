@@ -20,7 +20,6 @@ const MaintenanceEvent = require("../models/maintenanceEvent");
 const InspectionChecklistItem = require("../models/inspectionChecklistItem");
 const Conversation = require("../models/conversation");
 const HomeownerAgentInquiry = require("../models/homeownerAgentInquiry");
-const Professional = require("../models/professional");
 const Communication = require("../models/communication");
 const Notification = require("../models/notification");
 const { syncMaintenanceRecordDocuments } = require("./maintenanceRecordDocumentsService");
@@ -29,7 +28,7 @@ const {
   DEMO_AGENT_PERSONA,
   SYSTEM_KEYS,
   ACCOUNT_CONTACTS,
-  DEMO_CONTRACTORS,
+  DEMO_FAVORITE_PROFESSIONAL_HINTS,
   DEMO_BROADCAST_COMMUNICATIONS,
   getIdentityFixtureForIndex,
   getSystemFixturesForProperty,
@@ -40,6 +39,7 @@ const {
 } = require("../data/demoAccountScenarios");
 const {
   getAgentCalendarEventsForProperty,
+  DEMO_EVENT_ACTION_ITEM_LINKS,
   HPS_BY_INDEX,
   VIEW_COUNTS_BY_INDEX,
 } = require("../data/demoProvisioningFixtures");
@@ -388,89 +388,252 @@ async function seedMaintenanceEvents(propertyId, createdByUserId, focus) {
   await Promise.all(events.map((event) => MaintenanceEvent.create(event)));
 }
 
-async function seedAccountContacts(accountId) {
-  if (ACCOUNT_CONTACTS.length === 0) return [];
-
-  const contactValues = [];
-  const contactPlaceholders = [];
-  let idx = 1;
-
-  for (const c of ACCOUNT_CONTACTS) {
-    contactPlaceholders.push(
-      `($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`
-    );
-    contactValues.push(
-      c.name,
-      null,
-      1,
-      c.phone,
-      c.email,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      c.company,
-      c.role || "Contractor"
-    );
-  }
-
-  const contactRes = await db.query(
-    `INSERT INTO contacts
-       (name, image, type, phone, email, website, street1, street2, city, state, zip_code, country, country_code, notes, role)
-     VALUES ${contactPlaceholders.join(", ")}
-     RETURNING id`,
-    contactValues
-  );
-
-  const linkValues = [];
-  const linkPlaceholders = [];
-  idx = 1;
-  for (const row of contactRes.rows) {
-    linkPlaceholders.push(`($${idx++}, $${idx++}, $${idx++})`);
-    linkValues.push(row.id, accountId, null);
-  }
-
-  await db.query(
-    `INSERT INTO account_contacts (contact_id, account_id, added_by_user_id)
-     VALUES ${linkPlaceholders.join(", ")}`,
-    linkValues
-  );
-
-  return contactRes.rows;
+function contactTypeToInt(type) {
+  return type === "company" ? 2 : 1;
 }
 
-async function seedContractors(accountId, userId) {
-  const professionals = await Promise.all(
-    DEMO_CONTRACTORS.map((row) =>
-      Professional.create({
-        ...row,
-        account_id: accountId,
-        is_verified: true,
-      })
-    )
+function normalizeContactEmail(email) {
+  return email ? String(email).trim().toLowerCase() : "";
+}
+
+/** Map seed template row to DB column values. */
+function contactSeedToRow(c) {
+  return {
+    name: c.name,
+    image: null,
+    type: contactTypeToInt(c.type),
+    phone: c.phone || null,
+    email: c.email || null,
+    website: c.website || null,
+    street1: null,
+    street2: null,
+    city: c.city || null,
+    state: c.state || null,
+    zip_code: null,
+    country: null,
+    country_code: null,
+    notes: null,
+    role: c.role || null,
+  };
+}
+
+/**
+ * Idempotent upsert of demo account contacts by email within an account.
+ * Updates type/role/phone/address for existing linked contacts; inserts missing ones.
+ */
+async function upsertAccountContacts(accountId) {
+  if (ACCOUNT_CONTACTS.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
+
+  const existingRes = await db.query(
+    `SELECT c.id, LOWER(TRIM(c.email)) AS email_key
+     FROM contacts c
+     JOIN account_contacts ac ON ac.contact_id = c.id
+     WHERE ac.account_id = $1
+       AND c.email IS NOT NULL AND TRIM(c.email) != ''`,
+    [accountId]
+  );
+  const existingByEmail = new Map(
+    existingRes.rows.map((row) => [row.email_key, row.id])
   );
 
-  if (professionals.length > 0) {
-    const values = [];
-    const placeholders = [];
-    let idx = 1;
-    for (const pro of professionals) {
-      placeholders.push(`($${idx++}, $${idx++})`);
-      values.push(userId, pro.id);
+  let inserted = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  for (const seed of ACCOUNT_CONTACTS) {
+    const row = contactSeedToRow(seed);
+    const emailKey = normalizeContactEmail(row.email);
+
+    if (!emailKey) {
+      skipped += 1;
+      continue;
     }
+
+    const existingId = existingByEmail.get(emailKey);
+    if (existingId) {
+      await db.query(
+        `UPDATE contacts
+         SET name = $2,
+             type = $3,
+             phone = $4,
+             email = $5,
+             website = $6,
+             city = $7,
+             state = $8,
+             notes = $9,
+             role = $10,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [
+          existingId,
+          row.name,
+          row.type,
+          row.phone,
+          row.email,
+          row.website,
+          row.city,
+          row.state,
+          row.notes,
+          row.role,
+        ]
+      );
+      updated += 1;
+      continue;
+    }
+
+    const contactRes = await db.query(
+      `INSERT INTO contacts
+         (name, image, type, phone, email, website, street1, street2, city, state, zip_code, country, country_code, notes, role)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING id`,
+      [
+        row.name,
+        row.image,
+        row.type,
+        row.phone,
+        row.email,
+        row.website,
+        row.street1,
+        row.street2,
+        row.city,
+        row.state,
+        row.zip_code,
+        row.country,
+        row.country_code,
+        row.notes,
+        row.role,
+      ]
+    );
+
+    const contactId = contactRes.rows[0].id;
     await db.query(
-      `INSERT INTO saved_professionals (user_id, professional_id)
-       VALUES ${placeholders.join(", ")}
+      `INSERT INTO account_contacts (contact_id, account_id, added_by_user_id)
+       VALUES ($1, $2, $3)
        ON CONFLICT DO NOTHING`,
-      values
+      [contactId, accountId, null]
+    );
+    existingByEmail.set(emailKey, contactId);
+    inserted += 1;
+  }
+
+  return { inserted, updated, skipped };
+}
+
+async function seedAccountContacts(accountId) {
+  const result = await upsertAccountContacts(accountId);
+  return result;
+}
+
+async function seedFavoriteDirectoryProfessionals(userId) {
+  const hints = DEMO_FAVORITE_PROFESSIONAL_HINTS;
+  const limit = 4;
+
+  let result = await db.query(
+    `SELECT id FROM professionals
+     WHERE is_active = true
+       AND profile_photo IS NOT NULL
+       AND account_id IS NULL
+     ORDER BY
+       CASE WHEN company_name = ANY($1::text[]) THEN 0 ELSE 1 END,
+       id
+     LIMIT $2`,
+    [hints, limit]
+  );
+
+  if (result.rows.length < limit) {
+    result = await db.query(
+      `SELECT id FROM professionals
+       WHERE is_active = true
+         AND profile_photo IS NOT NULL
+         AND (email IS NULL OR email NOT LIKE '%.demo')
+       ORDER BY
+         CASE WHEN company_name = ANY($1::text[]) THEN 0 ELSE 1 END,
+         id
+       LIMIT $2`,
+      [hints, limit]
     );
   }
 
-  return professionals;
+  if (result.rows.length === 0) return [];
+
+  const values = [];
+  const placeholders = [];
+  let idx = 1;
+  for (const row of result.rows) {
+    placeholders.push(`($${idx++}, $${idx++})`);
+    values.push(userId, row.id);
+  }
+  await db.query(
+    `INSERT INTO saved_professionals (user_id, professional_id)
+     VALUES ${placeholders.join(", ")}
+     ON CONFLICT DO NOTHING`,
+    values
+  );
+
+  return result.rows.map((row) => row.id);
+}
+
+async function linkDemoScheduledEventsToActionItems(propertyId) {
+  const [eventsRes, itemsRes] = await Promise.all([
+    db.query(
+      `SELECT id, system_key, checklist_item_id, scheduled_date, status
+       FROM maintenance_events
+       WHERE property_id = $1
+         AND system_key != 'agentCalendar'
+         AND LOWER(status) IN ('scheduled', 'confirmed')
+         AND checklist_item_id IS NULL
+       ORDER BY scheduled_date ASC`,
+      [propertyId]
+    ),
+    db.query(
+      `SELECT id, system_key, title, status
+       FROM inspection_checklist_items
+       WHERE property_id = $1
+       ORDER BY id ASC`,
+      [propertyId]
+    ),
+  ]);
+
+  const items = itemsRes.rows;
+  const linkedItemIds = new Set();
+
+  for (const event of eventsRes.rows) {
+    const systemKey = event.system_key;
+    const systemItems = items.filter(
+      (item) => item.system_key === systemKey && !linkedItemIds.has(item.id)
+    );
+    if (!systemItems.length) continue;
+
+    const linkRules = DEMO_EVENT_ACTION_ITEM_LINKS.filter(
+      (rule) => rule.system_key === systemKey
+    );
+
+    let matched = null;
+    for (const rule of linkRules) {
+      matched = systemItems.find((item) =>
+        String(item.title || "")
+          .toLowerCase()
+          .includes(rule.titleContains.toLowerCase())
+      );
+      if (matched) break;
+    }
+
+    if (!matched) {
+      matched = systemItems.find(
+        (item) => String(item.status || "").toLowerCase() !== "completed"
+      );
+    }
+    if (!matched) matched = systemItems[0];
+
+    await db.query(
+      `UPDATE maintenance_events SET checklist_item_id = $1 WHERE id = $2`,
+      [matched.id, event.id]
+    );
+    if (String(matched.status || "").toLowerCase() === "pending") {
+      await InspectionChecklistItem.update(matched.id, { status: "in_progress" });
+    }
+    linkedItemIds.add(matched.id);
+  }
 }
 
 async function seedConversation({
@@ -749,6 +912,7 @@ async function seedPropertyPortfolio({
     ownerName: syntheticHomeowner?.name || template.homeowner?.name,
     agentUserId,
   });
+  await linkDemoScheduledEventsToActionItems(property.id);
   await seedPropertyHealthScore(property.id, template.index);
   await seedPropertyEngagement({
     propertyUid: property.property_uid,
@@ -803,7 +967,7 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
     });
 
     await seedAccountContacts(account.id);
-    await seedContractors(account.id, userId);
+    await seedFavoriteDirectoryProfessionals(userId);
 
     if (role === "homeowner") {
       const template = scenario.properties[0];
@@ -882,4 +1046,5 @@ module.exports = {
   provisionDemoAccount,
   provisionActivePaidPlan,
   backfillAgentDemoConversations,
+  upsertAccountContacts,
 };
