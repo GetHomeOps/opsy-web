@@ -747,10 +747,132 @@ function getConversationThread(focus) {
   return CONVERSATION_THREADS[focus] || CONVERSATION_THREADS.balanced;
 }
 
+/** Varied health scores so agent portfolio cards don't look identical. */
+const HPS_BY_INDEX = {
+  1: 76,
+  2: 58,
+  3: 84,
+  4: 67,
+};
+
+/** Synthetic page-view counts (last 7 days) per demo property index. */
+const VIEW_COUNTS_BY_INDEX = {
+  1: 9,
+  2: 14,
+  3: 6,
+  4: 11,
+};
+
+/**
+ * Agent-facing calendar events keyed by demo-properties.json index.
+ * Uses descriptive system_name values for the calendar UI.
+ */
+function getAgentCalendarEventsForProperty(index, propertyId, ownerName, daysAgo, daysFromNow) {
+  const owner = ownerName || "Homeowner";
+  const byIndex = {
+    2: [
+      {
+        property_id: propertyId,
+        system_key: "agentCalendar",
+        system_name: `Home Anniversary — ${owner}`,
+        scheduled_date: daysFromNow(18),
+        recurrence_type: "annually",
+        status: "scheduled",
+        event_type: "maintenance",
+        message_body: "Send a note or small gift celebrating their home purchase anniversary.",
+      },
+      {
+        property_id: propertyId,
+        system_key: "agentCalendar",
+        system_name: "Listing Appointment — CMA walkthrough",
+        scheduled_date: daysFromNow(5),
+        scheduled_time: "10:00",
+        status: "scheduled",
+        event_type: "maintenance",
+        message_body: "Prepare comps and recent inspection highlights before the listing consultation.",
+      },
+      {
+        property_id: propertyId,
+        system_key: "roof",
+        system_name: "Roof inspection follow-up",
+        scheduled_date: daysFromNow(12),
+        status: "scheduled",
+        event_type: "inspection",
+        message_body: "Confirm contractor quote for ridge-line shingle repair.",
+      },
+    ],
+    3: [
+      {
+        property_id: propertyId,
+        system_key: "heating",
+        system_name: "HVAC seasonal tune-up",
+        scheduled_date: daysFromNow(9),
+        status: "scheduled",
+        event_type: "maintenance",
+        contractor_name: "Cascade HVAC Services",
+        message_body: "Coordinate furnace service before first cold snap.",
+      },
+      {
+        property_id: propertyId,
+        system_key: "agentCalendar",
+        system_name: `Homeowner action item — ${owner}`,
+        scheduled_date: daysFromNow(3),
+        status: "scheduled",
+        event_type: "maintenance",
+        message_body: "Remind homeowner to approve gutter cleaning quote in Opsy.",
+      },
+      {
+        property_id: propertyId,
+        system_key: "gutters",
+        system_name: "Gutter cleaning reminder",
+        scheduled_date: daysAgo(10),
+        status: "completed",
+        event_type: "maintenance",
+        message_body: "Completed pre-season gutter service.",
+      },
+    ],
+    4: [
+      {
+        property_id: propertyId,
+        system_key: "agentCalendar",
+        system_name: "Quarterly check-in call",
+        scheduled_date: daysFromNow(7),
+        scheduled_time: "14:30",
+        status: "scheduled",
+        event_type: "maintenance",
+        message_body: "Review open inspection checklist items and seasonal maintenance plan.",
+      },
+      {
+        property_id: propertyId,
+        system_key: "plumbing",
+        system_name: "Homeowner action — guest bath drain",
+        scheduled_date: daysFromNow(2),
+        status: "scheduled",
+        event_type: "maintenance",
+        message_body: "Follow up on snaking appointment with Sound Plumbing Pros.",
+      },
+      {
+        property_id: propertyId,
+        system_key: "agentCalendar",
+        system_name: `Home Anniversary — ${owner}`,
+        scheduled_date: daysFromNow(25),
+        recurrence_type: "annually",
+        status: "scheduled",
+        event_type: "maintenance",
+        message_body: "Mark the purchase anniversary and send a personal note.",
+      },
+    ],
+  };
+  return byIndex[index] || [];
+}
+
 module.exports = {
   DEMO_BROADCAST_COMMUNICATIONS,
   getIdentityFixtureForIndex,
   getSystemFixturesForProperty,
   getMaintenanceRecordsForProperty,
   getConversationThread,
+  getAgentCalendarEventsForProperty,
+  HPS_BY_INDEX,
+  VIEW_COUNTS_BY_INDEX,
 };

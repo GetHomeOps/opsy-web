@@ -24,7 +24,7 @@ const {
   ensurePlatformAdmin,
   ensureLoggedIn,
 } = require("../middleware/auth");
-const { BadRequestError, ForbiddenError } = require("../expressError");
+const { BadRequestError, ForbiddenError, NotFoundError } = require("../expressError");
 const User = require("../models/user");
 const Account = require("../models/account");
 const userUpdateSchema = require("../schemas/userUpdate.json");
@@ -36,6 +36,7 @@ const {
   sendAccountInvitationEmailInBackground,
 } = require("../services/invitationService");
 const { assertDemoResetAllowed, isDemoEnvironment } = require("../helpers/demoEnvironment");
+const { ensureDemoUserSchema } = require("../helpers/demoUserSchema");
 const {
   enqueueDemoProvision,
   getProvisionStatus,
@@ -93,6 +94,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       if (role !== "homeowner" && role !== "agent") {
         throw new BadRequestError("Demo provisioning supports homeowner and agent roles only.");
       }
+      await ensureDemoUserSchema();
     }
 
     const shouldSendInvite =
@@ -114,6 +116,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       is_active: wantsProvision ? true : false,
       onboarding_completed: wantsProvision ? undefined : false,
       role_locked: isLockableRole,
+      ...(wantsProvision ? { demo_login_password: password } : {}),
     });
     registerMs = Date.now() - registerStart;
 
@@ -455,6 +458,30 @@ router.post("/demo/reset-homeowner-profile", ensureLoggedIn, async function (req
   }
 });
 
+/** GET /by-id/:userId — Platform admin user detail (includes demo login password on demo site). */
+router.get("/by-id/:userId", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    if (isDemoEnvironment() && res.locals.user?.role === "super_admin") {
+      await ensureDemoUserSchema();
+    }
+    const userId = parseInt(req.params.userId, 10);
+    if (!Number.isFinite(userId)) {
+      throw new BadRequestError("Invalid user id");
+    }
+    const user = await User.getById(userId);
+    if (!user) {
+      throw new NotFoundError(`No user: ${userId}`);
+    }
+    const userWithUrl = await addPresignedUrlToItem(user, "image", "image_url");
+    if (!isDemoEnvironment() || res.locals.user?.role !== "super_admin") {
+      delete userWithUrl.demoLoginPassword;
+    }
+    return res.json({ user: userWithUrl });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** GET /:userId/provision-status — Poll async demo account provisioning (demo site). */
 router.get("/:userId/provision-status", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
   try {
@@ -529,13 +556,44 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
       throw new ForbiddenError("You can only update your own profile.");
     }
 
-    const validator = jsonschema.validate(req.body, userUpdateSchema);
+    const { password, demoLoginPassword, demo_login_password, ...profileBody } = req.body;
+    const validator = jsonschema.validate(profileBody, userUpdateSchema);
     if (!validator.valid) {
       const errs = validator.errors.map(e => e.stack);
       throw new BadRequestError(errs);
     }
-    const user = await User.update({ id: req.params.id, ...req.body });
+
+    let user;
+    const nextPassword = password || demoLoginPassword || demo_login_password;
+    if (
+      nextPassword &&
+      isDemoEnvironment() &&
+      role === "super_admin" &&
+      requestingUserId !== targetUserId
+    ) {
+      await ensureDemoUserSchema();
+      await User.updateLoginPassword({
+        id: targetUserId,
+        password: nextPassword,
+        demoLoginPassword: nextPassword,
+      });
+    } else if (nextPassword && requestingUserId === targetUserId) {
+      throw new BadRequestError("Use the change-password flow to update your own password.");
+    }
+
+    if (Object.keys(profileBody).length > 0) {
+      user = await User.update({ id: targetUserId, ...profileBody });
+    } else if (nextPassword && isDemoEnvironment() && role === "super_admin") {
+      user = await User.getById(targetUserId);
+      if (!user) throw new NotFoundError(`No user: ${targetUserId}`);
+    } else {
+      throw new BadRequestError("No data to update");
+    }
+
     const userWithUrl = await addPresignedUrlToItem(user, "image", "image_url");
+    if (!isDemoEnvironment() || role !== "super_admin") {
+      delete userWithUrl.demoLoginPassword;
+    }
     return res.json({ user: userWithUrl });
   } catch (err) {
     return next(err);

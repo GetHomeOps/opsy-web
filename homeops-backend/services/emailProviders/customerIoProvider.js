@@ -224,6 +224,7 @@ const PROPERTY_INVITATION_ACCEPTED_EVENT = "property_invitation_accepted";
 const PROPERTY_ADDED_EVENT = "property_added";
 const LOGGED_IN_EVENT = "logged_in";
 const PROPERTY_DELETED_EVENT = "property_deleted";
+const NO_PROPERTIES_REMAINING_EVENT = "no_properties_remaining";
 const PROPERTY_INVITATION_DECLINED_EVENT = "property_invitation_declined";
 const PROPERTY_INVITATION_REVOKED_EVENT = "property_invitation_revoked";
 
@@ -433,12 +434,31 @@ async function trackPropertyDeleted({
   });
 }
 
+async function trackNoPropertiesRemaining({
+  userEmail,
+  userId,
+  reason = "unknown",
+  lastPropertyId = null,
+  lastPropertyUid = "",
+}) {
+  await trackLifecycleEvent({
+    email: userEmail,
+    eventName: NO_PROPERTIES_REMAINING_EVENT,
+    data: {
+      userId: userId ?? null,
+      reason: String(reason || "unknown").trim(),
+      lastPropertyId: lastPropertyId ?? null,
+      lastPropertyUid: String(lastPropertyUid || "").trim(),
+    },
+  });
+}
+
 /**
  * Notify invitees and team members that a property was deleted so Customer.io
  * journeys can exit. Call before Property.remove().
  */
 async function notifyCustomerIoPropertyDeleted(propertyId) {
-  if (!isCustomerIoConfigured()) return;
+  if (!isCustomerIoConfigured()) return null;
 
   const id = Number(propertyId);
   if (!id || Number.isNaN(id)) return;
@@ -456,7 +476,7 @@ async function notifyCustomerIoPropertyDeleted(propertyId) {
         [id]
       ),
       db.query(
-        `SELECT DISTINCT LOWER(TRIM(u.email)) AS email
+        `SELECT DISTINCT u.id AS user_id, LOWER(TRIM(u.email)) AS email
          FROM property_users pu
          JOIN users u ON u.id = pu.user_id
          WHERE pu.property_id = $1 AND u.email IS NOT NULL`,
@@ -465,14 +485,21 @@ async function notifyCustomerIoPropertyDeleted(propertyId) {
     ]);
 
     const propertyRow = propRes.rows[0];
-    if (!propertyRow) return;
+    if (!propertyRow) return null;
 
     const propertyAddress = String(propertyRow.address || "").trim();
     const propertyUid = String(propertyRow.property_uid || "").trim();
     const emails = new Set();
-    for (const row of [...inviteRes.rows, ...memberRes.rows]) {
+    const memberUserIds = new Set();
+    for (const row of inviteRes.rows) {
       const email = String(row.email || "").trim();
       if (email) emails.add(email);
+    }
+    for (const row of memberRes.rows) {
+      const email = String(row.email || "").trim();
+      if (email) emails.add(email);
+      const userId = Number(row.user_id);
+      if (userId && !Number.isNaN(userId)) memberUserIds.add(userId);
     }
 
     await Promise.all(
@@ -486,11 +513,22 @@ async function notifyCustomerIoPropertyDeleted(propertyId) {
         })
       )
     );
+
+    if (memberUserIds.size > 0) {
+      return {
+        memberUserIds: [...memberUserIds],
+        propertyId: id,
+        propertyUid,
+        propertyAddress,
+      };
+    }
+    return { memberUserIds: [], propertyId: id, propertyUid, propertyAddress };
   } catch (err) {
     console.error(
       "[customerIoProvider] notifyCustomerIoPropertyDeleted:",
       err.message
     );
+    return null;
   }
 }
 
@@ -506,11 +544,13 @@ module.exports = {
   trackPropertyInvitationDeclined,
   trackPropertyInvitationRevoked,
   trackPropertyDeleted,
+  trackNoPropertiesRemaining,
   notifyCustomerIoPropertyDeleted,
   PROPERTY_INVITATION_ACCEPTED_EVENT,
   PROPERTY_ADDED_EVENT,
   LOGGED_IN_EVENT,
   PROPERTY_DELETED_EVENT,
+  NO_PROPERTIES_REMAINING_EVENT,
   PROPERTY_INVITATION_DECLINED_EVENT,
   PROPERTY_INVITATION_REVOKED_EVENT,
   getCustomerIoWorkspaceUrl,

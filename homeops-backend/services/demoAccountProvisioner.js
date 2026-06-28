@@ -30,14 +30,19 @@ const {
   SYSTEM_KEYS,
   ACCOUNT_CONTACTS,
   DEMO_CONTRACTORS,
-  INSPECTION_FIXTURE,
   DEMO_BROADCAST_COMMUNICATIONS,
   getIdentityFixtureForIndex,
   getSystemFixturesForProperty,
   getMaintenanceRecordsForProperty,
   getConversationThread,
   getScenarioForRole,
+  getInspectionFixtureForIndex,
 } = require("../data/demoAccountScenarios");
+const {
+  getAgentCalendarEventsForProperty,
+  HPS_BY_INDEX,
+  VIEW_COUNTS_BY_INDEX,
+} = require("../data/demoProvisioningFixtures");
 
 const INTERNAL_PASSWORD = "demo-internal-not-for-login";
 
@@ -266,7 +271,8 @@ async function seedSystems(propertyId, propertyIndex) {
   );
 }
 
-async function seedInspectionAnalysis(propertyId, userId) {
+async function seedInspectionAnalysis(propertyId, userId, propertyIndex) {
+  const fixture = getInspectionFixtureForIndex(propertyIndex ?? 2);
   const jobRes = await db.query(
     `INSERT INTO inspection_analysis_jobs
        (property_id, user_id, s3_key, file_name, mime_type, status)
@@ -285,12 +291,12 @@ async function seedInspectionAnalysis(propertyId, userId) {
     [
       jobId,
       propertyId,
-      INSPECTION_FIXTURE.condition_rating,
-      INSPECTION_FIXTURE.condition_confidence,
-      INSPECTION_FIXTURE.condition_rationale,
-      JSON.stringify(INSPECTION_FIXTURE.needs_attention),
-      JSON.stringify(INSPECTION_FIXTURE.maintenance_suggestions),
-      INSPECTION_FIXTURE.summary,
+      fixture.condition_rating,
+      fixture.condition_confidence,
+      fixture.condition_rationale,
+      JSON.stringify(fixture.needs_attention),
+      JSON.stringify(fixture.maintenance_suggestions),
+      fixture.summary,
     ]
   );
 
@@ -408,7 +414,7 @@ async function seedAccountContacts(accountId) {
       null,
       null,
       c.company,
-      null
+      c.role || "Contractor"
     );
   }
 
@@ -622,6 +628,77 @@ async function seedBroadcastCommunications({ accountId, agentUserId, homeownerUs
   return created;
 }
 
+async function seedAgentCalendarEvents({ propertyId, propertyIndex, ownerName, agentUserId }) {
+  const events = getAgentCalendarEventsForProperty(
+    propertyIndex,
+    propertyId,
+    ownerName,
+    daysAgo,
+    daysFromNow
+  );
+  if (!events.length) return [];
+
+  await Promise.all(
+    events.map((event) =>
+      MaintenanceEvent.create({
+        ...event,
+        created_by: agentUserId,
+      })
+    )
+  );
+  return events;
+}
+
+async function seedPropertyHealthScore(propertyId, propertyIndex) {
+  const score = HPS_BY_INDEX[propertyIndex];
+  if (score == null) return null;
+  await db.query(`UPDATE properties SET hps_score = $1, updated_at = NOW() WHERE id = $2`, [
+    score,
+    propertyId,
+  ]);
+  return score;
+}
+
+async function seedPropertyEngagement({
+  propertyUid,
+  propertyIndex,
+  homeownerUserId,
+  agentUserId,
+  accountUrl,
+}) {
+  const homeownerViews = VIEW_COUNTS_BY_INDEX[propertyIndex] ?? 6;
+  const agentViews = Math.max(2, Math.floor(homeownerViews / 3));
+  const path = accountUrl ? `/${accountUrl}/properties/${propertyUid}` : `/properties/${propertyUid}`;
+  const eventData = { propertyId: propertyUid, path };
+
+  const inserts = [];
+  for (let i = 0; i < homeownerViews; i++) {
+    inserts.push([homeownerUserId, JSON.stringify(eventData), i % 6]);
+  }
+  for (let i = 0; i < agentViews; i++) {
+    inserts.push([agentUserId, JSON.stringify(eventData), (i + 2) % 6]);
+  }
+
+  if (!inserts.length) return 0;
+
+  const placeholders = [];
+  const values = [];
+  let idx = 1;
+  for (const [userId, data, dayOffset] of inserts) {
+    placeholders.push(
+      `($${idx++}, 'page_view', $${idx++}::jsonb, NOW() - ($${idx++} || ' days')::interval)`
+    );
+    values.push(userId, data, String(dayOffset));
+  }
+
+  await db.query(
+    `INSERT INTO platform_engagement_events (user_id, event_type, event_data, created_at)
+     VALUES ${placeholders.join(", ")}`,
+    values
+  );
+  return inserts.length;
+}
+
 async function seedPropertyPortfolio({
   template,
   propertyAccountId,
@@ -630,6 +707,7 @@ async function seedPropertyPortfolio({
   createdByUserId,
   focus = "balanced",
   syntheticHomeowner,
+  accountUrl,
 }) {
   const property = await createPropertyOnAccount({
     accountId: propertyAccountId,
@@ -652,7 +730,7 @@ async function seedPropertyPortfolio({
 
   let inspection = null;
   if (focus === "inspections" || focus === "balanced") {
-    inspection = await seedInspectionAnalysis(property.id, createdByUserId);
+    inspection = await seedInspectionAnalysis(property.id, createdByUserId, template.index);
   } else {
     await InspectionChecklistItem.createUserItem({
       propertyId: property.id,
@@ -665,6 +743,20 @@ async function seedPropertyPortfolio({
 
   await seedMaintenanceRecords(property.id, template.index, focus, createdByUserId);
   await seedMaintenanceEvents(property.id, createdByUserId, focus);
+  await seedAgentCalendarEvents({
+    propertyId: property.id,
+    propertyIndex: template.index,
+    ownerName: syntheticHomeowner?.name || template.homeowner?.name,
+    agentUserId,
+  });
+  await seedPropertyHealthScore(property.id, template.index);
+  await seedPropertyEngagement({
+    propertyUid: property.property_uid,
+    propertyIndex: template.index,
+    homeownerUserId: ownerUserId,
+    agentUserId,
+    accountUrl,
+  });
 
   const conversation = await seedConversation({
     accountId: propertyAccountId,
@@ -677,6 +769,7 @@ async function seedPropertyPortfolio({
   return {
     propertyId: property.id,
     propertyUid: property.property_uid,
+    propertyIndex: template.index,
     inspection,
     conversation,
   };
@@ -721,6 +814,7 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
         agentUserId: agentPersona.id,
         createdByUserId: userId,
         focus: "balanced",
+        accountUrl: account.url,
       });
       propertySummaries.push(summary);
     } else {
@@ -750,6 +844,7 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
             createdByUserId: userId,
             focus: template.focus || "balanced",
             syntheticHomeowner: template.syntheticHomeowner,
+            accountUrl: synthetic.account.url,
           });
         })
       );

@@ -416,6 +416,11 @@ class AppApi {
     return res.users;
   }
 
+  static async getUserById(userId) {
+    let res = await this.request(`users/by-id/${userId}`);
+    return res.user;
+  }
+
   static async getUsersByAgentId(agentId) {
     let res = await this.request(`users/agent/${agentId}`);
     return res.users;

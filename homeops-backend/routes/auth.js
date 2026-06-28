@@ -64,6 +64,7 @@ const PlatformEngagement = require("../models/platformEngagement");
 const RefreshToken = require("../models/refreshToken");
 const ImpersonationAudit = require("../models/impersonationAudit");
 const customerIoProvider = require("../services/emailProviders/customerIoProvider");
+const customerIoLifecycleService = require("../services/customerIoLifecycleService");
 const db = require("../db");
 const {
   assertPublicSignupAllowed,
@@ -153,6 +154,15 @@ function syncCustomerIoLogin(user, source = "password") {
     })
     .catch((err) =>
       console.error("[customerIo] trackUserLoggedIn:", err.message)
+    );
+  customerIoLifecycleService
+    .syncCustomerIoUserPropertyState({
+      userId: user.id,
+      userEmail: user.email,
+      fireExitEvent: false,
+    })
+    .catch((err) =>
+      console.error("[customerIo] sync property state login:", err.message)
     );
 }
 

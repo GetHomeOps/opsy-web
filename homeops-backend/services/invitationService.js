@@ -32,6 +32,7 @@ const {
   EMPTY_MISSING_DATA_MERGE,
 } = require("./propertyInvitationDataGaps");
 const customerIoProvider = require("./emailProviders/customerIoProvider");
+const customerIoLifecycleService = require("./customerIoLifecycleService");
 const { initialsFromFullName } = require("../utils/nameInitials");
 const { isSafeS3Key } = require("../helpers/presignedUrls");
 const AgentAffiliation = require("../models/agentAffiliation");
@@ -1250,6 +1251,14 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
           isFirstPropertyForUser,
           source: "invitation_accept",
         });
+        customerIoLifecycleService
+          .syncCustomerIoUserPropertyState({
+            userId: user.id,
+            userEmail: inviteeEmail,
+          })
+          .catch((e) =>
+            console.error("[customerIo] sync property state invite accept:", e.message)
+          );
       }
 
       try {

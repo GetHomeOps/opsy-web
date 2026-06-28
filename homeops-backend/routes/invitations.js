@@ -18,6 +18,7 @@ const { canInviteViewer, canAddTeamMember } = require("../services/tierService")
 const db = require("../db");
 const { buildPropertyInvitationDefaultMainPlain } = require("../services/emailService");
 const customerIoProvider = require("../services/emailProviders/customerIoProvider");
+const customerIoLifecycleService = require("../services/customerIoLifecycleService");
 
 const router = express.Router();
 
@@ -43,15 +44,42 @@ function syncCustomerIoInvitationCancelled(invitation, action) {
     propertyAddress: "",
     invitationType: invitation.type || "property",
   };
-  resolveInvitationPropertyAddress(invitation.propertyId).then((propertyAddress) => {
+  resolveInvitationPropertyAddress(invitation.propertyId).then(async (propertyAddress) => {
     payload.propertyAddress = propertyAddress;
     const track =
       action === "declined"
         ? customerIoProvider.trackPropertyInvitationDeclined
         : customerIoProvider.trackPropertyInvitationRevoked;
-    track(payload).catch((err) =>
-      console.error(`[customerIo] invitation ${action}:`, err.message)
-    );
+    try {
+      await track(payload);
+    } catch (err) {
+      console.error(`[customerIo] invitation ${action}:`, err.message);
+    }
+    try {
+      const userRes = await db.query(
+        `SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1)) LIMIT 1`,
+        [invitation.inviteeEmail]
+      );
+      const inviteeUserId = userRes.rows[0]?.id;
+      if (inviteeUserId) {
+        await customerIoLifecycleService.syncCustomerIoUserPropertyState({
+          userId: inviteeUserId,
+          userEmail: invitation.inviteeEmail,
+          context: {
+            reason:
+              action === "declined"
+                ? "invitation_declined"
+                : "invitation_revoked",
+            lastPropertyId: invitation.propertyId ?? null,
+          },
+        });
+      }
+    } catch (syncErr) {
+      console.error(
+        `[customerIo] sync property state invitation ${action}:`,
+        syncErr.message
+      );
+    }
   });
 }
 

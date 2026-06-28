@@ -106,6 +106,7 @@ function reducer(state, action) {
               image: action.payload.image ?? "",
             }
           : initialFormData,
+        demoPassword: action.payload?.demoLoginPassword || "",
         formDataChanged: false,
         isInitialLoad: true,
       };
@@ -136,7 +137,12 @@ function reducer(state, action) {
         demoPassword: action.payload ? generateRandomPassword() : "",
       };
     case "SET_DEMO_PASSWORD":
-      return {...state, demoPassword: action.payload};
+      return {
+        ...state,
+        demoPassword: action.payload,
+        formDataChanged: state.isNew ? state.formDataChanged : true,
+        isInitialLoad: false,
+      };
     default:
       return state;
   }
@@ -212,6 +218,14 @@ function UsersFormContainer() {
     async function fetchUser() {
       if (id && id !== "new") {
         try {
+          if (isDemoSuperAdmin) {
+            const user = await AppApi.getUserById(id);
+            if (user) {
+              dispatch({type: "SET_USER", payload: user});
+              return;
+            }
+          }
+
           // Find user in context (users come from UserContext)
           const existingUser = users.find(
             (user) => Number(user.id) === Number(id),
@@ -249,7 +263,7 @@ function UsersFormContainer() {
       }
     }
     fetchUser();
-  }, [id, users, t]);
+  }, [id, users, t, isDemoSuperAdmin]);
 
   useEffect(() => {
     if (id === "new" && !canCreateUser) {
@@ -707,6 +721,14 @@ function UsersFormContainer() {
       image: state.formData.image || null,
     };
 
+    const demoPasswordChanged =
+      isDemoSuperAdmin &&
+      state.demoPassword?.trim() &&
+      state.demoPassword !== (state.user?.demoLoginPassword || "");
+    if (demoPasswordChanged) {
+      userData.password = state.demoPassword;
+    }
+
     dispatch({type: "SET_SUBMITTING", payload: true});
 
     try {
@@ -726,6 +748,7 @@ function UsersFormContainer() {
           u.id === Number(id) ? {...res, id: Number(id)} : u,
         );
         setUsers(updatedUsers);
+        dispatch({type: "SET_FORM_CHANGED", payload: false});
 
         // Show success banner
         dispatch({
@@ -960,24 +983,7 @@ function UsersFormContainer() {
   /* Handles cancel button */
   function handleCancel() {
     if (state.user) {
-      // For existing users, reset to original user data
-      const originalData = {
-        name: state.user.name || "",
-        email: state.user.email || "",
-        phone: state.user.phone || "",
-        role:
-          state.user.role === "super_admin" || state.user.role === "superAdmin"
-            ? "Super Admin"
-            : state.user.role || "",
-        contact: state.user.contact || "",
-      };
-
-      dispatch({
-        type: "SET_FORM_DATA",
-        payload: originalData,
-      });
-
-      dispatch({type: "SET_FORM_CHANGED", payload: false});
+      dispatch({type: "SET_USER", payload: state.user});
       dispatch({type: "SET_ERRORS", payload: {}});
     } else {
       // For new users, reset to initial form data and navigate to new user form
@@ -1037,6 +1043,16 @@ function UsersFormContainer() {
     state.provisionDemoOnCreate,
     isDemoSuperAdmin,
   ]);
+
+  const isDemoProvisionedUser =
+    !state.isNew &&
+    isDemoSuperAdmin &&
+    (state.user?.role === "agent" || state.user?.role === "homeowner") &&
+    (state.user?.isActive || state.user?.is_active);
+
+  const showDemoPasswordField =
+    isDemoSuperAdmin &&
+    ((state.isNew && state.provisionDemoOnCreate) || isDemoProvisionedUser);
 
   // Handler for role change
   function handleRoleChange(value) {
@@ -1934,9 +1950,7 @@ function UsersFormContainer() {
                     </div>
                   )}
 
-                  {state.isNew &&
-                    state.provisionDemoOnCreate &&
-                    isDemoSuperAdmin && (
+                  {showDemoPasswordField && (
                       <div className="mt-4">
                         <label
                           className={getLabelClasses()}
@@ -2001,8 +2015,11 @@ function UsersFormContainer() {
                           </div>
                         )}
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {t("demoAccountPasswordHelper") ||
-                            "Share this password with the prospect so they can sign in immediately."}
+                          {state.isNew
+                            ? t("demoAccountPasswordHelper") ||
+                              "Share this password with the prospect so they can sign in immediately."
+                            : t("demoAccountPasswordEditHelper") ||
+                              "Copy or update the login password shared with this demo prospect. Saving updates their sign-in credentials."}
                         </p>
                       </div>
                     )}

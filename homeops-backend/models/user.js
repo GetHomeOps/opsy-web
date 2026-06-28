@@ -85,7 +85,7 @@ class User {
  *
  * Throws BadRequestError on duplicates.
  **/
-  static async register({ name, email, password, phone = null, role = 'homeowner', contact = 0, is_active = false, onboarding_completed, role_locked }) {
+  static async register({ name, email, password, phone = null, role = 'homeowner', contact = 0, is_active = false, onboarding_completed, role_locked, demo_login_password = null }) {
     if (name == null || (typeof name === 'string' && name.trim() === '')) {
       throw new BadRequestError("Name is required");
     }
@@ -121,6 +121,10 @@ class User {
     if (role_locked === true) {
       baseCols.push("role_locked");
       baseVals.push(true);
+    }
+    if (demo_login_password) {
+      baseCols.push("demo_login_password");
+      baseVals.push(demo_login_password);
     }
     baseCols.push("auth_provider", "email_verified");
     // Bootstrap super admin (npm start) has no inbox to verify
@@ -170,12 +174,35 @@ class User {
              onboarding_completed AS "onboardingCompleted",
              COALESCE(role_locked, false) AS "roleLocked",
              welcome_modal_dismissed AS "welcomeModalDismissed",
-             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped",
+             demo_login_password AS "demoLoginPassword"
        FROM users
        WHERE id = $1`,
       [id]
     );
     return result.rows[0] || null;
+  }
+
+  /** Update login password and optional demo-site plaintext copy for sharing with prospects. */
+  static async updateLoginPassword({ id, password, demoLoginPassword = null }) {
+    if (!password || password.length < 4) {
+      throw new BadRequestError("Password must be at least 4 characters");
+    }
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_WORK_FACTOR);
+    const result = await db.query(
+      `UPDATE users
+       SET password_hash = $1,
+           demo_login_password = $2,
+           updated_at = NOW()
+       WHERE id = $3
+       RETURNING id, email, name, phone, role, contact_id AS "contact",
+                 is_active AS "isActive", image,
+                 demo_login_password AS "demoLoginPassword"`,
+      [hashedPassword, demoLoginPassword ?? password, id]
+    );
+    const user = result.rows[0];
+    if (!user) throw new NotFoundError(`No user: ${id}`);
+    return user;
   }
 
   /** Find user by Google sub. Returns null if not found. */

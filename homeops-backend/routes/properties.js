@@ -28,6 +28,7 @@ const db = require("../db");
 const { isAllowedInspectionAnalysisS3Key } = require("../constants/s3Upload");
 const AgentAffiliation = require("../models/agentAffiliation");
 const customerIoProvider = require("../services/emailProviders/customerIoProvider");
+const customerIoLifecycleService = require("../services/customerIoLifecycleService");
 
 const router = new express.Router();
 
@@ -206,6 +207,14 @@ router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async fun
         })
         .catch((e) =>
           console.error("[customerIo] trackPropertyAdded create:", e.message)
+        );
+      customerIoLifecycleService
+        .syncCustomerIoUserPropertyState({
+          userId: creatorId,
+          userEmail: res.locals.user.email,
+        })
+        .catch((e) =>
+          console.error("[customerIo] sync property state create:", e.message)
         );
     }
 
@@ -1052,6 +1061,14 @@ router.patch("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "prop
 router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: "propertyId" }), async function (req, res, next) {
   try {
     const propertyId = req.params.propertyId;
+    let previousTeamUserIds = new Set();
+    if (Array.isArray(req.body)) {
+      const currentTeam = await db.query(
+        `SELECT user_id FROM property_users WHERE property_id = $1`,
+        [propertyId]
+      );
+      previousTeamUserIds = new Set(currentTeam.rows.map((r) => r.user_id));
+    }
     /* Only one agent per property — reject before sync. */
     if (Array.isArray(req.body)) {
       await assertAtMostOneAgentOnProperty(
@@ -1093,6 +1110,32 @@ router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: 
     }
     const property_users = await Property.updatePropertyUsers(propertyId, req.body);
     clearPropertyAccessCache(propertyId);
+    if (Array.isArray(req.body)) {
+      const newIds = new Set(
+        req.body.map((u) => u?.id).filter((id) => id != null)
+      );
+      const removedUserIds = [...previousTeamUserIds].filter((id) => !newIds.has(id));
+      for (const uid of removedUserIds) {
+        customerIoLifecycleService
+          .syncCustomerIoUserPropertyState({
+            userId: uid,
+            context: {
+              reason: "removed_from_team",
+              lastPropertyId: propertyId,
+            },
+          })
+          .catch((e) =>
+            console.error("[customerIo] sync property state team remove:", e.message)
+          );
+      }
+      for (const uid of newIds) {
+        customerIoLifecycleService
+          .syncCustomerIoUserPropertyState({ userId: uid })
+          .catch((e) =>
+            console.error("[customerIo] sync property state team update:", e.message)
+          );
+      }
+    }
     try {
       await syncPropertyMissingAgentAdminNotifications(propertyId);
     } catch (missingAgentErr) {
@@ -1120,8 +1163,21 @@ router.delete(
   ),
   async function (req, res, next) {
   try {
-    await customerIoProvider.notifyCustomerIoPropertyDeleted(req.params.propertyId);
+    const deletedMeta = await customerIoProvider.notifyCustomerIoPropertyDeleted(
+      req.params.propertyId
+    );
     await Property.remove(req.params.propertyId);
+    if (deletedMeta?.memberUserIds?.length) {
+      customerIoLifecycleService
+        .syncCustomerIoUsersPropertyState(deletedMeta.memberUserIds, {
+          reason: "property_deleted",
+          lastPropertyId: deletedMeta.propertyId,
+          lastPropertyUid: deletedMeta.propertyUid,
+        })
+        .catch((e) =>
+          console.error("[customerIo] sync property state delete:", e.message)
+        );
+    }
     return res.json({ deleted: true });
   } catch (err) {
     return next(err);

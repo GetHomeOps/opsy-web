@@ -31,11 +31,12 @@ const SYSTEM_KEYS = [
 ];
 
 const ACCOUNT_CONTACTS = [
-  { name: "Mike Thompson", email: "mike.thompson@email.com", phone: "2065552101", company: "Thompson Insurance" },
-  { name: "Lisa Park", email: "lisa.park@email.com", phone: "2065552102", company: "Park Legal Services" },
-  { name: "James Rivera", email: "james.rivera@email.com", phone: "2065552103", company: "Rivera HVAC" },
-  { name: "Emma Wilson", email: "emma.wilson@email.com", phone: "2065552104", company: "Wilson Plumbing" },
-  { name: "David Kim", email: "david.kim@email.com", phone: "2065552105", company: "Kim Electric" },
+  { name: "Tom Bradley", email: "tom@nwroofing.demo", phone: "2065553101", company: "Northwest Roofing Co.", role: "Roofing Contractor" },
+  { name: "Angela Moss", email: "angela@cascadehvac.demo", phone: "2065553102", company: "Cascade HVAC Services", role: "HVAC Contractor" },
+  { name: "Carlos Mendez", email: "carlos@soundplumbing.demo", phone: "2065553103", company: "Sound Plumbing Pros", role: "Plumbing Contractor" },
+  { name: "David Kim", email: "david.kim@heyopsy.demo", phone: "2065552105", company: "Kim Electric", role: "Electrical Contractor" },
+  { name: "Maria Santos", email: "maria@greenlawncare.demo", phone: "2065552106", company: "Green Lawn & Landscape", role: "Landscaping Contractor" },
+  { name: "Ryan O'Brien", email: "ryan@pacificwindows.demo", phone: "2065552107", company: "Pacific Window & Door", role: "Window Contractor" },
 ];
 
 const DEMO_CONTRACTORS = [
@@ -65,6 +66,24 @@ const DEMO_CONTRACTORS = [
     city: "Mercer Island",
     state: "WA",
     description: "Licensed plumbing for homes and small commercial.",
+  },
+  {
+    company_name: "Kim Electric",
+    contact_name: "David Kim",
+    phone: "2065552105",
+    email: "david.kim@heyopsy.demo",
+    city: "Seattle",
+    state: "WA",
+    description: "Panel upgrades, EV chargers, and whole-home electrical.",
+  },
+  {
+    company_name: "Green Lawn & Landscape",
+    contact_name: "Maria Santos",
+    phone: "2065552106",
+    email: "maria@greenlawncare.demo",
+    city: "Bellevue",
+    state: "WA",
+    description: "Seasonal lawn care, irrigation, and outdoor lighting.",
   },
 ];
 
@@ -174,6 +193,33 @@ function getScenarioForRole(role) {
   throw new Error(`Unsupported demo role: ${role}`);
 }
 
+const INSPECTION_BY_INDEX = {
+  2: {
+    condition_rating: "fair",
+    condition_confidence: 0.78,
+    condition_rationale: "Sound structure with roof and HVAC items due for attention.",
+    summary: "Generally well maintained. Roof ridge wear and overdue furnace filter flagged.",
+  },
+  3: {
+    condition_rating: "good",
+    condition_confidence: 0.88,
+    condition_rationale: "Well-maintained home with routine seasonal upkeep on track.",
+    summary: "Strong overall condition. Gutters and exterior caulking are the next priorities.",
+  },
+  4: {
+    condition_rating: "fair",
+    condition_confidence: 0.74,
+    condition_rationale: "Newer build with a few deferred maintenance items in plumbing and windows.",
+    summary: "Solid bones. Guest bath drain and two window seals need follow-up this quarter.",
+  },
+};
+
+function getInspectionFixtureForIndex(index) {
+  const variant = INSPECTION_BY_INDEX[index];
+  if (!variant) return INSPECTION_FIXTURE;
+  return { ...INSPECTION_FIXTURE, ...variant };
+}
+
 const {
   DEMO_BROADCAST_COMMUNICATIONS,
   getIdentityFixtureForIndex,
@@ -195,5 +241,6 @@ module.exports = {
   getSystemFixturesForProperty,
   getMaintenanceRecordsForProperty,
   getConversationThread,
+  getInspectionFixtureForIndex,
   getScenarioForRole,
 };

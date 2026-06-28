@@ -70,6 +70,35 @@ In **Email Delivery**, each email type can use **Test Customer.io event** (next 
 
 Alternatively, set mode to **Transactional** and paste the Customer.io transactional message ID into Email Delivery admin. Opsy sends immediately via the Transactional API with `message_data` merge fields.
 
+## Lifecycle events (journeys)
+
+Opsy tracks these events outside Email Delivery admin (see `customerIoLifecycleService.js`):
+
+| Event | When | Journey use |
+|-------|------|-------------|
+| `property_added` | User creates a property or accepts a property invitation | Enter **New Property Added** nurture |
+| `property_deleted` | Property fully deleted (audit trail for all former members/invitees) | Analytics only — **not** journey exit |
+| `no_properties_remaining` | User's `property_count` becomes 0 | **Exit** property nurture journeys |
+| `logged_in` | User signs in | Engagement; optional exit (e.g. Property Invitation by Agent) |
+| `property_invitation_accepted` | Invite accepted | Exit property invitation journey |
+| `property_invitation_declined` | Invite declined | Exit property invitation journey |
+| `property_invitation_revoked` | Invite revoked | Exit property invitation journey |
+
+Exit journeys when the user has **zero** properties left, not when they lose access to one property while keeping others.
+
+### Person attributes (identify)
+
+Synced on login, property create/delete, team changes, and invitation accept/decline/revoke:
+
+| Attribute | Type | Purpose |
+|-----------|------|---------|
+| `has_property` | boolean | Whether the user has any property access |
+| `property_count` | integer | Count of `property_users` rows |
+| `primary_property_uid` | string | Owner-first property uid for deep links |
+| `primary_property_url` | string | Full URL to primary property, or `/{account}/properties/new` when empty |
+
+Use `{{ customer.primary_property_url }}` in email CTAs instead of stale `event.propertyUid` from the journey trigger.
+
 ## Merge variables
 
 Each email type documents its merge variables in the Email Delivery admin UI. Common fields include `brandName`, `inviteUrl`, and type-specific payload from the app.

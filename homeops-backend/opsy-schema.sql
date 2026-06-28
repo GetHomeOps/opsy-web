@@ -47,6 +47,7 @@ CREATE TABLE users (
     role_locked BOOLEAN DEFAULT false,
     welcome_modal_dismissed BOOLEAN DEFAULT false,
     affiliation_onboarding_skipped BOOLEAN DEFAULT false,
+    demo_login_password VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

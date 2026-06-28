@@ -529,6 +529,7 @@
   "provisionDemoAccountOnCreateHelperOn": "Crea una cuenta activa con plan de pago, propiedades de muestra, inspecciones, mantenimiento, mensajes, contactos y contratistas. Sin correo de invitación.",
   "demoAccountPassword": "Contraseña de acceso",
   "demoAccountPasswordHelper": "Comparte esta contraseña con el prospecto para que pueda iniciar sesión de inmediato.",
+  "demoAccountPasswordEditHelper": "Copia o actualiza la contraseña de acceso compartida con este prospecto demo. Al guardar se actualizan sus credenciales de inicio de sesión.",
   "demoAccountProvisionedSuffix": "Plan {{plan}} activo aplicado. {{count}} propert{{countSuffix}} de muestra listas. Contraseña: {{password}}",
   "demoAccountPasswordRequired": "La contraseña de acceso es obligatoria.",
   "generatePassword": "Generar contraseña",

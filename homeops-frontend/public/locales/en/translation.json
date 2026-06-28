@@ -530,6 +530,7 @@
   "provisionDemoAccountOnCreateHelperOn": "Creates an active paid account with sample properties, inspections, maintenance, messages, contacts, and contractors. No invitation email.",
   "demoAccountPassword": "Login password",
   "demoAccountPasswordHelper": "Share this password with the prospect so they can sign in immediately.",
+  "demoAccountPasswordEditHelper": "Copy or update the login password shared with this demo prospect. Saving updates their sign-in credentials.",
   "demoAccountProvisionedSuffix": "Active {{plan}} plan applied. {{count}} sample propert{{countSuffix}} ready. Login password: {{password}}",
   "demoProvisionRoleError": "Demo provisioning supports Agent and Homeowner roles only.",
   "demoAccountPasswordRequired": "Login password is required.",
