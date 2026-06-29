@@ -15,6 +15,7 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
+import {dynamicImportWithRetry} from "../../utils/lazyWithRetry";
 import {
   Download,
   Upload,
@@ -121,7 +122,7 @@ function AgenciesImport() {
     setTemplateError("");
     setIsTemplateDownloading(true);
     try {
-      const ExcelJS = (await import("exceljs")).default;
+      const ExcelJS = (await dynamicImportWithRetry(() => import("exceljs"))).default;
       const stateColIndex =
         AGENCY_IMPORT_FIELDS.findIndex((f) => f.key === "state") + 1;
       const stateLetter = excelColumnLetterFromIndex1Based(stateColIndex);

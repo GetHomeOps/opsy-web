@@ -41,10 +41,11 @@ import {
   AgentHomeStats,
   AgentHomeAgencyCard,
 } from "./components";
+import {lazyWithRetry} from "../../utils/lazyWithRetry";
 
 // Charts pull in chart.js / react-chartjs-2; lazy-load so the dashboard paints
 // before the charting bundle is fetched.
-const AgentHomeKpiCharts = React.lazy(() =>
+const AgentHomeKpiCharts = lazyWithRetry(() =>
   import("./components/AgentHomeKpiCharts"),
 );
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";

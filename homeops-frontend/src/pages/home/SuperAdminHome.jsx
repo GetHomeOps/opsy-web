@@ -6,10 +6,11 @@ import UserContext from "../../context/UserContext";
 import AppApi from "../../api/api";
 import {Loader2} from "lucide-react";
 import {SuperAdminHomeStats} from "./components";
+import {lazyWithRetry} from "../../utils/lazyWithRetry";
 
 // Charts pull in chart.js / react-chartjs-2; lazy-load so the dashboard paints
 // before the charting bundle is fetched.
-const SuperAdminHomeKpiCharts = React.lazy(() =>
+const SuperAdminHomeKpiCharts = lazyWithRetry(() =>
   import("./components/SuperAdminHomeKpiCharts"),
 );
 

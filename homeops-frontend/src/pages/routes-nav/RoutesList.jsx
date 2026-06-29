@@ -1,4 +1,5 @@
-import React, {Suspense, lazy} from "react";
+import React, {Suspense} from "react";
+import {lazyWithRetry as lazy} from "../../utils/lazyWithRetry";
 import {
   Routes,
   Route,

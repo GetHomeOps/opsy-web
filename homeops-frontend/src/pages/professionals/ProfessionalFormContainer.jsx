@@ -33,6 +33,7 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
 import useImageUpload from "../../hooks/useImageUpload";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import AppApi from "../../api/api";
+import {dynamicImportWithRetry} from "../../utils/lazyWithRetry";
 import ImageUploadField from "../../components/ImageUploadField";
 import {
   formatUSPhoneInput,
@@ -400,8 +401,9 @@ function ProfessionalFormContainer() {
     if (!file || !file.type.startsWith("image/")) return;
     dispatch({type: "SET_UPLOADING_PHOTOS", payload: true});
     try {
-      const {compressImageForUpload} =
-        await import("../../utils/compressImage");
+      const {compressImageForUpload} = await dynamicImportWithRetry(() =>
+        import("../../utils/compressImage"),
+      );
       const toUpload = await compressImageForUpload(file);
       const doc = await AppApi.uploadDocument(toUpload);
       const key = doc?.key ?? doc?.s3Key ?? doc?.url;

@@ -10,12 +10,15 @@ import AppApi from "../api/api";
 import AffiliationPicker from "./affiliation/AffiliationPicker";
 import {POST_LOGIN_WELCOME_GREETING_KEY} from "../utils/authNavigation";
 import OpsyMascot from "../images/opsy2.png";
+import {dynamicImportWithRetry} from "../utils/lazyWithRetry";
 
 let welcomeConfettiFire = null;
 async function getWelcomeConfettiFire() {
   if (typeof window === "undefined") return null;
   if (!welcomeConfettiFire) {
-    const {default: confetti} = await import("canvas-confetti");
+    const {default: confetti} = await dynamicImportWithRetry(() =>
+      import("canvas-confetti"),
+    );
     welcomeConfettiFire = confetti.create(null, {
       resize: true,
       useWorker: false,

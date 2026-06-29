@@ -19,6 +19,7 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
 import UserContext from "../../context/UserContext";
 import {useAuth} from "../../context/AuthContext";
 import {canCreateUsersOnDemo} from "../../utils/demoSite";
+import {dynamicImportWithRetry} from "../../utils/lazyWithRetry";
 import {
   Download,
   Upload,
@@ -322,7 +323,7 @@ function UsersImport() {
     try {
       // Use bare "exceljs" so Vite's resolve.alias (→ dist/exceljs.min.js) applies;
       // "exceljs/dist/..." is not a valid pnpm/exports subpath and fails to resolve in dev.
-      const ExcelJS = (await import("exceljs")).default;
+      const ExcelJS = (await dynamicImportWithRetry(() => import("exceljs"))).default;
       const roleLetter = excelColumnLetterFromIndex1Based(
         USER_IMPORT_ROLE_COLUMN_1_BASED,
       );
