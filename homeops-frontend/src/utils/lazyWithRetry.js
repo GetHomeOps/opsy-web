@@ -22,6 +22,17 @@ export function hasChunkReloadBeenAttempted() {
   }
 }
 
+function buildCacheBustUrl() {
+  const {pathname, search, hash} = window.location;
+  const bust = `_chunk=${Date.now()}`;
+  const nextSearch = search ? `${search}&${bust}` : `?${bust}`;
+  return `${pathname}${nextSearch}${hash}`;
+}
+
+function hardNavigateForStaleChunk() {
+  window.location.replace(buildCacheBustUrl());
+}
+
 export function reloadOnceForStaleChunk() {
   if (hasChunkReloadBeenAttempted()) return false;
 
@@ -30,7 +41,19 @@ export function reloadOnceForStaleChunk() {
   } catch {
     /* ignore storage errors */
   }
-  window.location.reload();
+
+  if (!import.meta.env.DEV && "serviceWorker" in navigator) {
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) =>
+        Promise.all(registrations.map((registration) => registration.unregister())),
+      )
+      .then(hardNavigateForStaleChunk)
+      .catch(hardNavigateForStaleChunk);
+  } else {
+    hardNavigateForStaleChunk();
+  }
+
   return true;
 }
 

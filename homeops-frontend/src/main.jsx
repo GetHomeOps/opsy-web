@@ -76,6 +76,12 @@ window.addEventListener("vite:preloadError", (event) => {
   );
 });
 
+window.addEventListener("unhandledrejection", (event) => {
+  if (isChunkLoadError(event.reason) && reloadOnceForStaleChunk()) {
+    event.preventDefault();
+  }
+});
+
 // In dev, unregister any stale production/PWA service workers so Safari does not
 // intercept localhost requests or enter an auto-update reload loop.
 if (import.meta.env.DEV && "serviceWorker" in navigator) {
@@ -145,14 +151,13 @@ class ErrorBoundary extends React.Component {
       if (hasChunkReloadBeenAttempted()) {
         return {hasError: true, pendingChunkReload: false};
       }
-      return {hasError: true, pendingChunkReload: true};
+      return {hasError: false, pendingChunkReload: true};
     }
     return {hasError: true, pendingChunkReload: false};
   }
   componentDidCatch(error, info) {
     if (isChunkLoadError(error)) {
-      if (this.state.pendingChunkReload) {
-        reloadOnceForStaleChunk();
+      if (!hasChunkReloadBeenAttempted() && reloadOnceForStaleChunk()) {
         return;
       }
       console.error("Chunk load failed after reload attempt:", error, info);
@@ -161,12 +166,12 @@ class ErrorBoundary extends React.Component {
     console.error("Uncaught error:", error, info);
   }
   render() {
+    if (this.state.pendingChunkReload) {
+      return (
+        <ErrorFallback message="Loading an updated version of the app..." />
+      );
+    }
     if (this.state.hasError) {
-      if (this.state.pendingChunkReload) {
-        return (
-          <ErrorFallback message="Loading an updated version of the app..." />
-        );
-      }
       return (
         <ErrorFallback message="An unexpected error occurred. Please reload the page." />
       );

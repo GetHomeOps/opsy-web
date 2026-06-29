@@ -240,6 +240,14 @@ if (fs.existsSync(publicPath)) {
   });
 }
 
+// Missing hashed bundles must not be edge-cached (Cloudflare was caching 404s for hours).
+app.use(function (req, res, next) {
+  if (req.path.startsWith('/assets/')) {
+    res.set('Cache-Control', 'no-store');
+  }
+  next();
+});
+
 // 404 for unknown API routes (and non-GET when SPA is served)
 app.use(function (req, res, next) {
   throw new NotFoundError();
