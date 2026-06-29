@@ -48,6 +48,8 @@ CREATE TABLE users (
     welcome_modal_dismissed BOOLEAN DEFAULT false,
     affiliation_onboarding_skipped BOOLEAN DEFAULT false,
     demo_login_password VARCHAR(255),
+    demo_paired_agent_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    demo_expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

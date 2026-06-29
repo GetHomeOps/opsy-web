@@ -175,7 +175,9 @@ class User {
              COALESCE(role_locked, false) AS "roleLocked",
              welcome_modal_dismissed AS "welcomeModalDismissed",
              COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped",
-             demo_login_password AS "demoLoginPassword"
+             demo_login_password AS "demoLoginPassword",
+             demo_paired_agent_id AS "demoPairedAgentId",
+             demo_expires_at AS "demoExpiresAt"
        FROM users
        WHERE id = $1`,
       [id]
@@ -332,7 +334,9 @@ class User {
                onboarding_completed AS "onboardingCompleted",
                COALESCE(role_locked, false) AS "roleLocked",
                welcome_modal_dismissed AS "welcomeModalDismissed",
-             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped",
+             demo_paired_agent_id AS "demoPairedAgentId",
+             demo_expires_at AS "demoExpiresAt"
         FROM users
         WHERE email=$1`,
         [email]

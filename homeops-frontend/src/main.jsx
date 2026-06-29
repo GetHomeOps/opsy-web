@@ -6,6 +6,7 @@ import ThemeProvider from "./utils/ThemeContext";
 import App from "./App";
 import {
   CHUNK_RELOAD_KEY,
+  hasChunkReloadBeenAttempted,
   isChunkLoadError,
   reloadOnceForStaleChunk,
 } from "./utils/lazyWithRetry";
@@ -52,10 +53,27 @@ try {
   /* ignore storage errors */
 }
 
+function showChunkLoadFailure(rootMessage) {
+  const root = document.getElementById("root");
+  if (!root) return;
+  root.innerHTML = `
+    <div style="min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Inter,system-ui,sans-serif;padding:2rem;text-align:center">
+      <h1 style="font-size:1.5rem;font-weight:600;margin-bottom:0.5rem;color:#1f2937">Something went wrong</h1>
+      <p style="color:#6b7280;margin-bottom:1.5rem">${rootMessage}</p>
+      <button type="button" onclick="window.location.reload()" style="padding:0.5rem 1.5rem;border-radius:0.5rem;background-color:#456564;color:white;border:none;cursor:pointer;font-size:0.875rem">Reload</button>
+    </div>
+  `;
+}
+
 // Vite preloads linked CSS/JS before React.lazy runs; recover from missing hashes.
 window.addEventListener("vite:preloadError", (event) => {
-  event.preventDefault();
-  reloadOnceForStaleChunk();
+  if (reloadOnceForStaleChunk()) {
+    event.preventDefault();
+    return;
+  }
+  showChunkLoadFailure(
+    "The app could not load a required file. Please reload the page.",
+  );
 });
 
 // In dev, unregister any stale production/PWA service workers so Safari does not
@@ -72,34 +90,85 @@ if (import.meta.env.DEV && "serviceWorker" in navigator) {
   }
 }
 
+const errorFallbackStyles = {
+  container: {
+    minHeight: "100dvh",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "Inter, system-ui, sans-serif",
+    padding: "2rem",
+    textAlign: "center",
+  },
+  title: {
+    fontSize: "1.5rem",
+    fontWeight: 600,
+    marginBottom: "0.5rem",
+    color: "#1f2937",
+  },
+  message: {color: "#6b7280", marginBottom: "1.5rem"},
+  button: {
+    padding: "0.5rem 1.5rem",
+    borderRadius: "0.5rem",
+    backgroundColor: "#456564",
+    color: "white",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "0.875rem",
+  },
+};
+
+function ErrorFallback({message}) {
+  return (
+    <div style={errorFallbackStyles.container}>
+      <h1 style={errorFallbackStyles.title}>Something went wrong</h1>
+      <p style={errorFallbackStyles.message}>{message}</p>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        style={errorFallbackStyles.button}
+      >
+        Reload
+      </button>
+    </div>
+  );
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = {hasError: false, pendingChunkReload: false};
   }
   static getDerivedStateFromError(error) {
     if (isChunkLoadError(error)) {
-      return {hasError: false};
+      if (hasChunkReloadBeenAttempted()) {
+        return {hasError: true, pendingChunkReload: false};
+      }
+      return {hasError: true, pendingChunkReload: true};
     }
-    return {hasError: true};
+    return {hasError: true, pendingChunkReload: false};
   }
   componentDidCatch(error, info) {
     if (isChunkLoadError(error)) {
-      reloadOnceForStaleChunk();
+      if (this.state.pendingChunkReload) {
+        reloadOnceForStaleChunk();
+        return;
+      }
+      console.error("Chunk load failed after reload attempt:", error, info);
       return;
     }
     console.error("Uncaught error:", error, info);
   }
   render() {
     if (this.state.hasError) {
+      if (this.state.pendingChunkReload) {
+        return (
+          <ErrorFallback message="Loading an updated version of the app..." />
+        );
+      }
       return (
-        <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "Inter, system-ui, sans-serif", padding: "2rem", textAlign: "center" }}>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.5rem", color: "#1f2937" }}>Something went wrong</h1>
-          <p style={{ color: "#6b7280", marginBottom: "1.5rem" }}>An unexpected error occurred. Please reload the page.</p>
-          <button onClick={() => window.location.reload()} style={{ padding: "0.5rem 1.5rem", borderRadius: "0.5rem", backgroundColor: "#456564", color: "white", border: "none", cursor: "pointer", fontSize: "0.875rem" }}>
-            Reload
-          </button>
-        </div>
+        <ErrorFallback message="An unexpected error occurred. Please reload the page." />
       );
     }
     return this.props.children;

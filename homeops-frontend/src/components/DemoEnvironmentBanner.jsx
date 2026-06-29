@@ -1,0 +1,23 @@
+import React from "react";
+import {AlertTriangle} from "lucide-react";
+import {isDemoSite} from "../utils/demoSite";
+
+/** Persistent banner on demo.heyopsy.com. */
+export default function DemoEnvironmentBanner() {
+  if (!isDemoSite()) return null;
+
+  return (
+    <div
+      role="status"
+      className="bg-amber-50 dark:bg-amber-950/50 border-b border-amber-200 dark:border-amber-800/60 px-4 py-2 text-center text-sm text-amber-900 dark:text-amber-100"
+    >
+      <div className="flex items-center justify-center gap-2 flex-wrap">
+        <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden />
+        <span>
+          Demo environment — sample data resets daily at 06:00 UTC. Outbound email and
+          calendar integrations are disabled.
+        </span>
+      </div>
+    </div>
+  );
+}

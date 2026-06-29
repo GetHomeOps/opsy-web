@@ -9,6 +9,7 @@ const { buildOutlookAuthUrl, exchangeOutlookCodeForTokens } = require("../helper
 const { APP_WEB_ORIGIN, GOOGLE_CALENDAR_REDIRECT_URI, MICROSOFT_REDIRECT_URI } = require("../config");
 const jwt = require("jsonwebtoken");
 const { SECRET_KEY } = require("../config");
+const { isDemoEnvironment, assertDemoIntegrationsAllowed } = require("../helpers/demoEnvironment");
 
 const router = express.Router();
 
@@ -44,6 +45,7 @@ router.get("/", ensureLoggedIn, async function (req, res, next) {
 /** GET /oauth/:provider/url - Return OAuth URL as JSON (for frontend to redirect with auth) */
 router.get("/oauth/:provider/url", ensureLoggedIn, async function (req, res, next) {
   try {
+    assertDemoIntegrationsAllowed();
     const userId = res.locals.user?.id;
     if (!userId) return res.status(401).json({ error: { message: "Unauthorized" } });
     const provider = req.params.provider;
@@ -82,6 +84,7 @@ router.get("/oauth/:provider/url", ensureLoggedIn, async function (req, res, nex
 /** GET /oauth/google/connect - Redirect to Google Calendar OAuth (legacy; use /url + frontend redirect) */
 router.get("/oauth/google/connect", ensureLoggedIn, async function (req, res, next) {
   try {
+    assertDemoIntegrationsAllowed();
     const userId = res.locals.user?.id;
     if (!userId) return res.status(401).json({ error: { message: "Unauthorized" } });
     const returnPath = req.query.returnTo || "";
@@ -150,6 +153,7 @@ router.get("/oauth/google/callback", async function (req, res, next) {
 /** GET /oauth/outlook/connect - Redirect to Microsoft OAuth */
 router.get("/oauth/outlook/connect", ensureLoggedIn, async function (req, res, next) {
   try {
+    assertDemoIntegrationsAllowed();
     const userId = res.locals.user?.id;
     if (!userId) return res.status(401).json({ error: { message: "Unauthorized" } });
     const returnPath = req.query.returnTo || "";

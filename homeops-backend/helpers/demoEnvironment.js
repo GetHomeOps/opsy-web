@@ -68,6 +68,24 @@ function assertDemoResetAllowed(req) {
   }
 }
 
+/** Next scheduled full demo DB reset (daily 06:00 UTC). */
+function getNextDemoResetAt() {
+  const now = new Date();
+  const next = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 6, 0, 0, 0)
+  );
+  if (now.getTime() >= next.getTime()) {
+    next.setUTCDate(next.getUTCDate() + 1);
+  }
+  return next;
+}
+
+function assertDemoIntegrationsAllowed() {
+  if (isDemoEnvironment()) {
+    throw new ForbiddenError("Third-party integrations are disabled on the demo site.");
+  }
+}
+
 module.exports = {
   DEMO_HOSTNAME,
   hostnameFromUrl,
@@ -77,4 +95,6 @@ module.exports = {
   shouldSuppressOutboundEmail,
   assertPublicSignupAllowed,
   assertDemoResetAllowed,
+  assertDemoIntegrationsAllowed,
+  getNextDemoResetAt,
 };

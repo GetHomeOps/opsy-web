@@ -247,24 +247,30 @@ const INSPECTION_FIXTURE = {
 
 const SYNTHETIC_HOMEOWNERS = [
   {
+    personaKey: "noel",
     name: "Noel Jones",
-    email: "noel.jones@gmail.com",
+    email: "noel.jones@demo.heyopsy.com",
     phone: "2065551002",
     avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&fit=crop&q=80",
   },
   {
+    personaKey: "tatum",
     name: "Tatum Walker",
-    email: "tatum.walker@outlook.com",
+    email: "tatum.walker@demo.heyopsy.com",
     phone: "2065551003",
     avatar_url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&fit=crop&q=80",
   },
   {
+    personaKey: "alex",
     name: "Alex Jackson",
-    email: "alex.jackson@heyopsy.com",
+    email: "alex.jackson@demo.heyopsy.com",
     phone: "2065551004",
     avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&fit=crop&q=80",
   },
 ];
+
+/** Property index used for the login-able paired homeowner in bilateral demos. */
+const PAIRED_HOMEOWNER_PROPERTY_INDEX = 4;
 
 function propertyTemplateByIndex(index) {
   const entry = demoProperties.properties.find((p) => p.index === index);
@@ -347,6 +353,7 @@ module.exports = {
   DEMO_FAVORITE_PROFESSIONAL_HINTS,
   INSPECTION_FIXTURE,
   SYNTHETIC_HOMEOWNERS,
+  PAIRED_HOMEOWNER_PROPERTY_INDEX,
   DEMO_BROADCAST_COMMUNICATIONS,
   getIdentityFixtureForIndex,
   getSystemFixturesForProperty,

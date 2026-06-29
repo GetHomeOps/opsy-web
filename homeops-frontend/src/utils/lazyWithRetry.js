@@ -14,14 +14,16 @@ export function isChunkLoadError(error) {
   );
 }
 
-export function reloadOnceForStaleChunk() {
-  let hasReloaded = false;
+export function hasChunkReloadBeenAttempted() {
   try {
-    hasReloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
+    return sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
   } catch {
-    /* ignore storage errors */
+    return false;
   }
-  if (hasReloaded) return false;
+}
+
+export function reloadOnceForStaleChunk() {
+  if (hasChunkReloadBeenAttempted()) return false;
 
   try {
     sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");

@@ -9,7 +9,7 @@ const db = require("../db");
 const bcrypt = require("bcrypt");
 const { BadRequestError } = require("../expressError");
 const { BCRYPT_WORK_FACTOR } = require("../config");
-const { isDemoEnvironment } = require("../helpers/demoEnvironment");
+const { isDemoEnvironment, getNextDemoResetAt } = require("../helpers/demoEnvironment");
 const { generatePassportId } = require("../helpers/properties");
 const Account = require("../models/account");
 const Contact = require("../models/contact");
@@ -36,6 +36,7 @@ const {
   getConversationThread,
   getScenarioForRole,
   getInspectionFixtureForIndex,
+  PAIRED_HOMEOWNER_PROPERTY_INDEX,
 } = require("../data/demoAccountScenarios");
 const {
   getAgentCalendarEventsForProperty,
@@ -163,8 +164,33 @@ async function findOrCreateDemoAgentPersona() {
   });
 }
 
-async function createSyntheticHomeowner({ name, email, phone, avatarUrl }) {
-  const existing = await User.get(email).catch(() => null);
+function buildSyntheticHomeownerEmail(agentUserId, personaKey) {
+  return `${personaKey}.${agentUserId}@demo.heyopsy.com`;
+}
+
+async function setDemoExpiry(userId) {
+  const expiresAt = getNextDemoResetAt();
+  await db.query(`UPDATE users SET demo_expires_at = $2, updated_at = NOW() WHERE id = $1`, [
+    userId,
+    expiresAt,
+  ]);
+  return expiresAt;
+}
+
+async function createSyntheticHomeowner({
+  name,
+  email,
+  phone,
+  avatarUrl,
+  agentUserId,
+  personaKey,
+}) {
+  const namespacedEmail =
+    agentUserId && personaKey
+      ? buildSyntheticHomeownerEmail(agentUserId, personaKey)
+      : email;
+
+  const existing = await User.get(namespacedEmail).catch(() => null);
   if (existing?.id) {
     const accountRes = await db.query(
       `SELECT a.id, a.url, a.name
@@ -185,7 +211,7 @@ async function createSyntheticHomeowner({ name, email, phone, avatarUrl }) {
   }
 
   const user = await registerInternalUserDirect({
-    email,
+    email: namespacedEmail,
     name,
     phone,
     role: "homeowner",
@@ -193,11 +219,96 @@ async function createSyntheticHomeowner({ name, email, phone, avatarUrl }) {
   });
 
   const account = await Account.linkNewUserToAccount({ name, userId: user.id });
-  const contact = await Contact.create({ name, email, phone });
+  const contact = await Contact.create({ name, email: namespacedEmail, phone });
   await Contact.addToAccount({ contactId: contact.id, accountId: account.id });
   await User.update({ id: user.id, contact: contact.id });
 
   return { user: await User.getById(user.id), account };
+}
+
+async function createLoginableSyntheticHomeowner({
+  name,
+  email,
+  phone,
+  avatarUrl,
+  password,
+  agentUserId,
+  personaKey,
+}) {
+  const namespacedEmail = buildSyntheticHomeownerEmail(agentUserId, personaKey);
+  const existing = await User.get(namespacedEmail).catch(() => null);
+  if (existing?.id) {
+    await User.updateLoginPassword({
+      id: existing.id,
+      password,
+      demoLoginPassword: password,
+    });
+    await db.query(
+      `UPDATE users SET demo_paired_agent_id = $2, updated_at = NOW() WHERE id = $1`,
+      [existing.id, agentUserId]
+    );
+    const expiresAt = await setDemoExpiry(existing.id);
+    const accountRes = await db.query(
+      `SELECT a.id, a.url, a.name
+       FROM accounts a
+       JOIN account_users au ON au.account_id = a.id
+       WHERE au.user_id = $1 AND au.role = 'owner'
+       ORDER BY a.id
+       LIMIT 1`,
+      [existing.id]
+    );
+    const accountRow = accountRes.rows[0];
+    if (!accountRow) {
+      throw new BadRequestError("Paired demo homeowner account not found.");
+    }
+    return {
+      user: await User.getById(existing.id),
+      account: { id: accountRow.id, url: accountRow.url, name: accountRow.name },
+      demoLoginPassword: password,
+      demoExpiresAt: expiresAt,
+    };
+  }
+
+  const user = await User.register({
+    name,
+    email: namespacedEmail,
+    password,
+    phone,
+    role: "homeowner",
+    is_active: true,
+    role_locked: true,
+    demo_login_password: password,
+  });
+  if (avatarUrl) {
+    await db.query(`UPDATE users SET avatar_url = $2, updated_at = NOW() WHERE id = $1`, [
+      user.id,
+      avatarUrl,
+    ]);
+  }
+  await db.query(
+    `UPDATE users
+     SET demo_paired_agent_id = $2,
+         email_verified = true,
+         onboarding_completed = true,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [user.id, agentUserId]
+  );
+  const expiresAt = await setDemoExpiry(user.id);
+
+  const account = await Account.linkNewUserToAccount({ name, userId: user.id });
+  const contact = await Contact.create({ name, email: namespacedEmail, phone });
+  await Contact.addToAccount({ contactId: contact.id, accountId: account.id });
+  await User.update({ id: user.id, contact: contact.id });
+  await User.completeOnboarding(user.id, { role: "homeowner", subscriptionTier: "homeowner_maintain" });
+  await provisionActivePaidPlan(account.id, "homeowner_maintain");
+
+  return {
+    user: await User.getById(user.id),
+    account,
+    demoLoginPassword: password,
+    demoExpiresAt: expiresAt,
+  };
 }
 
 async function setupBaseAccount({ userId, name, email, phone, role, planCode }) {
@@ -941,9 +1052,17 @@ async function seedPropertyPortfolio({
 
 /**
  * Provision a login-ready demo account with sample data.
- * @param {{ userId: number, role: string, name: string, email: string, phone?: string }}
+ * @param {{ userId: number, role: string, name: string, email: string, phone?: string, password?: string, includePairedHomeownerLogin?: boolean }}
  */
-async function provisionDemoAccount({ userId, role, name, email, phone }) {
+async function provisionDemoAccount({
+  userId,
+  role,
+  name,
+  email,
+  phone,
+  password,
+  includePairedHomeownerLogin = false,
+}) {
   if (!isDemoEnvironment()) {
     throw new BadRequestError("Demo account provisioning is only available on the demo site.");
   }
@@ -955,6 +1074,8 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
   const planCode = scenario.plan.code;
   const agentPersona = await findOrCreateDemoAgentPersona();
   const propertySummaries = [];
+  let pairedHomeowner = null;
+  const demoExpiresAt = await setDemoExpiry(userId);
 
   try {
     const account = await setupBaseAccount({
@@ -985,12 +1106,30 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
       const homeownerUserIds = [];
       const summaries = await Promise.all(
         scenario.properties.map(async (template) => {
-          const synthetic = await createSyntheticHomeowner({
-            name: template.syntheticHomeowner.name,
-            email: template.syntheticHomeowner.email,
-            phone: template.syntheticHomeowner.phone,
-            avatarUrl: template.syntheticHomeowner.avatar_url,
-          });
+          const personaKey = template.syntheticHomeowner.personaKey;
+          const isPairedLoginProperty =
+            includePairedHomeownerLogin &&
+            password &&
+            template.index === PAIRED_HOMEOWNER_PROPERTY_INDEX;
+
+          const synthetic = isPairedLoginProperty
+            ? await createLoginableSyntheticHomeowner({
+                name: template.syntheticHomeowner.name,
+                email: template.syntheticHomeowner.email,
+                phone: template.syntheticHomeowner.phone,
+                avatarUrl: template.syntheticHomeowner.avatar_url,
+                password,
+                agentUserId: userId,
+                personaKey,
+              })
+            : await createSyntheticHomeowner({
+                name: template.syntheticHomeowner.name,
+                email: template.syntheticHomeowner.email,
+                phone: template.syntheticHomeowner.phone,
+                avatarUrl: template.syntheticHomeowner.avatar_url,
+                agentUserId: userId,
+                personaKey,
+              });
 
           homeownerUserIds.push(synthetic.user.id);
 
@@ -1000,7 +1139,7 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
             role: "member",
           });
 
-          return seedPropertyPortfolio({
+          const summary = await seedPropertyPortfolio({
             template,
             propertyAccountId: synthetic.account.id,
             ownerUserId: synthetic.user.id,
@@ -1010,6 +1149,20 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
             syntheticHomeowner: template.syntheticHomeowner,
             accountUrl: synthetic.account.url,
           });
+
+          if (isPairedLoginProperty) {
+            pairedHomeowner = {
+              userId: synthetic.user.id,
+              email: synthetic.user.email,
+              name: synthetic.user.name,
+              demoLoginPassword: synthetic.demoLoginPassword || password,
+              propertyUid: summary.propertyUid,
+              accountUrl: synthetic.account.url,
+              demoExpiresAt: synthetic.demoExpiresAt || demoExpiresAt,
+            };
+          }
+
+          return summary;
         })
       );
       propertySummaries.push(...summaries);
@@ -1030,6 +1183,8 @@ async function provisionDemoAccount({ userId, role, name, email, phone }) {
       propertyUids: propertySummaries.map((p) => p.propertyUid),
       accountId: account.id,
       accountUrl: account.url,
+      demoExpiresAt,
+      pairedHomeowner,
     };
   } catch (err) {
     console.error("[demoAccountProvisioner] failed:", err.message);

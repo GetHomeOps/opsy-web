@@ -674,6 +674,9 @@ function redirectWithToken(accessToken, refreshToken) {
 }
 
 router.get("/google/signin", function (req, res, next) {
+  if (isDemoEnvironment()) {
+    return res.redirect(redirectWithError("oauth_disabled"));
+  }
   if (!GOOGLE_CLIENT_ID) {
     return res.status(503).json({ error: { message: "Google sign-in is not configured" } });
   }

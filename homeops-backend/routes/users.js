@@ -37,6 +37,7 @@ const {
 } = require("../services/invitationService");
 const { assertDemoResetAllowed, isDemoEnvironment } = require("../helpers/demoEnvironment");
 const { ensureDemoUserSchema } = require("../helpers/demoUserSchema");
+const { resetDemoHomeownerProfileByUserId } = require("../services/demoHomeownerProfileResetService");
 const {
   enqueueDemoProvision,
   getProvisionStatus,
@@ -79,10 +80,17 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       sendInvite,
       sendInvitationEmail,
       provisionDemoAccount: provisionDemoAccountFlag,
+      includePairedHomeownerLogin: includePairedHomeownerLoginFlag,
     } = req.body;
 
     const wantsProvision =
       provisionDemoAccountFlag === true || provisionDemoAccountFlag === "true";
+
+    const includePairedHomeownerLogin =
+      role === "agent" &&
+      wantsProvision &&
+      includePairedHomeownerLoginFlag !== false &&
+      includePairedHomeownerLoginFlag !== "false";
 
     if (wantsProvision) {
       if (!isDemoEnvironment()) {
@@ -144,6 +152,8 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
         name,
         email,
         phone,
+        password,
+        includePairedHomeownerLogin,
       });
       provisionMs = Date.now() - provisionStart;
       provisionStatus = "pending";
@@ -314,8 +324,8 @@ router.get("/onboarding-status", ensureLoggedIn, async function (req, res, next)
 });
 
 /** POST /users/demo/reset-homeowner-profile
- * Reset only hello-homeowner@heyopsy.com to a clean "new homeowner" state while preserving
- * account, credentials, role, and base property.
+ * Reset a demo homeowner profile to a clean state while preserving account, credentials, role,
+ * and base property. Available to hello-homeowner@heyopsy.com and provisioned paired homeowners.
  */
 router.post("/demo/reset-homeowner-profile", ensureLoggedIn, async function (req, res, next) {
   const requestedBy = res.locals.user;
@@ -324,135 +334,49 @@ router.post("/demo/reset-homeowner-profile", ensureLoggedIn, async function (req
   }
   try {
     assertDemoResetAllowed(req);
-    if (requestedBy.email.toLowerCase() !== DEMO_HOMEOWNER_RESET_EMAIL) {
-      throw new ForbiddenError("Only the demo homeowner account can reset this profile.");
-    }
+    await ensureDemoUserSchema();
 
-    const userCheck = await db.query(
-      `SELECT id, email FROM users WHERE id = $1 AND LOWER(email) = LOWER($2)`,
-      [requestedBy.id, DEMO_HOMEOWNER_RESET_EMAIL],
+    const userRow = await db.query(
+      `SELECT id, email, role, demo_paired_agent_id AS "demoPairedAgentId"
+       FROM users WHERE id = $1`,
+      [requestedBy.id]
     );
-    if (userCheck.rows.length === 0) {
-      throw new ForbiddenError("Only the demo homeowner account can reset this profile.");
+    const targetUser = userRow.rows[0];
+    if (!targetUser) {
+      throw new ForbiddenError("User not found.");
+    }
+    if (targetUser.role !== "homeowner") {
+      throw new ForbiddenError("Only demo homeowner accounts can reset this profile.");
     }
 
-    const client = await db.connect();
-    const audit = {};
-    try {
-      await client.query("BEGIN");
-
-      const targetUserRes = await client.query(
-        `SELECT id FROM users WHERE LOWER(email) = LOWER($1) FOR UPDATE`,
-        [DEMO_HOMEOWNER_RESET_EMAIL],
-      );
-      const targetUserId = targetUserRes.rows[0]?.id;
-      if (!targetUserId) throw new BadRequestError("Demo user not found.");
-
-      const ownedPropertyRes = await client.query(
-        `SELECT property_id
-         FROM property_users
-         WHERE user_id = $1 AND role = 'owner'`,
-        [targetUserId],
-      );
-      const ownedPropertyIds = ownedPropertyRes.rows.map((r) => r.property_id);
-      if (ownedPropertyIds.length === 0) {
-        throw new BadRequestError("Demo user has no owned properties to reset.");
-      }
-
-      async function runUserDelete(label, table, whereSql) {
-        const result = await client.query(
-          `DELETE FROM ${table} WHERE ${whereSql}`,
-          [targetUserId],
-        );
-        audit[label] = result.rowCount || 0;
-      }
-
-      async function runPropertyDelete(label, table, whereSql = "property_id = ANY($1::int[])") {
-        const result = await client.query(
-          `DELETE FROM ${table} WHERE ${whereSql}`,
-          [ownedPropertyIds],
-        );
-        audit[label] = result.rowCount || 0;
-      }
-
-      await runPropertyDelete(
-        "eventCalendarSyncsDeleted",
-        "event_calendar_syncs",
-        `maintenance_event_id IN (
-           SELECT id FROM maintenance_events WHERE property_id = ANY($1::int[])
-         )`,
-      );
-      await runPropertyDelete("maintenanceEventsDeleted", "maintenance_events");
-      await runPropertyDelete("contractorReportTokensDeleted", "contractor_report_tokens");
-      await runPropertyDelete("documentChunksDeleted", "document_chunks");
-      await runPropertyDelete("propertyDocumentsDeleted", "property_documents");
-      await runPropertyDelete("stagedDocumentsDeleted", "staged_documents");
-      await runPropertyDelete("inspectionChecklistItemsDeleted", "inspection_checklist_items");
-      await runPropertyDelete("inspectionAnalysisResultsDeleted", "inspection_analysis_results");
-      await runPropertyDelete("inspectionAnalysisJobsDeleted", "inspection_analysis_jobs");
-      await runPropertyDelete("aiActionDraftsDeleted", "ai_action_drafts");
-      await runPropertyDelete("aiConversationsDeleted", "ai_conversations");
-      await runPropertyDelete("propertyAiReanalysisAuditDeleted", "property_ai_reanalysis_audit");
-      await runPropertyDelete("propertyAiSummaryStateDeleted", "property_ai_summary_state");
-      await runPropertyDelete("propertyAiProfilesDeleted", "property_ai_profiles");
-      await runPropertyDelete("propertyMaintenanceDeleted", "property_maintenance");
-      await runPropertyDelete("propertySystemsDeleted", "property_systems");
-      await runPropertyDelete("attomLookupJobsDeleted", "attom_lookup_jobs");
-      await runPropertyDelete("homeownerAgentInquiriesDeleted", "homeowner_agent_inquiries");
-      await runPropertyDelete("conversationsDeleted", "conversations");
-      await runPropertyDelete(
-        "notificationsByPropertyDeleted",
-        "notifications",
-        "property_id = ANY($1::int[])",
-      );
-
-      await runUserDelete("savedProfessionalsDeleted", "saved_professionals", "user_id = $1");
-      await runUserDelete("calendarIntegrationsDeleted", "calendar_integrations", "user_id = $1");
-      await runUserDelete("platformEngagementEventsDeleted", "platform_engagement_events", "user_id = $1");
-      await runUserDelete(
-        "notificationsByUserDeleted",
-        "notifications",
-        "user_id = $1 AND property_id IS NULL",
-      );
-
-      const resetUserRes = await client.query(
-        `UPDATE users
-         SET image = NULL,
-             avatar_url = NULL,
-             welcome_modal_dismissed = false,
-             updated_at = NOW()
-         WHERE id = $1`,
-        [targetUserId],
-      );
-      audit.userProfileReset = resetUserRes.rowCount || 0;
-
-      await client.query("COMMIT");
-
-      console.info(
-        "[demo-profile-reset] completed",
-        JSON.stringify({
-          email: DEMO_HOMEOWNER_RESET_EMAIL,
-          userId: targetUserId,
-          ownedPropertyIds,
-          ...audit,
-        }),
-      );
-
-      return res.json({
-        success: true,
-        message: "Demo profile reset completed.",
-        audit: {
-          email: DEMO_HOMEOWNER_RESET_EMAIL,
-          ownedPropertyIds,
-          ...audit,
-        },
-      });
-    } catch (txErr) {
-      await client.query("ROLLBACK");
-      throw txErr;
-    } finally {
-      client.release();
+    const isLegacyDemoHomeowner =
+      targetUser.email.toLowerCase() === DEMO_HOMEOWNER_RESET_EMAIL;
+    const isPairedDemoHomeowner = targetUser.demoPairedAgentId != null;
+    if (!isLegacyDemoHomeowner && !isPairedDemoHomeowner) {
+      throw new ForbiddenError("Only demo homeowner accounts can reset this profile.");
     }
+
+    const { ownedPropertyIds, audit } = await resetDemoHomeownerProfileByUserId(targetUser.id);
+
+    console.info(
+      "[demo-profile-reset] completed",
+      JSON.stringify({
+        email: targetUser.email,
+        userId: targetUser.id,
+        ownedPropertyIds,
+        ...audit,
+      })
+    );
+
+    return res.json({
+      success: true,
+      message: "Demo profile reset completed.",
+      audit: {
+        email: targetUser.email,
+        ownedPropertyIds,
+        ...audit,
+      },
+    });
   } catch (err) {
     return next(err);
   }
@@ -476,7 +400,22 @@ router.get("/by-id/:userId", ensureLoggedIn, ensurePlatformAdmin, async function
     if (!isDemoEnvironment() || res.locals.user?.role !== "super_admin") {
       delete userWithUrl.demoLoginPassword;
     }
-    return res.json({ user: userWithUrl });
+
+    let pairedHomeowner = null;
+    if (isDemoEnvironment() && res.locals.user?.role === "super_admin" && user.role === "agent") {
+      const pairedRes = await db.query(
+        `SELECT id, email, name, demo_login_password AS "demoLoginPassword",
+                demo_expires_at AS "demoExpiresAt"
+         FROM users
+         WHERE demo_paired_agent_id = $1
+         ORDER BY id
+         LIMIT 1`,
+        [userId]
+      );
+      pairedHomeowner = pairedRes.rows[0] || null;
+    }
+
+    return res.json({ user: userWithUrl, pairedHomeowner });
   } catch (err) {
     return next(err);
   }

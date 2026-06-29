@@ -20,6 +20,8 @@ const ERROR_MESSAGES = {
   missing_params: "Invalid callback. Please try again.",
   no_email: "Google did not provide an email. Please try another account.",
   oauth_failed: "Authentication failed. Please try again.",
+  oauth_disabled:
+    "Google sign-in is disabled on the demo site. Use your demo email and password instead.",
   inactive: "Your account is inactive. Please contact support.",
   google_email_unverified:
     "Google has not verified this email address yet. Verify it in your Google account settings, then try again.",

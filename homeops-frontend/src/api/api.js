@@ -418,7 +418,11 @@ class AppApi {
 
   static async getUserById(userId) {
     let res = await this.request(`users/by-id/${userId}`);
-    return res.user;
+    const user = res.user;
+    if (user && res.pairedHomeowner) {
+      user.pairedHomeowner = res.pairedHomeowner;
+    }
+    return user;
   }
 
   static async getUsersByAgentId(agentId) {

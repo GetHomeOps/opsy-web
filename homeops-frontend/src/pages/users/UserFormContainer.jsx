@@ -14,6 +14,7 @@ import {
   CreditCard,
   Eye,
   EyeOff,
+  Copy,
   Mail,
   MailOpen,
   User,
@@ -47,6 +48,30 @@ function generateRandomPassword() {
   return password;
 }
 
+async function copyTextToClipboard(text) {
+  if (!text) return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function formatDemoExpiresAt(iso) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "UTC",
+      timeZoneName: "short",
+    });
+  } catch {
+    return iso;
+  }
+}
+
 const initialFormData = {
   name: "",
   email: "",
@@ -72,6 +97,7 @@ const initialState = {
   ownershipTransferModalOpen: false,
   sendInviteOnCreate: !isDemoSite(),
   provisionDemoOnCreate: false,
+  includePairedHomeownerLogin: true,
   demoPassword: "",
 };
 
@@ -135,7 +161,10 @@ function reducer(state, action) {
         provisionDemoOnCreate: !!action.payload,
         sendInviteOnCreate: action.payload ? false : state.sendInviteOnCreate,
         demoPassword: action.payload ? generateRandomPassword() : "",
+        includePairedHomeownerLogin: action.payload ? true : state.includePairedHomeownerLogin,
       };
+    case "SET_INCLUDE_PAIRED_HOMEOWNER_LOGIN":
+      return {...state, includePairedHomeownerLogin: !!action.payload};
     case "SET_DEMO_PASSWORD":
       return {
         ...state,
@@ -152,6 +181,8 @@ function UsersFormContainer() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [showDemoPassword, setShowDemoPassword] = useState(false);
   const [provisionPolling, setProvisionPolling] = useState(null);
+  const [provisionCredentials, setProvisionCredentials] = useState(null);
+  const [credentialCopyMessage, setCredentialCopyMessage] = useState("");
   const {id} = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -366,6 +397,16 @@ function UsersFormContainer() {
         if (statusRes?.status === "complete" && statusRes.demoSummary) {
           setProvisionPolling(null);
           const demoSummary = statusRes.demoSummary;
+          setProvisionCredentials({
+            agentEmail:
+              provisionPolling.agentEmail ||
+              state.formData.email ||
+              state.user?.email ||
+              "",
+            agentPassword: provisionPolling.password || "",
+            pairedHomeowner: demoSummary.pairedHomeowner || null,
+            demoExpiresAt: demoSummary.demoExpiresAt || null,
+          });
           const successBase = t("userCreatedSuccessfullyMessage", {
             defaultValue: "User created successfully",
           });
@@ -377,14 +418,30 @@ function UsersFormContainer() {
             countSuffix: demoSummary.propertyCount === 1 ? "y" : "ies",
             password: provisionPolling.password || "",
           })}`;
-          dispatch({
-            type: "SET_BANNER",
-            payload: {
-              open: true,
-              type: "success",
-              message: `${successBase}.${suffix}`,
-            },
-          });
+          if (demoSummary.pairedHomeowner) {
+            const pairedSuffix = ` ${t("demoPairedHomeownerReadySuffix", {
+              defaultValue:
+                " Paired homeowner login: {{email}} (same password).",
+              email: demoSummary.pairedHomeowner.email,
+            })}`;
+            dispatch({
+              type: "SET_BANNER",
+              payload: {
+                open: true,
+                type: "success",
+                message: `${successBase}.${suffix}${pairedSuffix}`,
+              },
+            });
+          } else {
+            dispatch({
+              type: "SET_BANNER",
+              payload: {
+                open: true,
+                type: "success",
+                message: `${successBase}.${suffix}`,
+              },
+            });
+          }
         } else if (statusRes?.status === "failed") {
           setProvisionPolling(null);
           dispatch({
@@ -603,6 +660,11 @@ function UsersFormContainer() {
           ? false
           : state.sendInviteOnCreate,
       ...(state.provisionDemoOnCreate ? {provisionDemoAccount: true} : {}),
+      ...(state.provisionDemoOnCreate &&
+      (state.formData.role || "").toLowerCase() === "agent" &&
+      state.includePairedHomeownerLogin
+        ? {includePairedHomeownerLogin: true}
+        : {}),
     };
 
     dispatch({type: "SET_SUBMITTING", payload: true});
@@ -646,7 +708,11 @@ function UsersFormContainer() {
         let bannerType;
 
         if (provisionStatus === "pending") {
-          setProvisionPolling({userId: res.id, password});
+          setProvisionPolling({
+            userId: res.id,
+            password,
+            agentEmail: res.email || state.formData.email || "",
+          });
           inviteSuffix = ` ${t("demoAccountProvisioningSuffix", {
             defaultValue:
               "Sample data is being set up — this usually takes a few seconds.",
@@ -1055,6 +1121,39 @@ function UsersFormContainer() {
   const showDemoPasswordField =
     isDemoSuperAdmin &&
     ((state.isNew && state.provisionDemoOnCreate) || isDemoManagedUser);
+
+  const demoCredentialBundle = useMemo(() => {
+    if (provisionCredentials) return provisionCredentials;
+    if (!isDemoManagedUser || state.user?.role !== "agent") return null;
+    if (!state.user?.demoLoginPassword && !state.user?.pairedHomeowner) return null;
+    return {
+      agentEmail: state.user.email,
+      agentPassword: state.demoPassword || state.user.demoLoginPassword || "",
+      pairedHomeowner: state.user.pairedHomeowner || null,
+      demoExpiresAt: state.user.demoExpiresAt || null,
+    };
+  }, [
+    provisionCredentials,
+    isDemoManagedUser,
+    state.user,
+    state.demoPassword,
+  ]);
+
+  const showPairedHomeownerToggle =
+    state.isNew &&
+    isDemoSuperAdmin &&
+    state.provisionDemoOnCreate &&
+    (state.formData.role === "agent" || state.formData.role === "Agent");
+
+  async function handleCopyCredential(label, text) {
+    const ok = await copyTextToClipboard(text);
+    setCredentialCopyMessage(
+      ok
+        ? t("demoCredentialCopied", {defaultValue: "{{label}} copied", label})
+        : t("demoCredentialCopyFailed", {defaultValue: "Copy failed"}),
+    );
+    window.setTimeout(() => setCredentialCopyMessage(""), 2500);
+  }
 
   // Handler for role change
   function handleRoleChange(value) {
@@ -1958,6 +2057,47 @@ function UsersFormContainer() {
                     </div>
                   )}
 
+                  {showPairedHomeownerToggle && (
+                    <div className="mt-4 flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-[#456564]/20 dark:border-[#7aa3a2]/30 bg-white/60 dark:bg-gray-900/30">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                          {t("includePairedHomeownerLogin") ||
+                            "Include paired homeowner login"}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {t("includePairedHomeownerLoginHelper") ||
+                            "Creates a login-able synthetic client on the messages property for bilateral demos."}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={state.includePairedHomeownerLogin}
+                        aria-label={
+                          t("includePairedHomeownerLogin") ||
+                          "Include paired homeowner login"
+                        }
+                        onClick={() =>
+                          dispatch({
+                            type: "SET_INCLUDE_PAIRED_HOMEOWNER_LOGIN",
+                            payload: !state.includePairedHomeownerLogin,
+                          })
+                        }
+                        className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                          state.includePairedHomeownerLogin
+                            ? "bg-[#456564]"
+                            : "bg-gray-300 dark:bg-gray-600"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            state.includePairedHomeownerLogin ? "left-6" : "left-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  )}
+
                   {showDemoPasswordField && (
                     <div className="mt-4">
                       <label
@@ -2029,6 +2169,112 @@ function UsersFormContainer() {
                           : t("demoAccountPasswordEditHelper") ||
                             "Copy or update the login password shared with this demo prospect. Saving updates their sign-in credentials."}
                       </p>
+                    </div>
+                  )}
+
+                  {isDemoSuperAdmin && demoCredentialBundle && (
+                    <div className="mt-6 rounded-lg border border-[#456564]/30 dark:border-[#7aa3a2]/40 bg-[#456564]/5 dark:bg-gray-800/40 p-4 space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {t("demoCredentialsTitle") || "Demo login credentials"}
+                        </p>
+                        {demoCredentialBundle.demoExpiresAt ? (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {t("demoExpiresAtHelper", {
+                              defaultValue: "Expires at {{time}} (daily demo reset).",
+                              time: formatDemoExpiresAt(
+                                demoCredentialBundle.demoExpiresAt,
+                              ),
+                            })}
+                          </p>
+                        ) : null}
+                        {credentialCopyMessage ? (
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                            {credentialCopyMessage}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/50 p-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          {t("demoAgentCredentials") || "Agent"}
+                        </p>
+                        <p className="mt-2 text-sm text-gray-800 dark:text-gray-200 break-all">
+                          {demoCredentialBundle.agentEmail}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="btn-xs bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                            onClick={() =>
+                              handleCopyCredential(
+                                t("demoAgentCredentials") || "Agent email",
+                                demoCredentialBundle.agentEmail,
+                              )
+                            }
+                          >
+                            <Copy className="w-3.5 h-3.5 mr-1 inline" />
+                            {t("copyEmail") || "Copy email"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-xs bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                            onClick={() =>
+                              handleCopyCredential(
+                                t("demoAccountPassword") || "Password",
+                                demoCredentialBundle.agentPassword,
+                              )
+                            }
+                          >
+                            <Copy className="w-3.5 h-3.5 mr-1 inline" />
+                            {t("copyPassword") || "Copy password"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {demoCredentialBundle.pairedHomeowner ? (
+                        <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/50 p-3">
+                          <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            {t("demoPairedHomeownerCredentials") ||
+                              "Paired homeowner"}
+                          </p>
+                          <p className="mt-2 text-sm text-gray-800 dark:text-gray-200 break-all">
+                            {demoCredentialBundle.pairedHomeowner.name} —{" "}
+                            {demoCredentialBundle.pairedHomeowner.email}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className="btn-xs bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                              onClick={() =>
+                                handleCopyCredential(
+                                  t("demoPairedHomeownerCredentials") ||
+                                    "Paired homeowner email",
+                                  demoCredentialBundle.pairedHomeowner.email,
+                                )
+                              }
+                            >
+                              <Copy className="w-3.5 h-3.5 mr-1 inline" />
+                              {t("copyEmail") || "Copy email"}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-xs bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                              onClick={() =>
+                                handleCopyCredential(
+                                  t("demoAccountPassword") || "Password",
+                                  demoCredentialBundle.pairedHomeowner
+                                    .demoLoginPassword ||
+                                    demoCredentialBundle.agentPassword,
+                                )
+                              }
+                            >
+                              <Copy className="w-3.5 h-3.5 mr-1 inline" />
+                              {t("copyPassword") || "Copy password"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>

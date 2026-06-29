@@ -10,6 +10,12 @@ async function ensureDemoUserSchema() {
   await db.query(
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS demo_login_password VARCHAR(255)`
   );
+  await db.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS demo_paired_agent_id INTEGER REFERENCES users(id) ON DELETE SET NULL`
+  );
+  await db.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS demo_expires_at TIMESTAMPTZ`
+  );
   ensured = true;
 }
 
