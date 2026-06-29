@@ -10,7 +10,7 @@ import { useEffect } from "react";
  */
 export function useAutoCloseBanner(bannerOpen, bannerMessage, onClose, timeout = 2500) {
   useEffect(() => {
-    if (bannerOpen && bannerMessage) {
+    if (bannerOpen && bannerMessage && timeout > 0) {
       const timer = setTimeout(() => {
         onClose();
       }, timeout);

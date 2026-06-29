@@ -468,15 +468,19 @@ function UsersFormContainer() {
   }, [provisionPolling, t]);
 
   // Banner timeout useEffect with the custom hook
-  useAutoCloseBanner(state.bannerOpen, state.bannerMessage, () =>
-    dispatch({
-      type: "SET_BANNER",
-      payload: {
-        open: false,
-        type: state.bannerType,
-        message: state.bannerMessage,
-      },
-    }),
+  useAutoCloseBanner(
+    state.bannerOpen,
+    state.bannerMessage,
+    () =>
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: false,
+          type: state.bannerType,
+          message: state.bannerMessage,
+        },
+      }),
+    provisionPolling ? 0 : 2500,
   );
 
   // Populate form data when user changes
@@ -1144,6 +1148,36 @@ function UsersFormContainer() {
     isDemoSuperAdmin &&
     state.provisionDemoOnCreate &&
     (state.formData.role === "agent" || state.formData.role === "Agent");
+
+  const hasPairedHomeownerContext =
+    (showPairedHomeownerToggle && state.includePairedHomeownerLogin) ||
+    (!state.isNew && !!state.user?.pairedHomeowner) ||
+    !!demoCredentialBundle?.pairedHomeowner;
+
+  const demoPasswordHelperText = useMemo(() => {
+    if (state.isNew) {
+      if (hasPairedHomeownerContext) {
+        return (
+          t("demoAccountPasswordHelperWithPaired") ||
+          "Share this password with the prospect. The same password is used for both the agent and paired homeowner logins."
+        );
+      }
+      return (
+        t("demoAccountPasswordHelper") ||
+        "Share this password with the prospect so they can sign in immediately."
+      );
+    }
+    if (hasPairedHomeownerContext) {
+      return (
+        t("demoAccountPasswordEditHelperWithPaired") ||
+        "Updates the agent login password. The paired homeowner login uses the same password shown here."
+      );
+    }
+    return (
+      t("demoAccountPasswordEditHelper") ||
+      "Copy or update the login password shared with this demo prospect. Saving updates their sign-in credentials."
+    );
+  }, [state.isNew, hasPairedHomeownerContext, t]);
 
   async function handleCopyCredential(label, text) {
     const ok = await copyTextToClipboard(text);
@@ -2163,12 +2197,50 @@ function UsersFormContainer() {
                         </div>
                       )}
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {state.isNew
-                          ? t("demoAccountPasswordHelper") ||
-                            "Share this password with the prospect so they can sign in immediately."
-                          : t("demoAccountPasswordEditHelper") ||
-                            "Copy or update the login password shared with this demo prospect. Saving updates their sign-in credentials."}
+                        {demoPasswordHelperText}
                       </p>
+                    </div>
+                  )}
+
+                  {isDemoSuperAdmin && provisionPolling && (
+                    <div
+                      className="mt-6 rounded-lg border border-[#456564]/30 dark:border-[#7aa3a2]/40 bg-[#456564]/5 dark:bg-gray-800/40 p-4"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <div className="flex items-start gap-3">
+                        <svg
+                          className="animate-spin h-5 w-5 shrink-0 text-[#456564] dark:text-[#7aa3a2] mt-0.5"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          aria-hidden
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {t("demoAccountProvisioningTitle") ||
+                              "Creating demo account…"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {t("demoAccountProvisioningHelper") ||
+                              "Setting up sample properties, messages, and login credentials. This usually takes a few seconds."}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -2242,6 +2314,10 @@ function UsersFormContainer() {
                             {demoCredentialBundle.pairedHomeowner.name} —{" "}
                             {demoCredentialBundle.pairedHomeowner.email}
                           </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {t("demoPairedHomeownerSamePasswordNote") ||
+                              "Uses the same login password as above."}
+                          </p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <button
                               type="button"
@@ -2299,7 +2375,7 @@ function UsersFormContainer() {
                   className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm min-w-[100px]"
                   disabled={state.isSubmitting}
                 >
-                  {state.isSubmitting ? (
+                      {state.isSubmitting ? (
                     <div className="flex items-center justify-center gap-2">
                       <svg
                         className="animate-spin h-4 w-4 text-white"
@@ -2321,7 +2397,9 @@ function UsersFormContainer() {
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         ></path>
                       </svg>
-                      {t("saving") || "Saving"}
+                      {state.isNew && state.provisionDemoOnCreate
+                        ? t("demoAccountCreating") || "Creating demo account…"
+                        : t("saving") || "Saving"}
                     </div>
                   ) : state.isNew ? (
                     t("save") || "Save"
