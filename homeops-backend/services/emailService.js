@@ -438,19 +438,20 @@ async function sendBulkPropertyInvitationEmail({
       ? "This invitation expires in one week. If you didn't expect this invite, you can safely ignore this email."
       : "These invitations expire in one week. If you didn't expect this invite, you can safely ignore this email.";
 
-  let bodyExtra;
+  let bulkInviteInstructions;
   let linkIntro;
   if (inviteeHasAccount) {
-    bodyExtra = `${contextLead} You already have a ${escapeHtml(
+    bulkInviteInstructions = `You already have a ${escapeHtml(
       brandName
     )} account. Use the links below to open each property and accept or decline. If you're not signed in, you'll be asked to sign in first. You can also respond from your notifications (bell icon) when signed in.`;
     linkIntro = n === 1 ? "" : `<p style="margin-top: 16px;">Open each invitation:</p>`;
   } else {
-    bodyExtra = `${contextLead} Use the links below to join ${escapeHtml(
+    bulkInviteInstructions = `Use the links below to join ${escapeHtml(
       brandName
     )} and set your password to accept ${n === 1 ? "this invitation" : "each invitation"}.`;
     linkIntro = n === 1 ? "" : `<p style="margin-top: 16px;">Accept each invitation:</p>`;
   }
+  const bodyExtra = `${contextLead} ${bulkInviteInstructions}`;
 
   const listHtml =
     n === 1
@@ -485,6 +486,7 @@ async function sendBulkPropertyInvitationEmail({
     </div>
   `;
 
+  const resolvedRecipientFirstName = inviteeName || "";
   return emailProviderRouter.deliver({
     emailType: "bulk_property_invitation",
     to,
@@ -493,12 +495,114 @@ async function sendBulkPropertyInvitationEmail({
     mergeData: {
       brandName,
       inviterName: inviterName || "Someone",
-      inviteeName: inviteeName || "",
+      inviteeName: resolvedRecipientFirstName,
+      recipientFirstName: resolvedRecipientFirstName,
       inviteeHasAccount,
       items,
       itemCount: n,
       subject,
-      bulkInviteInstructions: bodyExtra,
+      bulkInviteInstructions,
+      headline,
+      intro,
+      bodyExtra,
+      linkIntro,
+      listHtml,
+      footerNote,
+    },
+    usage,
+  });
+}
+
+/**
+ * Single email listing multiple properties the invitee was added to directly.
+ * @param {Object} opts - { to, inviterName?, inviteeName?, items: { propertyAddress?, propertyUrl }[], usage? }
+ */
+async function sendBulkPropertyAddedEmail({
+  to,
+  inviterName,
+  inviteeName,
+  items,
+  usage,
+}) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("sendBulkPropertyAddedEmail requires a non-empty items array");
+  }
+
+  const n = items.length;
+  const subject =
+    n === 1
+      ? `You've been added to a property${items[0].propertyAddress ? `: ${items[0].propertyAddress}` : ""}`
+      : `You've been added to ${n} properties`;
+
+  const intro = inviteeName ? `Hi ${escapeHtml(inviteeName)},` : "Hi,";
+  const inviterText = inviterName ? `${escapeHtml(inviterName)} has` : "Someone has";
+
+  let contextLead;
+  if (n === 1) {
+    contextLead = items[0].propertyAddress
+      ? `${inviterText} added you to a property: ${escapeHtml(items[0].propertyAddress)}.`
+      : `${inviterText} added you to a property.`;
+  } else {
+    contextLead = `${inviterText} added you to the following ${n} properties on ${escapeHtml(brandName)}:`;
+  }
+
+  const headline = n === 1 ? "Property added" : "Properties added";
+  const footerNote =
+    "If you didn't expect this, you can contact your team or remove yourself from the property in the app.";
+
+  const instructions = `You can open ${n === 1 ? "the property" : "each property"} below in ${escapeHtml(
+    brandName
+  )}. No acceptance is required — you're already on the team.`;
+
+  const bodyExtra = `${contextLead} ${instructions}`;
+
+  const listHtml =
+    n === 1
+      ? `<p style="margin: 24px 0;">
+        <a href="${escapeHtmlAttr(items[0].propertyUrl)}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View property</a>
+      </p>`
+      : `<ul style="padding-left: 20px; margin: 16px 0; line-height: 1.6;">
+        ${items
+          .map((it) => {
+            const label = it.propertyAddress
+              ? escapeHtml(it.propertyAddress)
+              : "Property";
+            return `<li style="margin: 10px 0;">
+              <a href="${escapeHtmlAttr(it.propertyUrl)}" style="color: #456564; font-weight: 600;">View: ${label}</a>
+            </li>`;
+          })
+          .join("")}
+      </ul>`;
+
+  const linkIntro = n === 1 ? "" : `<p style="margin-top: 16px;">Open each property:</p>`;
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color: #456564;">${headline}</h2>
+      <p>${intro}</p>
+      <p>${bodyExtra}</p>
+      ${linkIntro}
+      ${listHtml}
+      <p style="color: #6b7280; font-size: 14px;">${footerNote}</p>
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  const resolvedRecipientFirstName = inviteeName || "";
+  return emailProviderRouter.deliver({
+    emailType: "bulk_property_invitation",
+    to,
+    subject,
+    html,
+    mergeData: {
+      brandName,
+      inviterName: inviterName || "Someone",
+      inviteeName: resolvedRecipientFirstName,
+      recipientFirstName: resolvedRecipientFirstName,
+      autoAdded: true,
+      items,
+      itemCount: n,
+      subject,
       headline,
       intro,
       bodyExtra,
@@ -1497,6 +1601,7 @@ module.exports = {
   sendInvitationEmail,
   buildPropertyInvitationDefaultMainPlain,
   sendBulkPropertyInvitationEmail,
+  sendBulkPropertyAddedEmail,
   sendContractorReportEmail,
   sendScheduleNotificationEmail,
   sendProfessionalContactEmail,

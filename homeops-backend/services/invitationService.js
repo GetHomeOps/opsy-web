@@ -26,7 +26,7 @@ const { onUserCreated } = require("./resourceAutoSend");
 const Notification = require("../models/notification");
 const { syncPropertyMissingAgentAdminNotifications } = require("./propertyMissingAgentNotifications");
 const { notifyNewUserAccount } = require("./opsTeamNotifyService");
-const { sendInvitationEmail, sendBulkPropertyInvitationEmail } = require("./emailService");
+const { sendInvitationEmail, sendBulkPropertyInvitationEmail, sendBulkPropertyAddedEmail } = require("./emailService");
 const {
   buildPropertyInvitationMissingDataMerge,
   EMPTY_MISSING_DATA_MERGE,
@@ -345,13 +345,28 @@ async function ensureInviteeContactAutoCreated({
   inviterUserRole,
 }) {
   const existingContact = await db.query(
-    `SELECT c.id FROM contacts c
+    `SELECT c.id, c.name FROM contacts c
      JOIN account_contacts ac ON ac.contact_id = c.id
      WHERE LOWER(TRIM(c.email)) = $1 AND ac.account_id = $2
      LIMIT 1`,
     [emailLower, accountId]
   );
-  if (existingContact.rows.length > 0) return;
+  if (existingContact.rows.length > 0) {
+    const existingName = (existingContact.rows[0].name || "").trim();
+    if (!existingName && trimmedInviteeName) {
+      try {
+        await Contact.update(existingContact.rows[0].id, {
+          name: trimmedInviteeName,
+        });
+      } catch (contactErr) {
+        console.error(
+          "[invitationService] Failed to update contact name for invitee:",
+          contactErr.message
+        );
+      }
+    }
+    return;
+  }
   const tierCheck = await canAddContact(accountId, inviterUserRole);
   if (!tierCheck.allowed) return;
   try {
@@ -503,6 +518,7 @@ async function createBulkPropertyInvitations({
   intendedPropertyRole,
   permissions,
   inviterUserRole,
+  requireApproval = true,
 }) {
   const emailLower = (inviteeEmail || "").trim().toLowerCase();
   if (!emailLower) throw new BadRequestError("inviteeEmail is required");
@@ -538,7 +554,7 @@ async function createBulkPropertyInvitations({
 
   const toCheck = rawIds.filter((pid) => validInAccount.has(pid));
   if (toCheck.length === 0) {
-    return { succeeded, failed };
+    return { succeeded, failed, autoAccepted: [] };
   }
 
   const [membersRes, pendingRes] = await Promise.all([
@@ -617,7 +633,7 @@ async function createBulkPropertyInvitations({
   }
 
   if (eligible.length === 0) {
-    return { succeeded, failed };
+    return { succeeded, failed, autoAccepted: [] };
   }
 
   const trimmedInviteeName = (inviteeName || "").trim();
@@ -669,7 +685,10 @@ async function createBulkPropertyInvitations({
   const inviteeUserRow = existingUserAny.rows[0] ?? null;
   const inviteeUserId = inviteeUserRow?.id ?? null;
   const inviteeUserIsActive = inviteeUserRow?.is_active === true;
-  if (inviteeUserId != null) {
+  const shouldAutoAccept = requireApproval === false && inviteeUserIsActive && inviteeUserId != null;
+  const autoAccepted = [];
+
+  if (inviteeUserId != null && !shouldAutoAccept) {
     await Promise.all(
       createdRows.map(({ invitation }) =>
         Notification.create({
@@ -684,21 +703,66 @@ async function createBulkPropertyInvitations({
     );
   }
 
-  try {
-    await sendBulkInvitationEmailForPropertyInvites({
-      invitationsWithTokens: createdRows.map(({ invitation, token }) => ({ invitation, token })),
-      inviterUserId,
-      inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
-    });
-  } catch (err) {
-    console.error("[invitationService] Failed to send bulk invitation email:", err.message);
+  if (shouldAutoAccept) {
+    const autoAcceptedRows = [];
+    for (const row of createdRows) {
+      try {
+        await acceptInvitation({ invitation: row.invitation, userId: inviteeUserId });
+        autoAccepted.push({ propertyId: row.propertyId, invitation: row.invitation });
+        succeeded.push({
+          invitation: row.invitation,
+          propertyId: row.propertyId,
+          autoAccepted: true,
+        });
+        autoAcceptedRows.push(row);
+      } catch (err) {
+        console.error(
+          "[invitationService] Bulk auto-accept failed for property",
+          row.propertyId,
+          err.message
+        );
+        try {
+          await Invitation.revoke(row.invitation.id);
+        } catch (revokeErr) {
+          console.error("[invitationService] Failed to revoke after auto-accept failure:", revokeErr.message);
+        }
+        failed.push({
+          propertyId: row.propertyId,
+          message: err.message || "Failed to add agent to property.",
+        });
+      }
+    }
+
+    if (autoAcceptedRows.length > 0) {
+      try {
+        await sendBulkPropertyAddedEmailForInvites({
+          invitationsWithTokens: autoAcceptedRows.map(({ invitation, token }) => ({ invitation, token })),
+          inviterUserId,
+          inviteeUserId,
+          inviteeName: trimmedInviteeName || null,
+        });
+      } catch (err) {
+        console.error("[invitationService] Failed to send bulk property-added email:", err.message);
+      }
+    }
+  } else {
+    try {
+      await sendBulkInvitationEmailForPropertyInvites({
+        invitationsWithTokens: createdRows.map(({ invitation, token }) => ({ invitation, token })),
+        inviterUserId,
+        inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
+        inviteeName: trimmedInviteeName || null,
+      });
+    } catch (err) {
+      console.error("[invitationService] Failed to send bulk invitation email:", err.message);
+    }
+
+    for (const row of createdRows) {
+      succeeded.push({ invitation: row.invitation, propertyId: row.propertyId });
+    }
   }
 
-  for (const row of createdRows) {
-    succeeded.push({ invitation: row.invitation, propertyId: row.propertyId });
-  }
-
-  return { succeeded, failed };
+  return { succeeded, failed, autoAccepted };
 }
 
 async function createAccountInvitation({
@@ -879,6 +943,7 @@ async function sendBulkInvitationEmailForPropertyInvites({
   invitationsWithTokens,
   inviterUserId,
   inviteeUserId,
+  inviteeName = null,
 }) {
   if (!invitationsWithTokens?.length) return;
 
@@ -943,13 +1008,78 @@ async function sendBulkInvitationEmailForPropertyInvites({
     return { propertyAddress, inviteUrl };
   });
 
+  const recipientFirstName =
+    firstNameFromFullName(inviteeName) ||
+    (await resolveInviteeFirstName(emailNorm, firstInv.accountId));
+
   const emailType = "invitation_property";
   await sendBulkPropertyInvitationEmail({
     to: firstInv.inviteeEmail,
     inviterName,
-    inviteeName: null,
+    inviteeName: recipientFirstName || null,
     items,
     inviteeHasAccount: hasExistingAccount,
+    usage:
+      firstInv.accountId && inviterUserId
+        ? {
+          accountId: firstInv.accountId,
+          userId: inviterUserId,
+          emailType,
+        }
+        : undefined,
+  });
+}
+
+/** One email listing properties the invitee was added to directly (no accept step). */
+async function sendBulkPropertyAddedEmailForInvites({
+  invitationsWithTokens,
+  inviterUserId,
+  inviteeUserId,
+  inviteeName = null,
+}) {
+  if (!invitationsWithTokens?.length) return;
+
+  const baseUrl = (APP_BASE_URL || process.env.APP_WEB_ORIGIN || "http://localhost:5173").replace(/\/$/, "");
+  const firstInv = invitationsWithTokens[0].invitation;
+  const account = await Account.get(firstInv.accountId);
+  const accountUrl = String(account?.url || account?.name || "home").replace(/^\/+/, "");
+  const emailNorm = (firstInv.inviteeEmail || "").trim().toLowerCase();
+
+  const propertyIds = [
+    ...new Set(invitationsWithTokens.map(({ invitation }) => invitation.propertyId).filter(Boolean)),
+  ];
+  const propRes = await db.query(
+    `SELECT id, address, property_uid FROM properties WHERE id = ANY($1::int[])`,
+    [propertyIds]
+  );
+  const propById = new Map(propRes.rows.map((row) => [row.id, row]));
+
+  let inviterName = null;
+  if (inviterUserId) {
+    const inviter = await db.query(`SELECT name FROM users WHERE id = $1`, [inviterUserId]);
+    inviterName = inviter.rows[0]?.name || null;
+  }
+
+  const items = invitationsWithTokens.map(({ invitation }) => {
+    const row = propById.get(invitation.propertyId);
+    const propertyAddress = row?.address || null;
+    const propertyUid = row?.property_uid || null;
+    const propertyUrl = propertyUid
+      ? `${baseUrl}/${accountUrl}/properties/${propertyUid}`
+      : `${baseUrl}/${accountUrl}/properties`;
+    return { propertyAddress, propertyUrl };
+  });
+
+  const recipientFirstName =
+    firstNameFromFullName(inviteeName) ||
+    (await resolveInviteeFirstName(emailNorm, firstInv.accountId));
+
+  const emailType = "invitation_property";
+  await sendBulkPropertyAddedEmail({
+    to: firstInv.inviteeEmail,
+    inviterName,
+    inviteeName: recipientFirstName || null,
+    items,
     usage:
       firstInv.accountId && inviterUserId
         ? {

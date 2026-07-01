@@ -8,8 +8,17 @@ import EventDetailModal from "./EventDetailModal";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import CalendarScheduleModal from "./CalendarScheduleModal";
 import DateOffsetControl from "../../components/DateOffsetControl";
-import {Popover, PopoverContent, PopoverTrigger} from "../../components/ui/popover";
-import {Calendar as CalendarIcon, SkipForward, Settings, Repeat} from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../../components/ui/popover";
+import {
+  Calendar as CalendarIcon,
+  SkipForward,
+  Settings,
+  Repeat,
+} from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {parseDateInput} from "../../lib/dateOffset";
 
@@ -95,6 +104,21 @@ function computeNextDate(dateStr, recurrenceType, intervalValue, intervalUnit) {
 const VIEW_MODES = ["month", "week", "day"];
 const CALENDAR_MIN_DATE = subYears(new Date(), 50);
 const CALENDAR_MAX_DATE = addYears(new Date(), 10);
+
+/** Let page scroll when a day cell has no overflow or is already at a scroll edge. */
+function handleDayCellWheel(e) {
+  const el = e.currentTarget;
+  if (el.scrollHeight <= el.clientHeight + 1) return;
+
+  const {scrollTop, scrollHeight, clientHeight} = el;
+  const scrollingDown = e.deltaY > 0;
+  const atTop = scrollTop <= 0;
+  const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+
+  if ((scrollingDown && atBottom) || (!scrollingDown && atTop)) return;
+
+  e.stopPropagation();
+}
 
 function Calendar() {
   const {currentAccount} = useCurrentAccount();
@@ -373,7 +397,10 @@ function Calendar() {
 
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
-    if (mode !== "month" && (focusedDate.getMonth() !== month || focusedDate.getFullYear() !== year)) {
+    if (
+      mode !== "month" &&
+      (focusedDate.getMonth() !== month || focusedDate.getFullYear() !== year)
+    ) {
       setFocusedDate(new Date(year, month, 1));
     }
   };
@@ -443,7 +470,10 @@ function Calendar() {
               </div>
 
               <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2 items-center">
-                <Popover open={calendarSettingsOpen} onOpenChange={setCalendarSettingsOpen}>
+                <Popover
+                  open={calendarSettingsOpen}
+                  onOpenChange={setCalendarSettingsOpen}
+                >
                   <PopoverTrigger asChild>
                     <button
                       type="button"
@@ -460,7 +490,11 @@ function Calendar() {
                     sideOffset={6}
                   >
                     <a
-                      href={accountUrl ? `/${accountUrl}/settings/configuration#calendar-integrations` : "/settings/configuration#calendar-integrations"}
+                      href={
+                        accountUrl
+                          ? `/${accountUrl}/settings/configuration#calendar-integrations`
+                          : "/settings/configuration#calendar-integrations"
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => setCalendarSettingsOpen(false)}
@@ -558,7 +592,10 @@ function Calendar() {
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
-                <Popover open={jumpPopoverOpen} onOpenChange={setJumpPopoverOpen}>
+                <Popover
+                  open={jumpPopoverOpen}
+                  onOpenChange={setJumpPopoverOpen}
+                >
                   <PopoverTrigger asChild>
                     <button
                       type="button"
@@ -706,8 +743,8 @@ function Calendar() {
                             {day}
                           </span>
                           <div
-                            className="h-full min-h-0 flex flex-col p-0.5 sm:p-1.5 pt-7 sm:pt-8 gap-1 overflow-y-auto overscroll-contain"
-                            onWheel={(e) => e.stopPropagation()}
+                            className="h-full min-h-0 flex flex-col p-0.5 sm:p-1.5 pt-7 sm:pt-8 gap-1 overflow-y-auto"
+                            onWheel={handleDayCellWheel}
                           >
                             {dayEvents.map((event) => (
                               <button
@@ -730,7 +767,9 @@ function Calendar() {
                                           aria-label="Recurring"
                                         />
                                       )}
-                                    <span className="truncate">{event.title}</span>
+                                    <span className="truncate">
+                                      {event.title}
+                                    </span>
                                   </div>
                                   <div className="text-xs truncate hidden sm:block opacity-90">
                                     {[

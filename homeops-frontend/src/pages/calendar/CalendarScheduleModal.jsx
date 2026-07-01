@@ -101,8 +101,7 @@ function CalendarScheduleModal({
     }
   };
 
-  const canContinue =
-    selectedPropertyId && propertyData && !loadingProperty;
+  const canContinue = selectedPropertyId && propertyData && !loadingProperty;
 
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
@@ -232,7 +231,9 @@ function CalendarScheduleModal({
                 <span className="flex items-center gap-1.5">
                   <Zap className="w-4 h-4 text-[#456564]" />
                   System
-                  <span className="text-xs font-normal text-gray-400">(optional)</span>
+                  <span className="text-xs font-normal text-gray-400">
+                    (optional)
+                  </span>
                 </span>
               </label>
               <select
@@ -275,7 +276,8 @@ function CalendarScheduleModal({
               </select>
               {selectedPropertyId && !loadingProperty && !selectedSystem && (
                 <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  You can continue without selecting a system for a general event.
+                  You can continue without selecting a system for a general
+                  event.
                 </p>
               )}
             </div>

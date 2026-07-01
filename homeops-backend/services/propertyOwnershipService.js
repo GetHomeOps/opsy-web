@@ -218,7 +218,9 @@ async function transferPropertyOwnership({
     const fromTitle =
       reason === "homeowner_invite"
         ? `${toName} accepted your invitation and is now the owner of ${label}. You are now an editor on this property.`
-        : `${toName} accepted ownership of ${label}. You are now an editor on this property.`;
+        : reason === "admin_remove_owner"
+          ? `You were removed from ${label}. Ownership has been transferred to a platform admin.`
+          : `${toName} accepted ownership of ${label}. You are now an editor on this property.`;
 
     await Notification.create(
       {
@@ -249,6 +251,43 @@ async function transferPropertyOwnership({
   };
 }
 
+/**
+ * When a platform admin removes the property owner from the team, transfer
+ * ownership to the acting admin before the sync deletes the former owner.
+ */
+async function transferOwnershipBeforeOwnerRemoval({
+  propertyId,
+  ownerUserId,
+  actingAdminUserId,
+  actingAdminRole,
+  newTeamUserIds,
+}) {
+  if (!ownerUserId || newTeamUserIds.has(ownerUserId)) return;
+
+  const isPlatformAdmin =
+    actingAdminRole === "admin" || actingAdminRole === "super_admin";
+  if (!isPlatformAdmin) {
+    throw new ForbiddenError("Only platform admins can remove the property owner");
+  }
+  if (!newTeamUserIds.has(actingAdminUserId)) {
+    if (Number(actingAdminUserId) === Number(ownerUserId)) {
+      throw new BadRequestError(
+        "You cannot remove yourself as the property owner. Transfer ownership to another team member first."
+      );
+    }
+    throw new BadRequestError(
+      "You must be on the property team to remove the owner and take ownership."
+    );
+  }
+
+  await transferPropertyOwnership({
+    propertyId,
+    fromUserId: ownerUserId,
+    toUserId: actingAdminUserId,
+    reason: "admin_remove_owner",
+  });
+}
+
 module.exports = {
   propertyLabel,
   resolveUserPrimaryAccountId,
@@ -257,4 +296,5 @@ module.exports = {
   getPropertyOwnerUserId,
   shouldAutoTransferOwnershipOnHomeownerInvite,
   transferPropertyOwnership,
+  transferOwnershipBeforeOwnerRemoval,
 };

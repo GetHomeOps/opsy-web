@@ -3109,7 +3109,13 @@ function PropertyFormContainer() {
               (m) => String(m.id) !== String(member.id),
             );
             await updateTeam(propertyId, prepareTeamForProperty(newTeam));
-            setHomeopsTeam(newTeam);
+            invalidatePropertyTeamCache(uid, propertyId);
+            await reloadHomeopsTeam();
+            window.dispatchEvent(
+              new CustomEvent("opsy:property-team-changed", {
+                detail: {propertyUid: uid, propertyId},
+              }),
+            );
           }
         }}
       />

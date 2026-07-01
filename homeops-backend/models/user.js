@@ -207,6 +207,22 @@ class User {
     return user;
   }
 
+  /** Sync login password to all demo homeowners paired with this agent. */
+  static async updatePairedDemoHomeownerPasswords(agentUserId, password) {
+    const pairedRes = await db.query(
+      `SELECT id FROM users WHERE demo_paired_agent_id = $1 ORDER BY id`,
+      [agentUserId]
+    );
+    for (const row of pairedRes.rows) {
+      await User.updateLoginPassword({
+        id: row.id,
+        password,
+        demoLoginPassword: password,
+      });
+    }
+    return pairedRes.rows.length;
+  }
+
   /** Find user by Google sub. Returns null if not found. */
   static async findByGoogleSub(googleSub) {
     if (!googleSub) return null;

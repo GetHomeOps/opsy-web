@@ -437,7 +437,11 @@ class AppApi {
 
   static async updateUser(id, data) {
     let res = await this.request(`users/${id}`, data, 'PATCH');
-    return res.user;
+    const user = res.user;
+    if (user && res.pairedHomeowner) {
+      user.pairedHomeowner = res.pairedHomeowner;
+    }
+    return user;
   }
 
   static async adminCreateUser(data) {

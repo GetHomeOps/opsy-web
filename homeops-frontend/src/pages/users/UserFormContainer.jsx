@@ -244,27 +244,50 @@ function UsersFormContainer() {
     }
   }
 
-  // Fetch user based on URL's user id
+  // Demo super admin: load full user (incl. demo credentials) by id only — avoid resetting edits when users context changes.
   useEffect(() => {
+    if (!isDemoSuperAdmin || !id || id === "new") return;
+
+    let cancelled = false;
+    async function fetchDemoUser() {
+      try {
+        const user = await AppApi.getUserById(id);
+        if (!cancelled && user) {
+          dispatch({type: "SET_USER", payload: user});
+        }
+      } catch (err) {
+        if (!cancelled) {
+          dispatch({type: "SET_USER", payload: null});
+          dispatch({
+            type: "SET_BANNER",
+            payload: {
+              open: true,
+              type: "error",
+              message: `Error finding user: ${err.message || err}`,
+            },
+          });
+        }
+      }
+    }
+    fetchDemoUser();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isDemoSuperAdmin]);
+
+  // Non-demo: resolve user from context once the list has loaded.
+  useEffect(() => {
+    if (isDemoSuperAdmin) return;
+
     async function fetchUser() {
       if (id && id !== "new") {
         try {
-          if (isDemoSuperAdmin) {
-            const user = await AppApi.getUserById(id);
-            if (user) {
-              dispatch({type: "SET_USER", payload: user});
-              return;
-            }
-          }
-
-          // Find user in context (users come from UserContext)
           const existingUser = users.find(
             (user) => Number(user.id) === Number(id),
           );
           if (existingUser) {
             dispatch({type: "SET_USER", payload: existingUser});
           } else if (users.length > 0) {
-            // Drop stale profile data when the URL id is not in the loaded list.
             dispatch({type: "SET_USER", payload: null});
             dispatch({
               type: "SET_BANNER",
@@ -275,7 +298,6 @@ function UsersFormContainer() {
               },
             });
           } else {
-            // Users still loading — clear previous profile so we never show the wrong user.
             dispatch({type: "SET_USER", payload: null});
           }
         } catch (err) {
@@ -807,19 +829,18 @@ function UsersFormContainer() {
 
     try {
       const res = await AppApi.updateUser(id, userData);
+      const updatedUser = isDemoSuperAdmin
+        ? await AppApi.getUserById(id)
+        : res;
 
-      console.log("res:", res);
-
-      if (res) {
-        // Update the user in the state
+      if (updatedUser) {
         dispatch({
           type: "SET_USER",
-          payload: res,
+          payload: updatedUser,
         });
 
-        // Update the users in the context
         const updatedUsers = users.map((u) =>
-          u.id === Number(id) ? {...res, id: Number(id)} : u,
+          u.id === Number(id) ? {...updatedUser, id: Number(id)} : u,
         );
         setUsers(updatedUsers);
         dispatch({type: "SET_FORM_CHANGED", payload: false});
@@ -2339,9 +2360,7 @@ function UsersFormContainer() {
                               onClick={() =>
                                 handleCopyCredential(
                                   t("demoAccountPassword") || "Password",
-                                  demoCredentialBundle.pairedHomeowner
-                                    .demoLoginPassword ||
-                                    demoCredentialBundle.agentPassword,
+                                  demoCredentialBundle.agentPassword,
                                 )
                               }
                             >

@@ -19,6 +19,7 @@ import {
 import ModalBlank from "../../../components/ModalBlank";
 import AppApi from "../../../api/api";
 import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
+import {useTranslation} from "react-i18next";
 
 const EMAIL_REGEX =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
@@ -347,13 +348,16 @@ function BulkInviteModal({
   /** Fallback when a list row omits account_id (prefer each property's account). */
   currentAccount,
 }) {
+  const {t} = useTranslation();
   const [agents, setAgents] = useState([]);
   const [email, setEmail] = useState("");
-  const [selectedAgentName, setSelectedAgentName] = useState("");
+  const [inviteeName, setInviteeName] = useState("");
+  const [selectedAgentEmail, setSelectedAgentEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [results, setResults] = useState(null);
   const [removedIds, setRemovedIds] = useState(new Set());
+  const [requireApproval, setRequireApproval] = useState(true);
   const agentDropdownRef = useRef(null);
 
   const visibleProperties = useMemo(
@@ -377,17 +381,41 @@ function BulkInviteModal({
   useEffect(() => {
     if (modalOpen) {
       setEmail("");
-      setSelectedAgentName("");
+      setInviteeName("");
+      setSelectedAgentEmail("");
       setEmailError("");
       setIsSubmitting(false);
       setResults(null);
       setRemovedIds(new Set());
+      setRequireApproval(true);
     }
   }, [modalOpen]);
 
   const effectiveEmail = email?.trim() || "";
+  const matchedAgent = useMemo(() => {
+    if (!effectiveEmail) return null;
+    const norm = effectiveEmail.toLowerCase();
+    return (
+      agents.find((a) => (a.email || "").trim().toLowerCase() === norm) ?? null
+    );
+  }, [agents, effectiveEmail]);
+  const showNameField = Boolean(effectiveEmail && !matchedAgent);
+  const resolvedInviteeName =
+    (inviteeName || matchedAgent?.name || "").trim() || undefined;
   const isValidEmail = EMAIL_REGEX.test(effectiveEmail);
+  const agentAccessState = (matchedAgent?.accessState || "active").toLowerCase();
+  const canAutoAdd =
+    Boolean(matchedAgent) &&
+    agentAccessState === "active" &&
+    isValidEmail;
+  const effectiveRequireApproval = requireApproval || !canAutoAdd;
   const canSubmit = isValidEmail && visibleProperties.length > 0 && !emailError;
+
+  useEffect(() => {
+    if (!canAutoAdd && !requireApproval) {
+      setRequireApproval(true);
+    }
+  }, [canAutoAdd, requireApproval]);
 
   const handleRemoveProperty = useCallback((id) => {
     setRemovedIds((prev) => new Set([...prev, id]));
@@ -436,10 +464,12 @@ function BulkInviteModal({
       try {
         const res = await AppApi.createBulkPropertyInvitations({
           inviteeEmail: effectiveEmail,
-          inviteeName: selectedAgentName || undefined,
+          inviteeName: resolvedInviteeName,
           accountId,
           propertyIds: props.map((prop) => prop.id),
-          intendedRole: "agent",
+          intendedRole: "editor",
+          intendedPropertyRole: "agent",
+          requireApproval: effectiveRequireApproval,
         });
         for (const row of res.succeeded || []) {
           const prop = byId.get(row.propertyId);
@@ -464,7 +494,7 @@ function BulkInviteModal({
       }
     }
 
-    setResults({succeeded, failed});
+    setResults({succeeded, failed, autoAdded: !effectiveRequireApproval});
     setIsSubmitting(false);
   };
 
@@ -497,19 +527,25 @@ function BulkInviteModal({
             <div className="text-center">
               {results.succeeded.length > 0 && (
                 <p className="text-base font-semibold text-gray-900 dark:text-white">
-                  {results.succeeded.length}{" "}
-                  {results.succeeded.length === 1
-                    ? "invitation"
-                    : "invitations"}{" "}
-                  sent successfully!
+                  {results.autoAdded
+                    ? t("bulkInvite.propertiesAddedSuccess", {
+                        count: results.succeeded.length,
+                      })
+                    : t("bulkInvite.invitationsSentSuccess", {
+                        count: results.succeeded.length,
+                      })}
                 </p>
               )}
               {results.failed.length > 0 && (
                 <div className="mt-3">
                   <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                    {results.failed.length}{" "}
-                    {results.failed.length === 1 ? "invitation" : "invitations"}{" "}
-                    failed:
+                    {results.autoAdded
+                      ? t("bulkInvite.propertiesFailed", {
+                          count: results.failed.length,
+                        })
+                      : t("bulkInvite.invitationsFailed", {
+                          count: results.failed.length,
+                        })}
                   </p>
                   <ul className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto">
                     {results.failed.map((f, i) => (
@@ -565,15 +601,46 @@ function BulkInviteModal({
                   onChange={(v) => {
                     setEmail(v);
                     setEmailError("");
+                    const norm = v.trim().toLowerCase();
+                    if (!norm || norm !== selectedAgentEmail) {
+                      setInviteeName("");
+                      setSelectedAgentEmail("");
+                    }
                   }}
-                  onSelectAgent={(agent) =>
-                    setSelectedAgentName((agent.name || "").trim())
-                  }
+                  onSelectAgent={(agent) => {
+                    const agentEmail = (agent.email || "").trim().toLowerCase();
+                    setInviteeName((agent.name || "").trim());
+                    setSelectedAgentEmail(agentEmail);
+                  }}
                   placeholder="Search agents or enter email..."
                   disabled={isSubmitting}
                   error={emailError}
                 />
               </div>
+
+              {showNameField && (
+                <div>
+                  <label
+                    htmlFor="bulk-invite-name"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5"
+                  >
+                    Name{" "}
+                    <span className="font-normal text-gray-500 dark:text-gray-400">
+                      (optional)
+                    </span>
+                  </label>
+                  <input
+                    id="bulk-invite-name"
+                    type="text"
+                    value={inviteeName}
+                    onChange={(e) => setInviteeName(e.target.value)}
+                    placeholder="e.g. Jane Smith"
+                    autoComplete="name"
+                    disabled={isSubmitting}
+                    className="form-input w-full"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -650,6 +717,45 @@ function BulkInviteModal({
               </div>
             </div>
 
+            <div className="px-6 pb-2 shrink-0">
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {requireApproval
+                      ? t("bulkInvite.requireApprovalLabel")
+                      : t("bulkInvite.addWithoutApprovalLabel")}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {requireApproval
+                      ? t("bulkInvite.requireApprovalHelp")
+                      : t("bulkInvite.addWithoutApprovalHelp")}
+                  </p>
+                  {!canAutoAdd && effectiveEmail && isValidEmail && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                      {t("bulkInvite.autoAddUnavailable")}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={requireApproval}
+                  aria-label={t("bulkInvite.requireApprovalLabel")}
+                  onClick={() => setRequireApproval(!requireApproval)}
+                  disabled={isSubmitting || !canAutoAdd}
+                  className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                    requireApproval ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
+                  } ${isSubmitting || !canAutoAdd ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  <span
+                    className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                      requireApproval ? "left-6" : "left-1"
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
             <div className="p-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex gap-3 shrink-0">
               <button
                 type="button"
@@ -673,8 +779,9 @@ function BulkInviteModal({
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
-                    Send {visibleProperties.length}{" "}
-                    {visibleProperties.length === 1 ? "invite" : "invites"}
+                    {effectiveRequireApproval
+                      ? t("bulkInvite.sendInvites", {count: visibleProperties.length})
+                      : t("bulkInvite.addToProperties", {count: visibleProperties.length})}
                     <Send className="w-4 h-4" />
                   </span>
                 )}

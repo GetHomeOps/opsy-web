@@ -2,7 +2,13 @@ import React, {useEffect, useRef, useState} from "react";
 import {Link} from "react-router-dom";
 import {parseISO, format, isValid, isToday, isTomorrow} from "date-fns";
 import {parseDateInput} from "../lib/dateOffset";
-import {Clock3, Calendar, AlertCircle, ChevronRight, Loader2} from "lucide-react";
+import {
+  Clock3,
+  Calendar,
+  AlertCircle,
+  ChevronRight,
+  Loader2,
+} from "lucide-react";
 import NavbarDropdownPortal from "./NavbarDropdownPortal";
 import AppApi from "../api/api";
 import useCurrentAccount from "../hooks/useCurrentAccount";
@@ -44,7 +50,9 @@ function DropdownReminders() {
 
   const accountUrl = currentAccount?.url || "";
   const calendarPath = accountUrl ? `/${accountUrl}/calendar` : "/calendar";
-  const calendarSettingsPath = accountUrl ? `/${accountUrl}/settings/configuration#calendar-integrations` : "/settings/configuration#calendar-integrations";
+  const calendarSettingsPath = accountUrl
+    ? `/${accountUrl}/settings/configuration#calendar-integrations`
+    : "/settings/configuration#calendar-integrations";
 
   const fetchCalendarConnection = () => {
     AppApi.getCalendarIntegrations()
@@ -146,137 +154,137 @@ function DropdownReminders() {
         panelClassName="origin-top-right min-w-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-lg overflow-hidden"
       >
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700/60">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-              Events
-            </h3>
-          </div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+            Events
+          </h3>
+        </div>
 
-          <div className="max-h-[360px] overflow-y-auto">
-            {loading ? (
-              <div className="py-8 flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
-                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-              </div>
-            ) : events.length === 0 ? (
-              <div className="py-8 px-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                <Clock3
-                  className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600"
-                  strokeWidth={1.5}
-                />
-                <p>No upcoming events</p>
-                <p className="mt-1 text-xs">
-                  Scheduled inspections and maintenance appear here
-                </p>
-              </div>
-            ) : (
-              <ul className="py-2">
-                {todayEvents.length > 0 && (
-                  <>
-                    <li className="px-4 py-1.5">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                        <AlertCircle className="w-3 h-3" /> Today
-                      </span>
-                    </li>
-                    {todayEvents.map((ev) => (
-                      <li
-                        key={ev.id}
-                        className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+        <div className="max-h-[360px] overflow-y-auto">
+          {loading ? (
+            <div className="py-8 flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
+              <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+            </div>
+          ) : events.length === 0 ? (
+            <div className="py-8 px-4 text-center text-sm text-gray-500 dark:text-gray-400">
+              <Clock3
+                className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-gray-600"
+                strokeWidth={1.5}
+              />
+              <p>No upcoming events</p>
+              <p className="mt-1 text-xs">
+                Scheduled inspections and maintenance appear here
+              </p>
+            </div>
+          ) : (
+            <ul className="py-2">
+              {todayEvents.length > 0 && (
+                <>
+                  <li className="px-4 py-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                      <AlertCircle className="w-3 h-3" /> Today
+                    </span>
+                  </li>
+                  {todayEvents.map((ev) => (
+                    <li
+                      key={ev.id}
+                      className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+                    >
+                      <Link
+                        to={calendarPath}
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
                       >
-                        <Link
-                          to={calendarPath}
-                          onClick={() => setDropdownOpen(false)}
-                          className="flex gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                        >
-                          <div className="w-9 h-9 rounded-lg bg-amber-500/15 dark:bg-amber-500/20 flex items-center justify-center shrink-0">
-                            <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {ev.systemName}{" "}
-                              {ev.type === "inspection"
-                                ? "Inspection"
-                                : "Maintenance"}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {ev.propertyName}
-                              {ev.scheduledTime &&
-                                ` · ${formatEventTime(ev.scheduledTime)}`}
-                            </p>
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
-                  </>
-                )}
-                {upcomingEvents.length > 0 && (
-                  <>
-                    <li className="px-4 py-1.5 mt-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
-                        <Calendar className="w-3 h-3" /> Upcoming
-                      </span>
+                        <div className="w-9 h-9 rounded-lg bg-amber-500/15 dark:bg-amber-500/20 flex items-center justify-center shrink-0">
+                          <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {ev.systemName}{" "}
+                            {ev.type === "inspection"
+                              ? "Inspection"
+                              : "Maintenance"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {ev.propertyName}
+                            {ev.scheduledTime &&
+                              ` · ${formatEventTime(ev.scheduledTime)}`}
+                          </p>
+                        </div>
+                      </Link>
                     </li>
-                    {upcomingEvents.map((ev) => (
-                      <li
-                        key={ev.id}
-                        className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+                  ))}
+                </>
+              )}
+              {upcomingEvents.length > 0 && (
+                <>
+                  <li className="px-4 py-1.5 mt-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 flex items-center gap-1.5">
+                      <Calendar className="w-3 h-3" /> Upcoming
+                    </span>
+                  </li>
+                  {upcomingEvents.map((ev) => (
+                    <li
+                      key={ev.id}
+                      className="border-b border-gray-100 dark:border-gray-700/40 last:border-0"
+                    >
+                      <Link
+                        to={calendarPath}
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
                       >
-                        <Link
-                          to={calendarPath}
-                          onClick={() => setDropdownOpen(false)}
-                          className="flex gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                        >
-                          <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center shrink-0">
-                            <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {ev.systemName}{" "}
-                              {ev.type === "inspection"
-                                ? "Inspection"
-                                : "Maintenance"}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatEventDate(
-                                ev.scheduledDate,
-                                ev.scheduledTime,
-                              )}
-                              {ev.contractorName && ` · ${ev.contractorName}`}
-                            </p>
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
-                  </>
-                )}
-              </ul>
-            )}
-          </div>
+                        <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center shrink-0">
+                          <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {ev.systemName}{" "}
+                            {ev.type === "inspection"
+                              ? "Inspection"
+                              : "Maintenance"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatEventDate(
+                              ev.scheduledDate,
+                              ev.scheduledTime,
+                            )}
+                            {ev.contractorName && ` · ${ev.contractorName}`}
+                          </p>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </>
+              )}
+            </ul>
+          )}
+        </div>
 
-          <div
-            className={`px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 flex flex-col gap-2 ${
-              events.length > 0 ? "bg-gray-50/50 dark:bg-gray-800/50" : ""
+        <div
+          className={`px-4 py-2 border-t border-gray-200 dark:border-gray-700/60 flex flex-col gap-2 ${
+            events.length > 0 ? "bg-gray-50/50 dark:bg-gray-800/50" : ""
+          }`}
+        >
+          {events.length > 0 && (
+            <Link
+              to={calendarPath}
+              onClick={() => setDropdownOpen(false)}
+              className="flex items-center justify-center gap-1.5 py-2 text-sm font-medium text-[#456564] dark:text-teal-400 hover:text-[#3a5554] dark:hover:text-teal-300"
+            >
+              View calendar <ChevronRight className="w-4 h-4" />
+            </Link>
+          )}
+          <Link
+            to={calendarSettingsPath}
+            onClick={() => setDropdownOpen(false)}
+            className={`w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors no-underline ${
+              hasCalendarConnected
+                ? "bg-[#456564] hover:bg-[#34514f] dark:bg-[#456564] dark:hover:bg-[#3a5554]"
+                : "bg-[#C76C4B] hover:opacity-90"
             }`}
           >
-            {events.length > 0 && (
-              <Link
-                to={calendarPath}
-                onClick={() => setDropdownOpen(false)}
-                className="flex items-center justify-center gap-1.5 py-2 text-sm font-medium text-[#456564] dark:text-teal-400 hover:text-[#3a5554] dark:hover:text-teal-300"
-              >
-                View calendar <ChevronRight className="w-4 h-4" />
-              </Link>
-            )}
-            <Link
-              to={calendarSettingsPath}
-              onClick={() => setDropdownOpen(false)}
-              className={`w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-white rounded-lg transition-colors no-underline ${
-                hasCalendarConnected
-                  ? "bg-[#456564] hover:bg-[#34514f] dark:bg-[#456564] dark:hover:bg-[#3a5554]"
-                  : "bg-[#C76C4B] hover:opacity-90"
-              }`}
-            >
-              Connect your Calendar
-            </Link>
-          </div>
+            Connect your Calendar
+          </Link>
+        </div>
       </NavbarDropdownPortal>
     </div>
   );

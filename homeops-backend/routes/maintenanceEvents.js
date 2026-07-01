@@ -223,10 +223,10 @@ router.post(
             usage:
               scheduleAccountId && scheduleUserId
                 ? {
-                    accountId: scheduleAccountId,
-                    userId: scheduleUserId,
-                    emailType: "schedule_notification",
-                  }
+                  accountId: scheduleAccountId,
+                  userId: scheduleUserId,
+                  emailType: "schedule_notification",
+                }
                 : undefined,
           });
         } catch (emailErr) {

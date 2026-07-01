@@ -37,6 +37,7 @@ const {
 } = require("../services/invitationService");
 const { assertDemoResetAllowed, isDemoEnvironment } = require("../helpers/demoEnvironment");
 const { ensureDemoUserSchema } = require("../helpers/demoUserSchema");
+const { getPairedDemoHomeownerForAgent } = require("../helpers/demoUserCredentials");
 const { resetDemoHomeownerProfileByUserId } = require("../services/demoHomeownerProfileResetService");
 const {
   enqueueDemoProvision,
@@ -403,16 +404,7 @@ router.get("/by-id/:userId", ensureLoggedIn, ensurePlatformAdmin, async function
 
     let pairedHomeowner = null;
     if (isDemoEnvironment() && res.locals.user?.role === "super_admin" && user.role === "agent") {
-      const pairedRes = await db.query(
-        `SELECT id, email, name, demo_login_password AS "demoLoginPassword",
-                demo_expires_at AS "demoExpiresAt"
-         FROM users
-         WHERE demo_paired_agent_id = $1
-         ORDER BY id
-         LIMIT 1`,
-        [userId]
-      );
-      pairedHomeowner = pairedRes.rows[0] || null;
+      pairedHomeowner = await getPairedDemoHomeownerForAgent(userId);
     }
 
     return res.json({ user: userWithUrl, pairedHomeowner });
@@ -454,6 +446,7 @@ router.get("/:email", ensureLoggedIn, async function (req, res, next) {
     if (role !== "super_admin" && role !== "admin" && !isSelfLookup) {
       throw new ForbiddenError("You can only view your own profile.");
     }
+    await ensureDemoUserSchema();
     const user = await User.get(req.params.email);
     const userWithUrl = await addPresignedUrlToItem(user, "image", "image_url");
 
@@ -504,18 +497,22 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
 
     let user;
     const nextPassword = password || demoLoginPassword || demo_login_password;
-    if (
-      nextPassword &&
+    const demoSuperAdminUpdatingOther =
       isDemoEnvironment() &&
       role === "super_admin" &&
-      requestingUserId !== targetUserId
-    ) {
+      requestingUserId !== targetUserId;
+
+    if (nextPassword && demoSuperAdminUpdatingOther) {
       await ensureDemoUserSchema();
       await User.updateLoginPassword({
         id: targetUserId,
         password: nextPassword,
         demoLoginPassword: nextPassword,
       });
+      const targetUser = await User.getById(targetUserId);
+      if (targetUser?.role === "agent") {
+        await User.updatePairedDemoHomeownerPasswords(targetUserId, nextPassword);
+      }
     } else if (nextPassword && requestingUserId === targetUserId) {
       throw new BadRequestError("Use the change-password flow to update your own password.");
     }
@@ -529,11 +526,22 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
       throw new BadRequestError("No data to update");
     }
 
+    if (isDemoEnvironment() && role === "super_admin") {
+      user = await User.getById(targetUserId);
+      if (!user) throw new NotFoundError(`No user: ${targetUserId}`);
+    }
+
     const userWithUrl = await addPresignedUrlToItem(user, "image", "image_url");
     if (!isDemoEnvironment() || role !== "super_admin") {
       delete userWithUrl.demoLoginPassword;
     }
-    return res.json({ user: userWithUrl });
+
+    let pairedHomeowner = null;
+    if (isDemoEnvironment() && role === "super_admin" && user.role === "agent") {
+      pairedHomeowner = await getPairedDemoHomeownerForAgent(targetUserId);
+    }
+
+    return res.json({ user: userWithUrl, pairedHomeowner });
   } catch (err) {
     return next(err);
   }

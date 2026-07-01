@@ -1114,22 +1114,22 @@ async function provisionDemoAccount({
 
           const synthetic = isPairedLoginProperty
             ? await createLoginableSyntheticHomeowner({
-                name: template.syntheticHomeowner.name,
-                email: template.syntheticHomeowner.email,
-                phone: template.syntheticHomeowner.phone,
-                avatarUrl: template.syntheticHomeowner.avatar_url,
-                password,
-                agentUserId: userId,
-                personaKey,
-              })
+              name: template.syntheticHomeowner.name,
+              email: template.syntheticHomeowner.email,
+              phone: template.syntheticHomeowner.phone,
+              avatarUrl: template.syntheticHomeowner.avatar_url,
+              password,
+              agentUserId: userId,
+              personaKey,
+            })
             : await createSyntheticHomeowner({
-                name: template.syntheticHomeowner.name,
-                email: template.syntheticHomeowner.email,
-                phone: template.syntheticHomeowner.phone,
-                avatarUrl: template.syntheticHomeowner.avatar_url,
-                agentUserId: userId,
-                personaKey,
-              });
+              name: template.syntheticHomeowner.name,
+              email: template.syntheticHomeowner.email,
+              phone: template.syntheticHomeowner.phone,
+              avatarUrl: template.syntheticHomeowner.avatar_url,
+              agentUserId: userId,
+              personaKey,
+            });
 
           homeownerUserIds.push(synthetic.user.id);
 

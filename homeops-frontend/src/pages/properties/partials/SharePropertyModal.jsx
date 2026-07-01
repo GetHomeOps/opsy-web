@@ -32,7 +32,7 @@ import SelectDropdown from "../../contacts/SelectDropdown";
 import ContactSearchModal from "./ContactSearchModal";
 import InviteEmailPersonalizeModal from "./InviteEmailPersonalizeModal";
 import {PROPERTY_SYSTEMS} from "../constants/propertySystems";
-import AppApi from "../../../api/api";
+import AppApi, {getApiErrorMessage} from "../../../api/api";
 import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
 
 const EMAIL_REGEX =
@@ -803,6 +803,7 @@ function SharePropertyModal({
   const [resendingId, setResendingId] = useState(null);
   const [platformAgents, setPlatformAgents] = useState([]);
   const [removeConfirmMember, setRemoveConfirmMember] = useState(null);
+  const [removeError, setRemoveError] = useState("");
   const [removingMember, setRemovingMember] = useState(false);
   const [searchMoreModalOpen, setSearchMoreModalOpen] = useState(false);
   const [linkJustCopied, setLinkJustCopied] = useState(false);
@@ -872,6 +873,7 @@ function SharePropertyModal({
       setPersonalizeInviteOpen(false);
     } else {
       setRemoveConfirmMember(null);
+      setRemoveError("");
     }
   }, [modalOpen, initialTab]);
 
@@ -1296,6 +1298,37 @@ function SharePropertyModal({
     [propertyOwner, currentUser?.id],
   );
 
+  const isCurrentUserOnAcceptedTeam = useMemo(
+    () =>
+      (teamMembers ?? []).some(
+        (m) =>
+          m &&
+          !m._pending &&
+          String(m.id) === String(currentUser?.id),
+      ),
+    [teamMembers, currentUser?.id],
+  );
+
+  /** Platform admin may remove the owner only if they are not the owner and are on the team. */
+  const canRemovePropertyOwner = useMemo(
+    () =>
+      isAdminOrSuperAdmin &&
+      !!propertyOwner &&
+      !isCurrentUserPropertyOwner &&
+      isCurrentUserOnAcceptedTeam,
+    [
+      isAdminOrSuperAdmin,
+      propertyOwner,
+      isCurrentUserPropertyOwner,
+      isCurrentUserOnAcceptedTeam,
+    ],
+  );
+
+  const openRemoveConfirm = useCallback((member) => {
+    setRemoveError("");
+    setRemoveConfirmMember(member);
+  }, []);
+
   /* Options for transfer ownership: team members excluding current owner (currentUser) */
   const transferOwnerOptions = useMemo(() => {
     const currentUserId = currentUser?.id;
@@ -1356,20 +1389,32 @@ function SharePropertyModal({
       if (!m) return false;
       if (!propertyOwner) return true;
       if (m._pending) return true;
-      return String(m.id) !== String(propertyOwner.id);
+      if (String(m.id) === String(propertyOwner.id)) {
+        return canRemovePropertyOwner;
+      }
+      return true;
     },
-    [propertyOwner],
+    [propertyOwner, canRemovePropertyOwner],
   );
+
+  const isRemovingPropertyOwner = useMemo(() => {
+    if (!removeConfirmMember || !propertyOwner) return false;
+    return String(removeConfirmMember.id) === String(propertyOwner.id);
+  }, [removeConfirmMember, propertyOwner]);
 
   const handleConfirmRemove = useCallback(async () => {
     const member = removeConfirmMember;
     if (!member || !onRemoveMember) return;
     setRemovingMember(true);
+    setRemoveError("");
     try {
       await onRemoveMember(member);
       setRemoveConfirmMember(null);
+      setRemoveError("");
     } catch (err) {
-      setEmailError(err?.message || "Failed to remove member");
+      setRemoveError(
+        getApiErrorMessage(err, "Failed to remove team member. Please try again."),
+      );
     } finally {
       setRemovingMember(false);
     }
@@ -1538,9 +1583,27 @@ function SharePropertyModal({
                               </span>
                             )}
                           </div>
-                          <span className="inline-flex items-center shrink-0 px-2 py-0.5 rounded-full bg-[#456564]/15 dark:bg-[#5a7a78]/25 text-[10px] font-semibold text-[#456564] dark:text-[#7fa3a1]">
-                            Owner
-                          </span>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#456564]/15 dark:bg-[#5a7a78]/25 text-[10px] font-semibold text-[#456564] dark:text-[#7fa3a1]">
+                              Owner
+                            </span>
+                            {canRemovePropertyOwner && onRemoveMember && (
+                              <button
+                                type="button"
+                                onClick={() => openRemoveConfirm(propertyOwner)}
+                                className="text-[11px] font-medium text-red-600 dark:text-red-400 hover:underline whitespace-nowrap"
+                              >
+                                Remove
+                              </button>
+                            )}
+                            {isAdminOrSuperAdmin &&
+                              isCurrentUserPropertyOwner &&
+                              !canRemovePropertyOwner && (
+                                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 text-right max-w-[9rem] leading-snug">
+                                  Transfer ownership before leaving the team.
+                                </p>
+                              )}
+                          </div>
                           {onTransferOwnership &&
                             isCurrentUserPropertyOwner &&
                             propertyOwnerIsHomeowner &&
@@ -1646,7 +1709,7 @@ function SharePropertyModal({
                               resendingId={resendingId}
                               onRemove={
                                 onRemoveMember
-                                  ? () => setRemoveConfirmMember(m)
+                                  ? () => openRemoveConfirm(m)
                                   : undefined
                               }
                               canRemove={canRemoveMember(m)}
@@ -1680,7 +1743,7 @@ function SharePropertyModal({
                               resendingId={resendingId}
                               onRemove={
                                 onRemoveMember
-                                  ? () => setRemoveConfirmMember(m)
+                                  ? () => openRemoveConfirm(m)
                                   : undefined
                               }
                               canRemove={canRemoveMember(m)}
@@ -2048,7 +2111,12 @@ function SharePropertyModal({
       {/* Outside share modal in the tree — confirm dialog portals to body and is not inside share modalContent.ref (avoids parent's document outside-click firing on confirm UI). */}
       <ModalBlank
         modalOpen={!!removeConfirmMember}
-        setModalOpen={(open) => !open && setRemoveConfirmMember(null)}
+        setModalOpen={(open) => {
+          if (!open) {
+            setRemoveConfirmMember(null);
+            setRemoveError("");
+          }
+        }}
         contentClassName="max-w-md"
         backdropZClassName="z-[210]"
         dialogZClassName="z-[210]"
@@ -2063,11 +2131,28 @@ function SharePropertyModal({
               {removeConfirmMember?.name || removeConfirmMember?.email}
             </span>{" "}
             from this property? They will no longer have access.
+            {isRemovingPropertyOwner && canRemovePropertyOwner && (
+              <>
+                {" "}
+                You will become the property owner before they are removed.
+              </>
+            )}
           </p>
+          {removeError && (
+            <div
+              className="mb-4 rounded-lg border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/20 px-3 py-2.5 text-xs text-red-700 dark:text-red-300"
+              role="alert"
+            >
+              {removeError}
+            </div>
+          )}
           <div className="flex gap-3 justify-end">
             <button
               type="button"
-              onClick={() => setRemoveConfirmMember(null)}
+              onClick={() => {
+                setRemoveConfirmMember(null);
+                setRemoveError("");
+              }}
               disabled={removingMember}
               className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
             >

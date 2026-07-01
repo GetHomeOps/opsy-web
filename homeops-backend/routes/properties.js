@@ -29,6 +29,10 @@ const { isAllowedInspectionAnalysisS3Key } = require("../constants/s3Upload");
 const AgentAffiliation = require("../models/agentAffiliation");
 const customerIoProvider = require("../services/emailProviders/customerIoProvider");
 const customerIoLifecycleService = require("../services/customerIoLifecycleService");
+const {
+  getPropertyOwnerUserId,
+  transferOwnershipBeforeOwnerRemoval,
+} = require("../services/propertyOwnershipService");
 
 const router = new express.Router();
 
@@ -1107,6 +1111,19 @@ router.patch("/:propertyId/team", ensureLoggedIn, ensurePropertyAccess({ param: 
           }
         }
       }
+    }
+    if (Array.isArray(req.body)) {
+      const newTeamUserIds = new Set(
+        req.body.map((u) => u?.id).filter((id) => id != null)
+      );
+      const ownerUserId = await getPropertyOwnerUserId(propertyId);
+      await transferOwnershipBeforeOwnerRemoval({
+        propertyId,
+        ownerUserId,
+        actingAdminUserId: res.locals.user.id,
+        actingAdminRole: userRole,
+        newTeamUserIds,
+      });
     }
     const property_users = await Property.updatePropertyUsers(propertyId, req.body);
     clearPropertyAccessCache(propertyId);

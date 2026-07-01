@@ -378,7 +378,8 @@ function ConfigurationPage() {
     typeof window !== "undefined" &&
     window.location.hostname === "demo.heyopsy.com" &&
     (currentUser?.role || "").toLowerCase() === "homeowner" &&
-    ((currentUser?.email || "").toLowerCase() === "hello-homeowner@heyopsy.com" ||
+    ((currentUser?.email || "").toLowerCase() ===
+      "hello-homeowner@heyopsy.com" ||
       currentUser?.demoPairedAgentId != null);
 
   async function handleDemoResetConfirm(e) {

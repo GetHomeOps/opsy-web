@@ -24,6 +24,7 @@ const { ensureSystemRecommendationTemplateSchema } = require('./services/systemR
 const { startSponsorshipSweeper } = require('./services/sponsorshipScheduler');
 const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
 const { recoverPendingJobs: recoverAttomLookupJobs } = require('./services/attomLookupQueue');
+const { ensureDemoUserSchema } = require('./helpers/demoUserSchema');
 const fs = require('fs');
 
 const app = require('./app.js');
@@ -73,6 +74,13 @@ async function startServer() {
     if (process.env.GOOGLE_CLIENT_ID) {
       validateGoogleOAuthConfig();
     }
+
+    try {
+      await ensureDemoUserSchema();
+    } catch (demoSchemaErr) {
+      console.warn('[startup] Demo user schema ensure failed:', demoSchemaErr.message);
+    }
+
     const user = await User.initializeSuperAdmin();
     console.log("Super Admin user:", user);
 

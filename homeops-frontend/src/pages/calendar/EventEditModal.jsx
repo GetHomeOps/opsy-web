@@ -5,9 +5,22 @@ import DatePickerInput from "../../components/DatePickerInput";
 import AppApi from "../../api/api";
 
 const STATUS_OPTIONS = [
-  {value: "scheduled", label: "Scheduled", color: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"},
-  {value: "completed", label: "Completed", color: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"},
-  {value: "cancelled", label: "Cancelled", color: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"},
+  {
+    value: "scheduled",
+    label: "Scheduled",
+    color:
+      "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
+  },
+  {
+    value: "completed",
+    label: "Completed",
+    color: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
+  },
+  {
+    value: "cancelled",
+    label: "Cancelled",
+    color: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300",
+  },
 ];
 
 function EventEditModal({event, isOpen, onClose, onUpdated}) {
@@ -112,7 +125,9 @@ function EventEditModal({event, isOpen, onClose, onUpdated}) {
               <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 <Clock className="w-4 h-4 text-[#456564]" />
                 Time
-                <span className="text-xs font-normal text-gray-400">(optional)</span>
+                <span className="text-xs font-normal text-gray-400">
+                  (optional)
+                </span>
               </label>
               <input
                 type="time"
