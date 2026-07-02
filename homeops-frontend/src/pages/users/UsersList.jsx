@@ -69,6 +69,8 @@ const initialState = {
   sidebarOpen: false,
   ownershipTransferModalOpen: false,
   ownershipTransferLabels: [],
+  accountHasPropertiesModalOpen: false,
+  accountHasPropertiesLabels: [],
 };
 
 function reducer(state, action) {
@@ -127,6 +129,12 @@ function reducer(state, action) {
         ...state,
         ownershipTransferModalOpen: action.payload.open,
         ownershipTransferLabels: action.payload.labels ?? [],
+      };
+    case "SET_ACCOUNT_HAS_PROPERTIES_MODAL":
+      return {
+        ...state,
+        accountHasPropertiesModalOpen: action.payload.open,
+        accountHasPropertiesLabels: action.payload.labels ?? [],
       };
     case HYDRATE_LIST_UI: {
       const p = action.payload || {};
@@ -390,6 +398,7 @@ function UsersList() {
       const failureMessages = [];
 
       const ownershipTransferLabels = [];
+      const accountHasPropertiesLabels = [];
 
       // Delete each selected user
       for (const userId of selectedItems) {
@@ -410,6 +419,9 @@ function UsersList() {
           if (error?.code === API_ERROR_CODES.PROPERTY_OWNER) {
             const u = filteredUsers.find((x) => x.id === Number(userId));
             ownershipTransferLabels.push(u?.name || u?.email || `#${userId}`);
+          } else if (error?.code === API_ERROR_CODES.ACCOUNT_HAS_PROPERTIES) {
+            const u = filteredUsers.find((x) => x.id === Number(userId));
+            accountHasPropertiesLabels.push(u?.name || u?.email || `#${userId}`);
           } else {
             failureMessages.push(
               getApiErrorMessage(error, "Could not delete user."),
@@ -425,6 +437,16 @@ function UsersList() {
           payload: {
             open: true,
             labels: [...new Set(ownershipTransferLabels)],
+          },
+        });
+      }
+
+      if (accountHasPropertiesLabels.length > 0) {
+        dispatch({
+          type: "SET_ACCOUNT_HAS_PROPERTIES_MODAL",
+          payload: {
+            open: true,
+            labels: [...new Set(accountHasPropertiesLabels)],
           },
         });
       }
@@ -872,6 +894,72 @@ function UsersList() {
                       e.stopPropagation();
                       dispatch({
                         type: "SET_OWNERSHIP_TRANSFER_MODAL",
+                        payload: {open: false, labels: []},
+                      });
+                    }}
+                  >
+                    {t("ok") || "OK"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ModalBlank>
+        </div>
+
+        <div className="m-1.5">
+          <ModalBlank
+            id="account-has-properties-modal"
+            modalOpen={state.accountHasPropertiesModalOpen}
+            setModalOpen={(open) =>
+              dispatch({
+                type: "SET_ACCOUNT_HAS_PROPERTIES_MODAL",
+                payload: {
+                  open,
+                  labels: open ? state.accountHasPropertiesLabels : [],
+                },
+              })
+            }
+          >
+            <div className="p-5 flex space-x-4">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-amber-100 dark:bg-amber-900/30">
+                <svg
+                  className="shrink-0 fill-current text-amber-600 dark:text-amber-400"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  aria-hidden
+                >
+                  <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 12c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm1-3H7V4h2v5z" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="mb-2">
+                  <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                    {t("userDeleteAccountHasPropertiesTitle") ||
+                      "Account still has properties"}
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mb-6 space-y-3">
+                  <p>
+                    {t("userDeleteAccountHasPropertiesBody") ||
+                      "This user owns a workspace account that still has properties. Assign another account owner or remove all properties first, then try deleting again."}
+                  </p>
+                  {state.accountHasPropertiesLabels.length > 0 && (
+                    <ul className="list-disc pl-5 space-y-1 text-gray-800 dark:text-gray-200">
+                      {state.accountHasPropertiesLabels.map((label) => (
+                        <li key={label}>{label}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="flex flex-wrap justify-end">
+                  <button
+                    type="button"
+                    className="btn-sm bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-white text-white dark:text-gray-900"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatch({
+                        type: "SET_ACCOUNT_HAS_PROPERTIES_MODAL",
                         payload: {open: false, labels: []},
                       });
                     }}

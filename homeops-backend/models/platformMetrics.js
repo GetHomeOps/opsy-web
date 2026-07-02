@@ -346,21 +346,22 @@ class PlatformMetrics {
   }
 
   /**
-   * Get agent analytics: each agent user with their properties,
-   * homeowner counts per property, invitations, communications, and visits (page views).
+   * Get agent analytics: each agent user with properties they are on the team for
+   * (property_users), homeowner counts per property, invitations, communications,
+   * and visits (page views).
    */
   static async getAgentAnalytics() {
     const agentsRes = await db.query(
-      `WITH agent_accounts AS (
-        SELECT au.user_id AS agent_id, au.account_id, a.name AS account_name
-        FROM account_users au
-        JOIN accounts a ON a.id = au.account_id
-        JOIN users u ON u.id = au.user_id AND u.role::text = 'agent'
+      `WITH agent_property_ids AS (
+        SELECT pu.user_id AS agent_id, pu.property_id
+        FROM property_users pu
+        JOIN users u ON u.id = pu.user_id AND u.role::text = 'agent'
       ),
-      agent_property_ids AS (
-        SELECT aa.agent_id, p.id AS property_id
-        FROM agent_accounts aa
-        JOIN properties p ON p.account_id = aa.account_id
+      agent_accounts AS (
+        SELECT DISTINCT ap.agent_id, a.id AS account_id, a.name AS account_name
+        FROM agent_property_ids ap
+        JOIN properties p ON p.id = ap.property_id
+        JOIN accounts a ON a.id = p.account_id
       )
       SELECT
         u.id AS "agentId",
@@ -408,8 +409,8 @@ class PlatformMetrics {
                  JOIN users u ON u.id = pu.user_id
                  WHERE pu.property_id = p.id AND u.role::text = 'homeowner') AS "homeownersCount"
          FROM properties p
-         JOIN account_users au ON au.account_id = p.account_id
-         WHERE au.user_id = $1
+         JOIN property_users agent_pu
+           ON agent_pu.property_id = p.id AND agent_pu.user_id = $1
          ORDER BY p.property_name NULLS LAST, p.address`,
         [agent.agentId]
       );

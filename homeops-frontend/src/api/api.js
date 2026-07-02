@@ -42,6 +42,7 @@ export class ApiError extends Error {
 /** Backend `error.code` values the client may branch on (see app.js error handler). */
 export const API_ERROR_CODES = {
   PROPERTY_OWNER: "PROPERTY_OWNER",
+  ACCOUNT_HAS_PROPERTIES: "ACCOUNT_HAS_PROPERTIES",
   SUPER_ADMIN_PROTECTED: "SUPER_ADMIN_PROTECTED",
 };
 

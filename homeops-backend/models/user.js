@@ -693,17 +693,6 @@ class User {
         [id]
       );
 
-      const ownedAccountsWithProperties = ownedAccountsRes.rows.filter(
-        (row) => row.hasProperties === true
-      );
-      if (ownedAccountsWithProperties.length > 0) {
-        const err = new BadRequestError(
-          "This user is a property owner. Transfer property ownership before deleting this user."
-        );
-        err.code = "PROPERTY_OWNER";
-        throw err;
-      }
-
       for (const account of ownedAccountsRes.rows) {
         const nextOwnerRes = await client.query(
           `SELECT user_id AS "userId"
@@ -720,7 +709,32 @@ class User {
           [account.id, id]
         );
 
-        const nextOwner = nextOwnerRes.rows[0]?.userId;
+        let nextOwner = nextOwnerRes.rows[0]?.userId;
+
+        if (!nextOwner && account.hasProperties) {
+          const fallbackOwnerRes = await client.query(
+            `SELECT pu.user_id AS "userId"
+             FROM property_users pu
+             JOIN properties p ON p.id = pu.property_id
+             WHERE p.account_id = $1
+               AND pu.role = 'owner'
+               AND pu.user_id <> $2
+             ORDER BY pu.created_at ASC
+             LIMIT 1`,
+            [account.id, id]
+          );
+          nextOwner = fallbackOwnerRes.rows[0]?.userId;
+
+          if (nextOwner) {
+            await client.query(
+              `INSERT INTO account_users (account_id, user_id, role)
+               VALUES ($1, $2, 'owner')
+               ON CONFLICT (account_id, user_id) DO UPDATE SET role = 'owner'`,
+              [account.id, nextOwner]
+            );
+          }
+        }
+
         if (nextOwner) {
           await client.query(
             `UPDATE accounts
@@ -729,6 +743,12 @@ class User {
              WHERE id = $2`,
             [nextOwner, account.id]
           );
+        } else if (account.hasProperties) {
+          const err = new BadRequestError(
+            "This user owns a workspace account that still has properties. Assign another account owner or remove all properties first."
+          );
+          err.code = "ACCOUNT_HAS_PROPERTIES";
+          throw err;
         } else {
           await client.query(
             `DELETE FROM invitations
