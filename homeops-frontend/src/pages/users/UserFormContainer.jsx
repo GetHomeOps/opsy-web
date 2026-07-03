@@ -287,7 +287,12 @@ function UsersFormContainer() {
 
   // Demo super admin: load full user (incl. demo credentials) by id only — avoid resetting edits when users context changes.
   useEffect(() => {
-    if (!isDemoSuperAdmin || !id || id === "new") return;
+    if (!isDemoSuperAdmin || !id) return;
+
+    if (id === "new") {
+      dispatch({type: "SET_USER", payload: null});
+      return;
+    }
 
     let cancelled = false;
     async function fetchDemoUser() {
