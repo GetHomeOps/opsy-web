@@ -955,6 +955,7 @@
   "userBulkDeleteFailedMessage": "Could not delete users. Please try again.",
   "userBulkDeleteNoResultMessage": "Unable to delete the selected user(s). Please refresh and try again.",
   "userDeleteFailed": "Could not delete user.",
+  "userDeleteStaleRecordMessage": "This user no longer exists. The list has been refreshed.",
   "userDeleteSuperAdminBlocked": "Super admin accounts cannot be deleted.",
   "userDeleteTransferOwnershipTitle": "Transfer ownership first",
   "userDeleteTransferOwnershipBody": "This user still owns one or more properties. Transfer property ownership to another team member (Share / Team on the property), then try deleting again.",

@@ -17,6 +17,7 @@ homeops-backend/public/
 
 # Debug / temp
 rentcast-debug.json
+homeops-backend/scripts/.cio_patch_output/
 
 # Logs
 *.log

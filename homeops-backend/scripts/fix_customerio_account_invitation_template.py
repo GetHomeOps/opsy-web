@@ -13,14 +13,34 @@ ENVIRONMENT_ID = os.environ.get("CUSTOMER_IO_ENVIRONMENT_ID", "218445")
 TEMPLATE_ID = os.environ.get("CUSTOMER_IO_ACCOUNT_INVITATION_TEMPLATE_ID", "30")
 API_BASE = os.environ.get("CUSTOMER_IO_API_BASE", "https://fly.customer.io")
 
+BRAND_MARK_URL = "https://app.heyopsy.com/opsy_favicon.png"
+LEGACY_MARK_URL = "https://heyopsy.com/email/opsy-mark.png"
+
+AVATAR_LIQUID = (
+    f"{{{{ event.avatarUrl | replace: '{LEGACY_MARK_URL}', '{BRAND_MARK_URL}' "
+    f"| default: '{BRAND_MARK_URL}' }}}}"
+)
+
 REPLACEMENTS = [
     (
         '{{senderFirstName | default: "Kino"}}',
         '{{ event.senderFirstName | default: "HomeOps Team" }}',
     ),
     (
-        "{{avatarUrl | default: 'https://heyopsy.com/email/opsy-mark.png'}}",
-        "{{ event.avatarUrl | default: 'https://heyopsy.com/email/opsy-mark.png' }}",
+        f"{{{{ event.avatarUrl | default: '{BRAND_MARK_URL}' }}}}",
+        AVATAR_LIQUID,
+    ),
+    (
+        f"{{{{ event.avatarUrl | default: '{LEGACY_MARK_URL}' }}}}",
+        AVATAR_LIQUID,
+    ),
+    (
+        f"{{{{avatarUrl | default: '{LEGACY_MARK_URL}'}}}}",
+        AVATAR_LIQUID,
+    ),
+    (
+        f"{{{{avatarUrl | default: '{BRAND_MARK_URL}'}}}}",
+        AVATAR_LIQUID,
     ),
     (
         '{{inviteeName | default: "[First Name]"}}',

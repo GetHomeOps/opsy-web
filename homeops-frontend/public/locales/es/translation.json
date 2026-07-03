@@ -954,6 +954,7 @@
   "userBulkDeleteFailedMessage": "No se pudieron eliminar los usuarios. Inténtalo de nuevo.",
   "userBulkDeleteNoResultMessage": "No se pudieron eliminar los usuarios seleccionados. Actualiza la página e inténtalo de nuevo.",
   "userDeleteFailed": "No se pudo eliminar el usuario.",
+  "userDeleteStaleRecordMessage": "Este usuario ya no existe. La lista se ha actualizado.",
   "userInformation": "Información del usuario",
   "userNotAuthorizedErrorMessage": "No tienes acceso a este usuario",
   "userNotFoundErrorMessage": "Usuario no encontrado",

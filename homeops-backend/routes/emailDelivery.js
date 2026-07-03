@@ -289,7 +289,10 @@ router.post(
 
       const sampleMergeData = attachTemplateIconMergeData(
         emailType,
-        enrichMergeData(getSampleMergeData(emailType)),
+        enrichMergeData({
+          ...getSampleMergeData(emailType),
+          ...(req.body.userRole ? { userRole: String(req.body.userRole).toLowerCase() } : {}),
+        }),
         template.customerIoIcons
       );
 

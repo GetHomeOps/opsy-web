@@ -29,7 +29,7 @@ import contactContext from "../../context/ContactContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
 import {useAuth} from "../../context/AuthContext";
-import AppApi, {API_ERROR_CODES, getApiErrorMessage} from "../../api/api";
+import AppApi, {API_ERROR_CODES, getApiErrorMessage, getUserDeleteErrorMessage} from "../../api/api";
 import SelectDropdown from "../contacts/SelectDropdown";
 import useImageUpload from "../../hooks/useImageUpload";
 import {S3_UPLOAD_FOLDER} from "../../constants/s3UploadFolders";
@@ -228,8 +228,15 @@ function UsersFormContainer() {
   const navigate = useNavigate();
   const location = useLocation();
   const {t} = useTranslation();
-  const {users, createUser, deleteUser, createUserInvitation, setUsers} =
-    useContext(UserContext);
+  const {
+    users,
+    usersLoading,
+    createUser,
+    deleteUser,
+    createUserInvitation,
+    setUsers,
+    refetchUsers,
+  } = useContext(UserContext);
   const {contacts} = useContext(contactContext);
   const {currentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
@@ -321,48 +328,68 @@ function UsersFormContainer() {
     };
   }, [id, isDemoSuperAdmin]);
 
-  // Non-demo: resolve user from context once the list has loaded.
+  // Non-demo: prefer cached list, then fetch by id once the list has finished loading.
   useEffect(() => {
     if (isDemoSuperAdmin) return;
 
-    async function fetchUser() {
-      if (id && id !== "new") {
-        try {
-          const existingUser = users.find(
-            (user) => Number(user.id) === Number(id),
-          );
-          if (existingUser) {
-            dispatch({type: "SET_USER", payload: existingUser});
-          } else if (users.length > 0) {
-            dispatch({type: "SET_USER", payload: null});
-            dispatch({
-              type: "SET_BANNER",
-              payload: {
-                open: true,
-                type: "error",
-                message: t("userNotFoundErrorMessage") || "User not found",
-              },
-            });
-          } else {
-            dispatch({type: "SET_USER", payload: null});
-          }
-        } catch (err) {
+    if (!id || id === "new") {
+      dispatch({type: "SET_USER", payload: null});
+      return;
+    }
+
+    let cancelled = false;
+
+    async function resolveUser() {
+      const existingUser = users.find(
+        (user) => Number(user.id) === Number(id),
+      );
+      if (existingUser) {
+        if (!cancelled) {
+          dispatch({type: "SET_USER", payload: existingUser});
+        }
+        return;
+      }
+
+      if (usersLoading) return;
+
+      try {
+        const user = await AppApi.getUserById(id);
+        if (cancelled) return;
+        if (user) {
+          dispatch({type: "SET_USER", payload: user});
+        } else {
           dispatch({type: "SET_USER", payload: null});
           dispatch({
             type: "SET_BANNER",
             payload: {
               open: true,
               type: "error",
-              message: `Error finding user: ${err.message || err}`,
+              message: t("userNotFoundErrorMessage") || "User not found",
             },
           });
         }
-      } else {
+      } catch (err) {
+        if (cancelled) return;
         dispatch({type: "SET_USER", payload: null});
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "error",
+            message: getApiErrorMessage(
+              err,
+              t("userNotFoundErrorMessage") || "User not found",
+            ),
+          },
+        });
       }
     }
-    fetchUser();
-  }, [id, users, t, isDemoSuperAdmin]);
+
+    resolveUser();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, users, usersLoading, t, isDemoSuperAdmin]);
 
   useEffect(() => {
     if (id === "new" && !canCreateUser) {
@@ -511,7 +538,12 @@ function UsersFormContainer() {
             });
           }
         } else if (statusRes?.status === "failed") {
+          const failedUserId = provisionPolling.userId;
           setProvisionPolling(null);
+          setUsers((prev) =>
+            prev.filter((user) => user.id !== Number(failedUserId)),
+          );
+          refetchUsers?.();
           dispatch({
             type: "SET_BANNER",
             payload: {
@@ -533,7 +565,7 @@ function UsersFormContainer() {
       cancelled = true;
       if (intervalId) clearInterval(intervalId);
     };
-  }, [provisionPolling, t]);
+  }, [provisionPolling, t, refetchUsers, setUsers]);
 
   // Banner timeout useEffect with the custom hook
   useAutoCloseBanner(
@@ -1076,7 +1108,23 @@ function UsersFormContainer() {
       );
 
       // Delete the user (this updates the context)
-      await deleteUser(userIdToDelete);
+      const deleteResult = await deleteUser(userIdToDelete);
+
+      if (deleteResult?.alreadyDeleted) {
+        await refetchUsers?.();
+        navigate(`/${accountUrl}/users`);
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "warning",
+            message:
+              t("userDeleteStaleRecordMessage") ||
+              "This user no longer exists. The list has been refreshed.",
+          },
+        });
+        return;
+      }
 
       // Navigate first based on remaining users
       // Calculate remaining users by filtering out the deleted one from the current users array
@@ -1139,7 +1187,7 @@ function UsersFormContainer() {
         payload: {
           open: true,
           type: "error",
-          message: getApiErrorMessage(
+          message: getUserDeleteErrorMessage(
             error,
             t("userDeleteFailed") || "Could not delete user.",
           ),

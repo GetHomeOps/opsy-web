@@ -5,6 +5,10 @@
       "type": "string",
       "minLength": 3,
       "maxLength": 254
+    },
+    "userRole": {
+      "type": "string",
+      "enum": ["agent", "homeowner", "admin"]
     }
   },
   "required": ["to"],

@@ -76,6 +76,25 @@ export function getApiErrorMessage(err, fallback = "Something went wrong.") {
   return fallback;
 }
 
+/** True when a user delete targeted a row that no longer exists (stale list / demo reset). */
+export function isStaleUserRecordError(err) {
+  if (err?.status === 404) return true;
+  const msg = getApiErrorMessage(err, "");
+  return /^No user(?::| with id:)\s*\d+/i.test(msg);
+}
+
+const STALE_USER_DELETE_MESSAGE =
+  "This user no longer exists. The list has been refreshed.";
+
+/** User-facing delete error copy; maps stale 404 / "No user: {id}" to friendly text. */
+export function getUserDeleteErrorMessage(
+  err,
+  fallback = "Could not delete user.",
+) {
+  if (isStaleUserRecordError(err)) return STALE_USER_DELETE_MESSAGE;
+  return getApiErrorMessage(err, fallback);
+}
+
 /** Default timeout (ms) for auth/startup requests. A hung connection on a cold
  * mobile/PWA launch must not leave the app stuck on the loading spinner, so the
  * startup auth calls abort and become retryable instead of waiting forever. */

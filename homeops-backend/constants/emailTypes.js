@@ -26,6 +26,7 @@ const SWITCHABLE_EMAIL_TYPES = {
       { key: "avatarUrl", description: "Inviter avatar URL (empty when no photo; template should default to brand mark)" },
       { key: "inviteeName", description: "Invitee first name (optional; used in “Hi {{ event.inviteeName }},”)" },
       { key: "recipientFirstName", description: "Same as inviteeName when only email is known" },
+      { key: "userRole", description: "Platform role of invitee: agent, homeowner, or admin. Branch Customer.io journey on this." },
       { key: "brandName", description: "Product brand name" },
     ],
   },

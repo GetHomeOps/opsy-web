@@ -242,6 +242,7 @@ async function sendInvitationEmail({
   missingDataItem3Body = "",
   senderFirstName = "",
   avatarUrl = "",
+  userRole = "",
 }) {
   const isProperty = type === "property";
   const emailType = isProperty ? "property_invitation" : "account_invitation";
@@ -384,6 +385,7 @@ async function sendInvitationEmail({
           senderFirstName:
             senderFirstName || firstNameFromUser(inviterName) || "",
           avatarUrl: avatarUrl || "",
+          userRole: (userRole || "").toLowerCase(),
         }),
   };
 

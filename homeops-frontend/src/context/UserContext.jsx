@@ -1,6 +1,6 @@
 import React, {createContext, useState, useContext, useEffect, useCallback, useMemo} from "react";
 import {useTableSort} from "../hooks/useTableSort";
-import AppApi from "../api/api";
+import AppApi, {isStaleUserRecordError} from "../api/api";
 import {useAuth} from "./AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 
@@ -50,13 +50,25 @@ export function UserProvider({children}) {
       }
 
       setUsers(fetchedUsers);
+      setSelectedItems((prev) => {
+        const validIds = new Set(fetchedUsers.map((user) => Number(user.id)));
+        const next = prev.filter((id) => validIds.has(Number(id)));
+        return next.length === prev.length ? prev : next;
+      });
     } catch (err) {
       console.error("There was an error retrieving users:", err);
       setUsers([]);
+      setSelectedItems([]);
     } finally {
       setUsersLoading(false);
     }
   }, [isLoading, currentUser, currentAccount?.id]);
+
+  useEffect(() => {
+    setUsers([]);
+    setUsersLoading(true);
+    setSelectedItems([]);
+  }, [currentAccount?.id]);
 
   // The users list (admin/super-admin only) is not needed for first paint.
   // Defer the initial load to browser idle time so it does not compete with
@@ -170,6 +182,12 @@ export function UserProvider({children}) {
       );
       return res;
     } catch (error) {
+      if (isStaleUserRecordError(error)) {
+        setUsers((prevUsers) =>
+          prevUsers.filter((user) => user.id !== Number(id)),
+        );
+        return {deleted: id, alreadyDeleted: true};
+      }
       console.error("Error deleting user:", error);
       throw error;
     }

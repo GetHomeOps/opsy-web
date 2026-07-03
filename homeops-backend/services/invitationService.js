@@ -37,6 +37,17 @@ const { initialsFromFullName } = require("../utils/nameInitials");
 const { isSafeS3Key } = require("../helpers/presignedUrls");
 const AgentAffiliation = require("../models/agentAffiliation");
 const { APP_BASE_URL, BACKEND_URL } = require("../config");
+
+/** Stable Opsy mark for account invitation emails when the inviter has no photo. */
+function getAccountInvitationBrandMarkUrl() {
+  const base = (APP_BASE_URL || process.env.APP_WEB_ORIGIN || "https://app.heyopsy.com").replace(
+    /\/$/,
+    ""
+  );
+  return (
+    process.env.EMAIL_ACCOUNT_INVITATION_MARK_URL || `${base}/opsy_favicon.png`
+  );
+}
 const {
   canAddContact,
   getTeamMemberInviteEligibilityByProperty,
@@ -141,12 +152,23 @@ async function resolveInviteeFirstName(emailLower, accountId) {
   return firstNameFromFullName(contactRes.rows[0]?.name);
 }
 
+/** Platform role of invitee (agent, homeowner, admin) for Customer.io journey branching. */
+async function resolveInviteePlatformRole(emailLower) {
+  if (!emailLower) return "";
+  const userRes = await db.query(
+    `SELECT role FROM users WHERE LOWER(TRIM(email)) = $1 LIMIT 1`,
+    [emailLower]
+  );
+  return (userRes.rows[0]?.role || "").trim().toLowerCase();
+}
+
 /** Customer.io merge fields for account (agent/admin) invitations. */
 async function buildAccountInvitationInviterMergeData(inviterUserId) {
+  const brandMarkUrl = getAccountInvitationBrandMarkUrl();
   if (!inviterUserId) {
     return {
       senderFirstName: "",
-      avatarUrl: "",
+      avatarUrl: brandMarkUrl,
     };
   }
 
@@ -162,7 +184,7 @@ async function buildAccountInvitationInviterMergeData(inviterUserId) {
     senderFirstName: firstNameFromFullName(inviterFullName),
     avatarUrl: hasPhoto
       ? buildPublicAvatarUrl(inviterUserId, inviterFullName)
-      : "",
+      : brandMarkUrl,
   };
 }
 
@@ -909,6 +931,8 @@ async function sendInvitationEmailForInvitation({
       inviterName = inviter.rows[0]?.name || null;
     }
   }
+  const userRole =
+    type === "property" ? "" : await resolveInviteePlatformRole(emailNorm);
   const emailType = type === "property" ? "invitation_property" : "invitation_account";
   await sendInvitationEmail({
     to: invitation.inviteeEmail,
@@ -916,6 +940,7 @@ async function sendInvitationEmailForInvitation({
     inviterName,
     inviteeName: recipientFirstName || null,
     type,
+    userRole,
     propertyAddress,
     invitationId: type === "property" ? invitation.id : undefined,
     propertyId: type === "property" ? invitation.propertyId : undefined,

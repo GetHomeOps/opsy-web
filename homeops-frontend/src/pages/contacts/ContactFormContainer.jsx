@@ -236,6 +236,7 @@ function ContactsFormContainer() {
     duplicateContact,
     deleteContact,
     contacts,
+    contactsLoading,
     viewMode,
     getCurrentViewContacts,
   } = useContext(contactContext);
@@ -254,53 +255,102 @@ function ContactsFormContainer() {
 
   // Fetch contact based on URL's contact id
   useEffect(() => {
-    async function fetchContact() {
-      if (id && id !== "new") {
-        try {
-          const currentViewContacts = getCurrentViewContacts();
-          const existingContact = currentViewContacts.find(
-            (contact) => Number(contact.id) === Number(id),
-          );
-          if (existingContact) {
-            dispatch({type: "SET_CONTACT", payload: existingContact});
-            // Only clear banner if it's not a success message from contact creation or update
-            if (
-              state.bannerType !== "success" ||
-              (!state.bannerMessage.includes(
-                t("contactCreatedSuccessfullyMessage"),
-              ) &&
-                !state.bannerMessage.includes(
-                  t("contactUpdatedSuccessfullyMessage"),
-                ))
-            ) {
-              dispatch({
-                type: "SET_BANNER",
-                payload: {
-                  open: false,
-                  type: state.bannerType,
-                  message: state.bannerMessage,
-                },
-              });
-            }
-          } else {
-            throw new Error(t("contactNotFoundErrorMessage"));
+    if (!id || id === "new") {
+      dispatch({type: "SET_CONTACT", payload: null});
+      return;
+    }
+
+    let cancelled = false;
+
+    async function resolveContact() {
+      const currentViewContacts = getCurrentViewContacts();
+      const existingContact = currentViewContacts.find(
+        (contact) => Number(contact.id) === Number(id),
+      );
+
+      if (existingContact) {
+        if (cancelled) return;
+        dispatch({type: "SET_CONTACT", payload: existingContact});
+        // Only clear banner if it's not a success message from contact creation or update
+        if (
+          state.bannerType !== "success" ||
+          (!state.bannerMessage.includes(
+            t("contactCreatedSuccessfullyMessage"),
+          ) &&
+            !state.bannerMessage.includes(
+              t("contactUpdatedSuccessfullyMessage"),
+            ))
+        ) {
+          dispatch({
+            type: "SET_BANNER",
+            payload: {
+              open: false,
+              type: state.bannerType,
+              message: state.bannerMessage,
+            },
+          });
+        }
+        return;
+      }
+
+      if (contactsLoading) return;
+
+      try {
+        const contact = await AppApi.getContact(id);
+        if (cancelled) return;
+        if (contact) {
+          dispatch({type: "SET_CONTACT", payload: contact});
+          if (
+            state.bannerType !== "success" ||
+            (!state.bannerMessage.includes(
+              t("contactCreatedSuccessfullyMessage"),
+            ) &&
+              !state.bannerMessage.includes(
+                t("contactUpdatedSuccessfullyMessage"),
+              ))
+          ) {
+            dispatch({
+              type: "SET_BANNER",
+              payload: {
+                open: false,
+                type: state.bannerType,
+                message: state.bannerMessage,
+              },
+            });
           }
-        } catch (err) {
+        } else {
+          dispatch({type: "SET_CONTACT", payload: null});
           dispatch({
             type: "SET_BANNER",
             payload: {
               open: true,
               type: "error",
-              message: `Error finding contact: ${err}`,
+              message: t("contactNotFoundErrorMessage") || "Contact not found",
             },
           });
         }
-      } else {
+      } catch (err) {
+        if (cancelled) return;
         dispatch({type: "SET_CONTACT", payload: null});
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "error",
+            message:
+              err?.message ||
+              t("contactNotFoundErrorMessage") ||
+              "Contact not found",
+          },
+        });
       }
     }
-    fetchContact();
-  }, [id, contacts, viewMode]);
+
+    resolveContact();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, contacts, contactsLoading, viewMode, getCurrentViewContacts, t]);
 
   // Fetch the contact's associated properties (membership) and the
   // maintenance/inspection records where the contact is the contractor.

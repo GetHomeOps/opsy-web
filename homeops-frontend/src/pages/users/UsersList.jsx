@@ -13,7 +13,7 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import userContext from "../../context/UserContext";
-import AppApi, {API_ERROR_CODES, getApiErrorMessage} from "../../api/api";
+import AppApi, {API_ERROR_CODES, getUserDeleteErrorMessage} from "../../api/api";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import FilterDropdown from "../../components/FilterDropdown";
@@ -395,6 +395,7 @@ function UsersList() {
     try {
       // Store the IDs of successfully deleted users
       const deletedIds = [];
+      const alreadyDeletedIds = [];
       const failureMessages = [];
 
       const ownershipTransferLabels = [];
@@ -414,6 +415,9 @@ function UsersList() {
           const res = await deleteUser(userId);
           if (res) {
             deletedIds.push(userId);
+            if (res.alreadyDeleted) {
+              alreadyDeletedIds.push(userId);
+            }
           }
         } catch (error) {
           if (error?.code === API_ERROR_CODES.PROPERTY_OWNER) {
@@ -424,11 +428,15 @@ function UsersList() {
             accountHasPropertiesLabels.push(u?.name || u?.email || `#${userId}`);
           } else {
             failureMessages.push(
-              getApiErrorMessage(error, "Could not delete user."),
+              getUserDeleteErrorMessage(error, "Could not delete user."),
             );
           }
           // Continue with other deletions even if one fails
         }
+      }
+
+      if (alreadyDeletedIds.length > 0) {
+        await refetchUsers?.();
       }
 
       if (ownershipTransferLabels.length > 0) {
@@ -453,6 +461,9 @@ function UsersList() {
 
       const uniqueFailures = [...new Set(failureMessages)];
       const failedCount = selectedItems.length - deletedIds.length;
+      const staleDeleteMessage =
+        t("userDeleteStaleRecordMessage") ||
+        "This user no longer exists. The list has been refreshed.";
 
       // Only show success if at least one user was deleted
       if (deletedIds.length > 0) {
@@ -473,6 +484,15 @@ function UsersList() {
         let message = `${deletedIds.length} user${
           deletedIds.length !== 1 ? "s" : ""
         } deleted successfully`;
+        if (alreadyDeletedIds.length > 0 && alreadyDeletedIds.length === deletedIds.length) {
+          bannerType = "warning";
+          message = staleDeleteMessage;
+        } else if (alreadyDeletedIds.length > 0) {
+          bannerType = "warning";
+          message = `${message}. ${alreadyDeletedIds.length} user${
+            alreadyDeletedIds.length !== 1 ? "s were" : " was"
+          } already removed from the system.`;
+        }
         if (uniqueFailures.length > 0) {
           bannerType = "warning";
           const detail =

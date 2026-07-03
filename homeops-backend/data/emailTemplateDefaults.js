@@ -198,9 +198,10 @@ function getSampleMergeData(emailType) {
       inviteUrl: "https://app.heyopsy.com/invite/sample",
       inviterName: "Jane Smith",
       senderFirstName: "Jane",
-      avatarUrl: "https://heyopsy.com/email/opsy-mark.png",
+      avatarUrl: "https://app.heyopsy.com/opsy_favicon.png",
       inviteeName: "Alex",
       recipientFirstName: "Alex",
+      userRole: "agent",
     },
     property_invitation: {
       ...base,
