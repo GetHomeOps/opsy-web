@@ -69,6 +69,7 @@ const db = require("../db");
 const {
   assertPublicSignupAllowed,
   isDemoEnvironment,
+  assertDemoAccountAccessAllowed,
 } = require("../helpers/demoEnvironment");
 
 function getClientMeta(req) {
@@ -192,6 +193,9 @@ router.post("/token", async function (req, res, next) {
     if (!canProceed) {
       throw new UnauthorizedError("User account is inactive or not found");
     }
+
+    const fullUser = await User.getById(user.id);
+    assertDemoAccountAccessAllowed(fullUser);
 
     if (user.mfaEnabled) {
       const mfaTicket = createMfaTicket(user.id, user.email);
@@ -336,6 +340,10 @@ router.post("/refresh", async function (req, res, next) {
     const canProceed = impersonator || userMayReceiveAuthTokens(user);
     if (!canProceed) {
       throw new UnauthorizedError("User account is inactive or not found");
+    }
+
+    if (!impersonator) {
+      assertDemoAccountAccessAllowed(user);
     }
 
     const tokens = await issueTokenPair(user, impersonator);
@@ -500,6 +508,8 @@ router.post("/mfa/verify", mfaVerifyLimiter, async function (req, res, next) {
     if (!canProceed) {
       throw new UnauthorizedError("User not found or inactive");
     }
+
+    assertDemoAccountAccessAllowed(user);
 
     const MfaBackupCode = require("../models/mfaBackupCode");
     const speakeasy = require("speakeasy");

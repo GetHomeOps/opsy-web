@@ -18,6 +18,12 @@ const REFRESH_TOKEN_STORAGE_KEY = "app-refresh-token";
 
 import { emitTierLimit, isTierRestrictionError } from "../utils/tierLimitNotifier";
 import {
+  canUploadDocumentsOnDemo,
+  canUseAiOnDemo,
+  DEMO_AI_UNAVAILABLE_MESSAGE,
+  DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
+} from "../utils/demoSite";
+import {
   MAX_DOCUMENT_UPLOAD_BYTES,
   documentFileTooLargeMessage,
 } from "../constants/documentUpload";
@@ -36,6 +42,18 @@ export class ApiError extends Error {
     ) {
       emitTierLimit({ message: this.message, status });
     }
+  }
+}
+
+function assertDemoUploadAllowedApi() {
+  if (!canUploadDocumentsOnDemo()) {
+    throw new ApiError([DEMO_UPLOAD_UNAVAILABLE_MESSAGE], 403);
+  }
+}
+
+function assertDemoAiAllowedApi() {
+  if (!canUseAiOnDemo()) {
+    throw new ApiError([DEMO_AI_UNAVAILABLE_MESSAGE], 403);
   }
 }
 
@@ -1096,6 +1114,7 @@ class AppApi {
    * @returns {Promise<{ recommendedFrequency, riskWarning, suggestedQuestions, suggestions }>}
    */
   static async getAIMaintenanceAdvice(propertyId, { systemType, systemName, systemContext = {}, scheduleType = null }) {
+    assertDemoAiAllowedApi();
     const res = await this.request(
       `maintenance-events/${propertyId}/ai-advice`,
       { systemType, systemName, systemContext, scheduleType },
@@ -1173,6 +1192,7 @@ class AppApi {
    *   - emailType, iconSlot: required for email_assets (Customer.io template icons)
    */
   static async uploadDocument(file, options = {}) {
+    assertDemoUploadAllowedApi();
     if (
       file &&
       typeof file.size === "number" &&
@@ -1201,6 +1221,7 @@ class AppApi {
   /* --------- Property Documents --------- */
 
   static async createPropertyDocument(data) {
+    assertDemoUploadAllowedApi();
     const prev = AppApi._suppressTierEmit;
     AppApi._suppressTierEmit = true;
     try {
@@ -1274,6 +1295,7 @@ class AppApi {
   }
 
   static async createStagedDocument(data) {
+    assertDemoUploadAllowedApi();
     const res = await this.request("stagedDocuments", data, "POST");
     return res.stagedDocument;
   }
@@ -1289,6 +1311,7 @@ class AppApi {
 
   /** File a single staged doc into a system. data: { system_key, document_type, document_name, document_date } */
   static async fileStagedDocument(id, data) {
+    assertDemoUploadAllowedApi();
     const prev = AppApi._suppressTierEmit;
     AppApi._suppressTierEmit = true;
     try {
@@ -1301,6 +1324,7 @@ class AppApi {
 
   /** Bulk-file. items: [{ id, system_key, document_type, document_name, document_date }] */
   static async fileStagedDocumentsBulk(items) {
+    assertDemoUploadAllowedApi();
     const prev = AppApi._suppressTierEmit;
     AppApi._suppressTierEmit = true;
     try {
@@ -1506,6 +1530,7 @@ class AppApi {
   /* --------- Inspection Report Analysis --------- */
 
   static async startInspectionAnalysis(propertyId, { s3Key, fileName, mimeType }) {
+    assertDemoAiAllowedApi();
     const res = await this.request(`properties/${propertyId}/inspection-report/analyze`, {
       s3Key,
       fileName: fileName || null,
@@ -1577,6 +1602,7 @@ class AppApi {
   /* --------- Document Analysis (per-document after filing) --------- */
 
   static async startDocumentAnalysis(propertyDocumentId) {
+    assertDemoAiAllowedApi();
     const prev = AppApi._suppressTierEmit;
     AppApi._suppressTierEmit = true;
     try {
@@ -1698,6 +1724,7 @@ class AppApi {
   }
 
   static async aiChat({ conversationId, propertyId, message, systemContext, contextType }) {
+    assertDemoAiAllowedApi();
     const res = await this.request("ai/chat", {
       conversationId,
       propertyId,
@@ -1739,6 +1766,7 @@ class AppApi {
   }
 
   static async aiIngestDocuments(propertyId) {
+    assertDemoAiAllowedApi();
     const res = await this.request("ai/ingest-documents", { propertyId }, "POST");
     return res;
   }

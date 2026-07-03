@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import {useInspectionAnalysis} from "../../../hooks/useInspectionAnalysis";
 import useBillingStatus from "../../../hooks/useBillingStatus";
+import {canUseAiOnDemo, DEMO_AI_UNAVAILABLE_MESSAGE} from "../../../utils/demoSite";
 import {getSystemLabelFromAiType} from "../helpers/aiSystemNormalization";
 import {
   filterSuggestedSystemsNotOnProperty,
@@ -246,6 +247,19 @@ export default function InspectionAnalysisModalContent({
         <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             Save the property first to analyze reports.
+          </p>
+        </div>
+      </>
+    );
+  }
+
+  if (!canUseAiOnDemo()) {
+    return (
+      <>
+        <AnalysisModalHeader onClose={onClose} />
+        <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-md">
+            {DEMO_AI_UNAVAILABLE_MESSAGE}
           </p>
         </div>
       </>

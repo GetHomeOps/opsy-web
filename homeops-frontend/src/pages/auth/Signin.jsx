@@ -166,7 +166,8 @@ function Signin() {
           messages.some((m) =>
             /invalid|username|password|email|credential/i.test(String(m)),
           ) &&
-          !messages.some((m) => /verify your email/i.test(String(m)))
+          !messages.some((m) => /verify your email/i.test(String(m))) &&
+          !messages.some((m) => /demo account has expired/i.test(String(m)))
         ) {
           messages = ["Invalid email or password"];
         }

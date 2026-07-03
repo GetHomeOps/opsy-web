@@ -5,6 +5,9 @@ import {
   MAX_DOCUMENT_UPLOAD_BYTES,
   documentFileTooLargeMessage,
 } from "../../../../constants/documentUpload";
+import {
+  canUploadDocumentsOnDemo,
+} from "../../../../utils/demoSite";
 import { guessFromFilename } from "./filenameHeuristics";
 
 /**
@@ -311,6 +314,7 @@ export default function useDocumentsInbox(
 
   const addFiles = useCallback(
     async (fileList) => {
+      if (!canUploadDocumentsOnDemo()) return;
       const files = Array.from(fileList || []);
       if (!files.length) return;
 

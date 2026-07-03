@@ -9,8 +9,11 @@ Sales and support guide for provisioning and running demos on the public demo si
 - **Outbound email:** Disabled (SES and Customer.io suppressed)
 - **Public signup:** Disabled
 - **Daily reset:** Full database teardown and re-seed at **06:00 UTC** every day
+- **Ready-to-use account expiry:** Provisioned prospect accounts expire **72 hours** after creation by default. After expiry, login is blocked until a super admin extends **Demo access expires** on the user record.
 
 After 06:00 UTC, all runtime-provisioned prospect accounts are removed. Re-provision before important demos or tell prospects credentials expire overnight.
+
+Per-account expiry is separate from the daily reset: a prospect may lose login access after 72 hours even before the next 06:00 UTC wipe.
 
 Baseline seed accounts (always present after reset):
 
@@ -35,7 +38,8 @@ Seed homeowners do **not** include rich sample data (maintenance, conversations,
 4. Role: **Agent**
 5. Optionally disable **Include paired homeowner login** if you will not show the homeowner side
 6. Set prospect email/name and generate a login password
-7. Share agent credentials with the prospect
+7. Confirm **Demo access expires** (defaults to 72 hours from now; adjust if the prospect needs more time)
+8. Share agent credentials with the prospect
 
 **What they get:** Win plan, 3 rich sample properties with synthetic clients (background data only unless paired login is enabled).
 
@@ -50,6 +54,7 @@ Seed homeowners do **not** include rich sample data (maintenance, conversations,
 1. Users → New user → **Provision ready-to-use demo account**
 2. Role: **Homeowner**
 3. Set prospect email/name and login password
+4. Confirm **Demo access expires** (default 72 hours)
 
 **What they get:** Maintain plan, 1 rich sample property, shared demo agent persona (Sarah Chen).
 
@@ -65,13 +70,27 @@ Seed homeowners do **not** include rich sample data (maintenance, conversations,
 2. Role: **Agent**
 3. Keep **Include paired homeowner login** enabled (default)
 4. Set prospect agent email/name and login password
-5. After provisioning completes, copy **both** credential blocks:
+5. Confirm **Demo access expires** (default 72 hours; paired homeowner uses the same expiry)
+6. After provisioning completes, copy **both** credential blocks:
    - **Agent** — prospect’s email and password
    - **Paired homeowner** — synthetic client on the messages-focused property (same password by default)
 
 **Demo flow tip:** Log in as agent first, then open a private/incognito window and log in as the paired homeowner to show both UIs.
 
 **Reset between calls:** The paired homeowner can use Settings → Configuration → **Reset demo profile** to wipe activity data while keeping login and the base property.
+
+---
+
+## Extending demo access
+
+If a prospect needs more time after the default 72 hours:
+
+1. Sign in as super admin on demo.heyopsy.com
+2. Users → open the provisioned user
+3. Update **Demo access expires** to a future date and save
+4. For agent accounts with paired homeowner login, the paired homeowner expiry is updated automatically
+
+Expired accounts show an **Expired** badge in the users list and cannot sign in until extended.
 
 ---
 
@@ -84,7 +103,10 @@ Seed homeowners do **not** include rich sample data (maintenance, conversations,
 | Calendar OAuth (Google / Outlook) | Blocked |
 | User creation | Super admin only |
 | Role changes | Locked on provisioned users |
+| Document upload | Disabled (all upload paths) |
+| AI features | Disabled (Opsy assistant, inspection analysis, maintenance AI) |
 | Account data | Wiped daily at 06:00 UTC |
+| Ready-to-use login access | Expires 72 hours after creation (extendable by super admin) |
 
 ---
 
@@ -100,6 +122,7 @@ Seed homeowners do **not** include rich sample data (maintenance, conversations,
 
 - [ ] Confirm demo is before or after 06:00 UTC reset window
 - [ ] Choose playbook (agent-only, homeowner-only, bilateral)
+- [ ] Set **Demo access expires** if the prospect needs more than 72 hours
 - [ ] Copy login password(s) from user detail after provisioning
 - [ ] For bilateral: copy paired homeowner email from credential panel
 - [ ] Tell prospect email is not sent on demo

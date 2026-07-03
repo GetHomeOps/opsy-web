@@ -14,6 +14,7 @@ const {
   buildReviewFields,
 } = require("../services/documentAnalysisFieldMapper");
 const { checkAiFeaturesAllowed, checkAiTokenQuota } = require("../services/tierService");
+const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
 const { triggerReanalysisOnDocument } = require("../services/ai/propertyReanalysisService");
 
 const router = express.Router();
@@ -63,6 +64,7 @@ function serializeJobResponse(job, resultRow, systemRow) {
 /** POST /analyze — Start analysis for a filed property document. */
 router.post("/analyze", ensureLoggedIn, async function (req, res, next) {
   try {
+    assertDemoAiAllowed();
     const { propertyDocumentId } = req.body;
     const docId = parseInt(propertyDocumentId, 10);
     if (isNaN(docId)) throw new BadRequestError("propertyDocumentId is required");

@@ -10,6 +10,7 @@ const propertyUpdateSchema = require("../schemas/propertyUpdate.json");
 const { generatePassportId, isPropertyUid } = require("../helpers/properties");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
 const { canCreateProperty, checkAiTokenQuota, checkAiFeaturesAllowed, getAccountLimits } = require("../services/tierService");
+const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
 const { onPropertyCreated } = require("../services/resourceAutoSend");
 const { syncPropertyMissingAgentAdminNotifications } = require("../services/propertyMissingAgentNotifications");
 const { assertAtMostOneAgentOnProperty } = require("../services/propertyAgentPolicy");
@@ -563,6 +564,7 @@ router.post(
   ensurePropertyAccess({ param: "propertyId" }),
   async function (req, res, next) {
     try {
+      assertDemoAiAllowed();
       const propertyId = req.params.propertyId;
       const userId = res.locals.user.id;
       const userRole = res.locals.user?.role;

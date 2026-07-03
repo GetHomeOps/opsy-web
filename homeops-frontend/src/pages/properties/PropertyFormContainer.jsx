@@ -19,6 +19,8 @@ import ContactContext from "../../context/ContactContext";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import UpgradePrompt from "../../components/UpgradePrompt";
+import DemoFeatureUnavailableModal from "../../components/DemoFeatureUnavailableModal";
+import useDemoFeatureGate from "../../hooks/useDemoFeatureGate";
 import SystemsTab from "./SystemsTab";
 import MaintenanceTab from "./MaintenanceTab";
 import IdentityTab from "./IdentityTab";
@@ -612,6 +614,7 @@ function PropertyFormContainer() {
   const isPaidUser =
     isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
   const aiFeaturesEnabled = limits?.aiFeaturesEnabled ?? true;
+  const aiDemoGate = useDemoFeatureGate("ai");
   const [homeopsTeam, setHomeopsTeam] = useState([]);
   const [systemsSetupModalOpen, setSystemsSetupModalOpen] = useState(false);
   const [newPropertyCheckingLimits, setNewPropertyCheckingLimits] = useState(
@@ -689,6 +692,10 @@ function PropertyFormContainer() {
   const [expandSectionId, setExpandSectionId] = useState(null);
 
   const openAiAssistantWithPlanCheck = useCallback(() => {
+    if (aiDemoGate.blocked) {
+      aiDemoGate.showModal();
+      return;
+    }
     if (!isAdmin && !aiFeaturesEnabled) {
       setUpgradePromptTitle("AI not included on this plan");
       setUpgradePromptMsg(
@@ -706,7 +713,7 @@ function PropertyFormContainer() {
       return;
     }
     setAiSidebarOpen(true);
-  }, [isAdmin, aiFeaturesEnabled, isPaidUser]);
+  }, [aiDemoGate, isAdmin, aiFeaturesEnabled, isPaidUser]);
 
   const aiAssistantPropertyHeader = useMemo(
     () => getPropertyAssistantHeaderLines(state.formData.identity),
@@ -715,6 +722,10 @@ function PropertyFormContainer() {
 
   const openInspectionAnalysisWithPlanCheck = useCallback(
     (filedDocument = null) => {
+      if (aiDemoGate.blocked) {
+        aiDemoGate.showModal();
+        return;
+      }
       if (!isAdmin && !aiFeaturesEnabled) {
         setUpgradePromptTitle("AI inspection analysis not included");
         setUpgradePromptMsg(
@@ -745,7 +756,7 @@ function PropertyFormContainer() {
       }
       setBlankModalOpen(true);
     },
-    [isAdmin, aiFeaturesEnabled],
+    [aiDemoGate.blocked, aiDemoGate.showModal, isAdmin, aiFeaturesEnabled],
   );
 
   // Merged formData – declared early so callbacks can reference it
@@ -4822,6 +4833,7 @@ function PropertyFormContainer() {
         upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
         ignoreClickRef={blankModalButtonRef}
       />
+      <DemoFeatureUnavailableModal {...aiDemoGate.modalProps} />
 
       {/* Floating "Invite your Agent" CTA */}
       {showInviteAgentCta && (

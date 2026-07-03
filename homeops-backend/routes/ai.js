@@ -6,6 +6,7 @@ const OpenAI = require("openai");
 const { ensureLoggedIn, ensurePropertyAccess } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const { checkAiTokenQuota, checkAiFeaturesAllowed } = require("../services/tierService");
+const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
 const MaintenanceEvent = require("../models/maintenanceEvent");
 const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const documentRagService = require("../services/documentRagService");
@@ -413,6 +414,7 @@ router.post(
   ensureLoggedIn,
   async function (req, res, next) {
     try {
+      assertDemoAiAllowed();
       const { conversationId, propertyId, message, systemContext: clientSystemContext, contextType } = req.body || {};
       const userId = res.locals.user.id;
 
@@ -666,6 +668,7 @@ router.post(
   ensureLoggedIn,
   async function (req, res, next) {
     try {
+      assertDemoAiAllowed();
       const { propertyId } = req.body || {};
       const userId = res.locals.user.id;
 

@@ -6,6 +6,8 @@ import Transition from "../utils/Transition";
 import PropertyContext from "../context/PropertyContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
+import useDemoFeatureGate from "../hooks/useDemoFeatureGate";
+import {DEMO_AI_UNAVAILABLE_MESSAGE} from "../utils/demoSite";
 import AIAssistantSidebar from "../pages/properties/partials/AIAssistantSidebar";
 import {getPropertyAssistantHeaderLines} from "../pages/properties/helpers/propertyAssistantHeader";
 
@@ -23,6 +25,7 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
     isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
   const aiFeaturesOnPlan = isAdmin || limits?.aiFeaturesEnabled !== false;
   const canUseAiAssistant = isPaidUser && aiFeaturesOnPlan;
+  const aiDemoGate = useDemoFeatureGate("ai");
   const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [systemContext, setSystemContext] = useState(null);
   const [propertySystems, setPropertySystems] = useState([]);
@@ -158,6 +161,25 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
               {billingLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 text-[#456564] animate-spin" />
+                </div>
+              ) : aiDemoGate.blocked ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
+                    <ArrowUpCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    AI features not available on demo
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-xs">
+                    {DEMO_AI_UNAVAILABLE_MESSAGE}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-full px-4 py-2 text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  >
+                    Got it
+                  </button>
                 </div>
               ) : !canUseAiAssistant ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">

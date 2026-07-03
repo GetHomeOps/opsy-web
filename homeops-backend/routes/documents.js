@@ -11,6 +11,7 @@ const { AWS_S3_BUCKET } = require("../config");
 const { ulid } = require("ulid");
 const { MAX_DOCUMENT_UPLOAD_BYTES } = require("../constants/documentUpload");
 const { isAllowedS3KeyPrefix, resolveUploadFolderPrefix } = require("../constants/s3Upload");
+const { assertDemoUploadAllowed } = require("../helpers/demoEnvironment");
 
 const router = express.Router();
 
@@ -53,6 +54,7 @@ const upload = multer({
 /** POST /upload - Upload file to S3. Multipart form-data with "file" field. Returns key and URL. */
 router.post("/upload", ensureLoggedIn, upload.single("file"), async (req, res, next) => {
   try {
+    assertDemoUploadAllowed();
     if (!AWS_S3_BUCKET) {
       throw new BadRequestError(
         "File upload is not configured. Set AWS_S3_BUCKET (and AWS credentials) in the server environment."

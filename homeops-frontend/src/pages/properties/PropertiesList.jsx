@@ -23,6 +23,8 @@ import ListDropdown from "../../partials/buttons/ListDropdown";
 import FilterDropdown from "../../components/FilterDropdown";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
+import useDemoFeatureGate from "../../hooks/useDemoFeatureGate";
+import DemoFeatureUnavailableModal from "../../components/DemoFeatureUnavailableModal";
 import propertyContext from "../../context/PropertyContext";
 import {useAuth} from "../../context/AuthContext";
 import AppApi, {getApiErrorMessage} from "../../api/api";
@@ -381,6 +383,7 @@ function PropertiesList() {
       accountUrl,
       onLimitReached: () => setPropertyLimitUpgradeOpen(true),
     });
+  const aiDemoGate = useDemoFeatureGate("ai");
   /* Surface the upgrade prompt when redirected here because the new-property
    * flow hit the plan limit (otherwise the redirect looks like a silent reload). */
   useEffect(() => {
@@ -730,6 +733,10 @@ function PropertiesList() {
 
   const handleNewProperty = () => handleAddProperty();
   const handleOpenAIAssistant = (property) => {
+    if (aiDemoGate.blocked) {
+      aiDemoGate.showModal();
+      return;
+    }
     const uid = property.property_uid ?? property.id;
     const propertyIndex = sortedProperties.findIndex(
       (p) => (p.property_uid ?? p.id) === uid,
@@ -1397,6 +1404,7 @@ function PropertiesList() {
         selectedProperties={bulkInviteProperties}
         currentAccount={currentAccount}
       />
+      <DemoFeatureUnavailableModal {...aiDemoGate.modalProps} />
     </div>
   );
 }

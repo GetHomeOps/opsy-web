@@ -5,6 +5,10 @@ import {
   documentFileTooLargeMessage,
 } from "../constants/documentUpload";
 import { S3_UPLOAD_FOLDER } from "../constants/s3UploadFolders";
+import {
+  canUploadDocumentsOnDemo,
+  DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
+} from "../utils/demoSite";
 
 /**
  * Upload a document with progress reporting.
@@ -33,6 +37,14 @@ export default function useDocumentUpload({
         const token = AppApi.token;
         if (!token) {
           const msg = "Authentication required";
+          setError(msg);
+          onError?.(msg);
+          resolve(null);
+          return;
+        }
+
+        if (!canUploadDocumentsOnDemo()) {
+          const msg = DEMO_UPLOAD_UNAVAILABLE_MESSAGE;
           setError(msg);
           onError?.(msg);
           resolve(null);

@@ -22,8 +22,27 @@ function UsersTable({
   onReconcileBilling,
   onResendInvitation,
   resendingInvitationUserId,
+  showDemoExpiry = false,
 }) {
   const {t} = useTranslation();
+
+  function formatDemoExpiryBadge(iso) {
+    if (!iso) return null;
+    try {
+      return new Date(iso).toLocaleString(undefined, {
+        dateStyle: "short",
+        timeStyle: "short",
+      });
+    } catch {
+      return iso;
+    }
+  }
+
+  function isDemoExpiryPast(iso) {
+    if (!iso) return false;
+    const tMs = new Date(iso).getTime();
+    return !Number.isNaN(tMs) && tMs <= Date.now();
+  }
 
   // Get current page items
   const currentUsers = useMemo(() => {
@@ -103,16 +122,37 @@ function UsersTable({
       sortable: true,
       render: (value, item) => {
         const isActive = item.isActive || item.is_active;
+        const demoExpiresAt = item.demoExpiresAt;
+        const showExpiryBadge = showDemoExpiry && demoExpiresAt;
+        const expired = showExpiryBadge && isDemoExpiryPast(demoExpiresAt);
         return (
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-              isActive
-                ? "bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]"
-                : "bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437]"
-            }`}
-          >
-            {isActive ? t("active") || "Active" : t("pending") || "Pending"}
-          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                isActive
+                  ? "bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]"
+                  : "bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437]"
+              }`}
+            >
+              {isActive ? t("active") || "Active" : t("pending") || "Pending"}
+            </span>
+            {showExpiryBadge ? (
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                  expired
+                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200"
+                    : "bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300"
+                }`}
+              >
+                {expired
+                  ? t("demoAccountExpiredBadge") || "Expired"
+                  : t("demoAccountExpiresBadge", {
+                      time: formatDemoExpiryBadge(demoExpiresAt),
+                      defaultValue: "Expires {{time}}",
+                    })}
+              </span>
+            ) : null}
+          </div>
         );
       },
     },

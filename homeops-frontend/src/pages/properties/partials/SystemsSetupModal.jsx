@@ -32,6 +32,10 @@ import { S3_UPLOAD_FOLDER } from "../../../constants/s3UploadFolders";
 import AppApi from "../../../api/api";
 import AIFindingsPanel from "./AIFindingsPanel";
 import UpgradePrompt from "../../../components/UpgradePrompt";
+import {
+  canUploadDocumentsOnDemo,
+  DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
+} from "../../../utils/demoSite";
 import OpsyMascot from "../../../images/opsy1.png";
 import HouseIcon from "../../../images/house_icon.webp";
 import GlassIcon from "../../../images/glass_icon.webp";
@@ -952,6 +956,7 @@ function SystemsSetupModal({
 
   const processInspectionFiles = useCallback(
     async (files) => {
+      if (!canUploadDocumentsOnDemo()) return;
       if (!propertyId || files.length === 0) return;
       setDocumentSaveError(null);
       for (const file of files) {
@@ -1938,7 +1943,7 @@ function SystemsSetupModal({
                         multiple
                         accept=".pdf,image/*"
                         onChange={handleInspectionFileSelect}
-                        disabled={!propertyId || isUploading}
+                        disabled={!propertyId || isUploading || !canUploadDocumentsOnDemo()}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
                         id="inspection-file-input"
                       />
@@ -1949,6 +1954,10 @@ function SystemsSetupModal({
                             Uploading… {uploadProgress}%
                           </p>
                         </>
+                      ) : !canUploadDocumentsOnDemo() ? (
+                        <p className="text-sm text-amber-800 dark:text-amber-200 text-center px-4">
+                          {DEMO_UPLOAD_UNAVAILABLE_MESSAGE}
+                        </p>
                       ) : (
                         <>
                           <Upload className="w-12 h-12 text-gray-400 dark:text-gray-500 mb-4" />

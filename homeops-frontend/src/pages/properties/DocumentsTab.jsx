@@ -37,6 +37,9 @@ import {StatusBadge} from "./partials/passport/StatusBadge";
 import AppApi from "../../api/api";
 import DatePickerInput from "../../components/DatePickerInput";
 import useDocumentUpload from "../../hooks/useDocumentUpload";
+import useDemoFeatureGate from "../../hooks/useDemoFeatureGate";
+import DemoFeatureUnavailableModal from "../../components/DemoFeatureUnavailableModal";
+import {canUploadDocumentsOnDemo} from "../../utils/demoSite";
 import { S3_UPLOAD_FOLDER } from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import {
@@ -292,6 +295,8 @@ function DocumentsTab({
     error: uploadHookError,
     clearError: clearUploadHookError,
   } = useDocumentUpload({ uploadFolder: S3_UPLOAD_FOLDER.PROPERTY_DOCUMENTS });
+  const uploadDemoGate = useDemoFeatureGate("upload");
+  const uploadDisabled = !canUploadDocumentsOnDemo();
 
   const {
     url: presignedPreviewUrl,
@@ -515,6 +520,10 @@ function DocumentsTab({
 
   const openUploadModalWithSystem = useCallback(
     (systemId) => {
+      if (uploadDemoGate.blocked) {
+        uploadDemoGate.showModal();
+        return;
+      }
       setUploadSystemKey(systemId);
       setUploadDocumentType(
         systemId === "inspectionReport" ? "inspection" : "receipt",
@@ -527,15 +536,19 @@ function DocumentsTab({
       setShowUploadModal(true);
       setSidebarOpen(false);
     },
-    [clearUploadHookError],
+    [clearUploadHookError, uploadDemoGate],
   );
 
   // "Upload Document" opens a hidden file picker that drops files straight
   // into the inbox (no modal). Faster for the common path.
   const inboxBrowseRef = useRef(null);
   const openDefaultUploadModal = useCallback(() => {
+    if (uploadDemoGate.blocked) {
+      uploadDemoGate.showModal();
+      return;
+    }
     inboxBrowseRef.current?.click();
-  }, []);
+  }, [uploadDemoGate]);
 
   const showInboxView = useCallback(() => {
     setSelectedFolder(null);
@@ -545,9 +558,13 @@ function DocumentsTab({
   }, []);
 
   const openCaptureModal = useCallback(() => {
+    if (uploadDemoGate.blocked) {
+      uploadDemoGate.showModal();
+      return;
+    }
     showInboxView();
     setShowCaptureModal(true);
-  }, [showInboxView]);
+  }, [showInboxView, uploadDemoGate]);
 
   useEffect(() => {
     if (!showUploadModal || !hasInspectionReport) return;
@@ -1279,6 +1296,7 @@ function DocumentsTab({
                   propertyData?.property_uid ??
                   propertyData?.identity?.property_uid
                 }
+                onUploadBlocked={uploadDemoGate.showModal}
               />
             ) : (
               <DocumentsTableView
@@ -1710,7 +1728,8 @@ function DocumentsTab({
                 <button
                   type="button"
                   onClick={openDefaultUploadModal}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-700/60 hover:border-[#456654]/50 hover:bg-[#456654]/[0.04] dark:hover:bg-[#456654]/10 transition-colors text-left group"
+                  disabled={uploadDisabled}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-700/60 hover:border-[#456654]/50 hover:bg-[#456654]/[0.04] dark:hover:bg-[#456654]/10 transition-colors text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="w-8 h-8 rounded-lg bg-[#456654]/10 dark:bg-[#456654]/25 flex items-center justify-center shrink-0">
                     <Upload className="w-4 h-4 text-[#456654] dark:text-[#7a9a88]" />
@@ -1728,7 +1747,8 @@ function DocumentsTab({
                 <button
                   type="button"
                   onClick={openCaptureModal}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-700/60 hover:border-[#456654]/50 hover:bg-[#456654]/[0.04] dark:hover:bg-[#456654]/10 transition-colors text-left group"
+                  disabled={uploadDisabled}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-700/60 hover:border-[#456654]/50 hover:bg-[#456654]/[0.04] dark:hover:bg-[#456654]/10 transition-colors text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="w-8 h-8 rounded-lg bg-[#456654]/10 dark:bg-[#456654]/25 flex items-center justify-center shrink-0">
                     <Smartphone className="w-4 h-4 text-[#456654] dark:text-[#7a9a88]" />
@@ -1839,6 +1859,7 @@ function DocumentsTab({
         </SectionCard>
       </div>
       </div>
+      <DemoFeatureUnavailableModal {...uploadDemoGate.modalProps} />
     </DndContext>
   );
 }

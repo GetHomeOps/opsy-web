@@ -13,6 +13,7 @@ import {
   isLikelyInspectionReport,
   toFiledDocumentForAnalysis,
 } from "../helpers/documentAnalysisFlow";
+import {canUseAiOnDemo} from "../../../utils/demoSite";
 
 /**
  * Orchestrates post-file AI analysis prompts and results modals.
@@ -48,6 +49,7 @@ function DocumentAnalysisOrchestrator({
   );
 
   const showOpsymizationPromptFor = useCallback((doc, source = "queue") => {
+    if (!canUseAiOnDemo()) return;
     setCurrentDoc(doc);
     setPromptSource(source);
     setPromptOpen(false);
@@ -56,6 +58,7 @@ function DocumentAnalysisOrchestrator({
   }, []);
 
   const showAnalysisPromptFor = useCallback((doc, source = "queue") => {
+    if (!canUseAiOnDemo()) return;
     setCurrentDoc(doc);
     setPromptSource(source);
     setOpsymizationPromptOpen(false);

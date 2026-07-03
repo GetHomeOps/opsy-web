@@ -7,6 +7,10 @@ import ContractorDropdown from "./ContractorDropdown";
 import ContactSearchModal from "../ContactSearchModal";
 import SendToContractorModal from "./SendToContractorModal";
 import AppApi from "../../../../api/api";
+import {
+  canUploadDocumentsOnDemo,
+  DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
+} from "../../../../utils/demoSite";
 import {normalizeProfessional} from "../../../professionals/utils/normalizeProfessional";
 import {
   RECORD_STATUS,
@@ -228,6 +232,7 @@ function CreateMaintenanceRecordPanel({
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (files.length === 0) return;
+    if (!canUploadDocumentsOnDemo()) return;
 
     const startIndex = uploadedFiles.length;
     setUploadedFiles((prev) => [

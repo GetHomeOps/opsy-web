@@ -11,6 +11,7 @@
 const OpenAI = require("openai");
 const db = require("../../db");
 const { normalizeSystemType } = require("../systemTypes");
+const { isDemoEnvironment } = require("../../helpers/demoEnvironment");
 
 const CONFIDENCE_THRESHOLD_AUTO = 0.85;
 const CONFIDENCE_THRESHOLD_REVIEW = 0.5;
@@ -325,6 +326,7 @@ function applyConfidenceLogic(parsed) {
  * @param {number} documentId
  */
 async function triggerReanalysisOnDocument(propertyId, documentId) {
+  if (isDemoEnvironment()) return { skipped: true, reason: "Demo environment" };
   const extracted = await extractDocumentStructuredContent(propertyId, documentId);
   if (!extracted) return { skipped: true, reason: "Document not found" };
 
@@ -337,6 +339,7 @@ async function triggerReanalysisOnDocument(propertyId, documentId) {
  * @param {Object} maintenanceRecord - Full record with id, system_key, data, etc.
  */
 async function triggerReanalysisOnMaintenance(propertyId, maintenanceRecord) {
+  if (isDemoEnvironment()) return { skipped: true, reason: "Demo environment" };
   const extracted = extractMaintenanceStructuredContent(maintenanceRecord);
   if (!extracted) return { skipped: true, reason: "Invalid maintenance record" };
 
@@ -349,6 +352,7 @@ async function triggerReanalysisOnMaintenance(propertyId, maintenanceRecord) {
  * @param {Object} inspectionResult - Full inspection_analysis_results row
  */
 async function triggerReanalysisOnInspection(propertyId, inspectionResult) {
+  if (isDemoEnvironment()) return { skipped: true, reason: "Demo environment" };
   const extracted = extractInspectionStructuredContent(inspectionResult);
   if (!extracted) return { skipped: true, reason: "Invalid inspection result" };
 

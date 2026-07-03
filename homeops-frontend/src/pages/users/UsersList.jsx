@@ -22,7 +22,7 @@ import UsersTable from "./UsersTable";
 import ListDropdown from "../../partials/buttons/ListDropdown";
 import {useAuth} from "../../context/AuthContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
-import {canCreateUsersOnDemo} from "../../utils/demoSite";
+import {canCreateUsersOnDemo, isDemoSite} from "../../utils/demoSite";
 import usePersistListUiSession, {
   HYDRATE_LIST_UI,
 } from "../../hooks/usePersistListUiSession";
@@ -1113,6 +1113,7 @@ function UsersList() {
                 onReconcileBilling={handleReconcileBilling}
                 onResendInvitation={handleResendInvitation}
                 resendingInvitationUserId={resendingInvitationUserId}
+                showDemoExpiry={isDemoSite()}
               />
               {/* Pagination */}
               {filteredUsers.length > 0 && (

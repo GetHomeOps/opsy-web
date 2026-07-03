@@ -22,6 +22,7 @@ const Notification = require("../models/notification");
 const { uploadFile } = require("../services/s3Service");
 const { AWS_S3_BUCKET } = require("../config");
 const { BadRequestError } = require("../expressError");
+const { assertDemoUploadAllowed } = require("../helpers/demoEnvironment");
 const { MAX_DOCUMENT_UPLOAD_BYTES } = require("../constants/documentUpload");
 
 const router = express.Router();
@@ -55,6 +56,7 @@ const SYSTEM_LABELS = {
 /** POST /:token/upload — Upload attachment. Multipart form-data with "file" field. */
 router.post("/:token/upload", upload.single("file"), async function (req, res, next) {
   try {
+    assertDemoUploadAllowed();
     const tokenData = await ContractorReportToken.validateToken(req.params.token);
     if (!AWS_S3_BUCKET) {
       throw new BadRequestError("File upload is not configured.");

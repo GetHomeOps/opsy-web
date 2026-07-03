@@ -27,6 +27,7 @@ import {
   ALERT_TIMING_OPTIONS,
 } from "../constants/maintenanceSchedule";
 import AppApi, {getApiErrorMessage} from "../../../api/api";
+import {canUseAiOnDemo} from "../../../utils/demoSite";
 import opsyAi2Icon from "../../../images/opsy_ai2.webp";
 import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowserAddressAutofill";
 
@@ -1292,6 +1293,13 @@ function MaintenanceScheduleModal({
   ]);
 
   const requestAIAdvice = useCallback(async () => {
+    if (!canUseAiOnDemo()) {
+      setAiAdvice({
+        ...NO_DATA_AI_RESPONSE,
+        riskWarning: "AI features are not available on the demo site.",
+      });
+      return;
+    }
     if (!propertyId) {
       setAiAdvice(NO_DATA_AI_RESPONSE);
       return;

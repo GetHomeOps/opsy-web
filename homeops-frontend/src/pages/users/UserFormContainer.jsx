@@ -64,12 +64,35 @@ function formatDemoExpiresAt(iso) {
     return new Date(iso).toLocaleString(undefined, {
       dateStyle: "medium",
       timeStyle: "short",
-      timeZone: "UTC",
-      timeZoneName: "short",
     });
   } catch {
     return iso;
   }
+}
+
+const DEFAULT_DEMO_EXPIRY_HOURS = 72;
+
+function getDefaultDemoExpiresAtDate() {
+  return new Date(Date.now() + DEFAULT_DEMO_EXPIRY_HOURS * 60 * 60 * 1000);
+}
+
+function toDatetimeLocalValue(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocalValue(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function isDemoExpiresAtPast(iso) {
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  return !Number.isNaN(t) && t <= Date.now();
 }
 
 const initialFormData = {
@@ -100,6 +123,7 @@ const initialState = {
   provisionDemoOnCreate: false,
   includePairedHomeownerLogin: true,
   demoPassword: "",
+  demoExpiresAt: "",
 };
 
 function reducer(state, action) {
@@ -134,6 +158,10 @@ function reducer(state, action) {
             }
           : initialFormData,
         demoPassword: action.payload?.demoLoginPassword || "",
+        demoExpiresAt:
+          action.payload?.demoLoginPassword && action.payload?.demoExpiresAt
+            ? toDatetimeLocalValue(action.payload.demoExpiresAt)
+            : "",
         formDataChanged: false,
         isInitialLoad: true,
       };
@@ -164,6 +192,9 @@ function reducer(state, action) {
         provisionDemoOnCreate: !!action.payload,
         sendInviteOnCreate: action.payload ? false : state.sendInviteOnCreate,
         demoPassword: action.payload ? generateRandomPassword() : "",
+        demoExpiresAt: action.payload
+          ? toDatetimeLocalValue(getDefaultDemoExpiresAtDate())
+          : "",
         includePairedHomeownerLogin: action.payload ? true : state.includePairedHomeownerLogin,
       };
     case "SET_INCLUDE_PAIRED_HOMEOWNER_LOGIN":
@@ -172,6 +203,13 @@ function reducer(state, action) {
       return {
         ...state,
         demoPassword: action.payload,
+        formDataChanged: state.isNew ? state.formDataChanged : true,
+        isInitialLoad: false,
+      };
+    case "SET_DEMO_EXPIRES_AT":
+      return {
+        ...state,
+        demoExpiresAt: action.payload,
         formDataChanged: state.isNew ? state.formDataChanged : true,
         isInitialLoad: false,
       };
@@ -694,6 +732,9 @@ function UsersFormContainer() {
       state.includePairedHomeownerLogin
         ? {includePairedHomeownerLogin: true}
         : {}),
+      ...(state.provisionDemoOnCreate && state.demoExpiresAt
+        ? {demoExpiresAt: fromDatetimeLocalValue(state.demoExpiresAt)}
+        : {}),
     };
 
     dispatch({type: "SET_SUBMITTING", payload: true});
@@ -828,6 +869,14 @@ function UsersFormContainer() {
       userData.password = state.demoPassword;
     }
 
+    if (
+      isDemoSuperAdmin &&
+      state.user?.demoLoginPassword &&
+      state.demoExpiresAt
+    ) {
+      userData.demoExpiresAt = fromDatetimeLocalValue(state.demoExpiresAt);
+    }
+
     dispatch({type: "SET_SUBMITTING", payload: true});
 
     try {
@@ -905,6 +954,18 @@ function UsersFormContainer() {
     if (state.provisionDemoOnCreate && !state.demoPassword?.trim()) {
       newErrors.demoPassword =
         t("demoAccountPasswordRequired") || "Login password is required.";
+    }
+
+    if (showDemoExpiresAtField && state.demoExpiresAt) {
+      const expiresIso = fromDatetimeLocalValue(state.demoExpiresAt);
+      if (!expiresIso) {
+        newErrors.demoExpiresAt =
+          t("demoAccessExpiresInvalid") || "Enter a valid date and time.";
+      } else if (state.isNew && isDemoExpiresAtPast(expiresIso)) {
+        newErrors.demoExpiresAt =
+          t("demoAccessExpiresFutureRequired") ||
+          "Demo access expiry must be in the future.";
+      }
     }
 
     dispatch({type: "SET_ERRORS", payload: newErrors});
@@ -1154,6 +1215,18 @@ function UsersFormContainer() {
     isDemoSuperAdmin &&
     ((state.isNew && state.provisionDemoOnCreate) || isDemoManagedUser);
 
+  const showDemoExpiresAtField =
+    isDemoSuperAdmin &&
+    ((state.isNew && state.provisionDemoOnCreate) ||
+      (!state.isNew && !!state.user?.demoLoginPassword));
+
+  const demoExpiresAtIso =
+    state.demoExpiresAt
+      ? fromDatetimeLocalValue(state.demoExpiresAt)
+      : state.user?.demoExpiresAt || null;
+
+  const demoAccessExpired = isDemoExpiresAtPast(demoExpiresAtIso);
+
   const demoCredentialBundle = useMemo(() => {
     if (provisionCredentials) return provisionCredentials;
     if (!isDemoManagedUser || state.user?.role !== "agent") return null;
@@ -1162,13 +1235,14 @@ function UsersFormContainer() {
       agentEmail: state.user.email,
       agentPassword: state.demoPassword || state.user.demoLoginPassword || "",
       pairedHomeowner: state.user.pairedHomeowner || null,
-      demoExpiresAt: state.user.demoExpiresAt || null,
+      demoExpiresAt: demoExpiresAtIso,
     };
   }, [
     provisionCredentials,
     isDemoManagedUser,
     state.user,
     state.demoPassword,
+    state.demoExpiresAt,
   ]);
 
   const showPairedHomeownerToggle =
@@ -2288,6 +2362,45 @@ function UsersFormContainer() {
                     </div>
                   )}
 
+                  {showDemoExpiresAtField && (
+                    <div className="mt-4">
+                      <label
+                        className={getLabelClasses()}
+                        htmlFor="demoExpiresAt"
+                      >
+                        {t("demoAccessExpires") || "Demo access expires"}
+                      </label>
+                      <input
+                        id="demoExpiresAt"
+                        type="datetime-local"
+                        className={getInputClasses("demoExpiresAt")}
+                        value={state.demoExpiresAt}
+                        onChange={(e) =>
+                          dispatch({
+                            type: "SET_DEMO_EXPIRES_AT",
+                            payload: e.target.value,
+                          })
+                        }
+                      />
+                      {state.errors.demoExpiresAt && (
+                        <div className="mt-1 flex items-center text-sm text-red-500">
+                          <AlertCircle className="h-4 w-4 mr-1" />
+                          <span>{state.errors.demoExpiresAt}</span>
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {t("demoAccessExpiresHelper") ||
+                          "Ready-to-use demo accounts are available for 72 hours by default. Extend this date if the prospect needs more time."}
+                      </p>
+                      {!state.isNew && demoAccessExpired ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 font-medium">
+                          {t("demoAccountExpired") ||
+                            "This demo account has expired and can no longer sign in."}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+
                   {isDemoSuperAdmin && provisionPolling && (
                     <div
                       className="mt-6 rounded-lg border border-[#456564]/30 dark:border-[#7aa3a2]/40 bg-[#456564]/5 dark:bg-gray-800/40 p-4"
@@ -2339,7 +2452,7 @@ function UsersFormContainer() {
                         {demoCredentialBundle.demoExpiresAt ? (
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             {t("demoExpiresAtHelper", {
-                              defaultValue: "Expires at {{time}} (daily demo reset).",
+                              defaultValue: "Access valid until {{time}}.",
                               time: formatDemoExpiresAt(
                                 demoCredentialBundle.demoExpiresAt,
                               ),

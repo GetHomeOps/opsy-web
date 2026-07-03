@@ -9,12 +9,13 @@ const db = require("../db");
 const bcrypt = require("bcrypt");
 const { BadRequestError } = require("../expressError");
 const { BCRYPT_WORK_FACTOR } = require("../config");
-const { isDemoEnvironment, getNextDemoResetAt } = require("../helpers/demoEnvironment");
+const { isDemoEnvironment, getDefaultDemoAccountExpiryAt } = require("../helpers/demoEnvironment");
 const { generatePassportId } = require("../helpers/properties");
 const Account = require("../models/account");
 const Contact = require("../models/contact");
 const User = require("../models/user");
 const Property = require("../models/property");
+const PropertyDocument = require("../models/propertyDocuments");
 const MaintenanceRecord = require("../models/maintenanceRecord");
 const MaintenanceEvent = require("../models/maintenanceEvent");
 const InspectionChecklistItem = require("../models/inspectionChecklistItem");
@@ -36,6 +37,7 @@ const {
   getConversationThread,
   getScenarioForRole,
   getInspectionFixtureForIndex,
+  getInspectionReportFileForIndex,
   PAIRED_HOMEOWNER_PROPERTY_INDEX,
 } = require("../data/demoAccountScenarios");
 const {
@@ -168,13 +170,26 @@ function buildSyntheticHomeownerEmail(agentUserId, personaKey) {
   return `${personaKey}.${agentUserId}@demo.heyopsy.com`;
 }
 
-async function setDemoExpiry(userId) {
-  const expiresAt = getNextDemoResetAt();
+async function setDemoExpiry(userId, expiresAt) {
+  let resolved = expiresAt;
+  if (!resolved) {
+    const existing = await User.getById(userId);
+    if (existing?.demoExpiresAt) {
+      resolved = existing.demoExpiresAt instanceof Date
+        ? existing.demoExpiresAt
+        : new Date(existing.demoExpiresAt);
+    } else {
+      resolved = getDefaultDemoAccountExpiryAt();
+    }
+  }
+  if (!(resolved instanceof Date)) {
+    resolved = new Date(resolved);
+  }
   await db.query(`UPDATE users SET demo_expires_at = $2, updated_at = NOW() WHERE id = $1`, [
     userId,
-    expiresAt,
+    resolved,
   ]);
-  return expiresAt;
+  return resolved;
 }
 
 async function createSyntheticHomeowner({
@@ -234,6 +249,7 @@ async function createLoginableSyntheticHomeowner({
   password,
   agentUserId,
   personaKey,
+  demoExpiresAt,
 }) {
   const namespacedEmail = buildSyntheticHomeownerEmail(agentUserId, personaKey);
   const existing = await User.get(namespacedEmail).catch(() => null);
@@ -247,7 +263,7 @@ async function createLoginableSyntheticHomeowner({
       `UPDATE users SET demo_paired_agent_id = $2, updated_at = NOW() WHERE id = $1`,
       [existing.id, agentUserId]
     );
-    const expiresAt = await setDemoExpiry(existing.id);
+    const expiresAt = await setDemoExpiry(existing.id, demoExpiresAt);
     const accountRes = await db.query(
       `SELECT a.id, a.url, a.name
        FROM accounts a
@@ -294,7 +310,7 @@ async function createLoginableSyntheticHomeowner({
      WHERE id = $1`,
     [user.id, agentUserId]
   );
-  const expiresAt = await setDemoExpiry(user.id);
+  const expiresAt = await setDemoExpiry(user.id, demoExpiresAt);
 
   const account = await Account.linkNewUserToAccount({ name, userId: user.id });
   const contact = await Contact.create({ name, email: namespacedEmail, phone });
@@ -383,13 +399,15 @@ async function seedSystems(propertyId, propertyIndex) {
 }
 
 async function seedInspectionAnalysis(propertyId, userId, propertyIndex) {
-  const fixture = getInspectionFixtureForIndex(propertyIndex ?? 2);
+  const index = propertyIndex ?? 2;
+  const fixture = getInspectionFixtureForIndex(index);
+  const reportFile = getInspectionReportFileForIndex(index);
   const jobRes = await db.query(
     `INSERT INTO inspection_analysis_jobs
        (property_id, user_id, s3_key, file_name, mime_type, status)
-     VALUES ($1, $2, 'demo/inspection-report.pdf', 'inspection-report.pdf', 'application/pdf', 'completed')
+     VALUES ($1, $2, $3, $4, 'application/pdf', 'completed')
      RETURNING id`,
-    [propertyId, userId]
+    [propertyId, userId, reportFile.s3Key, reportFile.fileName]
   );
   const jobId = jobRes.rows[0].id;
 
@@ -431,7 +449,22 @@ async function seedInspectionAnalysis(propertyId, userId, propertyIndex) {
   }
   await Promise.all(updatePromises);
 
-  return { jobId, analysisResultId: analysisResult.id, itemCount: items.length };
+  const documentDate = daysAgo(45);
+  const propertyDocument = await PropertyDocument.create({
+    property_id: propertyId,
+    document_name: reportFile.fileName,
+    document_date: documentDate,
+    document_key: reportFile.s3Key,
+    document_type: "inspection",
+    system_key: "inspectionReport",
+  });
+
+  return {
+    jobId,
+    analysisResultId: analysisResult.id,
+    itemCount: items.length,
+    propertyDocumentId: propertyDocument.id,
+  };
 }
 
 async function seedMaintenanceRecords(propertyId, propertyIndex, focus, createdByUserId) {
@@ -1052,7 +1085,7 @@ async function seedPropertyPortfolio({
 
 /**
  * Provision a login-ready demo account with sample data.
- * @param {{ userId: number, role: string, name: string, email: string, phone?: string, password?: string, includePairedHomeownerLogin?: boolean }}
+ * @param {{ userId: number, role: string, name: string, email: string, phone?: string, password?: string, includePairedHomeownerLogin?: boolean, demoExpiresAt?: Date|string }}
  */
 async function provisionDemoAccount({
   userId,
@@ -1062,6 +1095,7 @@ async function provisionDemoAccount({
   phone,
   password,
   includePairedHomeownerLogin = false,
+  demoExpiresAt: demoExpiresAtInput,
 }) {
   if (!isDemoEnvironment()) {
     throw new BadRequestError("Demo account provisioning is only available on the demo site.");
@@ -1075,7 +1109,7 @@ async function provisionDemoAccount({
   const agentPersona = await findOrCreateDemoAgentPersona();
   const propertySummaries = [];
   let pairedHomeowner = null;
-  const demoExpiresAt = await setDemoExpiry(userId);
+  const demoExpiresAt = await setDemoExpiry(userId, demoExpiresAtInput);
 
   try {
     const account = await setupBaseAccount({
@@ -1121,6 +1155,7 @@ async function provisionDemoAccount({
               password,
               agentUserId: userId,
               personaKey,
+              demoExpiresAt,
             })
             : await createSyntheticHomeowner({
               name: template.syntheticHomeowner.name,

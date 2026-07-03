@@ -16,6 +16,8 @@ const S3_ALLOWED_PREFIXES = [
   "email_assets/",
   /** Existing bucket content / admin uploads */
   "config/",
+  /** Shared demo fixture PDFs (demo account provisioning) */
+  "demo/",
 ];
 
 const S3_UPLOAD_FOLDER_TO_PREFIX = {
@@ -63,7 +65,11 @@ function isAllowedInspectionAnalysisS3Key(key) {
   if (!key || typeof key !== "string") return false;
   const t = key.trim();
   if (t.includes("..") || t.includes("//") || t.startsWith("/")) return false;
-  return t.startsWith("documents/") || t.startsWith("property_documents/");
+  return (
+    t.startsWith("documents/") ||
+    t.startsWith("property_documents/") ||
+    t.startsWith("demo/")
+  );
 }
 
 module.exports = {

@@ -39,6 +39,7 @@ const documentRagService = require("../services/documentRagService");
 const {
   triggerReanalysisOnDocument,
 } = require("../services/ai/propertyReanalysisService");
+const { assertDemoUploadAllowed } = require("../helpers/demoEnvironment");
 
 const MAX_BULK_FILE_ITEMS = 50;
 
@@ -198,6 +199,7 @@ router.post(
   ensurePropertyAccess({ fromBody: "property_id", param: "propertyId" }),
   async (req, res, next) => {
     try {
+      assertDemoUploadAllowed();
       const userId = res.locals.user?.id;
       const propertyId =
         res.locals.resolvedPropertyId ?? req.body.property_id;
@@ -292,6 +294,11 @@ router.post(
   loadPropertyIdFromStaged,
   ensurePropertyAccess({ param: "propertyId" }),
   async (req, res, next) => {
+    try {
+      assertDemoUploadAllowed();
+    } catch (err) {
+      return next(err);
+    }
     const client = await db.connect();
     let runSideEffects = null;
     try {
@@ -331,6 +338,11 @@ router.post(
   "/file-bulk",
   ensureLoggedIn,
   async (req, res, next) => {
+    try {
+      assertDemoUploadAllowed();
+    } catch (err) {
+      return next(err);
+    }
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     if (!items.length) {
       return next(new BadRequestError("items array is required"));

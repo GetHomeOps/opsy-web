@@ -185,6 +185,33 @@ class User {
     return result.rows[0] || null;
   }
 
+  /** Sync demo_expires_at to all demo homeowners paired with this agent. */
+  static async updatePairedDemoHomeownerExpiry(agentUserId, demoExpiresAt) {
+    const expiresAt = demoExpiresAt instanceof Date ? demoExpiresAt : new Date(demoExpiresAt);
+    if (Number.isNaN(expiresAt.getTime())) {
+      throw new BadRequestError("demoExpiresAt must be a valid ISO timestamp.");
+    }
+    await db.query(
+      `UPDATE users SET demo_expires_at = $2, updated_at = NOW() WHERE demo_paired_agent_id = $1`,
+      [agentUserId, expiresAt]
+    );
+  }
+
+  /** Set demo_expires_at for a ready-to-use demo account. */
+  static async updateDemoExpiry(userId, demoExpiresAt) {
+    const expiresAt = demoExpiresAt instanceof Date ? demoExpiresAt : new Date(demoExpiresAt);
+    if (Number.isNaN(expiresAt.getTime())) {
+      throw new BadRequestError("demoExpiresAt must be a valid ISO timestamp.");
+    }
+    const result = await db.query(
+      `UPDATE users SET demo_expires_at = $2, updated_at = NOW() WHERE id = $1
+       RETURNING id`,
+      [userId, expiresAt]
+    );
+    if (!result.rows[0]) throw new NotFoundError(`No user: ${userId}`);
+    return expiresAt;
+  }
+
   /** Update login password and optional demo-site plaintext copy for sharing with prospects. */
   static async updateLoginPassword({ id, password, demoLoginPassword = null }) {
     if (!password || password.length < 4) {
@@ -486,6 +513,7 @@ class User {
                u.image,
                u.created_at AS "createdAt",
                u.updated_at AS "updatedAt",
+               u.demo_expires_at AS "demoExpiresAt",
                latest_sub.status AS "latestSubscriptionStatus",
                latest_sub.code AS "latestSubscriptionPlanCode",
                latest_sub.account_id AS "latestSubscriptionAccountId",

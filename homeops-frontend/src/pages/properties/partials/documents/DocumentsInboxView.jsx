@@ -13,6 +13,10 @@ import {
 import InboxFileCard from "./InboxFileCard";
 import ModalBlank from "../../../../components/ModalBlank";
 import {MAX_DOCUMENT_UPLOAD_LABEL} from "../../../../constants/documentUpload";
+import {
+  canUploadDocumentsOnDemo,
+  DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
+} from "../../../../utils/demoSite";
 import {inferDocumentTypeFromFolder} from "./filenameHeuristics";
 
 /**
@@ -46,7 +50,9 @@ function DocumentsInboxView({
   systemsToShow,
   systemUploadDisabledIds = [],
   propertyUid,
+  onUploadBlocked,
 }) {
+  const uploadDisabled = !canUploadDocumentsOnDemo();
   const fileInputRef = useRef(null);
   const [selected, setSelected] = useState(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -97,13 +103,18 @@ function DocumentsInboxView({
     (e) => {
       e.preventDefault();
       setIsDraggingFromOs(false);
+      if (uploadDisabled) {
+        onUploadBlocked?.();
+        return;
+      }
       const files = Array.from(e.dataTransfer?.files || []);
       if (files.length) onAddFiles(files);
     },
-    [onAddFiles],
+    [onAddFiles, onUploadBlocked, uploadDisabled],
   );
 
   const handleDragOver = useCallback((e) => {
+    if (uploadDisabled) return;
     if (e.dataTransfer?.types?.includes("Files")) {
       e.preventDefault();
       setIsDraggingFromOs(true);
@@ -262,6 +273,11 @@ function DocumentsInboxView({
         accept=".pdf,.jpg,.jpeg,.png,.webp,.gif"
         className="hidden"
         onChange={(e) => {
+          if (uploadDisabled) {
+            onUploadBlocked?.();
+            e.target.value = "";
+            return;
+          }
           const files = Array.from(e.target.files || []);
           if (files.length) onAddFiles(files);
           e.target.value = "";
@@ -285,8 +301,9 @@ function DocumentsInboxView({
           {onOpenCapture && (
             <button
               type="button"
-              onClick={onOpenCapture}
-              className="btn-sm h-8 border border-[#456654]/40 text-[#456654] dark:text-[#7a9a88] hover:bg-[#456654]/10 dark:hover:bg-[#456654]/20 flex items-center gap-1.5 text-xs"
+              onClick={() => (uploadDisabled ? onUploadBlocked?.() : onOpenCapture())}
+              disabled={uploadDisabled}
+              className="btn-sm h-8 border border-[#456654]/40 text-[#456654] dark:text-[#7a9a88] hover:bg-[#456654]/10 dark:hover:bg-[#456654]/20 flex items-center gap-1.5 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
               title="Capture document photo"
             >
               <Camera className="w-3.5 h-3.5" />
@@ -295,8 +312,11 @@ function DocumentsInboxView({
           )}
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="btn-sm h-8 bg-[#456654] hover:bg-[#3a5548] text-white flex items-center gap-1.5 text-xs"
+            onClick={() =>
+              uploadDisabled ? onUploadBlocked?.() : fileInputRef.current?.click()
+            }
+            disabled={uploadDisabled}
+            className="btn-sm h-8 bg-[#456654] hover:bg-[#3a5548] text-white flex items-center gap-1.5 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Upload className="w-3.5 h-3.5" /> Upload
           </button>
@@ -318,6 +338,12 @@ function DocumentsInboxView({
           )}
         </div>
       </div>
+
+      {uploadDisabled && (
+        <div className="flex-shrink-0 px-5 py-2 border-b border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 text-xs text-amber-900 dark:text-amber-100">
+          {DEMO_UPLOAD_UNAVAILABLE_MESSAGE}
+        </div>
+      )}
 
       {/* Property inbound-email address. Renders only when the public uid is
           known (so we don't show a half-built address). Members and pending
@@ -414,6 +440,16 @@ function DocumentsInboxView({
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-y-auto p-5">
         {showEmpty ? (
+          uploadDisabled ? (
+            <div className="block w-full max-w-3xl mx-auto h-full min-h-[280px] border-2 border-dashed border-amber-200 dark:border-amber-800/50 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20">
+              <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+                <Upload className="w-12 h-12 text-amber-400 dark:text-amber-600 mb-4" />
+                <p className="text-sm text-amber-900 dark:text-amber-100 max-w-md">
+                  {DEMO_UPLOAD_UNAVAILABLE_MESSAGE}
+                </p>
+              </div>
+            </div>
+          ) : (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -436,6 +472,7 @@ function DocumentsInboxView({
               </p>
             </div>
           </button>
+          )
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
             {cards.map((card) => (

@@ -28,6 +28,8 @@ import CalendarScheduleModal from "../calendar/CalendarScheduleModal";
 import EventDetailModal from "../calendar/EventDetailModal";
 import UploadDocumentModal from "../properties/partials/UploadDocumentModal";
 import UpgradePrompt from "../../components/UpgradePrompt";
+import useDemoFeatureGate from "../../hooks/useDemoFeatureGate";
+import DemoFeatureUnavailableModal from "../../components/DemoFeatureUnavailableModal";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import {
   Bell,
@@ -143,6 +145,7 @@ function HomeownerHome() {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadNoPropertyOpen, setUploadNoPropertyOpen] = useState(false);
+  const uploadDemoGate = useDemoFeatureGate("upload");
   const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] =
     useState(false);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
@@ -603,6 +606,10 @@ function HomeownerHome() {
       icon: Upload,
       label: t("homeownerHome.uploadDocument") || "Upload Document",
       onClick: () => {
+        if (uploadDemoGate.blocked) {
+          uploadDemoGate.showModal();
+          return;
+        }
         if (hasProperties && activeProperty) {
           setTimeout(() => setUploadModalOpen(true), 0);
         } else {
@@ -1751,6 +1758,7 @@ function HomeownerHome() {
           setSelectedAgency(null);
         }}
       />
+      <DemoFeatureUnavailableModal {...uploadDemoGate.modalProps} />
     </div>
   );
 }

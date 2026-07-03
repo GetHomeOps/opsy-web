@@ -11,6 +11,7 @@ const { canUploadDocumentToSystem } = require("../services/tierService");
 const { logStorageUsage } = require("../services/usageService");
 const db = require("../db");
 const { isPropertyUid } = require("../helpers/properties");
+const { assertDemoUploadAllowed } = require("../helpers/demoEnvironment");
 
 /** Set req.params.propertyId from document id so ensurePropertyAccess can run. */
 async function loadPropertyIdFromDocument(req, res, next) {
@@ -26,6 +27,7 @@ async function loadPropertyIdFromDocument(req, res, next) {
 /** POST / - Create document record. Body: property_id, document_name, document_date, document_key, document_type, system_key. */
 router.post("/", ensureLoggedIn, ensurePropertyAccess({ fromBody: "property_id", param: "propertyId" }), async (req, res, next) => {
   try {
+    assertDemoUploadAllowed();
     const { property_id: bodyPropertyId, document_name, document_date, document_key, document_type, system_key: rawSystemKey } = req.body;
     const system_key = rawSystemKey || "general";
     let propertyId = res.locals.resolvedPropertyId ?? req.params.propertyId ?? bodyPropertyId;

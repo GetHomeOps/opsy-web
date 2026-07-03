@@ -24,6 +24,10 @@ import {
   documentFileTooLargeMessage,
   MAX_DOCUMENT_UPLOAD_LABEL,
 } from "../../constants/documentUpload";
+import {
+  canUploadDocumentsOnDemo,
+  DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
+} from "../../utils/demoSite";
 import Logo from "../../images/logo-no-bg.png";
 import Banner from "../../partials/containers/Banner";
 import {useAutoCloseBanner} from "../../hooks/useAutoCloseBanner";
@@ -150,6 +154,11 @@ function ContractorReportPage() {
   async function handleFileUpload(e) {
     const files = Array.from(e.target?.files || []);
     if (!files.length || !token) return;
+    if (!canUploadDocumentsOnDemo()) {
+      setError(DEMO_UPLOAD_UNAVAILABLE_MESSAGE);
+      e.target.value = "";
+      return;
+    }
     e.target.value = "";
     setUploadingFile(true);
     setError(null);

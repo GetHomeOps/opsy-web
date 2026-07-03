@@ -51,6 +51,7 @@ const { getFile, uploadFile } = require("./s3Service");
 const { isUserAuthorizedForProperty } = require("../helpers/propertyAccess");
 const { isPropertyUid } = require("../helpers/properties");
 const StagedDocument = require("../models/stagedDocuments");
+const { isDemoEnvironment } = require("../helpers/demoEnvironment");
 const {
   MAX_DOCUMENT_UPLOAD_BYTES,
   MAX_DOCUMENT_UPLOAD_LABEL,
@@ -404,6 +405,10 @@ function logIngestion(reason, details) {
  */
 async function processInboundEmail({ bucket, key, sesMail } = {}) {
   if (!key) throw new Error("processInboundEmail: key is required");
+  if (isDemoEnvironment()) {
+    logIngestion("rejected:demo_environment", { key });
+    return { status: "rejected", reason: "demo_environment" };
+  }
   const effectiveBucket = bucket || SES_INBOUND_BUCKET;
   if (!effectiveBucket) {
     throw new Error(

@@ -12,6 +12,7 @@ const {
   hasPropertyMembership,
   hasPendingInvitationForProperty,
 } = require("../helpers/propertyAccess");
+const { assertDemoAccountAccessAllowed } = require("../helpers/demoEnvironment");
 
 /** Verify Bearer token, set res.locals.user (optional). Ignores invalid tokens. */
 function authenticateJWT(req, res, next) {
@@ -97,7 +98,11 @@ function shouldSkipSubscriptionGate(req) {
 
 async function fetchUserAuthInfo(userId) {
   const userRes = await db.query(
-    `SELECT role, subscription_tier AS "subscriptionTier", onboarding_completed AS "onboardingCompleted"
+    `SELECT role,
+            subscription_tier AS "subscriptionTier",
+            onboarding_completed AS "onboardingCompleted",
+            demo_login_password AS "demoLoginPassword",
+            demo_expires_at AS "demoExpiresAt"
      FROM users
      WHERE id = $1`,
     [userId]
@@ -151,6 +156,10 @@ async function ensureLoggedIn(req, res, next) {
     }
 
     const isImpersonating = !!res.locals.impersonator;
+
+    if (!isImpersonating) {
+      assertDemoAccountAccessAllowed(dbUser);
+    }
 
     if (!isImpersonating && !shouldSkipSubscriptionGate(req)) {
       if (userRequiresPaidSubscriptionFromInfo(dbUser)) {

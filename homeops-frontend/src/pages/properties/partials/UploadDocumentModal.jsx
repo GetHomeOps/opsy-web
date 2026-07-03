@@ -10,6 +10,10 @@ import {
 } from "../../../constants/documentUpload";
 import DocumentUploadPicker from "./documents/DocumentUploadPicker";
 import UpgradePrompt from "../../../components/UpgradePrompt";
+import {
+  canUploadDocumentsOnDemo,
+  DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
+} from "../../../utils/demoSite";
 import { emitDocumentsFiled } from "../helpers/documentAnalysisFlow";
 import { emitPropertyDocumentsChanged } from "../helpers/inspectionFlowSession";
 import { resolveUploadSystemKey } from "../helpers/systemKeyUtils";
@@ -241,6 +245,25 @@ function UploadDocumentModal({
         </div>
       </div>
 
+      {!canUploadDocumentsOnDemo() ? (
+        <>
+          <div className="px-5 py-8">
+            <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+              {DEMO_UPLOAD_UNAVAILABLE_MESSAGE}
+            </p>
+          </div>
+          <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="btn border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300"
+            >
+              Got it
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
       {/* Content */}
       <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
         {uploadError && (
@@ -443,6 +466,8 @@ function UploadDocumentModal({
           </>
         )}
       </div>
+        </>
+      )}
     </ModalBlank>
     <UpgradePrompt
       open={upgradePromptOpen}

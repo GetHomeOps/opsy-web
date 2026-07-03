@@ -22,6 +22,8 @@ import {
 import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
 import AppApi from "../../../api/api";
+import {canUseAiOnDemo} from "../../../utils/demoSite";
+import {canUseAiOnDemo, DEMO_AI_UNAVAILABLE_MESSAGE} from "../../../utils/demoSite";
 
 const STEPS = [
   {id: "type", label: "Type"},
@@ -1277,6 +1279,12 @@ function ScheduleSystemModal({
     if (!isOpen || !scheduleType || !propId || !systemType || !systemLabel) {
       setMaintenanceRecommendations([]);
       setContractorSuggestedQuestions([]);
+      return;
+    }
+    if (!canUseAiOnDemo()) {
+      setMaintenanceRecommendations([]);
+      setContractorSuggestedQuestions([]);
+      setMaintenanceLoading(false);
       return;
     }
     let cancelled = false;

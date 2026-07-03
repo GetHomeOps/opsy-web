@@ -14,6 +14,7 @@ const InspectionChecklistItem = require("../models/inspectionChecklistItem");
 const { syncEventToCalendars, updateEventInCalendars, deleteEventFromCalendars } = require("../services/calendarSyncService");
 const { sendScheduleNotificationEmail } = require("../services/emailService");
 const { isPropertyUid } = require("../helpers/properties");
+const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.post(
   ensurePropertyAccess({ param: "propertyId" }),
   async function (req, res, next) {
     try {
+      assertDemoAiAllowed();
       const { propertyId } = req.params;
       const { systemType, systemName, systemContext, scheduleType } = req.body || {};
       if (!systemType || !systemName) {

@@ -33,6 +33,10 @@ import {
 } from "../../helpers/maintenanceRecordMapping";
 import AppApi from "../../../../api/api";
 import {
+  canUploadDocumentsOnDemo,
+  DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
+} from "../../../../utils/demoSite";
+import {
   openPropertyDocumentInNewTab,
   resolvePropertyDocumentIdFromLinkedFile,
 } from "../../helpers/propertyDocumentNavigation";
@@ -278,6 +282,10 @@ function MaintenanceRecordReadView({
     const selected = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (selected.length === 0 || !onAttachFiles) return;
+    if (!canUploadDocumentsOnDemo()) {
+      setUploadError(DEMO_UPLOAD_UNAVAILABLE_MESSAGE);
+      return;
+    }
     setUploadingDocs(true);
     setUploadError("");
     try {

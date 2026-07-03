@@ -35,7 +35,7 @@ const {
   createAccountInvitation,
   sendAccountInvitationEmailInBackground,
 } = require("../services/invitationService");
-const { assertDemoResetAllowed, isDemoEnvironment } = require("../helpers/demoEnvironment");
+const { assertDemoResetAllowed, isDemoEnvironment, parseDemoExpiresAtInput } = require("../helpers/demoEnvironment");
 const { ensureDemoUserSchema } = require("../helpers/demoUserSchema");
 const { getPairedDemoHomeownerForAgent } = require("../helpers/demoUserCredentials");
 const { resetDemoHomeownerProfileByUserId } = require("../services/demoHomeownerProfileResetService");
@@ -82,6 +82,8 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       sendInvitationEmail,
       provisionDemoAccount: provisionDemoAccountFlag,
       includePairedHomeownerLogin: includePairedHomeownerLoginFlag,
+      demoExpiresAt: demoExpiresAtInput,
+      demo_expires_at: demoExpiresAtSnake,
     } = req.body;
 
     const wantsProvision =
@@ -145,7 +147,13 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
 
     let demoSummary = null;
     let provisionStatus = null;
+    let resolvedDemoExpiresAt = null;
     if (wantsProvision) {
+      resolvedDemoExpiresAt = parseDemoExpiresAtInput(
+        demoExpiresAtInput ?? demoExpiresAtSnake
+      );
+      await User.updateDemoExpiry(newUser.id, resolvedDemoExpiresAt);
+
       const provisionStart = Date.now();
       enqueueDemoProvision({
         userId: newUser.id,
@@ -155,6 +163,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
         phone,
         password,
         includePairedHomeownerLogin,
+        demoExpiresAt: resolvedDemoExpiresAt,
       });
       provisionMs = Date.now() - provisionStart;
       provisionStatus = "pending";
@@ -488,7 +497,14 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
       throw new ForbiddenError("You can only update your own profile.");
     }
 
-    const { password, demoLoginPassword, demo_login_password, ...profileBody } = req.body;
+    const {
+      password,
+      demoLoginPassword,
+      demo_login_password,
+      demoExpiresAt,
+      demo_expires_at,
+      ...profileBody
+    } = req.body;
     const validator = jsonschema.validate(profileBody, userUpdateSchema);
     if (!validator.valid) {
       const errs = validator.errors.map(e => e.stack);
@@ -497,10 +513,27 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
 
     let user;
     const nextPassword = password || demoLoginPassword || demo_login_password;
+    const nextDemoExpiresAt = demoExpiresAt ?? demo_expires_at;
     const demoSuperAdminUpdatingOther =
       isDemoEnvironment() &&
       role === "super_admin" &&
       requestingUserId !== targetUserId;
+
+    if (nextDemoExpiresAt !== undefined && demoSuperAdminUpdatingOther) {
+      await ensureDemoUserSchema();
+      const targetUser = await User.getById(targetUserId);
+      if (!targetUser) throw new NotFoundError(`No user: ${targetUserId}`);
+      if (!targetUser.demoLoginPassword) {
+        throw new BadRequestError("demoExpiresAt can only be set on ready-to-use demo accounts.");
+      }
+      const parsedExpiry = parseDemoExpiresAtInput(nextDemoExpiresAt, { requireFuture: false });
+      await User.updateDemoExpiry(targetUserId, parsedExpiry);
+      if (targetUser.role === "agent") {
+        await User.updatePairedDemoHomeownerExpiry(targetUserId, parsedExpiry);
+      }
+    } else if (nextDemoExpiresAt !== undefined && isDemoEnvironment() && role === "super_admin") {
+      throw new BadRequestError("Only super admins can update demo account expiry for other users.");
+    }
 
     if (nextPassword && demoSuperAdminUpdatingOther) {
       await ensureDemoUserSchema();
@@ -519,7 +552,11 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
 
     if (Object.keys(profileBody).length > 0) {
       user = await User.update({ id: targetUserId, ...profileBody });
-    } else if (nextPassword && isDemoEnvironment() && role === "super_admin") {
+    } else if (
+      (nextPassword || nextDemoExpiresAt !== undefined) &&
+      isDemoEnvironment() &&
+      role === "super_admin"
+    ) {
       user = await User.getById(targetUserId);
       if (!user) throw new NotFoundError(`No user: ${targetUserId}`);
     } else {

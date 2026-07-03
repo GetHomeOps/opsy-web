@@ -9,8 +9,11 @@ import Reminders from "../components/DropdownReminders";
 import UserMenu from "../components/DropdownProfile";
 import GlobalAIAssistantPanel from "../components/GlobalAIAssistantPanel";
 import UpgradePrompt from "../components/UpgradePrompt";
+import DemoEnvironmentBanner from "../components/DemoEnvironmentBanner";
+import DemoFeatureUnavailableModal from "../components/DemoFeatureUnavailableModal";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
+import useDemoFeatureGate from "../hooks/useDemoFeatureGate";
 import {useAuth} from "../context/AuthContext";
 
 const FREE_PLAN_CODES = ["homeowner_free", "agent_free", "free"];
@@ -24,6 +27,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const {currentUser, impersonation, stopImpersonation} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const {plan, limits, loading: billingLoading, isAdmin} = useBillingStatus();
+  const aiDemoGate = useDemoFeatureGate("ai");
 
   const accountUrl = currentAccount?.url || "";
   const supportPath = accountUrl
@@ -57,6 +61,10 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
     if (billingLoading) {
       return;
     }
+    if (aiDemoGate.blocked) {
+      aiDemoGate.showModal();
+      return;
+    }
     // Free users: show upgrade modal instead of opening the AI panel
     if (!isPaidUser) {
       requestAnimationFrame(() => setAiUpgradeModalOpen(true));
@@ -70,7 +78,9 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   };
 
   return (
-    <header
+    <>
+      <DemoEnvironmentBanner />
+      <header
       className={`sticky top-0 z-30 relative ${
         isImpersonating
           ? "bg-amber-50 dark:bg-amber-950/40 border-b border-amber-300 dark:border-amber-700/60"
@@ -152,9 +162,14 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
                   <button
                     ref={aiAssistantButtonRef}
                     onClick={handleAiAssistantClick}
-                    className="group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-[1.03] shrink-0"
+                    className={`group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 shrink-0 ${
+                      aiDemoGate.blocked
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:scale-[1.03]"
+                    }`}
                     aria-label="Opsy Assistant"
-                    title="Opsy Assistant"
+                    aria-disabled={aiDemoGate.blocked}
+                    title={aiDemoGate.blocked ? "Not available on demo" : "Opsy Assistant"}
                   >
                     <span className="absolute inset-0 rounded-full ai-glow" />
                     <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ai-orbit-ring" />
@@ -191,6 +206,8 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
         </div>
       </div>
 
+      </header>
+
       <GlobalAIAssistantPanel
         isOpen={aiPanelOpen}
         onClose={() => setAiPanelOpen(false)}
@@ -203,7 +220,11 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
         upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
         ignoreClickRef={aiAssistantButtonRef}
       />
-    </header>
+      <DemoFeatureUnavailableModal
+        {...aiDemoGate.modalProps}
+        ignoreClickRef={aiAssistantButtonRef}
+      />
+    </>
   );
 }
 
