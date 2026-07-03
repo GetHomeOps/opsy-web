@@ -22,7 +22,6 @@ import {
 import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
 import AppApi from "../../../api/api";
-import {canUseAiOnDemo} from "../../../utils/demoSite";
 import {canUseAiOnDemo, DEMO_AI_UNAVAILABLE_MESSAGE} from "../../../utils/demoSite";
 
 const STEPS = [
