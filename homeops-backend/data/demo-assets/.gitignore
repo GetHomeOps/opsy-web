@@ -1,0 +1,2 @@
+# Place demo PDF fixtures here before running scripts/upload-demo-s3-fixtures.js
+*.pdf

@@ -337,7 +337,7 @@ function getInspectionFixtureForIndex(index) {
   return { ...INSPECTION_FIXTURE, ...variant };
 }
 
-/** S3 keys for demo inspection report PDFs in the opsy-demo bucket (demo/ prefix). */
+/** S3 keys for demo inspection report PDFs (upload to AWS_S3_BUCKET under demo/ prefix). */
 const DEMO_INSPECTION_REPORT_FILES = {
   1: {
     s3Key: "demo/Sample_Home_Inspection_Report_Opsy_Inspections.pdf",
@@ -345,6 +345,14 @@ const DEMO_INSPECTION_REPORT_FILES = {
   },
   2: {
     s3Key: "demo/Sample_Home_Inspection_Report_456_Main_Jones.pdf",
+    fileName: "Home Inspection Report.pdf",
+  },
+  3: {
+    s3Key: "demo/Sample_Home_Inspection_Report_8815_SE_63rd_Walker.pdf",
+    fileName: "Home Inspection Report.pdf",
+  },
+  4: {
+    s3Key: "demo/Sample_Home_Inspection_Report_4305_92nd_Jackson.pdf",
     fileName: "Home Inspection Report.pdf",
   },
 };
@@ -382,5 +390,6 @@ module.exports = {
   getConversationThread,
   getInspectionFixtureForIndex,
   getInspectionReportFileForIndex,
+  DEMO_INSPECTION_REPORT_FILES,
   getScenarioForRole,
 };

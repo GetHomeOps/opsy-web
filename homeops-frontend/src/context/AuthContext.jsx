@@ -80,6 +80,9 @@ export function AuthProvider({children}) {
   const [token, setToken] = useLocalStorage(TOKEN_STORAGE_ID);
   const [isSigningUp, setIsSigningUp] = useState(false);
   const isOAuthCallbackRef = useRef(false);
+  /** Suppresses the token useEffect while password/MFA login loads the session,
+   * so login() and bootstrap don't race and flash a false error on Signin. */
+  const isLoggingInRef = useRef(false);
   const [impersonation, setImpersonation] = useState(null);
 
   /* Wipe any persisted auth tokens. Used when the stored token is no longer
@@ -94,76 +97,101 @@ export function AuthProvider({children}) {
     setToken(null);
   }, [setToken]);
 
+  async function getUserAccounts(userId, options = {}) {
+    try {
+      return await AppApi.getUserAccounts(userId, options);
+    } catch (error) {
+      const errorMessage = Array.isArray(error)
+        ? error.join(" ")
+        : error.message || error.toString() || "";
+      if (errorMessage.includes("404") || errorMessage.includes("Not Found")) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /** Load user + accounts for an access token (bootstrap first, retried). */
+  async function loadUserWithAccountsForSession(accessToken) {
+    AppApi.token = accessToken;
+    const {email} = decode(accessToken);
+
+    let loadedUser = null;
+    let userAccounts = null;
+    try {
+      const bootstrapUser = await withStartupRetry(() =>
+        AppApi.getAuthBootstrap({timeoutMs: AUTH_REQUEST_TIMEOUT_MS}),
+      );
+      if (bootstrapUser?.id) {
+        loadedUser = bootstrapUser;
+        userAccounts = bootstrapUser.accounts || [];
+      }
+    } catch (bootstrapErr) {
+      const status = bootstrapErr?.status;
+      if (status === 404 || status === 401 || status === 403) {
+        throw bootstrapErr;
+      }
+    }
+
+    if (!loadedUser) {
+      loadedUser = await withStartupRetry(() =>
+        AppApi.getCurrentUser(email, {timeoutMs: AUTH_REQUEST_TIMEOUT_MS}),
+      );
+    }
+
+    if (!loadedUser?.id) {
+      throw new Error("Failed to load user after sign in.");
+    }
+
+    if (userAccounts === null) {
+      userAccounts = await withStartupRetry(() =>
+        getUserAccounts(loadedUser.id, {timeoutMs: AUTH_REQUEST_TIMEOUT_MS}),
+      );
+    }
+
+    return {currentUser: loadedUser, userAccounts: userAccounts || []};
+  }
+
+  function finishPasswordLoginSession(accessToken, refreshToken, loadedUser, userAccounts) {
+    localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);
+    setImpersonation(mergeImpersonation(loadedUser, accessToken));
+    setCurrentUser({
+      isLoading: false,
+      data: {...loadedUser, accounts: userAccounts},
+    });
+    localStorage.removeItem("current-account");
+    setToken(accessToken);
+  }
+
   /* Get the current user */
   useEffect(() => {
     async function getCurrentUser() {
-      if (isSigningUp || isOAuthCallbackRef.current) {
+      if (isSigningUp || isOAuthCallbackRef.current || isLoggingInRef.current) {
         return;
       }
 
       if (token) {
         try {
-          let {email} = decode(token);
-          AppApi.token = token;
+          const {currentUser: loadedUser, userAccounts} =
+            await loadUserWithAccountsForSession(token);
 
-          // Fast path: a single /auth/bootstrap call returns the user AND their
-          // accounts in one round-trip. Fall back to the two-call sequence
-          // (getCurrentUser -> getUserAccounts) if bootstrap is unavailable.
-          // Every startup call is time-boxed + retried so a cold-launch network
-          // blip can't leave the app stuck on the loading spinner forever.
-          let currentUser = null;
-          let userAccounts = null;
-          try {
-            const bootstrapUser = await withStartupRetry(() =>
-              AppApi.getAuthBootstrap({timeoutMs: AUTH_REQUEST_TIMEOUT_MS}),
-            );
-            if (bootstrapUser?.id) {
-              currentUser = bootstrapUser;
-              userAccounts = bootstrapUser.accounts || [];
-            }
-          } catch (bootstrapErr) {
-            // Auth failures (stale/invalid token) should be handled by the
-            // outer catch; rethrow so we don't fire a redundant fallback call.
-            const status = bootstrapErr?.status;
-            if (status === 404 || status === 401 || status === 403) {
-              throw bootstrapErr;
-            }
-          }
-
-          if (!currentUser) {
-            currentUser = await withStartupRetry(() =>
-              AppApi.getCurrentUser(email, {timeoutMs: AUTH_REQUEST_TIMEOUT_MS}),
-            );
-          }
-
-          if (!currentUser || !currentUser.id) {
-            console.error("Current user or user ID is undefined");
-            clearStaleAuthTokens();
-            setCurrentUser({
-              isLoading: false,
-              data: null,
-            });
-            return;
-          }
-
-          if (userAccounts === null) {
-            userAccounts = await withStartupRetry(() =>
-              getUserAccounts(currentUser.id, {timeoutMs: AUTH_REQUEST_TIMEOUT_MS}),
-            );
-          }
-
-          setImpersonation(mergeImpersonation(currentUser, token));
+          setImpersonation(mergeImpersonation(loadedUser, token));
 
           setCurrentUser({
             isLoading: false,
-            data: {...currentUser, accounts: userAccounts || []},
+            data: {...loadedUser, accounts: userAccounts},
           });
         } catch (err) {
           // If the token references a user that no longer exists (e.g. DB was
           // reset) or is no longer valid, purge it so we don't re-fire the
           // same failing request on every page load.
           const status = err?.status;
-          if (status === 404 || status === 401 || status === 403) {
+          if (
+            status === 404 ||
+            status === 401 ||
+            status === 403 ||
+            err?.message === "Failed to load user after sign in."
+          ) {
             clearStaleAuthTokens();
           } else {
             console.error("App loadUserInfo: problem loading", err);
@@ -196,25 +224,23 @@ export function AuthProvider({children}) {
     }
 
     const {accessToken, refreshToken} = result;
-    setToken(accessToken);
-    localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);
-
-    const {email} = decode(accessToken);
-    AppApi.token = accessToken;
-    const currentUser = await AppApi.getCurrentUser(email);
-
-    const userAccounts = await getUserAccounts(currentUser.id);
-
-    setImpersonation(null);
-
-    setCurrentUser({
-      isLoading: false,
-      data: {...currentUser, accounts: userAccounts || []},
-    });
-
-    localStorage.removeItem("current-account");
-
-    return accessToken;
+    isLoggingInRef.current = true;
+    try {
+      const {currentUser: loadedUser, userAccounts} =
+        await loadUserWithAccountsForSession(accessToken);
+      finishPasswordLoginSession(
+        accessToken,
+        refreshToken,
+        loadedUser,
+        userAccounts,
+      );
+      return accessToken;
+    } finally {
+      // Clear after the token useEffect pass so login() doesn't race bootstrap.
+      setTimeout(() => {
+        isLoggingInRef.current = false;
+      }, 0);
+    }
   }
 
   /** Complete login after MFA verification. */
@@ -223,25 +249,22 @@ export function AuthProvider({children}) {
       mfaTicket,
       codeOrBackupCode,
     );
-    setToken(accessToken);
-    localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);
-
-    const {email} = decode(accessToken);
-    AppApi.token = accessToken;
-    const currentUser = await AppApi.getCurrentUser(email);
-
-    const userAccounts = await getUserAccounts(currentUser.id);
-
-    setImpersonation(null);
-
-    setCurrentUser({
-      isLoading: false,
-      data: {...currentUser, accounts: userAccounts || []},
-    });
-
-    localStorage.removeItem("current-account");
-
-    return accessToken;
+    isLoggingInRef.current = true;
+    try {
+      const {currentUser: loadedUser, userAccounts} =
+        await loadUserWithAccountsForSession(accessToken);
+      finishPasswordLoginSession(
+        accessToken,
+        refreshToken,
+        loadedUser,
+        userAccounts,
+      );
+      return accessToken;
+    } finally {
+      setTimeout(() => {
+        isLoggingInRef.current = false;
+      }, 0);
+    }
   }
 
   async function applySessionTokens(accessToken, refreshToken) {
@@ -342,20 +365,6 @@ export function AuthProvider({children}) {
     }
 
     return userId;
-  }
-
-  async function getUserAccounts(userId, options = {}) {
-    try {
-      return await AppApi.getUserAccounts(userId, options);
-    } catch (error) {
-      const errorMessage = Array.isArray(error)
-        ? error.join(" ")
-        : error.message || error.toString() || "";
-      if (errorMessage.includes("404") || errorMessage.includes("Not Found")) {
-        return [];
-      }
-      throw error;
-    }
   }
 
   async function createAccount({currentUser, userId}) {

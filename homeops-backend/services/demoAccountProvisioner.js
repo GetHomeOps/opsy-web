@@ -1035,18 +1035,11 @@ async function seedPropertyPortfolio({
 
   await seedSystems(property.id, template.index);
 
-  let inspection = null;
-  if (focus === "inspections" || focus === "balanced") {
-    inspection = await seedInspectionAnalysis(property.id, createdByUserId, template.index);
-  } else {
-    await InspectionChecklistItem.createUserItem({
-      propertyId: property.id,
-      systemKey: "roof",
-      title: "Review annual maintenance checklist",
-      description: "Demo action item for property overview.",
-      priority: "medium",
-    });
-  }
+  const inspection = await seedInspectionAnalysis(
+    property.id,
+    createdByUserId,
+    template.index
+  );
 
   await seedMaintenanceRecords(property.id, template.index, focus, createdByUserId);
   await seedMaintenanceEvents(property.id, createdByUserId, focus);
@@ -1237,4 +1230,5 @@ module.exports = {
   provisionActivePaidPlan,
   backfillAgentDemoConversations,
   upsertAccountContacts,
+  seedInspectionAnalysis,
 };
