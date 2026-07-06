@@ -8,7 +8,7 @@ const Property = require("../models/property");
 const propertyNewSchema = require("../schemas/propertyNew.json");
 const propertyUpdateSchema = require("../schemas/propertyUpdate.json");
 const { generatePassportId, isPropertyUid } = require("../helpers/properties");
-const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
+const { addPresignedUrlToItem, addPresignedUrlsToItems, addUserAvatarUrlsToItems } = require("../helpers/presignedUrls");
 const { canCreateProperty, checkAiTokenQuota, checkAiFeaturesAllowed, getAccountLimits } = require("../services/tierService");
 const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
 const { onPropertyCreated } = require("../services/resourceAutoSend");
@@ -303,13 +303,7 @@ router.get("/team/:uid", ensureLoggedIn, ensurePropertyAccess(), async function 
       Invitation.getByProperty(propertyId, { status: "pending" }),
     ]);
 
-    const property_users_with_urls = await addPresignedUrlsToItems(teamRows, "image", "image_url");
-
-    // Use avatar_url (e.g. Google OAuth profile pic) as fallback when image/image_url is null
-    const property_users_with_avatars = property_users_with_urls.map((u) => ({
-      ...u,
-      image_url: u.image_url ?? u.avatar_url ?? null,
-    }));
+    const property_users_with_avatars = await addUserAvatarUrlsToItems(teamRows);
 
     /* Look up existing platform users by email so pending invitations can
        carry the invitee's actual platform role (e.g. an agent invited from
@@ -480,11 +474,7 @@ router.get(
       }
 
       let homeowners = [...homeownersMap.values()];
-      homeowners = await addPresignedUrlsToItems(homeowners, "image", "image_url");
-      homeowners = homeowners.map((h) => ({
-        ...h,
-        image_url: h.image_url ?? h.avatar_url ?? null,
-      }));
+      homeowners = await addUserAvatarUrlsToItems(homeowners);
 
       const allProperties = homeowners.flatMap((h) => h.properties);
       const propertiesWithUrls = await addPresignedUrlsToItems(

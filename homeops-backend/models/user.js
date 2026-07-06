@@ -406,6 +406,7 @@ class User {
              u.contact_id AS "contact",
              u.is_active AS "isActive",
              u.image,
+             u.avatar_url AS "avatarUrl",
              au.role
       FROM account_users au
       JOIN users u ON u.id = au.user_id
@@ -511,6 +512,7 @@ class User {
                u.onboarding_completed AS "onboardingCompleted",
                u.subscription_tier AS "subscriptionTier",
                u.image,
+               u.avatar_url AS "avatarUrl",
                u.created_at AS "createdAt",
                u.updated_at AS "updatedAt",
                u.demo_expires_at AS "demoExpiresAt",
@@ -627,6 +629,7 @@ class User {
                 contact_id AS "contact",
                 is_active AS "isActive",
                 image,
+                avatar_url AS "avatarUrl",
                 welcome_modal_dismissed AS "welcomeModalDismissed",
              COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"
                 `;

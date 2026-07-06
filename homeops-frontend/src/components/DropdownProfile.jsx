@@ -30,6 +30,7 @@ function formatRole(role) {
 function DropdownProfile() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [installModalOpen, setInstallModalOpen] = useState(false);
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
   const {currentUser, logout} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const {plan} = useBillingStatus();
@@ -41,6 +42,11 @@ function DropdownProfile() {
 
   const photoUrl = currentUser?.avatarUrl || currentUser?.image_url;
   const initials = getInitials(currentUser?.name);
+  const showPhoto = Boolean(photoUrl) && !photoLoadFailed;
+
+  useEffect(() => {
+    setPhotoLoadFailed(false);
+  }, [photoUrl]);
 
   const accountUrl = currentAccount?.url || "";
 
@@ -93,7 +99,7 @@ function DropdownProfile() {
         <span className="sr-only lg:hidden">
           {currentUser?.name ? `Account menu, ${currentUser.name}` : "Account menu"}
         </span>
-        {photoUrl ? (
+        {showPhoto ? (
           <span className="inline-block w-8 h-8 rounded-full overflow-hidden bg-white shrink-0">
             <img
               key={photoUrl}
@@ -102,6 +108,7 @@ function DropdownProfile() {
               width="32"
               height="32"
               alt=""
+              onError={() => setPhotoLoadFailed(true)}
             />
           </span>
         ) : (
@@ -139,7 +146,7 @@ function DropdownProfile() {
           {/* 1. User section: image, name, email, link to configuration */}
           <div className="px-2.5 pb-2 mb-1.5 border-b border-gray-200 dark:border-gray-700/60">
             <div className="flex items-start gap-2.5">
-              {photoUrl ? (
+              {showPhoto ? (
                 <span className="w-9 h-9 rounded-full overflow-hidden bg-white shrink-0">
                   <img
                     key={photoUrl}
@@ -148,6 +155,7 @@ function DropdownProfile() {
                     width="36"
                     height="36"
                     alt={currentUser?.name || "User"}
+                    onError={() => setPhotoLoadFailed(true)}
                   />
                 </span>
               ) : (

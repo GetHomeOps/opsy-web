@@ -455,13 +455,14 @@ function PropertyOverviewDashboard({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="space-y-4 min-w-0">
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-3">
+        <div className="contents lg:block lg:space-y-4 lg:min-w-0">
           <SectionCard
             flat
             title="Smart Records & AI Extraction"
             icon={Sparkles}
             iconClassName="text-[#456564] dark:text-[#7fa3a1]"
+            className="order-1 lg:order-none"
           >
             <div className="flex items-start justify-between gap-1.5">
               <div className="min-w-0 flex-1 space-y-3">
@@ -551,6 +552,7 @@ function PropertyOverviewDashboard({
             flat
             title="Upcoming Maintenance"
             icon={Calendar}
+            className="order-4 lg:order-none"
             action={
               readOnly ? null : (
                 <button
@@ -671,13 +673,14 @@ function PropertyOverviewDashboard({
           </SectionCard>
         </div>
 
-        <div className="space-y-4 min-w-0">
+        <div className="contents lg:block lg:space-y-4 lg:min-w-0">
           {scoreCardSlot && (
             <SectionCard
               flat
               title="Passport Completion"
               icon={CheckCircle2}
               data-section-id="health-status"
+              className="order-3 lg:order-none"
             >
               {scoreCardSlot}
             </SectionCard>
@@ -687,6 +690,7 @@ function PropertyOverviewDashboard({
             flat
             title="Recent Documents"
             icon={FileText}
+            className="order-5 lg:order-none"
             action={
               readOnly ? null : (
                 <button
@@ -772,19 +776,21 @@ function PropertyOverviewDashboard({
           </SectionCard>
         </div>
 
-        <div className="space-y-4 min-w-0">
-          {teamSlot}
+        <div className="contents lg:block lg:space-y-4 lg:min-w-0">
+          <div className="order-2 lg:order-none">{teamSlot}</div>
 
           {!readOnly && (
-            <PropertyNotesCard
-              notes={notes}
-              loading={notesLoading}
-              saving={notesSaving}
-              currentUserId={currentUserId}
-              onAddNote={onAddNote}
-              onUpdateNote={onUpdateNote}
-              onDeleteNote={onDeleteNote}
-            />
+            <div className="order-6 lg:order-none">
+              <PropertyNotesCard
+                notes={notes}
+                loading={notesLoading}
+                saving={notesSaving}
+                currentUserId={currentUserId}
+                onAddNote={onAddNote}
+                onUpdateNote={onUpdateNote}
+                onDeleteNote={onDeleteNote}
+              />
+            </div>
           )}
         </div>
       </div>

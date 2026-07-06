@@ -99,8 +99,39 @@ async function addPresignedUrlsToItems(items, keyField, urlField = null) {
   return Promise.all(items.map((item) => addPresignedUrlToItem({ ...item }, keyField, urlField)));
 }
 
+/** OAuth avatar URL stored on the user row (Google picture, etc.). */
+function getOAuthAvatarUrl(user) {
+  const url = user?.avatarUrl ?? user?.avatar_url;
+  if (typeof url === "string" && /^https?:\/\//i.test(url.trim())) {
+    return url.trim();
+  }
+  return null;
+}
+
+/** Prefer presigned S3 image_url; fall back to OAuth avatar URL for display. */
+function mergeOAuthAvatarImageUrl(item) {
+  const imageUrl = item.image_url ?? getOAuthAvatarUrl(item) ?? null;
+  return { ...item, image_url: imageUrl };
+}
+
+/** Add presigned image_url to a user and merge OAuth avatar fallback. */
+async function addUserAvatarUrlToItem(item) {
+  const withPresigned = await addPresignedUrlToItem(item, "image", "image_url");
+  return mergeOAuthAvatarImageUrl(withPresigned);
+}
+
+/** Batch variant of addUserAvatarUrlToItem. */
+async function addUserAvatarUrlsToItems(items) {
+  if (!Array.isArray(items) || items.length === 0) return items;
+  return Promise.all(items.map((item) => addUserAvatarUrlToItem({ ...item })));
+}
+
 module.exports = {
   addPresignedUrlToItem,
   addPresignedUrlsToItems,
+  addUserAvatarUrlToItem,
+  addUserAvatarUrlsToItems,
+  getOAuthAvatarUrl,
+  mergeOAuthAvatarImageUrl,
   isSafeS3Key,
 };

@@ -46,6 +46,8 @@ const userAuthSchema = require("../schemas/userAuth.json");
 const userRegisterSchema = require("../schemas/userRegister.json");
 const { BadRequestError, UnauthorizedError, ForbiddenError } = require("../expressError");
 const { acceptInvitation } = require("../services/invitationService");
+const { syncGoogleAvatar } = require("../services/avatarService");
+const { addUserAvatarUrlToItem } = require("../helpers/presignedUrls");
 const { requestPasswordReset, resetPasswordWithToken } = require("../services/passwordResetService");
 const {
   createAndSendVerificationEmail,
@@ -658,7 +660,8 @@ router.get("/bootstrap", ensureLoggedIn, async function (req, res, next) {
       }
     }
 
-    return res.json({ user: { ...user, accounts } });
+    const userWithAvatar = await addUserAvatarUrlToItem(user);
+    return res.json({ user: { ...userWithAvatar, accounts } });
   } catch (err) {
     return next(err);
   }
@@ -829,6 +832,11 @@ async function handleGoogleCallback(req, res, next, intent) {
       }
       return res.redirect(redirectWithError("inactive"));
     }
+
+    await syncGoogleAvatar(user, picture).catch((err) =>
+      console.warn("[avatar] Google avatar sync failed:", err.message)
+    );
+    user = await User.getById(user.id);
 
     const { accessToken, refreshToken } = await issueTokenPair(user);
     PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: { provider: "google" } })

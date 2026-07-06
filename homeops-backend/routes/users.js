@@ -28,7 +28,7 @@ const { BadRequestError, ForbiddenError, NotFoundError } = require("../expressEr
 const User = require("../models/user");
 const Account = require("../models/account");
 const userUpdateSchema = require("../schemas/userUpdate.json");
-const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
+const { addUserAvatarUrlToItem, addUserAvatarUrlsToItems } = require("../helpers/presignedUrls");
 const db = require("../db");
 const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
 const {
@@ -267,7 +267,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
 router.get("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
   try {
     const users = await User.getAll();
-    const usersWithUrls = await addPresignedUrlsToItems(users, "image", "image_url");
+    const usersWithUrls = await addUserAvatarUrlsToItems(users);
     return res.json({ users: usersWithUrls });
   } catch (err) {
     return next(err);
@@ -277,7 +277,7 @@ router.get("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, n
 router.get("/account/:accountId", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
   try {
     const users = await User.getByAccountId(req.params.accountId);
-    const usersWithUrls = await addPresignedUrlsToItems(users, "image", "image_url");
+    const usersWithUrls = await addUserAvatarUrlsToItems(users);
     return res.json({ users: usersWithUrls });
   } catch (err) {
     return next(err);
@@ -287,7 +287,7 @@ router.get("/account/:accountId", ensureLoggedIn, ensurePlatformAdmin, async fun
 router.get("/agent/:agentId", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
   try {
     const users = await User.getUsersBySharedAccounts(req.params.agentId);
-    const usersWithUrls = await addPresignedUrlsToItems(users, "image", "image_url");
+    const usersWithUrls = await addUserAvatarUrlsToItems(users);
     return res.json({ users: usersWithUrls });
   } catch (err) {
     return next(err);
@@ -297,7 +297,7 @@ router.get("/agent/:agentId", ensureLoggedIn, ensurePlatformAdmin, async functio
 router.get("/agents", ensureLoggedIn, async function (req, res, next) {
   try {
     const agents = await User.getAgents();
-    const agentsWithUrls = await addPresignedUrlsToItems(agents, "image", "image_url");
+    const agentsWithUrls = await addUserAvatarUrlsToItems(agents);
     return res.json({ agents: agentsWithUrls });
   } catch (err) {
     return next(err);
@@ -406,7 +406,7 @@ router.get("/by-id/:userId", ensureLoggedIn, ensurePlatformAdmin, async function
     if (!user) {
       throw new NotFoundError(`No user: ${userId}`);
     }
-    const userWithUrl = await addPresignedUrlToItem(user, "image", "image_url");
+    const userWithUrl = await addUserAvatarUrlToItem(user);
     if (!isDemoEnvironment() || res.locals.user?.role !== "super_admin") {
       delete userWithUrl.demoLoginPassword;
     }
@@ -457,7 +457,7 @@ router.get("/:email", ensureLoggedIn, async function (req, res, next) {
     }
     await ensureDemoUserSchema();
     const user = await User.get(req.params.email);
-    const userWithUrl = await addPresignedUrlToItem(user, "image", "image_url");
+    const userWithUrl = await addUserAvatarUrlToItem(user);
 
     if (isSelfLookup && !user.welcomeModalDismissed) {
       const [calResult, proResult] = await Promise.all([
@@ -568,7 +568,7 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
       if (!user) throw new NotFoundError(`No user: ${targetUserId}`);
     }
 
-    const userWithUrl = await addPresignedUrlToItem(user, "image", "image_url");
+    const userWithUrl = await addUserAvatarUrlToItem(user);
     if (!isDemoEnvironment() || role !== "super_admin") {
       delete userWithUrl.demoLoginPassword;
     }

@@ -1,4 +1,4 @@
-import React, {useContext, useMemo} from "react";
+import React, {useContext, useMemo, useState} from "react";
 import {Plus, Loader2} from "lucide-react";
 import UserContext from "../../../context/UserContext";
 import {useAuth} from "../../../context/AuthContext";
@@ -13,6 +13,7 @@ function HomeOpsTeam({
 }) {
   const {users = []} = useContext(UserContext);
   const {currentUser} = useAuth();
+  const [failedPhotoKeys, setFailedPhotoKeys] = useState(() => new Set());
 
   const teamSectionTitle = useMemo(() => {
     const firstName =
@@ -168,6 +169,8 @@ function HomeOpsTeam({
               userFromContext?.image ??
               userFromContext?.avatarUrl ??
               userFromContext?.avatar;
+            const memberPhotoKey = String(member.id ?? member.email ?? "");
+            const showPhoto = Boolean(photoUrl) && !failedPhotoKeys.has(memberPhotoKey);
 
             /* Platform role (agent, homeowner) — do not use property_role (owner/editor/viewer) here */
             const platformLower = (
@@ -270,11 +273,19 @@ function HomeOpsTeam({
                       : "bg-[#456564] dark:bg-[#5a7a78]"
                   }`}
                 >
-                  {photoUrl ? (
+                  {showPhoto ? (
                     <img
                       src={photoUrl}
                       alt={member.name}
                       className="w-full h-full object-cover"
+                      onError={() => {
+                        setFailedPhotoKeys((prev) => {
+                          if (prev.has(memberPhotoKey)) return prev;
+                          const next = new Set(prev);
+                          next.add(memberPhotoKey);
+                          return next;
+                        });
+                      }}
                     />
                   ) : (
                     initials

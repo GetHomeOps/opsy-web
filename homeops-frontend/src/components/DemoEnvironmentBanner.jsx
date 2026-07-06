@@ -14,7 +14,7 @@ export default function DemoEnvironmentBanner() {
       <div className="flex items-center justify-center gap-2 flex-wrap">
         <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden />
         <span>
-          Demo environment — sample data resets daily at 06:00 UTC. Document upload and
+          Demo environment — Document upload and
           AI features are disabled. A full HeyOpsy account includes secure document storage,
           AI inspection analysis, and the Opsy assistant.
         </span>
