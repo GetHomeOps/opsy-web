@@ -85,7 +85,7 @@ class User {
  *
  * Throws BadRequestError on duplicates.
  **/
-  static async register({ name, email, password, phone = null, role = 'homeowner', contact = 0, is_active = false, onboarding_completed, role_locked, demo_login_password = null }) {
+  static async register({ name, email, password, phone = null, role = 'homeowner', contact = 0, is_active = false, onboarding_completed, role_locked, demo_login_password = null, demo_provisioned_by_user_id = null }) {
     if (name == null || (typeof name === 'string' && name.trim() === '')) {
       throw new BadRequestError("Name is required");
     }
@@ -125,6 +125,10 @@ class User {
     if (demo_login_password) {
       baseCols.push("demo_login_password");
       baseVals.push(demo_login_password);
+    }
+    if (demo_provisioned_by_user_id != null) {
+      baseCols.push("demo_provisioned_by_user_id");
+      baseVals.push(demo_provisioned_by_user_id);
     }
     baseCols.push("auth_provider", "email_verified");
     // Bootstrap super admin (npm start) has no inbox to verify
@@ -210,6 +214,18 @@ class User {
     );
     if (!result.rows[0]) throw new NotFoundError(`No user: ${userId}`);
     return expiresAt;
+  }
+
+  /** Record first successful login for a ready-to-use demo account (idempotent). */
+  static async recordDemoFirstLogin(userId) {
+    await db.query(
+      `UPDATE users
+       SET demo_first_login_at = NOW(), updated_at = NOW()
+       WHERE id = $1
+         AND demo_login_password IS NOT NULL
+         AND demo_first_login_at IS NULL`,
+      [userId]
+    );
   }
 
   /** Update login password and optional demo-site plaintext copy for sharing with prospects. */

@@ -398,6 +398,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
   }, [sidebarExpanded]);
 
   const visible = (item) => {
+    if (item.demoSiteOnly && !isDemoSite()) return false;
     if (item.roles === "superAdminOnly") return isSuperAdmin;
     if (item.roles === "adminOnly") return canManageUsers;
     if (item.roles === "adminOrAgent") return canManageUsers || isAgent;

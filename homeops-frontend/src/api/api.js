@@ -1891,6 +1891,14 @@ class AppApi {
     return res.properties ?? [];
   }
 
+  static async getDemoSalesSummary(params = {}) {
+    return this.request("analytics/demo-sales/summary", params);
+  }
+
+  static async getDemoSalesAccounts(params = {}) {
+    return this.request("analytics/demo-sales/accounts", params);
+  }
+
   /* --------- Platform Engagement --------- */
 
   static async getEngagementCounts(params = {}) {

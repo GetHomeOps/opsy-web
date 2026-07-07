@@ -73,6 +73,7 @@ const {
   isDemoEnvironment,
   assertDemoAccountAccessAllowed,
 } = require("../helpers/demoEnvironment");
+const { recordDemoFirstLogin } = require("../helpers/demoFirstLogin");
 
 function getClientMeta(req) {
   const forwarded = req.headers["x-forwarded-for"];
@@ -209,6 +210,7 @@ router.post("/token", async function (req, res, next) {
     try {
       await PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: {} });
     } catch (logErr) { /* don't block login */ }
+    await recordDemoFirstLogin(user.id);
     syncCustomerIoLogin(user, "password");
 
     return res.json(tokens);
@@ -549,6 +551,7 @@ router.post("/mfa/verify", mfaVerifyLimiter, async function (req, res, next) {
     try {
       await PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: {} });
     } catch (logErr) { /* don't block login */ }
+    await recordDemoFirstLogin(user.id);
     syncCustomerIoLogin(user, "mfa");
 
     return res.json(tokens);
@@ -841,6 +844,7 @@ async function handleGoogleCallback(req, res, next, intent) {
     const { accessToken, refreshToken } = await issueTokenPair(user);
     PlatformEngagement.logEvent({ userId: user.id, eventType: "login", eventData: { provider: "google" } })
       .catch(() => { });
+    recordDemoFirstLogin(user.id).catch(() => { });
     syncCustomerIoLogin(user, intent === "signup" ? "google_signup" : "google");
 
     return res.redirect(redirectWithToken(accessToken, refreshToken));

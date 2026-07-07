@@ -250,6 +250,7 @@ async function createLoginableSyntheticHomeowner({
   agentUserId,
   personaKey,
   demoExpiresAt,
+  provisionedByUserId = null,
 }) {
   const namespacedEmail = buildSyntheticHomeownerEmail(agentUserId, personaKey);
   const existing = await User.get(namespacedEmail).catch(() => null);
@@ -294,6 +295,7 @@ async function createLoginableSyntheticHomeowner({
     is_active: true,
     role_locked: true,
     demo_login_password: password,
+    demo_provisioned_by_user_id: provisionedByUserId,
   });
   if (avatarUrl) {
     await db.query(`UPDATE users SET avatar_url = $2, updated_at = NOW() WHERE id = $1`, [
@@ -1078,7 +1080,7 @@ async function seedPropertyPortfolio({
 
 /**
  * Provision a login-ready demo account with sample data.
- * @param {{ userId: number, role: string, name: string, email: string, phone?: string, password?: string, includePairedHomeownerLogin?: boolean, demoExpiresAt?: Date|string }}
+ * @param {{ userId: number, role: string, name: string, email: string, phone?: string, password?: string, includePairedHomeownerLogin?: boolean, demoExpiresAt?: Date|string, provisionedByUserId?: number }}
  */
 async function provisionDemoAccount({
   userId,
@@ -1089,6 +1091,7 @@ async function provisionDemoAccount({
   password,
   includePairedHomeownerLogin = false,
   demoExpiresAt: demoExpiresAtInput,
+  provisionedByUserId = null,
 }) {
   if (!isDemoEnvironment()) {
     throw new BadRequestError("Demo account provisioning is only available on the demo site.");
@@ -1149,6 +1152,7 @@ async function provisionDemoAccount({
               agentUserId: userId,
               personaKey,
               demoExpiresAt,
+              provisionedByUserId,
             })
             : await createSyntheticHomeowner({
               name: template.syntheticHomeowner.name,

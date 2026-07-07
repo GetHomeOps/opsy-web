@@ -1,10 +1,21 @@
 "use strict";
 
 const express = require("express");
-const { ensurePlatformAdmin } = require("../middleware/auth");
+const { ensurePlatformAdmin, ensureSuperAdmin, ensureLoggedIn } = require("../middleware/auth");
 const PlatformMetrics = require("../models/platformMetrics");
+const DemoSalesMetrics = require("../models/demoSalesMetrics");
+const { isDemoEnvironment } = require("../helpers/demoEnvironment");
+const { ensureDemoUserSchema } = require("../helpers/demoUserSchema");
+const { ForbiddenError } = require("../expressError");
 
 const router = express.Router();
+
+function ensureDemoSalesAnalytics(req, res, next) {
+  if (!isDemoEnvironment()) {
+    return next(new ForbiddenError("Demo sales analytics are only available on the demo site."));
+  }
+  return ensureSuperAdmin(req, res, next);
+}
 
 /** GET /summary - Platform totals (users, accounts, properties, etc.). Platform admin only. */
 router.get("/summary", ensurePlatformAdmin, async function (req, res, next) {
@@ -119,6 +130,37 @@ router.get("/agents", ensurePlatformAdmin, async function (req, res, next) {
 router.get("/properties", ensurePlatformAdmin, async function (req, res, next) {
   try {
     const result = await PlatformMetrics.getPropertyAnalytics();
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /demo-sales/summary - Demo account sales rollup. Super admin on demo site only. */
+router.get("/demo-sales/summary", ensureLoggedIn, ensureDemoSalesAnalytics, async function (req, res, next) {
+  try {
+    await ensureDemoUserSchema();
+    const { from, to } = req.query;
+    const summary = await DemoSalesMetrics.getSummary({ from, to });
+    return res.json(summary);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /demo-sales/accounts - Paginated demo accounts. Super admin on demo site only. */
+router.get("/demo-sales/accounts", ensureLoggedIn, ensureDemoSalesAnalytics, async function (req, res, next) {
+  try {
+    await ensureDemoUserSchema();
+    const { createdBy, status, from, to, limit, offset } = req.query;
+    const result = await DemoSalesMetrics.getAccounts({
+      createdBy,
+      status,
+      from,
+      to,
+      limit,
+      offset,
+    });
     return res.json(result);
   } catch (err) {
     return next(err);

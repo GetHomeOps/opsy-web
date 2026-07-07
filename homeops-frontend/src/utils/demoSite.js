@@ -44,3 +44,9 @@ export function canCreateUsersOnDemo(user) {
 export function canAccessUsersOnDemo(user) {
   return canCreateUsersOnDemo(user);
 }
+
+/** Demo sales dashboard — super_admin on demo site only. */
+export function canAccessDemoSalesDashboard(user) {
+  if (!isDemoSite()) return false;
+  return canCreateUsersOnDemo(user);
+}

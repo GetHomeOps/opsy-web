@@ -117,6 +117,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
        (admin/super_admin) don't need locking. */
     const isLockableRole = role === "homeowner" || role === "agent";
     const registerStart = Date.now();
+    const provisionedByUserId = wantsProvision ? res.locals.user?.id : null;
     const newUser = await User.register({
       name,
       email,
@@ -127,7 +128,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       is_active: wantsProvision ? true : false,
       onboarding_completed: wantsProvision ? undefined : false,
       role_locked: isLockableRole,
-      ...(wantsProvision ? { demo_login_password: password } : {}),
+      ...(wantsProvision ? { demo_login_password: password, demo_provisioned_by_user_id: provisionedByUserId } : {}),
     });
     registerMs = Date.now() - registerStart;
 
@@ -164,6 +165,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
         password,
         includePairedHomeownerLogin,
         demoExpiresAt: resolvedDemoExpiresAt,
+        provisionedByUserId,
       });
       provisionMs = Date.now() - provisionStart;
       provisionStatus = "pending";

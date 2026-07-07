@@ -80,6 +80,7 @@ const AgentAnalytics = lazy(() => import("../dashboard/AgentAnalytics"));
 const PropertyAnalytics = lazy(() => import("../dashboard/PropertyAnalytics"));
 const CostAnalytics = lazy(() => import("../dashboard/CostAnalytics"));
 const UnitCostDashboard = lazy(() => import("../dashboard/UnitCostDashboard"));
+const DemoSalesDashboard = lazy(() => import("../dashboard/DemoSalesDashboard"));
 const EngagementDashboard = lazy(() => import("../dashboard/EngagementDashboard"));
 const GrowthDashboard = lazy(() => import("../dashboard/GrowthDashboard"));
 const InvitationsList = lazy(() => import("../invitations/InvitationsList"));
@@ -309,6 +310,14 @@ function RoutesList() {
           <AdminRoute>
             <UnitCostDashboard />
           </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/dashboard/demo-sales"
+        element={
+          <SuperAdminRoute>
+            <DemoSalesDashboard />
+          </SuperAdminRoute>
         }
       />
       <Route
