@@ -3,6 +3,7 @@ import {useTranslation} from "react-i18next";
 import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
+import DatePickerInput from "../../components/DatePickerInput";
 import PaginationClassic from "../../components/PaginationClassic";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import {isDemoSite, canAccessDemoSalesDashboard} from "../../utils/demoSite";
@@ -244,37 +245,63 @@ function DemoSalesDashboard() {
               </div>
             ) : null}
 
-            <div className="flex flex-wrap gap-3 mb-6">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="form-input text-sm py-2 px-3 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800"
-                aria-label={t("demoSales.dateFrom", {defaultValue: "From date"})}
-              />
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="form-input text-sm py-2 px-3 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800"
-                aria-label={t("demoSales.dateTo", {defaultValue: "To date"})}
-              />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="form-select text-sm py-2 px-3 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 min-w-[10rem]"
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value || "all"} value={opt.value}>
-                    {t(opt.labelKey, {defaultValue: opt.value || "All statuses"})}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-wrap items-end gap-4 mb-6">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t("demoSales.dateRange", {defaultValue: "Date range"})}
+                </label>
+                <div className="flex items-center gap-2">
+                  <DatePickerInput
+                    name="dateFrom"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    maxDate={dateTo || undefined}
+                    placeholder={t("demoSales.dateFromPlaceholder", {
+                      defaultValue: "Start date",
+                    })}
+                    className="form-input w-40 text-sm"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="text-gray-400 dark:text-gray-500 shrink-0"
+                  >
+                    →
+                  </span>
+                  <DatePickerInput
+                    name="dateTo"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    minDate={dateFrom || undefined}
+                    placeholder={t("demoSales.dateToPlaceholder", {
+                      defaultValue: "End date",
+                    })}
+                    className="form-input w-40 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t("demoSales.status", {defaultValue: "Status"})}
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="form-select text-sm py-2 px-3 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 min-w-[10rem]"
+                >
+                  {STATUS_OPTIONS.map((opt) => (
+                    <option key={opt.value || "all"} value={opt.value}>
+                      {t(opt.labelKey, {
+                        defaultValue: opt.value || "All statuses",
+                      })}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {selectedCreatorId != null ? (
                 <button
                   type="button"
                   onClick={() => setSelectedCreatorId(null)}
-                  className="text-sm text-[#456564] dark:text-emerald-400 hover:underline"
+                  className="text-sm text-[#456564] dark:text-emerald-400 hover:underline pb-2"
                 >
                   {t("demoSales.clearCreatorFilter", {
                     defaultValue: "Clear sales rep filter",
