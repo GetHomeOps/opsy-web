@@ -3,6 +3,7 @@ import {useTableSort} from "../hooks/useTableSort";
 import AppApi, {isStaleUserRecordError} from "../api/api";
 import {useAuth} from "./AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
+import {compareUsersForSort} from "../pages/users/userSort";
 
 const UserContext = createContext();
 
@@ -14,16 +15,17 @@ export function UserProvider({children}) {
   const {currentUser, isLoading} = useAuth();
   const {currentAccount} = useCurrentAccount();
 
-  const customListComparators = {
-    // Generic comparator that works for any field
-    default: (a, b, direction, key) => {
-      const valueA = (a[key] || "").toString().toLowerCase();
-      const valueB = (b[key] || "").toString().toLowerCase();
-      return direction === "asc"
-        ? valueA.localeCompare(valueB)
-        : valueB.localeCompare(valueA);
-    },
-  };
+  const customListComparators = useMemo(
+    () => ({
+      name: (a, b, direction) => compareUsersForSort(a, b, "name", direction),
+      email: (a, b, direction) => compareUsersForSort(a, b, "email", direction),
+      role: (a, b, direction) => compareUsersForSort(a, b, "role", direction),
+      status: (a, b, direction) => compareUsersForSort(a, b, "status", direction),
+      billingState: (a, b, direction) =>
+        compareUsersForSort(a, b, "billingState", direction),
+    }),
+    [],
+  );
 
   const {
     sortedItems: listSortedItems,

@@ -159,7 +159,7 @@ function UsersTable({
     {
       key: "billingState",
       label: t("users.billing", {defaultValue: "Billing"}),
-      sortable: false,
+      sortable: true,
       render: (value, item) => {
         const badge = (classes, label) => (
           <span
