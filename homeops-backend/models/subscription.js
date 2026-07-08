@@ -16,6 +16,56 @@ const db = require("../db");
 const { NotFoundError, BadRequestError } = require("../expressError");
 const { sqlForPartialUpdate } = require("../helpers/sql");
 
+/** When platform staff own an account, show the real customer member instead. */
+const SUBSCRIPTION_OWNER_JOINS = `
+       LEFT JOIN users u ON u.id = a.owner_user_id
+       LEFT JOIN LATERAL (
+         SELECT u2.id, u2.name, u2.email, u2.role, u2.onboarding_completed
+         FROM account_users au
+         JOIN users u2 ON u2.id = au.user_id
+         WHERE au.account_id = a.id
+           AND u2.role NOT IN ('super_admin', 'admin')
+         ORDER BY
+           (LOWER(TRIM(u2.name)) = LOWER(TRIM(a.name))) DESC,
+           CASE WHEN au.role = 'owner' THEN 0 ELSE 1 END,
+           u2.id ASC
+         LIMIT 1
+       ) customer_u ON true
+       LEFT JOIN users name_matched_u ON u.role IN ('super_admin', 'admin')
+         AND customer_u.id IS NULL
+         AND LOWER(TRIM(name_matched_u.name)) = LOWER(TRIM(a.name))
+         AND name_matched_u.role NOT IN ('super_admin', 'admin')`;
+
+const SUBSCRIPTION_OWNER_SELECT = `
+              CASE
+                WHEN u.role IN ('super_admin', 'admin') AND customer_u.id IS NOT NULL
+                  THEN customer_u.name
+                WHEN u.role IN ('super_admin', 'admin') AND name_matched_u.id IS NOT NULL
+                  THEN name_matched_u.name
+                ELSE u.name
+              END AS "ownerName",
+              CASE
+                WHEN u.role IN ('super_admin', 'admin') AND customer_u.id IS NOT NULL
+                  THEN customer_u.email
+                WHEN u.role IN ('super_admin', 'admin') AND name_matched_u.id IS NOT NULL
+                  THEN name_matched_u.email
+                ELSE u.email
+              END AS "ownerEmail",
+              CASE
+                WHEN u.role IN ('super_admin', 'admin') AND customer_u.id IS NOT NULL
+                  THEN customer_u.role
+                WHEN u.role IN ('super_admin', 'admin') AND name_matched_u.id IS NOT NULL
+                  THEN name_matched_u.role
+                ELSE u.role
+              END AS "ownerRole",
+              CASE
+                WHEN u.role IN ('super_admin', 'admin') AND customer_u.id IS NOT NULL
+                  THEN customer_u.onboarding_completed
+                WHEN u.role IN ('super_admin', 'admin') AND name_matched_u.id IS NOT NULL
+                  THEN name_matched_u.onboarding_completed
+                ELSE u.onboarding_completed
+              END AS "ownerOnboardingCompleted"`;
+
 class Subscription {
   static async create({ accountId, subscriptionProductId, status = 'active', currentPeriodStart, currentPeriodEnd }) {
     if (!accountId || !subscriptionProductId) {
@@ -44,9 +94,7 @@ class Subscription {
               s.account_id AS "accountId",
               a.name AS "accountName",
               a.url AS "accountUrl",
-              u.name AS "ownerName",
-              u.email AS "ownerEmail",
-              u.role AS "ownerRole",
+              ${SUBSCRIPTION_OWNER_SELECT},
               s.subscription_product_id AS "subscriptionProductId",
               sp.name AS "productName",
               CASE
@@ -74,7 +122,7 @@ class Subscription {
               s.updated_at AS "updatedAt"
        FROM account_subscriptions s
        LEFT JOIN accounts a ON a.id = s.account_id
-       LEFT JOIN users u ON u.id = a.owner_user_id
+       ${SUBSCRIPTION_OWNER_JOINS}
        LEFT JOIN subscription_products sp ON sp.id = s.subscription_product_id
        LEFT JOIN plan_prices pp ON pp.stripe_price_id = s.stripe_price_id
        WHERE s.id = $1`,
@@ -104,9 +152,7 @@ class Subscription {
               s.account_id AS "accountId",
               a.name AS "accountName",
               a.url AS "accountUrl",
-              u.name AS "ownerName",
-              u.email AS "ownerEmail",
-              u.role AS "ownerRole",
+              ${SUBSCRIPTION_OWNER_SELECT},
               s.subscription_product_id AS "subscriptionProductId",
               sp.name AS "productName",
               CASE
@@ -134,7 +180,7 @@ class Subscription {
               s.updated_at AS "updatedAt"
        FROM account_subscriptions s
        LEFT JOIN accounts a ON a.id = s.account_id
-       LEFT JOIN users u ON u.id = a.owner_user_id
+       ${SUBSCRIPTION_OWNER_JOINS}
        LEFT JOIN subscription_products sp ON sp.id = s.subscription_product_id
        LEFT JOIN plan_prices pp ON pp.stripe_price_id = s.stripe_price_id
        ${where}
@@ -153,15 +199,28 @@ class Subscription {
    * - paid_active / trialing / past_due only apply to Stripe-backed rows
    * - internal rows on a $0 plan are "free"
    * - internal rows on a paid plan are "comped" (access granted without payment)
+   * - retired placeholder rows (awaiting_payment / internal canceled) reflect signup state
    */
   static deriveBillingState(row) {
     const status = (row.status || "").toLowerCase();
     const isStripe = Boolean(row.stripeSubscriptionId);
     const price = Number(row.productPrice) || 0;
+    const onboardingDone = row.ownerOnboardingCompleted !== false;
 
-    if (status === "canceled" || status === "cancelled") return "canceled";
+    if (status === "awaiting_payment") {
+      return onboardingDone ? "awaiting_payment" : "signup_incomplete";
+    }
     if (status === "past_due" || status === "unpaid") return "past_due";
     if (status === "incomplete" || status === "incomplete_expired") return "incomplete";
+
+    if (status === "canceled" || status === "cancelled") {
+      /* Placeholder rows retired by repair were never real Stripe cancellations. */
+      if (!isStripe && price > 0) {
+        return onboardingDone ? "awaiting_payment" : "signup_incomplete";
+      }
+      return "canceled";
+    }
+
     if (!["active", "trialing", "trial"].includes(status)) return status || "unknown";
 
     if (isStripe) {

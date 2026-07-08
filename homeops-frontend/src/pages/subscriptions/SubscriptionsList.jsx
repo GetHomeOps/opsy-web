@@ -44,6 +44,8 @@ const BILLING_STATE_ORDER = [
   "past_due",
   "comped",
   "free",
+  "signup_incomplete",
+  "awaiting_payment",
   "incomplete",
   "canceled",
 ];
@@ -55,6 +57,8 @@ function billingStateLabel(state, t) {
     past_due: t("subscriptions.statusPastDue"),
     comped: t("subscriptions.statusComped"),
     free: t("subscriptions.statusFree"),
+    signup_incomplete: t("subscriptions.statusSignupIncomplete"),
+    awaiting_payment: t("subscriptions.statusAwaitingPayment"),
     incomplete: t("subscriptions.statusIncomplete"),
     canceled: t("subscriptions.statusCanceled"),
   };
@@ -545,7 +549,9 @@ function SubscriptionsList() {
     const paying = rows.filter((r) => r.billingState === "paid_active");
     const trialing = rows.filter((r) => r.billingState === "trialing");
     const freeInternal = rows.filter((r) => r.billingState === "free" || r.billingState === "comped");
-    const attention = rows.filter((r) => r.billingState === "past_due" || r.billingState === "incomplete");
+    const attention = rows.filter((r) =>
+      ["past_due", "incomplete", "signup_incomplete", "awaiting_payment"].includes(r.billingState),
+    );
     const mrr = paying.reduce((sum, r) => sum + monthlyAmount(r), 0);
     return {
       paying: paying.length,
@@ -803,6 +809,10 @@ function SubscriptionsList() {
         "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
       past_due:
         "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+      signup_incomplete:
+        "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+      awaiting_payment:
+        "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
       comped:
         "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
       free: "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
@@ -1127,7 +1137,7 @@ function SubscriptionsList() {
               ) : (
                 <div className="space-y-5 text-sm max-h-[60vh] overflow-y-auto">
                   {(repairPreview.ownershipFixes || []).length === 0 &&
-                  (repairPreview.placeholderCancellations || []).length === 0 ? (
+                  (repairPreview.placeholderRetirements || []).length === 0 ? (
                     <p className="text-gray-600 dark:text-gray-300">
                       {t("subscriptions.repairNoChanges")}
                     </p>
@@ -1160,17 +1170,17 @@ function SubscriptionsList() {
                         </div>
                       )}
 
-                      {(repairPreview.placeholderCancellations || []).length > 0 && (
+                      {(repairPreview.placeholderRetirements || []).length > 0 && (
                         <div>
                           <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
                             {t("subscriptions.repairPlaceholderTitle")} (
-                            {repairPreview.placeholderCancellations.length})
+                            {repairPreview.placeholderRetirements.length})
                           </div>
                           <p className="text-gray-500 dark:text-gray-400 mb-2">
                             {t("subscriptions.repairPlaceholderDescription")}
                           </p>
                           <ul className="space-y-1">
-                            {repairPreview.placeholderCancellations.map((row) => (
+                            {repairPreview.placeholderRetirements.map((row) => (
                               <li
                                 key={row.subscriptionId}
                                 className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-gray-700 dark:text-gray-300"
@@ -1203,7 +1213,7 @@ function SubscriptionsList() {
                 </button>
                 {repairPreview &&
                   ((repairPreview.ownershipFixes || []).length > 0 ||
-                    (repairPreview.placeholderCancellations || []).length > 0) && (
+                    (repairPreview.placeholderRetirements || []).length > 0) && (
                     <button
                       className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
                       onClick={handleApplyRepair}

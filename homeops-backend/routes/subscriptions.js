@@ -24,8 +24,8 @@ router.post("/backfill", ensureSuperAdmin, async function (req, res, next) {
  *
  *  1. Account ownership: accounts owned by platform staff (super_admin/admin) that have
  *     a real customer member get their owner_user_id reassigned to that member.
- *  2. Placeholder subscriptions: active/trialing rows on a PAID plan with no Stripe
- *     subscription (access granted without payment) are marked canceled.
+ *  2. Placeholder subscriptions: internal rows on paid plans without Stripe payment
+ *     are marked awaiting_payment (displayed as signup incomplete or awaiting payment).
  *  3. Re-syncs all subscriptions from Stripe so real paid/trialing subs are reflected.
  *
  *  With dryRun (default false), returns the proposed changes without applying anything. */
@@ -34,67 +34,77 @@ router.post("/repair", ensureSuperAdmin, async function (req, res, next) {
     const db = require("../db");
     const dryRun = req.body?.dryRun === true || req.body?.dryRun === "true";
 
-    /* 1. Accounts owned by staff whose name matches a non-staff member, or with exactly
-       one non-staff member. Skip demo users (their accounts are intentionally provisioned). */
+    /* 1. Accounts owned by staff → reassign to the real customer (member or name match). */
     const ownershipRes = await db.query(
       `SELECT a.id AS "accountId",
               a.name AS "accountName",
               owner_u.name AS "currentOwnerName",
               owner_u.email AS "currentOwnerEmail",
-              candidate.id AS "newOwnerId",
-              candidate.name AS "newOwnerName",
-              candidate.email AS "newOwnerEmail"
+              COALESCE(candidate.id, name_matched_u.id) AS "newOwnerId",
+              COALESCE(candidate.name, name_matched_u.name) AS "newOwnerName",
+              COALESCE(candidate.email, name_matched_u.email) AS "newOwnerEmail"
        FROM accounts a
        JOIN users owner_u ON owner_u.id = a.owner_user_id
-       JOIN LATERAL (
+       LEFT JOIN LATERAL (
          SELECT u.id, u.name, u.email
          FROM account_users au
          JOIN users u ON u.id = au.user_id
          WHERE au.account_id = a.id
            AND u.role NOT IN ('super_admin', 'admin')
            AND u.demo_expires_at IS NULL
-         ORDER BY (LOWER(TRIM(u.name)) = LOWER(TRIM(a.name))) DESC, u.id ASC
+         ORDER BY
+           (LOWER(TRIM(u.name)) = LOWER(TRIM(a.name))) DESC,
+           CASE WHEN au.role = 'owner' THEN 0 ELSE 1 END,
+           u.id ASC
          LIMIT 1
        ) candidate ON true
+       LEFT JOIN users name_matched_u ON owner_u.role IN ('super_admin', 'admin')
+         AND candidate.id IS NULL
+         AND LOWER(TRIM(name_matched_u.name)) = LOWER(TRIM(a.name))
+         AND name_matched_u.role NOT IN ('super_admin', 'admin')
+         AND name_matched_u.demo_expires_at IS NULL
        WHERE owner_u.role IN ('super_admin', 'admin')
-         AND (
-           LOWER(TRIM(candidate.name)) = LOWER(TRIM(a.name))
-           OR (SELECT COUNT(*) FROM account_users au2
-               JOIN users u2 ON u2.id = au2.user_id
-               WHERE au2.account_id = a.id
-                 AND u2.role NOT IN ('super_admin', 'admin')) = 1
-         )`
+         AND COALESCE(candidate.id, name_matched_u.id) IS NOT NULL`
     );
     const ownershipFixes = ownershipRes.rows;
 
-    /* 2. Internal rows granting a paid plan with no Stripe payment. Exclude demo accounts. */
+    /* 2. Internal placeholder rows on paid plans without Stripe payment. */
     const placeholderRes = await db.query(
       `SELECT s.id AS "subscriptionId",
               s.account_id AS "accountId",
               a.name AS "accountName",
               sp.name AS "planName",
               COALESCE(sp.price, 0) AS "planPrice",
-              owner_u.name AS "ownerName",
-              owner_u.email AS "ownerEmail",
+              COALESCE(customer_u.name, owner_u.name) AS "ownerName",
+              COALESCE(customer_u.email, owner_u.email) AS "ownerEmail",
               s.status
        FROM account_subscriptions s
        JOIN accounts a ON a.id = s.account_id
        LEFT JOIN users owner_u ON owner_u.id = a.owner_user_id
+       LEFT JOIN LATERAL (
+         SELECT u.name, u.email
+         FROM account_users au
+         JOIN users u ON u.id = au.user_id
+         WHERE au.account_id = a.id
+           AND u.role NOT IN ('super_admin', 'admin')
+         ORDER BY (LOWER(TRIM(u.name)) = LOWER(TRIM(a.name))) DESC, u.id ASC
+         LIMIT 1
+       ) customer_u ON true
        JOIN subscription_products sp ON sp.id = s.subscription_product_id
        WHERE s.stripe_subscription_id IS NULL
-         AND s.status IN ('active', 'trialing')
+         AND s.status IN ('active', 'trialing', 'canceled', 'cancelled')
          AND COALESCE(sp.price, 0) > 0
          AND (owner_u.id IS NULL OR owner_u.demo_expires_at IS NULL)
        ORDER BY s.account_id`
     );
-    const placeholderCancellations = placeholderRes.rows;
+    const placeholderRetirements = placeholderRes.rows;
 
     if (dryRun) {
       return res.json({
         dryRun: true,
         applied: false,
         ownershipFixes,
-        placeholderCancellations,
+        placeholderRetirements,
       });
     }
 
@@ -106,11 +116,11 @@ router.post("/repair", ensureSuperAdmin, async function (req, res, next) {
           [fix.newOwnerId, fix.accountId]
         );
       }
-      if (placeholderCancellations.length > 0) {
+      if (placeholderRetirements.length > 0) {
         await db.query(
-          `UPDATE account_subscriptions SET status = 'canceled', updated_at = NOW()
+          `UPDATE account_subscriptions SET status = 'awaiting_payment', updated_at = NOW()
            WHERE id = ANY($1::int[])`,
-          [placeholderCancellations.map((p) => p.subscriptionId)]
+          [placeholderRetirements.map((p) => p.subscriptionId)]
         );
       }
       await db.query("COMMIT");
@@ -132,9 +142,9 @@ router.post("/repair", ensureSuperAdmin, async function (req, res, next) {
       dryRun: false,
       applied: true,
       ownershipFixes,
-      placeholderCancellations,
+      placeholderRetirements,
       stripeSync,
-      message: `Reassigned ${ownershipFixes.length} account owner(s), canceled ${placeholderCancellations.length} placeholder subscription(s), synced ${stripeSync.synced} Stripe subscription(s).`,
+      message: `Reassigned ${ownershipFixes.length} account owner(s), updated ${placeholderRetirements.length} placeholder subscription(s) to awaiting payment, synced ${stripeSync.synced} Stripe subscription(s).`,
     });
   } catch (err) {
     return next(err);
