@@ -833,8 +833,12 @@ async function ensureFreePlanFallback(accountId, pendingPlanCode) {
   let freePlanId = null;
 
   if (pendingPlanCode) {
+    /* Only honor the pending downgrade plan when it is genuinely zero-cost;
+       never silently comp a paid plan after a Stripe subscription ends. */
     const planRes = await db.query(
-      `SELECT id FROM subscription_products WHERE code = $1 AND (is_active IS NULL OR is_active = true) LIMIT 1`,
+      `SELECT id FROM subscription_products
+       WHERE code = $1 AND COALESCE(price, 0) = 0 AND (is_active IS NULL OR is_active = true)
+       LIMIT 1`,
       [pendingPlanCode]
     );
     freePlanId = planRes.rows[0]?.id;
@@ -862,6 +866,37 @@ async function ensureFreePlanFallback(accountId, pendingPlanCode) {
   );
 
   console.info(`[billing] ensureFreePlanFallback: inserted free plan for account=${accountId}`);
+}
+
+/**
+ * Sync every subscription in Stripe into the local DB (paginated).
+ * Returns { synced, failed }.
+ */
+async function syncAllStripeSubscriptions() {
+  if (!stripe) return { synced: 0, failed: 0 };
+  let synced = 0;
+  let failed = 0;
+  let startingAfter = undefined;
+  for (;;) {
+    const page = await stripe.subscriptions.list({
+      status: "all",
+      limit: 100,
+      expand: ["data.items.data.price"],
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
+    for (const sub of page.data) {
+      try {
+        await handleSubscriptionUpdated(sub);
+        synced += 1;
+      } catch (subErr) {
+        failed += 1;
+        console.error(`[stripe] syncAllStripeSubscriptions failed for ${sub.id}:`, subErr.message);
+      }
+    }
+    if (!page.has_more || page.data.length === 0) break;
+    startingAfter = page.data[page.data.length - 1].id;
+  }
+  return { synced, failed };
 }
 
 /**
@@ -958,6 +993,7 @@ module.exports = {
   processWebhookEvent,
   isEventProcessed,
   handleSubscriptionUpdated,
+  syncAllStripeSubscriptions,
   listActivePrices,
   getCustomerPaymentMethod,
   listCustomerInvoices,

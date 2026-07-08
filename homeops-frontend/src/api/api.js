@@ -1418,6 +1418,17 @@ class AppApi {
     return this.request(`subscriptions/backfill`, {}, "POST");
   }
 
+  /** Super Admin: sync all Stripe subscriptions into the local DB */
+  static async syncStripeSubscriptions() {
+    return this.request(`billing/admin/sync-stripe`, {}, "POST");
+  }
+
+  /** Super Admin: repair subscription data (account ownership + placeholder rows).
+   *  Pass { dryRun: true } to preview changes without applying them. */
+  static async repairSubscriptionsData({ dryRun = false } = {}) {
+    return this.request(`subscriptions/repair`, { dryRun }, "POST");
+  }
+
   /* --------- Subscription Products --------- */
 
   static async getAllSubscriptionProducts() {

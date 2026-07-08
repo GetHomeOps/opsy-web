@@ -36,6 +36,74 @@ function subscriptionUserTypeDisplayLabel(raw, t) {
   return s || "—";
 }
 
+/* Honest billing states derived on the backend:
+   paid_active/trialing = Stripe-backed; free/comped = internal rows. */
+const BILLING_STATE_ORDER = [
+  "paid_active",
+  "trialing",
+  "past_due",
+  "comped",
+  "free",
+  "incomplete",
+  "canceled",
+];
+
+function billingStateLabel(state, t) {
+  const labels = {
+    paid_active: t("subscriptions.statusPaid"),
+    trialing: t("subscriptions.statusTrialing"),
+    past_due: t("subscriptions.statusPastDue"),
+    comped: t("subscriptions.statusComped"),
+    free: t("subscriptions.statusFree"),
+    incomplete: t("subscriptions.statusIncomplete"),
+    canceled: t("subscriptions.statusCanceled"),
+  };
+  return labels[state] || state || "—";
+}
+
+/* Rank subscriptions so the most billing-relevant row represents each account. */
+function billingStateRank(sub) {
+  const state = sub.billingState;
+  if (state === "paid_active" || state === "trialing") return 0;
+  if (state === "comped" || state === "free") return 1;
+  if (state === "past_due") return 2;
+  return 3;
+}
+
+/* Collapse subscription rows to the current/best one per account. */
+function pickCurrentPerAccount(subscriptions) {
+  const accountsMap = new Map();
+  for (const sub of subscriptions) {
+    const accountId = sub.accountId ?? "unknown";
+    if (!accountsMap.has(accountId)) accountsMap.set(accountId, []);
+    accountsMap.get(accountId).push(sub);
+  }
+  const rows = [];
+  for (const [, subs] of accountsMap) {
+    const sorted = [...subs].sort((a, b) => {
+      const rankDiff = billingStateRank(a) - billingStateRank(b);
+      if (rankDiff !== 0) return rankDiff;
+      const aTime = new Date(a.currentPeriodEnd || a.updatedAt || a.createdAt || 0).getTime();
+      const bTime = new Date(b.currentPeriodEnd || b.updatedAt || b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+    if (sorted[0]) rows.push({...sorted[0], _historyCount: subs.length});
+  }
+  return rows;
+}
+
+/* Monthly-normalized amount for a subscription row ($/month). */
+function monthlyAmount(sub) {
+  const price = Number(sub.subscriptionProductPrice) || 0;
+  if (price <= 0) return 0;
+  return sub.billingInterval === "year" ? price / 12 : price;
+}
+
+function formatAmount(value) {
+  const n = Number(value) || 0;
+  return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
+}
+
 const initialState = {
   currentPage: 1,
   itemsPerPage: 10,
@@ -330,7 +398,13 @@ function SubscriptionsList() {
 
   // Sort state
   const [sortConfig, setSortConfig] = useState({key: null, direction: null});
-  const [isBackfilling, setIsBackfilling] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Data repair (super admin): dry-run preview + apply
+  const [repairModalOpen, setRepairModalOpen] = useState(false);
+  const [repairPreview, setRepairPreview] = useState(null);
+  const [repairLoading, setRepairLoading] = useState(false);
+  const [repairApplying, setRepairApplying] = useState(false);
 
   usePersistListUiSession(listScopeId, {
     dispatch,
@@ -406,13 +480,12 @@ function SubscriptionsList() {
     const subs = state.subscriptions;
     const accounts = [...new Set(subs.map((s) => (s.databaseName || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const products = [...new Set(subs.map((s) => (s.subscriptionProductName || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const statuses = ["active", "inactive", "trial", "cancelled", "expired"].filter((s) => subs.some((sub) => (sub.subscriptionStatus || "").toLowerCase() === s));
+    const statuses = BILLING_STATE_ORDER.filter((s) => subs.some((sub) => sub.billingState === s));
     const userTypes = [...new Set(subs.map((s) => (s.userType || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const statusLabels = { active: t("subscriptions.statusActive"), inactive: t("subscriptions.statusInactive"), trial: t("subscriptions.statusTrial"), cancelled: t("subscriptions.statusCancelled"), expired: t("subscriptions.statusExpired") };
     return {
       account: accounts.map((v) => ({ value: v, label: v })),
       subscriptionType: products.map((v) => ({ value: v, label: v })),
-      status: statuses.map((v) => ({ value: v, label: statusLabels[v] || v })),
+      status: statuses.map((v) => ({ value: v, label: billingStateLabel(v, t) })),
       userType: userTypes.map((v) => ({
         value: v,
         label: subscriptionUserTypeDisplayLabel(v, t),
@@ -437,10 +510,12 @@ function SubscriptionsList() {
         const subType = (sub.subscriptionType || "").toLowerCase();
         const userType = (sub.userType || "").toLowerCase();
         const subStatus = (sub.subscriptionStatus || "").toLowerCase();
+        const stateLabel = billingStateLabel(sub.billingState, t).toLowerCase();
         const productName = (sub.subscriptionProductName || "").toLowerCase();
         const matchesSearch =
           dbName.includes(term) || userName.includes(term) || userEmail.includes(term) ||
-          subType.includes(term) || userType.includes(term) || subStatus.includes(term) || productName.includes(term);
+          subType.includes(term) || userType.includes(term) || subStatus.includes(term) ||
+          stateLabel.includes(term) || productName.includes(term);
         if (!matchesSearch) return false;
       }
       if (filtersByType.account) {
@@ -452,8 +527,7 @@ function SubscriptionsList() {
         if (!filtersByType.subscriptionType.includes(prod)) return false;
       }
       if (filtersByType.status) {
-        const st = (sub.subscriptionStatus || "").toLowerCase();
-        if (!filtersByType.status.includes(st)) return false;
+        if (!filtersByType.status.includes(sub.billingState)) return false;
       }
       if (filtersByType.userType) {
         const ut = (sub.userType || "").trim();
@@ -463,36 +537,28 @@ function SubscriptionsList() {
     });
 
     return items;
-  }, [state.subscriptions, state.searchTerm, state.activeFilters]);
+  }, [state.subscriptions, state.searchTerm, state.activeFilters, t]);
+
+  // Billing summary across ALL accounts (unfiltered), one row per account
+  const billingSummary = useMemo(() => {
+    const rows = pickCurrentPerAccount(state.subscriptions);
+    const paying = rows.filter((r) => r.billingState === "paid_active");
+    const trialing = rows.filter((r) => r.billingState === "trialing");
+    const freeInternal = rows.filter((r) => r.billingState === "free" || r.billingState === "comped");
+    const attention = rows.filter((r) => r.billingState === "past_due" || r.billingState === "incomplete");
+    const mrr = paying.reduce((sum, r) => sum + monthlyAmount(r), 0);
+    return {
+      paying: paying.length,
+      trialing: trialing.length,
+      freeInternal: freeInternal.length,
+      attention: attention.length,
+      mrr,
+    };
+  }, [state.subscriptions]);
 
   // One row per account: pick the current/best subscription per account
   const accountRows = useMemo(() => {
-    const accountsMap = new Map();
-
-    for (const sub of filteredSubscriptions) {
-      const accountId = sub.accountId ?? "unknown";
-      if (!accountsMap.has(accountId)) {
-        accountsMap.set(accountId, []);
-      }
-      accountsMap.get(accountId).push(sub);
-    }
-
-    const rows = [];
-    for (const [, subs] of accountsMap) {
-      const sorted = [...subs].sort((a, b) => {
-        const rank = (s) =>
-          ["active", "trialing"].includes((s.subscriptionStatus || "").toLowerCase()) ? 0 : 1;
-        const statusDiff = rank(a) - rank(b);
-        if (statusDiff !== 0) return statusDiff;
-        const aTime = new Date(a.currentPeriodEnd || a.updatedAt || a.createdAt || 0).getTime();
-        const bTime = new Date(b.currentPeriodEnd || b.updatedAt || b.createdAt || 0).getTime();
-        return bTime - aTime;
-      });
-      const current = sorted[0];
-      if (current) {
-        rows.push({...current, _historyCount: subs.length});
-      }
-    }
+    const rows = pickCurrentPerAccount(filteredSubscriptions);
 
     if (sortConfig.key && sortConfig.direction) {
       return [...rows].sort((a, b) => {
@@ -649,21 +715,18 @@ function SubscriptionsList() {
     }
   }
 
-  async function handleBackfill() {
+  async function handleSyncStripe() {
     try {
-      setIsBackfilling(true);
-      const res = await AppApi.backfillSubscriptions();
-      const created = res?.created ?? 0;
-      if (created > 0) {
-        const subscriptions = await AppApi.getAllSubscriptions();
-        dispatch({type: "SET_SUBSCRIPTIONS", payload: subscriptions || []});
-      }
+      setIsSyncing(true);
+      const res = await AppApi.syncStripeSubscriptions();
+      const subscriptions = await AppApi.getAllSubscriptions();
+      dispatch({type: "SET_SUBSCRIPTIONS", payload: subscriptions || []});
       dispatch({
         type: "SET_BANNER",
         payload: {
           open: true,
           type: "success",
-          message: res?.message ?? t("subscriptions.backfillSuccess", { count: created }),
+          message: res?.message ?? t("subscriptions.syncSuccess"),
         },
       });
     } catch (err) {
@@ -672,37 +735,101 @@ function SubscriptionsList() {
         payload: {
           open: true,
           type: "error",
-          message: `${t("subscriptions.backfillError")}: ${err.message || err}`,
+          message: `${t("subscriptions.syncError")}: ${err.message || err}`,
         },
       });
     } finally {
-      setIsBackfilling(false);
+      setIsSyncing(false);
     }
   }
 
-  // Status badge renderer
-  function renderStatusBadge(value) {
-    const statusColors = {
-      active:
+  async function handleOpenRepair() {
+    setRepairModalOpen(true);
+    setRepairPreview(null);
+    setRepairLoading(true);
+    try {
+      const preview = await AppApi.repairSubscriptionsData({dryRun: true});
+      setRepairPreview(preview);
+    } catch (err) {
+      setRepairModalOpen(false);
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: `${t("subscriptions.repairError")}: ${err.message || err}`,
+        },
+      });
+    } finally {
+      setRepairLoading(false);
+    }
+  }
+
+  async function handleApplyRepair() {
+    try {
+      setRepairApplying(true);
+      const res = await AppApi.repairSubscriptionsData({dryRun: false});
+      setRepairModalOpen(false);
+      const subscriptions = await AppApi.getAllSubscriptions();
+      dispatch({type: "SET_SUBSCRIPTIONS", payload: subscriptions || []});
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message: res?.message ?? t("subscriptions.repairSuccess"),
+        },
+      });
+    } catch (err) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: `${t("subscriptions.repairError")}: ${err.message || err}`,
+        },
+      });
+    } finally {
+      setRepairApplying(false);
+    }
+  }
+
+  // Billing state badge renderer (honest states: paid vs trial vs internal)
+  function renderBillingStateBadge(item) {
+    const stateColors = {
+      paid_active:
         "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-      inactive:
-        "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
-      cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-      expired:
+      trialing:
+        "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+      past_due:
+        "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+      comped:
         "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-      trial: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+      free: "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
+      incomplete:
+        "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+      canceled:
+        "bg-gray-100 text-gray-500 dark:bg-gray-700/50 dark:text-gray-400",
     };
 
     const colorClasses =
-      statusColors[(value || "").toLowerCase()] ||
+      stateColors[item.billingState] ||
       "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300";
 
     return (
-      <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${colorClasses}`}
-      >
-        {value || "—"}
-      </span>
+      <div className="flex flex-col items-start gap-0.5">
+        <span
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClasses}`}
+        >
+          {billingStateLabel(item.billingState, t)}
+        </span>
+        {item.cancelAtPeriodEnd &&
+          ["paid_active", "trialing"].includes(item.billingState) && (
+            <span className="text-[11px] text-amber-600 dark:text-amber-400">
+              {t("subscriptions.cancelsAtPeriodEnd")}
+            </span>
+          )}
+      </div>
     );
   }
 
@@ -745,19 +872,20 @@ function SubscriptionsList() {
     },
     {
       key: "userName",
-      label: t("subscriptions.adminUser"),
+      label: t("subscriptions.owner"),
       sortable: true,
-      render: (value) => (
-        <span className="font-medium text-gray-800 dark:text-gray-100">
-          {value || "—"}
-        </span>
+      render: (value, item) => (
+        <div className="min-w-0">
+          <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
+            {value || "—"}
+          </div>
+          {item.userEmail && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              {item.userEmail}
+            </div>
+          )}
+        </div>
       ),
-    },
-    {
-      key: "userEmail",
-      label: t("email"),
-      sortable: true,
-      render: (value) => value || "—",
     },
     {
       key: "userType",
@@ -769,23 +897,65 @@ function SubscriptionsList() {
     },
     {
       key: "subscriptionProductName",
-      label: t("subscriptions.subscription"),
+      label: t("subscriptions.plan"),
       sortable: true,
       render: (value) => renderSubscriptionTypeBadge(value),
     },
     {
-      key: "billingInterval",
-      label: t("subscriptions.billingInterval"),
+      key: "subscriptionProductPrice",
+      label: t("subscriptions.amount"),
       sortable: true,
-      render: (value) => (
-        <span className="capitalize">
-          {value === "year"
-            ? t("subscriptionProducts.yearly")
-            : value === "month"
-              ? t("subscriptionProducts.monthly")
-              : value || "—"}
-        </span>
-      ),
+      render: (value, item) => {
+        const price = Number(value) || 0;
+        if (price <= 0) {
+          return (
+            <span className="text-gray-500 dark:text-gray-400">
+              {t("subscriptions.statusFree")}
+            </span>
+          );
+        }
+        return (
+          <span className="font-medium text-gray-800 dark:text-gray-100">
+            {formatAmount(price)}
+            <span className="font-normal text-gray-500 dark:text-gray-400">
+              /{item.billingInterval === "year" ? t("subscriptions.perYear") : t("subscriptions.perMonth")}
+            </span>
+          </span>
+        );
+      },
+    },
+    {
+      key: "source",
+      label: t("subscriptions.source"),
+      sortable: true,
+      render: (value, item) =>
+        value === "stripe" ? (
+          <a
+            href={`https://dashboard.stripe.com/subscriptions/${item.stripeSubscriptionId}`}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title={t("subscriptions.sourceStripeHint")}
+            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
+          >
+            {t("subscriptions.sourceStripe")}
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+              />
+            </svg>
+          </a>
+        ) : (
+          <span
+            title={t("subscriptions.sourceInternalHint")}
+            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700/50 dark:text-gray-400"
+          >
+            {t("subscriptions.sourceInternal")}
+          </span>
+        ),
     },
     {
       key: "currentPeriodStart",
@@ -814,10 +984,10 @@ function SubscriptionsList() {
           : "—",
     },
     {
-      key: "subscriptionStatus",
+      key: "billingState",
       label: t("subscriptions.status"),
       sortable: true,
-      render: (value) => renderStatusBadge(value),
+      render: (value, item) => renderBillingStateBadge(item),
     },
   ];
 
@@ -937,6 +1107,118 @@ function SubscriptionsList() {
           </ModalBlank>
         </div>
 
+        {/* Repair data modal (dry-run preview, then apply) */}
+        <div className="m-1.5">
+          <ModalBlank
+            id="repair-modal"
+            modalOpen={repairModalOpen}
+            setModalOpen={setRepairModalOpen}
+            contentClassName="max-w-2xl"
+          >
+            <div className="p-5">
+              <div className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">
+                {t("subscriptions.repairPreviewTitle")}
+              </div>
+
+              {repairLoading || !repairPreview ? (
+                <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {t("subscriptions.repairPreviewLoading")}
+                </div>
+              ) : (
+                <div className="space-y-5 text-sm max-h-[60vh] overflow-y-auto">
+                  {(repairPreview.ownershipFixes || []).length === 0 &&
+                  (repairPreview.placeholderCancellations || []).length === 0 ? (
+                    <p className="text-gray-600 dark:text-gray-300">
+                      {t("subscriptions.repairNoChanges")}
+                    </p>
+                  ) : (
+                    <>
+                      {(repairPreview.ownershipFixes || []).length > 0 && (
+                        <div>
+                          <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
+                            {t("subscriptions.repairOwnershipTitle")} (
+                            {repairPreview.ownershipFixes.length})
+                          </div>
+                          <p className="text-gray-500 dark:text-gray-400 mb-2">
+                            {t("subscriptions.repairOwnershipDescription")}
+                          </p>
+                          <ul className="space-y-1">
+                            {repairPreview.ownershipFixes.map((fix) => (
+                              <li
+                                key={fix.accountId}
+                                className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-gray-700 dark:text-gray-300"
+                              >
+                                <span className="font-medium">{fix.accountName}</span>
+                                {": "}
+                                {fix.currentOwnerName} ({fix.currentOwnerEmail}) {"→"}{" "}
+                                <span className="font-medium">
+                                  {fix.newOwnerName} ({fix.newOwnerEmail})
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {(repairPreview.placeholderCancellations || []).length > 0 && (
+                        <div>
+                          <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
+                            {t("subscriptions.repairPlaceholderTitle")} (
+                            {repairPreview.placeholderCancellations.length})
+                          </div>
+                          <p className="text-gray-500 dark:text-gray-400 mb-2">
+                            {t("subscriptions.repairPlaceholderDescription")}
+                          </p>
+                          <ul className="space-y-1">
+                            {repairPreview.placeholderCancellations.map((row) => (
+                              <li
+                                key={row.subscriptionId}
+                                className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-gray-700 dark:text-gray-300"
+                              >
+                                <span className="font-medium">{row.accountName}</span>
+                                {" — "}
+                                {row.planName} ({formatAmount(Number(row.planPrice))})
+                                {row.ownerEmail ? `, ${row.ownerName} (${row.ownerEmail})` : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {t("subscriptions.repairStripeSyncNote")}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-wrap justify-end gap-2 mt-5">
+                <button
+                  className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+                  onClick={() => setRepairModalOpen(false)}
+                  disabled={repairApplying}
+                >
+                  {t("cancel")}
+                </button>
+                {repairPreview &&
+                  ((repairPreview.ownershipFixes || []).length > 0 ||
+                    (repairPreview.placeholderCancellations || []).length > 0) && (
+                    <button
+                      className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
+                      onClick={handleApplyRepair}
+                      disabled={repairApplying}
+                    >
+                      {repairApplying
+                        ? t("subscriptions.repairing")
+                        : t("subscriptions.repairApply")}
+                    </button>
+                  )}
+              </div>
+            </div>
+          </ModalBlank>
+        </div>
+
         <main className="grow">
           <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             {/* Page header */}
@@ -955,15 +1237,27 @@ function SubscriptionsList() {
                   onDelete={handleDeleteClick}
                 />
 
-                {/* Backfill button (Super Admin only) - create default subscriptions for accounts without one */}
+                {/* Repair data (Super Admin only) - dry-run preview of ownership/placeholder fixes */}
                 {isSuperAdmin && (
                   <button
                     type="button"
                     className="btn border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-                    onClick={handleBackfill}
-                    disabled={isBackfilling}
+                    onClick={handleOpenRepair}
+                    disabled={repairLoading || repairApplying}
                   >
-                    {isBackfilling ? t("subscriptions.backfilling") : t("subscriptions.backfill")}
+                    {t("subscriptions.repair")}
+                  </button>
+                )}
+
+                {/* Sync with Stripe (Super Admin only) - reconcile local subscription state from Stripe */}
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    className="btn border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+                    onClick={handleSyncStripe}
+                    disabled={isSyncing}
+                  >
+                    {isSyncing ? t("subscriptions.syncing") : t("subscriptions.syncStripe")}
                   </button>
                 )}
 
@@ -986,6 +1280,49 @@ function SubscriptionsList() {
                 </button>
               </div>
             </div>
+
+            {/* Billing summary cards */}
+            {!state.isLoading && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    {t("subscriptions.summaryPaying")}
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                      {billingSummary.paying}
+                    </span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                      {t("subscriptions.summaryMrr")} {formatAmount(billingSummary.mrr)}
+                    </span>
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    {t("subscriptions.summaryTrialing")}
+                  </div>
+                  <div className="mt-1 text-2xl font-bold text-gray-800 dark:text-gray-100">
+                    {billingSummary.trialing}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    {t("subscriptions.summaryFreeInternal")}
+                  </div>
+                  <div className="mt-1 text-2xl font-bold text-gray-800 dark:text-gray-100">
+                    {billingSummary.freeInternal}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    {t("subscriptions.summaryAttention")}
+                  </div>
+                  <div className={`mt-1 text-2xl font-bold ${billingSummary.attention > 0 ? "text-red-600 dark:text-red-400" : "text-gray-800 dark:text-gray-100"}`}>
+                    {billingSummary.attention}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Search bar + Filters */}
             <div className="mb-6 space-y-3">

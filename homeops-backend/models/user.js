@@ -536,6 +536,9 @@ class User {
                latest_sub.code AS "latestSubscriptionPlanCode",
                latest_sub.account_id AS "latestSubscriptionAccountId",
                latest_sub.updated_at AS "latestSubscriptionUpdatedAt",
+               (latest_sub.stripe_subscription_id IS NOT NULL) AS "latestSubscriptionIsStripe",
+               latest_sub.current_period_end AS "latestSubscriptionPeriodEnd",
+               latest_sub.plan_price AS "latestSubscriptionPlanPrice",
                CASE
                  WHEN u.onboarding_completed = false THEN false
                  WHEN u.role = 'agent'
@@ -564,13 +567,16 @@ class User {
                END AS "accessState"
         FROM users u
         LEFT JOIN LATERAL (
-          SELECT asub.status, sp.code, asub.account_id, asub.updated_at
+          SELECT asub.status, sp.code, asub.account_id, asub.updated_at,
+                 asub.stripe_subscription_id, asub.current_period_end,
+                 COALESCE(sp.price, 0) AS plan_price
           FROM account_users au
           JOIN account_subscriptions asub ON asub.account_id = au.account_id
           LEFT JOIN subscription_products sp ON sp.id = asub.subscription_product_id
           WHERE au.user_id = u.id
           ORDER BY
             CASE WHEN asub.status IN ('active', 'trialing') THEN 0 ELSE 1 END,
+            CASE WHEN asub.stripe_subscription_id IS NOT NULL THEN 0 ELSE 1 END,
             asub.updated_at DESC NULLS LAST,
             asub.id DESC
           LIMIT 1

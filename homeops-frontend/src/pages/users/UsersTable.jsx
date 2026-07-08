@@ -158,42 +158,71 @@ function UsersTable({
     },
     {
       key: "billingState",
-      label: "Billing",
+      label: t("users.billing", {defaultValue: "Billing"}),
       sortable: false,
       render: (value, item) => {
-        const state = item.accessState;
-        const latestStatus = item.latestSubscriptionStatus;
-        const paidRequired = item.paidRequired;
-
-        if (!paidRequired) {
-          return (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 dark:bg-gray-700/60 text-gray-700 dark:text-gray-300">
-              Not required
-            </span>
-          );
-        }
-
-        if (state === "payment_pending") {
-          return (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">
-              Payment pending
-            </span>
-          );
-        }
-
-        if (latestStatus === "active" || latestStatus === "trialing") {
-          return (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]">
-              {latestStatus}
-            </span>
-          );
-        }
-
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400">
-            {latestStatus || "Unknown"}
+        const badge = (classes, label) => (
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${classes}`}
+          >
+            {label}
           </span>
         );
+        const gray = "bg-gray-100 dark:bg-gray-700/60 text-gray-700 dark:text-gray-300";
+        const green = "bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]";
+        const blue = "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
+        const amber = "bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400";
+        const red = "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400";
+
+        const role = (item.role || "").toLowerCase();
+        if (role === "super_admin" || role === "admin" || role === "superadmin") {
+          return badge(gray, t("users.billingExemptStaff", {defaultValue: "Exempt (staff)"}));
+        }
+
+        /* Account-scoped listings don't include billing fields; avoid guessing. */
+        if (item.paidRequired === undefined) {
+          return <span className="text-gray-400 dark:text-gray-500">—</span>;
+        }
+
+        if (item.onboardingCompleted === false) {
+          return badge(
+            gray,
+            t("users.billingOnboardingIncomplete", {defaultValue: "Onboarding incomplete"}),
+          );
+        }
+
+        const latestStatus = item.latestSubscriptionStatus;
+        const isStripe = item.latestSubscriptionIsStripe === true;
+        const hasCurrentSub = latestStatus === "active" || latestStatus === "trialing";
+
+        if (item.paidRequired) {
+          if (hasCurrentSub && isStripe && latestStatus === "trialing") {
+            const ends = item.latestSubscriptionPeriodEnd
+              ? new Date(item.latestSubscriptionPeriodEnd).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })
+              : null;
+            return badge(
+              blue,
+              ends
+                ? t("users.billingTrialEnds", {date: ends, defaultValue: "Trial ends {{date}}"})
+                : t("users.billingTrialing", {defaultValue: "Trialing"}),
+            );
+          }
+          if (hasCurrentSub && isStripe) {
+            return badge(green, t("users.billingActivePaid", {defaultValue: "Active (paid)"}));
+          }
+          if (hasCurrentSub && !isStripe) {
+            return badge(amber, t("users.billingComped", {defaultValue: "No payment on file"}));
+          }
+          if (latestStatus === "past_due") {
+            return badge(red, t("users.billingPastDue", {defaultValue: "Past due"}));
+          }
+          return badge(red, t("users.billingAwaitingPayment", {defaultValue: "Awaiting payment"}));
+        }
+
+        return badge(gray, t("users.billingFreePlan", {defaultValue: "Free plan"}));
       },
     },
     {

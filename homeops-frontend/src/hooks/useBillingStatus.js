@@ -17,6 +17,7 @@ export default function useBillingStatus() {
     limits: null,
     usage: null,
     sponsorship: null,
+    subscription: null,
     loading: true,
     error: null,
   });
@@ -26,7 +27,7 @@ export default function useBillingStatus() {
 
   const refresh = useCallback(async () => {
     if (isAdmin) {
-      setState({plan: null, limits: null, usage: null, sponsorship: null, loading: false, error: null});
+      setState({plan: null, limits: null, usage: null, sponsorship: null, subscription: null, loading: false, error: null});
       return;
     }
     try {
@@ -37,6 +38,7 @@ export default function useBillingStatus() {
         limits: res.limits || null,
         usage: res.usage || null,
         sponsorship: res.sponsorship || null,
+        subscription: res.subscription || null,
         loading: false,
         error: null,
       });

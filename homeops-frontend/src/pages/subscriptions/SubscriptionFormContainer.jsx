@@ -216,20 +216,18 @@ function SubscriptionFormContainer() {
     }),
   );
 
-  // Status options
+  // Status options (aligned with Stripe subscription statuses stored in the DB)
   const statusOptions = [
     {value: "active", label: t("subscriptions.statusActive")},
-    {value: "inactive", label: t("subscriptions.statusInactive")},
-    {value: "trial", label: t("subscriptions.statusTrial")},
-    {value: "cancelled", label: t("subscriptions.statusCancelled")},
-    {value: "expired", label: t("subscriptions.statusExpired")},
+    {value: "trialing", label: t("subscriptions.statusTrialing")},
+    {value: "past_due", label: t("subscriptions.statusPastDue")},
+    {value: "canceled", label: t("subscriptions.statusCanceled")},
   ];
 
-  // Admin users (filter to admin/super_admin roles for the user dropdown)
+  // Customer users (agents/homeowners). Platform staff never carry subscriptions.
   const adminUsers = useMemo(() => {
     return state.users.filter(
-      (u) =>
-        u.role === "admin" || u.role === "super_admin" || u.role === "agent",
+      (u) => u.role === "agent" || u.role === "homeowner",
     );
   }, [state.users]);
 
@@ -283,14 +281,14 @@ function SubscriptionFormContainer() {
     dispatch({type: "SET_SUBMITTING", payload: true});
 
     try {
+      /* Backend resolves userId -> the user's primary account. Field names must
+         match the subscriptionNew schema (status/currentPeriodStart/currentPeriodEnd). */
       const data = {
         userId: Number(state.formData.userId),
-        subscriptionProductId: state.formData.subscriptionProductId
-          ? Number(state.formData.subscriptionProductId)
-          : null,
-        subscriptionStatus: state.formData.subscriptionStatus,
-        subscriptionStartDate: state.formData.subscriptionStartDate,
-        subscriptionEndDate: state.formData.subscriptionEndDate,
+        subscriptionProductId: Number(state.formData.subscriptionProductId),
+        status: state.formData.subscriptionStatus,
+        currentPeriodStart: state.formData.subscriptionStartDate,
+        currentPeriodEnd: state.formData.subscriptionEndDate,
       };
 
       const res = await AppApi.createSubscription(data);
@@ -562,10 +560,16 @@ function SubscriptionFormContainer() {
                   "bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]",
                 inactive:
                   "bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400",
+                trialing:
+                  "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
                 trial:
                   "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+                canceled:
+                  "bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437]",
                 cancelled:
                   "bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437]",
+                past_due:
+                  "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
                 expired:
                   "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
               };
@@ -736,14 +740,17 @@ function SubscriptionFormContainer() {
                   <>
                     {/* Create mode: full form */}
                     <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-6 flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2">
                         <CreditCard className="h-5 w-5 text-[#6E8276]" />
                         {t("subscriptions.subscriptionDetails")}
                       </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                        {t("subscriptions.manualCreateNote")}
+                      </p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                           <label className={getLabelClasses()} htmlFor="userId">
-                            {t("subscriptions.adminUser")}{" "}
+                            {t("subscriptions.owner")}{" "}
                             <span className="text-red-500">*</span>
                           </label>
                           <select

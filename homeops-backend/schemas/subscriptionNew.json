@@ -3,11 +3,16 @@
   "type": "object",
   "properties": {
     "accountId": { "type": "integer" },
+    "userId": { "type": "integer" },
     "subscriptionProductId": { "type": "integer" },
     "status": { "type": "string" },
     "currentPeriodStart": { "type": "string" },
     "currentPeriodEnd": { "type": "string" }
   },
-  "required": ["accountId", "subscriptionProductId"],
+  "required": ["subscriptionProductId"],
+  "anyOf": [
+    { "required": ["accountId"] },
+    { "required": ["userId"] }
+  ],
   "additionalProperties": false
 }

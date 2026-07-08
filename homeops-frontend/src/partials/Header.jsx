@@ -26,7 +26,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const navigate = useNavigate();
   const {currentUser, impersonation, stopImpersonation} = useAuth();
   const {currentAccount} = useCurrentAccount();
-  const {plan, limits, loading: billingLoading, isAdmin} = useBillingStatus();
+  const {plan, limits, subscription, loading: billingLoading, isAdmin} = useBillingStatus();
   const aiDemoGate = useDemoFeatureGate("ai");
 
   const accountUrl = currentAccount?.url || "";
@@ -41,6 +41,37 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
     isAdmin || !limits || limits.aiFeaturesEnabled !== false;
 
   const isImpersonating = !!impersonation?.active;
+
+  /* Mirror ProtectedRoute's paid-subscription rule so the impersonation banner can
+     explain why the impersonated user lands on onboarding or the upgrade page. */
+  const impersonatedRequiresPaid =
+    isImpersonating &&
+    !!currentUser &&
+    currentUser.onboardingCompleted !== false &&
+    !["super_admin", "admin"].includes(currentUser.role) &&
+    ((currentUser.role === "agent" &&
+      (!currentUser.subscriptionTier ||
+        currentUser.subscriptionTier !== "agent_beta")) ||
+      (currentUser.role === "homeowner" &&
+        currentUser.subscriptionTier &&
+        !["free", "homeowner_beta", "beta_homeowner"].includes(
+          currentUser.subscriptionTier,
+        )));
+
+  let impersonationStatusNote = null;
+  if (isImpersonating) {
+    if (currentUser?.onboardingCompleted === false) {
+      impersonationStatusNote =
+        "This user hasn't completed onboarding — you're seeing their plan-selection flow.";
+    } else if (
+      impersonatedRequiresPaid &&
+      !billingLoading &&
+      !["active", "trialing"].includes(subscription?.status || "")
+    ) {
+      impersonationStatusNote =
+        "This user requires a paid subscription but has no active payment — they're gated to the upgrade page.";
+    }
+  }
 
   const handleStopImpersonating = async () => {
     if (stoppingImpersonation) return;
@@ -94,13 +125,20 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
       {isImpersonating && (
         <div className="bg-amber-500 dark:bg-amber-600 text-white px-3 sm:px-4 lg:px-5 xxl:px-12">
           <div className="flex flex-wrap items-center justify-between gap-2 py-2 min-h-[2.5rem]">
-            <p className="text-sm font-medium">
-              Viewing as{" "}
-              <span className="font-semibold">{currentUser?.name || "User"}</span>
-              {currentUser?.email ? (
-                <span className="font-normal opacity-90"> ({currentUser.email})</span>
-              ) : null}
-            </p>
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                Viewing as{" "}
+                <span className="font-semibold">{currentUser?.name || "User"}</span>
+                {currentUser?.email ? (
+                  <span className="font-normal opacity-90"> ({currentUser.email})</span>
+                ) : null}
+              </p>
+              {impersonationStatusNote && (
+                <p className="text-xs font-normal opacity-90 mt-0.5">
+                  {impersonationStatusNote}
+                </p>
+              )}
+            </div>
             <button
               type="button"
               onClick={handleStopImpersonating}

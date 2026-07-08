@@ -782,6 +782,27 @@ router.post("/sync", ensureLoggedIn, ensureSuperAdmin, async function (req, res,
   }
 });
 
+/** POST /billing/admin/sync-stripe - Sync ALL Stripe subscriptions into the local DB (Super Admin).
+ *  Iterates every subscription in Stripe (paginated) and reconciles each into account_subscriptions,
+ *  so local statuses (active/trialing/past_due/canceled) always match Stripe. */
+router.post("/admin/sync-stripe", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
+  try {
+    if (BILLING_MOCK_MODE || !stripeService.stripe) {
+      return res.json({ message: "Stripe not configured or mock mode enabled", synced: 0 });
+    }
+
+    const { synced, failed } = await stripeService.syncAllStripeSubscriptions();
+
+    return res.json({
+      message: `Synced ${synced} subscription(s) from Stripe${failed ? `, ${failed} failed` : ""}.`,
+      synced,
+      failed,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** POST /billing/admin/reconcile-user/:userId - Force reconcile subscription state for a user's primary account (Super Admin). */
 router.post("/admin/reconcile-user/:userId", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
   try {

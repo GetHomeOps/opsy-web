@@ -64,6 +64,8 @@ class Subscription {
               END AS "productPrice",
               sp.target_role AS "targetRole",
               s.stripe_subscription_id AS "stripeSubscriptionId",
+              s.stripe_customer_id AS "stripeCustomerId",
+              s.cancel_at_period_end AS "cancelAtPeriodEnd",
               s.status,
               s.current_period_start AS "currentPeriodStart",
               s.current_period_end AS "currentPeriodEnd",
@@ -80,6 +82,8 @@ class Subscription {
     );
     const subscription = result.rows[0];
     if (!subscription) throw new NotFoundError(`No subscription with id: ${id}`);
+    subscription.source = subscription.stripeSubscriptionId ? "stripe" : "internal";
+    subscription.billingState = Subscription.deriveBillingState(subscription);
     return subscription;
   }
 
@@ -119,6 +123,9 @@ class Subscription {
                 )
               END AS "productPrice",
               sp.target_role AS "targetRole",
+              s.stripe_subscription_id AS "stripeSubscriptionId",
+              s.stripe_customer_id AS "stripeCustomerId",
+              s.cancel_at_period_end AS "cancelAtPeriodEnd",
               s.status,
               s.current_period_start AS "currentPeriodStart",
               s.current_period_end AS "currentPeriodEnd",
@@ -134,7 +141,33 @@ class Subscription {
        ORDER BY s.created_at DESC`,
       values
     );
-    return result.rows;
+    return result.rows.map((row) => ({
+      ...row,
+      source: row.stripeSubscriptionId ? "stripe" : "internal",
+      billingState: Subscription.deriveBillingState(row),
+    }));
+  }
+
+  /** Derive an honest billing state from a subscription row.
+   *
+   * - paid_active / trialing / past_due only apply to Stripe-backed rows
+   * - internal rows on a $0 plan are "free"
+   * - internal rows on a paid plan are "comped" (access granted without payment)
+   */
+  static deriveBillingState(row) {
+    const status = (row.status || "").toLowerCase();
+    const isStripe = Boolean(row.stripeSubscriptionId);
+    const price = Number(row.productPrice) || 0;
+
+    if (status === "canceled" || status === "cancelled") return "canceled";
+    if (status === "past_due" || status === "unpaid") return "past_due";
+    if (status === "incomplete" || status === "incomplete_expired") return "incomplete";
+    if (!["active", "trialing", "trial"].includes(status)) return status || "unknown";
+
+    if (isStripe) {
+      return status === "active" ? "paid_active" : "trialing";
+    }
+    return price > 0 ? "comped" : "free";
   }
 
   static async getByAccountId(accountId) {
@@ -178,7 +211,13 @@ class Subscription {
     return { deleted: id };
   }
 
-  /** Ensure account has at least one active subscription. Creates free tier if none exists.
+  /** Ensure account has at least one active subscription. Creates a free tier if none exists.
+   *
+   * Strict billing: this never provisions a paid plan. Agents get no default
+   * subscription (they must complete Stripe checkout); only explicit zero-cost
+   * promotional codes (e.g. "agent_beta") may be assigned without payment.
+   * Returns the subscription id, or null when nothing was (or should be) created.
+   *
    * @param {{ planCode?: string }} [options] — e.g. { planCode: "homeowner_beta" | "agent_beta" } for promotional tiers */
   static async ensureDefaultForAccount(accountId, userRole = "homeowner", options = {}) {
     const existing = await db.query(
@@ -188,16 +227,36 @@ class Subscription {
     if (existing.rows.length > 0) return existing.rows[0].id;
 
     const planCode =
-      options.planCode ||
-      (userRole === "agent" ? "agent_basic" : "homeowner_free");
+      options.planCode || (userRole === "agent" ? null : "homeowner_free");
+    if (!planCode) return null;
+
     const productRes = await db.query(
-      `SELECT id FROM subscription_products WHERE (code = $1 OR (code IS NULL AND LOWER(name) = 'free')) AND (is_active IS NULL OR is_active = true) LIMIT 1`,
+      `SELECT sp.id,
+              COALESCE(
+                (SELECT ppm.unit_amount FROM plan_prices ppm
+                 WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
+                   AND (ppm.is_active IS NULL OR ppm.is_active = true)
+                 LIMIT 1),
+                (COALESCE(sp.price, 0) * 100)::int
+              ) AS "unitAmount"
+       FROM subscription_products sp
+       WHERE (sp.code = $1 OR (sp.code IS NULL AND LOWER(sp.name) = 'free'))
+         AND (sp.is_active IS NULL OR sp.is_active = true)
+       LIMIT 1`,
       [planCode]
     );
     let productId = productRes.rows[0]?.id;
+    if (productId && Number(productRes.rows[0].unitAmount) > 0) {
+      console.warn(
+        `[subscriptions] Refusing to auto-provision paid plan "${planCode}" for account ${accountId} without payment.`
+      );
+      return null;
+    }
     if (!productId) {
       const fallback = await db.query(
-        `SELECT id FROM subscription_products WHERE (is_active IS NULL OR is_active = true) ORDER BY price ASC LIMIT 1`
+        `SELECT id FROM subscription_products
+         WHERE COALESCE(price, 0) = 0 AND (is_active IS NULL OR is_active = true)
+         ORDER BY sort_order ASC NULLS LAST, price ASC LIMIT 1`
       );
       productId = fallback.rows[0]?.id;
     }
@@ -294,25 +353,24 @@ class Subscription {
     return result.rows[0]?.id || null;
   }
 
-  /** Backfill: create default subscription for every account that has none. Returns count created.
+  /** Backfill: create a free default subscription for every account that has none. Returns count created.
    * Skips accounts whose owner has not completed onboarding (industry practice: subscriptions only after onboarding).
-   * Skips super_admin and admin accounts (internal platform accounts). */
+   * Skips super_admin and admin accounts (internal platform accounts).
+   * Skips agents entirely — agents must pay through Stripe and are never comped a plan. */
   static async backfillMissingSubscriptions() {
     const accountsWithoutSub = await db.query(
-      `SELECT a.id, a.owner_user_id
+      `SELECT a.id, u.role AS "ownerRole"
        FROM accounts a
        JOIN users u ON u.id = a.owner_user_id
        WHERE u.onboarding_completed = true
-         AND u.role NOT IN ('super_admin', 'admin')
+         AND u.role NOT IN ('super_admin', 'admin', 'agent')
          AND NOT EXISTS (
            SELECT 1 FROM account_subscriptions s WHERE s.account_id = a.id
          )`
     );
     let created = 0;
     for (const row of accountsWithoutSub.rows) {
-      const userRes = await db.query(`SELECT role FROM users WHERE id = $1`, [row.owner_user_id]);
-      const userRole = userRes.rows[0]?.role || "homeowner";
-      const id = await this.ensureDefaultForAccount(row.id, userRole);
+      const id = await this.ensureDefaultForAccount(row.id, row.ownerRole || "homeowner");
       if (id) created++;
     }
     return created;
