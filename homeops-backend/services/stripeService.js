@@ -845,10 +845,21 @@ async function ensureFreePlanFallback(accountId, pendingPlanCode) {
   }
 
   if (!freePlanId) {
+    /* A $0 catalog price can hide a real paid Stripe price (e.g. trial
+       products); only treat a product as free when its active monthly
+       plan_prices amount is also zero. */
     const fallbackRes = await db.query(
-      `SELECT id FROM subscription_products
-       WHERE (code LIKE '%_free' OR price::float = 0) AND (is_active IS NULL OR is_active = true)
-       ORDER BY sort_order ASC NULLS LAST LIMIT 1`
+      `SELECT sp.id FROM subscription_products sp
+       WHERE (sp.code LIKE '%_free' OR sp.price::float = 0)
+         AND (sp.is_active IS NULL OR sp.is_active = true)
+         AND COALESCE(
+           (SELECT ppm.unit_amount FROM plan_prices ppm
+            WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
+              AND (ppm.is_active IS NULL OR ppm.is_active = true)
+            LIMIT 1),
+           0
+         ) = 0
+       ORDER BY sp.sort_order ASC NULLS LAST LIMIT 1`
     );
     freePlanId = fallbackRes.rows[0]?.id;
   }

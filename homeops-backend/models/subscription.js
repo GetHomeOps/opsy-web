@@ -111,6 +111,7 @@ class Subscription {
                 )
               END AS "productPrice",
               sp.target_role AS "targetRole",
+              sp.trial_days AS "trialDays",
               s.stripe_subscription_id AS "stripeSubscriptionId",
               s.stripe_customer_id AS "stripeCustomerId",
               s.cancel_at_period_end AS "cancelAtPeriodEnd",
@@ -130,9 +131,7 @@ class Subscription {
     );
     const subscription = result.rows[0];
     if (!subscription) throw new NotFoundError(`No subscription with id: ${id}`);
-    subscription.source = subscription.stripeSubscriptionId ? "stripe" : "internal";
-    subscription.billingState = Subscription.deriveBillingState(subscription);
-    return subscription;
+    return Subscription.enrichSubscriptionRow(subscription);
   }
 
   static async getAll({ status, accountId } = {}) {
@@ -169,6 +168,7 @@ class Subscription {
                 )
               END AS "productPrice",
               sp.target_role AS "targetRole",
+              sp.trial_days AS "trialDays",
               s.stripe_subscription_id AS "stripeSubscriptionId",
               s.stripe_customer_id AS "stripeCustomerId",
               s.cancel_at_period_end AS "cancelAtPeriodEnd",
@@ -187,11 +187,7 @@ class Subscription {
        ORDER BY s.created_at DESC`,
       values
     );
-    return result.rows.map((row) => ({
-      ...row,
-      source: row.stripeSubscriptionId ? "stripe" : "internal",
-      billingState: Subscription.deriveBillingState(row),
-    }));
+    return result.rows.map((row) => Subscription.enrichSubscriptionRow(row));
   }
 
   /** Derive an honest billing state from a subscription row.
@@ -223,10 +219,46 @@ class Subscription {
 
     if (!["active", "trialing", "trial"].includes(status)) return status || "unknown";
 
+    const trialDays = Number(row.trialDays) || 0;
+    const onInternalTrial =
+      !isStripe && trialDays > 0 && ["active", "trialing", "trial"].includes(status);
+
     if (isStripe) {
       return status === "active" ? "paid_active" : "trialing";
     }
+    if (onInternalTrial || status === "trialing" || status === "trial") {
+      return "trialing";
+    }
     return price > 0 ? "comped" : "free";
+  }
+
+  /** Days left in trial (null when not trialing). Uses period end, or start + plan trial_days. */
+  static computeTrialDaysRemaining(row, billingState) {
+    if (billingState !== "trialing") return null;
+
+    let trialEnd = null;
+    if (row.currentPeriodEnd) {
+      trialEnd = new Date(row.currentPeriodEnd);
+    } else if (row.currentPeriodStart && row.trialDays) {
+      trialEnd = new Date(row.currentPeriodStart);
+      trialEnd.setUTCDate(trialEnd.getUTCDate() + Number(row.trialDays));
+    }
+
+    if (!trialEnd || Number.isNaN(trialEnd.getTime())) return null;
+
+    const msLeft = trialEnd.getTime() - Date.now();
+    if (msLeft <= 0) return 0;
+    return Math.ceil(msLeft / (24 * 60 * 60 * 1000));
+  }
+
+  static enrichSubscriptionRow(row) {
+    const billingState = Subscription.deriveBillingState(row);
+    return {
+      ...row,
+      source: row.stripeSubscriptionId ? "stripe" : "internal",
+      billingState,
+      trialDaysRemaining: Subscription.computeTrialDaysRemaining(row, billingState),
+    };
   }
 
   static async getByAccountId(accountId) {
@@ -312,10 +344,23 @@ class Subscription {
       return null;
     }
     if (!productId) {
+      /* A product is only truly free when both its catalog price and its
+         active monthly Stripe price (plan_prices) are zero — a $0 catalog
+         price can hide a real paid Stripe price (e.g. trial products). */
       const fallback = await db.query(
-        `SELECT id FROM subscription_products
-         WHERE COALESCE(price, 0) = 0 AND (is_active IS NULL OR is_active = true)
-         ORDER BY sort_order ASC NULLS LAST, price ASC LIMIT 1`
+        `SELECT sp.id FROM subscription_products sp
+         WHERE COALESCE(sp.price, 0) = 0
+           AND (sp.is_active IS NULL OR sp.is_active = true)
+           AND (sp.target_role IS NULL OR sp.target_role = $1)
+           AND COALESCE(
+             (SELECT ppm.unit_amount FROM plan_prices ppm
+              WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
+                AND (ppm.is_active IS NULL OR ppm.is_active = true)
+              LIMIT 1),
+             0
+           ) = 0
+         ORDER BY sp.sort_order ASC NULLS LAST, sp.price ASC LIMIT 1`,
+        [userRole]
       );
       productId = fallback.rows[0]?.id;
     }

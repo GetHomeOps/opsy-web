@@ -108,6 +108,22 @@ function formatAmount(value) {
   return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
 }
 
+const SUMMARY_CARD_FILTERS = {
+  paying: ["paid_active"],
+  trialing: ["trialing"],
+  freeInternal: ["free", "comped"],
+  attention: ["past_due", "incomplete", "signup_incomplete", "awaiting_payment"],
+};
+
+function matchesSummaryCard(statusValues, cardStates) {
+  const sorted = [...statusValues].sort();
+  const cardSorted = [...cardStates].sort();
+  return (
+    sorted.length === cardSorted.length &&
+    sorted.every((value, index) => value === cardSorted[index])
+  );
+}
+
 const initialState = {
   currentPage: 1,
   itemsPerPage: 10,
@@ -157,6 +173,8 @@ function reducer(state, action) {
       };
     case "CLEAR_FILTERS":
       return {...state, activeFilters: [], currentPage: 1};
+    case "SET_ACTIVE_FILTERS":
+      return {...state, activeFilters: action.payload, currentPage: 1};
     case "SET_LOADING":
       return {...state, isLoading: action.payload};
     case "SET_SUBMITTING":
@@ -542,6 +560,40 @@ function SubscriptionsList() {
 
     return items;
   }, [state.subscriptions, state.searchTerm, state.activeFilters, t]);
+
+  const activeSummaryCard = useMemo(() => {
+    const statusValues = state.activeFilters
+      .filter((f) => f.type === "status")
+      .map((f) => f.value);
+    for (const [key, states] of Object.entries(SUMMARY_CARD_FILTERS)) {
+      if (matchesSummaryCard(statusValues, states)) return key;
+    }
+    return null;
+  }, [state.activeFilters]);
+
+  function handleSummaryCardClick(cardKey) {
+    const cardStates = SUMMARY_CARD_FILTERS[cardKey];
+    const statusValues = state.activeFilters
+      .filter((f) => f.type === "status")
+      .map((f) => f.value);
+    const isActive = matchesSummaryCard(statusValues, cardStates);
+    const nonStatus = state.activeFilters.filter((f) => f.type !== "status");
+
+    if (isActive) {
+      dispatch({type: "SET_ACTIVE_FILTERS", payload: nonStatus});
+      return;
+    }
+
+    const statusFilters = cardStates.map((value) => ({
+      type: "status",
+      value,
+      label: billingStateLabel(value, t),
+    }));
+    dispatch({
+      type: "SET_ACTIVE_FILTERS",
+      payload: [...nonStatus, ...statusFilters],
+    });
+  }
 
   // Billing summary across ALL accounts (unfiltered), one row per account
   const billingSummary = useMemo(() => {
@@ -994,6 +1046,36 @@ function SubscriptionsList() {
           : "—",
     },
     {
+      key: "trialDaysRemaining",
+      label: t("subscriptions.trialRemaining"),
+      sortable: true,
+      render: (value, item) => {
+        if (item.billingState !== "trialing") {
+          return <span className="text-gray-400 dark:text-gray-500">—</span>;
+        }
+        if (value == null) return <span className="text-gray-400 dark:text-gray-500">—</span>;
+        if (value === 0) {
+          return (
+            <span className="text-amber-600 dark:text-amber-400 font-medium text-sm">
+              {t("subscriptions.trialEndsToday")}
+            </span>
+          );
+        }
+        if (value === 1) {
+          return (
+            <span className="text-blue-700 dark:text-blue-300 font-medium text-sm">
+              {t("subscriptions.trialOneDayLeft")}
+            </span>
+          );
+        }
+        return (
+          <span className="text-blue-700 dark:text-blue-300 font-medium text-sm">
+            {t("subscriptions.trialDaysLeft", {count: value})}
+          </span>
+        );
+      },
+    },
+    {
       key: "billingState",
       label: t("subscriptions.status"),
       sortable: true,
@@ -1291,46 +1373,71 @@ function SubscriptionsList() {
               </div>
             </div>
 
-            {/* Billing summary cards */}
+            {/* Billing summary cards — click to filter the table by billing state */}
             {!state.isLoading && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                    {t("subscriptions.summaryPaying")}
-                  </div>
-                  <div className="mt-1 flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                      {billingSummary.paying}
-                    </span>
-                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                      {t("subscriptions.summaryMrr")} {formatAmount(billingSummary.mrr)}
-                    </span>
-                  </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                    {t("subscriptions.summaryTrialing")}
-                  </div>
-                  <div className="mt-1 text-2xl font-bold text-gray-800 dark:text-gray-100">
-                    {billingSummary.trialing}
-                  </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                    {t("subscriptions.summaryFreeInternal")}
-                  </div>
-                  <div className="mt-1 text-2xl font-bold text-gray-800 dark:text-gray-100">
-                    {billingSummary.freeInternal}
-                  </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                    {t("subscriptions.summaryAttention")}
-                  </div>
-                  <div className={`mt-1 text-2xl font-bold ${billingSummary.attention > 0 ? "text-red-600 dark:text-red-400" : "text-gray-800 dark:text-gray-100"}`}>
-                    {billingSummary.attention}
-                  </div>
-                </div>
+                {[
+                  {
+                    key: "paying",
+                    label: t("subscriptions.summaryPaying"),
+                    count: billingSummary.paying,
+                    activeRing: "ring-green-500/40 border-green-300 dark:border-green-600",
+                    children: (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                        {t("subscriptions.summaryMrr")} {formatAmount(billingSummary.mrr)}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: "trialing",
+                    label: t("subscriptions.summaryTrialing"),
+                    count: billingSummary.trialing,
+                    activeRing: "ring-blue-500/40 border-blue-300 dark:border-blue-600",
+                  },
+                  {
+                    key: "freeInternal",
+                    label: t("subscriptions.summaryFreeInternal"),
+                    count: billingSummary.freeInternal,
+                    activeRing: "ring-gray-400/50 border-gray-300 dark:border-gray-500",
+                  },
+                  {
+                    key: "attention",
+                    label: t("subscriptions.summaryAttention"),
+                    count: billingSummary.attention,
+                    activeRing: "ring-red-500/40 border-red-300 dark:border-red-600",
+                    countClass:
+                      billingSummary.attention > 0
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-gray-800 dark:text-gray-100",
+                  },
+                ].map((card) => {
+                  const isActive = activeSummaryCard === card.key;
+                  return (
+                    <button
+                      key={card.key}
+                      type="button"
+                      aria-pressed={isActive}
+                      onClick={() => handleSummaryCardClick(card.key)}
+                      className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 px-4 py-3 text-left transition-all hover:border-gray-300 dark:hover:border-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${
+                        isActive ? `ring-2 ${card.activeRing}` : ""
+                      }`}
+                    >
+                      <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                        {card.label}
+                      </div>
+                      <div className="mt-1 flex items-baseline gap-2">
+                        <span
+                          className={`text-2xl font-bold ${
+                            card.countClass || "text-gray-800 dark:text-gray-100"
+                          }`}
+                        >
+                          {card.count}
+                        </span>
+                        {card.children}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
