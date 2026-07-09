@@ -1278,6 +1278,134 @@ function getHelpdeskTicketOpsRecipients() {
   return parseRecipientList(process.env.HELPDESK_TICKET_OPS_EMAIL, "dev@heyopsy.com");
 }
 
+/** Internal ops recipients for demo account opened / expired alerts. */
+function getDemoAccountOpsRecipients() {
+  return parseRecipientList(
+    process.env.DEMO_ACCOUNT_OPS_EMAIL,
+    "kino@heyopsy.com,success@heyopsy.com,dirk.snel@heyopsy.com"
+  );
+}
+
+function formatDemoTimestamp(value) {
+  if (value == null || value === "") return "";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  });
+}
+
+function buildDemoAccountAdminUrl(user) {
+  const base = (APP_BASE_URL || "").replace(/\/$/, "");
+  if (!base || user?.id == null) return base || "";
+  const accountUrl = user.accountUrl
+    ? String(user.accountUrl).replace(/^\/+|\/+$/g, "")
+    : "home";
+  return `${base}/${accountUrl}/users/${user.id}`;
+}
+
+function buildDemoAccountMergePayload(user, { includeWasOpened = false } = {}) {
+  const userName = user?.name || "";
+  const userEmail = user?.email || "";
+  const userRole = user?.role || "";
+  const userId = user?.id != null ? String(user.id) : "";
+  const demoExpiresAt = formatDemoTimestamp(user?.demoExpiresAt);
+  const demoFirstLoginAt = formatDemoTimestamp(user?.demoFirstLoginAt);
+  const provisionedByName = user?.provisionedByName || "";
+  const adminUrl = buildDemoAccountAdminUrl(user);
+  const wasOpened = user?.demoFirstLoginAt ? "Yes" : "No";
+
+  const detailRows = [
+    ["Name", userName],
+    ["Email", userEmail],
+    ["Role", userRole],
+    ["User ID", userId],
+    ["Expires", demoExpiresAt],
+    ["First login", demoFirstLoginAt || "—"],
+    ["Provisioned by", provisionedByName],
+  ];
+  if (includeWasOpened) {
+    detailRows.splice(5, 0, ["Opened before expiry", wasOpened]);
+  }
+  const detailsHtml = detailsTableTicket(detailRows);
+
+  return {
+    brandName,
+    userName,
+    userEmail,
+    userRole,
+    userId,
+    demoExpiresAt,
+    demoFirstLoginAt,
+    provisionedByName,
+    adminUrl,
+    detailsHtml,
+    ...(includeWasOpened ? { wasOpened } : {}),
+  };
+}
+
+/**
+ * Internal ops email when a prospect first opens a ready-to-use demo account.
+ * Recipients: kino@, success@, dirk.snel@ (override via DEMO_ACCOUNT_OPS_EMAIL).
+ */
+async function sendDemoAccountOpenedEmail(user) {
+  if (!user?.id) return { success: false, reason: "no_user" };
+
+  const mergeData = buildDemoAccountMergePayload(user);
+  const subject = `Demo opened: ${mergeData.userName || mergeData.userEmail || mergeData.userId} (${mergeData.userRole || "demo"})`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+      <h2 style="color: #456564; margin: 0 0 12px;">Demo account opened</h2>
+      <p style="margin: 12px 0; line-height: 1.6;">A prospect just logged into a ready-to-use demo account for the first time.</p>
+      ${mergeData.detailsHtml}
+      ${mergeData.adminUrl ? `<p style="margin: 24px 0;"><a href="${escapeHtmlAttr(mergeData.adminUrl)}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View user</a></p>` : ""}
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  return deliverToRecipients({
+    emailType: "demo_account_opened",
+    recipients: getDemoAccountOpsRecipients(),
+    subject,
+    html,
+    mergeData,
+  });
+}
+
+/**
+ * Internal ops email when a ready-to-use demo account reaches demo_expires_at.
+ * Recipients: kino@, success@, dirk.snel@ (override via DEMO_ACCOUNT_OPS_EMAIL).
+ */
+async function sendDemoAccountExpiredEmail(user) {
+  if (!user?.id) return { success: false, reason: "no_user" };
+
+  const mergeData = buildDemoAccountMergePayload(user, { includeWasOpened: true });
+  const subject = `Demo expired: ${mergeData.userName || mergeData.userEmail || mergeData.userId} (${mergeData.userRole || "demo"})`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+      <h2 style="color: #456564; margin: 0 0 12px;">Demo account expired</h2>
+      <p style="margin: 12px 0; line-height: 1.6;">A ready-to-use demo account has reached its expiry time.</p>
+      ${mergeData.detailsHtml}
+      ${mergeData.adminUrl ? `<p style="margin: 24px 0;"><a href="${escapeHtmlAttr(mergeData.adminUrl)}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View user</a></p>` : ""}
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  return deliverToRecipients({
+    emailType: "demo_account_expired",
+    recipients: getDemoAccountOpsRecipients(),
+    subject,
+    html,
+    mergeData,
+  });
+}
+
 async function deliverToRecipients({
   emailType,
   recipients,
@@ -1615,6 +1743,9 @@ module.exports = {
   sendHelpdeskTicketCreatedOpsEmail,
   getHelpdeskInspectionReviewOpsRecipients,
   getHelpdeskTicketOpsRecipients,
+  getDemoAccountOpsRecipients,
+  sendDemoAccountOpenedEmail,
+  sendDemoAccountExpiredEmail,
   sendSponsorshipLifecycleEmail,
   buildAccountBillingUrl,
   getOpsTeamNotifyRecipients,

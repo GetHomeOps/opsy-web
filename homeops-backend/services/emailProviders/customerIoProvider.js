@@ -48,8 +48,8 @@ function getAppAuthHeader() {
   return `Bearer ${process.env.CUSTOMER_IO_APP_API_KEY}`;
 }
 
-async function customerIoFetch(url, options = {}) {
-  if (shouldSuppressOutboundEmail()) {
+async function customerIoFetch(url, options = {}, { bypassDemoSuppression = false } = {}) {
+  if (shouldSuppressOutboundEmail() && !bypassDemoSuppression) {
     console.info("[customerIoProvider] Customer.io call suppressed (demo)", {
       url: String(url || "").slice(0, 120),
     });
@@ -74,40 +74,48 @@ async function customerIoFetch(url, options = {}) {
 }
 
 /** Identify a person by email (Customer.io customer id). */
-async function identifyPerson({ email, attributes = {} }) {
+async function identifyPerson({ email, attributes = {}, bypassDemoSuppression = false }) {
   const customerId = encodeURIComponent(String(email).trim().toLowerCase());
   const url = `${getTrackBaseUrl()}/api/v1/customers/${customerId}`;
-  await customerIoFetch(url, {
-    method: "PUT",
-    headers: {
-      Authorization: getTrackAuthHeader(),
-      "Content-Type": "application/json",
+  await customerIoFetch(
+    url,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: getTrackAuthHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: String(email).trim(),
+        ...attributes,
+      }),
     },
-    body: JSON.stringify({
-      email: String(email).trim(),
-      ...attributes,
-    }),
-  });
+    { bypassDemoSuppression }
+  );
 }
 
 /** Track an event for journey/campaign triggers. */
-async function trackEvent({ email, eventName, data = {} }) {
+async function trackEvent({ email, eventName, data = {}, bypassDemoSuppression = false }) {
   const customerId = encodeURIComponent(String(email).trim().toLowerCase());
   const url = `${getTrackBaseUrl()}/api/v1/customers/${customerId}/events`;
-  await customerIoFetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: getTrackAuthHeader(),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name: eventName,
-      data: {
-        brandName: EMAIL_BRAND_NAME,
-        ...data,
+  await customerIoFetch(
+    url,
+    {
+      method: "POST",
+      headers: {
+        Authorization: getTrackAuthHeader(),
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      body: JSON.stringify({
+        name: eventName,
+        data: {
+          brandName: EMAIL_BRAND_NAME,
+          ...data,
+        },
+      }),
+    },
+    { bypassDemoSuppression }
+  );
 }
 
 /** Send a transactional message by template ID. */
@@ -117,6 +125,7 @@ async function sendTransactional({
   messageData = {},
   replyTo,
   cc,
+  bypassDemoSuppression = false,
 }) {
   const payload = {
     transactional_message_id: Number(transactionalMessageId),
@@ -137,14 +146,18 @@ async function sendTransactional({
     payload.bcc = ccList.join(",");
   }
 
-  await customerIoFetch(`${getApiBaseUrl()}/v1/send/email`, {
-    method: "POST",
-    headers: {
-      Authorization: getAppAuthHeader(),
-      "Content-Type": "application/json",
+  await customerIoFetch(
+    `${getApiBaseUrl()}/v1/send/email`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: getAppAuthHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+    { bypassDemoSuppression }
+  );
 }
 
 async function logUsageIfNeeded(usage) {
@@ -169,7 +182,15 @@ async function logUsageIfNeeded(usage) {
  * @param {string[]} [opts.cc]
  * @param {Object} [opts.usage]
  */
-async function deliverViaCustomerIo({ to, config, messageData, replyTo, cc, usage }) {
+async function deliverViaCustomerIo({
+  to,
+  config,
+  messageData,
+  replyTo,
+  cc,
+  usage,
+  bypassDemoSuppression = false,
+}) {
   if (!isCustomerIoConfigured()) {
     throw new Error(
       "Customer.io not configured. Set CUSTOMER_IO_SITE_ID, CUSTOMER_IO_TRACK_API_KEY, and CUSTOMER_IO_APP_API_KEY."
@@ -194,6 +215,7 @@ async function deliverViaCustomerIo({ to, config, messageData, replyTo, cc, usag
         : {}),
       ...(displayName ? { name: displayName } : {}),
     },
+    bypassDemoSuppression,
   });
 
   if (mode === "transactional" || mode === "both") {
@@ -206,6 +228,7 @@ async function deliverViaCustomerIo({ to, config, messageData, replyTo, cc, usag
       messageData,
       replyTo,
       cc,
+      bypassDemoSuppression,
     });
   }
 
@@ -213,7 +236,12 @@ async function deliverViaCustomerIo({ to, config, messageData, replyTo, cc, usag
     if (!eventName) {
       throw new Error("Customer.io event_name is not configured for this email type.");
     }
-    await trackEvent({ email: to, eventName, data: messageData });
+    await trackEvent({
+      email: to,
+      eventName,
+      data: messageData,
+      bypassDemoSuppression,
+    });
   }
 
   await logUsageIfNeeded(usage);

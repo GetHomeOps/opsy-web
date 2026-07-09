@@ -12,6 +12,7 @@ const customerIoProvider = require("./emailProviders/customerIoProvider");
 const { wrapEmailHtml } = require("./emailComposer");
 const { EMAIL_BRAND_NAME } = require("../config");
 const { attachTemplateIconMergeData } = require("./emailTemplateIcons");
+const { isDemoOpsEmailType } = require("../constants/emailTypes");
 
 const settingsCache = { at: 0, settings: null };
 const templateCache = new Map();
@@ -88,6 +89,7 @@ async function deliver({
   usage,
 }) {
   const { provider, config } = await resolveProvider(emailType);
+  const bypassDemoSuppression = isDemoOpsEmailType(emailType);
   const mergedData = attachTemplateIconMergeData(
     emailType,
     mergeData,
@@ -108,6 +110,7 @@ async function deliver({
         replyTo,
         cc,
         usage: usageWithProvider,
+        bypassDemoSuppression,
       });
     } catch (err) {
       console.error(
@@ -125,6 +128,7 @@ async function deliver({
           replyTo,
           cc,
           usage: { ...usageWithProvider, provider: "ses" },
+          bypassDemoSuppression,
         });
       }
       throw err;
@@ -140,6 +144,7 @@ async function deliver({
     replyTo,
     cc,
     usage: usageWithProvider,
+    bypassDemoSuppression,
   });
 }
 
@@ -152,6 +157,7 @@ async function deliverViaSes({
   replyTo,
   cc,
   usage,
+  bypassDemoSuppression = false,
 }) {
   if (!sesProvider.isSesConfigured()) {
     throw new Error(
@@ -189,6 +195,7 @@ async function deliverViaSes({
     replyTo,
     cc,
     usage,
+    bypassDemoSuppression,
   });
 }
 

@@ -254,11 +254,60 @@ const SWITCHABLE_EMAIL_TYPES = {
       { key: "brandName", description: "Product brand name" },
     ],
   },
+  demo_account_opened: {
+    label: "Demo account opened",
+    description:
+      "Internal alert when a prospect first logs into a ready-to-use demo account. Recipients: kino@, success@, and dirk.snel@heyopsy.com.",
+    customerIoDefaultEvent: "demo_account_opened",
+    mergeVariables: [
+      { key: "userName", description: "Demo account name" },
+      { key: "userEmail", description: "Demo account email" },
+      { key: "userRole", description: "agent or homeowner" },
+      { key: "userId", description: "User ID" },
+      { key: "demoExpiresAt", description: "Demo expiry timestamp (formatted)" },
+      { key: "demoFirstLoginAt", description: "First login timestamp (formatted)" },
+      { key: "provisionedByName", description: "Super admin who provisioned the account" },
+      { key: "adminUrl", description: "Link to the user in admin" },
+      { key: "detailsHtml", description: "Pre-rendered details table HTML" },
+      { key: "brandName", description: "Product brand name" },
+    ],
+  },
+  demo_account_expired: {
+    label: "Demo account expired",
+    description:
+      "Internal alert when a ready-to-use demo account reaches its expiry time. Recipients: kino@, success@, and dirk.snel@heyopsy.com.",
+    customerIoDefaultEvent: "demo_account_expired",
+    mergeVariables: [
+      { key: "userName", description: "Demo account name" },
+      { key: "userEmail", description: "Demo account email" },
+      { key: "userRole", description: "agent or homeowner" },
+      { key: "userId", description: "User ID" },
+      { key: "demoExpiresAt", description: "Demo expiry timestamp (formatted)" },
+      { key: "demoFirstLoginAt", description: "First login timestamp (formatted), if opened" },
+      { key: "wasOpened", description: "Whether the prospect logged in before expiry" },
+      { key: "provisionedByName", description: "Super admin who provisioned the account" },
+      { key: "adminUrl", description: "Link to the user in admin" },
+      { key: "detailsHtml", description: "Pre-rendered details table HTML" },
+      { key: "brandName", description: "Product brand name" },
+    ],
+  },
 };
 
 const EMAIL_TYPE_KEYS = Object.keys(SWITCHABLE_EMAIL_TYPES);
 
+/** Internal demo ops alerts that may send even when outbound email is suppressed on demo. */
+const DEMO_OPS_EMAIL_TYPES = new Set([
+  "demo_account_opened",
+  "demo_account_expired",
+]);
+
+function isDemoOpsEmailType(emailType) {
+  return DEMO_OPS_EMAIL_TYPES.has(emailType);
+}
+
 module.exports = {
   SWITCHABLE_EMAIL_TYPES,
   EMAIL_TYPE_KEYS,
+  DEMO_OPS_EMAIL_TYPES,
+  isDemoOpsEmailType,
 };

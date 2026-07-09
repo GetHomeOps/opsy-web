@@ -22,6 +22,7 @@ const { ensureStripePlans } = require('./services/planSeedService');
 const { ensurePropertySponsorshipSchema } = require('./services/propertySponsorshipSchema');
 const { ensureSystemRecommendationTemplateSchema } = require('./services/systemRecommendationTemplateSchema');
 const { startSponsorshipSweeper } = require('./services/sponsorshipScheduler');
+const { startDemoExpirySweeper } = require('./services/demoExpiryScheduler');
 const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
 const { recoverPendingJobs: recoverAttomLookupJobs } = require('./services/attomLookupQueue');
 const { ensureDemoUserSchema } = require('./helpers/demoUserSchema');
@@ -133,6 +134,12 @@ async function startServer() {
       startSponsorshipSweeper();
     } catch (sweepErr) {
       console.warn('[startup] Sponsorship sweeper failed to start:', sweepErr.message);
+    }
+
+    try {
+      startDemoExpirySweeper();
+    } catch (demoSweepErr) {
+      console.warn('[startup] Demo expiry sweeper failed to start:', demoSweepErr.message);
     }
 
     app.listen(PORT, '0.0.0.0', () => {

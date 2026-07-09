@@ -74,19 +74,35 @@ function DataTable({
             key={column.key}
             className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap"
           >
-            {column.sortable ? (
-              <button
-                className="font-semibold text-left flex items-center justify-between w-full"
-                onClick={() => onSort && onSort(column.key)}
-              >
-                <div className="text-xs uppercase">{t(column.label)}</div>
-                {renderSortIndicator(sortConfig, column.key)}
-              </button>
-            ) : (
-              <div className="font-semibold text-left flex items-center justify-between w-full">
-                <div className="text-xs uppercase">{t(column.label)}</div>
-              </div>
-            )}
+            <div className="font-semibold text-left flex items-center gap-1">
+              {column.sortable ? (
+                <button
+                  type="button"
+                  className="font-semibold uppercase text-left"
+                  onClick={() => onSort && onSort(column.key)}
+                >
+                  {t(column.label)}
+                </button>
+              ) : (
+                <span className="text-xs uppercase">{t(column.label)}</span>
+              )}
+              {column.headerExtra ? (
+                <span className="inline-flex normal-case shrink-0">
+                  {column.headerExtra}
+                </span>
+              ) : null}
+              {column.sortable ? (
+                <button
+                  type="button"
+                  className="shrink-0 w-4 h-4 flex items-center justify-center [&_span]:ml-0"
+                  onClick={() => onSort && onSort(column.key)}
+                  tabIndex={-1}
+                  aria-hidden="true"
+                >
+                  {renderSortIndicator(sortConfig, column.key)}
+                </button>
+              ) : null}
+            </div>
           </th>
         ))}
       </tr>
@@ -103,10 +119,7 @@ function DataTable({
       if (loading) {
         return (
           <tr>
-            <td
-              colSpan={colSpan}
-              className="px-2 first:pl-5 last:pr-5 py-12"
-            >
+            <td colSpan={colSpan} className="px-2 first:pl-5 last:pr-5 py-12">
               <div className="flex justify-center w-full">
                 <Loader2
                   className="w-10 h-10 text-[#456564] animate-spin"

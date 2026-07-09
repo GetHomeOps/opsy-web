@@ -147,6 +147,20 @@ const DEFAULTS = {
 {{descriptionHtml}}
 <p style="margin: 24px 0;"><a href="{{ticketUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View ticket</a></p>`,
   },
+  demo_account_opened: {
+    subject: "Demo opened: {{userName}} ({{userRole}})",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">Demo account opened</h2>
+<p style="margin: 12px 0; line-height: 1.6;">A prospect just logged into a ready-to-use demo account for the first time.</p>
+{{detailsHtml}}
+<p style="margin: 24px 0;"><a href="{{adminUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View user</a></p>`,
+  },
+  demo_account_expired: {
+    subject: "Demo expired: {{userName}} ({{userRole}})",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">Demo account expired</h2>
+<p style="margin: 12px 0; line-height: 1.6;">A ready-to-use demo account has reached its expiry time.</p>
+{{detailsHtml}}
+<p style="margin: 24px 0;"><a href="{{adminUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View user</a></p>`,
+  },
 };
 
 function getDefaultSesTemplate(emailType) {
@@ -358,6 +372,33 @@ function getSampleMergeData(emailType) {
         '<div style="margin: 12px 0; padding: 12px 16px; background: #f9fafb; border-radius: 8px;">The upload fails after 30 seconds.</div>',
       detailsHtml:
         '<table style="border-collapse: collapse; margin: 12px 0;"><tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Subject</td><td>Cannot upload inspection report</td></tr></table>',
+    },
+    demo_account_opened: {
+      ...base,
+      userName: "Jordan Lee",
+      userEmail: "jordan.lee@example.com",
+      userRole: "agent",
+      userId: "501",
+      demoExpiresAt: "Jul 12, 2026, 4:00 PM UTC",
+      demoFirstLoginAt: "Jul 9, 2026, 4:45 PM UTC",
+      provisionedByName: "Sales Admin",
+      adminUrl: "https://demo.heyopsy.com/home/users/501",
+      detailsHtml:
+        '<table style="border-collapse: collapse; margin: 12px 0;"><tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Name</td><td>Jordan Lee</td></tr></table>',
+    },
+    demo_account_expired: {
+      ...base,
+      userName: "Jordan Lee",
+      userEmail: "jordan.lee@example.com",
+      userRole: "agent",
+      userId: "501",
+      demoExpiresAt: "Jul 12, 2026, 4:00 PM UTC",
+      demoFirstLoginAt: "Jul 9, 2026, 4:45 PM UTC",
+      wasOpened: "Yes",
+      provisionedByName: "Sales Admin",
+      adminUrl: "https://demo.heyopsy.com/home/users/501",
+      detailsHtml:
+        '<table style="border-collapse: collapse; margin: 12px 0;"><tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Name</td><td>Jordan Lee</td></tr></table>',
     },
   };
   return samples[emailType] || base;

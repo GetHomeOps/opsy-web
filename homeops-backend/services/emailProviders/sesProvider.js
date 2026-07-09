@@ -155,8 +155,8 @@ function replaceCidWithUrl(html, cid, url) {
   return html.split(`cid:${cid}`).join(escapeHtmlAttr(url));
 }
 
-async function sendViaSes({ to, subject, html, replyTo, usage, cc }) {
-  if (shouldSuppressOutboundEmail()) {
+async function sendViaSes({ to, subject, html, replyTo, usage, cc, bypassDemoSuppression = false }) {
+  if (shouldSuppressOutboundEmail() && !bypassDemoSuppression) {
     console.info("[sesProvider] outbound email suppressed (demo)", {
       to: String(to || "").replace(/(.{2}).*(@.*)/, "$1…$2"),
       subject: subject ? String(subject).slice(0, 80) : "",

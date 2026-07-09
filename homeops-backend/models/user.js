@@ -195,9 +195,14 @@ class User {
     if (Number.isNaN(expiresAt.getTime())) {
       throw new BadRequestError("demoExpiresAt must be a valid ISO timestamp.");
     }
+    const clearNotified = expiresAt.getTime() > Date.now();
     await db.query(
-      `UPDATE users SET demo_expires_at = $2, updated_at = NOW() WHERE demo_paired_agent_id = $1`,
-      [agentUserId, expiresAt]
+      `UPDATE users
+       SET demo_expires_at = $2,
+           demo_expiry_notified_at = CASE WHEN $3 THEN NULL ELSE demo_expiry_notified_at END,
+           updated_at = NOW()
+       WHERE demo_paired_agent_id = $1`,
+      [agentUserId, expiresAt, clearNotified]
     );
   }
 
@@ -207,25 +212,41 @@ class User {
     if (Number.isNaN(expiresAt.getTime())) {
       throw new BadRequestError("demoExpiresAt must be a valid ISO timestamp.");
     }
+    const clearNotified = expiresAt.getTime() > Date.now();
     const result = await db.query(
-      `UPDATE users SET demo_expires_at = $2, updated_at = NOW() WHERE id = $1
+      `UPDATE users
+       SET demo_expires_at = $2,
+           demo_expiry_notified_at = CASE WHEN $3 THEN NULL ELSE demo_expiry_notified_at END,
+           updated_at = NOW()
+       WHERE id = $1
        RETURNING id`,
-      [userId, expiresAt]
+      [userId, expiresAt, clearNotified]
     );
     if (!result.rows[0]) throw new NotFoundError(`No user: ${userId}`);
     return expiresAt;
   }
 
-  /** Record first successful login for a ready-to-use demo account (idempotent). */
+  /**
+   * Record first successful login for a ready-to-use demo account (idempotent).
+   * @returns {Promise<object|null>} Updated user row when this was the first login; otherwise null.
+   */
   static async recordDemoFirstLogin(userId) {
-    await db.query(
+    const result = await db.query(
       `UPDATE users
        SET demo_first_login_at = NOW(), updated_at = NOW()
        WHERE id = $1
          AND demo_login_password IS NOT NULL
-         AND demo_first_login_at IS NULL`,
+         AND demo_first_login_at IS NULL
+       RETURNING id,
+                 email,
+                 name,
+                 role,
+                 demo_expires_at AS "demoExpiresAt",
+                 demo_first_login_at AS "demoFirstLoginAt",
+                 demo_provisioned_by_user_id AS "demoProvisionedByUserId"`,
       [userId]
     );
+    return result.rows[0] || null;
   }
 
   /** Update login password and optional demo-site plaintext copy for sharing with prospects. */

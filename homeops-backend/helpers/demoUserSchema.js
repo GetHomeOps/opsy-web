@@ -23,9 +23,18 @@ async function ensureDemoUserSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS demo_first_login_at TIMESTAMPTZ`
   );
   await db.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS demo_expiry_notified_at TIMESTAMPTZ`
+  );
+  await db.query(
     `CREATE INDEX IF NOT EXISTS idx_users_demo_provisioned_by
      ON users (demo_provisioned_by_user_id)
      WHERE demo_login_password IS NOT NULL`
+  );
+  await db.query(
+    `CREATE INDEX IF NOT EXISTS idx_users_demo_expiry_pending
+     ON users (demo_expires_at)
+     WHERE demo_login_password IS NOT NULL
+       AND demo_expiry_notified_at IS NULL`
   );
   ensured = true;
 }

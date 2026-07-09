@@ -1,9 +1,102 @@
 import React, {useMemo} from "react";
 import {useTranslation} from "react-i18next";
+import {Info} from "lucide-react";
 import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
+import {Popover, PopoverContent, PopoverTrigger} from "../../components/ui/popover";
 import UserActionsMenu from "./UserActionsMenu";
 import {getUserAccountStatus, isDemoExpiryPast} from "./userSort";
+
+function StatusColumnHelp({showDemoExpiry}) {
+  const {t} = useTranslation();
+
+  const statuses = [
+    {
+      key: "active",
+      label: t("active") || "Active",
+      description: t("users.statusHelpActive", {
+        defaultValue:
+          "Account is activated and onboarding is complete. The user can sign in and use the product.",
+      }),
+      badgeClass:
+        "bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]",
+    },
+    {
+      key: "onboarding",
+      label: t("users.statusOnboarding", {defaultValue: "Onboarding"}),
+      description: t("users.statusHelpOnboarding", {
+        defaultValue:
+          "Account is activated (can sign in), but product setup is not finished yet.",
+      }),
+      badgeClass:
+        "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200",
+    },
+    {
+      key: "pending",
+      label: t("pending") || "Pending",
+      description: t("users.statusHelpPending", {
+        defaultValue:
+          "Account exists but is not activated yet — typically waiting for the invite to be accepted or a password to be set.",
+      }),
+      badgeClass:
+        "bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437]",
+    },
+  ];
+
+  if (showDemoExpiry) {
+    statuses.push({
+      key: "expired",
+      label: t("demoAccountExpiredBadge") || "Expired",
+      description: t("users.statusHelpExpired", {
+        defaultValue:
+          "Demo access window has ended. The user can no longer sign in on the demo site.",
+      }),
+      badgeClass:
+        "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200",
+    });
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#456564]/40"
+          aria-label={t("users.statusHelpAria", {
+            defaultValue: "What status means",
+          })}
+        >
+          <Info className="h-3 w-3" aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={6}
+        className="w-80 p-3"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <p className="text-xs font-semibold text-gray-800 dark:text-gray-100 mb-2">
+          {t("users.statusHelpTitle", {defaultValue: "Status meanings"})}
+        </p>
+        <ul className="space-y-2.5">
+          {statuses.map((status) => (
+            <li key={status.key} className="flex gap-2 items-start">
+              <span
+                className={`mt-0.5 shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${status.badgeClass}`}
+              >
+                {status.label}
+              </span>
+              <span className="text-xs text-gray-600 dark:text-gray-300 leading-snug">
+                {status.description}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const MS_PER_MINUTE = 60 * 1000;
 const MS_PER_HOUR = 60 * MS_PER_MINUTE;
@@ -98,9 +191,12 @@ function UsersTable({
   const getRolePillStyles = (role) => {
     const r = (role || "").toLowerCase();
     const styles = {
-      admin: "bg-indigo-100 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400",
-      agent: "bg-[#3b82f6]/20 dark:bg-[#3b82f6]/20 text-[#1d4ed8] dark:text-[#93c5fd]",
-      homeowner: "bg-[#22c55e]/20 dark:bg-[#22c55e]/20 text-[#15803d] dark:text-[#86efac]",
+      admin:
+        "bg-indigo-100 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400",
+      agent:
+        "bg-[#3b82f6]/20 dark:bg-[#3b82f6]/20 text-[#1d4ed8] dark:text-[#93c5fd]",
+      homeowner:
+        "bg-[#22c55e]/20 dark:bg-[#22c55e]/20 text-[#15803d] dark:text-[#86efac]",
       super_admin:
         "bg-[#9333ea]/20 dark:bg-[#9333ea]/20 text-[#7c3aed] dark:text-[#d8b4fe]",
       superadmin:
@@ -121,7 +217,9 @@ function UsersTable({
       super_admin: "Super Admin",
       superadmin: "Super Admin",
     };
-    return labels[r] || (role ? role.charAt(0).toUpperCase() + role.slice(1) : "—");
+    return (
+      labels[r] || (role ? role.charAt(0).toUpperCase() + role.slice(1) : "—")
+    );
   };
 
   // Define columns configuration
@@ -155,6 +253,7 @@ function UsersTable({
         key: "status",
         label: t("status") || "Status",
         sortable: true,
+        headerExtra: <StatusColumnHelp showDemoExpiry={showDemoExpiry} />,
         render: (value, item) => {
           const accountStatus = getUserAccountStatus(item, {
             considerDemoExpiry: showDemoExpiry,
@@ -245,15 +344,27 @@ function UsersTable({
               {label}
             </span>
           );
-          const gray = "bg-gray-100 dark:bg-gray-700/60 text-gray-700 dark:text-gray-300";
-          const green = "bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]";
-          const blue = "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
-          const amber = "bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400";
-          const red = "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400";
+          const gray =
+            "bg-gray-100 dark:bg-gray-700/60 text-gray-700 dark:text-gray-300";
+          const green =
+            "bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]";
+          const blue =
+            "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
+          const amber =
+            "bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400";
+          const red =
+            "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400";
 
           const role = (item.role || "").toLowerCase();
-          if (role === "super_admin" || role === "admin" || role === "superadmin") {
-            return badge(gray, t("users.billingExemptStaff", {defaultValue: "Exempt (staff)"}));
+          if (
+            role === "super_admin" ||
+            role === "admin" ||
+            role === "superadmin"
+          ) {
+            return badge(
+              gray,
+              t("users.billingExemptStaff", {defaultValue: "Exempt (staff)"}),
+            );
           }
 
           /* Account-scoped listings don't include billing fields; avoid guessing. */
@@ -268,36 +379,60 @@ function UsersTable({
 
           const latestStatus = item.latestSubscriptionStatus;
           const isStripe = item.latestSubscriptionIsStripe === true;
-          const hasCurrentSub = latestStatus === "active" || latestStatus === "trialing";
+          const hasCurrentSub =
+            latestStatus === "active" || latestStatus === "trialing";
 
           if (item.paidRequired) {
             if (hasCurrentSub && isStripe && latestStatus === "trialing") {
               const ends = item.latestSubscriptionPeriodEnd
-                ? new Date(item.latestSubscriptionPeriodEnd).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })
+                ? new Date(item.latestSubscriptionPeriodEnd).toLocaleDateString(
+                    "en-US",
+                    {
+                      month: "short",
+                      day: "numeric",
+                    },
+                  )
                 : null;
               return badge(
                 blue,
                 ends
-                  ? t("users.billingTrialEnds", {date: ends, defaultValue: "Trial ends {{date}}"})
+                  ? t("users.billingTrialEnds", {
+                      date: ends,
+                      defaultValue: "Trial ends {{date}}",
+                    })
                   : t("users.billingTrialing", {defaultValue: "Trialing"}),
               );
             }
             if (hasCurrentSub && isStripe) {
-              return badge(green, t("users.billingActivePaid", {defaultValue: "Active (paid)"}));
+              return badge(
+                green,
+                t("users.billingActivePaid", {defaultValue: "Active (paid)"}),
+              );
             }
             if (hasCurrentSub && !isStripe) {
-              return badge(amber, t("users.billingComped", {defaultValue: "No payment on file"}));
+              return badge(
+                amber,
+                t("users.billingComped", {defaultValue: "No payment on file"}),
+              );
             }
             if (latestStatus === "past_due") {
-              return badge(red, t("users.billingPastDue", {defaultValue: "Past due"}));
+              return badge(
+                red,
+                t("users.billingPastDue", {defaultValue: "Past due"}),
+              );
             }
-            return badge(red, t("users.billingAwaitingPayment", {defaultValue: "Awaiting payment"}));
+            return badge(
+              red,
+              t("users.billingAwaitingPayment", {
+                defaultValue: "Awaiting payment",
+              }),
+            );
           }
 
-          return badge(gray, t("users.billingFreePlan", {defaultValue: "Free plan"}));
+          return badge(
+            gray,
+            t("users.billingFreePlan", {defaultValue: "Free plan"}),
+          );
         },
       },
       {
