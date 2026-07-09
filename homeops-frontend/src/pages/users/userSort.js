@@ -16,17 +16,17 @@ const BILLING_SORT_RANK = {
   trialing: 2,
   comped: 3,
   free_plan: 4,
-  onboarding_incomplete: 5,
-  past_due: 6,
-  awaiting_payment: 7,
-  unknown: 8,
+  past_due: 5,
+  awaiting_payment: 6,
+  unknown: 7,
 };
 
 /** Primary account status for Users list display, filter, and sort. */
 const STATUS_SORT_RANK = {
   expired: 0,
   pending: 1,
-  active: 2,
+  onboarding: 2,
+  active: 3,
 };
 
 export function isDemoExpiryPast(iso) {
@@ -36,18 +36,36 @@ export function isDemoExpiryPast(iso) {
 }
 
 /**
- * Derived UI status: expired (demo only) wins over active/pending.
- * @returns {"expired"|"active"|"pending"}
+ * Derived UI status for the Users list.
+ * Precedence: expired (demo) > pending (not activated) > onboarding > active.
+ * @returns {"expired"|"pending"|"onboarding"|"active"}
  */
 export function getUserAccountStatus(user, {considerDemoExpiry = isDemoSite()} = {}) {
   if (considerDemoExpiry && isDemoExpiryPast(user?.demoExpiresAt)) {
     return "expired";
   }
-  return user?.isActive ?? user?.is_active ? "active" : "pending";
+  const isActive = user?.isActive ?? user?.is_active;
+  if (!isActive) return "pending";
+  if (user?.onboardingCompleted === false) return "onboarding";
+  return "active";
 }
 
 export function getUserStatusSortValue(user) {
   return STATUS_SORT_RANK[getUserAccountStatus(user)] ?? 0;
+}
+
+/** Milliseconds until demo expiry; null if unset/invalid. Negative when past. */
+export function getDemoExpiresAtMs(user) {
+  const iso = user?.demoExpiresAt;
+  if (!iso) return null;
+  const tMs = new Date(iso).getTime();
+  return Number.isNaN(tMs) ? null : tMs;
+}
+
+export function getUserDemoExpirySortValue(user) {
+  const tMs = getDemoExpiresAtMs(user);
+  // Missing expiry sorts last
+  return tMs == null ? Number.POSITIVE_INFINITY : tMs;
 }
 
 export function getUserRoleSortValue(user) {
@@ -61,12 +79,9 @@ export function getUserBillingSortMeta(user) {
     return {rank: BILLING_SORT_RANK.exempt_staff, tie: 0};
   }
 
-  if (user?.paidRequired === undefined) {
+  if (user?.paidRequired === undefined || user?.onboardingCompleted === false) {
+    /* Billing not applicable until onboarding finishes (or fields missing). */
     return {rank: BILLING_SORT_RANK.unknown, tie: 0};
-  }
-
-  if (user?.onboardingCompleted === false) {
-    return {rank: BILLING_SORT_RANK.onboarding_incomplete, tie: 0};
   }
 
   const latestStatus = user.latestSubscriptionStatus;
@@ -113,6 +128,12 @@ export function compareUsersForSort(a, b, key, direction) {
     case "status":
       cmp = getUserStatusSortValue(a) - getUserStatusSortValue(b);
       break;
+    case "demoExpiresAt": {
+      const aMs = getUserDemoExpirySortValue(a);
+      const bMs = getUserDemoExpirySortValue(b);
+      cmp = aMs - bMs;
+      break;
+    }
     case "role": {
       const roleCmp = getUserRoleSortValue(a) - getUserRoleSortValue(b);
       if (roleCmp !== 0) {

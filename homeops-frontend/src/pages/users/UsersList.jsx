@@ -35,6 +35,7 @@ const USER_FILTER_CATEGORIES = [
 
 const STATUS_OPTIONS = [
   {value: "active", labelKey: "active", color: "#2a9f52"},
+  {value: "onboarding", labelKey: "users.statusOnboarding", color: "#ca8a04"},
   {value: "pending", labelKey: "pending", color: "#e63939"},
   {value: "expired", labelKey: "demoAccountExpiredBadge", color: "#d97706"},
 ];
@@ -245,7 +246,13 @@ function UsersList() {
       (s) => s.value !== "expired" || isDemoSite(),
     ).map((s) => ({
       value: s.value,
-      label: t(s.labelKey) || (s.value === "expired" ? "Expired" : s.value),
+      label:
+        t(s.labelKey) ||
+        (s.value === "expired"
+          ? "Expired"
+          : s.value === "onboarding"
+            ? "Onboarding"
+            : s.value),
       dot: s.color,
     }));
     return {
