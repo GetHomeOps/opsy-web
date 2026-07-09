@@ -1,5 +1,7 @@
 /** Sort helpers for the users list (mirrors UsersTable billing display logic). */
 
+import {isDemoSite} from "../../utils/demoSite";
+
 const ROLE_SORT_ORDER = {
   super_admin: 0,
   superadmin: 0,
@@ -20,8 +22,32 @@ const BILLING_SORT_RANK = {
   unknown: 8,
 };
 
+/** Primary account status for Users list display, filter, and sort. */
+const STATUS_SORT_RANK = {
+  expired: 0,
+  pending: 1,
+  active: 2,
+};
+
+export function isDemoExpiryPast(iso) {
+  if (!iso) return false;
+  const tMs = new Date(iso).getTime();
+  return !Number.isNaN(tMs) && tMs <= Date.now();
+}
+
+/**
+ * Derived UI status: expired (demo only) wins over active/pending.
+ * @returns {"expired"|"active"|"pending"}
+ */
+export function getUserAccountStatus(user, {considerDemoExpiry = isDemoSite()} = {}) {
+  if (considerDemoExpiry && isDemoExpiryPast(user?.demoExpiresAt)) {
+    return "expired";
+  }
+  return user?.isActive ?? user?.is_active ? "active" : "pending";
+}
+
 export function getUserStatusSortValue(user) {
-  return user?.isActive ?? user?.is_active ? 1 : 0;
+  return STATUS_SORT_RANK[getUserAccountStatus(user)] ?? 0;
 }
 
 export function getUserRoleSortValue(user) {

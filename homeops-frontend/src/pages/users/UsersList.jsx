@@ -26,6 +26,7 @@ import {canCreateUsersOnDemo, isDemoSite} from "../../utils/demoSite";
 import usePersistListUiSession, {
   HYDRATE_LIST_UI,
 } from "../../hooks/usePersistListUiSession";
+import {getUserAccountStatus} from "./userSort";
 
 const USER_FILTER_CATEGORIES = [
   {type: "role", labelKey: "role"},
@@ -35,6 +36,7 @@ const USER_FILTER_CATEGORIES = [
 const STATUS_OPTIONS = [
   {value: "active", labelKey: "active", color: "#2a9f52"},
   {value: "pending", labelKey: "pending", color: "#e63939"},
+  {value: "expired", labelKey: "demoAccountExpiredBadge", color: "#d97706"},
 ];
 
 const ROLE_COLORS = {
@@ -238,17 +240,19 @@ function UsersList() {
       }));
   }, [sortedUsers]);
 
-  const filterOptions = useMemo(
-    () => ({
+  const filterOptions = useMemo(() => {
+    const statusOptions = STATUS_OPTIONS.filter(
+      (s) => s.value !== "expired" || isDemoSite(),
+    ).map((s) => ({
+      value: s.value,
+      label: t(s.labelKey) || (s.value === "expired" ? "Expired" : s.value),
+      dot: s.color,
+    }));
+    return {
       role: uniqueRoles,
-      status: STATUS_OPTIONS.map((s) => ({
-        value: s.value,
-        label: t(s.labelKey),
-        dot: s.color,
-      })),
-    }),
-    [uniqueRoles, t],
-  );
+      status: statusOptions,
+    };
+  }, [uniqueRoles, t]);
 
   // Memoize filtered users based on search term and active filters
   const filteredUsers = useMemo(() => {
@@ -291,11 +295,10 @@ function UsersList() {
       });
     }
 
-    // Apply status filter
+    // Apply status filter (expired wins over active/pending on demo)
     if (filtersByType.status?.length) {
       filtered = filtered.filter((user) => {
-        const isActive = user.isActive ?? user.is_active ?? false;
-        const userStatus = isActive ? "active" : "pending";
+        const userStatus = getUserAccountStatus(user);
         return filtersByType.status.includes(userStatus);
       });
     }

@@ -3,6 +3,10 @@ import {useTranslation} from "react-i18next";
 import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
 import UserActionsMenu from "./UserActionsMenu";
+import {
+  getUserAccountStatus,
+  isDemoExpiryPast,
+} from "./userSort";
 
 function UsersTable({
   users,
@@ -36,12 +40,6 @@ function UsersTable({
     } catch {
       return iso;
     }
-  }
-
-  function isDemoExpiryPast(iso) {
-    if (!iso) return false;
-    const tMs = new Date(iso).getTime();
-    return !Number.isNaN(tMs) && tMs <= Date.now();
   }
 
   // Get current page items
@@ -121,35 +119,43 @@ function UsersTable({
       label: t("status") || "Status",
       sortable: true,
       render: (value, item) => {
-        const isActive = item.isActive || item.is_active;
+        const accountStatus = getUserAccountStatus(item, {
+          considerDemoExpiry: showDemoExpiry,
+        });
         const demoExpiresAt = item.demoExpiresAt;
-        const showExpiryBadge = showDemoExpiry && demoExpiresAt;
-        const expired = showExpiryBadge && isDemoExpiryPast(demoExpiresAt);
+        const showFutureExpiryBadge =
+          showDemoExpiry &&
+          demoExpiresAt &&
+          accountStatus !== "expired" &&
+          !isDemoExpiryPast(demoExpiresAt);
+
+        if (accountStatus === "expired") {
+          return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200">
+              {t("demoAccountExpiredBadge") || "Expired"}
+            </span>
+          );
+        }
+
         return (
           <div className="flex flex-wrap items-center gap-1.5">
             <span
               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                isActive
+                accountStatus === "active"
                   ? "bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]"
                   : "bg-[#fddddd] dark:bg-[#402431] text-[#e63939] dark:text-[#c23437]"
               }`}
             >
-              {isActive ? t("active") || "Active" : t("pending") || "Pending"}
+              {accountStatus === "active"
+                ? t("active") || "Active"
+                : t("pending") || "Pending"}
             </span>
-            {showExpiryBadge ? (
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                  expired
-                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200"
-                    : "bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300"
-                }`}
-              >
-                {expired
-                  ? t("demoAccountExpiredBadge") || "Expired"
-                  : t("demoAccountExpiresBadge", {
-                      time: formatDemoExpiryBadge(demoExpiresAt),
-                      defaultValue: "Expires {{time}}",
-                    })}
+            {showFutureExpiryBadge ? (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300">
+                {t("demoAccountExpiresBadge", {
+                  time: formatDemoExpiryBadge(demoExpiresAt),
+                  defaultValue: "Expires {{time}}",
+                })}
               </span>
             ) : null}
           </div>
