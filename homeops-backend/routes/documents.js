@@ -54,7 +54,6 @@ const upload = multer({
 /** POST /upload - Upload file to S3. Multipart form-data with "file" field. Returns key and URL. */
 router.post("/upload", ensureLoggedIn, upload.single("file"), async (req, res, next) => {
   try {
-    assertDemoUploadAllowed();
     if (!AWS_S3_BUCKET) {
       throw new BadRequestError(
         "File upload is not configured. Set AWS_S3_BUCKET (and AWS credentials) in the server environment."
@@ -71,6 +70,7 @@ router.post("/upload", ensureLoggedIn, upload.single("file"), async (req, res, n
         "Invalid upload_folder. Use: documents, property_documents, property_photos, professionals, user_photos, agencies, or email_assets."
       );
     }
+    assertDemoUploadAllowed({ uploadFolder: folderPrefix });
 
     let key;
     const ext = req.file.originalname.split(".").pop() || "bin";

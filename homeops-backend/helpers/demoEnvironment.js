@@ -131,12 +131,23 @@ function assertDemoIntegrationsAllowed() {
   }
 }
 
-function assertDemoUploadAllowed() {
-  if (isDemoEnvironment()) {
-    throw new ForbiddenError(
-      "Document upload is not available on the demo site. A full HeyOpsy account includes document upload and secure file storage for your property."
-    );
-  }
+/** Upload folders still allowed on demo (profile photos only — not property documents). */
+const DEMO_ALLOWED_UPLOAD_FOLDERS = new Set(["user_photos"]);
+
+/**
+ * Block document uploads on demo, except profile photos (`user_photos`).
+ * @param {{ uploadFolder?: string|null }} [opts]
+ */
+function assertDemoUploadAllowed({ uploadFolder } = {}) {
+  if (!isDemoEnvironment()) return;
+  const folder =
+    uploadFolder != null && String(uploadFolder).trim()
+      ? String(uploadFolder).trim()
+      : null;
+  if (folder && DEMO_ALLOWED_UPLOAD_FOLDERS.has(folder)) return;
+  throw new ForbiddenError(
+    "Document upload is not available on the demo site. A full HeyOpsy account includes document upload and secure file storage for your property."
+  );
 }
 
 function assertDemoAiAllowed() {
@@ -158,6 +169,7 @@ module.exports = {
   assertDemoResetAllowed,
   assertDemoIntegrationsAllowed,
   assertDemoUploadAllowed,
+  DEMO_ALLOWED_UPLOAD_FOLDERS,
   assertDemoAiAllowed,
   getNextDemoResetAt,
   DEFAULT_DEMO_ACCOUNT_EXPIRY_HOURS,

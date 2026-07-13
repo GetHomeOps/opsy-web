@@ -19,6 +19,7 @@ const REFRESH_TOKEN_STORAGE_KEY = "app-refresh-token";
 import { emitTierLimit, isTierRestrictionError } from "../utils/tierLimitNotifier";
 import {
   canUploadDocumentsOnDemo,
+  canUploadFolderOnDemo,
   canUseAiOnDemo,
   DEMO_AI_UNAVAILABLE_MESSAGE,
   DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
@@ -45,7 +46,8 @@ export class ApiError extends Error {
   }
 }
 
-function assertDemoUploadAllowedApi() {
+function assertDemoUploadAllowedApi(uploadFolder) {
+  if (canUploadFolderOnDemo(uploadFolder)) return;
   if (!canUploadDocumentsOnDemo()) {
     throw new ApiError([DEMO_UPLOAD_UNAVAILABLE_MESSAGE], 403);
   }
@@ -1211,7 +1213,8 @@ class AppApi {
    *   - emailType, iconSlot: required for email_assets (Customer.io template icons)
    */
   static async uploadDocument(file, options = {}) {
-    assertDemoUploadAllowedApi();
+    const folder = options.uploadFolder ?? options.upload_folder;
+    assertDemoUploadAllowedApi(folder);
     if (
       file &&
       typeof file.size === "number" &&
@@ -1221,7 +1224,6 @@ class AppApi {
     }
     const formData = new FormData();
     formData.append("file", file);
-    const folder = options.uploadFolder ?? options.upload_folder;
     if (folder) {
       formData.append("upload_folder", folder);
     }
