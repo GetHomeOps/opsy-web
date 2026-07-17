@@ -306,7 +306,7 @@ function ProfessionalCard({
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] transition-colors shadow-sm"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg btn-primary transition-colors shadow-sm"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
                 Message

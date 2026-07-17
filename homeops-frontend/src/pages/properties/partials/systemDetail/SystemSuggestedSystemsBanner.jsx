@@ -32,7 +32,7 @@ export function SystemSuggestedSystemsBanner({
       <button
         type="button"
         onClick={onAction}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#456564] hover:bg-[#34514f] transition-colors shrink-0"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary transition-colors shrink-0"
       >
         <Plus className="w-3.5 h-3.5" />
         {actionLabel}

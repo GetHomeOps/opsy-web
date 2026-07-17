@@ -236,6 +236,22 @@ function UsersTable({
         sortable: true,
       },
       {
+        key: "accountUrl",
+        label: t("users.accountUrl", {defaultValue: "Account URL"}),
+        sortable: true,
+        render: (value) => {
+          const url = (value || "").replace(/^\/+/, "");
+          if (!url) {
+            return <span className="text-gray-400 dark:text-gray-500">—</span>;
+          }
+          return (
+            <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[12rem] inline-block align-bottom">
+              {url}
+            </span>
+          );
+        },
+      },
+      {
         key: "role",
         label: t("role"),
         sortable: true,

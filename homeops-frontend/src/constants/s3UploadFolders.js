@@ -11,4 +11,10 @@ export const S3_UPLOAD_FOLDER = {
   AGENCIES: "agencies",
   /** Customer.io template icons (super admin, Email Delivery) */
   EMAIL_ASSETS: "email_assets",
+  /** Account white-label logos / sidebar icons (platform admin Customization) */
+  ACCOUNT_BRANDING: "account_branding",
+  /** Agency white-label assets (same S3 prefix / admin gate as account branding) */
+  AGENCY_BRANDING: "account_branding",
+  /** Pre-purchase analysis document uploads */
+  PRE_PURCHASE: "pre_purchase",
 };

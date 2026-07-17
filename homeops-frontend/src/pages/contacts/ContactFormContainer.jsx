@@ -1497,7 +1497,7 @@ function ContactsFormContainer() {
                 />
                 <button
                   type="button"
-                  className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                  className="btn-sm btn-primary disabled:opacity-50"
                   onClick={handleCreateTag}
                   disabled={!newTagName.trim() || creatingTag}
                 >
@@ -1571,7 +1571,7 @@ function ContactsFormContainer() {
             <div className="flex justify-end mt-6">
               <button
                 type="button"
-                className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white"
+                className="btn-sm btn-primary"
                 onClick={() => {
                   setNewTagName("");
                   setNewTagColor(null);
@@ -1746,7 +1746,7 @@ function ContactsFormContainer() {
               </>
             )}
             <button
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm inline-flex items-center gap-1.5 h-9 px-3.5 text-sm font-medium"
+              className="btn btn-primary transition-colors duration-200 shadow-sm inline-flex items-center gap-1.5 h-9 px-3.5 text-sm font-medium"
               onClick={handleNewContact}
             >
               {t("new")}
@@ -2273,7 +2273,7 @@ function ContactsFormContainer() {
                 </button>
                 <button
                   type="submit"
-                  className="btn text-white transition-colors duration-200 shadow-sm min-w-[100px] bg-[#456564] hover:bg-[#34514f]"
+                  className="btn transition-colors duration-200 shadow-sm min-w-[100px] btn-primary"
                   disabled={state.isSubmitting}
                 >
                   {state.isSubmitting ? (

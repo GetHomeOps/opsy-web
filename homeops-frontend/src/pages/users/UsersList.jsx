@@ -284,12 +284,14 @@ function UsersList() {
         const email = (user.email || "").toLowerCase();
         const phone = (user.phone || "").toLowerCase();
         const role = (user.role || "").toLowerCase();
+        const accountUrl = (user.accountUrl || "").toLowerCase();
 
         return (
           userName.includes(searchLower) ||
           email.includes(searchLower) ||
           phone.includes(searchLower) ||
-          role.includes(searchLower)
+          role.includes(searchLower) ||
+          accountUrl.includes(searchLower)
         );
       });
     }

@@ -29,7 +29,7 @@ const SECTION_ICON = "h-5 w-5 text-[#6E8276] dark:text-[#5a7a78]";
 const BTN_BACK =
   "btn text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-600 pl-0 focus:outline-none shadow-none inline-flex items-center gap-2";
 const BTN_PRIMARY =
-  "btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm disabled:opacity-50";
+  "btn btn-primary transition-colors duration-200 shadow-sm disabled:opacity-50";
 const BTN_SECONDARY =
   "btn bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300 transition-colors duration-200 shadow-sm disabled:opacity-50";
 const BTN_SUCCESS =
@@ -406,7 +406,7 @@ function TicketFormContainer({
                     onClick={() => setComposerMode("message")}
                     className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
                       composerMode === "message"
-                        ? "bg-[#456564] text-white"
+                        ? "btn-segment-active"
                         : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
                     }`}
                   >

@@ -70,7 +70,7 @@ function InstallAppModal({open, setOpen, inAppBrowser = false}) {
 
         <button
           type="button"
-          className="mt-6 w-full py-2 px-4 rounded-lg text-sm font-medium text-white bg-[#456564] hover:bg-[#3a5554] transition-colors"
+          className="btn btn-primary mt-6 w-full py-2 px-4 text-sm font-medium transition-colors"
           onClick={() => setOpen(false)}
         >
           {t("installAppGotIt") || "Got it"}

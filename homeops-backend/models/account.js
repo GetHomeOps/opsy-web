@@ -20,6 +20,49 @@ const {
 const { sqlForPartialUpdate } = require("../helpers/sql");
 const { generateAccountUrl } = require("../services/accountService");
 const { isAccountLinkedToUser } = require("../helpers/accountUsers");
+const { addPresignedUrlToItem } = require("../helpers/presignedUrls");
+
+/** Shared SELECT list for account rows including branding columns. */
+const ACCOUNT_SELECT = `
+  id,
+  name,
+  url,
+  owner_user_id AS "ownerUserId",
+  accent_color AS "accentColor",
+  sidebar_icon_key AS "sidebarIconKey",
+  agent_card_logo_key AS "agentCardLogoKey",
+  agent_card_accent_color AS "agentCardAccentColor",
+  agent_card_background_color AS "agentCardBackgroundColor",
+  agent_card_agent_label AS "agentCardAgentLabel",
+  agent_card_company_name AS "agentCardCompanyName",
+  sidebar_text_color AS "sidebarTextColor",
+  agent_card_text_color AS "agentCardTextColor",
+  created_at AS "createdAt",
+  updated_at AS "updatedAt"`;
+
+const BRANDING_JS_TO_SQL = {
+  accentColor: "accent_color",
+  sidebarIconKey: "sidebar_icon_key",
+  agentCardLogoKey: "agent_card_logo_key",
+  agentCardAccentColor: "agent_card_accent_color",
+  agentCardBackgroundColor: "agent_card_background_color",
+  agentCardAgentLabel: "agent_card_agent_label",
+  agentCardCompanyName: "agent_card_company_name",
+  sidebarTextColor: "sidebar_text_color",
+  agentCardTextColor: "agent_card_text_color",
+};
+
+/** Normalize empty strings to null for optional branding fields. */
+function normalizeBrandingValue(key, value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "") return null;
+    return trimmed;
+  }
+  return value;
+}
 
 class Account {
 
@@ -67,12 +110,7 @@ class Account {
    **/
   static async get(id) {
     const result = await db.query(
-      `SELECT id,
-              name,
-              url,
-              owner_user_id AS "ownerUserId",
-              created_at AS "createdAt",
-              updated_at AS "updatedAt"
+      `SELECT ${ACCOUNT_SELECT}
        FROM accounts
        WHERE id = $1`,
       [id]
@@ -86,31 +124,90 @@ class Account {
 
   /** Get all accounts.
    *
-   * Returns [{ id, name, url, ownerUserId, createdAt, updatedAt }, ...]
+   * Returns [{ id, name, url, ownerUserId, ownerEmail, accountType, agencyId,
+   *   agencyName, customizable, inheritsFromLabel, hasCustomization, ... }, ...]
    *
    * Throws NotFoundError if no accounts are found.
    **/
   static async getAll() {
     const result = await db.query(
-      `SELECT id,
-              name,
-              url,
-              owner_user_id AS "ownerUserId",
-              created_at AS "createdAt",
-              updated_at AS "updatedAt"
-       FROM accounts`
+      `SELECT a.id,
+              a.name,
+              a.url,
+              a.owner_user_id AS "ownerUserId",
+              u.email AS "ownerEmail",
+              COALESCE(u.role::text, 'unknown') AS "accountType",
+              aff.agency_id AS "agencyId",
+              ag.name AS "agencyName",
+              a.accent_color AS "accentColor",
+              a.sidebar_icon_key AS "sidebarIconKey",
+              a.agent_card_logo_key AS "agentCardLogoKey",
+              a.agent_card_accent_color AS "agentCardAccentColor",
+              a.agent_card_background_color AS "agentCardBackgroundColor",
+              a.agent_card_agent_label AS "agentCardAgentLabel",
+              a.agent_card_company_name AS "agentCardCompanyName",
+              a.sidebar_text_color AS "sidebarTextColor",
+              a.agent_card_text_color AS "agentCardTextColor",
+              a.created_at AS "createdAt",
+              a.updated_at AS "updatedAt",
+              (
+                a.accent_color IS NOT NULL
+                OR a.sidebar_icon_key IS NOT NULL
+                OR a.agent_card_logo_key IS NOT NULL
+                OR a.agent_card_accent_color IS NOT NULL
+                OR a.agent_card_background_color IS NOT NULL
+                OR a.agent_card_agent_label IS NOT NULL
+                OR a.agent_card_company_name IS NOT NULL
+                OR a.sidebar_text_color IS NOT NULL
+                OR a.agent_card_text_color IS NOT NULL
+                OR (
+                  aff.agency_id IS NOT NULL
+                  AND (
+                    ag.accent_color IS NOT NULL
+                    OR ag.sidebar_icon_key IS NOT NULL
+                    OR ag.agent_card_logo_key IS NOT NULL
+                    OR ag.agent_card_accent_color IS NOT NULL
+                    OR ag.agent_card_background_color IS NOT NULL
+                    OR ag.agent_card_agent_label IS NOT NULL
+                    OR ag.agent_card_company_name IS NOT NULL
+                    OR ag.sidebar_text_color IS NOT NULL
+                    OR ag.agent_card_text_color IS NOT NULL
+                  )
+                )
+              ) AS "hasCustomization"
+       FROM accounts a
+       LEFT JOIN users u ON u.id = a.owner_user_id
+       LEFT JOIN LATERAL (
+         SELECT aa.agency_id
+         FROM agent_affiliations aa
+         WHERE aa.user_id = a.owner_user_id AND aa.status = 'active'
+         LIMIT 1
+       ) aff ON true
+       LEFT JOIN agencies ag ON ag.id = aff.agency_id
+       ORDER BY a.name ASC`
     );
 
     const accounts = result.rows;
     if (accounts.length === 0) throw new NotFoundError("No accounts found");
 
-    return accounts;
+    const { buildListMeta, enrichAccountsWithSponsorshipMeta } = require("../services/brandingService");
+
+    const withMeta = accounts.map((a) => {
+      const meta = buildListMeta(a);
+      return {
+        ...a,
+        ...meta,
+        customizable: meta.customizable,
+      };
+    });
+
+    return enrichAccountsWithSponsorshipMeta(withMeta);
   }
 
   /** Get all accounts for a specific user.
    *
    * @param {number} userId
-   * @returns [{ id, name, url, ownerUserId, createdAt, updatedAt }, ...]
+   * @returns [{ id, name, url, ownerUserId, branding..., createdAt, updatedAt }, ...]
    *
    * Throws NotFoundError if user has no accounts.
    **/
@@ -120,6 +217,15 @@ class Account {
               a.name,
               a.url,
               a.owner_user_id AS "ownerUserId",
+              a.accent_color AS "accentColor",
+              a.sidebar_icon_key AS "sidebarIconKey",
+              a.agent_card_logo_key AS "agentCardLogoKey",
+              a.agent_card_accent_color AS "agentCardAccentColor",
+              a.agent_card_background_color AS "agentCardBackgroundColor",
+              a.agent_card_agent_label AS "agentCardAgentLabel",
+              a.agent_card_company_name AS "agentCardCompanyName",
+              a.sidebar_text_color AS "sidebarTextColor",
+              a.agent_card_text_color AS "agentCardTextColor",
               a.created_at AS "createdAt",
               a.updated_at AS "updatedAt"
        FROM accounts a
@@ -139,7 +245,7 @@ class Account {
    *
    * Data can include: { name, url }
    *
-   * Returns { id, name, url, ownerUserId, createdAt, updatedAt }
+   * Returns account row including branding fields.
    *
    * Throws NotFoundError if account not found.
    **/
@@ -151,18 +257,89 @@ class Account {
       UPDATE accounts
       SET ${setCols}
       WHERE id = ${idVarIdx}
-      RETURNING id,
-                name,
-                url,
-                owner_user_id AS "ownerUserId",
-                created_at AS "createdAt",
-                updated_at AS "updatedAt"`;
+      RETURNING ${ACCOUNT_SELECT}`;
     const result = await db.query(querySql, [...values, id]);
     const account = result.rows[0];
 
     if (!account) throw new NotFoundError(`No account with id: ${id}`);
 
     return account;
+  }
+
+  /**
+   * Get branding fields for an account, with presigned display URLs for icons.
+   *
+   * @param {number|string} id
+   * @returns {Promise<object>}
+   */
+  static async getBranding(id) {
+    const account = await this.get(id);
+    return this._withBrandingUrls(account);
+  }
+
+  /**
+   * Partial-update branding fields. Pass null to clear a field.
+   *
+   * @param {number|string} id
+   * @param {object} data - camelCase branding fields
+   * @returns {Promise<object>} branding with display URLs
+   */
+  static async updateBranding(id, data) {
+    const payload = {};
+    for (const key of Object.keys(BRANDING_JS_TO_SQL)) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        payload[key] = normalizeBrandingValue(key, data[key]);
+      }
+    }
+    if (Object.keys(payload).length === 0) {
+      throw new BadRequestError("No branding data to update");
+    }
+
+    const { setCols, values } = sqlForPartialUpdate(payload, BRANDING_JS_TO_SQL);
+    const idVarIdx = "$" + (values.length + 1);
+
+    const result = await db.query(
+      `UPDATE accounts
+       SET ${setCols}, updated_at = NOW()
+       WHERE id = ${idVarIdx}
+       RETURNING ${ACCOUNT_SELECT}`,
+      [...values, id]
+    );
+
+    const account = result.rows[0];
+    if (!account) throw new NotFoundError(`No account with id: ${id}`);
+
+    return this._withBrandingUrls(account);
+  }
+
+  /** Attach presigned URLs for sidebar icon and agent card logo. */
+  static async _withBrandingUrls(account) {
+    let withSidebar = await addPresignedUrlToItem(
+      account,
+      "sidebarIconKey",
+      "sidebarIconUrl"
+    );
+    withSidebar = await addPresignedUrlToItem(
+      withSidebar,
+      "agentCardLogoKey",
+      "agentCardLogoUrl"
+    );
+    return {
+      id: withSidebar.id,
+      name: withSidebar.name,
+      url: withSidebar.url,
+      accentColor: withSidebar.accentColor ?? null,
+      sidebarIconKey: withSidebar.sidebarIconKey ?? null,
+      sidebarIconUrl: withSidebar.sidebarIconUrl ?? null,
+      agentCardLogoKey: withSidebar.agentCardLogoKey ?? null,
+      agentCardLogoUrl: withSidebar.agentCardLogoUrl ?? null,
+      agentCardAccentColor: withSidebar.agentCardAccentColor ?? null,
+      agentCardBackgroundColor: withSidebar.agentCardBackgroundColor ?? null,
+      agentCardAgentLabel: withSidebar.agentCardAgentLabel ?? null,
+      agentCardCompanyName: withSidebar.agentCardCompanyName ?? null,
+      sidebarTextColor: withSidebar.sidebarTextColor ?? null,
+      agentCardTextColor: withSidebar.agentCardTextColor ?? null,
+    };
   }
 
   /** Remove an account.

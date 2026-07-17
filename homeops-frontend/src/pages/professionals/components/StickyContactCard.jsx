@@ -32,7 +32,7 @@ function StickyContactCard({
         type="button"
         onClick={onSend}
         disabled={!messageText.trim()}
-        className="w-full mt-3 inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] dark:bg-[#7aa3a2] dark:hover:bg-[#5a8a88] dark:text-gray-900 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-sm"
+        className="w-full mt-3 inline-flex items-center justify-center gap-2 h-10 px-4 text-sm font-semibold rounded-lg btn-primary dark:bg-[#7aa3a2] dark:hover:bg-[#5a8a88] dark:text-gray-900 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-sm"
       >
         <Send className="w-4 h-4" />
         Send Message

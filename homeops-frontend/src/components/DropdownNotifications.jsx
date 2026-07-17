@@ -356,7 +356,7 @@ function DropdownNotifications() {
                                   setOwnershipActionKey(null);
                                 }
                               }}
-                              className="px-3 py-1.5 text-xs font-semibold rounded-md bg-[#456654] text-white hover:bg-[#34514f] disabled:opacity-50"
+                              className="px-3 py-1.5 text-xs font-semibold rounded-md btn-primary disabled:opacity-50"
                             >
                               Accept
                             </button>

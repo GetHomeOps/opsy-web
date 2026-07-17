@@ -219,7 +219,7 @@ function ResetPassword() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="btn w-full bg-[#456564] hover:bg-[#34514f] text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="btn w-full btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {isSubmitting && (
                       <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
@@ -243,7 +243,7 @@ function ResetPassword() {
                 </p>
                 <Link
                   to="/forgot-password"
-                  className="block text-center btn w-full bg-[#456564] hover:bg-[#34514f] text-white"
+                  className="block text-center btn w-full btn-primary"
                 >
                   {t("forgotPassword.sendLink", "Request reset link")}
                 </Link>

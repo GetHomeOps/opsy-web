@@ -93,7 +93,7 @@ function SupportTicket() {
                 <button
                   type="button"
                   onClick={fetchTicket}
-                  className="btn bg-[#456564] text-white hover:bg-[#34514f]"
+                  className="btn btn-primary"
                 >
                   Retry
                 </button>

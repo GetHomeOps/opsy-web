@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useMemo} from "react";
 import {useTranslation} from "react-i18next";
 import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
@@ -9,9 +9,19 @@ function AgentsTable({
   totalAgents,
   sortConfig,
   onSort,
+  selectedItems = [],
+  onToggleSelect,
+  onAgentClick,
 }) {
   const {t} = useTranslation();
   const rowItems = agents ?? [];
+
+  const allSelected = useMemo(() => {
+    return (
+      rowItems.length > 0 &&
+      rowItems.every((agent) => selectedItems.includes(agent.id))
+    );
+  }, [rowItems, selectedItems]);
 
   const columns = [
     {
@@ -81,8 +91,14 @@ function AgentsTable({
     },
   ];
 
-  const renderItem = (item) => (
-    <DataTableItem item={item} columns={columns} selectable={false} />
+  const renderItem = (item, handleSelect, selected, onItemClick) => (
+    <DataTableItem
+      item={item}
+      columns={columns}
+      onSelect={handleSelect}
+      isSelected={selected.includes(item.id)}
+      onItemClick={onItemClick}
+    />
   );
 
   return (
@@ -96,7 +112,10 @@ function AgentsTable({
       renderItem={renderItem}
       loading={loading}
       emptyMessage="No agents found"
-      selectable={false}
+      onItemClick={onAgentClick}
+      onSelect={onToggleSelect}
+      selectedItems={selectedItems}
+      allSelected={allSelected}
     />
   );
 }

@@ -166,7 +166,7 @@ function AuthCallback() {
                 <button
                   type="button"
                   onClick={() => navigate("/signin", {replace: true})}
-                  className={`${isDemoSite() ? "w-full" : "flex-1"} py-3 px-6 bg-[#456564] hover:bg-[#3a5554] text-white rounded-xl font-semibold text-sm transition-colors shadow-sm hover:shadow-md`}
+                  className={`${isDemoSite() ? "w-full" : "flex-1"} py-3 px-6 btn-primary rounded-xl font-semibold text-sm transition-colors shadow-sm hover:shadow-md`}
                 >
                   Sign in
                 </button>

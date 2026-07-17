@@ -1151,9 +1151,9 @@ function SystemsSetupModal({
                       <span
                         className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold transition-all duration-200 ${
                           isActive
-                            ? "bg-[#456564] text-white ring-4 ring-[#456564]/10 dark:ring-[#456564]/20"
+                            ? "btn-segment-active ring-4 ring-[var(--opsy-accent,#456564)]/10"
                             : isCompleted
-                              ? "bg-[#456564] text-white"
+                              ? "btn-segment-active"
                               : "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500"
                         }`}
                       >
@@ -1180,7 +1180,7 @@ function SystemsSetupModal({
                         <div
                           className={`w-full h-px transition-colors duration-300 ${
                             currentStepIndex > idx
-                              ? "bg-[#456564]"
+                              ? "bg-[var(--opsy-accent,#456564)]"
                               : "bg-gray-200 dark:bg-gray-700"
                           }`}
                         />
@@ -1349,7 +1349,7 @@ function SystemsSetupModal({
                 <button
                   type="button"
                   onClick={handleIdentityContinue}
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 transition-colors"
+                  className="btn btn-primary inline-flex items-center gap-2 transition-colors"
                 >
                   Continue
                   <ChevronRight className="w-4 h-4" />
@@ -1439,7 +1439,7 @@ function SystemsSetupModal({
                       type="button"
                       disabled={!canLookup}
                       onClick={handleLookupProperty}
-                      className="btn bg-gradient-to-r from-[#456564] to-[#3a5548] hover:from-[#34514f] hover:to-[#2d4640] text-white shadow-sm inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="btn btn-primary shadow-sm inline-flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {predicting ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -1621,7 +1621,7 @@ function SystemsSetupModal({
                     type="button"
                     onClick={handleDetailsContinue}
                     disabled={savingProperty}
-                    className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 disabled:opacity-60"
+                    className="btn btn-primary inline-flex items-center gap-2 disabled:opacity-60"
                   >
                     {savingProperty ? (
                       <>
@@ -1680,7 +1680,7 @@ function SystemsSetupModal({
                         <div
                           className={`flex items-center justify-center w-9 h-9 rounded-lg shrink-0 transition-colors duration-200 ${
                             isSelected
-                              ? "bg-[#456564] text-white"
+                              ? "btn-segment-active"
                               : "bg-gray-100 dark:bg-gray-700/70 text-gray-400 dark:text-gray-500 group-hover:bg-gray-200/70 dark:group-hover:bg-gray-700"
                           }`}
                         >
@@ -1705,7 +1705,7 @@ function SystemsSetupModal({
                         <div
                           className={`w-[18px] h-[18px] rounded flex items-center justify-center shrink-0 mt-0.5 transition-all duration-200 ${
                             isSelected
-                              ? "bg-[#456564] text-white"
+                              ? "btn-segment-active"
                               : "border border-gray-300 dark:border-gray-600 group-hover:border-gray-400 dark:group-hover:border-gray-500"
                           }`}
                         >
@@ -1745,7 +1745,7 @@ function SystemsSetupModal({
                   <button
                     type="button"
                     onClick={addCustomSystem}
-                    className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 shrink-0"
+                    className="btn btn-primary inline-flex items-center gap-2 shrink-0"
                   >
                     <Plus className="w-4 h-4" />
                     Add
@@ -1807,7 +1807,7 @@ function SystemsSetupModal({
                   <button
                     type="button"
                     onClick={handleSave}
-                    className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2"
+                    className="btn btn-primary inline-flex items-center gap-2"
                   >
                     {isNewProperty ? "Complete setup" : "Update systems"}
                     <CheckCircle2 className="w-4 h-4" />
@@ -2092,7 +2092,7 @@ function SystemsSetupModal({
                     <button
                       type="button"
                       onClick={() => setModalOpen(false)}
-                      className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 ml-auto"
+                      className="btn btn-primary inline-flex items-center gap-2 ml-auto"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       Done
@@ -2101,7 +2101,7 @@ function SystemsSetupModal({
                     <button
                       type="button"
                       onClick={() => setStep("systems")}
-                      className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 ml-auto"
+                      className="btn btn-primary inline-flex items-center gap-2 ml-auto"
                     >
                       Continue to systems
                       <ChevronRight className="w-4 h-4" />
@@ -2115,7 +2115,7 @@ function SystemsSetupModal({
                       analysisStatus === "queued" ||
                       analysisStatus === "processing"
                     }
-                    className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 ml-auto disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="btn btn-primary inline-flex items-center gap-2 ml-auto disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {analysisStatus === "queued" ||
                     analysisStatus === "processing" ? (

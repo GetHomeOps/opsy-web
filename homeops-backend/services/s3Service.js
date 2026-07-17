@@ -9,7 +9,7 @@
  * Exports: uploadFile, deleteFile, getPresignedUrl
  */
 
-const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, CopyObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const { AWS_REGION, AWS_S3_BUCKET } = require("../config");
 
@@ -68,6 +68,29 @@ async function deleteFile(key) {
     Key: key,
   });
   await s3Client.send(command);
+}
+
+/**
+ * Copy an object within the app bucket (same-region server-side copy).
+ * @param {string} sourceKey
+ * @param {string} destKey
+ * @returns {Promise<{ key: string }>}
+ */
+async function copyFile(sourceKey, destKey) {
+  if (!sourceKey || !destKey) {
+    throw new Error("copyFile: sourceKey and destKey are required");
+  }
+  const encodedSourceKey = String(sourceKey)
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const command = new CopyObjectCommand({
+    Bucket: AWS_S3_BUCKET,
+    CopySource: `${AWS_S3_BUCKET}/${encodedSourceKey}`,
+    Key: destKey,
+  });
+  await s3Client.send(command);
+  return { key: destKey };
 }
 
 /**
@@ -146,4 +169,4 @@ async function getFile(keyOrOpts) {
   return Buffer.concat(chunks);
 }
 
-module.exports = { uploadFile, deleteFile, getPresignedUrl, getPresignedUrlForImage, getFile };
+module.exports = { uploadFile, deleteFile, copyFile, getPresignedUrl, getPresignedUrlForImage, getFile };

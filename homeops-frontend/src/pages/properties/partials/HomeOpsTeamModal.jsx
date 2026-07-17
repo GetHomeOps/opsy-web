@@ -454,7 +454,7 @@ function HomeOpsTeamModal({
               <button
                 type="button"
                 onClick={addMemberRow}
-                className="btn-sm bg-[#456654] hover:bg-[#34514f] text-white transition-colors inline-flex items-center gap-1.5"
+                className="btn-sm btn-primary transition-colors inline-flex items-center gap-1.5"
               >
                 <UserPlus className="w-4 h-4" />
                 Add
@@ -503,7 +503,7 @@ function HomeOpsTeamModal({
                   type="button"
                   onClick={handleSendInvite}
                   disabled={inviteSending || !inviteEmail}
-                  className="btn-sm bg-[#456654] hover:bg-[#34514f] text-white transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
+                  className="btn-sm btn-primary transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
                   {inviteSending ? "Sending..." : "Invite"}
@@ -572,7 +572,7 @@ function HomeOpsTeamModal({
           <button
             type="button"
             onClick={handleSave}
-            className="btn bg-[#456654] hover:bg-[#34514f] text-white"
+            className="btn btn-primary"
           >
             {t(`accept`)}
           </button>

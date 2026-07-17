@@ -2,12 +2,13 @@ import {useEffect, useMemo} from "react";
 import useLocalStorage from "./useLocalStorage";
 import {useAuth} from "../context/AuthContext";
 
-function normalizeAccount(account) {
+function normalizeAccount(account, userId) {
   if (!account) return null;
   return {
     id: account.id,
     name: account.name,
     url: account.url?.replace(/^\/+/, "") || account.name,
+    ...(userId != null ? {userId} : {}),
   };
 }
 
@@ -21,15 +22,18 @@ export default function useCurrentAccount() {
   const currentAccount = useMemo(() => {
     if (!currentUser?.accounts?.length) return null;
 
-    const belongsToUser =
+    // Ignore a selection from a different user session (e.g. after stopping
+    // impersonation). AuthContext only clears localStorage, not React state.
+    const storedForThisUser =
       storedAccount?.id &&
+      storedAccount.userId === currentUser.id &&
       currentUser.accounts.some((a) => a.id === storedAccount.id);
 
-    if (belongsToUser) {
-      return normalizeAccount(storedAccount);
+    if (storedForThisUser) {
+      return normalizeAccount(storedAccount, currentUser.id);
     }
 
-    return normalizeAccount(currentUser.accounts[0]);
+    return normalizeAccount(currentUser.accounts[0], currentUser.id);
   }, [currentUser, storedAccount]);
 
   useEffect(() => {
@@ -43,7 +47,10 @@ export default function useCurrentAccount() {
       return;
     }
 
-    if (storedAccount?.id !== currentAccount.id) {
+    const needsSync =
+      storedAccount?.id !== currentAccount.id ||
+      storedAccount?.userId !== currentUser.id;
+    if (needsSync) {
       setStoredAccount(currentAccount);
     }
   }, [currentUser, currentAccount, storedAccount, setStoredAccount]);
@@ -61,7 +68,7 @@ export default function useCurrentAccount() {
     }
 
     if (account) {
-      setStoredAccount(normalizeAccount(account));
+      setStoredAccount(normalizeAccount(account, currentUser.id));
     }
   };
 

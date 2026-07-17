@@ -6,6 +6,7 @@ import {ContactProvider} from "./context/ContactContext";
 import {UserProvider} from "./context/UserContext";
 import {PropertyProvider} from "./context/PropertyContext";
 import {AgencyProvider} from "./context/AgencyContext";
+import {AccountBrandingProvider} from "./context/AccountBrandingContext";
 import TierLimitBanner from "./components/TierLimitBanner";
 import SponsorshipOfferWatcher from "./components/SponsorshipOfferWatcher";
 import PageViewTracker from "./components/PageViewTracker";
@@ -24,19 +25,21 @@ function App() {
 
   return (
     <AuthProvider>
-      <ContactProvider>
-        <UserProvider>
-          <PropertyProvider>
-            <AgencyProvider>
-              <TierLimitBanner />
-              <SponsorshipOfferWatcher />
-              <GoogleAnalyticsTracker />
-              <PageViewTracker />
-              <RoutesList />
-            </AgencyProvider>
-          </PropertyProvider>
-        </UserProvider>
-      </ContactProvider>
+      <AccountBrandingProvider>
+        <ContactProvider>
+          <UserProvider>
+            <PropertyProvider>
+              <AgencyProvider>
+                <TierLimitBanner />
+                <SponsorshipOfferWatcher />
+                <GoogleAnalyticsTracker />
+                <PageViewTracker />
+                <RoutesList />
+              </AgencyProvider>
+            </PropertyProvider>
+          </UserProvider>
+        </ContactProvider>
+      </AccountBrandingProvider>
     </AuthProvider>
   );
 }

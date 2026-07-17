@@ -179,7 +179,7 @@ function InspectionAnalysisModal({
                   onClose?.();
                   onScrollToUpload?.();
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg btn-primary text-sm font-medium"
               >
                 <Plus className="w-4 h-4" />
                 Go to Documents
@@ -221,7 +221,7 @@ function InspectionAnalysisModal({
                 <button
                   type="button"
                   onClick={onRefresh}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg btn-primary text-sm font-medium"
                 >
                   Retry
                 </button>
@@ -493,7 +493,7 @@ function InspectionAnalysisModal({
             <button
               type="button"
               onClick={() => onAddSystems?.(data)}
-              className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white flex items-center gap-2"
+              className="btn-sm btn-primary flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
               Add recommended systems

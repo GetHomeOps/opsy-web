@@ -184,7 +184,7 @@ function LocationBar({ value, onChange, className = "" }) {
           )}
           <button
             type="button"
-            className="p-1.5 rounded-lg bg-[#456564] text-white hover:bg-[#34514f] transition-colors"
+            className="p-1.5 rounded-lg btn-primary transition-colors"
             onClick={() => {
               if (filtered.length > 0 && query.trim()) select(filtered[0]);
             }}

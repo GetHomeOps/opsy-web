@@ -125,8 +125,8 @@ function DocumentsPreviewPanel({
     if (!showDocumentAnalysis) return null;
     const { analyzing, label } = documentAnalysisState;
     const baseClass = compact
-      ? "btn-sm border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0"
-      : "w-full text-xs px-2 py-1.5 rounded-md border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 dark:hover:bg-[#5a7a78]/20 flex items-center justify-center gap-1";
+      ? "btn-sm btn-primary-outline flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0"
+      : "w-full text-xs px-2 py-1.5 rounded-md btn-primary-outline flex items-center justify-center gap-1";
 
     return (
       <button
@@ -267,7 +267,7 @@ function DocumentsPreviewPanel({
                         e.stopPropagation();
                         onOpenAIReport();
                       }}
-                      className="w-full text-xs px-2 py-1.5 rounded-md border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 dark:hover:bg-[#5a7a78]/20 flex items-center justify-center gap-1"
+                      className="w-full text-xs px-2 py-1.5 rounded-md btn-primary-outline flex items-center justify-center gap-1"
                       title="View report analysis in AI"
                     >
                       <Sparkles className="w-3 h-3" />
@@ -340,7 +340,7 @@ function DocumentsPreviewPanel({
                       e.stopPropagation();
                       onOpenAIReport();
                     }}
-                    className="btn-sm border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0"
+                    className="btn-sm btn-primary-outline flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0"
                     title="View report analysis in AI"
                   >
                     <Sparkles className="w-3.5 h-3.5" />

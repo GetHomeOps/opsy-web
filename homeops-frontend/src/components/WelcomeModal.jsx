@@ -406,7 +406,7 @@ function WelcomeModal() {
                 <button
                   type="button"
                   onClick={handleDismissPermanently}
-                  className="w-full py-3 px-6 bg-[#456564] hover:bg-[#3a5554] text-white rounded-xl font-semibold text-sm transition-colors shadow-sm hover:shadow-md"
+                  className="w-full py-3 px-6 btn-primary rounded-xl font-semibold text-sm transition-colors shadow-sm hover:shadow-md"
                 >
                   {t("onboarding.explore")}
                 </button>
@@ -522,7 +522,7 @@ function WelcomeModal() {
                           <button
                             type="button"
                             onClick={() => runCustomAction(step)}
-                            className="shrink-0 py-2 px-4 bg-[#456564] hover:bg-[#3a5554] disabled:opacity-60 text-white rounded-lg font-medium text-xs transition-colors flex items-center gap-1"
+                            className="shrink-0 py-2 px-4 btn-primary disabled:opacity-60 rounded-lg font-medium text-xs transition-colors flex items-center gap-1"
                           >
                             {t(step.actionLabelKey)}
                             <ChevronRight className="w-3.5 h-3.5" />

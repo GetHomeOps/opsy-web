@@ -170,7 +170,7 @@ function DocumentCaptureModal({open, onClose, onAddToInbox}) {
               <button
                 type="button"
                 onClick={handleAddToInbox}
-                className="btn bg-[#456564] hover:bg-[#3a5548] text-white text-sm px-4 py-2"
+                className="btn btn-primary text-sm px-4 py-2"
               >
                 Add to inbox
               </button>
@@ -179,7 +179,7 @@ function DocumentCaptureModal({open, onClose, onAddToInbox}) {
             <button
               type="button"
               onClick={handleTakePhoto}
-              className="btn bg-[#456564] hover:bg-[#3a5548] text-white text-sm px-4 py-2 inline-flex items-center gap-2"
+              className="btn btn-primary text-sm px-4 py-2 inline-flex items-center gap-2"
             >
               <Camera className="w-4 h-4" />
               Take photo

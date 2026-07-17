@@ -125,7 +125,7 @@ function SectionEditControls({
           type="button"
           disabled={isBusy}
           onClick={onSave}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#456564] hover:bg-[#34514f] text-xs font-medium text-white disabled:opacity-50"
+          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg btn-primary text-xs font-medium disabled:opacity-50"
         >
           {savingSection === section ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -577,7 +577,7 @@ function InspectionReviewDetail() {
                       showFeedbackForm
                     }
                     onClick={handleApprove}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#456564] hover:bg-[#34514f] text-white text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl btn-primary text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
                   >
                     {approving ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -601,7 +601,7 @@ function InspectionReviewDetail() {
                 <button
                   type="button"
                   onClick={backToQueue}
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium"
+                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg btn-primary text-sm font-medium"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to review queue
@@ -959,7 +959,7 @@ function InspectionReviewDetail() {
                                             onClick={() =>
                                               saveSection("checklistSystem")
                                             }
-                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#456564] hover:bg-[#34514f] text-[11px] font-medium text-white disabled:opacity-50"
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg btn-primary text-[11px] font-medium disabled:opacity-50"
                                           >
                                             {savingChecklist ? (
                                               <Loader2 className="w-3 h-3 animate-spin" />

@@ -450,6 +450,21 @@ function BillingPlansEditor() {
                                 Include AI features (inspection analysis + assistant)
                               </span>
                             </label>
+                            <label className="flex items-start gap-2 mt-3 cursor-pointer max-w-xl">
+                              <input
+                                type="checkbox"
+                                className="mt-1 rounded border-gray-300 dark:border-gray-600"
+                                checked={lim.prePurchaseEnabled === true}
+                                onChange={(e) =>
+                                  handlePlanUpdate(p.id, {
+                                    limits: {...lim, prePurchaseEnabled: e.target.checked},
+                                  })
+                                }
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                Include Pre-Purchase Analysis
+                              </span>
+                            </label>
                             <button
                               type="button"
                               onClick={() => handleSaveLimits(p.id)}

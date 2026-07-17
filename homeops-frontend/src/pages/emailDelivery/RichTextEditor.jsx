@@ -57,7 +57,7 @@ function ToolbarButton({onClick, active, disabled, title, children}) {
       title={title}
       className={`inline-flex items-center justify-center w-8 h-8 rounded-md text-sm transition-colors border ${
         active
-          ? "bg-[#456564] text-white border-[#456564]"
+          ? "btn-segment-active"
           : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-transparent hover:border-gray-200 dark:hover:border-gray-600"
       } disabled:opacity-40`}
     >

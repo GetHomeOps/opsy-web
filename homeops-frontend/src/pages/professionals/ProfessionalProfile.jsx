@@ -567,7 +567,7 @@ function ProfessionalProfile() {
                       onClick={handleSave}
                       className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 ${
                         saved
-                          ? "border-[#456564] bg-[#456564] text-white dark:border-[#7aa3a2] dark:bg-[#7aa3a2] dark:text-gray-900"
+                          ? "btn-segment-active dark:border-[#7aa3a2] dark:bg-[#7aa3a2] dark:text-gray-900"
                           : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-[#456564] hover:text-[#456564] dark:hover:border-[#7aa3a2] dark:hover:text-[#7aa3a2] bg-white dark:bg-gray-800"
                       }`}
                     >
@@ -616,7 +616,7 @@ function ProfessionalProfile() {
                     type="button"
                     onClick={openContactModal}
                     disabled={messageSending}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg btn-primary shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Send className="w-3.5 h-3.5" />
                     Send Message
@@ -645,7 +645,7 @@ function ProfessionalProfile() {
                     type="button"
                     onClick={openContactModal}
                     disabled={messageSending}
-                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg btn-primary shadow-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Send className="w-3.5 h-3.5" />
                     Send Message
@@ -980,7 +980,7 @@ function ProfessionalProfile() {
                               disabled={
                                 reviewForm.rating < 1 || reviewSubmitting
                               }
-                              className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                              className="btn btn-primary disabled:opacity-50"
                             >
                               {reviewSubmitting
                                 ? "Submitting..."
@@ -1150,7 +1150,7 @@ function ProfessionalProfile() {
                 disabled={
                   !messageText.trim() || messageSending || !replyEmail.trim()
                 }
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-[#456564] text-white hover:bg-[#34514f] shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg btn-primary shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {messageSending ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />

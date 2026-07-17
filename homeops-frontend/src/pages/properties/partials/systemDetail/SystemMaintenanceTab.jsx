@@ -699,7 +699,7 @@ function NextScheduledCard({
             <button
               type="button"
               onClick={() => onAddReport?.(event)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold text-white bg-[#456564] hover:bg-[#34514f] transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold btn-primary transition-colors"
             >
               <Upload className="w-4 h-4" />
               Add Report

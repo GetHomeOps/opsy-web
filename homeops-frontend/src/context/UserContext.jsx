@@ -19,6 +19,8 @@ export function UserProvider({children}) {
     () => ({
       name: (a, b, direction) => compareUsersForSort(a, b, "name", direction),
       email: (a, b, direction) => compareUsersForSort(a, b, "email", direction),
+      accountUrl: (a, b, direction) =>
+        compareUsersForSort(a, b, "accountUrl", direction),
       role: (a, b, direction) => compareUsersForSort(a, b, "role", direction),
       status: (a, b, direction) => compareUsersForSort(a, b, "status", direction),
       demoExpiresAt: (a, b, direction) =>

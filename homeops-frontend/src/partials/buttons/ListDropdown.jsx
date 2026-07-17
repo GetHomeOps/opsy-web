@@ -1,7 +1,7 @@
 import React, {useState, useRef, useEffect} from "react";
 import Transition from "../../utils/Transition";
 import {useTranslation} from "react-i18next";
-import {Settings, UserPlus} from "lucide-react";
+import {Settings, UserPlus, Building2, UserMinus, RefreshCw} from "lucide-react";
 
 function ListDropdown({
   align,
@@ -10,6 +10,10 @@ function ListDropdown({
   onDelete,
   onDuplicate,
   onInviteUser,
+  onAssignToAgency,
+  onRemoveFromAgency,
+  onRefreshFromStripe,
+  isRefreshingFromStripe = false,
   hasSelection,
   disabled = false,
 }) {
@@ -86,6 +90,25 @@ function ListDropdown({
     setDropdownOpen(false);
   }
 
+  function handleAssignToAgency(e) {
+    e.stopPropagation();
+    onAssignToAgency?.();
+    setDropdownOpen(false);
+  }
+
+  function handleRemoveFromAgency(e) {
+    e.stopPropagation();
+    onRemoveFromAgency?.();
+    setDropdownOpen(false);
+  }
+
+  function handleRefreshFromStripe(e) {
+    e.stopPropagation();
+    if (disabled || isRefreshingFromStripe) return;
+    onRefreshFromStripe?.();
+    setDropdownOpen(false);
+  }
+
   return (
     <div className="relative inline-flex">
       <button
@@ -123,6 +146,34 @@ function ListDropdown({
             {t("actions")}
           </div>
           <ul className="mb-1">
+            {onRefreshFromStripe && (
+              <li>
+                <button
+                  type="button"
+                  className={`w-full flex items-center px-3 py-2 ${
+                    isRefreshingFromStripe
+                      ? "opacity-50 cursor-not-allowed"
+                      : "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                  onClick={handleRefreshFromStripe}
+                  disabled={isRefreshingFromStripe}
+                >
+                  <RefreshCw
+                    className={`w-5 h-5 ${isRefreshingFromStripe ? "animate-spin" : ""}`}
+                    strokeWidth={1.5}
+                  />
+                  <span className="text-sm font-medium ml-2">
+                    {isRefreshingFromStripe
+                      ? t("subscriptions.refreshingFromStripe", {
+                          defaultValue: "Refreshing...",
+                        })
+                      : t("subscriptions.refreshFromStripe", {
+                          defaultValue: "Refresh from Stripe",
+                        })}
+                  </span>
+                </button>
+              </li>
+            )}
             {onExport && (
               <li>
                 <button
@@ -184,6 +235,34 @@ function ListDropdown({
                   <UserPlus className="w-5 h-5" strokeWidth={1.5} />
                   <span className="text-sm font-medium ml-2">
                     {t("inviteUser", {defaultValue: "Invite User"})}
+                  </span>
+                </button>
+              </li>
+            )}
+            {hasSelection && onAssignToAgency && (
+              <li>
+                <button
+                  type="button"
+                  className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
+                  onClick={handleAssignToAgency}
+                >
+                  <Building2 className="w-5 h-5" strokeWidth={1.5} />
+                  <span className="text-sm font-medium ml-2">
+                    {t("addToAgency", {defaultValue: "Add to agency"})}
+                  </span>
+                </button>
+              </li>
+            )}
+            {hasSelection && onRemoveFromAgency && (
+              <li>
+                <button
+                  type="button"
+                  className="w-full flex items-center cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-2 text-red-600 dark:text-red-400"
+                  onClick={handleRemoveFromAgency}
+                >
+                  <UserMinus className="w-5 h-5" strokeWidth={1.5} />
+                  <span className="text-sm font-medium ml-2">
+                    {t("removeFromAgency", {defaultValue: "Remove from agency"})}
                   </span>
                 </button>
               </li>

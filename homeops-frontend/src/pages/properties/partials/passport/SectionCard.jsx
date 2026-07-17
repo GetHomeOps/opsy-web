@@ -20,9 +20,11 @@ function SectionCard({
   flat = false,
   ...rest
 }) {
+  // Allow callers to override the default white surface via a bg-* utility.
+  const hasCustomBg = /\bbg-/.test(className);
   return (
     <section
-      className={`rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 bg-white dark:bg-neutral-900 ${className}`}
+      className={`rounded-2xl border border-neutral-200/80 dark:border-neutral-700/50 ${hasCustomBg ? "" : "bg-white dark:bg-neutral-900"} ${className}`}
       style={flat ? undefined : {boxShadow: PASSPORT_CARD_SHADOW}}
       {...rest}
     >

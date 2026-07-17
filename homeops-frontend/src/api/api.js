@@ -533,6 +533,46 @@ class AppApi {
     return res.accounts;
   }
 
+  /** List all accounts (platform admin). */
+  static async getAllAccounts() {
+    let res = await this.request("accounts");
+    return res.accounts;
+  }
+
+  /** Account branding for shell / agent card. */
+  static async getAccountBranding(accountId) {
+    let res = await this.request(`accounts/${accountId}/branding`);
+    return res.branding;
+  }
+
+  /** Update account branding (platform admin). */
+  static async updateAccountBranding(accountId, data) {
+    let res = await this.request(`accounts/${accountId}/branding`, data, "PATCH");
+    return res.branding;
+  }
+
+  /** Agencies list for Customization admin tab (platform admin). */
+  static async getAgenciesForCustomization() {
+    let res = await this.request("agencies-admin/for-customization");
+    return res.agencies ?? [];
+  }
+
+  /** Agency branding (platform admin). */
+  static async getAgencyBranding(agencyId) {
+    let res = await this.request(`agencies-admin/${agencyId}/branding`);
+    return res.branding;
+  }
+
+  /** Update agency branding (platform admin). */
+  static async updateAgencyBranding(agencyId, data) {
+    let res = await this.request(
+      `agencies-admin/${agencyId}/branding`,
+      data,
+      "PATCH",
+    );
+    return res.branding;
+  }
+
   /* --------- Invitations --------- */
 
   static async createInvitation(data) {
@@ -1585,6 +1625,78 @@ class AppApi {
     return res;
   }
 
+  /* --------- Pre-Purchase Analysis --------- */
+
+  static async getPrePurchaseAnalyses(query = {}) {
+    const res = await this.request("pre-purchase", query, "GET");
+    return res;
+  }
+
+  static async getPrePurchaseAnalysis(id) {
+    const res = await this.request(`pre-purchase/${id}`);
+    return res.analysis;
+  }
+
+  static async createPrePurchaseAnalysis(data) {
+    const res = await this.request("pre-purchase", data, "POST");
+    return res.analysis;
+  }
+
+  static async updatePrePurchaseAnalysis(id, data) {
+    const res = await this.request(`pre-purchase/${id}`, data, "PATCH");
+    return res.analysis;
+  }
+
+  static async addPrePurchaseDocument(analysisId, data) {
+    const res = await this.request(`pre-purchase/${analysisId}/documents`, data, "POST");
+    return res.document;
+  }
+
+  static async deletePrePurchaseDocument(analysisId, docId) {
+    const res = await this.request(
+      `pre-purchase/${analysisId}/documents/${docId}`,
+      {},
+      "DELETE"
+    );
+    return res;
+  }
+
+  static async startPrePurchaseAnalysis(analysisId) {
+    assertDemoAiAllowedApi();
+    const res = await this.request(`pre-purchase/${analysisId}/analyze`, {}, "POST");
+    return res.analysis;
+  }
+
+  static async retryPrePurchaseAnalysis(analysisId) {
+    assertDemoAiAllowedApi();
+    const res = await this.request(`pre-purchase/${analysisId}/retry`, {}, "POST");
+    return res.analysis;
+  }
+
+  static async deletePrePurchaseAnalysis(analysisId) {
+    const res = await this.request(`pre-purchase/${analysisId}`, {}, "DELETE");
+    return res;
+  }
+
+  static async convertPrePurchaseToProperty(analysisId) {
+    const res = await this.request(
+      `pre-purchase/${analysisId}/convert-to-property`,
+      {},
+      "POST"
+    );
+    return res;
+  }
+
+  static async aiPrePurchaseChat({ analysisId, message, history, systemContext }) {
+    assertDemoAiAllowedApi();
+    const res = await this.request(
+      `pre-purchase/${analysisId}/chat`,
+      { message, history, systemContext },
+      "POST"
+    );
+    return res;
+  }
+
   /* --------- Inspection Analysis Review (Super Admin) --------- */
 
   static async getInspectionReviewQueue(status) {
@@ -2416,6 +2528,39 @@ class AppApi {
       offices: res.offices ?? [],
       teams: res.teams ?? [],
     };
+  }
+
+  static async bulkAssignAgentAffiliations({ userIds, agencyId, officeId }) {
+    const body = { userIds, agencyId };
+    if (officeId != null && officeId !== "") body.officeId = officeId;
+    return this.request("agencies-admin/agents/affiliations", body, "POST");
+  }
+
+  static async assignAgentAffiliation(userId, { agencyId, officeId }) {
+    const body = { agencyId };
+    if (officeId != null && officeId !== "") body.officeId = officeId;
+    const res = await this.request(
+      `agencies-admin/agents/${userId}/affiliation`,
+      body,
+      "PATCH",
+    );
+    return res.affiliation ?? null;
+  }
+
+  static async removeAgentAffiliation(userId) {
+    return this.request(
+      `agencies-admin/agents/${userId}/affiliation`,
+      {},
+      "DELETE",
+    );
+  }
+
+  static async bulkRemoveAgentAffiliations({ userIds }) {
+    return this.request(
+      "agencies-admin/agents/affiliations/detach",
+      { userIds },
+      "POST",
+    );
   }
 
   static async getAdminAgencyFacets(params = {}) {

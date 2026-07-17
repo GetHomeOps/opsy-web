@@ -105,7 +105,7 @@ function AddCustomActionItemForm({ systemKey, propertyId, onItemCreated }) {
           <button
             type="submit"
             disabled={!title.trim() || saving}
-            className="text-xs font-medium px-3 py-1.5 rounded-lg bg-[#456564] text-white hover:bg-[#34514f] disabled:opacity-50"
+            className="text-xs font-medium px-3 py-1.5 rounded-lg btn-primary disabled:opacity-50"
           >
             {saving ? "Adding…" : "Add"}
           </button>

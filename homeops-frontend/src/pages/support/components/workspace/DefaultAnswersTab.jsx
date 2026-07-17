@@ -203,7 +203,7 @@ function CannedResponseModal({ open, onClose, initial, onSave, heading, ticket }
             </button>
             <button
               type="submit"
-              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-[#456564] hover:bg-[#34514f] text-white"
+              className="px-3 py-1.5 text-sm font-medium rounded-lg btn-primary"
             >
               Save
             </button>
@@ -261,7 +261,7 @@ function DefaultAnswersTab({ ticket, onInsertSnippet, canned }) {
         <button
           type="button"
           onClick={openAdd}
-          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-[#456564] hover:bg-[#34514f] text-white transition-colors"
+          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg btn-primary transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
           Add

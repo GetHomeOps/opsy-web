@@ -31,6 +31,8 @@ import {
   Tag,
   Mail,
   Wrench,
+  SlidersHorizontal,
+  FileSearch,
 } from "lucide-react";
 
 const ICON_SIZE = 18;
@@ -61,6 +63,15 @@ export const SIDEBAR_CONFIG = [
         path: "properties",
         icon: icon(Building2),
         roles: "all",
+      },
+      {
+        id: "pre-purchase",
+        label: "Pre-Purchase",
+        path: "pre-purchase",
+        icon: icon(FileSearch),
+        roles: "adminOrAgent",
+        requiresFeature: "prePurchaseEnabled",
+        activePaths: ["pre-purchase"],
       },
       {
         id: "calendar",
@@ -256,6 +267,14 @@ export const SIDEBAR_CONFIG = [
         path: "email-delivery",
         icon: icon(Mail),
         roles: "superAdminOnly",
+      },
+      {
+        id: "customization",
+        label: "Customization",
+        path: "customization",
+        activePaths: ["customization"],
+        icon: icon(SlidersHorizontal),
+        roles: "adminOnly",
       },
       {
         id: "users",

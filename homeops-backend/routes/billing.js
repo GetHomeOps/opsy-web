@@ -321,7 +321,8 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
                 pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
                 pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
                 pl.max_documents_per_system AS "maxDocumentsPerSystem",
-                COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
+                COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
+                COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
          FROM plan_limits pl
          JOIN subscription_products sp ON sp.id = pl.subscription_product_id
          WHERE sp.code = $1`,
@@ -346,7 +347,8 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
                   pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
                   pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
                   pl.max_documents_per_system AS "maxDocumentsPerSystem",
-                  COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
+                  COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
+                  COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
            FROM plan_limits pl
            JOIN subscription_products sp ON sp.id = pl.subscription_product_id
            WHERE sp.code = $1`,

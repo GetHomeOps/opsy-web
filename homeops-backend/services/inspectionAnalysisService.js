@@ -1214,95 +1214,73 @@ async function runSinglePassAnalysis(openai, textToUse, propertyContext, keyword
   return JSON.parse(content);
 }
 
-async function runAnalysis(jobId) {
-  const job = await InspectionAnalysisJob.get(jobId);
-  if (job.status !== "queued" && job.status !== "processing") {
-    return;
-  }
-
-  await InspectionAnalysisJob.updateStatus(jobId, { status: "processing", progress: "Downloading report..." });
-
-  let buffer;
-  try {
-    if (!AWS_S3_BUCKET) {
-      throw new Error("S3 bucket not configured");
-    }
-    buffer = await getFile(job.s3_key);
-  } catch (err) {
-    console.error("[inspectionAnalysis] S3 download error:", err);
-    await InspectionAnalysisJob.updateStatus(jobId, {
-      status: "failed",
-      error_message: "Failed to download report from storage",
-    });
-    return;
-  }
-
-  await InspectionAnalysisJob.updateStatus(jobId, { progress: "Extracting text..." });
-
-  let text = await extractTextFromBuffer(buffer, job.mime_type);
-
+/**
+ * Shared inspection-report analyzer (multi/single-pass + post-processing).
+ * Used by property Opsymization and Pre-Purchase analysis.
+ *
+ * @param {object} opts
+ * @param {string} opts.text - Extracted report text
+ * @param {string} [opts.propertyContext]
+ * @param {{ accountId?: number, userId?: number }} [opts.usageCtx]
+ * @param {(msg: string) => void|Promise<void>} [opts.onProgress]
+ * @returns {Promise<{
+ *   conditionRating: string,
+ *   conditionConfidence: number|null,
+ *   conditionRationale: string|null,
+ *   systemsDetected: object[],
+ *   needsAttention: object[],
+ *   maintenanceSuggestions: object[],
+ *   suggestedSystemsToAdd: object[],
+ *   summary: string|null,
+ *   citations: object[],
+ * }>}
+ */
+async function analyzeInspectionText({ text, propertyContext = "", usageCtx = {}, onProgress } = {}) {
   if (!text || text.trim().length < 100) {
-    await InspectionAnalysisJob.updateStatus(jobId, {
-      status: "failed",
-      error_message: "Could not extract enough text from the report. The file may be scanned or corrupted.",
-    });
-    return;
+    const err = new Error(
+      "Could not extract enough text from the report. The file may be scanned or corrupted."
+    );
+    err.code = "INSUFFICIENT_TEXT";
+    throw err;
   }
-
-  const keywordDetections = detectSystemsFromText(text);
-
-  await InspectionAnalysisJob.updateStatus(jobId, { progress: "Analyzing with AI..." });
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    await InspectionAnalysisJob.updateStatus(jobId, {
-      status: "failed",
-      error_message: "AI analysis is not configured. Set OPENAI_API_KEY.",
-    });
-    return;
+    const err = new Error("AI analysis is not configured. Set OPENAI_API_KEY.");
+    err.code = "AI_NOT_CONFIGURED";
+    throw err;
   }
 
   const openai = new OpenAI({ apiKey });
-
   const maxChars = 100000;
   const textToUse = text.length > maxChars ? text.slice(0, maxChars) : text;
+  const keywordDetections = detectSystemsFromText(textToUse);
 
-  const propertyContext = await getPropertyContextForAnalysis(job.property_id);
-
-  const accountRes = await db.query(
-    `SELECT account_id FROM properties WHERE id = $1`,
-    [job.property_id]
-  );
-  const usageCtx = {
-    accountId: accountRes.rows[0]?.account_id,
-    userId: job.user_id,
-  };
+  if (typeof onProgress === "function") {
+    await onProgress("Analyzing with AI...");
+  }
 
   const useMultiPass = textToUse.length > SINGLE_PASS_MAX_CHARS;
-
   let parsed;
-  try {
-    if (useMultiPass) {
-      console.log(`[inspectionAnalysis] Using multi-pass analysis (${textToUse.length} chars)`);
-      parsed = await runMultiPassAnalysis(
-        openai,
-        textToUse,
-        propertyContext,
-        keywordDetections,
-        (msg) => InspectionAnalysisJob.updateStatus(jobId, { progress: msg }),
-        usageCtx,
-      );
-    } else {
-      console.log(`[inspectionAnalysis] Using single-pass analysis (${textToUse.length} chars)`);
-      parsed = await runSinglePassAnalysis(openai, textToUse, propertyContext, keywordDetections, usageCtx);
-    }
-  } catch (err) {
-    console.error("[inspectionAnalysis] OpenAI error:", err);
-    await InspectionAnalysisJob.updateStatus(jobId, {
-      status: "failed",
-      error_message: err.message || "AI analysis failed",
-    });
-    return;
+  if (useMultiPass) {
+    console.log(`[inspectionAnalysis] Using multi-pass analysis (${textToUse.length} chars)`);
+    parsed = await runMultiPassAnalysis(
+      openai,
+      textToUse,
+      propertyContext,
+      keywordDetections,
+      onProgress,
+      usageCtx
+    );
+  } else {
+    console.log(`[inspectionAnalysis] Using single-pass analysis (${textToUse.length} chars)`);
+    parsed = await runSinglePassAnalysis(
+      openai,
+      textToUse,
+      propertyContext,
+      keywordDetections,
+      usageCtx
+    );
   }
 
   const condition = parsed.condition || {};
@@ -1407,7 +1385,7 @@ async function runAnalysis(jobId) {
   const reconciledSystemsDetected = reconcileSystemConditionsWithFindings(
     systemsDetected,
     needsAttention,
-    maintenanceSuggestions,
+    maintenanceSuggestions
   );
 
   // The reconcile step appends action-item-only systems (e.g. "interior" from
@@ -1442,8 +1420,6 @@ async function runAnalysis(jobId) {
 
   // If the AI couldn't determine a condition AND found no actionable content,
   // the document almost certainly isn't an inspection report (or is unreadable).
-  // Fail with a clear, user-facing message instead of inserting "unknown" — which
-  // the DB constraint rejects, causing a silent, confusing failure.
   const hasAnyFindings =
     systemsDetected.length > 0 ||
     needsAttention.length > 0 ||
@@ -1451,31 +1427,98 @@ async function runAnalysis(jobId) {
     suggestedSystemsToAdd.length > 0;
 
   if (!hasValidCondition && !hasAnyFindings) {
-    await InspectionAnalysisJob.updateStatus(jobId, {
-      status: "failed",
-      error_message:
-        "We couldn't find any property inspection findings in this document. Please verify it's a complete inspection report (PDF) and try again.",
-    });
-    return;
+    const err = new Error(
+      "We couldn't find any property inspection findings in this document. Please verify it's a complete inspection report (PDF) and try again."
+    );
+    err.code = "NO_FINDINGS";
+    throw err;
   }
 
   // Findings exist but the AI didn't give us a usable overall rating — default to "fair"
   // so we can persist the analysis (DB constraint only allows excellent/good/fair/poor).
   const validCondition = hasValidCondition ? conditionRating : "fair";
 
+  return {
+    conditionRating: validCondition,
+    conditionConfidence: hasValidCondition ? (condition.confidence ?? null) : null,
+    conditionRationale: condition.rationale ?? null,
+    systemsDetected: reconciledSystemsDetected,
+    needsAttention,
+    maintenanceSuggestions,
+    suggestedSystemsToAdd,
+    summary: parsed.summary || null,
+    citations: parsed.citations || [],
+  };
+}
+
+async function runAnalysis(jobId) {
+  const job = await InspectionAnalysisJob.get(jobId);
+  if (job.status !== "queued" && job.status !== "processing") {
+    return;
+  }
+
+  await InspectionAnalysisJob.updateStatus(jobId, { status: "processing", progress: "Downloading report..." });
+
+  let buffer;
+  try {
+    if (!AWS_S3_BUCKET) {
+      throw new Error("S3 bucket not configured");
+    }
+    buffer = await getFile(job.s3_key);
+  } catch (err) {
+    console.error("[inspectionAnalysis] S3 download error:", err);
+    await InspectionAnalysisJob.updateStatus(jobId, {
+      status: "failed",
+      error_message: "Failed to download report from storage",
+    });
+    return;
+  }
+
+  await InspectionAnalysisJob.updateStatus(jobId, { progress: "Extracting text..." });
+
+  let text = await extractTextFromBuffer(buffer, job.mime_type);
+
+  const propertyContext = await getPropertyContextForAnalysis(job.property_id);
+
+  const accountRes = await db.query(
+    `SELECT account_id FROM properties WHERE id = $1`,
+    [job.property_id]
+  );
+  const usageCtx = {
+    accountId: accountRes.rows[0]?.account_id,
+    userId: job.user_id,
+  };
+
+  let analyzed;
+  try {
+    analyzed = await analyzeInspectionText({
+      text,
+      propertyContext,
+      usageCtx,
+      onProgress: (msg) => InspectionAnalysisJob.updateStatus(jobId, { progress: msg }),
+    });
+  } catch (err) {
+    console.error("[inspectionAnalysis] analysis error:", err);
+    await InspectionAnalysisJob.updateStatus(jobId, {
+      status: "failed",
+      error_message: err.message || "AI analysis failed",
+    });
+    return;
+  }
+
   try {
     const result = await InspectionAnalysisResult.create({
       job_id: jobId,
       property_id: job.property_id,
-      condition_rating: validCondition,
-      condition_confidence: hasValidCondition ? (condition.confidence ?? null) : null,
-      condition_rationale: condition.rationale ?? null,
-      systems_detected: reconciledSystemsDetected,
-      needs_attention: needsAttention,
-      suggested_systems_to_add: suggestedSystemsToAdd,
-      maintenance_suggestions: maintenanceSuggestions,
-      summary: parsed.summary || null,
-      citations: parsed.citations || [],
+      condition_rating: analyzed.conditionRating,
+      condition_confidence: analyzed.conditionConfidence,
+      condition_rationale: analyzed.conditionRationale,
+      systems_detected: analyzed.systemsDetected,
+      needs_attention: analyzed.needsAttention,
+      suggested_systems_to_add: analyzed.suggestedSystemsToAdd,
+      maintenance_suggestions: analyzed.maintenanceSuggestions,
+      summary: analyzed.summary,
+      citations: analyzed.citations || [],
     });
 
     // The analysis enters the review queue in `pending_review`. Downstream/dependent
@@ -1509,4 +1552,9 @@ async function runAnalysis(jobId) {
   }
 }
 
-module.exports = { runAnalysis, CANONICAL_SYSTEMS, normalizeSystemType };
+module.exports = {
+  runAnalysis,
+  analyzeInspectionText,
+  CANONICAL_SYSTEMS,
+  normalizeSystemType,
+};

@@ -1069,7 +1069,7 @@ function AgentHome() {
               <button
                 onClick={() => handleAddProperty()}
                 disabled={addPropertyChecking}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#456564] text-white rounded-xl font-medium text-sm hover:bg-[#3a5554] transition-colors disabled:opacity-70"
+                className="inline-flex items-center gap-2 px-5 py-2.5 btn-primary rounded-xl font-medium text-sm transition-colors disabled:opacity-70"
               >
                 {addPropertyChecking
                   ? "…"
@@ -1242,7 +1242,7 @@ function AgentHome() {
           <button
             type="button"
             onClick={() => navigate(`/${accountUrl}/communications/new`)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#456564] hover:bg-[#34514f] text-white rounded-lg text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 btn-primary rounded-lg text-sm font-medium transition-colors"
           >
             <Plus className="w-4 h-4" />
             {t("agentHome.newCommunication") || "New communication"}

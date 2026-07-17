@@ -4,8 +4,11 @@ import {NavLink, useLocation} from "react-router-dom";
 import {ChevronDown, ChevronLeft, ChevronRight} from "lucide-react";
 
 import OpsyIcon from "../images/opsy_new_logo.webp";
+import PoweredByHomeOps from "../images/powered_by_homeops.png";
 import useCurrentAccount from "../hooks/useCurrentAccount";
+import useBillingStatus from "../hooks/useBillingStatus";
 import {useAuth} from "../context/AuthContext";
+import {useAccountBranding} from "../context/AccountBrandingContext";
 import Transition from "../utils/Transition";
 import {
   SIDEBAR_CONFIG,
@@ -238,14 +241,17 @@ function SidebarTooltip({show, label, children, layoutShiftKey}) {
 }
 
 // Shared link classes — lg uses py-2 in both collapsed and expanded so rows align when toggling width
+// Text colors use --opsy-accent-fg (set by AccountBrandingContext) so sidebar text is customizable.
 const linkBase =
   "flex items-center pl-4 pr-3 py-2 rounded-lg transition-all duration-200 lg:justify-center lg:px-3 lg:py-2 lg:sidebar-expanded:pl-4 lg:sidebar-expanded:pr-3 lg:sidebar-expanded:py-2 lg:sidebar-expanded:justify-start 2xl:justify-start 2xl:pl-4 2xl:pr-3 2xl:py-2";
-const linkActive = "bg-white/15 text-white [&_svg]:text-white";
+const linkActive =
+  "bg-white/15 text-[var(--opsy-accent-fg,#fff)] [&_svg]:text-[var(--opsy-accent-fg,#fff)]";
 const linkInactive =
-  "text-white/90 hover:bg-white/[0.08] hover:text-white [&_svg]:text-white/70";
-const linkChildActive = "text-white [&_svg]:text-white";
+  "text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_90%,transparent)] hover:bg-white/[0.08] hover:text-[var(--opsy-accent-fg,#fff)] [&_svg]:text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_70%,transparent)]";
+const linkChildActive =
+  "text-[var(--opsy-accent-fg,#fff)] [&_svg]:text-[var(--opsy-accent-fg,#fff)]";
 const linkChildInactive =
-  "text-white/70 hover:text-white [&_svg]:text-white/50";
+  "text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_70%,transparent)] hover:text-[var(--opsy-accent-fg,#fff)] [&_svg]:text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_50%,transparent)]";
 const spanCollapse =
   "text-sm font-medium ml-4 min-w-0 whitespace-nowrap lg:ml-0 lg:w-0 lg:min-w-0 lg:max-w-0 lg:overflow-hidden lg:opacity-0 lg:sidebar-expanded:ml-4 lg:sidebar-expanded:w-auto lg:sidebar-expanded:min-w-0 lg:sidebar-expanded:max-w-none lg:sidebar-expanded:overflow-visible lg:sidebar-expanded:opacity-100 2xl:ml-4 2xl:max-w-none 2xl:overflow-visible 2xl:opacity-100 duration-200";
 
@@ -253,6 +259,14 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const {pathname} = useLocation();
   const {currentAccount} = useCurrentAccount();
   const {currentUser} = useAuth();
+  const {branding} = useAccountBranding();
+  const sidebarLogoUrl = branding?.sidebarIconUrl || branding?.agentCardLogoUrl || null;
+  const hasCustomSidebarLogo = Boolean(sidebarLogoUrl);
+  const {
+    limits: billingLimits,
+    loading: billingLoading,
+    isAdmin: isBillingAdmin,
+  } = useBillingStatus();
   const accountUrl = currentAccount?.url || "";
   const isSuperAdmin = currentUser?.role === "super_admin";
   const isAdmin = currentUser?.role === "admin";
@@ -401,9 +415,16 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     if (item.demoSiteOnly && !isDemoSite()) return false;
     if (item.roles === "superAdminOnly") return isSuperAdmin;
     if (item.roles === "adminOnly") return canManageUsers;
-    if (item.roles === "adminOrAgent") return canManageUsers || isAgent;
+    if (item.roles === "adminOrAgent" && !(canManageUsers || isAgent)) {
+      return false;
+    }
     if (item.hideForSuperAdmin && isSuperAdmin) return false;
     if (item.hideForPlatformAdmins && canManageUsers) return false;
+    if (item.requiresFeature && !isBillingAdmin) {
+      // Platform admins always retain access; agents need the plan flag ON.
+      if (billingLoading) return false;
+      if (billingLimits?.[item.requiresFeature] !== true) return false;
+    }
     return true;
   };
 
@@ -476,8 +497,8 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
         aria-label={group.label}
         className={`flex items-center w-full pl-4 pr-3 py-2 rounded-lg transition-all duration-200 lg:justify-center lg:px-3 lg:py-2 lg:sidebar-expanded:pl-4 lg:sidebar-expanded:pr-3 lg:sidebar-expanded:py-2 lg:sidebar-expanded:justify-start 2xl:justify-start 2xl:pl-4 2xl:pr-3 2xl:py-2 ${
           isGroupActive
-            ? "text-white [&_svg]:text-white"
-            : "text-white/90 hover:text-white [&_svg]:text-white/70"
+            ? "text-[var(--opsy-accent-fg,#fff)] [&_svg]:text-[var(--opsy-accent-fg,#fff)]"
+            : "text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_90%,transparent)] hover:text-[var(--opsy-accent-fg,#fff)] [&_svg]:text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_70%,transparent)]"
         }`}
       >
         {Icon && <Icon className="shrink-0" />}
@@ -487,7 +508,10 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
             open ? "rotate-0" : "-rotate-90"
           }`}
         >
-          <ChevronDown className="w-4 h-4 text-white/70" strokeWidth={2} />
+          <ChevronDown
+            className="w-4 h-4 text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_70%,transparent)]"
+            strokeWidth={2}
+          />
         </span>
       </button>
     );
@@ -571,7 +595,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
       >
         {!isCollapsed && (
           <div className="px-4 py-1 mb-0.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-white/50">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_50%,transparent)]">
               {section.label}
             </span>
           </div>
@@ -592,8 +616,8 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                         className={({isActive}) =>
                           `flex items-center px-2 py-1.5 rounded mx-1 text-xs transition-colors ${
                             isActive
-                              ? "text-white bg-white/10"
-                              : "text-gray-100 hover:bg-gray-700"
+                              ? "text-[var(--opsy-accent-fg,#fff)] bg-white/10"
+                              : "text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_90%,transparent)] hover:bg-white/10"
                           }`
                         }
                       >
@@ -634,7 +658,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
         <div
           id="sidebar"
           ref={sidebar}
-          className={`flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-20 lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-[#456564] px-4 pb-4 pt-1 transition-all duration-200 ease-in-out relative ${
+          className={`flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-20 lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-[var(--opsy-accent,#456564)] px-4 pb-4 pt-1 transition-all duration-200 ease-in-out relative ${
             sidebarOpen ? "translate-x-0" : "-translate-x-64"
           } ${variant === "v2" ? "border-r border-white/10" : "shadow-xs"}`}
         >
@@ -642,7 +666,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
             <div className="flex justify-between lg:justify-center lg:sidebar-expanded:justify-center mb-0 pr-3 sm:px-2 lg:px-0">
               <button
                 ref={trigger}
-                className="lg:hidden text-white hover:text-white/80"
+                className="lg:hidden text-[var(--opsy-accent-fg,#fff)] hover:opacity-80"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 aria-controls="sidebar"
                 aria-expanded={sidebarOpen}
@@ -656,21 +680,32 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                   <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z" />
                 </svg>
               </button>
-              <NavLink
-                end
-                to={toPath("home")}
-                className="block leading-none -mt-1 -mb-2"
+              <div
+                className={`flex flex-col items-center leading-none -mt-1 ${
+                  hasCustomSidebarLogo && (!isCollapsed || sidebarOpen)
+                    ? "mb-1"
+                    : "-mb-2"
+                }`}
               >
-                <img
-                  src={OpsyIcon}
-                  alt="Opsy"
-                  className={`block object-contain flex-shrink-0 ${
-                    isCollapsed
-                      ? "w-[83px] h-[83px]"
-                      : "w-[161px] h-[161px] 2xl:w-[177px] 2xl:h-[177px] mx-auto"
-                  }`}
-                />
-              </NavLink>
+                <NavLink end to={toPath("home")} className="block leading-none">
+                  <img
+                    src={sidebarLogoUrl || OpsyIcon}
+                    alt={branding?.agentCardCompanyName || "Opsy"}
+                    className={`block object-contain flex-shrink-0 ${
+                      isCollapsed
+                        ? "w-[83px] h-[83px]"
+                        : "w-[161px] h-[161px] 2xl:w-[177px] 2xl:h-[177px] mx-auto"
+                    }`}
+                  />
+                </NavLink>
+                {hasCustomSidebarLogo && (!isCollapsed || sidebarOpen) ? (
+                  <img
+                    src={PoweredByHomeOps}
+                    alt="Powered by HomeOps"
+                    className="block self-end w-[96px] 2xl:w-[104px] h-auto -mt-3 2xl:-mt-4 mr-1 opacity-[0.92]"
+                  />
+                ) : null}
+              </div>
             </div>
 
             <div className="flex flex-col flex-1 min-h-0">

@@ -136,15 +136,39 @@ router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async fun
       }
     }
 
-    const passport_id = generatePassportId({ state: req.body.state, zip: req.body.zip });
-    const property = await Property.create({ ...req.body, passport_id, account_id: accountId });
+    if (!creatorId) {
+      throw new BadRequestError("Authenticated user is required to create a property");
+    }
 
-    if (creatorId) {
-      await Property.addUserToProperty({
-        property_id: property.id,
-        user_id: creatorId,
-        role: 'owner',
-      });
+    const passport_id = generatePassportId({ state: req.body.state, zip: req.body.zip });
+    /* Create property + owner membership atomically so a failed team insert
+       cannot leave an account-owned orphan that still consumes plan limits. */
+    const client = await db.connect();
+    let property;
+    try {
+      await client.query("BEGIN");
+      property = await Property.create(
+        { ...req.body, passport_id, account_id: accountId },
+        { client }
+      );
+      await Property.addUserToProperty(
+        {
+          property_id: property.id,
+          user_id: creatorId,
+          role: "owner",
+        },
+        { client }
+      );
+      await client.query("COMMIT");
+    } catch (err) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (_) {
+        /* ignore rollback errors */
+      }
+      throw err;
+    } finally {
+      client.release();
     }
 
     /* Bulk-import path enqueues an async ATTOM public-records lookup. The queue

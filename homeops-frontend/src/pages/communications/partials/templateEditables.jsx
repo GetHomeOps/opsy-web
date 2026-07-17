@@ -138,7 +138,7 @@ export function EditableInline({
               <button
                 type="button"
                 onClick={submit}
-                className="px-3 py-1.5 text-xs font-semibold rounded-md text-white inline-flex items-center gap-1 bg-[#456564] hover:bg-[#34514f]"
+                className="px-3 py-1.5 text-xs font-semibold rounded-md inline-flex items-center gap-1 btn-primary"
               >
                 <Check className="w-3.5 h-3.5" />
                 Save
@@ -464,7 +464,7 @@ export function EditableSocialLinks({
                   <button
                     type="button"
                     onClick={save}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-md text-white bg-[#456564] hover:bg-[#34514f] inline-flex items-center gap-1"
+                    className="px-3 py-1.5 text-xs font-semibold rounded-md btn-primary inline-flex items-center gap-1"
                   >
                     <Check className="w-3.5 h-3.5" />
                     Save

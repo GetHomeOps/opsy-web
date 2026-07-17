@@ -5,7 +5,10 @@ import AppApi from "../../api/api";
 import PaginationClassic from "../../components/PaginationClassic";
 import FilterDropdown from "../../components/FilterDropdown";
 import SearchInput from "../../components/SearchInput";
+import ModalBlank from "../../components/ModalBlank";
+import ListDropdown from "../../partials/buttons/ListDropdown";
 import AgentsTable from "./AgentsTable";
+import AssignAgencyModal from "./AssignAgencyModal";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -38,6 +41,9 @@ function agentToTableRow(agent) {
     agency: affiliation?.agency?.name || null,
     office: affiliation?.office?.name || null,
     team: affiliation?.team?.name || null,
+    agencyId: affiliation?.agency?.id || null,
+    officeId: affiliation?.office?.id || null,
+    teamId: affiliation?.team?.id || null,
     status: isAffiliated ? "affiliated" : "unaffiliated",
   };
 }
@@ -59,6 +65,10 @@ function AgentsList({embedded = false}) {
     office: [],
     team: [],
   });
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [assignModal, setAssignModal] = useState(null);
+  const [detachModalOpen, setDetachModalOpen] = useState(false);
+  const [detaching, setDetaching] = useState(false);
   const hasLoadedRef = React.useRef(false);
 
   useEffect(() => {
@@ -151,6 +161,33 @@ function AgentsList({embedded = false}) {
     [agents],
   );
 
+  const affiliatedSelectedIds = useMemo(
+    () =>
+      agentsForTable
+        .filter(
+          (row) =>
+            selectedItems.includes(row.id) && row.status === "affiliated",
+        )
+        .map((row) => row.id),
+    [agentsForTable, selectedItems],
+  );
+
+  const handleToggleSelect = (ids, shouldSelect = null) => {
+    if (Array.isArray(ids)) {
+      if (shouldSelect) {
+        const merged = new Set(selectedItems);
+        ids.forEach((id) => merged.add(id));
+        setSelectedItems(Array.from(merged));
+      } else {
+        setSelectedItems((prev) => prev.filter((id) => !ids.includes(id)));
+      }
+      return;
+    }
+    setSelectedItems((prev) =>
+      prev.includes(ids) ? prev.filter((id) => id !== ids) : [...prev, ids],
+    );
+  };
+
   const handleSort = (columnKey) => {
     setCurrentPage(1);
     setSortConfig((prev) =>
@@ -181,6 +218,72 @@ function AgentsList({embedded = false}) {
     );
   };
 
+  const openBulkAssign = () => {
+    if (!selectedItems.length) return;
+    setAssignModal({
+      userIds: [...selectedItems],
+      initialAgencyId: "",
+      initialOfficeId: "",
+      agentName: null,
+    });
+  };
+
+  const openRowAssign = (item) => {
+    setAssignModal({
+      userIds: [item.id],
+      initialAgencyId: item.agencyId || "",
+      initialOfficeId: item.officeId || "",
+      agentName: item.name || null,
+    });
+  };
+
+  const handleAssignSaved = async () => {
+    setSelectedItems([]);
+    await fetchAgents();
+  };
+
+  const openBulkDetach = () => {
+    if (!affiliatedSelectedIds.length) return;
+    setDetachModalOpen(true);
+  };
+
+  const handleDetachConfirm = async () => {
+    const userIds = [...affiliatedSelectedIds];
+    if (!userIds.length) return;
+
+    setDetaching(true);
+    setError(null);
+    try {
+      if (userIds.length === 1) {
+        await AppApi.removeAgentAffiliation(userIds[0]);
+      } else {
+        const result = await AppApi.bulkRemoveAgentAffiliations({userIds});
+        if (result?.errors?.length) {
+          const messages = result.errors
+            .map((e) => e.message)
+            .filter(Boolean)
+            .slice(0, 3);
+          setError(
+            messages.length
+              ? `Some agents could not be removed: ${messages.join("; ")}`
+              : "Some agents could not be removed from their agency",
+          );
+        }
+      }
+      setDetachModalOpen(false);
+      setSelectedItems([]);
+      await fetchAgents();
+    } catch (err) {
+      setError(
+        Array.isArray(err)
+          ? err.join(" ")
+          : err.message || "Failed to remove agent from agency",
+      );
+    } finally {
+      setDetaching(false);
+    }
+  };
+
   const showInitialSpinner = loading && !hasLoadedRef.current;
 
   const tableContent = (
@@ -190,6 +293,16 @@ function AgentsList({embedded = false}) {
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
             Agents
           </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <ListDropdown
+            align="right"
+            hasSelection={selectedItems.length > 0}
+            onAssignToAgency={openBulkAssign}
+            onRemoveFromAgency={
+              affiliatedSelectedIds.length > 0 ? openBulkDetach : undefined
+            }
+          />
         </div>
       </div>
 
@@ -297,6 +410,9 @@ function AgentsList({embedded = false}) {
             totalAgents={total}
             sortConfig={sortConfig}
             onSort={handleSort}
+            selectedItems={selectedItems}
+            onToggleSelect={handleToggleSelect}
+            onAgentClick={openRowAssign}
           />
         </div>
       )}
@@ -312,6 +428,55 @@ function AgentsList({embedded = false}) {
           />
         </div>
       )}
+
+      {assignModal && (
+        <AssignAgencyModal
+          open={Boolean(assignModal)}
+          onClose={() => setAssignModal(null)}
+          userIds={assignModal.userIds}
+          initialAgencyId={assignModal.initialAgencyId}
+          initialOfficeId={assignModal.initialOfficeId}
+          agentName={assignModal.agentName}
+          onSaved={handleAssignSaved}
+        />
+      )}
+
+      <ModalBlank
+        modalOpen={detachModalOpen}
+        setModalOpen={(open) => {
+          if (!detaching) setDetachModalOpen(open);
+        }}
+        contentClassName="max-w-md"
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            Remove from agency?
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            {affiliatedSelectedIds.length === 1
+              ? "This agent will become unaffiliated. Their clients, properties, and history will stay on their account."
+              : `${affiliatedSelectedIds.length} agents will become unaffiliated. Their clients, properties, and history will stay on their accounts.`}
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setDetachModalOpen(false)}
+              className="btn border-gray-200 dark:border-gray-700"
+              disabled={detaching}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDetachConfirm}
+              disabled={detaching}
+              className="btn bg-red-600 hover:bg-red-700 text-white"
+            >
+              {detaching ? "Removing..." : "Remove"}
+            </button>
+          </div>
+        </div>
+      </ModalBlank>
     </div>
   );
 

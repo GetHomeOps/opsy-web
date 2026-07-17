@@ -1428,7 +1428,7 @@ function ResourceFormContainer() {
                           ? "Complete the Delivery tab first"
                           : undefined
                       }
-                      className="btn text-white transition-colors duration-200 shadow-sm min-w-[100px] bg-[#456564] hover:bg-[#34514f] flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="btn transition-colors duration-200 shadow-sm min-w-[100px] btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       {submitting && (
                         <Loader2
@@ -1471,7 +1471,7 @@ function ResourceFormContainer() {
                               ? undefined
                               : "Activate auto-send only (no immediate send)"
                       }
-                      className="btn min-w-[100px] flex items-center justify-center gap-2 transition-colors duration-200 shadow-sm bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                      className="btn min-w-[100px] flex items-center justify-center gap-2 transition-colors duration-200 shadow-sm btn-primary disabled:opacity-50"
                     >
                       {submitting && (
                         <Loader2
@@ -1526,7 +1526,7 @@ function ResourceFormContainer() {
                   handleSend(e);
                 }}
                 disabled={submitting}
-                className="px-4 py-2 bg-[#456564] hover:bg-[#34514f] text-white rounded-lg font-medium disabled:opacity-50"
+                className="px-4 py-2 btn-primary rounded-lg font-medium disabled:opacity-50"
               >
                 {submitting
                   ? canSendNow

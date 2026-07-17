@@ -23,20 +23,65 @@
           "storageGb": 1,
           "contractorScheduling": false,
           "automation": false
-        }
+        },
+        "prePurchaseEnabled": false
       },
       "features": [
-        { "id": "properties", "label": "1 property", "included": true },
-        { "id": "storage", "label": "1 document per system", "included": true },
-        { "id": "users", "label": "1 seat (+1 view only)", "included": true },
-        { "id": "contacts", "label": "Up to 25 contacts", "included": true },
-        { "id": "maintenance_tracking", "label": "Manual maintenance tracking", "included": true },
-        { "id": "ai_assistant", "label": "Opsy assistant", "included": false },
-        { "id": "data_ingestion", "label": "Automated data ingestion", "included": false },
-        { "id": "export", "label": "PDF & DHP export only", "included": true },
-        { "id": "support", "label": "FAQs, Bot, Videos, email (DIY)", "included": true },
-        { "id": "inspection_analysis", "label": "AI inspection analysis", "included": false },
-        { "id": "contractor_scheduling", "label": "Contractor scheduling", "included": false }
+        {
+          "id": "properties",
+          "label": "1 property",
+          "included": true
+        },
+        {
+          "id": "storage",
+          "label": "1 document per system",
+          "included": true
+        },
+        {
+          "id": "users",
+          "label": "1 seat (+1 view only)",
+          "included": true
+        },
+        {
+          "id": "contacts",
+          "label": "Up to 25 contacts",
+          "included": true
+        },
+        {
+          "id": "maintenance_tracking",
+          "label": "Manual maintenance tracking",
+          "included": true
+        },
+        {
+          "id": "ai_assistant",
+          "label": "Opsy assistant",
+          "included": false
+        },
+        {
+          "id": "data_ingestion",
+          "label": "Automated data ingestion",
+          "included": false
+        },
+        {
+          "id": "export",
+          "label": "PDF & DHP export only",
+          "included": true
+        },
+        {
+          "id": "support",
+          "label": "FAQs, Bot, Videos, email (DIY)",
+          "included": true
+        },
+        {
+          "id": "inspection_analysis",
+          "label": "AI inspection analysis",
+          "included": false
+        },
+        {
+          "id": "contractor_scheduling",
+          "label": "Contractor scheduling",
+          "included": false
+        }
       ]
     },
     {
@@ -56,20 +101,67 @@
         "maxTeamMembers": 10,
         "aiTokenMonthlyQuota": 50000,
         "maxDocumentsPerSystem": 3,
-        "otherLimits": { "storageGb": 5 }
+        "otherLimits": {
+          "storageGb": 5
+        },
+        "prePurchaseEnabled": false
       },
       "features": [
-        { "id": "properties", "label": "1 property", "included": true },
-        { "id": "storage", "label": "3 documents per system", "included": true },
-        { "id": "users", "label": "3 seats (unlimited view)", "included": true },
-        { "id": "contacts", "label": "Up to 100 contacts", "included": true },
-        { "id": "maintenance_tracking", "label": "Assisted maintenance tracking", "included": true },
-        { "id": "ai_assistant", "label": "Opsy assistant (limited)", "included": true },
-        { "id": "data_ingestion", "label": "100 tokens/month", "included": true },
-        { "id": "export", "label": "CSV, Excel, PDF export", "included": true },
-        { "id": "support", "label": "24/7 support", "included": true },
-        { "id": "inspection_analysis", "label": "AI inspection analysis", "included": true },
-        { "id": "contractor_scheduling", "label": "Contractor scheduling", "included": true }
+        {
+          "id": "properties",
+          "label": "1 property",
+          "included": true
+        },
+        {
+          "id": "storage",
+          "label": "3 documents per system",
+          "included": true
+        },
+        {
+          "id": "users",
+          "label": "3 seats (unlimited view)",
+          "included": true
+        },
+        {
+          "id": "contacts",
+          "label": "Up to 100 contacts",
+          "included": true
+        },
+        {
+          "id": "maintenance_tracking",
+          "label": "Assisted maintenance tracking",
+          "included": true
+        },
+        {
+          "id": "ai_assistant",
+          "label": "Opsy assistant (limited)",
+          "included": true
+        },
+        {
+          "id": "data_ingestion",
+          "label": "100 tokens/month",
+          "included": true
+        },
+        {
+          "id": "export",
+          "label": "CSV, Excel, PDF export",
+          "included": true
+        },
+        {
+          "id": "support",
+          "label": "24/7 support",
+          "included": true
+        },
+        {
+          "id": "inspection_analysis",
+          "label": "AI inspection analysis",
+          "included": true
+        },
+        {
+          "id": "contractor_scheduling",
+          "label": "Contractor scheduling",
+          "included": true
+        }
       ]
     },
     {
@@ -89,21 +181,72 @@
         "maxTeamMembers": 25,
         "aiTokenMonthlyQuota": 999999,
         "maxDocumentsPerSystem": 999,
-        "otherLimits": { "storageGb": 25 }
+        "otherLimits": {
+          "storageGb": 25
+        },
+        "prePurchaseEnabled": false
       },
       "features": [
-        { "id": "properties", "label": "Up to 3 properties", "included": true },
-        { "id": "storage", "label": "Unlimited documents per system", "included": true },
-        { "id": "users", "label": "Unlimited users", "included": true },
-        { "id": "contacts", "label": "Up to 500 contacts", "included": true },
-        { "id": "maintenance_tracking", "label": "Automated maintenance tracking", "included": true },
-        { "id": "ai_assistant", "label": "Full Opsy assistant", "included": true },
-        { "id": "data_ingestion", "label": "300 tokens/month", "included": true },
-        { "id": "export", "label": "Custom reports", "included": true },
-        { "id": "support", "label": "Priority support", "included": true },
-        { "id": "inspection_analysis", "label": "AI inspection analysis", "included": true },
-        { "id": "contractor_scheduling", "label": "Priority contractor matching", "included": true },
-        { "id": "predictive", "label": "Predictive maintenance scoring", "included": true }
+        {
+          "id": "properties",
+          "label": "Up to 3 properties",
+          "included": true
+        },
+        {
+          "id": "storage",
+          "label": "Unlimited documents per system",
+          "included": true
+        },
+        {
+          "id": "users",
+          "label": "Unlimited users",
+          "included": true
+        },
+        {
+          "id": "contacts",
+          "label": "Up to 500 contacts",
+          "included": true
+        },
+        {
+          "id": "maintenance_tracking",
+          "label": "Automated maintenance tracking",
+          "included": true
+        },
+        {
+          "id": "ai_assistant",
+          "label": "Full Opsy assistant",
+          "included": true
+        },
+        {
+          "id": "data_ingestion",
+          "label": "300 tokens/month",
+          "included": true
+        },
+        {
+          "id": "export",
+          "label": "Custom reports",
+          "included": true
+        },
+        {
+          "id": "support",
+          "label": "Priority support",
+          "included": true
+        },
+        {
+          "id": "inspection_analysis",
+          "label": "AI inspection analysis",
+          "included": true
+        },
+        {
+          "id": "contractor_scheduling",
+          "label": "Priority contractor matching",
+          "included": true
+        },
+        {
+          "id": "predictive",
+          "label": "Predictive maintenance scoring",
+          "included": true
+        }
       ]
     },
     {
@@ -124,11 +267,22 @@
         "aiTokenMonthlyQuota": 25000,
         "maxDocumentsPerSystem": 3,
         "aiFeaturesEnabled": true,
-        "otherLimits": { "storageGb": 10 }
+        "otherLimits": {
+          "storageGb": 10
+        },
+        "prePurchaseEnabled": false
       },
       "features": [
-        { "id": "properties", "label": "Up to 5 properties", "included": true },
-        { "id": "beta", "label": "Promotional / pilot tier", "included": true }
+        {
+          "id": "properties",
+          "label": "Up to 5 properties",
+          "included": true
+        },
+        {
+          "id": "beta",
+          "label": "Promotional / pilot tier",
+          "included": true
+        }
       ]
     },
     {
@@ -148,19 +302,62 @@
         "maxTeamMembers": 10,
         "aiTokenMonthlyQuota": 25000,
         "maxDocumentsPerSystem": 3,
-        "otherLimits": { "storageGb": 10 }
+        "otherLimits": {
+          "storageGb": 10
+        },
+        "prePurchaseEnabled": false
       },
       "features": [
-        { "id": "properties", "label": "Up to 5 properties", "included": true },
-        { "id": "users", "label": "1 user + TC", "included": false },
-        { "id": "branding", "label": "Opsy branding", "included": false },
-        { "id": "onboarding", "label": "30 min consult", "included": true },
-        { "id": "ai_assistant", "label": "Opsy assistant", "included": false },
-        { "id": "data_ingestion", "label": "Manual data ingestion", "included": false },
-        { "id": "export", "label": "PDF, DHP export only", "included": false },
-        { "id": "support", "label": "FAQs, Bot, Videos, email (DIY)", "included": false },
-        { "id": "integrations", "label": "CRM integrations", "included": false },
-        { "id": "leads", "label": "Lead generation", "included": false }
+        {
+          "id": "properties",
+          "label": "Up to 5 properties",
+          "included": true
+        },
+        {
+          "id": "users",
+          "label": "1 user + TC",
+          "included": false
+        },
+        {
+          "id": "branding",
+          "label": "Opsy branding",
+          "included": false
+        },
+        {
+          "id": "onboarding",
+          "label": "30 min consult",
+          "included": true
+        },
+        {
+          "id": "ai_assistant",
+          "label": "Opsy assistant",
+          "included": false
+        },
+        {
+          "id": "data_ingestion",
+          "label": "Manual data ingestion",
+          "included": false
+        },
+        {
+          "id": "export",
+          "label": "PDF, DHP export only",
+          "included": false
+        },
+        {
+          "id": "support",
+          "label": "FAQs, Bot, Videos, email (DIY)",
+          "included": false
+        },
+        {
+          "id": "integrations",
+          "label": "CRM integrations",
+          "included": false
+        },
+        {
+          "id": "leads",
+          "label": "Lead generation",
+          "included": false
+        }
       ]
     },
     {
@@ -180,19 +377,62 @@
         "maxTeamMembers": 25,
         "aiTokenMonthlyQuota": 200000,
         "maxDocumentsPerSystem": 10,
-        "otherLimits": { "storageGb": 50 }
+        "otherLimits": {
+          "storageGb": 50
+        },
+        "prePurchaseEnabled": false
       },
       "features": [
-        { "id": "properties", "label": "Up to 25 properties", "included": true },
-        { "id": "users", "label": "2 users + TC", "included": false },
-        { "id": "branding", "label": "Co-branded", "included": false },
-        { "id": "onboarding", "label": "Dedicated specialist", "included": false },
-        { "id": "ai_assistant", "label": "Opsy assistant", "included": true },
-        { "id": "data_ingestion", "label": "Assisted data ingestion", "included": false },
-        { "id": "export", "label": "CSV, Excel, PDF export", "included": false },
-        { "id": "support", "label": "24/7 support", "included": true },
-        { "id": "integrations", "label": "SELECT CRM integration", "included": false },
-        { "id": "leads", "label": "Zip code specific leads", "included": false }
+        {
+          "id": "properties",
+          "label": "Up to 25 properties",
+          "included": true
+        },
+        {
+          "id": "users",
+          "label": "2 users + TC",
+          "included": false
+        },
+        {
+          "id": "branding",
+          "label": "Co-branded",
+          "included": false
+        },
+        {
+          "id": "onboarding",
+          "label": "Dedicated specialist",
+          "included": false
+        },
+        {
+          "id": "ai_assistant",
+          "label": "Opsy assistant",
+          "included": true
+        },
+        {
+          "id": "data_ingestion",
+          "label": "Assisted data ingestion",
+          "included": false
+        },
+        {
+          "id": "export",
+          "label": "CSV, Excel, PDF export",
+          "included": false
+        },
+        {
+          "id": "support",
+          "label": "24/7 support",
+          "included": true
+        },
+        {
+          "id": "integrations",
+          "label": "SELECT CRM integration",
+          "included": false
+        },
+        {
+          "id": "leads",
+          "label": "Zip code specific leads",
+          "included": false
+        }
       ]
     },
     {
@@ -212,19 +452,62 @@
         "maxTeamMembers": 100,
         "aiTokenMonthlyQuota": 999999,
         "maxDocumentsPerSystem": 50,
-        "otherLimits": { "storageGb": 200 }
+        "otherLimits": {
+          "storageGb": 200
+        },
+        "prePurchaseEnabled": false
       },
       "features": [
-        { "id": "properties", "label": "Up to 999 properties", "included": true },
-        { "id": "users", "label": "Up to 5 total users", "included": true },
-        { "id": "branding", "label": "Fully white-labeled", "included": false },
-        { "id": "onboarding", "label": "Dedicated account manager", "included": true },
-        { "id": "ai_assistant", "label": "Full Opsy assistant", "included": true },
-        { "id": "data_ingestion", "label": "Automated data ingestion", "included": false },
-        { "id": "export", "label": "Custom reports", "included": false },
-        { "id": "support", "label": "Priority support", "included": true },
-        { "id": "integrations", "label": "Full API access", "included": false },
-        { "id": "leads", "label": "City-wide lead expansion", "included": false }
+        {
+          "id": "properties",
+          "label": "Up to 999 properties",
+          "included": true
+        },
+        {
+          "id": "users",
+          "label": "Up to 5 total users",
+          "included": true
+        },
+        {
+          "id": "branding",
+          "label": "Fully white-labeled",
+          "included": false
+        },
+        {
+          "id": "onboarding",
+          "label": "Dedicated account manager",
+          "included": true
+        },
+        {
+          "id": "ai_assistant",
+          "label": "Full Opsy assistant",
+          "included": true
+        },
+        {
+          "id": "data_ingestion",
+          "label": "Automated data ingestion",
+          "included": false
+        },
+        {
+          "id": "export",
+          "label": "Custom reports",
+          "included": false
+        },
+        {
+          "id": "support",
+          "label": "Priority support",
+          "included": true
+        },
+        {
+          "id": "integrations",
+          "label": "Full API access",
+          "included": false
+        },
+        {
+          "id": "leads",
+          "label": "City-wide lead expansion",
+          "included": false
+        }
       ]
     },
     {
@@ -244,21 +527,72 @@
         "maxTeamMembers": 999,
         "aiTokenMonthlyQuota": 999999,
         "maxDocumentsPerSystem": 999,
-        "otherLimits": { "storageGb": 999 }
+        "otherLimits": {
+          "storageGb": 999
+        },
+        "prePurchaseEnabled": false
       },
       "features": [
-        { "id": "properties", "label": "Unlimited properties", "included": true },
-        { "id": "users", "label": "Unlimited users", "included": true },
-        { "id": "branding", "label": "Fully white-labeled", "included": false },
-        { "id": "onboarding", "label": "Custom onboarding program", "included": false },
-        { "id": "ai_assistant", "label": "Full Opsy assistant", "included": true },
-        { "id": "data_ingestion", "label": "Automated + custom pipelines", "included": false },
-        { "id": "export", "label": "Custom reports + API", "included": false },
-        { "id": "support", "label": "SLA-backed priority support", "included": false },
-        { "id": "integrations", "label": "Custom integrations + API", "included": false },
-        { "id": "leads", "label": "National lead network", "included": false },
-        { "id": "dedicated_infra", "label": "Dedicated infrastructure", "included": false },
-        { "id": "sla", "label": "Custom SLA", "included": false }
+        {
+          "id": "properties",
+          "label": "Unlimited properties",
+          "included": true
+        },
+        {
+          "id": "users",
+          "label": "Unlimited users",
+          "included": true
+        },
+        {
+          "id": "branding",
+          "label": "Fully white-labeled",
+          "included": false
+        },
+        {
+          "id": "onboarding",
+          "label": "Custom onboarding program",
+          "included": false
+        },
+        {
+          "id": "ai_assistant",
+          "label": "Full Opsy assistant",
+          "included": true
+        },
+        {
+          "id": "data_ingestion",
+          "label": "Automated + custom pipelines",
+          "included": false
+        },
+        {
+          "id": "export",
+          "label": "Custom reports + API",
+          "included": false
+        },
+        {
+          "id": "support",
+          "label": "SLA-backed priority support",
+          "included": false
+        },
+        {
+          "id": "integrations",
+          "label": "Custom integrations + API",
+          "included": false
+        },
+        {
+          "id": "leads",
+          "label": "National lead network",
+          "included": false
+        },
+        {
+          "id": "dedicated_infra",
+          "label": "Dedicated infrastructure",
+          "included": false
+        },
+        {
+          "id": "sla",
+          "label": "Custom SLA",
+          "included": false
+        }
       ]
     }
   ]

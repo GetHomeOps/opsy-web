@@ -643,7 +643,7 @@ function AccountAnalytics() {
                 type="button"
                 onClick={fetchData}
                 disabled={loading}
-                className="flex items-center gap-2 btn bg-[#456564] text-white hover:bg-[#3a5554] disabled:opacity-50 text-sm"
+                className="flex items-center gap-2 btn btn-primary disabled:opacity-50 text-sm"
               >
                 <RefreshCw
                   className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}

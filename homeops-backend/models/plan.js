@@ -65,6 +65,7 @@ async function getPlansForAudience(audienceType) {
               ai_token_monthly_quota AS "aiTokenMonthlyQuota",
               max_documents_per_system AS "maxDocumentsPerSystem",
               COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
+              COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled",
               other_limits AS "otherLimits"
        FROM plan_limits WHERE subscription_product_id = $1`,
       [p.id]
@@ -77,6 +78,7 @@ async function getPlansForAudience(audienceType) {
       aiTokenMonthlyQuota: 50000,
       maxDocumentsPerSystem: 5,
       aiFeaturesEnabled: true,
+      prePurchaseEnabled: false,
       otherLimits: {},
     };
 
@@ -160,6 +162,7 @@ async function getAll() {
               ai_token_monthly_quota AS "aiTokenMonthlyQuota",
               max_documents_per_system AS "maxDocumentsPerSystem",
               COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
+              COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled",
               other_limits AS "otherLimits"
        FROM plan_limits WHERE subscription_product_id = $1`,
       [p.id]
@@ -261,11 +264,13 @@ async function updatePlanLimits(productId, limits) {
   const {
     maxProperties, maxContacts, maxViewers, maxTeamMembers,
     aiTokenMonthlyQuota, maxDocumentsPerSystem, otherLimits, aiFeaturesEnabled,
+    prePurchaseEnabled,
   } = limits;
   const aiFeatParam = aiFeaturesEnabled === undefined ? null : !!aiFeaturesEnabled;
+  const prePurchaseParam = prePurchaseEnabled === undefined ? null : !!prePurchaseEnabled;
   await db.query(
-    `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, max_documents_per_system, ai_features_enabled, other_limits, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true), $9, NOW())
+    `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, max_documents_per_system, ai_features_enabled, pre_purchase_enabled, other_limits, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true), COALESCE($9, false), $10, NOW())
      ON CONFLICT (subscription_product_id) DO UPDATE SET
        max_properties = EXCLUDED.max_properties,
        max_contacts = EXCLUDED.max_contacts,
@@ -274,6 +279,7 @@ async function updatePlanLimits(productId, limits) {
        ai_token_monthly_quota = EXCLUDED.ai_token_monthly_quota,
        max_documents_per_system = EXCLUDED.max_documents_per_system,
        ai_features_enabled = COALESCE(EXCLUDED.ai_features_enabled, plan_limits.ai_features_enabled),
+       pre_purchase_enabled = COALESCE(EXCLUDED.pre_purchase_enabled, plan_limits.pre_purchase_enabled),
        other_limits = EXCLUDED.other_limits,
        updated_at = NOW()`,
     [
@@ -285,6 +291,7 @@ async function updatePlanLimits(productId, limits) {
       aiTokenMonthlyQuota ?? 50000,
       maxDocumentsPerSystem ?? 5,
       aiFeatParam,
+      prePurchaseParam,
       otherLimits ? JSON.stringify(otherLimits) : "{}",
     ]
   );
@@ -363,6 +370,7 @@ async function getPlanById(id) {
             ai_token_monthly_quota AS "aiTokenMonthlyQuota",
             max_documents_per_system AS "maxDocumentsPerSystem",
             COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
+            COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled",
             other_limits AS "otherLimits"
      FROM plan_limits WHERE subscription_product_id = $1`,
     [id]

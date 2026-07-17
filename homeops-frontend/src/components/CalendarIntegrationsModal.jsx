@@ -134,7 +134,7 @@ function CalendarIntegrationsModal({isOpen, onClose}) {
                           }
                         }}
                         disabled={isConnecting}
-                        className="btn bg-[#456564] hover:bg-[#34514f] text-white text-sm disabled:opacity-70"
+                        className="btn btn-primary text-sm disabled:opacity-70"
                       >
                         {isConnecting ? (
                           <Loader2 className="w-4 h-4 animate-spin" />

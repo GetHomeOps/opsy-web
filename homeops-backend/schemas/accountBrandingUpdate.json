@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "accentColor": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^#([0-9A-Fa-f]{6})$"}
+      ]
+    },
+    "sidebarIconKey": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "maxLength": 512}
+      ]
+    },
+    "agentCardLogoKey": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "maxLength": 512}
+      ]
+    },
+    "agentCardAccentColor": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^#([0-9A-Fa-f]{6})$"}
+      ]
+    },
+    "agentCardBackgroundColor": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^#([0-9A-Fa-f]{6})$"}
+      ]
+    },
+    "agentCardAgentLabel": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "maxLength": 80}
+      ]
+    },
+    "agentCardCompanyName": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "maxLength": 120}
+      ]
+    },
+    "sidebarTextColor": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^#([0-9A-Fa-f]{6})$"}
+      ]
+    },
+    "agentCardTextColor": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^#([0-9A-Fa-f]{6})$"}
+      ]
+    }
+  }
+}

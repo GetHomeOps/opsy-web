@@ -180,6 +180,7 @@ const initialFormData = {
   aiTokenPriceUsd: "",
   maxDocumentsPerSystem: 5,
   aiFeaturesEnabled: true,
+  prePurchaseEnabled: false,
   stripePriceIdMonth: "",
   stripePriceIdYear: "",
   priceActiveMonth: true,
@@ -282,6 +283,7 @@ function mapProductToForm(product) {
       lim.aiTokenPriceUsd != null ? String(lim.aiTokenPriceUsd) : "",
     maxDocumentsPerSystem: lim.maxDocumentsPerSystem ?? 5,
     aiFeaturesEnabled: lim.aiFeaturesEnabled !== false,
+    prePurchaseEnabled: lim.prePurchaseEnabled === true,
     stripePriceIdMonth:
       priceMonth?.stripePriceId || priceMonth?.stripe_price_id || "",
     stripePriceIdYear:
@@ -750,6 +752,7 @@ function SubscriptionProductFormContainer() {
         maxDocumentsPerSystem:
           Number(state.formData.maxDocumentsPerSystem) ?? 5,
         aiFeaturesEnabled: !!state.formData.aiFeaturesEnabled,
+        prePurchaseEnabled: !!state.formData.prePurchaseEnabled,
         stripePriceIdMonth: state.formData.stripePriceIdMonth?.trim() || null,
         stripePriceIdYear: state.formData.stripePriceIdYear?.trim() || null,
         stripePriceId:
@@ -834,6 +837,7 @@ function SubscriptionProductFormContainer() {
           maxDocumentsPerSystem:
             Number(state.formData.maxDocumentsPerSystem) ?? 5,
           aiFeaturesEnabled: !!state.formData.aiFeaturesEnabled,
+          prePurchaseEnabled: !!state.formData.prePurchaseEnabled,
         },
         prices: {
           month: state.formData.stripePriceIdMonth?.trim() || null,
@@ -1052,7 +1056,7 @@ function SubscriptionProductFormContainer() {
 
           <div className="flex items-center gap-3">
             <button
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
+              className="btn btn-primary transition-colors duration-200 shadow-sm"
               onClick={() =>
                 navigate(`/${accountUrl}/subscription-products/new`)
               }
@@ -1638,7 +1642,7 @@ function SubscriptionProductFormContainer() {
                         </p>
                       </div>
                     </div>
-                    <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                    <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-4">
                       <label className="flex items-start gap-3 cursor-pointer max-w-2xl">
                         <input
                           id="aiFeaturesEnabled"
@@ -1658,6 +1662,28 @@ function SubscriptionProductFormContainer() {
                               "subscriptionProducts.tierLimits.aiFeaturesEnabledHint",
                             ) ||
                               "When enabled, subscribers can use AI inspection report analysis and the Opsy assistant (subject to token limits). When disabled, those actions are blocked at the API."}
+                          </span>
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-3 cursor-pointer max-w-2xl">
+                        <input
+                          id="prePurchaseEnabled"
+                          type="checkbox"
+                          checked={!!state.formData.prePurchaseEnabled}
+                          onChange={handleChange}
+                          className="mt-1 rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
+                            {t(
+                              "subscriptionProducts.tierLimits.prePurchaseEnabled",
+                            ) || "Include Pre-Purchase Analysis"}
+                          </span>
+                          <span className="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                            {t(
+                              "subscriptionProducts.tierLimits.prePurchaseEnabledHint",
+                            ) ||
+                              "When enabled, agents on this plan can use Pre-Purchase Analysis. When disabled, Pre-Purchase is hidden and blocked at the API. Admins always retain access."}
                           </span>
                         </span>
                       </label>
@@ -1699,7 +1725,7 @@ function SubscriptionProductFormContainer() {
                       <button
                         type="button"
                         onClick={handleAddFeature}
-                        className="btn bg-[#456564] hover:bg-[#34514f] text-white text-sm flex items-center gap-2"
+                        className="btn btn-primary text-sm flex items-center gap-2"
                       >
                         <Plus className="h-4 w-4" />
                         {t("subscriptionProducts.features.addFeature") ||
@@ -1988,7 +2014,7 @@ function SubscriptionProductFormContainer() {
                 </button>
                 <button
                   type="submit"
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm min-w-[100px]"
+                  className="btn btn-primary transition-colors duration-200 shadow-sm min-w-[100px]"
                   disabled={state.isSubmitting}
                 >
                   {state.isSubmitting ? (

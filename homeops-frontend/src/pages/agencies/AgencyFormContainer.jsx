@@ -40,6 +40,8 @@ function agencyToFormValues(agency) {
     phone: agency.phone || "",
     officeName: "",
     logoUrl: agency.logoUrl || "",
+    // Display-only: API enrichAgency already provides a working presigned URL
+    logoDisplayUrl: agency.logoDisplayUrl || "",
   };
 }
 
@@ -255,7 +257,8 @@ function AgencyFormContainer() {
   const handleCancel = () => navigate(listPath);
 
   const handleSubmit = async (form) => {
-    const name = form.name.trim();
+    const str = (v) => String(v ?? "").trim();
+    const name = str(form.name);
     if (!name) {
       setFormError("Agency name is required.");
       return null;
@@ -267,12 +270,12 @@ function AgencyFormContainer() {
     try {
       const payload = {
         name,
-        website: form.website.trim() || null,
-        addressLine1: form.addressLine1.trim() || null,
-        city: form.city.trim() || null,
-        state: form.state.trim() || null,
-        phone: form.phone.trim() || null,
-        logoUrl: form.logoUrl.trim() || null,
+        website: str(form.website) || null,
+        addressLine1: str(form.addressLine1) || null,
+        city: str(form.city) || null,
+        state: str(form.state) || null,
+        phone: str(form.phone) || null,
+        logoUrl: str(form.logoUrl) || null,
       };
 
       if (editingId) {
@@ -374,7 +377,7 @@ function AgencyFormContainer() {
               {!isNew && (
                 <button
                   type="button"
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
+                  className="btn btn-primary transition-colors duration-200 shadow-sm"
                   onClick={() =>
                     navigate(
                       accountUrl

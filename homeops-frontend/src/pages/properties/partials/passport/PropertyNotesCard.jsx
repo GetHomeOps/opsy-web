@@ -172,7 +172,7 @@ function PropertyNotesCard({
                             type="button"
                             disabled={saving || !editDraft.trim()}
                             onClick={() => handleSaveEdit(note.id)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-white bg-[#456564] hover:bg-[#34514f] disabled:opacity-50"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold btn-primary disabled:opacity-50"
                           >
                             <Check className="w-3.5 h-3.5" />
                             Save
@@ -260,7 +260,7 @@ function PropertyNotesCard({
                   type="button"
                   disabled={saving || !draft.trim()}
                   onClick={handleSubmit}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#456564] hover:bg-[#34514f] disabled:opacity-50"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold btn-primary disabled:opacity-50"
                 >
                   {saving ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />

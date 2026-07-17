@@ -176,9 +176,9 @@ function StepIndicator({currentStep, steps}) {
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-200 ${
                     isCompleted
-                      ? "border-[#456564] bg-[#456564] text-white"
+                      ? "btn-segment-active"
                       : isActive
-                        ? "border-[#456564] bg-[#456564] text-white"
+                        ? "btn-segment-active"
                         : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500"
                   }`}
                 >
@@ -584,7 +584,7 @@ function ContractorStep({
           <button
             type="button"
             onClick={onBrowseDirectory}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#34514f] text-white transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium btn-primary transition-colors"
           >
             Browse Directory
             <ExternalLink className="w-3.5 h-3.5" />
@@ -1586,7 +1586,7 @@ function MaintenanceScheduleModal({
                 onClick={handleNext}
                 disabled={!canAdvance()}
                 title={nextDisabledTitle()}
-                className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Next
               </button>
@@ -1595,7 +1595,7 @@ function MaintenanceScheduleModal({
                 type="button"
                 onClick={handleSave}
                 disabled={!scheduledDate || saving}
-                className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 title={!scheduledDate ? "Select a date to continue" : undefined}
               >
                 {saving ? (

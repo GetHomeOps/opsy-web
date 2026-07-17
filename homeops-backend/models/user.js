@@ -444,9 +444,11 @@ class User {
              u.is_active AS "isActive",
              u.image,
              u.avatar_url AS "avatarUrl",
-             au.role
+             au.role,
+             a.url AS "accountUrl"
       FROM account_users au
       JOIN users u ON u.id = au.user_id
+      JOIN accounts a ON a.id = au.account_id
       WHERE au.account_id = $1`,
         [accountId]
       );
@@ -553,6 +555,7 @@ class User {
                u.created_at AS "createdAt",
                u.updated_at AS "updatedAt",
                u.demo_expires_at AS "demoExpiresAt",
+               primary_account.url AS "accountUrl",
                latest_sub.status AS "latestSubscriptionStatus",
                latest_sub.code AS "latestSubscriptionPlanCode",
                latest_sub.account_id AS "latestSubscriptionAccountId",
@@ -587,6 +590,16 @@ class User {
                  ELSE 'active'
                END AS "accessState"
         FROM users u
+        LEFT JOIN LATERAL (
+          SELECT a.url
+          FROM account_users au
+          JOIN accounts a ON a.id = au.account_id
+          WHERE au.user_id = u.id
+          ORDER BY
+            CASE WHEN a.owner_user_id = u.id THEN 0 ELSE 1 END,
+            au.created_at ASC
+          LIMIT 1
+        ) primary_account ON true
         LEFT JOIN LATERAL (
           SELECT asub.status, sp.code, asub.account_id, asub.updated_at,
                  asub.stripe_subscription_id, asub.current_period_end,

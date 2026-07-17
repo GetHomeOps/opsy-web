@@ -548,7 +548,7 @@ function Calendar() {
                 <button
                   type="button"
                   onClick={handleScheduleButtonClick}
-                  className="btn px-4 bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium"
+                  className="btn btn-primary px-4 text-sm font-medium"
                 >
                   Schedule
                 </button>
@@ -629,7 +629,7 @@ function Calendar() {
                       onClick={() => handleViewModeChange(mode)}
                       className={`btn px-3 py-1.5 text-sm rounded-none first:rounded-l-lg last:rounded-r-lg ${
                         viewMode === mode
-                          ? "bg-[#456564] text-white border-[#456564]"
+                          ? "btn-segment-active"
                           : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-300"
                       }`}
                     >
@@ -654,7 +654,7 @@ function Calendar() {
                   <button
                     type="button"
                     onClick={refreshEvents}
-                    className="btn px-4 py-2 bg-[#456564] hover:bg-[#34514f] text-white text-sm"
+                    className="btn btn-primary px-4 py-2 text-sm"
                   >
                     Retry
                   </button>

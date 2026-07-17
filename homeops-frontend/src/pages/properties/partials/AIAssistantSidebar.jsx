@@ -33,21 +33,21 @@ import useSuppressBrowserAddressAutofill from "../../../hooks/useSuppressBrowser
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Persists unsent composer text per property across panel close/unmount. */
-const draftByPropertyId = new Map();
+/** Persists unsent composer text per property/analysis across panel close/unmount. */
+const draftByChatKey = new Map();
 
-function readComposerDraft(propertyId) {
-  if (propertyId == null) return "";
-  return draftByPropertyId.get(String(propertyId)) ?? "";
+function readComposerDraft(draftKey) {
+  if (draftKey == null) return "";
+  return draftByChatKey.get(String(draftKey)) ?? "";
 }
 
-function writeComposerDraft(propertyId, text) {
-  if (propertyId == null) return;
-  const key = String(propertyId);
+function writeComposerDraft(draftKey, text) {
+  if (draftKey == null) return;
+  const key = String(draftKey);
   if (text) {
-    draftByPropertyId.set(key, text);
+    draftByChatKey.set(key, text);
   } else {
-    draftByPropertyId.delete(key);
+    draftByChatKey.delete(key);
   }
 }
 
@@ -57,6 +57,7 @@ function AIAssistantSidebar({
   systemLabel,
   systemContext,
   propertyId,
+  analysisId,
   propertyDisplayName,
   propertyAddressLine,
   propertySystems,
@@ -72,9 +73,17 @@ function AIAssistantSidebar({
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
     : "/professionals";
+  const chatEnabled = Boolean(propertyId || analysisId);
+  const isAnalysisOnly = Boolean(analysisId && !propertyId);
+  const composerDraftKey =
+    propertyId != null
+      ? String(propertyId)
+      : analysisId != null
+        ? `analysis:${analysisId}`
+        : null;
   const [messages, setMessages] = useState([]);
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
-  const [input, setInput] = useState(() => readComposerDraft(propertyId));
+  const [input, setInput] = useState(() => readComposerDraft(composerDraftKey));
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const [activeSystemId, setActiveSystemId] = useState(
@@ -88,7 +97,7 @@ function AIAssistantSidebar({
     systemContext?.systemId ? "system" : "property",
   );
   const [changeSystemOpen, setChangeSystemOpen] = useState(false);
-  const hasSentInitialPromptRef = useRef(false);
+  const lastSentInitialPromptRef = useRef(null);
   const [contractors, setContractors] = useState([]);
   const [contractorSearch, setContractorSearch] = useState("");
   const [scheduleDraft, setScheduleDraft] = useState(null);
@@ -127,14 +136,14 @@ function AIAssistantSidebar({
   }, [messages]);
 
   useEffect(() => {
-    setInput(readComposerDraft(propertyId));
-  }, [propertyId]);
+    setInput(readComposerDraft(composerDraftKey));
+  }, [composerDraftKey]);
 
   useEffect(() => {
-    if (isOpen && propertyId) {
+    if (isOpen && chatEnabled) {
       inputRef.current?.focus();
     }
-  }, [isOpen, propertyId]);
+  }, [isOpen, chatEnabled]);
 
   useEffect(() => {
     const el = inputRef.current;
@@ -191,14 +200,18 @@ function AIAssistantSidebar({
     setOverrideSystemContext(null);
     setContextLoaded(false);
     setInspectionDate(null);
-    hasSentInitialPromptRef.current = false;
+    lastSentInitialPromptRef.current = null;
     hasLoadedConversationRef.current = false;
   }, []);
 
-  // Load persisted conversation when sidebar opens
+  // Load persisted conversation when sidebar opens (property-backed only)
   useEffect(() => {
     if (!isOpen) {
       hasLoadedConversationRef.current = false;
+      return;
+    }
+    if (isAnalysisOnly) {
+      setContextLoaded(true);
       return;
     }
     if (!propertyId || hasLoadedConversationRef.current) return;
@@ -229,7 +242,7 @@ function AIAssistantSidebar({
       })
       .catch(() => {})
       .finally(() => setLoadingHistory(false));
-  }, [isOpen, propertyId]);
+  }, [isOpen, propertyId, isAnalysisOnly]);
 
   const handleChangeContext = async (option) => {
     setChangeSystemOpen(false);
@@ -237,7 +250,7 @@ function AIAssistantSidebar({
       if (option.type === activeContextType) return;
       setConversationId(null);
       setMessages([]);
-      hasSentInitialPromptRef.current = false;
+      lastSentInitialPromptRef.current = null;
       setOverrideSystemContext(null);
       setActiveSystemId(null);
       setActiveSystemName(null);
@@ -248,7 +261,17 @@ function AIAssistantSidebar({
     if (option.id === activeSystemId) return;
     setConversationId(null);
     setMessages([]);
-    hasSentInitialPromptRef.current = false;
+    lastSentInitialPromptRef.current = null;
+    if (isAnalysisOnly || !propertyId) {
+      setOverrideSystemContext({
+        systemId: option.id,
+        systemName: option.name,
+      });
+      setActiveSystemId(option.id);
+      setActiveSystemName(option.name);
+      setActiveContextType("system");
+      return;
+    }
     try {
       const ctx = await AppApi.getAiSystemContext(propertyId, option.id);
       const mergedCtx = {
@@ -288,38 +311,46 @@ function AIAssistantSidebar({
     });
   })();
 
-  // Auto-send initialPrompt (once per open)
+  // Auto-send initialPrompt when it changes (including while sidebar is already open)
   useEffect(() => {
     if (!isOpen) {
-      hasSentInitialPromptRef.current = false;
+      lastSentInitialPromptRef.current = null;
       return;
     }
-    if (
-      !initialPrompt ||
-      !propertyId ||
-      hasSentInitialPromptRef.current ||
-      loading ||
-      loadingHistory
-    )
-      return;
-    hasSentInitialPromptRef.current = true;
+    if (!initialPrompt || !chatEnabled || loadingHistory) return;
+    if (lastSentInitialPromptRef.current === initialPrompt) return;
+    if (loading) return;
+
+    lastSentInitialPromptRef.current = initialPrompt;
     setMessages((prev) => [...prev, {role: "user", content: initialPrompt}]);
     setLoading(true);
     const ctx = effectiveSystemContext;
-    AppApi.aiChat({
-      propertyId,
-      message: initialPrompt,
-      conversationId: conversationId || undefined,
-      systemContext: ctx,
-      contextType:
-        activeContextType === "property"
-          ? "property"
-          : activeContextType === "events"
-            ? "events"
-            : undefined,
-    })
+
+    const request = isAnalysisOnly
+      ? AppApi.aiPrePurchaseChat({
+          analysisId,
+          message: initialPrompt,
+          history: [],
+          systemContext: ctx,
+        })
+      : AppApi.aiChat({
+          propertyId,
+          message: initialPrompt,
+          conversationId: conversationId || undefined,
+          systemContext: ctx,
+          contextType:
+            activeContextType === "property"
+              ? "property"
+              : activeContextType === "events"
+                ? "events"
+                : undefined,
+        });
+
+    request
       .then((res) => {
-        setConversationId(res.conversationId ?? null);
+        if (!isAnalysisOnly) {
+          setConversationId(res.conversationId ?? null);
+        }
         if (res.contextSwitched && res.systemName) {
           setActiveSystemId(res.systemId ?? null);
           setActiveSystemName(res.systemName);
@@ -327,15 +358,16 @@ function AIAssistantSidebar({
         if (res.inspectionAnalysisDate) {
           setInspectionDate(res.inspectionAnalysisDate);
         }
+        setContextLoaded(true);
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
             content: res.assistantMessage,
-            uiDirectives: res.uiDirectives,
+            uiDirectives: isAnalysisOnly ? null : res.uiDirectives,
           },
         ]);
-        if (res.uiDirectives?.type === "SCHEDULE_PROPOSAL") {
+        if (!isAnalysisOnly && res.uiDirectives?.type === "SCHEDULE_PROPOSAL") {
           setScheduleDraft({
             actionDraftId: res.uiDirectives.actionDraftId,
             tasks: res.uiDirectives.tasks || [],
@@ -365,9 +397,15 @@ function AIAssistantSidebar({
     isOpen,
     initialPrompt,
     propertyId,
+    analysisId,
+    chatEnabled,
+    isAnalysisOnly,
     effectiveSystemContext,
+    loading,
     loadingHistory,
+    conversationId,
     activeContextType,
+    activeSystemId,
   ]);
 
   useEffect(() => {
@@ -379,28 +417,40 @@ function AIAssistantSidebar({
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || !propertyId || loading) return;
+    if (!text || !chatEnabled || loading) return;
 
     setInput("");
-    writeComposerDraft(propertyId, "");
+    writeComposerDraft(composerDraftKey, "");
+    const historyForAnalysis = messages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({role: m.role, content: m.content}));
     setMessages((prev) => [...prev, {role: "user", content: text}]);
     setLoading(true);
 
     try {
-      const res = await AppApi.aiChat({
-        propertyId,
-        message: text,
-        conversationId: conversationId || undefined,
-        systemContext: effectiveSystemContext,
-        contextType:
-          activeContextType === "property"
-            ? "property"
-            : activeContextType === "events"
-              ? "events"
-              : undefined,
-      });
+      const res = isAnalysisOnly
+        ? await AppApi.aiPrePurchaseChat({
+            analysisId,
+            message: text,
+            history: historyForAnalysis,
+            systemContext: effectiveSystemContext,
+          })
+        : await AppApi.aiChat({
+            propertyId,
+            message: text,
+            conversationId: conversationId || undefined,
+            systemContext: effectiveSystemContext,
+            contextType:
+              activeContextType === "property"
+                ? "property"
+                : activeContextType === "events"
+                  ? "events"
+                  : undefined,
+          });
 
-      setConversationId(res.conversationId ?? null);
+      if (!isAnalysisOnly) {
+        setConversationId(res.conversationId ?? null);
+      }
       if (res.contextSwitched && res.systemName) {
         setActiveSystemId(res.systemId ?? null);
         setActiveSystemName(res.systemName);
@@ -408,17 +458,18 @@ function AIAssistantSidebar({
       if (res.inspectionAnalysisDate) {
         setInspectionDate(res.inspectionAnalysisDate);
       }
+      setContextLoaded(true);
 
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
           content: res.assistantMessage,
-          uiDirectives: res.uiDirectives,
+          uiDirectives: isAnalysisOnly ? null : res.uiDirectives,
         },
       ]);
 
-      if (res.uiDirectives?.type === "SCHEDULE_PROPOSAL") {
+      if (!isAnalysisOnly && res.uiDirectives?.type === "SCHEDULE_PROPOSAL") {
         setScheduleDraft({
           actionDraftId: res.uiDirectives.actionDraftId,
           tasks: res.uiDirectives.tasks || [],
@@ -633,7 +684,7 @@ function AIAssistantSidebar({
           </div>
         )}
 
-        {propertyId && (
+        {chatEnabled && (
           <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 space-y-2">
             {(propertyDisplayName || propertyAddressLine) && (
               <div className="space-y-0.5 min-w-0 pr-1">
@@ -664,7 +715,9 @@ function AIAssistantSidebar({
                 Discussing:{" "}
                 <span className="font-medium text-gray-700 dark:text-gray-300">
                   {activeContextType === "property"
-                    ? "Property overview"
+                    ? isAnalysisOnly
+                      ? "Pre-purchase overview"
+                      : "Property overview"
                     : activeContextType === "events"
                       ? "Scheduled events"
                       : `${activeSystemName || systemLabel || systemContext?.systemName || ""} System`}
@@ -699,20 +752,22 @@ function AIAssistantSidebar({
                         }`}
                       >
                         <Home className="w-3.5 h-3.5" />
-                        Property overview
+                        {isAnalysisOnly ? "Pre-purchase overview" : "Property overview"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleChangeContext({type: "events"})}
-                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${
-                          activeContextType === "events"
-                            ? "bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/20 dark:text-[#7aa3a2] font-medium"
-                            : "text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        }`}
-                      >
-                        <CalendarDays className="w-3.5 h-3.5" />
-                        Scheduled events
-                      </button>
+                      {!isAnalysisOnly && (
+                        <button
+                          type="button"
+                          onClick={() => handleChangeContext({type: "events"})}
+                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 ${
+                            activeContextType === "events"
+                              ? "bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/20 dark:text-[#7aa3a2] font-medium"
+                              : "text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          }`}
+                        >
+                          <CalendarDays className="w-3.5 h-3.5" />
+                          Scheduled events
+                        </button>
+                      )}
                       <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
                       {changeSystemOptions.map((sys) => (
                         <button
@@ -769,7 +824,7 @@ function AIAssistantSidebar({
               <div
                 className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                   msg.role === "user"
-                    ? "bg-[#456564] text-white"
+                    ? "btn-segment-active"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                 }`}
               >
@@ -785,7 +840,7 @@ function AIAssistantSidebar({
                   (activeSystemId || systemContext?.systemId) &&
                   idx === messages.length - 1 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {onOpenScheduleModal && (
+                      {propertyId && onOpenScheduleModal && (
                         <button
                           type="button"
                           onClick={() =>
@@ -851,7 +906,7 @@ function AIAssistantSidebar({
             </div>
           )}
 
-          {scheduleDraft && !scheduleSuccess && (
+          {propertyId && scheduleDraft && !scheduleSuccess && (
             <div className="rounded-xl border border-[#456564]/30 dark:border-[#456564]/50 bg-[#456564]/5 p-4 space-y-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -1103,7 +1158,7 @@ function AIAssistantSidebar({
                   !scheduledFor ||
                   scheduling
                 }
-                className="w-full py-2 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-2 rounded-lg text-sm font-medium btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {scheduling ? (
                   <>
@@ -1120,7 +1175,7 @@ function AIAssistantSidebar({
           <div ref={messagesEndRef} />
         </div>
 
-        {propertyId && (
+        {chatEnabled && (
           <div
             className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0"
             style={{
@@ -1135,7 +1190,7 @@ function AIAssistantSidebar({
                 onChange={(e) => {
                   const value = e.target.value;
                   setInput(value);
-                  writeComposerDraft(propertyId, value);
+                  writeComposerDraft(composerDraftKey, value);
                 }}
                 onInput={(e) => {
                   e.target.style.height = "auto";
@@ -1148,7 +1203,11 @@ function AIAssistantSidebar({
                     handleSend();
                   }
                 }}
-                placeholder="Ask about your property..."
+                placeholder={
+                  isAnalysisOnly
+                    ? "Ask about this analysis..."
+                    : "Ask about your property..."
+                }
                 rows={1}
                 className="form-input form-textarea flex-1 min-w-0 resize-none rounded-lg text-sm py-2 leading-snug max-h-32 overflow-y-auto disabled:opacity-60"
                 style={{minHeight: "40px"}}
@@ -1159,7 +1218,7 @@ function AIAssistantSidebar({
                 type="button"
                 onClick={handleSend}
                 disabled={!input.trim() || loading}
-                className="p-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 transition-colors shrink-0"
+                className="p-2 rounded-lg btn-primary disabled:opacity-50 transition-colors shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -1167,7 +1226,7 @@ function AIAssistantSidebar({
           </div>
         )}
 
-        {!propertyId && (
+        {!chatEnabled && (
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Save the property to use the Opsy assistant.
@@ -1194,26 +1253,33 @@ function AIAssistantSidebar({
   }
 
   return (
-    <Transition
-      show={isOpen}
-      tag="div"
-      className="fixed top-0 right-0 z-50 w-full max-w-sm h-[100dvh] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl flex flex-col"
-      enter="transition ease-out duration-200 transform"
-      enterStart="translate-x-full"
-      enterEnd="translate-x-0"
-      leave="transition ease-in duration-150 transform"
-      leaveStart="translate-x-0"
-      leaveEnd="translate-x-full"
-    >
-      {sidebarContent}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 dark:bg-black/40 z-[-1] md:hidden"
-          onClick={onClose}
-          aria-hidden="true"
-        />
-      )}
-    </Transition>
+    <>
+      <Transition
+        show={isOpen}
+        className="fixed inset-0 bg-black/20 dark:bg-black/40 z-40 transition-opacity md:hidden"
+        enter="transition ease-out duration-200"
+        enterStart="opacity-0"
+        enterEnd="opacity-100"
+        leave="transition ease-in duration-150"
+        leaveStart="opacity-100"
+        leaveEnd="opacity-0"
+        aria-hidden="true"
+        onClick={onClose}
+      />
+      <Transition
+        show={isOpen}
+        tag="div"
+        className="fixed top-0 right-0 z-50 w-full max-w-sm h-[100dvh] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-xl flex flex-col"
+        enter="transition ease-out duration-200 transform"
+        enterStart="translate-x-full"
+        enterEnd="translate-x-0"
+        leave="transition ease-in duration-150 transform"
+        leaveStart="translate-x-0"
+        leaveEnd="translate-x-full"
+      >
+        {sidebarContent}
+      </Transition>
+    </>
   );
 }
 

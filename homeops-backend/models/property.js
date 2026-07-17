@@ -188,8 +188,13 @@ class Property {
    *
    * If `property_uid` is not provided, generates an 8-digit numeric uid.
    * Retries up to PROPERTY_UID_MAX_GEN_ATTEMPTS times on the (extremely rare)
-   * UNIQUE-constraint collision. Postgres unique_violation = "23505". */
-  static async create(data = {}) {
+   * UNIQUE-constraint collision. Postgres unique_violation = "23505".
+   *
+   * @param {object} data
+   * @param {{ client?: { query: Function } }} [options] - pass a transaction client
+   */
+  static async create(data = {}, options = {}) {
+    const queryFn = options.client ? (t, p) => options.client.query(t, p) : (t, p) => db.query(t, p);
     const callerSuppliedUid = !!data.property_uid;
     const base = { ...data };
     if (!base.passport_id && base.state != null && base.zip != null) {
@@ -214,7 +219,7 @@ class Property {
         k === "property_uid" ? withUid.property_uid : coerceValue(k, withUid[k])
       );
       try {
-        const result = await db.query(sql, values);
+        const result = await queryFn(sql, values);
         return result.rows[0];
       } catch (err) {
         if (err && err.code === "23505" && !callerSuppliedUid) {
@@ -227,11 +232,18 @@ class Property {
     throw lastErr || new Error("Failed to generate a unique property_uid");
   }
 
-  /* Add user to property (upsert: update role if already exists) */
-  static async addUserToProperty({ property_id, user_id, role = "editor", permissions = null }) {
+  /* Add user to property (upsert: update role if already exists).
+   * @param {{ property_id, user_id, role?, permissions? }} args
+   * @param {{ client?: { query: Function } }} [options] - pass a transaction client
+   */
+  static async addUserToProperty(
+    { property_id, user_id, role = "editor", permissions = null },
+    options = {}
+  ) {
+    const queryFn = options.client ? (t, p) => options.client.query(t, p) : (t, p) => db.query(t, p);
     const permsJson =
       permissions && typeof permissions === "object" ? JSON.stringify(permissions) : null;
-    const result = await db.query(
+    const result = await queryFn(
       `INSERT INTO property_users (property_id, user_id, role, permissions)
        VALUES ($1, $2, $3, $4::jsonb)
        ON CONFLICT (property_id, user_id) DO UPDATE SET
@@ -330,7 +342,8 @@ class Property {
     return result.rows;
   }
 
-  /* Get properties by account id */
+  /* Get properties by account id. Only include properties with at least one
+   * team member so orphaned account-owned rows stay out of account lists. */
   static async getPropertiesByAccountId(accountId) {
     const result = await db.query(
       `SELECT ${PROPERTY_LIST_COLUMNS}, ${PROPERTY_LIST_HAS_OPSY_AGENT},
@@ -347,7 +360,10 @@ class Property {
            pu.created_at
        ) owner_sub ON owner_sub.property_id = p.id
        ${PROPERTY_LIST_AGENT_AGENCY_JOIN}
-       WHERE p.account_id = $1`,
+       WHERE p.account_id = $1
+         AND EXISTS (
+           SELECT 1 FROM property_users pu_any WHERE pu_any.property_id = p.id
+         )`,
       [accountId]
     );
     return result.rows;
@@ -538,6 +554,11 @@ class Property {
     const byId = new Map();
     for (const u of users) byId.set(u.id, u);
     const uniqueUsers = Array.from(byId.values());
+    if (uniqueUsers.length === 0) {
+      throw new BadRequestError(
+        "A property must have at least one team member. Delete the property instead of removing everyone."
+      );
+    }
     const newIds = new Set(uniqueUsers.map((u) => u.id));
 
     await db.query("BEGIN");
@@ -554,11 +575,6 @@ class Property {
           "DELETE FROM property_users WHERE property_id = $1 AND user_id = ANY($2::int[])",
           [propertyId, toRemove]
         );
-      }
-
-      if (uniqueUsers.length === 0) {
-        await db.query("COMMIT");
-        return [];
       }
 
       const placeholders = uniqueUsers

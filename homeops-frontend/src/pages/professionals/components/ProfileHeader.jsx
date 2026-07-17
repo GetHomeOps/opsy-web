@@ -79,7 +79,7 @@ function ProfileHeader({
           <button
             type="button"
             onClick={onRequestQuote}
-            className={`${BTN_BASE} bg-[#456564] hover:bg-[#34514f] text-white shadow-sm hover:shadow-md dark:bg-[#7aa3a2] dark:hover:bg-[#5a8a88] dark:text-gray-900`}
+            className={`${BTN_BASE} btn-primary shadow-sm hover:shadow-md dark:bg-[#7aa3a2] dark:hover:bg-[#5a8a88] dark:text-gray-900`}
           >
             <MessageSquare className="w-4 h-4" />
             Request Quote

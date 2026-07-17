@@ -549,7 +549,7 @@ function CommunicationComposer() {
                                 ? "Add a subject and select an audience to send"
                                 : undefined
                             }
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg btn-primary text-sm font-medium transition-colors disabled:opacity-50"
                           >
                             {form.deliveryMode === "schedule" ? (
                               <>
@@ -587,7 +587,7 @@ function CommunicationComposer() {
                           type="button"
                           onClick={handleDuplicate}
                           disabled={submitting}
-                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium transition-colors disabled:opacity-50"
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg btn-primary text-sm font-medium transition-colors disabled:opacity-50"
                         >
                           <Copy className="w-4 h-4" />
                           Duplicate & Edit
@@ -669,7 +669,7 @@ function CommunicationComposer() {
                           ? "Add a subject and select an audience to send"
                           : undefined
                       }
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg btn-primary text-sm font-medium transition-colors disabled:opacity-50"
                     >
                       {form.deliveryMode === "schedule" ? (
                         <>
@@ -707,7 +707,7 @@ function CommunicationComposer() {
                     type="button"
                     onClick={handleDuplicate}
                     disabled={submitting}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg btn-primary text-sm font-medium transition-colors disabled:opacity-50"
                   >
                     <Copy className="w-4 h-4" />
                     Duplicate
@@ -752,7 +752,7 @@ function CommunicationComposer() {
                 type="button"
                 onClick={handleSend}
                 disabled={submitting}
-                className="px-5 py-2 bg-[#456564] hover:bg-[#34514f] text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                className="px-5 py-2 btn-primary rounded-lg text-sm font-medium disabled:opacity-50"
               >
                 {submitting
                   ? "Processing…"

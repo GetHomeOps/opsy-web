@@ -115,7 +115,7 @@ function ConversationFooter({conversationId, onMessageSent, accountId}) {
           type="button"
           onClick={handleSend}
           disabled={!text.trim() || sending}
-          className="p-2.5 rounded-xl bg-[#456564] hover:bg-[#3a5857] text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+          className="p-2.5 rounded-xl btn-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           aria-label="Send"
         >
           {sending ? (

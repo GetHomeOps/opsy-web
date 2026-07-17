@@ -1,8 +1,56 @@
 "use strict";
 
 const db = require("../db");
-const { NotFoundError } = require("../expressError");
+const { NotFoundError, BadRequestError } = require("../expressError");
+const { sqlForPartialUpdate } = require("../helpers/sql");
+const { addPresignedUrlToItem } = require("../helpers/presignedUrls");
 const Office = require("./office");
+
+const AGENCY_BRANDING_SELECT = `
+  id,
+  name,
+  legal_name AS "legalName",
+  website,
+  address_line1 AS "addressLine1",
+  city,
+  state,
+  phone,
+  logo_url AS "logoUrl",
+  status,
+  accent_color AS "accentColor",
+  sidebar_icon_key AS "sidebarIconKey",
+  agent_card_logo_key AS "agentCardLogoKey",
+  agent_card_accent_color AS "agentCardAccentColor",
+  agent_card_background_color AS "agentCardBackgroundColor",
+  agent_card_agent_label AS "agentCardAgentLabel",
+  agent_card_company_name AS "agentCardCompanyName",
+  sidebar_text_color AS "sidebarTextColor",
+  agent_card_text_color AS "agentCardTextColor",
+  created_at AS "createdAt",
+  updated_at AS "updatedAt"`;
+
+const BRANDING_JS_TO_SQL = {
+  accentColor: "accent_color",
+  sidebarIconKey: "sidebar_icon_key",
+  agentCardLogoKey: "agent_card_logo_key",
+  agentCardAccentColor: "agent_card_accent_color",
+  agentCardBackgroundColor: "agent_card_background_color",
+  agentCardAgentLabel: "agent_card_agent_label",
+  agentCardCompanyName: "agent_card_company_name",
+  sidebarTextColor: "sidebar_text_color",
+  agentCardTextColor: "agent_card_text_color",
+};
+
+function normalizeBrandingValue(key, value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "") return null;
+    return trimmed;
+  }
+  return value;
+}
 
 class Agency {
   static _rowToApi(row) {
@@ -18,6 +66,17 @@ class Agency {
       phone: row.phone,
       logoUrl: row.logoUrl ?? row.logo_url,
       status: row.status,
+      accentColor: row.accentColor ?? row.accent_color ?? null,
+      sidebarIconKey: row.sidebarIconKey ?? row.sidebar_icon_key ?? null,
+      agentCardLogoKey: row.agentCardLogoKey ?? row.agent_card_logo_key ?? null,
+      agentCardAccentColor: row.agentCardAccentColor ?? row.agent_card_accent_color ?? null,
+      agentCardBackgroundColor:
+        row.agentCardBackgroundColor ?? row.agent_card_background_color ?? null,
+      agentCardAgentLabel: row.agentCardAgentLabel ?? row.agent_card_agent_label ?? null,
+      agentCardCompanyName: row.agentCardCompanyName ?? row.agent_card_company_name ?? null,
+      sidebarTextColor: row.sidebarTextColor ?? row.sidebar_text_color ?? null,
+      agentCardTextColor: row.agentCardTextColor ?? row.agent_card_text_color ?? null,
+      hasCustomization: row.hasCustomization ?? null,
       createdAt: row.createdAt ?? row.created_at,
       updatedAt: row.updatedAt ?? row.updated_at,
     };
@@ -25,9 +84,7 @@ class Agency {
 
   static async getById(id) {
     const result = await db.query(
-      `SELECT id, name, legal_name AS "legalName", website,
-              address_line1 AS "addressLine1", city, state, phone,
-              logo_url AS "logoUrl", status, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT ${AGENCY_BRANDING_SELECT}
        FROM agencies WHERE id = $1`,
       [id]
     );
@@ -320,6 +377,118 @@ class Agency {
     );
     if (!result.rows[0]) throw new NotFoundError(`Agency not found: ${id}`);
     return result.rows[0];
+  }
+
+  /**
+   * List agencies for the Customization admin UI (platform admin).
+   * Includes hasCustomization flag from branding columns.
+   */
+  static async listForCustomization() {
+    const result = await db.query(
+      `SELECT id,
+              name,
+              status,
+              accent_color AS "accentColor",
+              sidebar_icon_key AS "sidebarIconKey",
+              agent_card_logo_key AS "agentCardLogoKey",
+              agent_card_accent_color AS "agentCardAccentColor",
+              agent_card_background_color AS "agentCardBackgroundColor",
+              agent_card_agent_label AS "agentCardAgentLabel",
+              agent_card_company_name AS "agentCardCompanyName",
+              sidebar_text_color AS "sidebarTextColor",
+              agent_card_text_color AS "agentCardTextColor",
+              (
+                accent_color IS NOT NULL
+                OR sidebar_icon_key IS NOT NULL
+                OR agent_card_logo_key IS NOT NULL
+                OR agent_card_accent_color IS NOT NULL
+                OR agent_card_background_color IS NOT NULL
+                OR agent_card_agent_label IS NOT NULL
+                OR agent_card_company_name IS NOT NULL
+                OR sidebar_text_color IS NOT NULL
+                OR agent_card_text_color IS NOT NULL
+              ) AS "hasCustomization",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+       FROM agencies
+       ORDER BY name ASC`
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      hasCustomization: !!row.hasCustomization,
+      customizable: true,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+  }
+
+  /** Get branding fields for an agency, with presigned display URLs. */
+  static async getBranding(id) {
+    const agency = await Agency.getById(id);
+    return Agency._withBrandingUrls(agency);
+  }
+
+  /** Partial-update branding fields. Pass null to clear a field. */
+  static async updateBranding(id, data) {
+    const payload = {};
+    for (const key of Object.keys(BRANDING_JS_TO_SQL)) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        payload[key] = normalizeBrandingValue(key, data[key]);
+      }
+    }
+    if (Object.keys(payload).length === 0) {
+      throw new BadRequestError("No branding data to update");
+    }
+
+    const { setCols, values } = sqlForPartialUpdate(payload, BRANDING_JS_TO_SQL);
+    const idVarIdx = "$" + (values.length + 1);
+
+    const result = await db.query(
+      `UPDATE agencies
+       SET ${setCols}, updated_at = NOW()
+       WHERE id = ${idVarIdx}
+       RETURNING ${AGENCY_BRANDING_SELECT}`,
+      [...values, id]
+    );
+
+    const agency = result.rows[0];
+    if (!agency) throw new NotFoundError(`Agency not found: ${id}`);
+
+    return Agency._withBrandingUrls(Agency._rowToApi(agency));
+  }
+
+  static async _withBrandingUrls(agency) {
+    let withSidebar = await addPresignedUrlToItem(
+      agency,
+      "sidebarIconKey",
+      "sidebarIconUrl"
+    );
+    withSidebar = await addPresignedUrlToItem(
+      withSidebar,
+      "agentCardLogoKey",
+      "agentCardLogoUrl"
+    );
+    return {
+      id: withSidebar.id,
+      name: withSidebar.name,
+      url: null,
+      accentColor: withSidebar.accentColor ?? null,
+      sidebarIconKey: withSidebar.sidebarIconKey ?? null,
+      sidebarIconUrl: withSidebar.sidebarIconUrl ?? null,
+      agentCardLogoKey: withSidebar.agentCardLogoKey ?? null,
+      agentCardLogoUrl: withSidebar.agentCardLogoUrl ?? null,
+      agentCardAccentColor: withSidebar.agentCardAccentColor ?? null,
+      agentCardBackgroundColor: withSidebar.agentCardBackgroundColor ?? null,
+      agentCardAgentLabel: withSidebar.agentCardAgentLabel ?? null,
+      agentCardCompanyName: withSidebar.agentCardCompanyName ?? null,
+      sidebarTextColor: withSidebar.sidebarTextColor ?? null,
+      agentCardTextColor: withSidebar.agentCardTextColor ?? null,
+      status: withSidebar.status ?? null,
+      customizable: true,
+      source: "agency",
+    };
   }
 }
 

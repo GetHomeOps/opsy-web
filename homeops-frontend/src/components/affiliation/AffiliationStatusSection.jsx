@@ -160,7 +160,7 @@ function AffiliationStatusSection({ onRefreshUser }) {
                   type="button"
                   onClick={() => setUpdateOpen(true)}
                   disabled={status === "pending_request"}
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                  className="btn btn-primary disabled:opacity-50"
                 >
                   Update Brokerage Affiliation
                 </button>

@@ -125,7 +125,7 @@ function SupportList() {
                 <button
                   type="button"
                   onClick={handleNewTicket}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#456564] hover:bg-[#34514f] text-white rounded-lg text-sm font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2 btn-primary rounded-lg text-sm font-medium"
                 >
                   <Plus className="w-4 h-4" />
                   {t("support.submitTicket") || "Submit a Ticket"}

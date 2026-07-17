@@ -393,7 +393,7 @@ export default function InspectionAnalysisModalContent({
           <button
             type="button"
             onClick={refresh}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg btn-primary text-sm font-medium"
           >
             Retry
           </button>
@@ -504,7 +504,7 @@ export default function InspectionAnalysisModalContent({
                 ? `Analysis can be run at most ${maxAnalysisRuns} times per property.`
                 : undefined
             }
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#456564] hover:bg-[#34514f] text-white text-sm font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:pointer-events-none"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl btn-primary text-sm font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:pointer-events-none"
           >
             <Sparkles className="w-5 h-5" />
             {error ? "Retry AI Analysis" : "Run AI Analysis"}
@@ -592,7 +592,7 @@ export default function InspectionAnalysisModalContent({
             <button
               type="button"
               onClick={onUploadReport}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#456564] hover:bg-[#34514f] text-white text-sm font-semibold transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl btn-primary text-sm font-semibold transition-colors shadow-sm"
             >
               <Upload className="w-5 h-5" />
               Upload inspection report
@@ -906,7 +906,7 @@ export default function InspectionAnalysisModalContent({
             <button
               type="button"
               onClick={() => onContinueToSystems(missingSystems)}
-              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium transition-colors"
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg btn-primary text-sm font-medium transition-colors"
             >
               Continue
               <ChevronRight className="w-4 h-4" />

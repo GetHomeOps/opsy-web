@@ -216,7 +216,7 @@ function SupportNew() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                    className="btn btn-primary disabled:opacity-50"
                   >
                     {submitting ? t("saving") || "Submitting..." : t("support.submit") || "Submit Ticket"}
                   </button>

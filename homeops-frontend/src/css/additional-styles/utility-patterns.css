@@ -49,6 +49,36 @@
   @apply px-2 py-0.5;
 }
 
+/* Primary CTA using account branding accent (falls back to Opsy teal). */
+.btn-primary {
+  background-color: var(--opsy-accent, #456564);
+  color: var(--opsy-accent-fg, #fff);
+}
+.btn-primary:hover {
+  background-color: var(--opsy-accent-hover, #34514f);
+}
+.btn-primary:focus-visible {
+  outline: 2px solid var(--opsy-accent, #456564);
+  outline-offset: 2px;
+}
+
+/* Outline primary action (border + text use accent). */
+.btn-primary-outline {
+  background-color: transparent;
+  border: 1px solid var(--opsy-accent, #456564);
+  color: var(--opsy-accent, #456564);
+}
+.btn-primary-outline:hover {
+  background-color: color-mix(in srgb, var(--opsy-accent, #456564) 10%, transparent);
+}
+
+/* Active segmented control (Month/Week/Day, wizard steps, etc.). */
+.btn-segment-active {
+  background-color: var(--opsy-accent, #456564);
+  border-color: var(--opsy-accent, #456564);
+  color: var(--opsy-accent-fg, #fff);
+}
+
 /* Forms */
 input[type="search"]::-webkit-search-decoration,
 input[type="search"]::-webkit-search-cancel-button,

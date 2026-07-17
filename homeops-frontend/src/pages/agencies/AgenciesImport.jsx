@@ -298,7 +298,7 @@ function AgenciesImport() {
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2"
+                  className="btn btn-primary inline-flex items-center gap-2"
                 >
                   <Upload className="w-4 h-4" />
                   Choose file
@@ -391,7 +391,7 @@ function AgenciesImport() {
                   <button
                     type="button"
                     onClick={() => navigate(backPath)}
-                    className="btn bg-[#456564] text-white mt-4"
+                    className="btn btn-primary mt-4"
                   >
                     Back to agencies
                   </button>

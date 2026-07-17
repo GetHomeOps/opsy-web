@@ -12,6 +12,7 @@ import {useNavigate} from "react-router-dom";
 import {useAuth} from "../../context/AuthContext";
 import PropertyContext from "../../context/PropertyContext";
 import UserContext from "../../context/UserContext";
+import {useAccountBranding} from "../../context/AccountBrandingContext";
 import AppApi from "../../api/api";
 import {
   getResourceThumbnailUrl,
@@ -123,6 +124,7 @@ function ProfessionalCardSkeleton() {
 function HomeownerHome() {
   const {t} = useTranslation();
   const {currentUser} = useAuth();
+  const {branding} = useAccountBranding();
   const navigate = useNavigate();
   const {
     properties,
@@ -732,6 +734,7 @@ function HomeownerHome() {
               ) : (
                 <AgentCard
                   agent={currentAgent}
+                  branding={branding}
                   onOpenModal={(tab) => {
                     setAgentModalTab(tab);
                     setAgentModalOpen(true);
@@ -1712,7 +1715,7 @@ function HomeownerHome() {
                 else navigate("/");
               }}
               disabled={addPropertyChecking}
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-70"
+              className="btn btn-primary disabled:opacity-70"
             >
               <Plus className="w-4 h-4 inline mr-1.5" />
               {addPropertyChecking ? "…" : t("homeownerHome.createProperty")}

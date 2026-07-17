@@ -143,7 +143,7 @@ function ForgotPassword() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="btn w-full bg-[#456564] hover:bg-[#34514f] text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="btn w-full btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isSubmitting && (
                     <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />

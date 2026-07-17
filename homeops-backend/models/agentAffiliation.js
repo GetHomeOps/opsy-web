@@ -111,6 +111,54 @@ class AgentAffiliation {
     }
   }
 
+  /** First approved office for an agency (oldest by id — typically the main office). */
+  static async resolveDefaultOfficeId(agencyId) {
+    const result = await db.query(
+      `SELECT id FROM offices
+       WHERE agency_id = $1 AND status = 'approved'
+       ORDER BY id ASC
+       LIMIT 1`,
+      [agencyId]
+    );
+    const officeId = result.rows[0]?.id;
+    if (!officeId) {
+      throw new BadRequestError("Selected agency has no approved office");
+    }
+    return officeId;
+  }
+
+  /**
+   * Admin assign/update: resolve default office when omitted, clear team on
+   * agency/office change, preserve team when hierarchy is unchanged.
+   */
+  static async adminAssign({ userId, agencyId, officeId = null, teamId = null }) {
+    const resolvedAgencyId = Number(agencyId);
+    if (!resolvedAgencyId) throw new BadRequestError("agencyId is required");
+
+    let resolvedOfficeId = officeId != null && officeId !== "" ? Number(officeId) : null;
+    if (!resolvedOfficeId) {
+      resolvedOfficeId = await AgentAffiliation.resolveDefaultOfficeId(resolvedAgencyId);
+    }
+
+    const existing = await AgentAffiliation.getActiveForUser(userId);
+    let resolvedTeamId = teamId != null && teamId !== "" ? Number(teamId) : null;
+    if (resolvedTeamId == null && existing) {
+      const sameAgency = Number(existing.agencyId) === resolvedAgencyId;
+      const sameOffice = Number(existing.officeId) === resolvedOfficeId;
+      if (sameAgency && sameOffice && existing.teamId != null) {
+        resolvedTeamId = existing.teamId;
+      }
+    }
+
+    await AgentAffiliation.upsertActive({
+      userId,
+      agencyId: resolvedAgencyId,
+      officeId: resolvedOfficeId,
+      teamId: resolvedTeamId,
+    });
+    return AgentAffiliation.getActiveForUser(userId);
+  }
+
   static async upsertActive({ userId, agencyId, officeId, teamId = null }, client = null) {
     await AgentAffiliation.validateApprovedHierarchy({ agencyId, officeId, teamId });
 

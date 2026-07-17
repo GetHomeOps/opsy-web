@@ -532,7 +532,7 @@ function ConfigurationPage() {
                       <button
                         type="submit"
                         disabled={profileSaving}
-                        className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                        className="btn btn-primary disabled:opacity-50"
                       >
                         {profileSaving
                           ? t("saving") || "Saving..."
@@ -630,7 +630,7 @@ function ConfigurationPage() {
                     <button
                       type="submit"
                       disabled={passwordSaving}
-                      className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                      className="btn btn-primary disabled:opacity-50"
                     >
                       {passwordSaving
                         ? t("saving") || "Saving..."
@@ -688,7 +688,7 @@ function ConfigurationPage() {
                     <button
                       type="submit"
                       disabled={languageSaving}
-                      className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                      className="btn btn-primary disabled:opacity-50"
                     >
                       {languageSaving
                         ? t("saving") || "Saving..."
@@ -820,7 +820,7 @@ function ConfigurationPage() {
                                     }
                                   }}
                                   disabled={isConnecting}
-                                  className="btn bg-[#456564] hover:bg-[#34514f] text-white text-sm disabled:opacity-70"
+                                  className="btn btn-primary text-sm disabled:opacity-70"
                                 >
                                   {isConnecting ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -894,7 +894,7 @@ function ConfigurationPage() {
                       <button
                         type="button"
                         onClick={handleEnableMfaStart}
-                        className="btn bg-[#456564] hover:bg-[#34514f] text-white"
+                        className="btn btn-primary"
                       >
                         {t("settings.enable") || "Enable"}
                       </button>
@@ -1019,7 +1019,7 @@ function ConfigurationPage() {
                                 disabled={
                                   mfaActionLoading || mfaCode.length !== 6
                                 }
-                                className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                                className="btn btn-primary disabled:opacity-50"
                               >
                                 {mfaActionLoading ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1064,7 +1064,7 @@ function ConfigurationPage() {
                               type="button"
                               onClick={handleEnableMfaClose}
                               disabled={!backupCodesSaved}
-                              className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50"
+                              className="btn btn-primary disabled:opacity-50"
                             >
                               {t("settings.done") || "Done"}
                             </button>

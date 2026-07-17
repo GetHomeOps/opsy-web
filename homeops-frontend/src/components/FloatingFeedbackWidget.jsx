@@ -309,7 +309,7 @@ function FloatingFeedbackWidget() {
         onKeyDown={handleLauncherKeyDown}
         role="button"
         tabIndex={0}
-        className={`fixed z-[300] flex items-center gap-1.5 rounded-full shadow-lg transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/40 bg-[#456564] border border-[#34514f] pl-1.5 pr-3 py-1 ${
+        className={`fixed z-[300] flex items-center gap-1.5 rounded-full shadow-lg transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/40 bg-[var(--opsy-accent,#456564)] border border-[var(--opsy-accent-hover,#34514f)] pl-1.5 pr-3 py-1 ${
           dragging ? "cursor-grabbing scale-105 ring-2 ring-white/50" : "cursor-grab"
         } ${open && !dragging ? "ring-2 ring-white/40" : ""}`}
         style={{
@@ -321,16 +321,16 @@ function FloatingFeedbackWidget() {
         aria-label={t("widget.feedbackToggle") || "Submit feedback or report a bug"}
       >
         <GripVertical
-          className="w-4 h-4 shrink-0 text-white/70 pointer-events-none select-none"
+          className="w-4 h-4 shrink-0 text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_70%,transparent)] pointer-events-none select-none"
           aria-hidden
         />
         <img
           src={opsyWritingIcon}
           alt="Opsy"
-          className="w-9 h-9 rounded-full object-cover pointer-events-none select-none shrink-0 ring-2 ring-white/30"
+          className="w-9 h-9 rounded-full object-cover pointer-events-none select-none shrink-0 ring-2 ring-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_30%,transparent)]"
           draggable={false}
         />
-        <span className="text-[11px] font-semibold leading-tight text-white whitespace-nowrap pointer-events-none select-none pr-0.5">
+        <span className="text-[11px] font-semibold leading-tight text-[var(--opsy-accent-fg,#fff)] whitespace-nowrap pointer-events-none select-none pr-0.5">
           {t("widget.label") || "Bugs & Feedback"}
         </span>
       </div>
@@ -346,13 +346,13 @@ function FloatingFeedbackWidget() {
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-[#456564] to-[#34514f]">
-            <h3 className="text-sm font-semibold text-white">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-[var(--opsy-accent,#456564)] to-[var(--opsy-accent-hover,#34514f)]">
+            <h3 className="text-sm font-semibold text-[var(--opsy-accent-fg,#fff)]">
               {t("widget.title") || "How can we help?"}
             </h3>
             <button
               onClick={() => { setOpen(false); resetForm(); }}
-              className="text-white/70 hover:text-white transition-colors"
+              className="text-[color-mix(in_srgb,var(--opsy-accent-fg,#fff)_70%,transparent)] hover:text-[var(--opsy-accent-fg,#fff)] transition-colors"
               aria-label="Close"
             >
               <X className="w-4 h-4" />
@@ -375,7 +375,7 @@ function FloatingFeedbackWidget() {
                   onClick={() => setType("feedback")}
                   className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
                     type === "feedback"
-                      ? "bg-[#456564] text-white"
+                      ? "btn-segment-active"
                       : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                   }`}
                 >
@@ -387,7 +387,7 @@ function FloatingFeedbackWidget() {
                   onClick={() => setType("bug")}
                   className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
                     type === "bug"
-                      ? "bg-[#456564] text-white"
+                      ? "btn-segment-active"
                       : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                   }`}
                 >
@@ -471,7 +471,7 @@ function FloatingFeedbackWidget() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium py-2 transition-colors disabled:opacity-50"
+                className="btn btn-primary w-full gap-2 text-sm font-medium py-2 disabled:opacity-50"
               >
                 {submitting ? (
                   <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

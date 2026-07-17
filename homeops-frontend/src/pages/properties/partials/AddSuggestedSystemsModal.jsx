@@ -83,7 +83,7 @@ export default function AddSuggestedSystemsModal({
             type="button"
             onClick={handleAdd}
             disabled={adding}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg btn-primary text-sm font-medium disabled:opacity-60"
           >
             {adding ? (
               <Loader2 className="w-4 h-4 animate-spin" />

@@ -115,7 +115,7 @@ export function NextRecommendedActionModal({
           {onViewMaintenance && (
             <button
               type="button"
-              className="btn-sm border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 flex items-center gap-1.5"
+              className="btn-sm btn-primary-outline flex items-center gap-1.5"
               onClick={onViewMaintenance}
             >
               <Wrench className="w-3.5 h-3.5" />
@@ -125,7 +125,7 @@ export function NextRecommendedActionModal({
           {onSchedule && (
             <button
               type="button"
-              className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white flex items-center gap-1.5"
+              className="btn-sm btn-primary flex items-center gap-1.5"
               onClick={onSchedule}
             >
               <Calendar className="w-3.5 h-3.5" />

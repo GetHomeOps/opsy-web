@@ -295,7 +295,7 @@ function CalendarScheduleModal({
               type="button"
               onClick={handleContinue}
               disabled={!canContinue}
-              className="flex items-center gap-2 btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loadingProperty && (
                 <Loader2 className="w-4 h-4 animate-spin shrink-0" />

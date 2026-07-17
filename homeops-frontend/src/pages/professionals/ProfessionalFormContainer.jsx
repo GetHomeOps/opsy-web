@@ -941,7 +941,7 @@ function ProfessionalFormContainer() {
                 )}
                 {!isNew && (
                   <button
-                    className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
+                    className="btn btn-primary transition-colors duration-200 shadow-sm"
                     onClick={() =>
                       navigate(`/${accountUrl}/professionals/manage/new`)
                     }
@@ -1732,7 +1732,7 @@ function ProfessionalFormContainer() {
                     </button>
                     <button
                       type="button"
-                      className="btn text-white transition-colors duration-200 shadow-sm min-w-[100px] bg-[#456564] hover:bg-[#34514f]"
+                      className="btn transition-colors duration-200 shadow-sm min-w-[100px] btn-primary"
                       onClick={handleSave}
                       disabled={state.isSubmitting}
                     >

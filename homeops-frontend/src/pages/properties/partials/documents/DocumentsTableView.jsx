@@ -195,6 +195,8 @@ function DocumentsTableView({
   selectedType = "all",
   setSelectedType,
   onUploadClick,
+  emptyDescription,
+  emptyActionLabel = "Upload Document",
 }) {
   const [sortOrder, setSortOrder] = useState("newest");
   const [page, setPage] = useState(1);
@@ -317,7 +319,8 @@ function DocumentsTableView({
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-xs">
               {searchQuery || selectedType !== "all"
                 ? "Try adjusting your search or filters."
-                : "Upload inspection reports, warranties, receipts and manuals to build your property records."}
+                : emptyDescription ||
+                  "Upload inspection reports, warranties, receipts and manuals to build your property records."}
             </p>
             {onUploadClick && !searchQuery && selectedType === "all" && (
               <button
@@ -326,7 +329,7 @@ function DocumentsTableView({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#456654] hover:bg-[#3a5548] text-white transition-colors"
               >
                 <Upload className="w-3.5 h-3.5" />
-                Upload Document
+                {emptyActionLabel}
               </button>
             )}
           </div>

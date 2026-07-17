@@ -90,6 +90,25 @@ function hasCompleteAddressForAttom(data) {
     String(data?.zip || "").trim()
   );
 }
+
+/** True when at least one vendor-populated identity field (beyond address) is present. */
+function hasNonAddressIdentityFields(data) {
+  const candidates = [
+    data?.yearBuilt,
+    data?.propertyType,
+    data?.sqFtTotal,
+    data?.bedCount,
+    data?.taxId,
+    data?.county,
+    data?.ownerName,
+  ];
+  return candidates.some((v) => {
+    if (v == null) return false;
+    if (typeof v === "string") return v.trim() !== "";
+    if (typeof v === "number") return Number.isFinite(v) && v !== 0;
+    return true;
+  });
+}
 import {mapSystemsFromBackend} from "./helpers/mapSystemsFromBackend";
 import {prepareSystemsForApi} from "./helpers/prepareSystemsForApi";
 import {
@@ -1688,14 +1707,18 @@ function PropertyFormContainer() {
     initialAttomPullAttemptedRef.current = false;
   }, [effectivePropertyId]);
 
-  /** Auto-pull ATTOM when a saved property has never had a lookup and has a complete address. */
+  /** Auto-pull ATTOM when a saved property has never had a lookup and has a complete address.
+   * Skip when vendor source is set AND non-address identity fields are already present
+   * (converted pre-purchase with source but empty fields should still auto-pull). */
   useEffect(() => {
     if (uid === "new" || !effectivePropertyId) return;
     if (!attomRefresh.initialLoaded || initialAttomPullAttemptedRef.current)
       return;
     if (attomRefresh.isActive || attomRefresh.isAtLookupLimit) return;
     if (attomRefresh.lookupCount > 0) return;
-    if (identityDataSource === "attom" || identityDataSource === "rentcast")
+    const sourceIsVendor =
+      identityDataSource === "attom" || identityDataSource === "rentcast";
+    if (sourceIsVendor && hasNonAddressIdentityFields(savedMergedPropertyData))
       return;
     if (!hasCompleteAddressForAttom(savedMergedPropertyData)) return;
 
@@ -3529,7 +3552,7 @@ function PropertyFormContainer() {
               </Transition>
             </div>
             <button
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm disabled:opacity-70 inline-flex items-center gap-1.5 h-9 px-3.5 text-sm font-medium"
+              className="btn btn-primary transition-colors duration-200 shadow-sm disabled:opacity-70 inline-flex items-center gap-1.5 h-9 px-3.5 text-sm font-medium"
               onClick={handleNewProperty}
               disabled={addPropertyChecking}
             >
@@ -3707,7 +3730,7 @@ function PropertyFormContainer() {
                 }
               }}
               disabled={!!invitationAcceptingId || !!invitationDecliningId}
-              className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-1.5 px-3"
+              className="btn-sm btn-primary inline-flex items-center gap-1.5 px-3"
             >
               {invitationAcceptingId ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -4167,10 +4190,14 @@ function PropertyFormContainer() {
                         typeof ctx === "object" && ctx !== null
                           ? ctx
                           : {systemName: ctx};
+                      const {initialPrompt, ...systemCtx} = obj;
                       setAiSidebarSystemLabel(obj.systemName ?? ctx ?? null);
                       setAiSidebarSystemContext(
-                        typeof ctx === "object" && ctx !== null ? ctx : null,
+                        typeof ctx === "object" && ctx !== null
+                          ? systemCtx
+                          : null,
                       );
+                      setAiSidebarInitialPrompt(initialPrompt ?? null);
                       openAiAssistantWithPlanCheck();
                     }}
                     aiSidebarSystemLabel={aiSidebarSystemLabel}
@@ -4333,7 +4360,7 @@ function PropertyFormContainer() {
                 </button>
                 <button
                   type="button"
-                  className="btn text-white transition-colors duration-200 shadow-sm min-w-[100px] bg-[#456564] hover:bg-[#34514f] flex items-center justify-center gap-2"
+                  className="btn transition-colors duration-200 shadow-sm min-w-[100px] btn-primary flex items-center justify-center gap-2"
                   onClick={state.isNew ? handleSubmit : handleUpdate}
                 >
                   {state.isSubmitting && (
@@ -4442,7 +4469,7 @@ function PropertyFormContainer() {
                   }
                 }}
                 disabled={!!invitationAcceptingId || !!invitationDecliningId}
-                className="btn flex-1 bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center justify-center gap-2"
+                className="btn flex-1 btn-primary inline-flex items-center justify-center gap-2"
               >
                 {invitationAcceptingId ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -4539,7 +4566,7 @@ function PropertyFormContainer() {
               }
             }}
             disabled={!!invitationAcceptingId || !!invitationDecliningId}
-            className="btn bg-[#456564] hover:bg-[#34514f] text-white inline-flex items-center gap-2 px-4"
+            className="btn btn-primary inline-flex items-center gap-2 px-4"
           >
             {invitationAcceptingId ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -4620,7 +4647,7 @@ function PropertyFormContainer() {
           <button
             type="button"
             onClick={dismissInvitationAcceptedModal}
-            className="btn w-full bg-[#456564] hover:bg-[#34514f] text-white"
+            className="btn w-full btn-primary"
           >
             {t("invitations.continueToProperty") || "Continue to property"}
           </button>

@@ -1644,7 +1644,7 @@ function SharePropertyModal({
                                           !selectedNewOwnerId ||
                                           transferSubmitting
                                         }
-                                        className="btn-sm bg-[#456654] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="btn-sm btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
                                         {transferSubmitting
                                           ? "Sending…"

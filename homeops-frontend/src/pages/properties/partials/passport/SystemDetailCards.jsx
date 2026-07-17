@@ -225,7 +225,7 @@ export function SystemDetailRightRail({
           <button
             type="button"
             onClick={onEdit}
-            className="mt-3 w-full inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#456564] hover:bg-[#34514f] transition-colors"
+            className="mt-3 w-full inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary transition-colors"
           >
             Complete Details
           </button>

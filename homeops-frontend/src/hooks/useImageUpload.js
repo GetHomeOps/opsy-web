@@ -13,6 +13,7 @@ const ACCEPT_IMAGE = "image/jpeg,image/png,image/webp,image/gif";
  * @param {(key: string, displayUrl?: string) => void} [options.onSuccess] - Called with S3 key and optional display URL
  * @param {(message: string) => void} [options.onError] - Called on validation or upload error
  * @param {string} [options.uploadFolder] - S3 upload_folder (default: general attachments / legacy `documents/`)
+ * @param {boolean} [options.preserveTransparency=false] - Keep alpha when compressing (logos/icons)
  * @returns {{
  *   uploadImage: (file: File) => Promise<void>,
  *   imagePreviewUrl: string | null,
@@ -29,6 +30,7 @@ export default function useImageUpload({
   onSuccess,
   onError,
   uploadFolder = S3_UPLOAD_FOLDER.DOCUMENTS,
+  preserveTransparency = false,
 } = {}) {
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
@@ -62,7 +64,9 @@ export default function useImageUpload({
       setImageUploadError(null);
 
       try {
-        const toUpload = await compressImageForUpload(file);
+        const toUpload = await compressImageForUpload(file, {
+          preserveTransparency,
+        });
         const document = await AppApi.uploadDocument(toUpload, { uploadFolder });
         const key =
           document?.key ??
@@ -71,12 +75,17 @@ export default function useImageUpload({
           document?.objectKey ??
           document?.url;
         const displayUrl =
-          document?.url ??
           document?.presignedUrl ??
-          document?.presigned_url;
+          document?.presigned_url ??
+          // Upload returns a permanent bucket URL that 403s on private buckets —
+          // only treat it as displayable when it looks like a signed URL.
+          (typeof document?.url === "string" &&
+          (document.url.includes("X-Amz-") || document.url.includes("Signature="))
+            ? document.url
+            : null);
 
         if (key) {
-          onSuccess?.(key, displayUrl);
+          onSuccess?.(key, displayUrl ?? undefined);
           if (displayUrl) {
             setUploadedImageUrl(displayUrl);
           }
@@ -94,7 +103,7 @@ export default function useImageUpload({
         setImageUploading(false);
       }
     },
-    [onSuccess, onError, clearPreview, uploadFolder],
+    [onSuccess, onError, clearPreview, uploadFolder, preserveTransparency],
   );
 
   return {

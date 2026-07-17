@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "propertyId": {
+      "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 1 }]
+    },
+    "displayName": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 255 }]
+    },
+    "street": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 255 }]
+    },
+    "city": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 100 }]
+    },
+    "state": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 50 }]
+    },
+    "zip": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 20 }]
+    },
+    "photoKey": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 512 }]
+    }
+  }
+}

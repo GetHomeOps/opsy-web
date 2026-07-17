@@ -27,6 +27,7 @@ const {
 const { BadRequestError, ForbiddenError, NotFoundError } = require("../expressError");
 const User = require("../models/user");
 const Account = require("../models/account");
+const AgentAffiliation = require("../models/agentAffiliation");
 const userUpdateSchema = require("../schemas/userUpdate.json");
 const { addUserAvatarUrlToItem, addUserAvatarUrlsToItems } = require("../helpers/presignedUrls");
 const db = require("../db");
@@ -411,6 +412,10 @@ router.get("/by-id/:userId", ensureLoggedIn, ensurePlatformAdmin, async function
     const userWithUrl = await addUserAvatarUrlToItem(user);
     if (!isDemoEnvironment() || res.locals.user?.role !== "super_admin") {
       delete userWithUrl.demoLoginPassword;
+    }
+
+    if (user.role === "agent") {
+      userWithUrl.affiliation = await AgentAffiliation.getActiveForUser(userId);
     }
 
     let pairedHomeowner = null;

@@ -2,10 +2,15 @@
 
 const express = require("express");
 const jsonschema = require("jsonschema");
-const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin, ensureAdminOrSuperAdmin, ensureUserCanAccessAccountByParam, ensureSelfOrAdmin } = require("../middleware/auth");
+const { ensureLoggedIn, ensurePlatformAdmin, ensureAdminOrSuperAdmin, ensureUserCanAccessAccountByParam, ensureSelfOrAdmin } = require("../middleware/auth");
 const { BadRequestError } = require("../expressError");
 const Account = require("../models/account");
 const accountUpdateSchema = require("../schemas/accountUpdate.json");
+const accountBrandingUpdateSchema = require("../schemas/accountBrandingUpdate.json");
+const {
+  getEffectiveAccountBranding,
+  assertAccountCustomizable,
+} = require("../services/brandingService");
 
 const router = express.Router();
 
@@ -28,6 +33,50 @@ router.get("/user/:userId", ensureLoggedIn, ensureSelfOrAdmin("userId"), async f
     return next(err);
   }
 });
+
+/** GET /:id/branding - Effective branding (inheritance applied). Members + platform admins. */
+router.get(
+  "/:id/branding",
+  ensureLoggedIn,
+  ensureUserCanAccessAccountByParam("id"),
+  async function (req, res, next) {
+    try {
+      const branding = await getEffectiveAccountBranding(req.params.id);
+      return res.json({ branding });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** PATCH /:id/branding - Update account branding. Platform admin only; unaffiliated agents only. */
+router.patch(
+  "/:id/branding",
+  ensureLoggedIn,
+  ensurePlatformAdmin,
+  async function (req, res, next) {
+    try {
+      const validator = jsonschema.validate(req.body, accountBrandingUpdateSchema);
+      if (!validator.valid) {
+        const errs = validator.errors.map((e) => e.stack);
+        throw new BadRequestError(errs);
+      }
+      await assertAccountCustomizable(req.params.id);
+      const branding = await Account.updateBranding(req.params.id, req.body);
+      return res.json({
+        branding: {
+          ...branding,
+          source: "account",
+          customizable: true,
+          inheritsFromLabel: null,
+          inheritsFromType: null,
+        },
+      });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
 
 /** GET /:id - Get single account. Requires account membership. */
 router.get("/:id", ensureLoggedIn, ensureUserCanAccessAccountByParam("id"), async function (req, res, next) {
@@ -62,6 +111,11 @@ router.post("/account_users", ensureAdminOrSuperAdmin, async function (req, res,
 /** PATCH /:id - Update account. Requires account membership. */
 router.patch("/:id", ensureLoggedIn, ensureUserCanAccessAccountByParam("id"), async function (req, res, next) {
   try {
+    const validator = jsonschema.validate(req.body, accountUpdateSchema);
+    if (!validator.valid) {
+      const errs = validator.errors.map((e) => e.stack);
+      throw new BadRequestError(errs);
+    }
     const account = await Account.update(req.params.id, req.body);
     return res.json({ account });
   } catch (err) {

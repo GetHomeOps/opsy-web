@@ -8,7 +8,7 @@
  *
  * Exports: getAccountLimits, getEffectiveLimits, canCreateProperty, canAddContact,
  *          canInviteViewer, canAddTeamMember, checkAiTokenQuota, checkAiFeaturesAllowed,
- *          canUploadDocumentToSystem
+ *          checkPrePurchaseAllowed, canUploadDocumentToSystem
  */
 
 const db = require("../db");
@@ -17,6 +17,7 @@ const { BILLING_MOCK_MODE, AI_TOKEN_COST_USD } = require("../config");
 const DEFAULT_LIMITS = {
   maxProperties: 3, maxContacts: 50, maxViewers: 5, maxTeamMembers: 10,
   aiTokenMonthlyQuota: 50000, maxDocumentsPerSystem: 5, aiFeaturesEnabled: true,
+  prePurchaseEnabled: false,
 };
 
 function isAdminRole(role) {
@@ -48,7 +49,8 @@ async function getLimitsForPlanCode(planCode) {
             pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
             pl.ai_token_price_usd AS "aiTokenPriceUsd",
             pl.max_documents_per_system AS "maxDocumentsPerSystem",
-            COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
+            COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
+            COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
      FROM plan_limits pl
      JOIN subscription_products sp ON sp.id = pl.subscription_product_id
      WHERE sp.code = $1
@@ -78,7 +80,8 @@ async function getAccountLimits(accountId) {
               pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
               pl.ai_token_price_usd AS "aiTokenPriceUsd",
               pl.max_documents_per_system AS "maxDocumentsPerSystem",
-              COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
+              COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
+              COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
        FROM plan_limits pl WHERE pl.subscription_product_id = $1`,
       [productId]
     );
@@ -110,7 +113,8 @@ async function getAccountLimits(accountId) {
             pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
             pl.ai_token_price_usd AS "aiTokenPriceUsd",
             pl.max_documents_per_system AS "maxDocumentsPerSystem",
-            COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled"
+            COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
+            COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
      FROM plan_limits pl
      JOIN subscription_products sp ON sp.id = pl.subscription_product_id
      WHERE sp.code = 'homeowner_free' LIMIT 1`
@@ -200,13 +204,35 @@ async function checkAiFeaturesAllowed(userId, userRole, { propertyId } = {}) {
   };
 }
 
+/** Whether Pre-Purchase Analysis is allowed for this user's plan (admins / mock bypass).
+ *  Default OFF — only plans with prePurchaseEnabled === true grant access. */
+async function checkPrePurchaseAllowed(userId, userRole) {
+  if (isAdminRole(userRole)) return { allowed: true };
+  if (BILLING_MOCK_MODE) return { allowed: true };
+
+  const limits = await getEffectiveLimits(userId);
+  const enabled = limits.prePurchaseEnabled === true;
+  return {
+    allowed: enabled,
+    message: enabled
+      ? undefined
+      : "Pre-Purchase Analysis is not included in your current plan. Upgrade to a plan that includes Pre-Purchase.",
+  };
+}
+
 async function countAccountOwnedProperties(accountId) {
-  /* Exclude properties whose billing has been handed to a sponsoring (agent) account.
-     Those no longer burden the homeowner's plan, letting them sit on a free tier. */
+  /* Count only properties that still have a team. Orphan rows (account_id set but
+     no property_users) are invisible in the Properties list (which joins
+     property_users) and must not consume plan slots or block "Add Property".
+     Also exclude properties whose billing was handed to a sponsoring agent account. */
   const countRes = await db.query(
     `SELECT COUNT(*)::int AS count
-     FROM properties
-     WHERE account_id = $1 AND active_sponsor_account_id IS NULL`,
+     FROM properties p
+     WHERE p.account_id = $1
+       AND p.active_sponsor_account_id IS NULL
+       AND EXISTS (
+         SELECT 1 FROM property_users pu WHERE pu.property_id = p.id
+       )`,
     [accountId]
   );
   return countRes.rows[0]?.count ?? 0;
@@ -629,6 +655,7 @@ module.exports = {
   getViewerInviteEligibilityByProperty,
   checkAiTokenQuota,
   checkAiFeaturesAllowed,
+  checkPrePurchaseAllowed,
   canUploadDocumentToSystem,
   isAdminRole,
 };

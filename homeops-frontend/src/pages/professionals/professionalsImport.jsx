@@ -691,7 +691,7 @@ function ProfessionalsImport() {
                           type="button"
                           onClick={handleConfirmJsonImport}
                           disabled={jsonSubmitting}
-                          className="btn bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                          className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
                         >
                           {jsonSubmitting ? (
                             <>

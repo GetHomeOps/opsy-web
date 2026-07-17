@@ -328,7 +328,7 @@ function CategoryDirectoryPageSample() {
                                   onClick={() => setPage(pageNum)}
                                   className={`w-8 h-8 text-xs font-medium rounded-lg transition-colors ${
                                     page === pageNum
-                                      ? "bg-[#456564] text-white"
+                                      ? "btn-segment-active"
                                       : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                                   }`}
                                 >

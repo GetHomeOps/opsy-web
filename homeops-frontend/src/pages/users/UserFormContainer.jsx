@@ -102,7 +102,15 @@ const initialFormData = {
   role: "",
   contact: "",
   image: "",
+  agencyId: "",
+  officeId: "",
 };
+
+function isAgentRole(role) {
+  return String(role || "")
+    .toLowerCase()
+    .replace(/\s+/g, "_") === "agent";
+}
 
 const initialState = {
   formData: initialFormData,
@@ -155,6 +163,12 @@ function reducer(state, action) {
               contact: action.payload.contact || "",
               isActive: action.payload.isActive || false,
               image: action.payload.image ?? "",
+              agencyId: action.payload.affiliation?.agencyId
+                ? String(action.payload.affiliation.agencyId)
+                : "",
+              officeId: action.payload.affiliation?.officeId
+                ? String(action.payload.affiliation.officeId)
+                : "",
             }
           : initialFormData,
         demoPassword: action.payload?.demoLoginPassword || "",
@@ -346,6 +360,20 @@ function UsersFormContainer() {
       if (existingUser) {
         if (!cancelled) {
           dispatch({type: "SET_USER", payload: existingUser});
+        }
+        // List cache omits affiliation — enrich agents from by-id endpoint
+        if (
+          isAgentRole(existingUser.role) &&
+          existingUser.affiliation === undefined
+        ) {
+          try {
+            const full = await AppApi.getUserById(id);
+            if (!cancelled && full) {
+              dispatch({type: "SET_USER", payload: full});
+            }
+          } catch {
+            /* keep list payload */
+          }
         }
         return;
       }
@@ -787,6 +815,12 @@ function UsersFormContainer() {
       const demoSummary = res?.demoSummary;
 
       if (res && res.id) {
+        try {
+          await saveAgentAffiliation(res.id);
+        } catch (affErr) {
+          console.error("Error assigning agency:", affErr);
+        }
+
         dispatch({
           type: "SET_USER",
           payload: {
@@ -891,8 +925,13 @@ function UsersFormContainer() {
 
     if (!validateForm()) return;
 
+    const {
+      agencyId: _agencyId,
+      officeId: _officeId,
+      ...formFields
+    } = state.formData;
     const userData = {
-      ...state.formData,
+      ...formFields,
       contact: Number(state.formData.contact),
       isActive: state.formData.isActive,
       image: state.formData.image || null,
@@ -918,9 +957,34 @@ function UsersFormContainer() {
 
     try {
       const res = await AppApi.updateUser(id, userData);
+
+      let affiliation = null;
+      try {
+        affiliation = await saveAgentAffiliation(id);
+      } catch (affErr) {
+        console.error("Error assigning agency:", affErr);
+        dispatch({
+          type: "SET_BANNER",
+          payload: {
+            open: true,
+            type: "error",
+            message: `User updated, but agency assignment failed: ${affErr.message || affErr}`,
+          },
+        });
+        dispatch({type: "SET_SUBMITTING", payload: false});
+        return;
+      }
+
       const updatedUser = isDemoSuperAdmin
         ? await AppApi.getUserById(id)
-        : res;
+        : {
+            ...res,
+            ...(affiliation
+              ? {affiliation}
+              : isAgentRole(state.formData.role)
+                ? {affiliation: res?.affiliation ?? state.user?.affiliation ?? null}
+                : {}),
+          };
 
       if (updatedUser) {
         dispatch({
@@ -1346,9 +1410,14 @@ function UsersFormContainer() {
 
   // Handler for role change
   function handleRoleChange(value) {
+    const payload = {role: value};
+    if (!isAgentRole(value)) {
+      payload.agencyId = "";
+      payload.officeId = "";
+    }
     dispatch({
       type: "SET_FORM_DATA",
-      payload: {role: value},
+      payload,
     });
 
     // Clear error when field is being edited
@@ -1375,6 +1444,130 @@ function UsersFormContainer() {
   const [agentPropertyCount, setAgentPropertyCount] = useState(0);
   const [agentPropertyUids, setAgentPropertyUids] = useState([]);
   const [resendingInvitation, setResendingInvitation] = useState(false);
+  const [agencyOptions, setAgencyOptions] = useState([]);
+  const [officeOptions, setOfficeOptions] = useState([]);
+  const [agenciesLoading, setAgenciesLoading] = useState(false);
+  const [officesLoading, setOfficesLoading] = useState(false);
+
+  const showAgentAffiliationFields = isAgentRole(state.formData.role);
+
+  useEffect(() => {
+    if (!showAgentAffiliationFields) {
+      setAgencyOptions([]);
+      setOfficeOptions([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadAgencies() {
+      setAgenciesLoading(true);
+      try {
+        const list = await AppApi.searchAffiliationAgencies("", 100);
+        if (cancelled) return;
+        setAgencyOptions(
+          (list || []).map((a) => ({
+            id: String(a.id),
+            name: a.name,
+          })),
+        );
+      } catch {
+        if (!cancelled) setAgencyOptions([]);
+      } finally {
+        if (!cancelled) setAgenciesLoading(false);
+      }
+    }
+    loadAgencies();
+    return () => {
+      cancelled = true;
+    };
+  }, [showAgentAffiliationFields]);
+
+  useEffect(() => {
+    if (!showAgentAffiliationFields || !state.formData.agencyId) {
+      setOfficeOptions([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadOffices() {
+      setOfficesLoading(true);
+      try {
+        const list = await AppApi.searchAffiliationOffices(
+          state.formData.agencyId,
+          "",
+          100,
+        );
+        if (cancelled) return;
+        setOfficeOptions(
+          (list || []).map((o) => ({
+            id: String(o.id),
+            name: o.name,
+          })),
+        );
+      } catch {
+        if (!cancelled) setOfficeOptions([]);
+      } finally {
+        if (!cancelled) setOfficesLoading(false);
+      }
+    }
+    loadOffices();
+    return () => {
+      cancelled = true;
+    };
+  }, [showAgentAffiliationFields, state.formData.agencyId]);
+
+  // Prefill agency/office option labels when affiliation exists but lists haven't loaded yet
+  useEffect(() => {
+    const aff = state.user?.affiliation;
+    if (!aff?.agency?.id) return;
+    setAgencyOptions((prev) => {
+      if (prev.some((o) => String(o.id) === String(aff.agency.id))) return prev;
+      return [
+        ...prev,
+        {id: String(aff.agency.id), name: aff.agency.name || `Agency #${aff.agency.id}`},
+      ];
+    });
+    if (aff.office?.id) {
+      setOfficeOptions((prev) => {
+        if (prev.some((o) => String(o.id) === String(aff.office.id))) return prev;
+        return [
+          ...prev,
+          {
+            id: String(aff.office.id),
+            name: aff.office.name || `Office #${aff.office.id}`,
+          },
+        ];
+      });
+    }
+  }, [state.user?.affiliation]);
+
+  function handleAgencyChange(value) {
+    dispatch({
+      type: "SET_FORM_DATA",
+      payload: {agencyId: value ? String(value) : "", officeId: ""},
+    });
+    if (state.isInitialLoad) {
+      dispatch({type: "SET_FORM_CHANGED", payload: true});
+    }
+  }
+
+  function handleOfficeChange(value) {
+    dispatch({
+      type: "SET_FORM_DATA",
+      payload: {officeId: value ? String(value) : ""},
+    });
+    if (state.isInitialLoad) {
+      dispatch({type: "SET_FORM_CHANGED", payload: true});
+    }
+  }
+
+  async function saveAgentAffiliation(userId) {
+    if (!isAgentRole(state.formData.role) || !state.formData.agencyId) return null;
+    return AppApi.assignAgentAffiliation(userId, {
+      agencyId: Number(state.formData.agencyId),
+      ...(state.formData.officeId
+        ? {officeId: Number(state.formData.officeId)}
+        : {}),
+    });
+  }
 
   // Handler for contact change
   function handleContactChange(value) {
@@ -1813,7 +2006,7 @@ function UsersFormContainer() {
               />
             )}
             <button
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
+              className="btn btn-primary transition-colors duration-200 shadow-sm"
               onClick={handleNewUser}
               hidden={!canCreateUser}
             >
@@ -2204,6 +2397,55 @@ function UsersFormContainer() {
                         clearable={true}
                       />
                     </div>
+
+                    {/* Agency (agents only) */}
+                    {showAgentAffiliationFields && (
+                      <div>
+                        <label className={getLabelClasses()} htmlFor="agencyId">
+                          {t("agency") || "Agency"}
+                        </label>
+                        <SelectDropdown
+                          options={agencyOptions}
+                          value={state.formData.agencyId || ""}
+                          onChange={handleAgencyChange}
+                          placeholder={
+                            agenciesLoading
+                              ? t("loading") || "Loading..."
+                              : t("selectAgency") || "Select agency"
+                          }
+                          name="agencyId"
+                          id="agencyId"
+                          clearable={true}
+                          disabled={agenciesLoading}
+                        />
+                      </div>
+                    )}
+
+                    {/* Office (agents only, after agency) */}
+                    {showAgentAffiliationFields && (
+                      <div>
+                        <label className={getLabelClasses()} htmlFor="officeId">
+                          {t("office") || "Office"}
+                        </label>
+                        <SelectDropdown
+                          options={officeOptions}
+                          value={state.formData.officeId || ""}
+                          onChange={handleOfficeChange}
+                          placeholder={
+                            !state.formData.agencyId
+                              ? t("selectAgencyFirst") || "Select an agency first"
+                              : officesLoading
+                                ? t("loading") || "Loading..."
+                                : t("selectOffice") ||
+                                  "Default (main office) — or select"
+                          }
+                          name="officeId"
+                          id="officeId"
+                          clearable={true}
+                          disabled={!state.formData.agencyId || officesLoading}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Send invitation toggle (new user only, not on demo or when provisioning demo) */}
@@ -2622,7 +2864,7 @@ function UsersFormContainer() {
                 </button>
                 <button
                   type="submit"
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm min-w-[100px]"
+                  className="btn btn-primary transition-colors duration-200 shadow-sm min-w-[100px]"
                   disabled={state.isSubmitting}
                 >
                       {state.isSubmitting ? (

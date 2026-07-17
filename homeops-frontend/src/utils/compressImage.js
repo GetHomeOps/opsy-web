@@ -1,21 +1,24 @@
 /**
  * Compress an image file for faster upload and loading.
- * Resizes to max 960px on the longest side and encodes as JPEG at 0.72 quality.
+ * Resizes to max 960px on the longest side.
+ * By default encodes as JPEG at 0.72 quality (with a white backdrop for transparency).
+ * Pass preserveTransparency to encode as WebP and keep alpha (for logos/icons).
  * Non-image files are returned unchanged.
  *
  * @param {File} file - Image file (JPEG, PNG, WebP, etc.)
  * @param {Object} [options]
  * @param {number} [options.maxWidth=960] - Max width in pixels
- * @param {number} [options.quality=0.72] - JPEG quality 0–1
- * @returns {Promise<File>} Compressed file (JPEG) or original if not compressible
+ * @param {number} [options.quality=0.72] - Encode quality 0–1
+ * @param {boolean} [options.preserveTransparency=false] - Keep alpha via WebP (no white fill)
+ * @returns {Promise<File>} Compressed file or original if not compressible
  */
 export function compressImageForUpload(file, options = {}) {
-  const { maxWidth = 960, quality = 0.72 } = options;
+  const { maxWidth = 960, quality = 0.72, preserveTransparency = false } = options;
   if (!file || !file.type.startsWith("image/")) {
     return Promise.resolve(file);
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
 
@@ -42,10 +45,15 @@ export function compressImageForUpload(file, options = {}) {
         resolve(file);
         return;
       }
-      // JPEG has no alpha — fill white so transparent PNG areas don't flatten to black.
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, w, h);
+      if (!preserveTransparency) {
+        // JPEG has no alpha — fill white so transparent PNG areas don't flatten to black.
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+      }
       ctx.drawImage(img, 0, 0, w, h);
+
+      const mimeType = preserveTransparency ? "image/webp" : "image/jpeg";
+      const ext = preserveTransparency ? ".webp" : ".jpg";
 
       canvas.toBlob(
         (blob) => {
@@ -53,10 +61,10 @@ export function compressImageForUpload(file, options = {}) {
             resolve(file);
             return;
           }
-          const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
-          resolve(new File([blob], name, { type: "image/jpeg" }));
+          const name = file.name.replace(/\.[^.]+$/, "") + ext;
+          resolve(new File([blob], name, { type: mimeType }));
         },
-        "image/jpeg",
+        mimeType,
         quality
       );
     };

@@ -105,6 +105,7 @@ function DocumentsFolderSidebar({
   documentsBySystem = {},
   totalCount = 0,
   inboxCount = 0,
+  showInbox = true,
   allSelected = false,
   inboxSelected = false,
   selectedFolderId = null,
@@ -165,34 +166,36 @@ function DocumentsFolderSidebar({
         </div>
 
         {/* Inbox (staged uploads waiting to be filed) */}
-        <div
-          onClick={() => onSelectInbox?.()}
-          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-            inboxSelected
-              ? "bg-[#456654]/[0.08] dark:bg-[#456654]/20 text-[#2f4a44] dark:text-[#a8c0b4]"
-              : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60"
-          }`}
-        >
-          <Inbox
-            className={`w-4 h-4 shrink-0 ${
+        {showInbox && (
+          <div
+            onClick={() => onSelectInbox?.()}
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
               inboxSelected
-                ? "text-[#456654] dark:text-[#7a9a88]"
-                : "text-gray-400 dark:text-gray-500"
-            }`}
-          />
-          <span
-            className={`text-sm flex-1 truncate ${
-              inboxSelected ? "font-semibold" : "font-medium"
+                ? "bg-[#456654]/[0.08] dark:bg-[#456654]/20 text-[#2f4a44] dark:text-[#a8c0b4]"
+                : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60"
             }`}
           >
-            Inbox
-          </span>
-          {inboxCount > 0 && (
-            <span className="text-[10px] font-semibold text-[#3a5548] dark:text-[#a8c0b4] bg-[#456654]/15 dark:bg-[#456654]/30 px-1.5 py-0.5 rounded-full shrink-0">
-              {inboxCount}
+            <Inbox
+              className={`w-4 h-4 shrink-0 ${
+                inboxSelected
+                  ? "text-[#456654] dark:text-[#7a9a88]"
+                  : "text-gray-400 dark:text-gray-500"
+              }`}
+            />
+            <span
+              className={`text-sm flex-1 truncate ${
+                inboxSelected ? "font-semibold" : "font-medium"
+              }`}
+            >
+              Inbox
             </span>
-          )}
-        </div>
+            {inboxCount > 0 && (
+              <span className="text-[10px] font-semibold text-[#3a5548] dark:text-[#a8c0b4] bg-[#456654]/15 dark:bg-[#456654]/30 px-1.5 py-0.5 rounded-full shrink-0">
+                {inboxCount}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="pt-3 pb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-400 dark:text-gray-500">
           Folders
@@ -218,7 +221,7 @@ function DocumentsFolderSidebar({
       <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-3">
         <p className="text-[11px] text-gray-500 dark:text-gray-400">
           {totalCount} document{totalCount === 1 ? "" : "s"} filed
-          {inboxCount > 0
+          {showInbox && inboxCount > 0
             ? ` · ${inboxCount} in inbox`
             : ""}
         </p>

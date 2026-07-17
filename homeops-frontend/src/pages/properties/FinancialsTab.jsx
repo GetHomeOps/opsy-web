@@ -383,7 +383,7 @@ function FinancialsTab({propertyData = {}, onNavigateTab}) {
               </div>
               <button
                 type="button"
-                className="w-full mt-2 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold text-white bg-[#456564] hover:bg-[#34514f] transition-colors"
+                className="w-full mt-2 inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-semibold btn-primary transition-colors"
               >
                 View Refinance Analysis
               </button>

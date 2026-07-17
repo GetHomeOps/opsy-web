@@ -703,7 +703,7 @@ function MaintenanceFormPanel({
             </button>
             <button
               type="button"
-              className="btn text-white transition-colors duration-200 shadow-sm min-w-[100px] bg-[#456564] hover:bg-[#34514f] flex items-center justify-center gap-2"
+              className="btn transition-colors duration-200 shadow-sm min-w-[100px] btn-primary flex items-center justify-center gap-2"
               onClick={handleSubmit}
               disabled={!formData.date?.trim() || isSubmitting}
             >
@@ -1220,7 +1220,7 @@ function MaintenanceFormPanel({
             </button>
             <button
               type="button"
-              className="btn text-white transition-colors duration-200 shadow-sm min-w-[100px] bg-[#456564] hover:bg-[#34514f] flex items-center justify-center gap-2"
+              className="btn transition-colors duration-200 shadow-sm min-w-[100px] btn-primary flex items-center justify-center gap-2"
               onClick={handleSubmit}
               disabled={!formData.date?.trim() || isSubmitting}
             >

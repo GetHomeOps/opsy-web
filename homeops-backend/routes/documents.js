@@ -67,7 +67,7 @@ router.post("/upload", ensureLoggedIn, upload.single("file"), async (req, res, n
     const folderPrefix = resolveUploadFolderPrefix(req.body);
     if (!folderPrefix) {
       throw new BadRequestError(
-        "Invalid upload_folder. Use: documents, property_documents, property_photos, professionals, user_photos, agencies, or email_assets."
+        "Invalid upload_folder. Use: documents, property_documents, property_photos, professionals, user_photos, agencies, email_assets, account_branding, or pre_purchase."
       );
     }
     assertDemoUploadAllowed({ uploadFolder: folderPrefix });
@@ -90,6 +90,15 @@ router.post("/upload", ensureLoggedIn, upload.single("file"), async (req, res, n
         throw new BadRequestError("Email icons must be PNG, JPEG, WebP, or GIF.");
       }
       key = `email_assets/${emailType}/${iconSlot}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
+    } else if (folderPrefix === "account_branding") {
+      const role = res.locals.user?.role;
+      if (role !== "super_admin" && role !== "admin") {
+        throw new BadRequestError("Only platform admins can upload account branding assets.");
+      }
+      if (!["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext.toLowerCase())) {
+        throw new BadRequestError("Branding images must be PNG, JPEG, WebP, GIF, or SVG.");
+      }
+      key = `account_branding/${userId}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
     } else {
       key = `${folderPrefix}/${userId}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
     }

@@ -148,7 +148,7 @@ function InspectionReportModal({
                 <button
                   type="button"
                   onClick={onUploadReport}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#456564] hover:bg-[#34514f] text-white text-sm font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg btn-primary text-sm font-medium"
                 >
                   <Upload className="w-4 h-4" />
                   Upload report
@@ -395,7 +395,7 @@ function InspectionReportModal({
                 onChatWithAI();
                 onClose?.();
               }}
-              className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white flex items-center gap-2"
+              className="btn-sm btn-primary flex items-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
               Chat with AI

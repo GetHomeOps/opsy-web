@@ -661,7 +661,7 @@ function AddTodoForm({systemKey, propertyId, onItemCreated}) {
           <button
             type="submit"
             disabled={!title.trim() || saving}
-            className="text-xs font-medium px-3 py-1 rounded-md bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="text-xs font-medium px-3 py-1 rounded-md btn-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? "Adding..." : "Add"}
           </button>

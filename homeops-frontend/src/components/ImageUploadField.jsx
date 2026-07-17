@@ -125,7 +125,7 @@ function ImageUploadField({
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={handleFileChange}
         />
-        {isBusy ? (
+        {isBusy && !imageSrc ? (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
             <Loader2
               className={`${isCompact ? "w-5 h-5" : "w-10 h-10"} animate-spin`}
@@ -148,6 +148,13 @@ function ImageUploadField({
                 e.target.src = PLACEHOLDER_FALLBACK;
               }}
             />
+            {isBusy && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                <Loader2
+                  className={`${isCompact ? "w-5 h-5" : "w-8 h-8"} animate-spin text-white`}
+                />
+              </div>
+            )}
             {showRemove && (
               <button
                 type="button"
@@ -164,7 +171,7 @@ function ImageUploadField({
                 <X className={isCompact ? "w-3 h-3" : "w-4 h-4"} />
               </button>
             )}
-            {showOverlay && (
+            {showOverlay && !isBusy && (
               <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2 pointer-events-none">
                 <span
                   className={`${isCompact ? "text-[10px]" : "text-sm"} font-medium text-white`}

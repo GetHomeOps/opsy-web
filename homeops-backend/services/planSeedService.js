@@ -114,10 +114,11 @@ async function ensureStripePlans() {
     }
 
     const aiFeatSeed = limits?.aiFeaturesEnabled === undefined ? null : !!limits.aiFeaturesEnabled;
+    const prePurchaseSeed = limits?.prePurchaseEnabled === undefined ? null : !!limits.prePurchaseEnabled;
     await db.query(
       `INSERT INTO plan_limits
-        (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, max_documents_per_system, ai_features_enabled, other_limits, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true), $9, NOW())
+        (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, max_documents_per_system, ai_features_enabled, pre_purchase_enabled, other_limits, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true), COALESCE($9, false), $10, NOW())
        ON CONFLICT (subscription_product_id) DO NOTHING`,
       [
         productId,
@@ -128,6 +129,7 @@ async function ensureStripePlans() {
         limits?.aiTokenMonthlyQuota ?? 50000,
         limits?.maxDocumentsPerSystem ?? 5,
         aiFeatSeed,
+        prePurchaseSeed,
         limits?.otherLimits ? JSON.stringify(limits.otherLimits) : "{}",
       ]
     );

@@ -539,7 +539,7 @@ function SubscriptionFormContainer() {
 
           <div className="flex items-center gap-3">
             <button
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm"
+              className="btn btn-primary transition-colors duration-200 shadow-sm"
               onClick={() => navigate(`/${accountUrl}/subscriptions/new`)}
             >
               {t("new")}
@@ -1018,7 +1018,7 @@ function SubscriptionFormContainer() {
                 </button>
                 <button
                   type="submit"
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white transition-colors duration-200 shadow-sm min-w-[100px]"
+                  className="btn btn-primary transition-colors duration-200 shadow-sm min-w-[100px]"
                   disabled={state.isSubmitting}
                 >
                   {state.isSubmitting ? (

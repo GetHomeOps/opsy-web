@@ -138,7 +138,7 @@ function VerifyEmail() {
             </p>
             <Link
               to="/signin"
-              className="block w-full text-center rounded-lg bg-[#456564] text-white py-2.5 text-sm font-medium hover:opacity-95"
+              className="block w-full text-center rounded-lg btn-primary py-2.5 text-sm font-medium"
             >
               {t("verifyEmail.backToSignIn", "Back to sign in")}
             </Link>

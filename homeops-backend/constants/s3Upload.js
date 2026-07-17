@@ -14,10 +14,14 @@ const S3_ALLOWED_PREFIXES = [
   "agencies/",
   /** Customer.io template icons (Email Delivery admin) */
   "email_assets/",
+  /** Account white-label logos / sidebar icons */
+  "account_branding/",
   /** Existing bucket content / admin uploads */
   "config/",
   /** Shared demo fixture PDFs (demo account provisioning) */
   "demo/",
+  /** Pre-purchase analysis document uploads */
+  "pre_purchase/",
 ];
 
 const S3_UPLOAD_FOLDER_TO_PREFIX = {
@@ -28,6 +32,8 @@ const S3_UPLOAD_FOLDER_TO_PREFIX = {
   user_photos: "user_photos",
   agencies: "agencies",
   email_assets: "email_assets",
+  account_branding: "account_branding",
+  pre_purchase: "pre_purchase",
 };
 
 const VALID_UPLOAD_FOLDERS = new Set(Object.keys(S3_UPLOAD_FOLDER_TO_PREFIX));

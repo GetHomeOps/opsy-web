@@ -1,13 +1,16 @@
 "use strict";
 
 const express = require("express");
-const { ensureLoggedIn, ensureSuperAdmin } = require("../middleware/auth");
+const jsonschema = require("jsonschema");
+const { ensureLoggedIn, ensureSuperAdmin, ensurePlatformAdmin } = require("../middleware/auth");
 const { BadRequestError } = require("../expressError");
 const Agency = require("../models/agency");
 const Office = require("../models/office");
 const Team = require("../models/team");
 const AgentAffiliation = require("../models/agentAffiliation");
+const User = require("../models/user");
 const { addPresignedUrlToItem } = require("../helpers/presignedUrls");
+const accountBrandingUpdateSchema = require("../schemas/accountBrandingUpdate.json");
 
 const router = express.Router();
 
@@ -66,6 +69,58 @@ router.get("/", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next
     return next(err);
   }
 });
+
+/** GET /for-customization — agencies for Customization admin tab (platform admin). */
+router.get(
+  "/for-customization",
+  ensureLoggedIn,
+  ensurePlatformAdmin,
+  async function (req, res, next) {
+    try {
+      const agencies = await Agency.listForCustomization();
+      return res.json({ agencies });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** GET /:id/branding — agency branding (platform admin). */
+router.get(
+  "/:id/branding",
+  ensureLoggedIn,
+  ensurePlatformAdmin,
+  async function (req, res, next) {
+    try {
+      const id = parseRouteId(req.params.id, "agency id");
+      const branding = await Agency.getBranding(id);
+      return res.json({ branding });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** PATCH /:id/branding — update agency branding (platform admin). */
+router.patch(
+  "/:id/branding",
+  ensureLoggedIn,
+  ensurePlatformAdmin,
+  async function (req, res, next) {
+    try {
+      const id = parseRouteId(req.params.id, "agency id");
+      const validator = jsonschema.validate(req.body, accountBrandingUpdateSchema);
+      if (!validator.valid) {
+        const errs = validator.errors.map((e) => e.stack);
+        throw new BadRequestError(errs);
+      }
+      const branding = await Agency.updateBranding(id, req.body);
+      return res.json({ branding });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
 
 /** POST / — create a single approved agency (+ default office) */
 router.post("/", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
@@ -143,6 +198,213 @@ router.get("/agents", ensureLoggedIn, ensureSuperAdmin, async function (req, res
     return next(err);
   }
 });
+
+/** POST /agents/affiliations — bulk assign agents to an agency (default office if omitted) */
+router.post(
+  "/agents/affiliations",
+  ensureLoggedIn,
+  ensureSuperAdmin,
+  async function (req, res, next) {
+    try {
+      const rawIds = req.body.userIds;
+      const agencyId = Number(req.body.agencyId);
+      const officeId =
+        req.body.officeId != null && req.body.officeId !== ""
+          ? Number(req.body.officeId)
+          : null;
+
+      if (!Array.isArray(rawIds) || rawIds.length === 0) {
+        throw new BadRequestError("userIds array is required");
+      }
+      if (rawIds.length > 200) {
+        throw new BadRequestError("Maximum 200 agents per assign");
+      }
+      if (!agencyId) throw new BadRequestError("agencyId is required");
+
+      const userIds = [
+        ...new Set(
+          rawIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+        ),
+      ];
+
+      const assigned = [];
+      const errors = [];
+
+      for (const userId of userIds) {
+        try {
+          const user = await User.getById(userId);
+          if (!user) {
+            errors.push({ userId, message: "User not found" });
+            continue;
+          }
+          if (user.role !== "agent") {
+            errors.push({ userId, message: "User is not an agent" });
+            continue;
+          }
+          const affiliation = await AgentAffiliation.adminAssign({
+            userId,
+            agencyId,
+            officeId,
+          });
+          assigned.push({
+            userId,
+            affiliation: {
+              id: affiliation.id,
+              agencyId: affiliation.agencyId,
+              officeId: affiliation.officeId,
+              teamId: affiliation.teamId,
+              agency: affiliation.agency,
+              office: affiliation.office,
+              team: affiliation.team,
+            },
+          });
+        } catch (err) {
+          errors.push({ userId, message: err.message || "Failed to assign affiliation" });
+        }
+      }
+
+      return res.json({
+        summary: {
+          total: userIds.length,
+          assigned: assigned.length,
+          errors: errors.length,
+        },
+        assigned,
+        errors,
+      });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** PATCH /agents/:userId/affiliation — assign/update a single agent's affiliation */
+router.patch(
+  "/agents/:userId/affiliation",
+  ensureLoggedIn,
+  ensureSuperAdmin,
+  async function (req, res, next) {
+    try {
+      const userId = parseRouteId(req.params.userId, "user id");
+      const agencyId = Number(req.body.agencyId);
+      const officeId =
+        req.body.officeId != null && req.body.officeId !== ""
+          ? Number(req.body.officeId)
+          : null;
+
+      if (!agencyId) throw new BadRequestError("agencyId is required");
+
+      const user = await User.getById(userId);
+      if (!user) throw new BadRequestError(`User not found: ${userId}`);
+      if (user.role !== "agent") {
+        throw new BadRequestError("User is not an agent");
+      }
+
+      const affiliation = await AgentAffiliation.adminAssign({
+        userId,
+        agencyId,
+        officeId,
+      });
+
+      return res.json({
+        affiliation: {
+          id: affiliation.id,
+          userId: affiliation.userId,
+          agencyId: affiliation.agencyId,
+          officeId: affiliation.officeId,
+          teamId: affiliation.teamId,
+          status: affiliation.status,
+          agency: affiliation.agency,
+          office: affiliation.office,
+          team: affiliation.team,
+        },
+      });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** DELETE /agents/:userId/affiliation — remove a single agent's affiliation */
+router.delete(
+  "/agents/:userId/affiliation",
+  ensureLoggedIn,
+  ensureSuperAdmin,
+  async function (req, res, next) {
+    try {
+      const userId = parseRouteId(req.params.userId, "user id");
+
+      const user = await User.getById(userId);
+      if (!user) throw new BadRequestError(`User not found: ${userId}`);
+      if (user.role !== "agent") {
+        throw new BadRequestError("User is not an agent");
+      }
+
+      const result = await AgentAffiliation.leave(userId);
+      return res.json(result);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** POST /agents/affiliations/detach — bulk remove agents from agencies */
+router.post(
+  "/agents/affiliations/detach",
+  ensureLoggedIn,
+  ensureSuperAdmin,
+  async function (req, res, next) {
+    try {
+      const rawIds = req.body.userIds;
+
+      if (!Array.isArray(rawIds) || rawIds.length === 0) {
+        throw new BadRequestError("userIds array is required");
+      }
+      if (rawIds.length > 200) {
+        throw new BadRequestError("Maximum 200 agents per detach");
+      }
+
+      const userIds = [
+        ...new Set(
+          rawIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+        ),
+      ];
+
+      const detached = [];
+      const errors = [];
+
+      for (const userId of userIds) {
+        try {
+          const user = await User.getById(userId);
+          if (!user) {
+            errors.push({ userId, message: "User not found" });
+            continue;
+          }
+          if (user.role !== "agent") {
+            errors.push({ userId, message: "User is not an agent" });
+            continue;
+          }
+          await AgentAffiliation.leave(userId);
+          detached.push({ userId });
+        } catch (err) {
+          errors.push({ userId, message: err.message || "Failed to remove affiliation" });
+        }
+      }
+
+      return res.json({
+        summary: {
+          total: userIds.length,
+          detached: detached.length,
+          errors: errors.length,
+        },
+        detached,
+        errors,
+      });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
 
 /** POST /import — bulk create approved agencies from parsed rows */
 router.post("/import", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {

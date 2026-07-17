@@ -135,7 +135,7 @@ export function InternalNotesBlock({
               type="button"
               onClick={onSave}
               disabled={saving || !dirty}
-              className="btn bg-[#456564] hover:bg-[#34514f] text-white text-sm disabled:opacity-50"
+              className="btn btn-primary text-sm disabled:opacity-50"
             >
               {saving ? "Saving..." : saveLabel}
             </button>

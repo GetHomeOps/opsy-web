@@ -64,6 +64,8 @@ const EMPTY_FORM = {
   phone: "",
   officeName: "",
   logoUrl: "",
+  /** Working image URL from API (presigned); not part of dirty checks */
+  logoDisplayUrl: "",
 };
 
 const TABS = [
@@ -563,7 +565,11 @@ function AgencyFormFields({
   useEffect(() => {
     const nextForm = {
       ...EMPTY_FORM,
-      ...initialValues,
+      ...normalizeAgencyFormValues({
+        ...EMPTY_FORM,
+        ...initialValues,
+      }),
+      logoDisplayUrl: String(initialValues?.logoDisplayUrl ?? "").trim(),
       state: normalizeStateName(initialValues?.state),
     };
     setForm(nextForm);
@@ -580,6 +586,7 @@ function AgencyFormFields({
     );
 
   const logoKey = (form.logoUrl || "").trim();
+  const logoDisplayUrl = (form.logoDisplayUrl || "").trim();
 
   const {
     uploadImage,
@@ -592,7 +599,8 @@ function AgencyFormFields({
     clearUploadedUrl,
   } = useImageUpload({
     uploadFolder: S3_UPLOAD_FOLDER.AGENCIES,
-    onSuccess: (key) => setForm((f) => ({...f, logoUrl: key})),
+    onSuccess: (key) =>
+      setForm((f) => ({...f, logoUrl: key, logoDisplayUrl: ""})),
   });
 
   const logoKeyNeedsPresigned =
@@ -604,7 +612,7 @@ function AgencyFormFields({
     fetchPreview,
     clearUrl: clearPresignedUrl,
     currentKey: presignedKey,
-  } = usePresignedPreview();
+  } = usePresignedPreview({forImage: true});
 
   useEffect(() => {
     clearPreview();
@@ -613,19 +621,36 @@ function AgencyFormFields({
   }, [editingId, clearPreview, clearUploadedUrl, clearPresignedUrl]);
 
   useEffect(() => {
-    if (logoKeyNeedsPresigned) fetchPreview(logoKey);
-  }, [logoKeyNeedsPresigned, logoKey, fetchPreview]);
+    // Skip fetch when API already gave us a display URL for this key
+    if (!logoKeyNeedsPresigned) return;
+    if (logoDisplayUrl && !logoDisplayUrl.startsWith("blob:")) return;
+    fetchPreview(logoKey);
+  }, [logoKeyNeedsPresigned, logoKey, logoDisplayUrl, fetchPreview]);
 
   const logoDisplaySrc = useMemo(() => {
     if (imagePreviewUrl) return imagePreviewUrl;
     if (uploadedImageUrl) return uploadedImageUrl;
+    if (logoDisplayUrl) return logoDisplayUrl;
     if (logoKey.startsWith("http://") || logoKey.startsWith("https://"))
       return logoKey;
     if (presignedUrl && presignedKey === logoKey) return presignedUrl;
     return null;
-  }, [imagePreviewUrl, uploadedImageUrl, logoKey, presignedUrl, presignedKey]);
+  }, [
+    imagePreviewUrl,
+    uploadedImageUrl,
+    logoDisplayUrl,
+    logoKey,
+    presignedUrl,
+    presignedKey,
+  ]);
 
   const hasLogo = Boolean(logoDisplaySrc);
+  const logoImageLoading =
+    presignedLoading &&
+    logoKeyNeedsPresigned &&
+    !imagePreviewUrl &&
+    !uploadedImageUrl &&
+    !logoDisplayUrl;
 
   const loadStructure = useCallback(async () => {
     if (!agencyId) {
@@ -671,7 +696,7 @@ function AgencyFormFields({
   }, [formError]);
 
   const handleRemoveLogo = useCallback(() => {
-    setForm((f) => ({...f, logoUrl: ""}));
+    setForm((f) => ({...f, logoUrl: "", logoDisplayUrl: ""}));
     clearPreview();
     clearUploadedUrl();
     clearPresignedUrl();
@@ -681,7 +706,11 @@ function AgencyFormFields({
   const handlePasteLogoUrl = useCallback(() => {
     const url = window.prompt("Paste logo image URL (https://...)");
     if (url?.trim()) {
-      setForm((f) => ({...f, logoUrl: url.trim()}));
+      setForm((f) => ({
+        ...f,
+        logoUrl: url.trim(),
+        logoDisplayUrl: url.trim(),
+      }));
       clearPreview();
       clearUploadedUrl();
       clearPresignedUrl();
@@ -701,18 +730,29 @@ function AgencyFormFields({
 
     const result = await onSubmit?.(form);
     if (result?.agency) {
+      // API returns null for empty optional fields — coerce so controlled inputs stay strings
       const saved = {
         ...EMPTY_FORM,
-        name: result.agency.name,
-        website: result.agency.website,
-        addressLine1: result.agency.addressLine1,
-        city: result.agency.city,
+        ...normalizeAgencyFormValues({
+          name: result.agency.name,
+          website: result.agency.website,
+          addressLine1: result.agency.addressLine1,
+          city: result.agency.city,
+          state: result.agency.state,
+          phone: result.agency.phone,
+          logoUrl: result.agency.logoUrl,
+        }),
         state: normalizeStateName(result.agency.state),
-        phone: result.agency.phone,
-        logoUrl: result.agency.logoUrl,
+        logoDisplayUrl: String(result.agency.logoDisplayUrl ?? "").trim(),
       };
       baselineFormRef.current = normalizeAgencyFormValues(saved);
       setCommittedHero(toHeroDisplay(saved));
+      // Keep logo visible immediately from API display URL (blob may be cleared on remount)
+      setForm((f) => ({
+        ...f,
+        ...saved,
+        state: normalizeStateName(saved.state),
+      }));
       if (result.agency.id && !editingId) {
         onAgencyCreated?.(result.agency);
       }
@@ -924,7 +964,7 @@ function AgencyFormFields({
               imageSrc={logoDisplaySrc}
               hasImage={hasLogo}
               imageUploading={imageUploading}
-              imageLoading={presignedLoading && logoKeyNeedsPresigned}
+              imageLoading={logoImageLoading}
               onUpload={uploadImage}
               onRemove={handleRemoveLogo}
               onPasteUrl={handlePasteLogoUrl}
@@ -1026,7 +1066,7 @@ function AgencyFormFields({
                   <input
                     type="text"
                     required
-                    value={form.name}
+                    value={form.name ?? ""}
                     onChange={(e) => {
                       const name = e.target.value;
                       setForm((f) => ({...f, name}));
@@ -1051,7 +1091,7 @@ function AgencyFormFields({
                   </label>
                   <input
                     type="text"
-                    value={form.website}
+                    value={form.website ?? ""}
                     onChange={(e) =>
                       setForm((f) => ({...f, website: e.target.value}))
                     }
@@ -1065,7 +1105,7 @@ function AgencyFormFields({
                   </label>
                   <input
                     type="tel"
-                    value={form.phone}
+                    value={form.phone ?? ""}
                     onChange={(e) =>
                       setForm((f) => ({...f, phone: e.target.value}))
                     }
@@ -1080,7 +1120,7 @@ function AgencyFormFields({
                   </label>
                   <input
                     type="text"
-                    value={form.addressLine1}
+                    value={form.addressLine1 ?? ""}
                     onChange={(e) =>
                       setForm((f) => ({...f, addressLine1: e.target.value}))
                     }
@@ -1095,7 +1135,7 @@ function AgencyFormFields({
                   </label>
                   <input
                     type="text"
-                    value={form.city}
+                    value={form.city ?? ""}
                     onChange={(e) =>
                       setForm((f) => ({...f, city: e.target.value}))
                     }
@@ -1108,7 +1148,7 @@ function AgencyFormFields({
                     State
                   </label>
                   <UsStateSelect
-                    value={form.state}
+                    value={form.state ?? ""}
                     onChange={(state) => setForm((f) => ({...f, state}))}
                     labelFormat="name"
                   />
@@ -1120,7 +1160,7 @@ function AgencyFormFields({
                     </label>
                     <input
                       type="text"
-                      value={form.officeName}
+                      value={form.officeName ?? ""}
                       onChange={(e) =>
                         setForm((f) => ({...f, officeName: e.target.value}))
                       }
@@ -1247,7 +1287,7 @@ function AgencyFormFields({
                           type="button"
                           onClick={handleAddOffice}
                           disabled={addingOffice}
-                          className="btn bg-[#456564] hover:bg-[#34514f] text-white w-full sm:w-auto inline-flex items-center justify-center gap-2"
+                          className="btn btn-primary w-full sm:w-auto inline-flex items-center justify-center gap-2"
                         >
                           {addingOffice ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1374,7 +1414,7 @@ function AgencyFormFields({
                             type="button"
                             onClick={handleAddTeam}
                             disabled={addingTeam}
-                            className="btn bg-[#456564] hover:bg-[#34514f] text-white w-full sm:w-auto inline-flex items-center justify-center gap-2"
+                            className="btn btn-primary w-full sm:w-auto inline-flex items-center justify-center gap-2"
                           >
                             {addingTeam ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1433,7 +1473,7 @@ function AgencyFormFields({
             <button
               type="submit"
               disabled={saving || imageUploading}
-              className="btn text-white shadow-sm min-w-[100px] bg-[#456564] hover:bg-[#34514f] disabled:opacity-60"
+              className="btn shadow-sm min-w-[100px] btn-primary disabled:opacity-60"
             >
               {saving ? (
                 <span className="inline-flex items-center gap-2">

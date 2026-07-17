@@ -486,7 +486,7 @@ function MaintenanceRecordsTableView({
             <button
               type="button"
               onClick={() => onNewRecord()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#3a5548] text-white transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-primary transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               New Record
@@ -682,7 +682,7 @@ function MaintenanceRecordsTableView({
                 <button
                   type="button"
                   onClick={() => onNewRecord()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[#456564] hover:bg-[#3a5548] text-white transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium btn-primary transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   New Record

@@ -412,7 +412,7 @@ function AIFindingsPanel({
                     <div
                       className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${
                         isSelected
-                          ? "bg-[#456564] text-white"
+                          ? "btn-segment-active"
                           : "bg-gray-100 dark:bg-gray-700/70 text-gray-500"
                       }`}
                     >
@@ -431,7 +431,7 @@ function AIFindingsPanel({
                   <div
                     className={`absolute top-2.5 right-2.5 w-[18px] h-[18px] rounded flex items-center justify-center shrink-0 transition-all ${
                       isSelected
-                        ? "bg-[#456564] text-white"
+                        ? "btn-segment-active"
                         : "border border-gray-300 dark:border-gray-600"
                     }`}
                   >
@@ -452,7 +452,7 @@ function AIFindingsPanel({
           <button
             type="button"
             onClick={onToggleSelectAllSuggested}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#456564] hover:bg-[#34514f] text-white transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium btn-primary transition-colors"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             {suggestedSystemsToAdd.every((s) =>

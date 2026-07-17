@@ -992,7 +992,7 @@ export function SystemDetailView({
                     type="button"
                     disabled={completingScheduledEvent}
                     onClick={handleConfirmCompleteScheduledEvent}
-                    className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-50 inline-flex items-center gap-1.5"
+                    className="btn-sm btn-primary disabled:opacity-50 inline-flex items-center gap-1.5"
                   >
                     {completingScheduledEvent && (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />

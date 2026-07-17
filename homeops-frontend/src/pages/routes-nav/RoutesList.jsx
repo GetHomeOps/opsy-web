@@ -49,6 +49,9 @@ const Contact = lazy(() => import("../contacts/Contact"));
 const PropertiesList = lazy(() => import("../properties/PropertiesList"));
 const PropertiesImport = lazy(() => import("../properties/propertiesImport"));
 const Property = lazy(() => import("../properties/Property"));
+const PrePurchaseDashboard = lazy(() => import("../pre-purchase/PrePurchaseDashboard"));
+const PrePurchaseNewAnalysis = lazy(() => import("../pre-purchase/PrePurchaseNewAnalysis"));
+const PrePurchaseAnalysisPage = lazy(() => import("../pre-purchase/PrePurchaseAnalysisPage"));
 const UserConfirmationEmail = lazy(() => import("../users/UserConfirmationEmail"));
 const MaintenanceRecordPage = lazy(() => import("../properties/MaintenanceRecordPage"));
 const PdfFileExample = lazy(() => import("../pdfFileExample"));
@@ -60,6 +63,8 @@ const SubscriptionProduct = lazy(() => import("../subscriptions/SubscriptionProd
 const SystemRecommendationsList = lazy(() => import("../superadmin/systemRecommendations/SystemRecommendationsList"));
 const CouponsList = lazy(() => import("../coupons/CouponsList"));
 const EmailDeliveryPage = lazy(() => import("../emailDelivery/EmailDeliveryPage"));
+const CustomizationList = lazy(() => import("../customization/CustomizationList"));
+const CustomizationPage = lazy(() => import("../customization/CustomizationPage"));
 const CouponForm = lazy(() => import("../coupons/CouponForm"));
 const ProfessionalDirectory = lazy(() => import("../professionals/ProfessionalDirectory"));
 const ProfessionalsDirectorySample = lazy(() => import("../professionals/ProfessionalsDirectorySample"));
@@ -473,6 +478,30 @@ function RoutesList() {
         }
       />
       <Route
+        path="/:accountUrl/pre-purchase"
+        element={
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+            <PrePurchaseDashboard />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/pre-purchase/new"
+        element={
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+            <PrePurchaseNewAnalysis />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/pre-purchase/:analysisId"
+        element={
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+            <PrePurchaseAnalysisPage />
+          </AdminRoute>
+        }
+      />
+      <Route
         path="/:accountUrl/properties/import"
         element={
           <AdminRoute>
@@ -747,6 +776,30 @@ function RoutesList() {
           <SuperAdminRoute>
             <EmailDeliveryPage />
           </SuperAdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/customization"
+        element={
+          <AdminRoute>
+            <CustomizationList />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/customization/agency/:agencyId"
+        element={
+          <AdminRoute>
+            <CustomizationPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/customization/:accountId"
+        element={
+          <AdminRoute>
+            <CustomizationPage />
+          </AdminRoute>
         }
       />
       {/* Helpdesk unified module */}

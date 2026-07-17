@@ -425,7 +425,7 @@ function EmailDeliveryPage() {
                         onClick={() => handleSaveSettings(p)}
                         className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
                           settings?.defaultProvider === p
-                            ? "bg-[#456564] text-white border-[#456564]"
+                            ? "btn-segment-active"
                             : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:border-[#456564]"
                         }`}
                       >
@@ -787,7 +787,7 @@ function EmailDeliveryPage() {
                                   onClick={() => setEditorMode(id)}
                                   className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                                     editorMode === id
-                                      ? "bg-[#456564] text-white border-[#456564]"
+                                      ? "btn-segment-active"
                                       : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600"
                                   }`}
                                 >
@@ -967,7 +967,7 @@ function EmailDeliveryPage() {
                               <button
                                 type="submit"
                                 disabled={saving}
-                                className="px-4 py-2 rounded-lg bg-[#456564] text-white text-sm font-medium hover:bg-[#3a5554] disabled:opacity-50"
+                                className="px-4 py-2 rounded-lg btn-primary text-sm font-medium disabled:opacity-50"
                               >
                                 {saving ? "Saving…" : "Save changes"}
                               </button>

@@ -918,7 +918,7 @@ function CategoriesList() {
                   />
                 )}
                 <button
-                  className="btn bg-[#456564] hover:bg-[#34514f] text-white shadow-sm"
+                  className="btn btn-primary shadow-sm"
                   onClick={handleNewCategory}
                 >
                   <svg

@@ -422,12 +422,6 @@ function SubscriptionsList() {
   const [sortConfig, setSortConfig] = useState({key: null, direction: null});
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Data repair (super admin): dry-run preview + apply
-  const [repairModalOpen, setRepairModalOpen] = useState(false);
-  const [repairPreview, setRepairPreview] = useState(null);
-  const [repairLoading, setRepairLoading] = useState(false);
-  const [repairApplying, setRepairApplying] = useState(false);
-
   usePersistListUiSession(listScopeId, {
     dispatch,
     searchTerm: state.searchTerm,
@@ -773,7 +767,7 @@ function SubscriptionsList() {
     }
   }
 
-  async function handleSyncStripe() {
+  async function handleRefreshFromStripe() {
     try {
       setIsSyncing(true);
       const res = await AppApi.syncStripeSubscriptions();
@@ -798,57 +792,6 @@ function SubscriptionsList() {
       });
     } finally {
       setIsSyncing(false);
-    }
-  }
-
-  async function handleOpenRepair() {
-    setRepairModalOpen(true);
-    setRepairPreview(null);
-    setRepairLoading(true);
-    try {
-      const preview = await AppApi.repairSubscriptionsData({dryRun: true});
-      setRepairPreview(preview);
-    } catch (err) {
-      setRepairModalOpen(false);
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "error",
-          message: `${t("subscriptions.repairError")}: ${err.message || err}`,
-        },
-      });
-    } finally {
-      setRepairLoading(false);
-    }
-  }
-
-  async function handleApplyRepair() {
-    try {
-      setRepairApplying(true);
-      const res = await AppApi.repairSubscriptionsData({dryRun: false});
-      setRepairModalOpen(false);
-      const subscriptions = await AppApi.getAllSubscriptions();
-      dispatch({type: "SET_SUBSCRIPTIONS", payload: subscriptions || []});
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "success",
-          message: res?.message ?? t("subscriptions.repairSuccess"),
-        },
-      });
-    } catch (err) {
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "error",
-          message: `${t("subscriptions.repairError")}: ${err.message || err}`,
-        },
-      });
-    } finally {
-      setRepairApplying(false);
     }
   }
 
@@ -1199,118 +1142,6 @@ function SubscriptionsList() {
           </ModalBlank>
         </div>
 
-        {/* Repair data modal (dry-run preview, then apply) */}
-        <div className="m-1.5">
-          <ModalBlank
-            id="repair-modal"
-            modalOpen={repairModalOpen}
-            setModalOpen={setRepairModalOpen}
-            contentClassName="max-w-2xl"
-          >
-            <div className="p-5">
-              <div className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">
-                {t("subscriptions.repairPreviewTitle")}
-              </div>
-
-              {repairLoading || !repairPreview ? (
-                <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                  {t("subscriptions.repairPreviewLoading")}
-                </div>
-              ) : (
-                <div className="space-y-5 text-sm max-h-[60vh] overflow-y-auto">
-                  {(repairPreview.ownershipFixes || []).length === 0 &&
-                  (repairPreview.placeholderRetirements || []).length === 0 ? (
-                    <p className="text-gray-600 dark:text-gray-300">
-                      {t("subscriptions.repairNoChanges")}
-                    </p>
-                  ) : (
-                    <>
-                      {(repairPreview.ownershipFixes || []).length > 0 && (
-                        <div>
-                          <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                            {t("subscriptions.repairOwnershipTitle")} (
-                            {repairPreview.ownershipFixes.length})
-                          </div>
-                          <p className="text-gray-500 dark:text-gray-400 mb-2">
-                            {t("subscriptions.repairOwnershipDescription")}
-                          </p>
-                          <ul className="space-y-1">
-                            {repairPreview.ownershipFixes.map((fix) => (
-                              <li
-                                key={fix.accountId}
-                                className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-gray-700 dark:text-gray-300"
-                              >
-                                <span className="font-medium">{fix.accountName}</span>
-                                {": "}
-                                {fix.currentOwnerName} ({fix.currentOwnerEmail}) {"→"}{" "}
-                                <span className="font-medium">
-                                  {fix.newOwnerName} ({fix.newOwnerEmail})
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {(repairPreview.placeholderRetirements || []).length > 0 && (
-                        <div>
-                          <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                            {t("subscriptions.repairPlaceholderTitle")} (
-                            {repairPreview.placeholderRetirements.length})
-                          </div>
-                          <p className="text-gray-500 dark:text-gray-400 mb-2">
-                            {t("subscriptions.repairPlaceholderDescription")}
-                          </p>
-                          <ul className="space-y-1">
-                            {repairPreview.placeholderRetirements.map((row) => (
-                              <li
-                                key={row.subscriptionId}
-                                className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-gray-700 dark:text-gray-300"
-                              >
-                                <span className="font-medium">{row.accountName}</span>
-                                {" — "}
-                                {row.planName} ({formatAmount(Number(row.planPrice))})
-                                {row.ownerEmail ? `, ${row.ownerName} (${row.ownerEmail})` : ""}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {t("subscriptions.repairStripeSyncNote")}
-                      </p>
-                    </>
-                  )}
-                </div>
-              )}
-
-              <div className="flex flex-wrap justify-end gap-2 mt-5">
-                <button
-                  className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-                  onClick={() => setRepairModalOpen(false)}
-                  disabled={repairApplying}
-                >
-                  {t("cancel")}
-                </button>
-                {repairPreview &&
-                  ((repairPreview.ownershipFixes || []).length > 0 ||
-                    (repairPreview.placeholderRetirements || []).length > 0) && (
-                    <button
-                      className="btn-sm bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
-                      onClick={handleApplyRepair}
-                      disabled={repairApplying}
-                    >
-                      {repairApplying
-                        ? t("subscriptions.repairing")
-                        : t("subscriptions.repairApply")}
-                    </button>
-                  )}
-              </div>
-            </div>
-          </ModalBlank>
-        </div>
-
         <main className="grow">
           <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             {/* Page header */}
@@ -1322,54 +1153,15 @@ function SubscriptionsList() {
               </div>
 
               <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
-                {/* Actions dropdown */}
                 <ListDropdown
                   align="right"
                   hasSelection={state.selectedItems.length > 0}
                   onDelete={handleDeleteClick}
+                  onRefreshFromStripe={
+                    isSuperAdmin ? handleRefreshFromStripe : undefined
+                  }
+                  isRefreshingFromStripe={isSyncing}
                 />
-
-                {/* Repair data (Super Admin only) - dry-run preview of ownership/placeholder fixes */}
-                {isSuperAdmin && (
-                  <button
-                    type="button"
-                    className="btn border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-                    onClick={handleOpenRepair}
-                    disabled={repairLoading || repairApplying}
-                  >
-                    {t("subscriptions.repair")}
-                  </button>
-                )}
-
-                {/* Sync with Stripe (Super Admin only) - reconcile local subscription state from Stripe */}
-                {isSuperAdmin && (
-                  <button
-                    type="button"
-                    className="btn border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
-                    onClick={handleSyncStripe}
-                    disabled={isSyncing}
-                  >
-                    {isSyncing ? t("subscriptions.syncing") : t("subscriptions.syncStripe")}
-                  </button>
-                )}
-
-                {/* Add Subscription button */}
-                <button
-                  className="btn bg-gray-900 text-gray-100 hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-800 dark:hover:bg-white"
-                  onClick={() => navigate(`/${accountUrl}/subscriptions/new`)}
-                >
-                  <svg
-                    className="fill-current shrink-0 xs:hidden"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                  >
-                    <path d="M15 7H9V1c0-.6-.4-1-1-1S7 .4 7 1v6H1c-.6 0-1 .4-1 1s.4 1 1 1h6v6c0 .6.4 1 1 1s1-.4 1-1V9h6c.6 0 1-.4 1-1s-.4-1-1-1z" />
-                  </svg>
-                  <span className="max-xs:sr-only">
-                    {t("subscriptions.addSubscription")}
-                  </span>
-                </button>
               </div>
             </div>
 

@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["documentName", "documentKey"],
+  "properties": {
+    "documentName": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "documentKey": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "documentType": {
+      "type": "string",
+      "enum": ["inspection", "disclosure", "estimate", "other"]
+    },
+    "mimeType": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 100 }]
+    },
+    "pageCount": {
+      "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }]
+    },
+    "fileSizeBytes": {
+      "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }]
+    }
+  }
+}

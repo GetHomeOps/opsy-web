@@ -269,7 +269,7 @@ Structure your response: Current condition, Risk level, Recommended action, Opti
 
   prompt += `
 
-When relevant (poor/fair condition, overdue maintenance, no contractor assigned, or user asks to schedule), end with: "Would you like to schedule this now?" If the user confirms, acknowledge it and the system will offer scheduling.`;
+Scheduling offers: Only occasionally suggest helping schedule maintenance or an inspection — roughly when the user asks what to do next, discusses booking a pro, or the reply's main recommendation is a concrete service visit. Do NOT end every reply with a scheduling question. Skip it for factual follow-ups (timing, cost, how-to, clarifications), brief answers, or if the user already declined scheduling in this conversation. When you do offer it, vary the phrasing (e.g. "Want help scheduling this?", "I can help book a pro if useful.", "Should we get this on the calendar?") instead of always using the same line. If the user confirms, acknowledge it and the system will offer scheduling.`;
 
   if (contextSwitched) {
     prompt += `\n\nUser just switched context to ${systemName}. Briefly confirm: "Switching to ${systemName}." then provide system-scoped insights.`;

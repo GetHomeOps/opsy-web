@@ -20,7 +20,7 @@ function PendingAnalysisBanner({ count, onReview, onDismiss }) {
         <button
           type="button"
           onClick={onReview}
-          className="text-xs font-medium px-2.5 py-1 rounded-md bg-[#456564] hover:bg-[#3a5548] text-white"
+          className="text-xs font-medium px-2.5 py-1 rounded-md btn-primary"
         >
           Review now
         </button>

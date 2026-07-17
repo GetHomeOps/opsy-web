@@ -167,7 +167,7 @@ function MyProfessionalsSample() {
                       onClick={() => setViewMode("grid")}
                       className={`px-2.5 py-2 transition-colors ${
                         viewMode === "grid"
-                          ? "bg-[#456564] text-white"
+                          ? "btn-segment-active"
                           : "bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                       }`}
                       title="Grid view"
@@ -180,7 +180,7 @@ function MyProfessionalsSample() {
                       onClick={() => setViewMode("list")}
                       className={`px-2.5 py-2 transition-colors ${
                         viewMode === "list"
-                          ? "bg-[#456564] text-white"
+                          ? "btn-segment-active"
                           : "bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                       }`}
                       title="List view"
@@ -203,7 +203,7 @@ function MyProfessionalsSample() {
                     onClick={() => setFilterCategoryId("")}
                     className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200 ${
                       !filterCategoryId
-                        ? "border-[#456564] bg-[#456564] text-white shadow-sm"
+                        ? "btn-segment-active shadow-sm"
                         : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-[#456564]/40 hover:text-[#456564] dark:hover:text-[#7aa3a2] bg-white dark:bg-gray-700"
                     }`}
                   >
@@ -226,7 +226,7 @@ function MyProfessionalsSample() {
                       }
                       className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200 ${
                         filterCategoryId === cat.id
-                          ? "border-[#456564] bg-[#456564] text-white shadow-sm"
+                          ? "btn-segment-active shadow-sm"
                           : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-[#456564]/40 hover:text-[#456564] dark:hover:text-[#7aa3a2] bg-white dark:bg-gray-700"
                       }`}
                     >
@@ -392,7 +392,7 @@ function MyProfessionalsSample() {
                   <button
                     type="button"
                     onClick={goToSampleDirectory}
-                    className="text-sm font-medium bg-[#456564] text-white px-5 py-2.5 rounded-lg hover:bg-[#34514f] transition-colors shadow-sm"
+                    className="text-sm font-medium btn-primary px-5 py-2.5 rounded-lg transition-colors shadow-sm"
                   >
                     Browse Directory
                   </button>

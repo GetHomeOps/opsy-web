@@ -267,7 +267,7 @@ function SystemDocumentFindingsModal({
             <button
               type="button"
               onClick={() => handleReviewPending(item)}
-              className="btn-sm border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 flex items-center gap-1.5 px-3 py-1.5 text-xs"
+              className="btn-sm btn-primary-outline flex items-center gap-1.5 px-3 py-1.5 text-xs"
             >
               <Sparkles className="w-3.5 h-3.5" />
               Review

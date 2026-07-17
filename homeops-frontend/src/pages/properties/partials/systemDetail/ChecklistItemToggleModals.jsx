@@ -106,7 +106,7 @@ export function ChecklistItemCompleteModal({
           </button>
           <button
             type="button"
-            className="btn-sm border border-[#456564] text-[#456564] dark:border-[#5a7a78] dark:text-[#5a7a78] hover:bg-[#456564]/10 flex items-center justify-center gap-1.5"
+            className="btn-sm btn-primary-outline flex items-center justify-center gap-1.5"
             onClick={() => onMarkComplete?.(lastPerformedDate)}
             disabled={submitting || !canSubmit}
           >
@@ -116,7 +116,7 @@ export function ChecklistItemCompleteModal({
           {onAddRecord && (
             <button
               type="button"
-              className="btn-sm bg-[#456564] hover:bg-[#34514f] text-white flex items-center justify-center gap-1.5"
+              className="btn-sm btn-primary flex items-center justify-center gap-1.5"
               onClick={() => onAddRecord(lastPerformedDate)}
               disabled={submitting || !canSubmit}
             >

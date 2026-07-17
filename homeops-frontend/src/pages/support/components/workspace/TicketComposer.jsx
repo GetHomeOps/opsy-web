@@ -121,7 +121,7 @@ function TicketComposer({
             onClick={() => setMode("reply")}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
               !isNote
-                ? "bg-[#456564] text-white"
+                ? "btn-segment-active"
                 : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
             }`}
           >
@@ -243,11 +243,7 @@ function TicketComposer({
                 type="button"
                 onClick={handleSend}
                 disabled={updating || !text?.trim()}
-                className={`flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-40 ${
-                  isNote
-                    ? "bg-amber-500 hover:bg-amber-600 text-white"
-                    : "bg-[#456564] hover:bg-[#34514f] text-white"
-                }`}
+                className={`flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-40 ${ isNote ? "bg-amber-500 hover:bg-amber-600 " : "btn-primary" }`}
               >
                 <Send className="w-3.5 h-3.5" />
                 {updating

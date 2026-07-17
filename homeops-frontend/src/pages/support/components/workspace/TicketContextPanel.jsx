@@ -215,7 +215,7 @@ function NotesTab({
               type="button"
               onClick={handleSave}
               disabled={updating || !notesDirty}
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-[#456564] hover:bg-[#34514f] text-white disabled:opacity-40 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium rounded-md btn-primary disabled:opacity-40 transition-colors"
             >
               {updating ? "Saving..." : "Save"}
             </button>

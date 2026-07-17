@@ -132,7 +132,7 @@ export function SystemDocumentsTab({
             <button
               type="button"
               onClick={onOpenDocumentFindings}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#456564] hover:bg-[#34514f] transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold btn-primary transition-colors"
             >
               View document findings
             </button>
