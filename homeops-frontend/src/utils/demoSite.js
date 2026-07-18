@@ -16,15 +16,15 @@ export const DEMO_AI_UNAVAILABLE_TITLE = "AI features not available on demo";
 export const DEMO_AI_UNAVAILABLE_MESSAGE =
   "AI features are not available on the demo site. A full HeyOpsy account includes the Opsy assistant, AI inspection analysis, and AI-powered maintenance insights.";
 
-/** Profile photo uploads remain allowed on demo; property/document uploads do not. */
-export const DEMO_ALLOWED_UPLOAD_FOLDERS = new Set(["user_photos"]);
+/** Profile photos and agency logos remain allowed on demo; property/document uploads do not. */
+export const DEMO_ALLOWED_UPLOAD_FOLDERS = new Set(["user_photos", "agencies"]);
 
 /** On demo, document upload is disabled for all users. */
 export function canUploadDocumentsOnDemo() {
   return !isDemoSite();
 }
 
-/** True when this upload folder is permitted on the current site (demo allows user_photos only). */
+/** True when this upload folder is permitted on the current site (demo allows user_photos + agencies). */
 export function canUploadFolderOnDemo(uploadFolder) {
   if (!isDemoSite()) return true;
   return DEMO_ALLOWED_UPLOAD_FOLDERS.has(String(uploadFolder || "").trim());
