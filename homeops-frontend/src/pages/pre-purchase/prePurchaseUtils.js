@@ -1,5 +1,5 @@
 export const PRE_PURCHASE_DISCLAIMER =
-  "This Pre-Purchase analysis is informational only. Findings, condition scores, and repair-cost ranges are estimates based on uploaded documents—not guaranteed facts, appraisals, or substitutes for a licensed home inspection, engineering review, or contractor quote.";
+  "This Opsy Scout analysis is informational only. Findings, condition scores, and repair-cost ranges are estimates based on uploaded documents—not guaranteed facts, appraisals, or substitutes for a licensed home inspection, engineering review, or contractor quote.";
 
 export const ANALYSIS_STAGES = [
   {key: "uploading", label: "Uploading"},

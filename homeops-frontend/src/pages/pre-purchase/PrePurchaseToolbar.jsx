@@ -77,7 +77,7 @@ export default function PrePurchaseToolbar({
         >
           <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z" />
         </svg>
-        <span className="text-lg">Pre-Purchase</span>
+        <span className="text-lg">Opsy Scout</span>
       </button>
 
       <div className="flex items-center gap-2 shrink-0">

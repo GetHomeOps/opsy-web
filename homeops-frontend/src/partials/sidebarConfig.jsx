@@ -66,7 +66,7 @@ export const SIDEBAR_CONFIG = [
       },
       {
         id: "pre-purchase",
-        label: "Pre-Purchase",
+        label: "Opsy Scout",
         path: "pre-purchase",
         icon: icon(FileSearch),
         roles: "adminOrAgent",

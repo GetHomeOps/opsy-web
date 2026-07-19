@@ -240,7 +240,7 @@ export default function PrePurchaseAnalysisPage() {
 
   const handleAskAI = useCallback((finding) => {
     if (!finding || !analysis) return;
-    const prompt = `Regarding the pre-purchase inspection finding: "${finding.title}"${
+    const prompt = `Regarding the Opsy Scout inspection finding: "${finding.title}"${
       finding.description ? ` — ${finding.description}` : ""
     }. What should I know about this issue, how urgent is it, and what should I do next?`;
     const systemName = finding.systemLabel || finding.systemKey || null;

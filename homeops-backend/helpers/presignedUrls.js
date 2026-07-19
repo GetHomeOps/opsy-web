@@ -12,29 +12,34 @@
  * Exports: addPresignedUrlToItem, addPresignedUrlsToItems, isSafeS3Key
  */
 
-const { getPresignedUrl } = require("../services/s3Service");
+const { getPresignedUrl, getPresignedUrlForImage } = require("../services/s3Service");
 
-/** Cache: S3 key → { url, expiresAt }. TTL = 4 min (URLs expire at 5 min). */
+/** Cache: cacheKey → { url, expiresAt }. TTL = 4 min (URLs expire at 5 min). */
 const _urlCache = new Map();
 const CACHE_TTL_MS = 4 * 60 * 1000;
 const CACHE_MAX_SIZE = 500;
 
-function getCachedUrl(s3Key) {
-  const entry = _urlCache.get(s3Key);
+function cacheKeyFor(s3Key, forImage) {
+  return forImage ? `img:${s3Key}` : s3Key;
+}
+
+function getCachedUrl(s3Key, forImage = false) {
+  const cacheKey = cacheKeyFor(s3Key, forImage);
+  const entry = _urlCache.get(cacheKey);
   if (!entry) return null;
   if (Date.now() > entry.expiresAt) {
-    _urlCache.delete(s3Key);
+    _urlCache.delete(cacheKey);
     return null;
   }
   return entry.url;
 }
 
-function setCachedUrl(s3Key, url) {
+function setCachedUrl(s3Key, url, forImage = false) {
   if (_urlCache.size >= CACHE_MAX_SIZE) {
     const oldest = _urlCache.keys().next().value;
     _urlCache.delete(oldest);
   }
-  _urlCache.set(s3Key, { url, expiresAt: Date.now() + CACHE_TTL_MS });
+  _urlCache.set(cacheKeyFor(s3Key, forImage), { url, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 /**
@@ -57,10 +62,12 @@ function isSafeS3Key(key) {
  * @param {Object} item - Object that may have a key field (e.g. { image: "uploads/contacts/abc.jpg" })
  * @param {string} keyField - Field name containing the S3 key
  * @param {string} [urlField] - Output field name (default: `${keyField}_url`)
+ * @param {{ forImage?: boolean }} [options] - When forImage is true, use image Content-Type override (avoids ORB)
  * @returns {Promise<Object>} Copy of item with urlField added (null if key missing/invalid)
  */
-async function addPresignedUrlToItem(item, keyField, urlField = null) {
+async function addPresignedUrlToItem(item, keyField, urlField = null, options = {}) {
   const urlFieldName = urlField || `${keyField}_url`;
+  const forImage = Boolean(options?.forImage);
   const key = item[keyField];
 
   if (typeof key === "string" && (key.startsWith("https://") || key.startsWith("http://"))) {
@@ -72,14 +79,16 @@ async function addPresignedUrlToItem(item, keyField, urlField = null) {
   }
 
   const trimmedKey = key.trim();
-  const cached = getCachedUrl(trimmedKey);
+  const cached = getCachedUrl(trimmedKey, forImage);
   if (cached) {
     return { ...item, [urlFieldName]: cached };
   }
 
   try {
-    const url = await getPresignedUrl(trimmedKey);
-    setCachedUrl(trimmedKey, url);
+    const url = forImage
+      ? await getPresignedUrlForImage(trimmedKey)
+      : await getPresignedUrl(trimmedKey);
+    setCachedUrl(trimmedKey, url, forImage);
     return { ...item, [urlFieldName]: url };
   } catch (err) {
     return { ...item, [urlFieldName]: null };
@@ -92,11 +101,14 @@ async function addPresignedUrlToItem(item, keyField, urlField = null) {
  * @param {Array<Object>} items - Array of objects
  * @param {string} keyField - Field name containing the S3 key
  * @param {string} [urlField] - Output field name (default: `${keyField}_url`)
+ * @param {{ forImage?: boolean }} [options]
  * @returns {Promise<Array<Object>>}
  */
-async function addPresignedUrlsToItems(items, keyField, urlField = null) {
+async function addPresignedUrlsToItems(items, keyField, urlField = null, options = {}) {
   if (!Array.isArray(items) || items.length === 0) return items;
-  return Promise.all(items.map((item) => addPresignedUrlToItem({ ...item }, keyField, urlField)));
+  return Promise.all(
+    items.map((item) => addPresignedUrlToItem({ ...item }, keyField, urlField, options))
+  );
 }
 
 /** OAuth avatar URL stored on the user row (Google picture, etc.). */

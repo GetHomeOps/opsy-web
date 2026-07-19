@@ -216,7 +216,7 @@ async function checkPrePurchaseAllowed(userId, userRole) {
     allowed: enabled,
     message: enabled
       ? undefined
-      : "Pre-Purchase Analysis is not included in your current plan. Upgrade to a plan that includes Pre-Purchase.",
+      : "Opsy Scout is not included in your current plan. Upgrade to a plan that includes Opsy Scout.",
   };
 }
 

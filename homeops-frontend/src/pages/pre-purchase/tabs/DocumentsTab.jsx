@@ -527,7 +527,7 @@ export default function DocumentsTab({
                   setSearchQuery={setSearchQuery}
                   selectedType="all"
                   onUploadClick={canModify ? openFilePicker : undefined}
-                  emptyDescription="Upload an inspection report to start your pre-purchase analysis."
+                  emptyDescription="Upload an inspection report to start your Opsy Scout analysis."
                   emptyActionLabel="Upload Inspection Report"
                 />
               )}

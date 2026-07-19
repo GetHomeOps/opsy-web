@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useState} from "react";
 import {Link, useParams} from "react-router-dom";
 import {MapPin, Star} from "lucide-react";
 import {
@@ -13,6 +13,7 @@ export default function MatchedProfessionalsList({
 }) {
   const {accountUrl} = useParams();
   const rows = matches.slice(0, limit);
+  const [failedPhotoIds, setFailedPhotoIds] = useState(() => new Set());
 
   if (!rows.length) {
     return <p className="text-sm text-neutral-500">{emptyMessage}</p>;
@@ -23,14 +24,23 @@ export default function MatchedProfessionalsList({
       {rows.map((m) => {
         const name = professionalDisplayName(m);
         const location = professionalLocation(m);
+        const showPhoto = Boolean(m.profilePhotoUrl) && !failedPhotoIds.has(m.id);
         return (
           <li key={m.id} className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-800 overflow-hidden shrink-0 flex items-center justify-center text-xs font-bold text-neutral-500">
-              {m.profilePhotoUrl ? (
+              {showPhoto ? (
                 <img
                   src={m.profilePhotoUrl}
                   alt=""
                   className="w-full h-full object-cover"
+                  onError={() => {
+                    setFailedPhotoIds((prev) => {
+                      if (prev.has(m.id)) return prev;
+                      const next = new Set(prev);
+                      next.add(m.id);
+                      return next;
+                    });
+                  }}
                 />
               ) : (
                 name.slice(0, 1).toUpperCase()

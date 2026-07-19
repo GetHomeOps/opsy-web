@@ -74,7 +74,7 @@ export default function PrePurchaseNewAnalysis() {
             className="hover:text-[#456564] inline-flex items-center gap-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" aria-hidden />
-            Pre-Purchase Analysis
+            Opsy Scout
           </Link>
           <span aria-hidden>/</span>
           <span className="text-neutral-700 dark:text-neutral-300">New Analysis</span>
@@ -87,7 +87,7 @@ export default function PrePurchaseNewAnalysis() {
             </h1>
             <p className="text-sm text-neutral-500 mt-1">{shellAddress}</p>
             <p className="text-xs text-neutral-500 mt-2">
-              Complete setup to create this pre-purchase profile and optionally
+              Complete setup to create this Opsy Scout profile and optionally
               upload an inspection report.
             </p>
           </div>

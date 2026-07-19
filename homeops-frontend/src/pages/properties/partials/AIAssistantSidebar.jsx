@@ -716,7 +716,7 @@ function AIAssistantSidebar({
                 <span className="font-medium text-gray-700 dark:text-gray-300">
                   {activeContextType === "property"
                     ? isAnalysisOnly
-                      ? "Pre-purchase overview"
+                      ? "Opsy Scout overview"
                       : "Property overview"
                     : activeContextType === "events"
                       ? "Scheduled events"
@@ -752,7 +752,7 @@ function AIAssistantSidebar({
                         }`}
                       >
                         <Home className="w-3.5 h-3.5" />
-                        {isAnalysisOnly ? "Pre-purchase overview" : "Property overview"}
+                        {isAnalysisOnly ? "Opsy Scout overview" : "Property overview"}
                       </button>
                       {!isAnalysisOnly && (
                         <button

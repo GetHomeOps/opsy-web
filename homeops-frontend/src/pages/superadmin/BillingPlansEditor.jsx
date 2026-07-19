@@ -462,7 +462,7 @@ function BillingPlansEditor() {
                                 }
                               />
                               <span className="text-sm text-gray-700 dark:text-gray-300">
-                                Include Pre-Purchase Analysis
+                                Include Opsy Scout
                               </span>
                             </label>
                             <button

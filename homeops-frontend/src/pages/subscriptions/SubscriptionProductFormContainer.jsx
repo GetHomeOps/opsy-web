@@ -1677,13 +1677,13 @@ function SubscriptionProductFormContainer() {
                           <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
                             {t(
                               "subscriptionProducts.tierLimits.prePurchaseEnabled",
-                            ) || "Include Pre-Purchase Analysis"}
+                            ) || "Include Opsy Scout"}
                           </span>
                           <span className="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                             {t(
                               "subscriptionProducts.tierLimits.prePurchaseEnabledHint",
                             ) ||
-                              "When enabled, agents on this plan can use Pre-Purchase Analysis. When disabled, Pre-Purchase is hidden and blocked at the API. Admins always retain access."}
+                              "When enabled, agents on this plan can use Opsy Scout. When disabled, Opsy Scout is hidden and blocked at the API. Admins always retain access."}
                           </span>
                         </span>
                       </label>

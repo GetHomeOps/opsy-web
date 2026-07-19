@@ -35,6 +35,7 @@ const {
   CHAT_TEMPERATURE,
   sanitizeResponse,
 } = require("../services/aiChatService");
+const { addPresignedUrlToItem } = require("../helpers/presignedUrls");
 
 const prePurchaseAnalysisNewSchema = require("../schemas/prePurchaseAnalysisNew.json");
 const prePurchaseAnalysisUpdateSchema = require("../schemas/prePurchaseAnalysisUpdate.json");
@@ -369,7 +370,10 @@ function serializeRecommendation(r) {
   };
 }
 
-function serializeProfessionalMatch(m) {
+async function serializeProfessionalMatch(m) {
+  const enriched = await addPresignedUrlToItem(m, "profile_photo", "profile_photo_url", {
+    forImage: true,
+  });
   return {
     id: m.id,
     analysisId: m.analysis_id,
@@ -388,7 +392,7 @@ function serializeProfessionalMatch(m) {
     serviceArea: m.service_area,
     rating: m.rating != null ? Number(m.rating) : null,
     reviewCount: m.review_count,
-    profilePhotoUrl: m.profile_photo,
+    profilePhotoUrl: enriched.profile_photo_url,
     phone: m.phone,
     email: m.email,
     isVerified: m.is_verified,
@@ -424,7 +428,7 @@ async function ensurePrePurchaseAllowed(req, res, next) {
     const result = await checkPrePurchaseAllowed(user.id, user.role);
     if (!result.allowed) {
       throw new ForbiddenError(
-        result.message || "Pre-Purchase Analysis is not included in your current plan."
+        result.message || "Opsy Scout is not included in your current plan."
       );
     }
     return next();
@@ -519,7 +523,9 @@ router.get("/:id", async function (req, res, next) {
         systems: (full.systems || []).map(serializeSystem),
         findings: (full.findings || []).map(serializeFinding),
         recommendations: (full.recommendations || []).map(serializeRecommendation),
-        professionalMatches: (full.professionalMatches || []).map(serializeProfessionalMatch),
+        professionalMatches: await Promise.all(
+          (full.professionalMatches || []).map(serializeProfessionalMatch)
+        ),
         issueCounts: full.issueCounts,
       }),
     });
@@ -860,7 +866,7 @@ function buildPrePurchaseChatContext(full, systemContext = null) {
   const parts = [];
   const address = [full.street, full.city, full.state, full.zip].filter(Boolean).join(", ");
   const name = full.display_name || address || "Unnamed analysis";
-  parts.push(`Pre-purchase analysis: ${name}${address ? ` at ${address}` : ""}`);
+  parts.push(`Opsy Scout analysis: ${name}${address ? ` at ${address}` : ""}`);
 
   if (full.overall_condition_rating || full.overall_condition_score != null) {
     parts.push(
@@ -931,11 +937,11 @@ function buildPrePurchaseChatContext(full, systemContext = null) {
 
 function buildPrePurchaseSystemPrompt(systemContext = null) {
   const systemName = systemContext?.systemName || systemContext?.systemId || null;
-  let prompt = `You are a pre-purchase home inspection advisor. Answer only the specific question asked. Do not summarize the entire analysis unless explicitly requested.
+  let prompt = `You are an Opsy Scout home inspection advisor. Answer only the specific question asked. Do not summarize the entire analysis unless explicitly requested.
 
 Respond in clean, professional plain text. Do not use markdown formatting such as asterisks, bold, italic, headings, or special characters. Use plain dashes for lists.
 
-Use ONLY the pre-purchase analysis context provided. Cite specific findings when relevant. Do not invent facts. If information is not in the context, say so.
+Use ONLY the Opsy Scout analysis context provided. Cite specific findings when relevant. Do not invent facts. If information is not in the context, say so.
 
 Be natural and helpful. Be thorough but concise. Do not offer to schedule maintenance or book contractors — this analysis is not yet linked to a property calendar.`;
 
@@ -992,7 +998,7 @@ router.post("/:id/chat", async function (req, res, next) {
     const llmMessages = [
       { role: "system", content: systemPrompt },
       ...safeHistory,
-      { role: "user", content: `Pre-purchase context:\n${contextBlock}\n\nUser: ${message}` },
+      { role: "user", content: `Opsy Scout context:\n${contextBlock}\n\nUser: ${message}` },
     ];
 
     const openai = new OpenAI({ apiKey });
