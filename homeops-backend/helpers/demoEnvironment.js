@@ -132,11 +132,15 @@ function assertDemoIntegrationsAllowed() {
 }
 
 /** Upload folders still allowed on demo (identity/branding images — not property documents). */
-const DEMO_ALLOWED_UPLOAD_FOLDERS = new Set(["user_photos", "agencies"]);
+const DEMO_ALLOWED_UPLOAD_FOLDERS = new Set([
+  "user_photos",
+  "agencies",
+  "account_branding",
+]);
 
 /**
- * Block document uploads on demo, except profile photos (`user_photos`) and
- * agency logos (`agencies`).
+ * Block document uploads on demo, except profile photos (`user_photos`),
+ * agency logos (`agencies`), and customization logos (`account_branding`).
  * @param {{ uploadFolder?: string|null }} [opts]
  */
 function assertDemoUploadAllowed({ uploadFolder } = {}) {
