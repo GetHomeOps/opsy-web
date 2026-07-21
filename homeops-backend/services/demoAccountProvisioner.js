@@ -25,8 +25,11 @@ const Communication = require("../models/communication");
 const Notification = require("../models/notification");
 const { syncMaintenanceRecordDocuments } = require("./maintenanceRecordDocumentsService");
 const { onSystemCreated } = require("./systemRecommendationGenerator");
+const { activateSponsorship } = require("./propertySponsorshipService");
+const { resolvePrimaryAccountId } = require("./tierService");
 const {
   DEMO_AGENT_PERSONA,
+  PLAN_BY_ROLE,
   SYSTEM_KEYS,
   ACCOUNT_CONTACTS,
   DEMO_FAVORITE_PROFESSIONAL_HINTS,
@@ -157,13 +160,94 @@ async function findOrCreateInternalUser({ email, name, phone, role, avatarUrl })
   return await User.getById(user.id);
 }
 
+/**
+ * Shared Sarah Chen persona for homeowner-only demos. Ensures she has an agent
+ * account + Win plan so billing sponsorship (and branding inheritance) can activate.
+ */
 async function findOrCreateDemoAgentPersona() {
-  return findOrCreateInternalUser({
+  const user = await findOrCreateInternalUser({
     email: DEMO_AGENT_PERSONA.email,
     name: DEMO_AGENT_PERSONA.name,
     phone: DEMO_AGENT_PERSONA.phone,
     role: DEMO_AGENT_PERSONA.role,
   });
+
+  let accountId = await resolvePrimaryAccountId(user.id);
+  if (!accountId) {
+    const account = await Account.linkNewUserToAccount({
+      name: DEMO_AGENT_PERSONA.name,
+      userId: user.id,
+    });
+    accountId = account.id;
+    const contact = await Contact.create({
+      name: DEMO_AGENT_PERSONA.name,
+      email: DEMO_AGENT_PERSONA.email,
+      phone: DEMO_AGENT_PERSONA.phone || null,
+    });
+    await Contact.addToAccount({ contactId: contact.id, accountId });
+    await User.update({ id: user.id, contact: contact.id });
+    await User.completeOnboarding(user.id, {
+      role: "agent",
+      subscriptionTier: PLAN_BY_ROLE.agent.code,
+    });
+  }
+
+  await provisionActivePaidPlan(accountId, PLAN_BY_ROLE.agent.code);
+  return user;
+}
+
+/**
+ * Activate agent billing sponsorship for a demo homeowner property so branding
+ * and entitlements inherit from the sponsoring agent immediately.
+ */
+async function seedActiveDemoSponsorship({
+  propertyId,
+  sponsorAgentUserId,
+  beneficiaryAccountId,
+  beneficiaryUserId,
+}) {
+  const sponsorAccountId = await resolvePrimaryAccountId(sponsorAgentUserId);
+  if (!sponsorAccountId) {
+    throw new BadRequestError(
+      `Demo sponsor account not found for agent user ${sponsorAgentUserId}`
+    );
+  }
+
+  const existing = await db.query(
+    `SELECT id, status FROM property_sponsorships
+     WHERE property_id = $1 AND status IN ('pending', 'active')
+     LIMIT 1`,
+    [propertyId]
+  );
+  if (existing.rows[0]) {
+    if (existing.rows[0].status === "pending") {
+      await activateSponsorship(existing.rows[0].id, { reValidate: false });
+    } else {
+      await db.query(
+        `UPDATE properties
+         SET active_sponsor_account_id = $1, updated_at = NOW()
+         WHERE id = $2 AND active_sponsor_account_id IS NULL`,
+        [sponsorAccountId, propertyId]
+      );
+    }
+    return;
+  }
+
+  const insertRes = await db.query(
+    `INSERT INTO property_sponsorships
+       (property_id, sponsor_account_id, sponsor_agent_user_id,
+        beneficiary_account_id, beneficiary_user_id, status, effective_at)
+     VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+     RETURNING id`,
+    [
+      propertyId,
+      sponsorAccountId,
+      sponsorAgentUserId,
+      beneficiaryAccountId,
+      beneficiaryUserId,
+    ]
+  );
+  await activateSponsorship(insertRes.rows[0].id, { reValidate: false });
 }
 
 function buildSyntheticHomeownerEmail(agentUserId, personaKey) {
@@ -237,6 +321,7 @@ async function createSyntheticHomeowner({
   const contact = await Contact.create({ name, email: namespacedEmail, phone });
   await Contact.addToAccount({ contactId: contact.id, accountId: account.id });
   await User.update({ id: user.id, contact: contact.id });
+  await provisionActivePaidPlan(account.id, PLAN_BY_ROLE.homeowner.code);
 
   return { user: await User.getById(user.id), account };
 }
@@ -1131,6 +1216,12 @@ async function provisionDemoAccount({
         focus: "balanced",
         accountUrl: account.url,
       });
+      await seedActiveDemoSponsorship({
+        propertyId: summary.propertyId,
+        sponsorAgentUserId: agentPersona.id,
+        beneficiaryAccountId: account.id,
+        beneficiaryUserId: userId,
+      });
       propertySummaries.push(summary);
     } else {
       const homeownerUserIds = [];
@@ -1180,6 +1271,13 @@ async function provisionDemoAccount({
             focus: template.focus || "balanced",
             syntheticHomeowner: template.syntheticHomeowner,
             accountUrl: synthetic.account.url,
+          });
+
+          await seedActiveDemoSponsorship({
+            propertyId: summary.propertyId,
+            sponsorAgentUserId: userId,
+            beneficiaryAccountId: synthetic.account.id,
+            beneficiaryUserId: synthetic.user.id,
           });
 
           if (isPairedLoginProperty) {

@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "downPaymentPercent",
+    "interestRate",
+    "loanTermYears",
+    "propertyTaxPercent",
+    "insuranceMonthly",
+    "closingCosts",
+    "maintenanceReservePercent",
+    "maintenanceReserveEnabled",
+    "acquisitionBuffer",
+    "repairs"
+  ],
+  "properties": {
+    "listingPrice": {
+      "anyOf": [{ "type": "null" }, { "type": "number", "minimum": 0 }]
+    },
+    "offerPrice": {
+      "anyOf": [{ "type": "null" }, { "type": "number", "minimum": 0 }]
+    },
+    "downPaymentPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "interestRate": { "type": "number", "minimum": 0, "maximum": 100 },
+    "loanTermYears": { "type": "integer", "minimum": 1, "maximum": 50 },
+    "propertyTaxPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "insuranceMonthly": { "type": "number", "minimum": 0 },
+    "closingCosts": { "type": "number", "minimum": 0 },
+    "maintenanceReservePercent": { "type": "number", "minimum": 0, "maximum": 100 },
+    "maintenanceReserveEnabled": { "type": "boolean" },
+    "acquisitionBuffer": { "type": "number", "minimum": 0 },
+    "repairs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "included", "timing", "estimatedCost"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["finding", "custom"] },
+              "findingId": { "type": "integer", "minimum": 1 },
+              "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "description": {
+                "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 500 }]
+              },
+              "included": { "type": "boolean" },
+              "timing": {
+                "type": "string",
+                "enum": ["immediate", "deferred", "excluded"]
+              },
+              "estimatedCost": { "type": "number", "minimum": 0 },
+              "note": {
+                "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 2000 }]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

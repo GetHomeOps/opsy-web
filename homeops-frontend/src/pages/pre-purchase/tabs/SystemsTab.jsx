@@ -29,6 +29,7 @@ import {
   formatCostRange,
   formatRemainingLife,
   highPrioritySystems,
+  selectRailProfessionals,
 } from "../prePurchaseUtils";
 
 const SYSTEM_ICONS = {
@@ -103,18 +104,10 @@ export default function SystemsTab({analysis, onNavigateTab}) {
     [healthCounts]
   );
 
-  const priorityKeys = useMemo(
-    () => new Set(priority.map((s) => s.systemKey).filter(Boolean)),
-    [priority]
+  const railPros = useMemo(
+    () => selectRailProfessionals(professionalMatches, systems, 4),
+    [professionalMatches, systems]
   );
-
-  const railPros = useMemo(() => {
-    if (!priorityKeys.size) return professionalMatches;
-    const filtered = professionalMatches.filter((m) =>
-      priorityKeys.has(m.systemKey)
-    );
-    return filtered.length ? filtered : professionalMatches;
-  }, [professionalMatches, priorityKeys]);
 
   if (!systems.length) {
     return (

@@ -4,10 +4,10 @@ import {
   Download,
   Home,
   Loader2,
+  MonitorPlay,
   Plus,
   RefreshCw,
   Settings,
-  Share2,
 } from "lucide-react";
 import Transition from "../../utils/Transition";
 
@@ -26,8 +26,11 @@ export default function PrePurchaseToolbar({
   canStartAnalysis,
   converting = false,
   starting = false,
+  downloadingReport = false,
   onConvertToProperty,
   onStartOrRefreshAnalysis,
+  onPresentationMode,
+  onDownloadReport,
   analysisStatus,
 }) {
   const navigate = useNavigate();
@@ -60,6 +63,7 @@ export default function PrePurchaseToolbar({
 
   const startLabel =
     analysisStatus === "completed" ? "Refresh analysis" : "Start analysis";
+  const resultsReady = analysisStatus === "completed";
 
   return (
     <div className="flex justify-between items-center gap-3 mb-3">
@@ -176,23 +180,47 @@ export default function PrePurchaseToolbar({
                 <li>
                   <button
                     type="button"
-                    disabled
-                    className="w-full flex items-center px-3 py-2 opacity-50 cursor-not-allowed"
-                    title="Coming soon"
+                    disabled={!resultsReady}
+                    className="w-full flex items-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      resultsReady
+                        ? "Open presentation mode"
+                        : "Available when analysis is completed"
+                    }
+                    onClick={() => {
+                      setActionsOpen(false);
+                      onPresentationMode?.();
+                    }}
                   >
-                    <Share2 className="w-5 h-5 shrink-0 text-neutral-500" />
-                    <span className="text-sm font-medium ml-2">Share Analysis</span>
+                    <MonitorPlay className="w-5 h-5 shrink-0 text-neutral-500 dark:text-neutral-400" />
+                    <span className="text-sm font-medium ml-2">
+                      Presentation mode
+                    </span>
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
-                    disabled
-                    className="w-full flex items-center px-3 py-2 opacity-50 cursor-not-allowed"
-                    title="Coming soon"
+                    disabled={!resultsReady || downloadingReport}
+                    className="w-full flex items-center cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      resultsReady
+                        ? "Download PDF report"
+                        : "Available when analysis is completed"
+                    }
+                    onClick={() => {
+                      setActionsOpen(false);
+                      onDownloadReport?.();
+                    }}
                   >
-                    <Download className="w-5 h-5 shrink-0 text-neutral-500" />
-                    <span className="text-sm font-medium ml-2">Download Report</span>
+                    {downloadingReport ? (
+                      <Loader2 className="w-5 h-5 shrink-0 animate-spin text-neutral-500" />
+                    ) : (
+                      <Download className="w-5 h-5 shrink-0 text-neutral-500 dark:text-neutral-400" />
+                    )}
+                    <span className="text-sm font-medium ml-2">
+                      {downloadingReport ? "Downloading…" : "Download Report"}
+                    </span>
                   </button>
                 </li>
               </ul>

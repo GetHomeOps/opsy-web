@@ -113,6 +113,17 @@ export function AccountBrandingProvider({children}) {
     await loadBranding(currentAccount?.id);
   }, [currentAccount?.id, loadBranding]);
 
+  // Sponsorship accept / plan changes can flip effective branding (sponsor inheritance).
+  useEffect(() => {
+    const onPlansUpdated = () => {
+      if (currentAccount?.id) {
+        loadBranding(currentAccount.id);
+      }
+    };
+    window.addEventListener("plans-updated", onPlansUpdated);
+    return () => window.removeEventListener("plans-updated", onPlansUpdated);
+  }, [currentAccount?.id, loadBranding]);
+
   const effectiveAccent = branding.accentColor || DEFAULT_ACCENT;
   const effectiveAccentHover = darkenHex(effectiveAccent);
 

@@ -1697,6 +1697,51 @@ class AppApi {
     return res;
   }
 
+  static async getPrePurchaseNotes(analysisId) {
+    const res = await this.request(`pre-purchase/${analysisId}/notes`);
+    return res.notes ?? [];
+  }
+
+  static async createPrePurchaseNote(analysisId, body) {
+    const res = await this.request(
+      `pre-purchase/${analysisId}/notes`,
+      { body },
+      "POST"
+    );
+    return res.note;
+  }
+
+  static async updatePrePurchaseNote(analysisId, noteId, body) {
+    const res = await this.request(
+      `pre-purchase/${analysisId}/notes/${noteId}`,
+      { body },
+      "PATCH"
+    );
+    return res.note;
+  }
+
+  static async deletePrePurchaseNote(analysisId, noteId) {
+    await this.request(
+      `pre-purchase/${analysisId}/notes/${noteId}`,
+      {},
+      "DELETE"
+    );
+  }
+
+  static async getPrePurchaseTrueCost(analysisId) {
+    const res = await this.request(`pre-purchase/${analysisId}/true-cost`);
+    return res.trueCost ?? null;
+  }
+
+  static async upsertPrePurchaseTrueCost(analysisId, data) {
+    const res = await this.request(
+      `pre-purchase/${analysisId}/true-cost`,
+      data,
+      "PUT"
+    );
+    return res.trueCost;
+  }
+
   /* --------- Inspection Analysis Review (Super Admin) --------- */
 
   static async getInspectionReviewQueue(status) {

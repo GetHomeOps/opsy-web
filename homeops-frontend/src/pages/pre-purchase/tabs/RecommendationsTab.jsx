@@ -30,6 +30,7 @@ import {
   formatCurrency,
   findingMidCost,
   sumFindingCostsByUrgency,
+  selectRailProfessionals,
 } from "../prePurchaseUtils";
 
 const GROUP_ORDER = ["immediate", "near_term", "long_term", "monitor"];
@@ -97,7 +98,15 @@ export default function RecommendationsTab({
   const {accountUrl} = useParams();
   const recommendations = analysis?.recommendations || [];
   const findings = analysis?.findings || [];
-  const professionalMatches = analysis?.professionalMatches || [];
+  const railProfessionals = useMemo(
+    () =>
+      selectRailProfessionals(
+        analysis?.professionalMatches || [],
+        analysis?.systems || [],
+        4
+      ),
+    [analysis?.professionalMatches, analysis?.systems]
+  );
 
   const [priority, setPriority] = useState("all");
   const [systemKey, setSystemKey] = useState(initialSystemKey || "all");
@@ -529,7 +538,7 @@ export default function RecommendationsTab({
 
       <SectionCard title="Top Matched Professionals">
         <MatchedProfessionalsList
-          matches={professionalMatches}
+          matches={railProfessionals}
           limit={4}
           emptyMessage="Add professionals to your directory to see matches."
         />

@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useRef, useState} from "react";
 import {useNavigate, useParams} from "react-router-dom";
 import {
   AlertCircle,
+  Calculator,
   FileText,
   Home,
   LayoutDashboard,
@@ -11,6 +12,7 @@ import {
   Wrench,
 } from "lucide-react";
 import AppApi, {getApiErrorMessage} from "../../api/api";
+import {useAuth} from "../../context/AuthContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import SectionCard from "../properties/partials/passport/SectionCard";
 import EmptyStateCard from "../properties/partials/passport/EmptyStateCard";
@@ -25,7 +27,12 @@ import SystemsTab from "./tabs/SystemsTab";
 import IssuesTab from "./tabs/IssuesTab";
 import RecommendationsTab from "./tabs/RecommendationsTab";
 import DocumentsTab from "./tabs/DocumentsTab";
+import TrueCostTab from "./tabs/TrueCostTab";
 import PrePurchaseUploadModal from "./PrePurchaseUploadModal";
+import PresentationModeModal from "./PresentationModeModal";
+import ScoutNotesCard from "./components/ScoutNotesCard";
+import ScoutNotesModal from "./components/ScoutNotesModal";
+import {generateScoutReportPdf} from "./generateScoutReportPdf";
 import {formatAddress, formatDisplayName} from "./prePurchaseUtils";
 
 const TABS = [
@@ -35,6 +42,7 @@ const TABS = [
   {id: "issues", label: "Issues", icon: AlertCircle},
   {id: "recommendations", label: "Recommendations", icon: Lightbulb},
   {id: "documents", label: "Documents", icon: FileText},
+  {id: "true-cost", label: "True Cost", icon: Calculator},
 ];
 
 const RUNNING_STATUSES = [
@@ -48,6 +56,7 @@ export default function PrePurchaseAnalysisPage() {
   const {accountUrl, analysisId} = useParams();
   const navigate = useNavigate();
   const {currentAccount} = useCurrentAccount();
+  const {currentUser} = useAuth();
 
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -64,6 +73,14 @@ export default function PrePurchaseAnalysisPage() {
   const [aiSystemLabel, setAiSystemLabel] = useState(null);
   const [aiSystemContext, setAiSystemContext] = useState(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [presentationOpen, setPresentationOpen] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const [reportError, setReportError] = useState(null);
+  const [notes, setNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesModalOpen, setNotesModalOpen] = useState(false);
+  const [notesStartComposing, setNotesStartComposing] = useState(false);
 
   const startInFlightRef = useRef(false);
   const autoResumeDoneRef = useRef(null);
@@ -259,6 +276,107 @@ export default function PrePurchaseAnalysisPage() {
     setTab(tabId);
   }, []);
 
+  const handlePresentationMode = useCallback(() => {
+    if (analysis?.status !== "completed") return;
+    setPresentationOpen(true);
+  }, [analysis?.status]);
+
+  const handleDownloadReport = useCallback(() => {
+    if (!analysis || analysis.status !== "completed") return;
+    setReportError(null);
+    setDownloadingReport(true);
+    try {
+      generateScoutReportPdf(analysis);
+    } catch (err) {
+      setReportError(
+        err?.message || "Could not generate the PDF report. Please try again."
+      );
+    } finally {
+      setDownloadingReport(false);
+    }
+  }, [analysis]);
+
+  const refreshNotes = useCallback(() => {
+    if (!analysisId) {
+      setNotes([]);
+      return;
+    }
+    setNotesLoading(true);
+    AppApi.getPrePurchaseNotes(analysisId)
+      .then((list) => setNotes(list ?? []))
+      .catch(() => setNotes([]))
+      .finally(() => setNotesLoading(false));
+  }, [analysisId]);
+
+  useEffect(() => {
+    refreshNotes();
+  }, [refreshNotes]);
+
+  const openNotesModal = useCallback((compose = false) => {
+    setNotesStartComposing(Boolean(compose));
+    setNotesModalOpen(true);
+  }, []);
+
+  const handleAddNote = useCallback(
+    async (body) => {
+      if (!analysisId) return;
+      setNotesSaving(true);
+      try {
+        const note = await AppApi.createPrePurchaseNote(analysisId, body);
+        setNotes((prev) => [note, ...prev]);
+      } catch (err) {
+        setError(getApiErrorMessage(err, "Failed to save note."));
+      } finally {
+        setNotesSaving(false);
+      }
+    },
+    [analysisId],
+  );
+
+  const handleUpdateNote = useCallback(
+    async (noteId, body) => {
+      if (!analysisId) return;
+      setNotesSaving(true);
+      try {
+        const updated = await AppApi.updatePrePurchaseNote(
+          analysisId,
+          noteId,
+          body,
+        );
+        setNotes((prev) => {
+          const next = prev.map((n) => (n.id === noteId ? updated : n));
+          next.sort((a, b) => {
+            const ta = new Date(a.updatedAt || a.updated_at || 0).getTime();
+            const tb = new Date(b.updatedAt || b.updated_at || 0).getTime();
+            return tb - ta;
+          });
+          return next;
+        });
+      } catch (err) {
+        setError(getApiErrorMessage(err, "Failed to update note."));
+      } finally {
+        setNotesSaving(false);
+      }
+    },
+    [analysisId],
+  );
+
+  const handleDeleteNote = useCallback(
+    async (noteId) => {
+      if (!analysisId) return;
+      setNotesSaving(true);
+      try {
+        await AppApi.deletePrePurchaseNote(analysisId, noteId);
+        setNotes((prev) => prev.filter((n) => n.id !== noteId));
+      } catch (err) {
+        setError(getApiErrorMessage(err, "Failed to delete note."));
+      } finally {
+        setNotesSaving(false);
+      }
+    },
+    [analysisId],
+  );
+
   return (
     <PrePurchaseShell>
       <div className="space-y-4">
@@ -273,10 +391,29 @@ export default function PrePurchaseAnalysisPage() {
           canStartAnalysis={canStartAnalysis}
           converting={converting}
           starting={refreshing}
+          downloadingReport={downloadingReport}
           onConvertToProperty={handleConvertToProperty}
           onStartOrRefreshAnalysis={handleStartOrRefresh}
+          onPresentationMode={handlePresentationMode}
+          onDownloadReport={handleDownloadReport}
           analysisStatus={analysis?.status}
         />
+
+        {reportError ? (
+          <div
+            className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-900/50 px-4 py-3 flex items-start justify-between gap-3 text-sm text-red-800 dark:text-red-200"
+            role="alert"
+          >
+            <p>{reportError}</p>
+            <button
+              type="button"
+              className="text-xs font-semibold underline shrink-0"
+              onClick={() => setReportError(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
 
         {loading ? (
           <div className="flex items-center justify-center py-20 text-neutral-500 gap-2">
@@ -370,23 +507,43 @@ export default function PrePurchaseAnalysisPage() {
                     <OverviewTab
                       analysis={analysis}
                       onNavigateTab={handleNavigateTab}
+                      notes={notes}
+                      notesLoading={notesLoading}
+                      onAddNote={() => openNotesModal(true)}
+                      onOpenNotes={() => openNotesModal(false)}
                     />
                   ) : showProcessing ? (
-                    <PrePurchaseProcessing
-                      analysis={analysis}
-                      onRetry={
-                        analysis.status === "failed" ? handleRetry : undefined
-                      }
-                      retrying={retrying}
-                    />
+                    <div className="space-y-4">
+                      <PrePurchaseProcessing
+                        analysis={analysis}
+                        onRetry={
+                          analysis.status === "failed" ? handleRetry : undefined
+                        }
+                        retrying={retrying}
+                      />
+                      <ScoutNotesCard
+                        notes={notes}
+                        loading={notesLoading}
+                        onAddNote={() => openNotesModal(true)}
+                        onOpenNotes={() => openNotesModal(false)}
+                      />
+                    </div>
                   ) : (
-                    <EmptyStateCard
-                      icon={Upload}
-                      title="Upload an inspection report to start analysis"
-                      description="Add a home inspection PDF or related documents, then analysis will run in the background."
-                      actionLabel="Add inspection report"
-                      onAction={openUploadModal}
-                    />
+                    <div className="space-y-4">
+                      <EmptyStateCard
+                        icon={Upload}
+                        title="Upload an inspection report to start analysis"
+                        description="Add a home inspection PDF or related documents, then analysis will run in the background."
+                        actionLabel="Add inspection report"
+                        onAction={openUploadModal}
+                      />
+                      <ScoutNotesCard
+                        notes={notes}
+                        loading={notesLoading}
+                        onAddNote={() => openNotesModal(true)}
+                        onOpenNotes={() => openNotesModal(false)}
+                      />
+                    </div>
                   )}
                 </>
               )}
@@ -472,6 +629,8 @@ export default function PrePurchaseAnalysisPage() {
                   refreshing={refreshing}
                 />
               )}
+
+              {tab === "true-cost" && <TrueCostTab analysis={analysis} />}
             </div>
           </>
         ) : null}
@@ -501,6 +660,30 @@ export default function PrePurchaseAnalysisPage() {
         onClose={() => setUploadModalOpen(false)}
         analysisId={analysisId}
         onUploaded={() => load({silent: true})}
+      />
+
+      <PresentationModeModal
+        open={presentationOpen}
+        onClose={() => setPresentationOpen(false)}
+        analysis={analysis}
+      />
+
+      <ScoutNotesModal
+        open={notesModalOpen}
+        onClose={() => {
+          setNotesModalOpen(false);
+          setNotesStartComposing(false);
+        }}
+        title="Notes"
+        subtitle={analysis ? formatDisplayName(analysis) : undefined}
+        notes={notes}
+        loading={notesLoading}
+        saving={notesSaving}
+        currentUserId={currentUser?.id}
+        startComposing={notesStartComposing}
+        onAddNote={handleAddNote}
+        onUpdateNote={handleUpdateNote}
+        onDeleteNote={handleDeleteNote}
       />
     </PrePurchaseShell>
   );

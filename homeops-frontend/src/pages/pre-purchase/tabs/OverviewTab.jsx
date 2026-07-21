@@ -13,10 +13,12 @@ import {StatusBadge} from "../../properties/partials/passport/StatusBadge";
 import ScoreGauge from "../components/ScoreGauge";
 import RepairRangeScale from "../components/RepairRangeScale";
 import MatchedProfessionalsList from "../components/MatchedProfessionalsList";
+import ScoutNotesCard from "../components/ScoutNotesCard";
 import {
   PRE_PURCHASE_DISCLAIMER,
   SEVERITY_BADGE,
   formatCostRange,
+  selectRailProfessionals,
 } from "../prePurchaseUtils";
 
 const SCORE_BLURBS = {
@@ -60,14 +62,25 @@ const ISSUE_ROWS = [
   },
 ];
 
-export default function OverviewTab({analysis, onNavigateTab}) {
+export default function OverviewTab({
+  analysis,
+  onNavigateTab,
+  notes = [],
+  notesLoading = false,
+  onAddNote,
+  onOpenNotes,
+}) {
   const counts = analysis?.issueCounts || {major: 0, moderate: 0, minor: 0};
   const totalIssues =
     (counts.major || 0) + (counts.moderate || 0) + (counts.minor || 0);
   const positives = analysis?.positiveFindings || [];
   const concerns = analysis?.topConcerns || [];
   const recommendations = analysis?.recommendations || [];
-  const professionals = analysis?.professionalMatches || [];
+  const professionals = selectRailProfessionals(
+    analysis?.professionalMatches || [],
+    analysis?.systems || [],
+    4
+  );
   const rating = analysis?.overallConditionRating;
   const blurb = SCORE_BLURBS[rating] || SCORE_BLURBS.unknown;
 
@@ -291,11 +304,18 @@ export default function OverviewTab({analysis, onNavigateTab}) {
         >
           <MatchedProfessionalsList
             matches={professionals}
-            limit={3}
+            limit={4}
             emptyMessage="No professional matches yet. Add contacts to your directory to see suggestions."
           />
         </SectionCard>
       </div>
+
+      <ScoutNotesCard
+        notes={notes}
+        loading={notesLoading}
+        onAddNote={onAddNote}
+        onOpenNotes={onOpenNotes}
+      />
     </div>
   );
 }

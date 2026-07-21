@@ -791,58 +791,119 @@ function findCategoryIdForSystem(systemKey, categories) {
   return null;
 }
 
-async function matchProfessionals(analysis, systems, recommendations) {
-  const categories = await loadCategoryRows();
-  const systemKeys = [
+const SYSTEM_URGENCY_RANK = {
+  immediate: 0,
+  near_term: 1,
+  long_term: 2,
+  monitor: 3,
+};
+
+/** Lower rank = higher priority for professional matching. */
+function systemMatchRank(systemKey, systems, recommendations) {
+  let best = 99;
+  for (const s of systems) {
+    const key = s.system_key || s.systemKey;
+    if (key !== systemKey) continue;
+    const urgency = String(s.urgency || "").toLowerCase();
+    let rank = SYSTEM_URGENCY_RANK[urgency] ?? 50;
+    if (String(s.condition || "").toLowerCase() === "poor") {
+      rank = Math.min(rank, 0);
+    }
+    if (rank < best) best = rank;
+  }
+  for (const r of recommendations) {
+    const key = r.system_key || r.systemKey;
+    if (key !== systemKey) continue;
+    const group = String(r.urgency_group || r.urgencyGroup || "").toLowerCase();
+    const rank = SYSTEM_URGENCY_RANK[group] ?? 50;
+    if (rank < best) best = rank;
+  }
+  return best;
+}
+
+function orderedSystemKeysForMatching(systems, recommendations) {
+  const keys = [
     ...new Set([
       ...systems.map((s) => s.system_key || s.systemKey),
       ...recommendations.map((r) => r.system_key || r.systemKey).filter(Boolean),
     ]),
   ].filter(Boolean);
 
+  return keys.sort(
+    (a, b) =>
+      systemMatchRank(a, systems, recommendations) -
+      systemMatchRank(b, systems, recommendations)
+  );
+}
+
+async function lookupProfessionalsForMatch(categoryId, analysis) {
+  const base = {};
+  if (categoryId) base.category_id = categoryId;
+
+  const attempts = [];
+  if (analysis.city || analysis.state) {
+    attempts.push({
+      ...base,
+      ...(analysis.city ? { city: analysis.city } : {}),
+      ...(analysis.state ? { state: analysis.state } : {}),
+    });
+  }
+  if (analysis.state) {
+    attempts.push({ ...base, state: analysis.state });
+  }
+  attempts.push({ ...base });
+
+  const seenFilter = new Set();
+  for (const filters of attempts) {
+    const sig = JSON.stringify(filters);
+    if (seenFilter.has(sig)) continue;
+    seenFilter.add(sig);
+    try {
+      const pros = await Professional.getAll(filters);
+      if (pros.length) return pros;
+    } catch (err) {
+      console.warn("[prePurchaseAnalysis] professional lookup failed:", err.message);
+    }
+  }
+  return [];
+}
+
+function scoreProfessionalMatch(pro, analysis) {
+  const sameCity =
+    analysis.city &&
+    String(pro.city || "").toLowerCase() === String(analysis.city).toLowerCase();
+  const sameState =
+    analysis.state &&
+    String(pro.state || "").toLowerCase() === String(analysis.state).toLowerCase();
+  return (
+    (Number(pro.rating) || 0) * 10 +
+    Math.min(Number(pro.review_count) || 0, 50) +
+    (pro.is_verified ? 15 : 0) +
+    (sameCity ? 20 : 0) +
+    (!sameCity && sameState ? 10 : 0)
+  );
+}
+
+async function matchProfessionals(analysis, systems, recommendations) {
+  const categories = await loadCategoryRows();
+  const systemKeys = orderedSystemKeysForMatching(systems, recommendations);
+
   const seenPros = new Set();
   const matches = [];
 
   for (const systemKey of systemKeys.slice(0, 8)) {
     const categoryId = findCategoryIdForSystem(systemKey, categories);
-    const filters = {};
-    if (categoryId) filters.category_id = categoryId;
-    if (analysis.city) filters.city = analysis.city;
-    if (analysis.state) filters.state = analysis.state;
-
-    let pros = [];
-    try {
-      pros = await Professional.getAll(filters);
-    } catch (err) {
-      console.warn("[prePurchaseAnalysis] professional lookup failed:", err.message);
-    }
-
-    if (pros.length === 0 && (filters.city || filters.state)) {
-      const { city, state, ...rest } = filters;
-      try {
-        pros = await Professional.getAll(rest);
-      } catch {
-        pros = [];
-      }
-    }
+    const pros = await lookupProfessionalsForMatch(categoryId, analysis);
 
     for (const pro of pros.slice(0, 3)) {
       if (seenPros.has(pro.id)) continue;
       seenPros.add(pro.id);
-      const score =
-        (Number(pro.rating) || 0) * 10 +
-        Math.min(Number(pro.review_count) || 0, 50) +
-        (pro.is_verified ? 15 : 0) +
-        (analysis.city &&
-        String(pro.city || "").toLowerCase() === String(analysis.city).toLowerCase()
-          ? 20
-          : 0);
       matches.push({
         analysis_id: analysis.id,
         system_key: systemKey,
         professional_id: pro.id,
         match_reason: `Matched for ${labelForSystem(systemKey)} based on specialty and service area`,
-        match_score: score,
+        match_score: scoreProfessionalMatch(pro, analysis),
       });
       if (matches.length >= 12) break;
     }

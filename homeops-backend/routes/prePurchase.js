@@ -22,6 +22,8 @@ const { enqueue } = require("../services/prePurchaseAnalysisQueue");
 const { enqueue: enqueueInspectionAnalysis } = require("../services/inspectionAnalysisQueue");
 const { enqueue: enqueueAttomLookup } = require("../services/attomLookupQueue");
 const PrePurchaseAnalysis = require("../models/prePurchaseAnalysis");
+const PrePurchaseNote = require("../models/prePurchaseNote");
+const PrePurchaseTrueCost = require("../models/prePurchaseTrueCost");
 const Account = require("../models/account");
 const Property = require("../models/property");
 const PropertyDocument = require("../models/propertyDocuments");
@@ -40,6 +42,7 @@ const { addPresignedUrlToItem } = require("../helpers/presignedUrls");
 const prePurchaseAnalysisNewSchema = require("../schemas/prePurchaseAnalysisNew.json");
 const prePurchaseAnalysisUpdateSchema = require("../schemas/prePurchaseAnalysisUpdate.json");
 const prePurchaseDocumentNewSchema = require("../schemas/prePurchaseDocumentNew.json");
+const prePurchaseTrueCostUpsertSchema = require("../schemas/prePurchaseTrueCostUpsert.json");
 
 const router = express.Router();
 
@@ -370,6 +373,52 @@ function serializeRecommendation(r) {
   };
 }
 
+function serializeNote(n) {
+  return {
+    id: n.id,
+    analysisId: n.analysis_id,
+    userId: n.user_id,
+    body: n.body,
+    createdAt: n.created_at,
+    updatedAt: n.updated_at,
+    authorName: n.author_name,
+    authorEmail: n.author_email,
+  };
+}
+
+function serializeTrueCost(row) {
+  if (!row) return null;
+  let repairs = row.repairs;
+  if (typeof repairs === "string") {
+    try {
+      repairs = JSON.parse(repairs);
+    } catch {
+      repairs = { items: [] };
+    }
+  }
+  if (!repairs || typeof repairs !== "object") repairs = { items: [] };
+  if (!Array.isArray(repairs.items)) repairs = { items: [] };
+
+  return {
+    id: row.id,
+    analysisId: row.analysis_id,
+    listingPrice: row.listing_price != null ? Number(row.listing_price) : null,
+    offerPrice: row.offer_price != null ? Number(row.offer_price) : null,
+    downPaymentPercent: Number(row.down_payment_percent),
+    interestRate: Number(row.interest_rate),
+    loanTermYears: Number(row.loan_term_years),
+    propertyTaxPercent: Number(row.property_tax_percent),
+    insuranceMonthly: Number(row.insurance_monthly),
+    closingCosts: Number(row.closing_costs),
+    maintenanceReservePercent: Number(row.maintenance_reserve_percent),
+    maintenanceReserveEnabled: Boolean(row.maintenance_reserve_enabled),
+    acquisitionBuffer: Number(row.acquisition_buffer),
+    repairs,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 async function serializeProfessionalMatch(m) {
   const enriched = await addPresignedUrlToItem(m, "profile_photo", "profile_photo_url", {
     forImage: true,
@@ -659,6 +708,128 @@ router.delete(
     }
   }
 );
+
+/** GET /:id/notes — list notes for analysis */
+router.get("/:id/notes", async function (req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) throw new BadRequestError("Invalid analysis id");
+    await getAuthorizedAnalysis(id, res.locals.user);
+    const notes = await PrePurchaseNote.getByAnalysisId(id);
+    return res.json({ notes: notes.map(serializeNote) });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST /:id/notes — create a note */
+router.post("/:id/notes", async function (req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) throw new BadRequestError("Invalid analysis id");
+    await getAuthorizedAnalysis(id, res.locals.user);
+
+    const body = req.body?.body ?? req.body?.content;
+    if (!body || !String(body).trim()) {
+      throw new BadRequestError("body is required");
+    }
+
+    const note = await PrePurchaseNote.create({
+      analysis_id: id,
+      user_id: res.locals.user.id,
+      body,
+    });
+    return res.status(201).json({ note: serializeNote(note) });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** PATCH /:id/notes/:noteId — update a note */
+router.patch("/:id/notes/:noteId", async function (req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const noteId = parseInt(req.params.noteId, 10);
+    if (isNaN(id) || isNaN(noteId)) throw new BadRequestError("Invalid id");
+    await getAuthorizedAnalysis(id, res.locals.user);
+
+    const existing = await PrePurchaseNote.get(noteId);
+    if (Number(existing.analysis_id) !== id) {
+      throw new NotFoundError("Note not found on this analysis");
+    }
+
+    const body = req.body?.body ?? req.body?.content;
+    if (!body || !String(body).trim()) {
+      throw new BadRequestError("body is required");
+    }
+
+    const note = await PrePurchaseNote.update(
+      noteId,
+      { body },
+      res.locals.user.id,
+    );
+    return res.json({ note: serializeNote(note) });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** DELETE /:id/notes/:noteId — delete a note */
+router.delete("/:id/notes/:noteId", async function (req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const noteId = parseInt(req.params.noteId, 10);
+    if (isNaN(id) || isNaN(noteId)) throw new BadRequestError("Invalid id");
+    await getAuthorizedAnalysis(id, res.locals.user);
+
+    const existing = await PrePurchaseNote.get(noteId);
+    if (Number(existing.analysis_id) !== id) {
+      throw new NotFoundError("Note not found on this analysis");
+    }
+
+    await PrePurchaseNote.remove(
+      noteId,
+      res.locals.user.id,
+      res.locals.user.role,
+    );
+    return res.json({ deleted: noteId });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** GET /:id/true-cost — get True Cost inputs for analysis */
+router.get("/:id/true-cost", async function (req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) throw new BadRequestError("Invalid analysis id");
+    await getAuthorizedAnalysis(id, res.locals.user);
+    const row = await PrePurchaseTrueCost.getByAnalysisId(id);
+    return res.json({ trueCost: serializeTrueCost(row) });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** PUT /:id/true-cost — upsert True Cost inputs for analysis */
+router.put("/:id/true-cost", async function (req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) throw new BadRequestError("Invalid analysis id");
+    await getAuthorizedAnalysis(id, res.locals.user);
+
+    const validator = jsonschema.validate(req.body, prePurchaseTrueCostUpsertSchema);
+    if (!validator.valid) {
+      const errs = validator.errors.map((e) => e.stack);
+      throw new BadRequestError(errs.join("; "));
+    }
+
+    const row = await PrePurchaseTrueCost.upsert(id, req.body);
+    return res.json({ trueCost: serializeTrueCost(row) });
+  } catch (err) {
+    return next(err);
+  }
+});
 
 async function startAnalysis(id, user) {
   assertDemoAiAllowed();

@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useRef, useState} from "react";
 import {ShieldCheck, X} from "lucide-react";
 import AppApi from "../api/api";
 import {useAuth} from "../context/AuthContext";
+import {useAccountBranding} from "../context/AccountBrandingContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import SponsorshipOfferModal from "../pages/settings/partials/SponsorshipOfferModal";
 
@@ -95,6 +96,7 @@ export function clearSponsorshipIconDismissal(accountId) {
 export default function SponsorshipOfferWatcher() {
   const {currentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
+  const {refreshBranding} = useAccountBranding();
   const accountId = currentAccount?.id;
   const role = (currentUser?.role || "").toLowerCase();
   const isHomeowner = role === "homeowner";
@@ -177,10 +179,13 @@ export default function SponsorshipOfferWatcher() {
   useEffect(() => () => clearNoticeTimer(), [clearNoticeTimer]);
 
   const handleConfirm = useCallback(async () => {
-    await AppApi.acceptSponsorship({accountId});
+    const result = await AppApi.acceptSponsorship({accountId});
     setOfferOpen(false);
     window.dispatchEvent(new CustomEvent("plans-updated"));
-  }, [accountId]);
+    if (result?.activated) {
+      await refreshBranding();
+    }
+  }, [accountId, refreshBranding]);
 
   const handleClose = useCallback(() => {
     setOfferOpen(false);

@@ -1875,3 +1875,35 @@ CREATE TABLE pre_purchase_professional_matches (
 
 CREATE INDEX idx_pre_purchase_pro_matches_analysis ON pre_purchase_professional_matches(analysis_id);
 CREATE INDEX idx_pre_purchase_pro_matches_pro ON pre_purchase_professional_matches(professional_id);
+
+CREATE TABLE pre_purchase_notes (
+    id SERIAL PRIMARY KEY,
+    analysis_id INTEGER NOT NULL REFERENCES pre_purchase_analyses(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_pre_purchase_notes_analysis ON pre_purchase_notes(analysis_id, updated_at DESC);
+
+CREATE TABLE pre_purchase_true_cost (
+    id SERIAL PRIMARY KEY,
+    analysis_id INTEGER NOT NULL UNIQUE REFERENCES pre_purchase_analyses(id) ON DELETE CASCADE,
+    listing_price NUMERIC(12, 2),
+    offer_price NUMERIC(12, 2),
+    down_payment_percent NUMERIC(6, 3) NOT NULL DEFAULT 20,
+    interest_rate NUMERIC(6, 3) NOT NULL DEFAULT 6.5,
+    loan_term_years INTEGER NOT NULL DEFAULT 30,
+    property_tax_percent NUMERIC(6, 3) NOT NULL DEFAULT 1.0,
+    insurance_monthly NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    closing_costs NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    maintenance_reserve_percent NUMERIC(6, 3) NOT NULL DEFAULT 1.0,
+    maintenance_reserve_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    acquisition_buffer NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    repairs JSONB NOT NULL DEFAULT '{"items":[]}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_pre_purchase_true_cost_analysis ON pre_purchase_true_cost(analysis_id);

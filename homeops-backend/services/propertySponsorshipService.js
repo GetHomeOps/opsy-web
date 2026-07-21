@@ -14,6 +14,7 @@
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
 const { BILLING_MOCK_MODE } = require("../config");
+const { isDemoEnvironment } = require("../helpers/demoEnvironment");
 const Notification = require("../models/notification");
 const Subscription = require("../models/subscription");
 const stripeService = require("./stripeService");
@@ -218,7 +219,14 @@ async function acceptOffer({ userId, accountId, userRole }) {
   let effectiveAt = sub?.currentPeriodEnd || null;
   let activateNow = false;
 
-  if (stripeSubId && !BILLING_MOCK_MODE && stripeService.stripe) {
+  // Demo never schedules period-end activation — always apply coverage immediately
+  // so branding/entitlements inherit without waiting on a (often year-long) period.
+  if (
+    !isDemoEnvironment() &&
+    stripeSubId &&
+    !BILLING_MOCK_MODE &&
+    stripeService.stripe
+  ) {
     const updated = await stripeService.stripe.subscriptions.update(stripeSubId, {
       cancel_at_period_end: true,
       automatic_tax: { enabled: true },
@@ -236,7 +244,7 @@ async function acceptOffer({ userId, accountId, userRole }) {
       [stripeSubId]
     );
   } else {
-    // No live Stripe subscription to wind down — apply the subsidy immediately.
+    // No live Stripe subscription to wind down (or demo) — apply the subsidy immediately.
     activateNow = true;
   }
 

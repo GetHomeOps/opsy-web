@@ -280,6 +280,41 @@ export function highPrioritySystems(systems = []) {
   );
 }
 
+/**
+ * Shared rail selection for Overview / Systems / Recommendations.
+ * Priority-system matches first (API score order preserved), then fill from the rest.
+ */
+export function selectRailProfessionals(matches = [], systems = [], limit = 4) {
+  const list = Array.isArray(matches) ? matches : [];
+  if (!list.length || limit <= 0) return [];
+
+  const priorityKeys = new Set(
+    highPrioritySystems(systems)
+      .map((s) => s.systemKey)
+      .filter(Boolean)
+  );
+
+  if (!priorityKeys.size) {
+    return list.slice(0, limit);
+  }
+
+  const priority = [];
+  const rest = [];
+  for (const m of list) {
+    if (m?.systemKey && priorityKeys.has(m.systemKey)) {
+      priority.push(m);
+    } else {
+      rest.push(m);
+    }
+  }
+
+  if (!priority.length) {
+    return list.slice(0, limit);
+  }
+
+  return [...priority, ...rest].slice(0, limit);
+}
+
 export function negotiationImplication(finding) {
   const severity = finding?.severity;
   const high = Number(finding?.estimatedCostHigh) || 0;

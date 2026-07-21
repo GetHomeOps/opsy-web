@@ -2,6 +2,7 @@ import React, {useEffect, useState} from "react";
 import {Link, useNavigate, useParams} from "react-router-dom";
 import {
   ArrowLeft,
+  Calculator,
   ClipboardList,
   FileText,
   Home,
@@ -22,6 +23,7 @@ const TAB_PREVIEW = [
   {id: "issues", label: "Issues", icon: ClipboardList},
   {id: "recommendations", label: "Recommendations", icon: Lightbulb},
   {id: "documents", label: "Documents", icon: FileText},
+  {id: "true-cost", label: "True Cost", icon: Calculator},
 ];
 
 /**

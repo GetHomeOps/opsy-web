@@ -13,6 +13,7 @@ import Header from "../../partials/Header";
 import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
+import {useAccountBranding} from "../../context/AccountBrandingContext";
 import AppApi from "../../api/api";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import SponsorshipOfferModal from "./partials/SponsorshipOfferModal";
@@ -35,6 +36,7 @@ function BillingPage() {
   );
   const {currentAccount} = useCurrentAccount();
   const {currentUser} = useAuth();
+  const {refreshBranding} = useAccountBranding();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const [billing, setBilling] = useState(null);
   const [plans, setPlans] = useState([]);
@@ -142,8 +144,12 @@ function BillingPage() {
   }
 
   async function handleAcceptSponsorship() {
-    await AppApi.acceptSponsorship({accountId});
+    const result = await AppApi.acceptSponsorship({accountId});
     setOfferModalOpen(false);
+    window.dispatchEvent(new CustomEvent("plans-updated"));
+    if (result?.activated) {
+      await refreshBranding();
+    }
     await fetchBilling();
   }
 
