@@ -627,16 +627,26 @@ function SubscriptionProductsList() {
       key: "name",
       label: t("name"),
       sortable: true,
-      render: (value, item) => (
-        <span className="font-medium text-gray-800 dark:text-gray-100 capitalize inline-flex items-center gap-2">
+      render: (value) => (
+        <span className="font-medium text-gray-800 dark:text-gray-100 capitalize">
           {value || "—"}
-          {item.isActive === false && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-              Inactive
-            </span>
-          )}
         </span>
       ),
+    },
+    {
+      key: "isActive",
+      label: t("status") || "Status",
+      sortable: true,
+      render: (value) =>
+        value === false ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+            {t("subscriptions.statusInactive") || "Inactive"}
+          </span>
+        ) : (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+            {t("active") || "Active"}
+          </span>
+        ),
     },
     {
       key: "code",
