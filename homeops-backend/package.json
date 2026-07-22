@@ -9,6 +9,7 @@
     "build": "node scripts/build-client.js",
     "build:start": "npm run build && npm start",
     "seed:stripe": "node scripts/seed_stripe_plans.js",
+    "ensure:agent-free": "node scripts/run_ensure_agent_free_plan.js",
     "cleanup:incomplete-signups": "node scripts/cleanup-incomplete-signups.js",
     "migrate:maintenance-events-recurrence-parent": "node scripts/run_migrate_maintenance_events_recurrence_parent.js",
     "migrate:property-sponsorships": "node scripts/run_migrate_property_sponsorships.js",

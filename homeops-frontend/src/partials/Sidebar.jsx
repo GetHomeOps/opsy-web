@@ -10,6 +10,7 @@ import useBillingStatus from "../hooks/useBillingStatus";
 import {useAuth} from "../context/AuthContext";
 import {useAccountBranding} from "../context/AccountBrandingContext";
 import Transition from "../utils/Transition";
+import UpgradePrompt from "../components/UpgradePrompt";
 import {
   SIDEBAR_CONFIG,
   PROFESSIONALS_SAMPLE,
@@ -18,6 +19,14 @@ import {
 } from "./sidebarConfig";
 import {prefetchContactsList} from "../pages/routes-nav/routePrefetch";
 import {isDemoSite, canAccessUsersOnDemo} from "../utils/demoSite";
+
+const FEATURE_UPGRADE_COPY = {
+  prePurchaseEnabled: {
+    title: "Opsy Scout not included",
+    message:
+      "Your plan does not include Opsy Scout. Upgrade to analyze properties and generate Scout reports.",
+  },
+};
 
 /**
  * Stripe-style submenu flyout — when sidebar is collapsed, hovering over an expandable
@@ -277,6 +286,8 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     : isSuperAdmin || isAdmin;
   /** Agent/homeowner: show Professionals as a section link; admin/super_admin: keep Directory collapsible. */
   const usesFlatProfessionalsNav = !canManageUsers && (isAgent || isHomeowner);
+  const [featureUpgrade, setFeatureUpgrade] = useState(null);
+  const lockedNavButtonRef = useRef(null);
 
   const trigger = useRef(null);
   const sidebar = useRef(null);
@@ -420,12 +431,24 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     }
     if (item.hideForSuperAdmin && isSuperAdmin) return false;
     if (item.hideForPlatformAdmins && canManageUsers) return false;
-    if (item.requiresFeature && !isBillingAdmin) {
-      // Platform admins always retain access; agents need the plan flag ON.
-      if (billingLoading) return false;
-      if (billingLimits?.[item.requiresFeature] !== true) return false;
-    }
+    // Feature-gated items stay visible when the plan lacks the feature;
+    // they render disabled with an upgrade CTA instead of being hidden.
     return true;
+  };
+
+  const isFeatureLocked = (item) => {
+    if (!item.requiresFeature || isBillingAdmin) return false;
+    if (billingLoading) return true;
+    return billingLimits?.[item.requiresFeature] !== true;
+  };
+
+  const openFeatureUpgrade = (item, triggerEl) => {
+    if (triggerEl) lockedNavButtonRef.current = triggerEl;
+    const copy = FEATURE_UPGRADE_COPY[item.requiresFeature] || {
+      title: `${item.label} not included`,
+      message: `Your plan does not include ${item.label}. Upgrade to unlock this feature.`,
+    };
+    setFeatureUpgrade(copy);
   };
 
   const renderNavLink = (item, isChild = false) => {
@@ -436,16 +459,34 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
       item.excludeFromActive,
     );
     const Icon = item.icon;
-    const classes = isChild
-      ? active
-        ? `${linkBase} ${linkChildActive}`
-        : `${linkBase} ${linkChildInactive}`
-      : active
-        ? `${linkBase} ${linkActive}`
-        : `${linkBase} ${linkInactive}`;
+    const locked = isFeatureLocked(item);
 
     const prefetchRoute =
       item.path === "contacts" ? prefetchContactsList : undefined;
+
+    if (locked) {
+      return (
+        <SidebarTooltip
+          key={item.id}
+          show={showTooltip}
+          label={`${item.label} (upgrade to unlock)`}
+          layoutShiftKey={0}
+        >
+          <button
+            type="button"
+            aria-label={`${item.label} — upgrade to unlock`}
+            title="Upgrade to unlock"
+            onClick={(e) => openFeatureUpgrade(item, e.currentTarget)}
+            className={`w-full ${linkBase} ${
+              isChild ? linkChildInactive : linkInactive
+            } opacity-45 hover:opacity-60 cursor-pointer`}
+          >
+            {Icon && <Icon className="shrink-0" />}
+            <span className={spanCollapse}>{item.label}</span>
+          </button>
+        </SidebarTooltip>
+      );
+    }
 
     return (
       <SidebarTooltip
@@ -646,6 +687,14 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
   return (
     <div className="w-0 shrink-0 lg:w-auto lg:min-w-fit">
+      <UpgradePrompt
+        open={!!featureUpgrade}
+        onClose={() => setFeatureUpgrade(null)}
+        title={featureUpgrade?.title}
+        message={featureUpgrade?.message}
+        upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
+        ignoreClickRef={lockedNavButtonRef}
+      />
       <div
         className={`fixed inset-0 bg-gray-900/30 z-40 lg:hidden lg:z-auto transition-opacity duration-200 ${
           sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"

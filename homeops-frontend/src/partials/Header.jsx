@@ -10,6 +10,7 @@ import UserMenu from "../components/DropdownProfile";
 import GlobalAIAssistantPanel from "../components/GlobalAIAssistantPanel";
 import UpgradePrompt from "../components/UpgradePrompt";
 import DemoEnvironmentBanner from "../components/DemoEnvironmentBanner";
+import FreeTierBanner from "../components/FreeTierBanner";
 import DemoFeatureUnavailableModal from "../components/DemoFeatureUnavailableModal";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
@@ -37,8 +38,8 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const isPaidUser =
     isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
   const aiFeaturesOnPlan = isAdmin || limits?.aiFeaturesEnabled !== false;
-  const showAiAssistantButton =
-    isAdmin || !limits || limits.aiFeaturesEnabled !== false;
+  const aiAssistantLocked =
+    !isAdmin && (billingLoading || !isPaidUser || !aiFeaturesOnPlan);
 
   const isImpersonating = !!impersonation?.active;
 
@@ -50,8 +51,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
     currentUser.onboardingCompleted !== false &&
     !["super_admin", "admin"].includes(currentUser.role) &&
     ((currentUser.role === "agent" &&
-      (!currentUser.subscriptionTier ||
-        currentUser.subscriptionTier !== "agent_beta")) ||
+      !["free", "agent_beta"].includes(currentUser.subscriptionTier || "")) ||
       (currentUser.role === "homeowner" &&
         currentUser.subscriptionTier &&
         !["free", "homeowner_beta", "beta_homeowner"].includes(
@@ -111,6 +111,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   return (
     <>
       <DemoEnvironmentBanner />
+      <FreeTierBanner />
       <header
       className={`sticky top-0 z-30 relative ${
         isImpersonating
@@ -196,29 +197,49 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
                 className="flex items-center gap-1 sm:gap-2 lg:gap-3 min-w-0 flex-1 max-lg:overflow-x-auto max-lg:pr-1 max-lg:[&::-webkit-scrollbar]:hidden"
                 style={{scrollbarWidth: "none", msOverflowStyle: "none"}}
               >
-                {showAiAssistantButton && (
-                  <button
-                    ref={aiAssistantButtonRef}
-                    onClick={handleAiAssistantClick}
-                    className={`group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 shrink-0 ${
-                      aiDemoGate.blocked
-                        ? "opacity-50 cursor-not-allowed"
-                        : "hover:scale-[1.03]"
+                <button
+                  ref={aiAssistantButtonRef}
+                  onClick={handleAiAssistantClick}
+                  className={`group relative w-9 h-9 flex items-center justify-center rounded-full transition-transform duration-200 shrink-0 ${
+                    aiDemoGate.blocked || aiAssistantLocked
+                      ? "opacity-45 hover:opacity-60"
+                      : "hover:scale-[1.03]"
+                  }`}
+                  aria-label={
+                    aiAssistantLocked
+                      ? "Opsy Assistant — upgrade to unlock"
+                      : "Opsy Assistant"
+                  }
+                  aria-disabled={aiDemoGate.blocked}
+                  title={
+                    aiDemoGate.blocked
+                      ? "Not available on demo"
+                      : aiAssistantLocked
+                        ? "Upgrade to unlock Opsy Assistant"
+                        : "Opsy Assistant"
+                  }
+                >
+                  <span
+                    className={`absolute inset-0 rounded-full ai-glow ${
+                      aiAssistantLocked || aiDemoGate.blocked
+                        ? "opacity-40"
+                        : ""
                     }`}
-                    aria-label="Opsy Assistant"
-                    aria-disabled={aiDemoGate.blocked}
-                    title={aiDemoGate.blocked ? "Not available on demo" : "Opsy Assistant"}
-                  >
-                    <span className="absolute inset-0 rounded-full ai-glow" />
+                  />
+                  {!aiAssistantLocked && !aiDemoGate.blocked && (
                     <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 ai-orbit-ring" />
-                    <span className="absolute inset-[2px] rounded-full bg-white dark:bg-gray-800" />
-                    <img
-                      src={opsyAiIcon}
-                      alt=""
-                      className="relative z-10 w-7 h-7 object-contain rounded-full ai-icon-halo"
-                    />
-                  </button>
-                )}
+                  )}
+                  <span className="absolute inset-[2px] rounded-full bg-white dark:bg-gray-800" />
+                  <img
+                    src={opsyAiIcon}
+                    alt=""
+                    className={`relative z-10 w-7 h-7 object-contain rounded-full ${
+                      aiAssistantLocked || aiDemoGate.blocked
+                        ? "grayscale"
+                        : "ai-icon-halo"
+                    }`}
+                  />
+                </button>
                 <Link
                   to={supportPath}
                   className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 shrink-0"

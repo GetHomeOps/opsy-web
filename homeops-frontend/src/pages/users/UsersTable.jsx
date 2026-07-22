@@ -366,6 +366,8 @@ function UsersTable({
             "bg-[#d3f4e3] dark:bg-[#173c36] text-[#2a9f52] dark:text-[#258c4d]";
           const blue =
             "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
+          const sky =
+            "bg-sky-100 dark:bg-sky-900/30 text-sky-800 dark:text-sky-300";
           const amber =
             "bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400";
           const red =
@@ -397,6 +399,14 @@ function UsersTable({
           const isStripe = item.latestSubscriptionIsStripe === true;
           const hasCurrentSub =
             latestStatus === "active" || latestStatus === "trialing";
+          const planCode = item.latestSubscriptionPlanCode || "";
+          const planPrice = Number(item.latestSubscriptionPlanPrice);
+          const freeTiers = ["free", "agent_beta", "homeowner_beta", "beta_homeowner"];
+          const isFreeAccount =
+            ["agent_free", "homeowner_free"].includes(planCode) ||
+            planCode.endsWith("_free") ||
+            (Number.isFinite(planPrice) && planPrice === 0) ||
+            freeTiers.includes(item.subscriptionTier);
 
           if (item.paidRequired) {
             if (hasCurrentSub && isStripe && latestStatus === "trialing") {
@@ -426,6 +436,14 @@ function UsersTable({
               );
             }
             if (hasCurrentSub && !isStripe) {
+              if (isFreeAccount) {
+                return badge(
+                  sky,
+                  t("users.billingFreeAccount", {
+                    defaultValue: "Free account",
+                  }),
+                );
+              }
               return badge(
                 amber,
                 t("users.billingComped", {defaultValue: "No payment on file"}),
@@ -446,8 +464,8 @@ function UsersTable({
           }
 
           return badge(
-            gray,
-            t("users.billingFreePlan", {defaultValue: "Free plan"}),
+            sky,
+            t("users.billingFreeAccount", {defaultValue: "Free account"}),
           );
         },
       },

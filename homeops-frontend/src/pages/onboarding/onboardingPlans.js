@@ -88,6 +88,31 @@ export const HOMEOWNER_PLANS = [
  */
 export const AGENT_PLANS = [
   {
+    id: "agent_free",
+    code: "agent_free",
+    name: "Free",
+    price: 0,
+    description: "Get started with properties and contacts",
+    popular: false,
+    tier: "minimal",
+    features: {
+      core: [
+        {label: "Properties", value: "Up to 3"},
+        {label: "Contacts", value: "30"},
+        {label: "Users", value: "1 seat (+1 view only)"},
+        {label: "Onboarding", value: "Self-serve"},
+      ],
+      advanced: [
+        {label: "AI", value: "None"},
+        {label: "Opsy Scout", value: "None"},
+        {label: "Data ingestion", value: "Manual"},
+        {label: "Export", value: "PDF, DHP only"},
+        {label: "Support", value: "FAQs, Bot, Videos, email (DIY)"},
+        {label: "Integrations", value: "None"},
+      ],
+    },
+  },
+  {
     id: "agent_beta",
     code: "agent_beta",
     name: "Beta",
@@ -201,6 +226,7 @@ export const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
   homeowner_beta: "homeowner_beta",
   /** @deprecated Legacy plan code / tier; maps to unified homeowner_beta */
   beta_homeowner: "homeowner_beta",
+  agent_free: "free",
   agent_beta: "agent_beta",
   agent_basic: "basic",
   agent_pro: "pro",
@@ -245,6 +271,12 @@ export const PLAN_LIMITS = {
     },
   },
   agent: {
+    agent_free: {
+      properties: 3,
+      contacts: 30,
+      maxDocumentsPerSystem: 1,
+      aiFeaturesEnabled: false,
+    },
     agent_beta: {
       properties: 5,
       contacts: "—",

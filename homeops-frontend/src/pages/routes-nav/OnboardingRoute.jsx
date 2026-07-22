@@ -22,8 +22,7 @@ function OnboardingRoute({children}) {
     currentUser.onboardingCompleted !== false &&
     !["super_admin", "admin"].includes(currentUser.role) &&
     ((currentUser.role === "agent" &&
-      (!currentUser.subscriptionTier ||
-        currentUser.subscriptionTier !== "agent_beta")) ||
+      !["free", "agent_beta"].includes(currentUser.subscriptionTier || "")) ||
       (currentUser.role === "homeowner" &&
         currentUser.subscriptionTier &&
         !["free", "homeowner_beta", "beta_homeowner"].includes(

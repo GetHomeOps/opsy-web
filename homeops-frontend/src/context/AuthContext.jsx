@@ -10,6 +10,7 @@ import useLocalStorage from "../hooks/useLocalStorage";
 import AppApi, {AUTH_REQUEST_TIMEOUT_MS, isTransientApiError} from "../api/api";
 import {jwtDecode as decode} from "jwt-decode";
 import {markPostLogoutRedirectReset} from "../utils/authNavigation";
+import {clearFreeTierBannerDismissals} from "../components/FreeTierBanner";
 
 /** Retry a time-boxed startup request a few times on transient network/timeout
  * errors. On a cold mobile/PWA launch the network often isn't ready for the first
@@ -153,6 +154,7 @@ export function AuthProvider({children}) {
   }
 
   function finishPasswordLoginSession(accessToken, refreshToken, loadedUser, userAccounts) {
+    clearFreeTierBannerDismissals();
     localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);
     setImpersonation(mergeImpersonation(loadedUser, accessToken));
     setCurrentUser({
@@ -418,6 +420,7 @@ export function AuthProvider({children}) {
   }
 
   function initializeAuthentication(accessToken, refreshToken) {
+    clearFreeTierBannerDismissals();
     setToken(accessToken);
     if (refreshToken) {
       localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);

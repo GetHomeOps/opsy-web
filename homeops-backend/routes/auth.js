@@ -98,6 +98,7 @@ const PLAN_CODE_TO_SUBSCRIPTION_TIER = {
   homeowner_beta: "homeowner_beta",
   /** @deprecated Legacy alias; normalize to homeowner_beta */
   beta_homeowner: "homeowner_beta",
+  agent_free: "free",
   agent_beta: "agent_beta",
   agent_basic: "basic",
   agent_pro: "pro",
@@ -1047,7 +1048,7 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
           } else if (subscriptionTier === "agent_beta") {
             selectedFreePlanCode = "agent_beta";
           } else if (role === "agent") {
-            selectedFreePlanCode = "agent_basic";
+            selectedFreePlanCode = "agent_free";
           } else {
             selectedFreePlanCode = "homeowner_free";
           }

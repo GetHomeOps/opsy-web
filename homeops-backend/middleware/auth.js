@@ -115,7 +115,9 @@ function userRequiresPaidSubscriptionFromInfo(user) {
   if (user.onboardingCompleted === false) return false;
   if (user.role === "super_admin" || user.role === "admin") return false;
 
-  if (user.role === "agent") return true;
+  if (user.role === "agent") {
+    return !["free", "agent_beta"].includes(user.subscriptionTier);
+  }
   if (
     user.role === "homeowner" &&
     user.subscriptionTier &&

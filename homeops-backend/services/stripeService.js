@@ -844,14 +844,42 @@ async function ensureFreePlanFallback(accountId, pendingPlanCode) {
     freePlanId = planRes.rows[0]?.id;
   }
 
+  /* Resolve audience so agents land on agent_free and homeowners on homeowner_free. */
+  let audience = "homeowner";
+  try {
+    const roleRes = await db.query(
+      `SELECT COALESCE(u.role, 'homeowner') AS role
+       FROM accounts a
+       LEFT JOIN users u ON u.id = a.owner_user_id
+       WHERE a.id = $1
+       LIMIT 1`,
+      [accountId]
+    );
+    const role = (roleRes.rows[0]?.role || "homeowner").toLowerCase();
+    audience = ["agent", "admin"].includes(role) ? "agent" : "homeowner";
+  } catch (_) { /* default homeowner */ }
+
+  const preferredFreeCode = audience === "agent" ? "agent_free" : "homeowner_free";
+
+  if (!freePlanId) {
+    const preferredRes = await db.query(
+      `SELECT id FROM subscription_products
+       WHERE code = $1 AND COALESCE(price, 0) = 0 AND (is_active IS NULL OR is_active = true)
+       LIMIT 1`,
+      [preferredFreeCode]
+    );
+    freePlanId = preferredRes.rows[0]?.id;
+  }
+
   if (!freePlanId) {
     /* A $0 catalog price can hide a real paid Stripe price (e.g. trial
        products); only treat a product as free when its active monthly
-       plan_prices amount is also zero. */
+       plan_prices amount is also zero. Prefer audience-matched target_role. */
     const fallbackRes = await db.query(
       `SELECT sp.id FROM subscription_products sp
        WHERE (sp.code LIKE '%_free' OR sp.price::float = 0)
          AND (sp.is_active IS NULL OR sp.is_active = true)
+         AND (sp.target_role IS NULL OR sp.target_role = $1)
          AND COALESCE(
            (SELECT ppm.unit_amount FROM plan_prices ppm
             WHERE ppm.subscription_product_id = sp.id AND ppm.billing_interval = 'month'
@@ -859,7 +887,11 @@ async function ensureFreePlanFallback(accountId, pendingPlanCode) {
             LIMIT 1),
            0
          ) = 0
-       ORDER BY sp.sort_order ASC NULLS LAST LIMIT 1`
+       ORDER BY
+         CASE WHEN sp.code = $2 THEN 0 ELSE 1 END,
+         sp.sort_order ASC NULLS LAST
+       LIMIT 1`,
+      [audience, preferredFreeCode]
     );
     freePlanId = fallbackRes.rows[0]?.id;
   }

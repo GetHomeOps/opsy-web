@@ -305,11 +305,11 @@ class Subscription {
   /** Ensure account has at least one active subscription. Creates a free tier if none exists.
    *
    * Strict billing: this never provisions a paid plan. Agents get no default
-   * subscription (they must complete Stripe checkout); only explicit zero-cost
-   * promotional codes (e.g. "agent_beta") may be assigned without payment.
+   * subscription unless an explicit zero-cost planCode is supplied (e.g. "agent_free"
+   * or "agent_beta"); paid agents must complete Stripe checkout.
    * Returns the subscription id, or null when nothing was (or should be) created.
    *
-   * @param {{ planCode?: string }} [options] — e.g. { planCode: "homeowner_beta" | "agent_beta" } for promotional tiers */
+   * @param {{ planCode?: string }} [options] — e.g. { planCode: "homeowner_free" | "agent_free" | "agent_beta" } */
   static async ensureDefaultForAccount(accountId, userRole = "homeowner", options = {}) {
     const existing = await db.query(
       `SELECT id FROM account_subscriptions WHERE account_id = $1 AND status = 'active' LIMIT 1`,

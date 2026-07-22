@@ -514,8 +514,9 @@ class User {
              CASE
                WHEN u.is_active IS NOT TRUE THEN 'onboarding_pending'
                WHEN u.onboarding_completed = false THEN 'onboarding_pending'
-               WHEN (u.subscription_tier IS NULL OR u.subscription_tier <> 'agent_beta')
-                AND paid_active.has_paid IS NULL THEN 'payment_pending'
+               WHEN u.subscription_tier IN ('free', 'agent_beta') THEN 'active'
+               WHEN free_plan.has_free IS NOT NULL THEN 'active'
+               WHEN paid_active.has_paid IS NULL THEN 'payment_pending'
                ELSE 'active'
              END AS "accessState"
       FROM users u
@@ -523,10 +524,25 @@ class User {
         SELECT 1 AS has_paid
         FROM account_users au
         JOIN account_subscriptions asub ON asub.account_id = au.account_id
+        JOIN subscription_products sp ON sp.id = asub.subscription_product_id
         WHERE au.user_id = u.id
           AND asub.status IN ('active', 'trialing')
+          AND COALESCE(sp.price, 0) > 0
         LIMIT 1
       ) paid_active ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT 1 AS has_free
+        FROM account_users au
+        JOIN account_subscriptions asub ON asub.account_id = au.account_id
+        JOIN subscription_products sp ON sp.id = asub.subscription_product_id
+        WHERE au.user_id = u.id
+          AND asub.status IN ('active', 'trialing')
+          AND (
+            COALESCE(sp.price, 0) = 0
+            OR sp.code IN ('agent_free', 'homeowner_free')
+          )
+        LIMIT 1
+      ) free_plan ON TRUE
       WHERE u.role = 'agent'
       ORDER BY u.name`);
     return result.rows;
@@ -566,8 +582,24 @@ class User {
                CASE
                  WHEN u.onboarding_completed = false THEN false
                  WHEN u.role = 'agent'
-                  AND (u.subscription_tier IS NULL OR u.subscription_tier <> 'agent_beta') THEN true
-                WHEN u.role = 'homeowner'
+                  AND u.subscription_tier IN ('free', 'agent_beta') THEN false
+                 WHEN u.role = 'agent'
+                  AND latest_sub.status IN ('active', 'trialing')
+                  AND (
+                    COALESCE(latest_sub.plan_price, 0) = 0
+                    OR latest_sub.code IN ('agent_free', 'homeowner_free')
+                  ) THEN false
+                 WHEN u.role = 'agent'
+                  AND (u.subscription_tier IS NULL OR u.subscription_tier NOT IN ('free', 'agent_beta')) THEN true
+                 WHEN u.role = 'homeowner'
+                  AND u.subscription_tier IN ('free', 'homeowner_beta', 'beta_homeowner') THEN false
+                 WHEN u.role = 'homeowner'
+                  AND latest_sub.status IN ('active', 'trialing')
+                  AND (
+                    COALESCE(latest_sub.plan_price, 0) = 0
+                    OR latest_sub.code IN ('agent_free', 'homeowner_free')
+                  ) THEN false
+                 WHEN u.role = 'homeowner'
                   AND u.subscription_tier IS NOT NULL
                   AND u.subscription_tier NOT IN ('free', 'homeowner_beta', 'beta_homeowner') THEN true
                  ELSE false
@@ -580,8 +612,24 @@ class User {
                    CASE
                      WHEN u.onboarding_completed = false THEN false
                      WHEN u.role = 'agent'
-                      AND (u.subscription_tier IS NULL OR u.subscription_tier <> 'agent_beta') THEN true
-                    WHEN u.role = 'homeowner'
+                      AND u.subscription_tier IN ('free', 'agent_beta') THEN false
+                     WHEN u.role = 'agent'
+                      AND latest_sub.status IN ('active', 'trialing')
+                      AND (
+                        COALESCE(latest_sub.plan_price, 0) = 0
+                        OR latest_sub.code IN ('agent_free', 'homeowner_free')
+                      ) THEN false
+                     WHEN u.role = 'agent'
+                      AND (u.subscription_tier IS NULL OR u.subscription_tier NOT IN ('free', 'agent_beta')) THEN true
+                     WHEN u.role = 'homeowner'
+                      AND u.subscription_tier IN ('free', 'homeowner_beta', 'beta_homeowner') THEN false
+                     WHEN u.role = 'homeowner'
+                      AND latest_sub.status IN ('active', 'trialing')
+                      AND (
+                        COALESCE(latest_sub.plan_price, 0) = 0
+                        OR latest_sub.code IN ('agent_free', 'homeowner_free')
+                      ) THEN false
+                     WHEN u.role = 'homeowner'
                       AND u.subscription_tier IS NOT NULL
                       AND u.subscription_tier NOT IN ('free', 'homeowner_beta', 'beta_homeowner') THEN true
                      ELSE false

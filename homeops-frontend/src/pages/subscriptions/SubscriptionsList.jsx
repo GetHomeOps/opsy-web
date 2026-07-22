@@ -810,7 +810,7 @@ function SubscriptionsList() {
         "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
       comped:
         "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-      free: "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
+      free: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
       incomplete:
         "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
       canceled:
@@ -842,7 +842,9 @@ function SubscriptionsList() {
   function renderSubscriptionTypeBadge(value) {
     const typeColors = {
       free:
-        "bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300",
+        "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
+      beta:
+        "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
       maintain:
         "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
       growth:
