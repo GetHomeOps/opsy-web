@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from "react";
-import {useNavigate, useParams} from "react-router-dom";
+import {useLocation, useNavigate, useParams} from "react-router-dom";
 import {
   AlertCircle,
   Calculator,
@@ -55,6 +55,7 @@ const RUNNING_STATUSES = [
 export default function PrePurchaseAnalysisPage() {
   const {accountUrl, analysisId} = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const {currentAccount} = useCurrentAccount();
   const {currentUser} = useAuth();
 
@@ -84,6 +85,13 @@ export default function PrePurchaseAnalysisPage() {
 
   const startInFlightRef = useRef(false);
   const autoResumeDoneRef = useRef(null);
+
+  useEffect(() => {
+    const restoreTab = location.state?.tab;
+    if (!restoreTab) return;
+    if (!TABS.some((t) => t.id === restoreTab)) return;
+    setTab(restoreTab);
+  }, [location.state]);
 
   const load = useCallback(
     async ({silent = false} = {}) => {

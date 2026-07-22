@@ -136,7 +136,7 @@ export function mapFrontendToBackend(formData) {
         ? formData.countryCode.substring(0, 2).toUpperCase()
         : "US"),
     notes: formData.notes || "",
-    role: formData.jobPosition || null,
+    role: formData.jobPosition || "",
     tagIds: Array.isArray(formData.tags)
       ? formData.tags.map((id) => Number(id)).filter((n) => !Number.isNaN(n))
       : [],

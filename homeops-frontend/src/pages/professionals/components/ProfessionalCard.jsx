@@ -1,5 +1,5 @@
 import React, {useState, useCallback} from "react";
-import {useNavigate} from "react-router-dom";
+import {useLocation, useNavigate} from "react-router-dom";
 
 const PLACEHOLDER_IMG = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 import {
@@ -97,15 +97,21 @@ function ProfessionalCard({
   variant,
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || "";
 
   const goToProfile = () => {
-    navigate(
-      accountUrl
-        ? `/${accountUrl}/professionals/${professional.id}`
-        : `/professionals/${professional.id}`,
-    );
+    const path = accountUrl
+      ? `/${accountUrl}/professionals/${professional.id}`
+      : `/professionals/${professional.id}`;
+    navigate(path, {
+      state: {
+        from: "directory",
+        backLabel: "Professionals",
+        backTo: `${location.pathname}${location.search}`,
+      },
+    });
   };
 
   const stars = Array.from({length: 5}, (_, i) => {

@@ -59,7 +59,7 @@
       "type": "string"
     },
     "role": {
-      "type": "string",
+      "type": ["string", "null"],
       "maxLength": 50
     },
     "tagIds": {

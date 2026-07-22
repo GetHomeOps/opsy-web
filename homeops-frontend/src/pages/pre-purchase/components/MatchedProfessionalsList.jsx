@@ -10,10 +10,21 @@ export default function MatchedProfessionalsList({
   matches = [],
   limit = 4,
   emptyMessage = "No professional matches yet.",
+  scoutTab = "overview",
 }) {
-  const {accountUrl} = useParams();
+  const {accountUrl, analysisId} = useParams();
   const rows = matches.slice(0, limit);
   const [failedPhotoIds, setFailedPhotoIds] = useState(() => new Set());
+
+  const profileLinkState =
+    accountUrl && analysisId
+      ? {
+          from: "scout",
+          backLabel: "Opsy Scout",
+          backTo: `/${accountUrl}/pre-purchase/${analysisId}`,
+          tab: scoutTab,
+        }
+      : undefined;
 
   if (!rows.length) {
     return <p className="text-sm text-neutral-500">{emptyMessage}</p>;
@@ -73,6 +84,7 @@ export default function MatchedProfessionalsList({
             </div>
             <Link
               to={`/${accountUrl}/professionals/${m.professionalId}`}
+              state={profileLinkState}
               className="btn-sm border shrink-0 text-xs px-2.5 py-1"
             >
               View

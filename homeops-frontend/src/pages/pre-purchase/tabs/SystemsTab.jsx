@@ -461,6 +461,7 @@ export default function SystemsTab({analysis, onNavigateTab}) {
         <MatchedProfessionalsList
           matches={railPros}
           limit={4}
+          scoutTab="systems"
           emptyMessage="Add professionals to your directory to see matches."
         />
         <p className="text-[11px] text-neutral-400 mt-3">

@@ -305,6 +305,7 @@ export default function OverviewTab({
           <MatchedProfessionalsList
             matches={professionals}
             limit={4}
+            scoutTab="overview"
             emptyMessage="No professional matches yet. Add contacts to your directory to see suggestions."
           />
         </SectionCard>

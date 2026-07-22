@@ -540,6 +540,7 @@ export default function RecommendationsTab({
         <MatchedProfessionalsList
           matches={railProfessionals}
           limit={4}
+          scoutTab="recommendations"
           emptyMessage="Add professionals to your directory to see matches."
         />
       </SectionCard>

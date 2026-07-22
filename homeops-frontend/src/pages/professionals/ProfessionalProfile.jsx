@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useLayoutEffect,
 } from "react";
-import {useParams, useNavigate} from "react-router-dom";
+import {useParams, useNavigate, useLocation} from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -63,6 +63,7 @@ function isValidEmailForContact(s) {
 function ProfessionalProfile() {
   const {proId} = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const {currentUser} = useAuth();
   const userEmail = currentUser?.email || "";
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -78,6 +79,21 @@ function ProfessionalProfile() {
   const [messageError, setMessageError] = useState(null);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [replyEmail, setReplyEmail] = useState("");
+
+  const directoryFallback = accountUrl
+    ? `/${accountUrl}/professionals`
+    : "/professionals";
+  const navState = location.state || {};
+  const backTo = navState.backTo || directoryFallback;
+  const backLabel = navState.backLabel || "Professionals";
+
+  const handleBack = useCallback(() => {
+    if (navState.from === "scout" && navState.tab) {
+      navigate(backTo, {state: {tab: navState.tab}});
+      return;
+    }
+    navigate(backTo);
+  }, [backTo, navigate, navState.from, navState.tab]);
 
   useEffect(() => {
     if (!proId) {
@@ -442,7 +458,7 @@ function ProfessionalProfile() {
             {/* Breadcrumb */}
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={handleBack}
               className="btn text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-600 mb-4 pl-0 focus:outline-none shadow-none"
             >
               <svg
@@ -453,7 +469,7 @@ function ProfessionalProfile() {
               >
                 <path d="M9.4 13.4l1.4-1.4-4-4 4-4-1.4-1.4L4 8z" />
               </svg>
-              <span className="text-lg">Professionals</span>
+              <span className="text-lg">{backLabel}</span>
             </button>
 
             {/* ═══ Hero Carousel ═══ */}
