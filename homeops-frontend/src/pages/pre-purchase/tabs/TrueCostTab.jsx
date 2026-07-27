@@ -3,12 +3,15 @@ import {
   AlertCircle,
   Calculator,
   CalendarDays,
+  Check,
   ExternalLink,
   FileDown,
   Heart,
   Info,
   Loader2,
+  Pencil,
   Plus,
+  RotateCcw,
   Star,
   Tag,
   Trash2,
@@ -16,6 +19,7 @@ import {
 } from "lucide-react";
 import AppApi, {getApiErrorMessage} from "../../../api/api";
 import CurrencyInput from "../../../components/CurrencyInput";
+import ModalBlank from "../../../components/ModalBlank";
 import SectionCard from "../../properties/partials/passport/SectionCard";
 import EmptyStateCard from "../../properties/partials/passport/EmptyStateCard";
 import {StatusBadge} from "../../properties/partials/passport/StatusBadge";
@@ -24,6 +28,7 @@ import SegmentDonut from "../components/SegmentDonut";
 import ConditionAdjustedOfferModal from "../components/true-cost/ConditionAdjustedOfferModal";
 import {generateTrueCostBuyerSummaryPdf} from "../generateTrueCostBuyerSummaryPdf";
 import {SEVERITY_BADGE, formatCurrency} from "../prePurchaseUtils";
+import Tooltip from "../../../utils/Tooltip";
 import {
   buildDefaultTrueCostState,
   computeTrueCostMetrics,
@@ -31,6 +36,7 @@ import {
   downPaymentPercentFromAmount,
   formatCompactThousands,
   hydrateTrueCostState,
+  normalizeRepairSeverity,
   offerSliderBounds,
   reconcileRepairItems,
   safeNumber,
@@ -50,6 +56,12 @@ const TIMING_OPTIONS = [
   {value: "immediate", label: "Immediate"},
   {value: "deferred", label: "Deferred"},
   {value: "excluded", label: "Excluded"},
+];
+
+const SEVERITY_OPTIONS = [
+  {value: "major", label: "Major"},
+  {value: "moderate", label: "Moderate"},
+  {value: "minor", label: "Minor"},
 ];
 
 function FieldLabel({children, htmlFor}) {
@@ -101,6 +113,9 @@ export default function TrueCostTab({analysis}) {
   const [offerModalOpen, setOfferModalOpen] = useState(false);
   const [exportError, setExportError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [editingSeverity, setEditingSeverity] = useState(false);
+  const [restoreSeverityConfirmOpen, setRestoreSeverityConfirmOpen] =
+    useState(false);
 
   const skipNextSave = useRef(true);
   const saveTimer = useRef(null);
@@ -278,6 +293,23 @@ export default function TrueCostTab({analysis}) {
     });
   };
 
+  const restoreRecommendedSeverities = () => {
+    updateState((prev) => ({
+      ...prev,
+      repairs: {
+        items: (prev.repairs?.items || []).map((item) => {
+          if (item.kind !== "finding") return item;
+          const finding = findingMap.get(Number(item.findingId));
+          return {
+            ...item,
+            severity: normalizeRepairSeverity(finding?.severity),
+          };
+        }),
+      },
+    }));
+    setRestoreSeverityConfirmOpen(false);
+  };
+
   const addCustomRepair = () => {
     const id =
       typeof crypto !== "undefined" && crypto.randomUUID
@@ -294,6 +326,7 @@ export default function TrueCostTab({analysis}) {
             description: "Custom repair",
             included: true,
             timing: "immediate",
+            severity: "moderate",
             estimatedCost: 0,
             note: null,
           },
@@ -340,6 +373,12 @@ export default function TrueCostTab({analysis}) {
 
   const vsAsk = metrics.priceVsAsk;
   const items = state.repairs?.items || [];
+  const canRestoreSeverity = items.some((item) => {
+    if (item.kind !== "finding") return false;
+    const finding = findingMap.get(Number(item.findingId));
+    const recommended = normalizeRepairSeverity(finding?.severity);
+    return normalizeRepairSeverity(item.severity, finding?.severity) !== recommended;
+  });
   const sliderBounds = offerSliderBounds(state.listingPrice, state.offerPrice);
   const sliderValue = Math.min(
     sliderBounds.max,
@@ -689,7 +728,55 @@ export default function TrueCostTab({analysis}) {
                         <span className="sr-only">Include</span>
                       </th>
                       <th className="py-2 pr-2">Issue</th>
-                      <th className="py-2 pr-2">Severity</th>
+                      <th className="py-2 pr-2 whitespace-nowrap">
+                        <span className="inline-flex w-fit items-center gap-1">
+                          Severity
+                          <span className="inline-flex shrink-0 items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEditingSeverity((prev) => !prev)
+                              }
+                              className="p-0.5 rounded text-neutral-400 hover:text-[#456564] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#456564]/40"
+                              aria-pressed={editingSeverity}
+                              aria-label={
+                                editingSeverity
+                                  ? "Done editing severity"
+                                  : "Edit severity"
+                              }
+                            >
+                              {editingSeverity ? (
+                                <Check className="w-3.5 h-3.5" aria-hidden />
+                              ) : (
+                                <Pencil className="w-3.5 h-3.5" aria-hidden />
+                              )}
+                            </button>
+                            {editingSeverity ? (
+                              <Tooltip
+                                content="Restore recommended severity from the analysis"
+                                position="top"
+                                size="sm"
+                                className="!pl-0"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setRestoreSeverityConfirmOpen(true)
+                                  }
+                                  disabled={!canRestoreSeverity}
+                                  className="p-0.5 rounded text-neutral-400 hover:text-[#456564] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#456564]/40 disabled:opacity-40 disabled:hover:text-neutral-400 disabled:cursor-not-allowed"
+                                  aria-label="Restore recommended severity"
+                                >
+                                  <RotateCcw
+                                    className="w-3.5 h-3.5"
+                                    aria-hidden
+                                  />
+                                </button>
+                              </Tooltip>
+                            ) : null}
+                          </span>
+                        </span>
+                      </th>
                       <th className="py-2 pr-2">Timing</th>
                       <th className="py-2 text-right">Est. Cost</th>
                       <th className="py-2 w-8" />
@@ -709,7 +796,8 @@ export default function TrueCostTab({analysis}) {
                         item.kind === "custom"
                           ? item.description
                           : finding?.title || `Finding #${item.findingId}`;
-                      const severity = finding?.severity;
+                      const severity =
+                        item.severity ?? finding?.severity ?? "moderate";
 
                       return (
                         <tr
@@ -757,16 +845,30 @@ export default function TrueCostTab({analysis}) {
                             )}
                           </td>
                           <td className="py-2.5 pr-2">
-                            {severity ? (
+                            {editingSeverity ? (
+                              <select
+                                value={severity}
+                                onChange={(e) =>
+                                  patchRepair(index, {
+                                    severity: e.target.value,
+                                  })
+                                }
+                                className="form-select text-xs rounded-md border-neutral-200 dark:border-neutral-600 dark:bg-neutral-800 py-1"
+                                aria-label={`Severity for ${title}`}
+                              >
+                                {SEVERITY_OPTIONS.map((o) => (
+                                  <option key={o.value} value={o.value}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
                               <StatusBadge
                                 tone={SEVERITY_BADGE[severity] || "neutral"}
+                                className="capitalize"
                               >
                                 {severity}
                               </StatusBadge>
-                            ) : (
-                              <span className="text-xs text-neutral-400">
-                                Custom
-                              </span>
                             )}
                           </td>
                           <td className="py-2.5 pr-2">
@@ -888,8 +990,8 @@ export default function TrueCostTab({analysis}) {
             />
           }
         >
-          <div className="flex flex-col md:flex-row gap-4 md:gap-5">
-            <div className="min-w-0 flex-1 overflow-x-auto">
+          <div className="flex flex-col gap-4">
+            <div className="min-w-0 w-full overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-wide text-neutral-400 border-b border-neutral-200 dark:border-neutral-700">
@@ -951,7 +1053,7 @@ export default function TrueCostTab({analysis}) {
               </table>
             </div>
 
-            <aside className="md:w-44 lg:w-48 shrink-0 rounded-2xl bg-[#F7F5F0] dark:bg-neutral-800/70 border border-neutral-200/60 dark:border-neutral-700 px-4 py-4 flex flex-col">
+            <aside className="w-full rounded-2xl bg-[#F7F5F0] dark:bg-neutral-800/70 border border-neutral-200/60 dark:border-neutral-700 px-4 py-4 flex flex-col">
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
                 Reserves cover future repairs
               </p>
@@ -992,8 +1094,8 @@ export default function TrueCostTab({analysis}) {
           icon={Star}
           iconClassName="text-[#456564]"
         >
-          <div className="flex flex-col md:flex-row gap-5 md:gap-6">
-            <ul className="min-w-0 flex-1 divide-y divide-neutral-200 dark:divide-neutral-700">
+          <div className="flex flex-col gap-5">
+            <ul className="min-w-0 w-full divide-y divide-neutral-200 dark:divide-neutral-700">
               <TakeawayRow
                 icon={Info}
                 label="Affordability impact"
@@ -1011,7 +1113,7 @@ export default function TrueCostTab({analysis}) {
               />
             </ul>
 
-            <aside className="md:w-56 lg:w-60 shrink-0 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700 px-4 py-4 flex flex-col">
+            <aside className="w-full rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700 px-4 py-4 flex flex-col">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#456564] mb-2">
                 Condition-adjusted offer
                 <Info className="w-3.5 h-3.5" aria-hidden />
@@ -1063,6 +1165,49 @@ export default function TrueCostTab({analysis}) {
         immediateRepairTotal={metrics.immediateRepairTotal}
         conditionAdjustedOffer={metrics.conditionAdjustedOffer}
       />
+
+      <ModalBlank
+        id="restore-severity-confirm-modal"
+        modalOpen={restoreSeverityConfirmOpen}
+        setModalOpen={setRestoreSeverityConfirmOpen}
+        contentClassName="max-w-md"
+      >
+        <div className="p-5 flex space-x-4">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-[#456564]/10">
+            <RotateCcw
+              className="w-5 h-5 text-[#456564] shrink-0"
+              aria-hidden
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="mb-2">
+              <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                Restore recommended severity?
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+              This resets severity on inspection findings back to the analysis
+              recommendations. Custom line items are left unchanged.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                className="btn-sm border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300"
+                onClick={() => setRestoreSeverityConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-sm bg-[#456564] hover:bg-[#3a5554] text-white"
+                onClick={restoreRecommendedSeverities}
+              >
+                Restore
+              </button>
+            </div>
+          </div>
+        </div>
+      </ModalBlank>
     </div>
   );
 }

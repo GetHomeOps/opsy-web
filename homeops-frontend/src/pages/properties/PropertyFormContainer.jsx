@@ -3478,12 +3478,12 @@ function PropertyFormContainer() {
                           )}
                           <span className="text-sm font-medium ml-2 min-w-0 text-left">
                             {attomRefresh.isAtLookupLimit
-                              ? "Lookup limit reached"
+                              ? `Lookup limit reached (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit})`
                               : attomRefresh.jobStatus === "queued"
                                 ? "Queued…"
                                 : attomRefresh.jobStatus === "processing"
                                   ? "Pulling property data…"
-                                  : "Pull property data"}
+                                  : `Pull property data (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit})`}
                           </span>
                         </button>
                       </li>

@@ -17,6 +17,7 @@ export const IDENTITY_SECTIONS = [
       "ownerName",
       "ownerName2",
       "ownerCity",
+      "lastSaleDate",
       "occupantName",
       "occupantType",
       "ownerPhone",

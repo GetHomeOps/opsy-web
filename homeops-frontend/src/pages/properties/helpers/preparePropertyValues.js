@@ -84,7 +84,7 @@ const NUMERIC_KEYS = new Set([
 ]);
 
 /** Date fields: send null when empty (backend expects date or null, not ""). */
-const DATE_KEYS = new Set(["listDate", "expireDate"]);
+const DATE_KEYS = new Set(["listDate", "expireDate", "lastSaleDate"]);
 
 /** Installer fields: send as {prefix}_installer_id (integer). Omit when empty or invalid. */
 const INSTALLER_ID_KEYS = new Set([
@@ -117,6 +117,7 @@ const SNAKE_MAP = {
   ownerName: "owner_name",
   ownerName2: "owner_name_2",
   ownerCity: "owner_city",
+  lastSaleDate: "last_sale_date",
   occupantName: "occupant_name",
   occupantType: "occupant_type",
   ownerPhone: "owner_phone",

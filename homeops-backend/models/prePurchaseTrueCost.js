@@ -10,6 +10,7 @@ const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
 
 const TIMINGS = new Set(["immediate", "deferred", "excluded"]);
+const SEVERITIES = new Set(["major", "moderate", "minor"]);
 
 function toNumberOrNull(value) {
   if (value == null || value === "") return null;
@@ -27,6 +28,16 @@ function toNumber(value, fallback = 0) {
     throw new BadRequestError("Numeric values must be finite and non-negative");
   }
   return n;
+}
+
+/** Normalize optional severity; omit invalid / missing for backwards compat. */
+function normalizeSeverity(value) {
+  if (value == null || value === "") return null;
+  const s = String(value).trim().toLowerCase();
+  if (!SEVERITIES.has(s)) {
+    throw new BadRequestError("Repair severity must be major, moderate, or minor");
+  }
+  return s;
 }
 
 function normalizeRepairs(repairs) {
@@ -51,20 +62,23 @@ function normalizeRepairs(repairs) {
       item.note == null || item.note === ""
         ? null
         : String(item.note).slice(0, 2000);
+    const severity = normalizeSeverity(item.severity);
 
     if (kind === "finding") {
       const findingId = parseInt(item.findingId, 10);
       if (!Number.isFinite(findingId) || findingId < 1) {
         throw new BadRequestError("findingId is required for finding repair items");
       }
-      normalized.push({
+      const row = {
         kind: "finding",
         findingId,
         included,
         timing,
         estimatedCost,
         note,
-      });
+      };
+      if (severity) row.severity = severity;
+      normalized.push(row);
     } else {
       const id = String(item.id || "").trim();
       if (!id) throw new BadRequestError("id is required for custom repair items");
@@ -72,7 +86,7 @@ function normalizeRepairs(repairs) {
       if (!description) {
         throw new BadRequestError("description is required for custom repair items");
       }
-      normalized.push({
+      const row = {
         kind: "custom",
         id,
         description,
@@ -80,7 +94,9 @@ function normalizeRepairs(repairs) {
         timing,
         estimatedCost,
         note,
-      });
+      };
+      if (severity) row.severity = severity;
+      normalized.push(row);
     }
   }
 

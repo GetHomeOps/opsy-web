@@ -37,6 +37,7 @@ const ATTOM_LOOKUP_FIELDS = [
   "ownerName",
   "ownerName2",
   "ownerCity",
+  "lastSaleDate",
   "propertyType",
   "subType",
   "roofType",
@@ -74,6 +75,7 @@ const CAMEL_TO_SNAKE_COLUMN = {
   ownerName: "owner_name",
   ownerName2: "owner_name_2",
   ownerCity: "owner_city",
+  lastSaleDate: "last_sale_date",
   propertyType: "property_type",
   subType: "sub_type",
   roofType: "roof_type",
@@ -148,6 +150,25 @@ function deriveStreetLine1(addressLike) {
   const trimmed = addressLike.trim();
   if (!trimmed) return "";
   return trimmed.split(",")[0].trim();
+}
+
+/**
+ * Normalize ATTOM sale date strings to YYYY-MM-DD for DATE columns.
+ * Accepts "2014-10-10", "2014/10/10", or ISO datetime prefixes.
+ */
+function normalizeAttomDate(value) {
+  if (value == null || value === "") return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const match = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (!match) return null;
+  const year = match[1];
+  const month = match[2].padStart(2, "0");
+  const day = match[3].padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /** Persist `address_line_1` before ATTOM lookup when older imports only stored `address`. */
@@ -282,10 +303,16 @@ function mapAttomToFields(prop, fullData) {
   const seniorHighSchool =
     pickFirst(school, "seniorHigh", "highSchool", "seniorHighName") ?? "";
 
+  const lastSaleDate = normalizeAttomDate(
+    pickFirst(sale, "saleTransDate", "saletransdate", "salesearchdate", "saleSearchDate") ??
+      pickFirst(sale?.amount ?? {}, "salerecdate", "saleRecDate")
+  );
+
   return {
     ownerName: String(owner1Name || "").trim(),
     ownerName2: String(owner2Name || "").trim(),
     ownerCity: String(ownerCity || "").trim(),
+    lastSaleDate,
     taxId: pickFirst(identifier, "apn", "apnOrig", "apnUnformatted") ?? "",
     addressLine2: pickFirst(address, "line2", "lineTwo") ?? "",
     propertyType:
@@ -696,6 +723,7 @@ module.exports = {
   ATTOM_LOOKUP_FIELDS_SET,
   CAMEL_TO_SNAKE_COLUMN,
   deriveStreetLine1,
+  normalizeAttomDate,
   fetchAttomExpandedProfile,
   mapAttomToFields,
   buildColumnUpdatesFromPrediction,

@@ -8,7 +8,7 @@
  *
  * Exports: getAccountLimits, getEffectiveLimits, canCreateProperty, canAddContact,
  *          canInviteViewer, canAddTeamMember, checkAiTokenQuota, checkAiFeaturesAllowed,
- *          checkPrePurchaseAllowed, canUploadDocumentToSystem
+ *          checkPrePurchaseAllowed, checkPrePurchaseCreateAllowed, canUploadDocumentToSystem
  */
 
 const db = require("../db");
@@ -204,20 +204,96 @@ async function checkAiFeaturesAllowed(userId, userRole, { propertyId } = {}) {
   };
 }
 
+/** Load complimentary Opsy Scout override flags for a user. */
+async function getPrePurchaseOverride(userId) {
+  const res = await db.query(
+    `SELECT COALESCE(opsy_scout_override_enabled, false) AS enabled,
+            opsy_scout_free_analyses_limit AS limit
+     FROM users WHERE id = $1`,
+    [userId]
+  );
+  const row = res.rows[0];
+  if (!row) return { enabled: false, limit: null };
+  return {
+    enabled: row.enabled === true,
+    limit: row.limit != null ? Number(row.limit) : null,
+  };
+}
+
+/** Lifetime analyses created by this user (free allotment meter). */
+async function countPrePurchaseAnalysesCreatedBy(userId) {
+  const res = await db.query(
+    `SELECT COUNT(*)::int AS count FROM pre_purchase_analyses WHERE created_by = $1`,
+    [userId]
+  );
+  return res.rows[0]?.count || 0;
+}
+
 /** Whether Pre-Purchase Analysis is allowed for this user's plan (admins / mock bypass).
- *  Default OFF — only plans with prePurchaseEnabled === true grant access. */
+ *  Default OFF — plans with prePurchaseEnabled grant access; agents may also receive a
+ *  complimentary per-user override when their plan does not include Scout. */
 async function checkPrePurchaseAllowed(userId, userRole) {
-  if (isAdminRole(userRole)) return { allowed: true };
-  if (BILLING_MOCK_MODE) return { allowed: true };
+  if (isAdminRole(userRole)) return { allowed: true, source: "admin" };
+  if (BILLING_MOCK_MODE) return { allowed: true, source: "mock" };
 
   const limits = await getEffectiveLimits(userId);
-  const enabled = limits.prePurchaseEnabled === true;
+  if (limits.prePurchaseEnabled === true) {
+    return { allowed: true, source: "plan" };
+  }
+
+  const override = await getPrePurchaseOverride(userId);
+  if (override.enabled) {
+    return { allowed: true, source: "override" };
+  }
+
   return {
-    allowed: enabled,
-    message: enabled
-      ? undefined
-      : "Opsy Scout is not included in your current plan. Upgrade to a plan that includes Opsy Scout.",
+    allowed: false,
+    message:
+      "Opsy Scout is not included in your current plan. Upgrade to a plan that includes Opsy Scout.",
   };
+}
+
+/** Whether creating a new Pre-Purchase analysis is allowed.
+ *  Paid/plan Scout is uncapped. Complimentary override enforces a lifetime free-analyses cap. */
+async function checkPrePurchaseCreateAllowed(userId, userRole) {
+  if (isAdminRole(userRole)) return { allowed: true, source: "admin" };
+  if (BILLING_MOCK_MODE) return { allowed: true, source: "mock" };
+
+  const limits = await getEffectiveLimits(userId);
+  if (limits.prePurchaseEnabled === true) {
+    return { allowed: true, source: "plan" };
+  }
+
+  const override = await getPrePurchaseOverride(userId);
+  if (!override.enabled) {
+    return {
+      allowed: false,
+      message:
+        "Opsy Scout is not included in your current plan. Upgrade to a plan that includes Opsy Scout.",
+    };
+  }
+
+  const limit = override.limit;
+  if (limit == null || limit < 1) {
+    return {
+      allowed: false,
+      message: "Opsy Scout complimentary access is not configured with a free analyses limit.",
+    };
+  }
+
+  const used = await countPrePurchaseAnalysesCreatedBy(userId);
+  if (used >= limit) {
+    return {
+      allowed: false,
+      used,
+      limit,
+      source: "override",
+      message:
+        "You have used all complimentary Opsy Scout analyses. Upgrade to a plan that includes Opsy Scout for more.",
+    };
+  }
+
+  return { allowed: true, used, limit, source: "override" };
 }
 
 async function countAccountOwnedProperties(accountId) {
@@ -656,6 +732,9 @@ module.exports = {
   checkAiTokenQuota,
   checkAiFeaturesAllowed,
   checkPrePurchaseAllowed,
+  checkPrePurchaseCreateAllowed,
+  getPrePurchaseOverride,
+  countPrePurchaseAnalysesCreatedBy,
   canUploadDocumentToSystem,
   isAdminRole,
 };

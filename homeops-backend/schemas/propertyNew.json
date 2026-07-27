@@ -21,6 +21,7 @@
     "occupant_type": {"type": "string", "maxLength": 50},
     "owner_phone": {"type": "string", "maxLength": 50},
     "phone_to_show": {"type": "string", "maxLength": 50},
+    "last_sale_date": {"type": ["string", "null"], "format": "date"},
     "property_type": {"type": "string", "maxLength": 100},
     "sub_type": {"type": "string", "maxLength": 100},
     "roof_type": {"type": "string", "maxLength": 100},

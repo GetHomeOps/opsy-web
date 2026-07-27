@@ -1702,19 +1702,23 @@ class AppApi {
     return res.notes ?? [];
   }
 
-  static async createPrePurchaseNote(analysisId, body) {
+  static async createPrePurchaseNote(analysisId, { body, imageKeys } = {}) {
+    const payload = { body };
+    if (imageKeys !== undefined) payload.imageKeys = imageKeys;
     const res = await this.request(
       `pre-purchase/${analysisId}/notes`,
-      { body },
+      payload,
       "POST"
     );
     return res.note;
   }
 
-  static async updatePrePurchaseNote(analysisId, noteId, body) {
+  static async updatePrePurchaseNote(analysisId, noteId, { body, imageKeys } = {}) {
+    const payload = { body };
+    if (imageKeys !== undefined) payload.imageKeys = imageKeys;
     const res = await this.request(
       `pre-purchase/${analysisId}/notes/${noteId}`,
-      { body },
+      payload,
       "PATCH"
     );
     return res.note;

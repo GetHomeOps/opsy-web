@@ -92,15 +92,13 @@ function DataTable({
                 </span>
               ) : null}
               {column.sortable ? (
-                <button
-                  type="button"
-                  className="shrink-0 w-4 h-4 flex items-center justify-center [&_span]:ml-0"
+                <span
+                  className="shrink-0 w-4 h-4 flex items-center justify-center [&_span]:ml-0 cursor-pointer"
                   onClick={() => onSort && onSort(column.key)}
-                  tabIndex={-1}
                   aria-hidden="true"
                 >
                   {renderSortIndicator(sortConfig, column.key)}
-                </button>
+                </span>
               ) : null}
             </div>
           </th>

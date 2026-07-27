@@ -326,11 +326,14 @@ export default function PrePurchaseAnalysisPage() {
   }, []);
 
   const handleAddNote = useCallback(
-    async (body) => {
+    async ({ body, imageKeys } = {}) => {
       if (!analysisId) return;
       setNotesSaving(true);
       try {
-        const note = await AppApi.createPrePurchaseNote(analysisId, body);
+        const note = await AppApi.createPrePurchaseNote(analysisId, {
+          body,
+          imageKeys,
+        });
         setNotes((prev) => [note, ...prev]);
       } catch (err) {
         setError(getApiErrorMessage(err, "Failed to save note."));
@@ -342,14 +345,14 @@ export default function PrePurchaseAnalysisPage() {
   );
 
   const handleUpdateNote = useCallback(
-    async (noteId, body) => {
+    async (noteId, { body, imageKeys } = {}) => {
       if (!analysisId) return;
       setNotesSaving(true);
       try {
         const updated = await AppApi.updatePrePurchaseNote(
           analysisId,
           noteId,
-          body,
+          { body, imageKeys },
         );
         setNotes((prev) => {
           const next = prev.map((n) => (n.id === noteId ? updated : n));

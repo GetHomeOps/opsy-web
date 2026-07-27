@@ -219,6 +219,7 @@ function formatUsd(n) {
 }
 
 const TIMINGS = new Set(["immediate", "deferred", "excluded"]);
+const SEVERITIES = new Set(["major", "moderate", "minor"]);
 
 export function defaultTimingFromUrgency(urgency) {
   if (urgency === "immediate") return "immediate";
@@ -230,6 +231,13 @@ export function defaultIncludedFromTiming(timing) {
   return timing === "immediate" || timing === "deferred";
 }
 
+export function normalizeRepairSeverity(value, fallback = "moderate") {
+  const s = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (SEVERITIES.has(s)) return s;
+  const fb = typeof fallback === "string" ? fallback.trim().toLowerCase() : "";
+  return SEVERITIES.has(fb) ? fb : "moderate";
+}
+
 /** Build default repair items from analysis findings. */
 export function buildDefaultRepairItems(findings = []) {
   return findings.map((f) => {
@@ -239,6 +247,7 @@ export function buildDefaultRepairItems(findings = []) {
       findingId: f.id,
       included: defaultIncludedFromTiming(timing),
       timing,
+      severity: normalizeRepairSeverity(f.severity),
       estimatedCost: roundMoney(findingMidCost(f)),
       note: null,
     };
@@ -250,13 +259,15 @@ export function buildDefaultRepairItems(findings = []) {
  * Keeps user edits; adds new findings; drops deleted findings.
  */
 export function reconcileRepairItems(savedItems = [], findings = []) {
-  const findingById = new Map(findings.map((f) => [Number(f.id), f]));
   const savedFinding = new Map();
   const customs = [];
 
   for (const item of savedItems) {
     if (item?.kind === "custom") {
-      customs.push({...item});
+      customs.push({
+        ...item,
+        severity: normalizeRepairSeverity(item.severity),
+      });
       continue;
     }
     if (item?.kind === "finding" && item.findingId != null) {
@@ -276,6 +287,7 @@ export function reconcileRepairItems(savedItems = [], findings = []) {
         timing: TIMINGS.has(existing.timing)
           ? existing.timing
           : defaultTimingFromUrgency(f.urgency),
+        severity: normalizeRepairSeverity(existing.severity, f.severity),
         estimatedCost: roundMoney(safeNumber(existing.estimatedCost, findingMidCost(f))),
         note: existing.note ?? null,
       });
@@ -286,6 +298,7 @@ export function reconcileRepairItems(savedItems = [], findings = []) {
         findingId: id,
         included: defaultIncludedFromTiming(timing),
         timing,
+        severity: normalizeRepairSeverity(f.severity),
         estimatedCost: roundMoney(findingMidCost(f)),
         note: null,
       });
@@ -463,6 +476,7 @@ export function toTrueCostPayload(state) {
             description: String(item.description || "").trim(),
             included: Boolean(item.included),
             timing: item.timing,
+            severity: normalizeRepairSeverity(item.severity),
             estimatedCost: safeNumber(item.estimatedCost),
             note: item.note ?? null,
           };
@@ -472,6 +486,7 @@ export function toTrueCostPayload(state) {
           findingId: Number(item.findingId),
           included: Boolean(item.included),
           timing: item.timing,
+          severity: normalizeRepairSeverity(item.severity),
           estimatedCost: safeNumber(item.estimatedCost),
           note: item.note ?? null,
         };

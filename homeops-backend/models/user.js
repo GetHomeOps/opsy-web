@@ -181,12 +181,22 @@ class User {
              COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped",
              demo_login_password AS "demoLoginPassword",
              demo_paired_agent_id AS "demoPairedAgentId",
-             demo_expires_at AS "demoExpiresAt"
+             demo_expires_at AS "demoExpiresAt",
+             COALESCE(opsy_scout_override_enabled, false) AS "opsyScoutOverrideEnabled",
+             opsy_scout_free_analyses_limit AS "opsyScoutFreeAnalysesLimit"
        FROM users
        WHERE id = $1`,
       [id]
     );
-    return result.rows[0] || null;
+    const user = result.rows[0] || null;
+    if (!user) return null;
+
+    const usedRes = await db.query(
+      `SELECT COUNT(*)::int AS count FROM pre_purchase_analyses WHERE created_by = $1`,
+      [id]
+    );
+    user.opsyScoutFreeAnalysesUsed = usedRes.rows[0]?.count || 0;
+    return user;
   }
 
   /** Sync demo_expires_at to all demo homeowners paired with this agent. */
@@ -701,7 +711,17 @@ class User {
      * Callers of this function must be certain they have validated inputs to this
      * or serious security risks are opened.
      */
-  static async update({ id, name, phone, contact, image, avatar_url, welcome_modal_dismissed }) {
+  static async update({
+    id,
+    name,
+    phone,
+    contact,
+    image,
+    avatar_url,
+    welcome_modal_dismissed,
+    opsyScoutOverrideEnabled,
+    opsyScoutFreeAnalysesLimit,
+  }) {
     try {
       const fields = {};
       if (name !== undefined) fields.name = name;
@@ -710,6 +730,12 @@ class User {
       if (image !== undefined) fields.image = image;
       if (avatar_url !== undefined) fields.avatar_url = avatar_url;
       if (welcome_modal_dismissed !== undefined) fields.welcome_modal_dismissed = welcome_modal_dismissed;
+      if (opsyScoutOverrideEnabled !== undefined) {
+        fields.opsy_scout_override_enabled = !!opsyScoutOverrideEnabled;
+      }
+      if (opsyScoutFreeAnalysesLimit !== undefined) {
+        fields.opsy_scout_free_analyses_limit = opsyScoutFreeAnalysesLimit;
+      }
 
       if (Object.keys(fields).length === 0) {
         throw new BadRequestError("No data to update");
@@ -717,7 +743,9 @@ class User {
 
       const { setCols, values } = sqlForPartialUpdate(fields,
         {
-          contact_id: "contact_id"
+          contact_id: "contact_id",
+          opsy_scout_override_enabled: "opsy_scout_override_enabled",
+          opsy_scout_free_analyses_limit: "opsy_scout_free_analyses_limit",
         });
       const idVarIdx = "$" + (values.length + 1);
 
@@ -735,7 +763,9 @@ class User {
                 image,
                 avatar_url AS "avatarUrl",
                 welcome_modal_dismissed AS "welcomeModalDismissed",
-             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped"
+             COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped",
+             COALESCE(opsy_scout_override_enabled, false) AS "opsyScoutOverrideEnabled",
+             opsy_scout_free_analyses_limit AS "opsyScoutFreeAnalysesLimit"
                 `;
       const result = await db.query(querySql, [...values, id]);
       const user = result.rows[0];

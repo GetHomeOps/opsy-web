@@ -466,6 +466,7 @@ const READONLY_FIELD_LABELS = {
   ownerName: "Owner Name",
   ownerName2: "Co-owner",
   ownerCity: "Owner City",
+  lastSaleDate: "Last Sale Date",
   occupantName: "Occupant Name",
   occupantType: "Occupancy",
   ownerPhone: "Owner Phone",
@@ -518,8 +519,51 @@ function readOnlyDisplayValue(propertyData, fieldName) {
     );
   }
   const v = getFieldValue(propertyData, fieldName);
+  if (fieldName === "lastSaleDate") {
+    return formatIdentityDate(v);
+  }
   if (typeof v === "number") return String(v);
   return v;
+}
+
+/** Format YYYY-MM-DD / ISO / Date for identity card display. */
+function formatIdentityDate(value) {
+  if (value == null || value === "") return "";
+  let year;
+  let month;
+  let day;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    year = value.getUTCFullYear();
+    month = value.getUTCMonth() + 1;
+    day = value.getUTCDate();
+  } else {
+    const raw = String(value).trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return raw;
+    year = Number(match[1]);
+    month = Number(match[2]);
+    day = Number(match[3]);
+  }
+  if (!year || !month || !day) return "";
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Normalize date values to YYYY-MM-DD for <input type="date">. */
+function toDateInputValue(value) {
+  if (value == null || value === "") return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : "";
 }
 
 function ReadOnlySectionCard({section, propertyData}) {
@@ -685,6 +729,7 @@ function EditableSectionCard({
             const label = READONLY_FIELD_LABELS[fieldName] ?? fieldName;
             const fieldValue = getFieldValue(propertyData, fieldName);
             const isInteger = INTEGER_IDENTITY_FIELDS.has(fieldName);
+            const isDate = fieldName === "lastSaleDate";
             return (
               <div
                 key={fieldName}
@@ -695,11 +740,13 @@ function EditableSectionCard({
                   label={label}
                   name={fieldName}
                   value={
-                    fieldValue == null || fieldValue === ""
-                      ? ""
-                      : String(fieldValue)
+                    isDate
+                      ? toDateInputValue(fieldValue)
+                      : fieldValue == null || fieldValue === ""
+                        ? ""
+                        : String(fieldValue)
                   }
-                  type={isInteger ? "number" : "text"}
+                  type={isDate ? "date" : isInteger ? "number" : "text"}
                   inputClassName={BORDERED_INPUT_CLASS}
                   error={errors[fieldName]}
                 />
@@ -834,8 +881,8 @@ function IdentityTab({
                 }
                 title={
                   attomRefresh.isAtLookupLimit
-                    ? `ATTOM lookup limit reached (${attomRefresh.lookupLimit} per property)`
-                    : "Fill missing identity fields from ATTOM public records"
+                    ? `ATTOM lookup limit reached (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit} used)`
+                    : `Fill missing identity fields from ATTOM public records (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit} used)`
                 }
                 onClick={attomRefresh.openConfirm}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
@@ -850,18 +897,21 @@ function IdentityTab({
                 ) : attomRefresh.isAtLookupLimit ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5" />
-                    Limit reached
+                    Limit reached ({attomRefresh.lookupCount}/
+                    {attomRefresh.lookupLimit})
                   </>
                 ) : attomRefresh.jobStatus === "completed" &&
                   !attomRefresh.jobError ? (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    Pull property data
+                    Pull property data ({attomRefresh.lookupCount}/
+                    {attomRefresh.lookupLimit})
                   </>
                 ) : (
                   <>
                     <RefreshCw className="w-3.5 h-3.5" />
-                    Pull property data
+                    Pull property data ({attomRefresh.lookupCount}/
+                    {attomRefresh.lookupLimit})
                   </>
                 )}
               </button>

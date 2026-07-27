@@ -77,6 +77,7 @@ const AI_FIELD_GROUPS = [
       {key: "ownerName", label: "Owner Name"},
       {key: "ownerName2", label: "Owner Name 2"},
       {key: "ownerCity", label: "Owner City"},
+      {key: "lastSaleDate", label: "Last Sale Date"},
     ],
   },
   {

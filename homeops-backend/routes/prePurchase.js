@@ -11,11 +11,12 @@ const {
 } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError, NotFoundError } = require("../expressError");
 const { isAllowedS3KeyPrefix } = require("../constants/s3Upload");
-const { deleteFile, copyFile } = require("../services/s3Service");
+const { deleteFile, copyFile, getPresignedUrlForImage } = require("../services/s3Service");
 const {
   checkAiFeaturesAllowed,
   checkAiTokenQuota,
   checkPrePurchaseAllowed,
+  checkPrePurchaseCreateAllowed,
 } = require("../services/tierService");
 const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
 const { enqueue } = require("../services/prePurchaseAnalysisQueue");
@@ -37,7 +38,7 @@ const {
   CHAT_TEMPERATURE,
   sanitizeResponse,
 } = require("../services/aiChatService");
-const { addPresignedUrlToItem } = require("../helpers/presignedUrls");
+const { addPresignedUrlToItem, isSafeS3Key } = require("../helpers/presignedUrls");
 
 const prePurchaseAnalysisNewSchema = require("../schemas/prePurchaseAnalysisNew.json");
 const prePurchaseAnalysisUpdateSchema = require("../schemas/prePurchaseAnalysisUpdate.json");
@@ -53,6 +54,7 @@ const IDENTITY_DATA_TO_PROPERTY = {
   ownerName: "owner_name",
   ownerName2: "owner_name_2",
   ownerCity: "owner_city",
+  lastSaleDate: "last_sale_date",
   occupantName: "occupant_name",
   occupantType: "occupant_type",
   ownerPhone: "owner_phone",
@@ -374,16 +376,42 @@ function serializeRecommendation(r) {
 }
 
 function serializeNote(n) {
+  const imageKeys = Array.isArray(n.image_keys) ? n.image_keys : [];
   return {
     id: n.id,
     analysisId: n.analysis_id,
     userId: n.user_id,
     body: n.body,
+    imageKeys,
     createdAt: n.created_at,
     updatedAt: n.updated_at,
     authorName: n.author_name,
     authorEmail: n.author_email,
   };
+}
+
+/** Attach presigned imageUrls for note imageKeys. */
+async function enrichNoteWithImageUrls(note) {
+  const keys = Array.isArray(note.imageKeys) ? note.imageKeys : [];
+  if (keys.length === 0) {
+    return { ...note, imageUrls: [] };
+  }
+  const imageUrls = await Promise.all(
+    keys.map(async (key) => {
+      if (!isSafeS3Key(key)) return null;
+      try {
+        return await getPresignedUrlForImage(key.trim());
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return { ...note, imageUrls };
+}
+
+async function enrichNotesWithImageUrls(notes) {
+  if (!Array.isArray(notes) || notes.length === 0) return notes;
+  return Promise.all(notes.map((n) => enrichNoteWithImageUrls(n)));
 }
 
 function serializeTrueCost(row) {
@@ -533,6 +561,13 @@ router.post("/", async function (req, res, next) {
     const user = res.locals.user;
     const accountId = req.body.accountId;
     await assertAccountAccess(user, accountId);
+
+    const createCheck = await checkPrePurchaseCreateAllowed(user.id, user.role);
+    if (!createCheck.allowed) {
+      throw new ForbiddenError(
+        createCheck.message || "Opsy Scout analysis limit reached."
+      );
+    }
 
     const address = {
       display_name: req.body.displayName || null,
@@ -716,7 +751,8 @@ router.get("/:id/notes", async function (req, res, next) {
     if (isNaN(id)) throw new BadRequestError("Invalid analysis id");
     await getAuthorizedAnalysis(id, res.locals.user);
     const notes = await PrePurchaseNote.getByAnalysisId(id);
-    return res.json({ notes: notes.map(serializeNote) });
+    const serialized = await enrichNotesWithImageUrls(notes.map(serializeNote));
+    return res.json({ notes: serialized });
   } catch (err) {
     return next(err);
   }
@@ -734,12 +770,16 @@ router.post("/:id/notes", async function (req, res, next) {
       throw new BadRequestError("body is required");
     }
 
+    const imageKeys = req.body?.imageKeys ?? req.body?.image_keys;
+
     const note = await PrePurchaseNote.create({
       analysis_id: id,
       user_id: res.locals.user.id,
       body,
+      image_keys: imageKeys,
     });
-    return res.status(201).json({ note: serializeNote(note) });
+    const enriched = await enrichNoteWithImageUrls(serializeNote(note));
+    return res.status(201).json({ note: enriched });
   } catch (err) {
     return next(err);
   }
@@ -763,12 +803,21 @@ router.patch("/:id/notes/:noteId", async function (req, res, next) {
       throw new BadRequestError("body is required");
     }
 
+    const updateData = { body };
+    if (
+      Object.prototype.hasOwnProperty.call(req.body ?? {}, "imageKeys") ||
+      Object.prototype.hasOwnProperty.call(req.body ?? {}, "image_keys")
+    ) {
+      updateData.image_keys = req.body?.imageKeys ?? req.body?.image_keys;
+    }
+
     const note = await PrePurchaseNote.update(
       noteId,
-      { body },
+      updateData,
       res.locals.user.id,
     );
-    return res.json({ note: serializeNote(note) });
+    const enriched = await enrichNoteWithImageUrls(serializeNote(note));
+    return res.json({ note: enriched });
   } catch (err) {
     return next(err);
   }

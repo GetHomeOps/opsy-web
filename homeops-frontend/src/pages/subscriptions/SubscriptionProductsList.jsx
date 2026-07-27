@@ -634,6 +634,16 @@ function SubscriptionProductsList() {
       ),
     },
     {
+      key: "code",
+      label: t("subscriptionProducts.code") || "Code",
+      sortable: true,
+      render: (value) => (
+        <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">
+          {value || "—"}
+        </span>
+      ),
+    },
+    {
       key: "isActive",
       label: t("status") || "Status",
       sortable: true,
@@ -647,16 +657,6 @@ function SubscriptionProductsList() {
             {t("active") || "Active"}
           </span>
         ),
-    },
-    {
-      key: "code",
-      label: t("subscriptionProducts.code") || "Code",
-      sortable: true,
-      render: (value) => (
-        <span className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-          {value || "—"}
-        </span>
-      ),
     },
     {
       key: "targetRole",

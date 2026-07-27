@@ -53,6 +53,10 @@
                 "type": "string",
                 "enum": ["immediate", "deferred", "excluded"]
               },
+              "severity": {
+                "type": "string",
+                "enum": ["major", "moderate", "minor"]
+              },
               "estimatedCost": { "type": "number", "minimum": 0 },
               "note": {
                 "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 2000 }]

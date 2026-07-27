@@ -7,6 +7,9 @@ import {AlertCircle, CheckCircle2, Loader2} from "lucide-react";
  *
  * The ATTOM worker is non-destructive (it only writes into columns that are
  * currently NULL/empty), so we reassure the user that their edits are safe.
+ *
+ * View is driven by `modalView` (and in-flight `jobStatus`), not by a stale
+ * completed job — otherwise reopening after a successful pull skips confirm.
  */
 function AttomRefreshConfirmDialog({
   modalView = "confirm",
@@ -23,10 +26,10 @@ function AttomRefreshConfirmDialog({
   if (!portalContainer) return null;
 
   const isActive = jobStatus === "queued" || jobStatus === "processing";
-  const isResult =
-    modalView === "result" || jobStatus === "completed" || !!jobError;
-
   const remainingLookups = Math.max(0, lookupLimit - lookupCount);
+  const canPullAgain = remainingLookups > 0;
+  const usageLine = `Used ${lookupCount} of ${lookupLimit} lookups for this property (${remainingLookups} remaining).`;
+
   let title = "Fill missing property details from ATTOM?";
   let body = (
     <>
@@ -36,7 +39,7 @@ function AttomRefreshConfirmDialog({
         will not be overwritten.
       </p>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        {remainingLookups} of {lookupLimit} lookups remaining for this property.
+        {usageLine}
       </p>
     </>
   );
@@ -87,47 +90,22 @@ function AttomRefreshConfirmDialog({
         </button>
       </div>
     );
-  } else if (isResult && !jobError && jobStatus === "completed") {
-    title = "Property details updated";
-    body = (
-      <div className="mb-4 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 dark:border-emerald-800/70 dark:bg-emerald-950/30">
-        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" />
-        <div>
-          <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-            {populatedKeys.length > 0
-              ? `Updated ${populatedKeys.length} field${populatedKeys.length === 1 ? "" : "s"}`
-              : "ATTOM lookup completed"}
-          </p>
-          <p className="text-xs text-emerald-700 dark:text-emerald-300">
-            Empty Identity fields were filled from public records. Existing edits were preserved.
-          </p>
-        </div>
-      </div>
-    );
-    actions = (
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="btn-sm bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
-        >
-          Close
-        </button>
-      </div>
-    );
-  } else if (isResult && jobError) {
+  } else if (modalView === "result" && jobError) {
     title = "Couldn't fill property details";
     body = (
-      <div className="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-3 dark:border-red-800/70 dark:bg-red-950/30">
-        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-300" />
-        <div>
-          <p className="text-sm font-medium text-red-900 dark:text-red-100">
-            We couldn't fill in this property's missing details from ATTOM.
-          </p>
-          <p className="text-xs text-red-700 dark:text-red-300">
-            {jobError}
-          </p>
+      <div className="mb-4 space-y-2">
+        <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-3 dark:border-red-800/70 dark:bg-red-950/30">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-300" />
+          <div>
+            <p className="text-sm font-medium text-red-900 dark:text-red-100">
+              We couldn't fill in this property's missing details from ATTOM.
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-300">
+              {jobError}
+            </p>
+          </div>
         </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{usageLine}</p>
       </div>
     );
     actions = (
@@ -139,24 +117,71 @@ function AttomRefreshConfirmDialog({
         >
           Close
         </button>
+        {canPullAgain && (
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="btn-sm bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+          >
+            Try again
+          </button>
+        )}
+      </div>
+    );
+  } else if (modalView === "result") {
+    title = "Property details updated";
+    body = (
+      <div className="mb-4 space-y-2">
+        <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 dark:border-emerald-800/70 dark:bg-emerald-950/30">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+          <div>
+            <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+              {populatedKeys.length > 0
+                ? `Updated ${populatedKeys.length} field${populatedKeys.length === 1 ? "" : "s"}`
+                : "ATTOM lookup completed"}
+            </p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">
+              Empty Identity fields were filled from public records. Existing edits were preserved.
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{usageLine}</p>
+      </div>
+    );
+    actions = (
+      <div className="flex justify-end gap-2">
         <button
           type="button"
-          onClick={onConfirm}
-          className="btn-sm bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+          onClick={onCancel}
+          className="btn-sm border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
         >
-          Try again
+          Close
         </button>
+        {canPullAgain && (
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="btn-sm bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+          >
+            Pull again
+          </button>
+        )}
       </div>
     );
   }
+  // modalView === "confirm" (and not active): keep default confirm UI above
 
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
+      onClick={onCancel}
     >
-      <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 p-5">
+      <div
+        className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
           {title}
         </h3>

@@ -224,16 +224,24 @@ describe("init and reconcile", () => {
     {
       id: 10,
       urgency: "immediate",
+      severity: "major",
       estimatedCostLow: 1000,
       estimatedCostHigh: 3000,
     },
     {
       id: 11,
       urgency: "near_term",
+      severity: "moderate",
       estimatedCostLow: 400,
       estimatedCostHigh: 600,
     },
-    {id: 12, urgency: "monitor", estimatedCostLow: 100, estimatedCostHigh: 100},
+    {
+      id: 12,
+      urgency: "monitor",
+      severity: "minor",
+      estimatedCostLow: 100,
+      estimatedCostHigh: 100,
+    },
   ];
 
   it("builds default repair items from urgency", () => {
@@ -244,12 +252,15 @@ describe("init and reconcile", () => {
       findingId: 10,
       timing: "immediate",
       included: true,
+      severity: "major",
       estimatedCost: 2000,
     });
     expect(items[1].timing).toBe("deferred");
     expect(items[1].included).toBe(true);
+    expect(items[1].severity).toBe("moderate");
     expect(items[2].timing).toBe("excluded");
     expect(items[2].included).toBe(false);
+    expect(items[2].severity).toBe("minor");
   });
 
   it("seeds listing/offer from identity estimatedValue", () => {
@@ -270,6 +281,7 @@ describe("init and reconcile", () => {
         findingId: 10,
         included: false,
         timing: "deferred",
+        severity: "minor",
         estimatedCost: 2500,
         note: "edited",
       },
@@ -279,6 +291,7 @@ describe("init and reconcile", () => {
         description: "Custom fence",
         included: true,
         timing: "immediate",
+        severity: "moderate",
         estimatedCost: 800,
         note: null,
       },
@@ -296,6 +309,7 @@ describe("init and reconcile", () => {
       {
         id: 13,
         urgency: "immediate",
+        severity: "major",
         estimatedCostLow: 500,
         estimatedCostHigh: 500,
       },
@@ -304,16 +318,34 @@ describe("init and reconcile", () => {
     expect(merged.find((i) => i.findingId === 10)).toMatchObject({
       included: false,
       timing: "deferred",
+      severity: "minor",
       estimatedCost: 2500,
       note: "edited",
     });
     expect(merged.find((i) => i.findingId === 99)).toBeUndefined();
     expect(merged.find((i) => i.findingId === 13)).toMatchObject({
       timing: "immediate",
+      severity: "major",
       estimatedCost: 500,
       included: true,
     });
-    expect(merged.find((i) => i.kind === "custom" && i.id === "c1")).toBeTruthy();
+    expect(merged.find((i) => i.kind === "custom" && i.id === "c1")).toMatchObject({
+      severity: "moderate",
+    });
+  });
+
+  it("falls back to finding severity when saved item has none", () => {
+    const saved = [
+      {
+        kind: "finding",
+        findingId: 10,
+        included: true,
+        timing: "immediate",
+        estimatedCost: 2000,
+      },
+    ];
+    const merged = reconcileRepairItems(saved, [findings[0]]);
+    expect(merged[0].severity).toBe("major");
   });
 
   it("hydrates and round-trips payload for save/restore", () => {

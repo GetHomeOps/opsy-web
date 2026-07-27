@@ -104,6 +104,8 @@ const initialFormData = {
   image: "",
   agencyId: "",
   officeId: "",
+  opsyScoutOverrideEnabled: false,
+  opsyScoutFreeAnalysesLimit: "",
 };
 
 function isAgentRole(role) {
@@ -169,6 +171,12 @@ function reducer(state, action) {
               officeId: action.payload.affiliation?.officeId
                 ? String(action.payload.affiliation.officeId)
                 : "",
+              opsyScoutOverrideEnabled:
+                action.payload.opsyScoutOverrideEnabled === true,
+              opsyScoutFreeAnalysesLimit:
+                action.payload.opsyScoutFreeAnalysesLimit != null
+                  ? String(action.payload.opsyScoutFreeAnalysesLimit)
+                  : "",
             }
           : initialFormData,
         demoPassword: action.payload?.demoLoginPassword || "",
@@ -928,6 +936,8 @@ function UsersFormContainer() {
     const {
       agencyId: _agencyId,
       officeId: _officeId,
+      opsyScoutOverrideEnabled,
+      opsyScoutFreeAnalysesLimit,
       ...formFields
     } = state.formData;
     const userData = {
@@ -936,6 +946,16 @@ function UsersFormContainer() {
       isActive: state.formData.isActive,
       image: state.formData.image || null,
     };
+
+    if (isAgentRole(state.formData.role)) {
+      userData.opsyScoutOverrideEnabled = !!opsyScoutOverrideEnabled;
+      userData.opsyScoutFreeAnalysesLimit = opsyScoutOverrideEnabled
+        ? Number(opsyScoutFreeAnalysesLimit)
+        : null;
+    } else {
+      userData.opsyScoutOverrideEnabled = false;
+      userData.opsyScoutFreeAnalysesLimit = null;
+    }
 
     const demoPasswordChanged =
       isDemoSuperAdmin &&
@@ -956,7 +976,7 @@ function UsersFormContainer() {
     dispatch({type: "SET_SUBMITTING", payload: true});
 
     try {
-      const res = await AppApi.updateUser(id, userData);
+      await AppApi.updateUser(id, userData);
 
       let affiliation = null;
       try {
@@ -975,16 +995,18 @@ function UsersFormContainer() {
         return;
       }
 
-      const updatedUser = isDemoSuperAdmin
-        ? await AppApi.getUserById(id)
-        : {
-            ...res,
-            ...(affiliation
-              ? {affiliation}
-              : isAgentRole(state.formData.role)
-                ? {affiliation: res?.affiliation ?? state.user?.affiliation ?? null}
-                : {}),
-          };
+      const refreshed = await AppApi.getUserById(id);
+      const updatedUser = {
+        ...refreshed,
+        ...(affiliation
+          ? {affiliation}
+          : isAgentRole(state.formData.role)
+            ? {
+                affiliation:
+                  refreshed?.affiliation ?? state.user?.affiliation ?? null,
+              }
+            : {}),
+      };
 
       if (updatedUser) {
         dispatch({
@@ -1066,6 +1088,19 @@ function UsersFormContainer() {
         newErrors.demoExpiresAt =
           t("demoAccessExpiresFutureRequired") ||
           "Demo access expiry must be in the future.";
+      }
+    }
+
+    if (
+      !state.isNew &&
+      isAgentRole(state.formData.role) &&
+      state.formData.opsyScoutOverrideEnabled
+    ) {
+      const limit = Number(state.formData.opsyScoutFreeAnalysesLimit);
+      if (!Number.isInteger(limit) || limit < 1) {
+        newErrors.opsyScoutFreeAnalysesLimit =
+          t("opsyScoutFreeAnalysesLimitRequired") ||
+          "Enter a positive number of free analyses.";
       }
     }
 
@@ -1414,6 +1449,8 @@ function UsersFormContainer() {
     if (!isAgentRole(value)) {
       payload.agencyId = "";
       payload.officeId = "";
+      payload.opsyScoutOverrideEnabled = false;
+      payload.opsyScoutFreeAnalysesLimit = "";
     }
     dispatch({
       type: "SET_FORM_DATA",
@@ -2447,6 +2484,112 @@ function UsersFormContainer() {
                       </div>
                     )}
                   </div>
+
+                  {/* Opsy Scout complimentary override (existing agents only) */}
+                  {!state.isNew && showAgentAffiliationFields && (
+                    <div className="mt-6 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40 space-y-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                            {t("opsyScoutComplimentary") ||
+                              "Opsy Scout (complimentary)"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {t("opsyScoutComplimentaryHelper") ||
+                              "Applies only while the agent’s plan does not include Opsy Scout."}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={!!state.formData.opsyScoutOverrideEnabled}
+                          aria-label={
+                            t("enableOpsyScout") || "Enable Opsy Scout"
+                          }
+                          onClick={() => {
+                            const next = !state.formData.opsyScoutOverrideEnabled;
+                            dispatch({
+                              type: "SET_FORM_DATA",
+                              payload: {
+                                opsyScoutOverrideEnabled: next,
+                                ...(next
+                                  ? {}
+                                  : {opsyScoutFreeAnalysesLimit: ""}),
+                              },
+                            });
+                            if (state.errors.opsyScoutFreeAnalysesLimit) {
+                              dispatch({
+                                type: "SET_ERRORS",
+                                payload: {
+                                  ...state.errors,
+                                  opsyScoutFreeAnalysesLimit: null,
+                                },
+                              });
+                            }
+                            if (state.isInitialLoad) {
+                              dispatch({
+                                type: "SET_FORM_CHANGED",
+                                payload: true,
+                              });
+                            }
+                          }}
+                          className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                            state.formData.opsyScoutOverrideEnabled
+                              ? "bg-[#456564]"
+                              : "bg-gray-300 dark:bg-gray-600"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                              state.formData.opsyScoutOverrideEnabled
+                                ? "left-6"
+                                : "left-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {state.formData.opsyScoutOverrideEnabled && (
+                        <div>
+                          <label
+                            className={getLabelClasses()}
+                            htmlFor="opsyScoutFreeAnalysesLimit"
+                          >
+                            {t("opsyScoutFreeAnalyses") || "Free analyses"}
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            id="opsyScoutFreeAnalysesLimit"
+                            name="opsyScoutFreeAnalysesLimit"
+                            value={state.formData.opsyScoutFreeAnalysesLimit || ""}
+                            onChange={handleChange}
+                            className={getInputClasses(
+                              "opsyScoutFreeAnalysesLimit",
+                            )}
+                            placeholder="e.g. 5"
+                          />
+                          {state.errors.opsyScoutFreeAnalysesLimit && (
+                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                              {state.errors.opsyScoutFreeAnalysesLimit}
+                            </p>
+                          )}
+                          {state.user?.opsyScoutFreeAnalysesUsed != null && (
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {t("opsyScoutFreeAnalysesUsed", {
+                                used: state.user.opsyScoutFreeAnalysesUsed,
+                                limit:
+                                  state.formData.opsyScoutFreeAnalysesLimit ||
+                                  "—",
+                                defaultValue: "Used: {{used}} of {{limit}}",
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Send invitation toggle (new user only, not on demo or when provisioning demo) */}
                   {state.isNew &&

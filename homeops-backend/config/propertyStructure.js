@@ -28,6 +28,7 @@ const propertyStructure = {
           { key: "ownerName", label: "Owner Name" },
           { key: "ownerName2", label: "Owner Name 2" },
           { key: "ownerCity", label: "Owner City" },
+          { key: "lastSaleDate", label: "Last Sale Date" },
           { key: "occupantName", label: "Occupant Name" },
           { key: "occupantType", label: "Occupant Type" },
           { key: "ownerPhone", label: "Owner Phone" },

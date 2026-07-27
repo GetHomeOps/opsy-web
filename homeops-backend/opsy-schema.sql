@@ -53,6 +53,8 @@ CREATE TABLE users (
     demo_provisioned_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     demo_first_login_at TIMESTAMPTZ,
     demo_expiry_notified_at TIMESTAMPTZ,
+    opsy_scout_override_enabled BOOLEAN NOT NULL DEFAULT false,
+    opsy_scout_free_analyses_limit INTEGER,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -297,6 +299,7 @@ CREATE TABLE properties (
     occupant_type VARCHAR(50),
     owner_phone VARCHAR(50),
     phone_to_show VARCHAR(50),
+    last_sale_date DATE,
 
     -- General Information
     property_type VARCHAR(100),
@@ -1881,6 +1884,7 @@ CREATE TABLE pre_purchase_notes (
     analysis_id INTEGER NOT NULL REFERENCES pre_purchase_analyses(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     body TEXT NOT NULL,
+    image_keys TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

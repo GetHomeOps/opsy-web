@@ -17,7 +17,7 @@ const stripeService = require("../services/stripeService");
 const planModel = require("../models/plan");
 const Coupon = require("../models/coupon");
 const { BILLING_MOCK_MODE } = require("../config");
-const { countPropertiesForLimit } = require("../services/tierService");
+const { countPropertiesForLimit, getPrePurchaseOverride, countPrePurchaseAnalysesCreatedBy } = require("../services/tierService");
 const propertySponsorshipService = require("../services/propertySponsorshipService");
 const { wrapStripeErrors } = require("../utils/stripeErrors");
 
@@ -414,6 +414,26 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
     }
     if (stateRes.status === "rejected") {
       console.warn("[billing/status] sponsorship state failed:", stateRes.reason?.message);
+    }
+
+    // Complimentary Opsy Scout override: unlock Scout in UI when plan lacks it.
+    // Free-cap fields only apply while the plan does not include Scout.
+    if (!limits || limits.prePurchaseEnabled !== true) {
+      try {
+        const override = await getPrePurchaseOverride(userId);
+        if (override.enabled) {
+          const used = await countPrePurchaseAnalysesCreatedBy(userId);
+          limits = {
+            ...(limits || {}),
+            prePurchaseEnabled: true,
+            opsyScoutFromOverride: true,
+            opsyScoutFreeAnalysesLimit: override.limit,
+            opsyScoutFreeAnalysesUsed: used,
+          };
+        }
+      } catch (overrideErr) {
+        console.warn("[billing/status] opsy scout override lookup failed:", overrideErr?.message);
+      }
     }
 
     return res.json({

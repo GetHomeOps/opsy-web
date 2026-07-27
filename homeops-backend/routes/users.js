@@ -512,6 +512,33 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
       demo_expires_at,
       ...profileBody
     } = req.body;
+
+    const isPlatformAdmin = role === "super_admin" || role === "admin";
+    if (!isPlatformAdmin) {
+      delete profileBody.opsyScoutOverrideEnabled;
+      delete profileBody.opsyScoutFreeAnalysesLimit;
+      delete profileBody.opsy_scout_override_enabled;
+      delete profileBody.opsy_scout_free_analyses_limit;
+    } else if (
+      profileBody.opsyScoutOverrideEnabled !== undefined ||
+      profileBody.opsyScoutFreeAnalysesLimit !== undefined
+    ) {
+      const enabled = profileBody.opsyScoutOverrideEnabled === true;
+      if (enabled) {
+        const limit = Number(profileBody.opsyScoutFreeAnalysesLimit);
+        if (!Number.isInteger(limit) || limit < 1) {
+          throw new BadRequestError(
+            "opsyScoutFreeAnalysesLimit must be a positive integer when Opsy Scout override is enabled."
+          );
+        }
+        profileBody.opsyScoutOverrideEnabled = true;
+        profileBody.opsyScoutFreeAnalysesLimit = limit;
+      } else if (profileBody.opsyScoutOverrideEnabled === false) {
+        profileBody.opsyScoutOverrideEnabled = false;
+        profileBody.opsyScoutFreeAnalysesLimit = null;
+      }
+    }
+
     const validator = jsonschema.validate(profileBody, userUpdateSchema);
     if (!validator.valid) {
       const errs = validator.errors.map(e => e.stack);
