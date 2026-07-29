@@ -1,5 +1,6 @@
 import React, {useState} from "react";
 import {Navigate} from "react-router-dom";
+import {Loader2} from "lucide-react";
 import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import {PAGE_LAYOUT} from "../../constants/layout";
@@ -18,15 +19,7 @@ export default function PrePurchaseShell({children}) {
 
   const allowed = isAdmin || limits?.prePurchaseEnabled === true;
 
-  if (!isAdmin && loading) {
-    return (
-      <div className="flex h-[100dvh] items-center justify-center text-sm text-gray-500">
-        Loading…
-      </div>
-    );
-  }
-
-  if (!allowed) {
+  if (!isAdmin && !loading && !allowed) {
     return <Navigate to={accountUrl ? `/${accountUrl}` : "/"} replace />;
   }
 
@@ -36,7 +29,13 @@ export default function PrePurchaseShell({children}) {
       <div className="relative flex flex-col flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow">
-          <div className={PAGE_LAYOUT.list}>{children}</div>
+          {!isAdmin && loading ? (
+            <div className="flex justify-center items-center min-h-[40vh]">
+              <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
+            </div>
+          ) : (
+            <div className={PAGE_LAYOUT.list}>{children}</div>
+          )}
         </main>
       </div>
     </div>

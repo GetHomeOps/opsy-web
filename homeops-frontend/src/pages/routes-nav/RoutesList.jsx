@@ -18,7 +18,12 @@ import AdminRoute from "./AdminRoute";
 import SuperAdminRoute from "./SuperAdminRoute";
 import PublicRoute from "./PublicRoute";
 import OnboardingRoute from "./OnboardingRoute";
-import {contactsListImport} from "./routePrefetch";
+import AppChromeFallback from "../../partials/AppChromeFallback";
+import {
+  contactsListImport,
+  propertiesListImport,
+  prePurchaseDashboardImport,
+} from "./routePrefetch";
 
 // Auth/public entry pages are kept eager so the sign-in flow stays instant
 // (these are small and on the critical path for unauthenticated users).
@@ -46,10 +51,10 @@ const UsersList = lazy(() => import("../users/UsersList"));
 const User = lazy(() => import("../users/User"));
 const UsersImport = lazy(() => import("../users/usersImport"));
 const Contact = lazy(() => import("../contacts/Contact"));
-const PropertiesList = lazy(() => import("../properties/PropertiesList"));
+const PropertiesList = lazy(propertiesListImport);
 const PropertiesImport = lazy(() => import("../properties/propertiesImport"));
 const Property = lazy(() => import("../properties/Property"));
-const PrePurchaseDashboard = lazy(() => import("../pre-purchase/PrePurchaseDashboard"));
+const PrePurchaseDashboard = lazy(prePurchaseDashboardImport);
 const PrePurchaseNewAnalysis = lazy(() => import("../pre-purchase/PrePurchaseNewAnalysis"));
 const PrePurchaseAnalysisPage = lazy(() => import("../pre-purchase/PrePurchaseAnalysisPage"));
 const UserConfirmationEmail = lazy(() => import("../users/UserConfirmationEmail"));
@@ -1042,9 +1047,13 @@ function RoutesList() {
   return (
     <Suspense
       fallback={
-        <div className="flex justify-center items-center h-screen">
-          <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
-        </div>
+        currentUser ? (
+          <AppChromeFallback />
+        ) : (
+          <div className="flex justify-center items-center h-screen">
+            <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
+          </div>
+        )
       }
     >
       <Routes>

@@ -17,7 +17,11 @@ import {
   SHOW_PROFESSIONALS_SAMPLE_NAV,
   COMING_SOON,
 } from "./sidebarConfig";
-import {prefetchContactsList} from "../pages/routes-nav/routePrefetch";
+import {
+  prefetchContactsList,
+  prefetchPropertiesList,
+  prefetchPrePurchaseDashboard,
+} from "../pages/routes-nav/routePrefetch";
 import {isDemoSite, canAccessUsersOnDemo} from "../utils/demoSite";
 
 const FEATURE_UPGRADE_COPY = {
@@ -438,7 +442,9 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
 
   const isFeatureLocked = (item) => {
     if (!item.requiresFeature || isBillingAdmin) return false;
-    if (billingLoading) return true;
+    // Don't gray out while billing is resolving — entitlement is enforced
+    // by PrePurchaseShell / API once limits load.
+    if (billingLoading) return false;
     return billingLimits?.[item.requiresFeature] !== true;
   };
 
@@ -462,7 +468,13 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     const locked = isFeatureLocked(item);
 
     const prefetchRoute =
-      item.path === "contacts" ? prefetchContactsList : undefined;
+      item.path === "contacts"
+        ? prefetchContactsList
+        : item.path === "properties"
+          ? prefetchPropertiesList
+          : item.path === "pre-purchase"
+            ? prefetchPrePurchaseDashboard
+            : undefined;
 
     if (locked) {
       return (

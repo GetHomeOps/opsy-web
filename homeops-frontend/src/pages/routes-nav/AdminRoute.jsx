@@ -3,6 +3,7 @@ import {Navigate, useLocation} from "react-router-dom";
 import {Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import FloatingFeedbackWidget from "../../components/FloatingFeedbackWidget";
+import AppChromeFallback from "../../partials/AppChromeFallback";
 
 const DEFAULT_ALLOWED_ROLES = ["super_admin", "admin"];
 
@@ -16,6 +17,7 @@ function AdminRoute({children, allowedRoles = DEFAULT_ALLOWED_ROLES}) {
   const location = useLocation();
 
   if (isLoading) {
+    if (currentUser) return <AppChromeFallback />;
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />

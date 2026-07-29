@@ -5,6 +5,7 @@ import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import FloatingFeedbackWidget from "../../components/FloatingFeedbackWidget";
+import AppChromeFallback from "../../partials/AppChromeFallback";
 import {
   getBillingGateCache,
   setBillingGateCache,
@@ -141,6 +142,8 @@ function ProtectedRoute({children}) {
   ]);
 
   if (isLoading) {
+    // Auth still resolving: keep chrome if we already know the user (e.g. refresh).
+    if (currentUser) return <AppChromeFallback />;
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
@@ -170,11 +173,7 @@ function ProtectedRoute({children}) {
       !billingGate.checking &&
       billingGate.forKey === gateKey;
     if (!gateReady) {
-      return (
-        <div className="flex justify-center items-center h-screen">
-          <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
-        </div>
-      );
+      return <AppChromeFallback />;
     }
     if (!billingGate.active) {
       return <Navigate to="/settings/upgrade?billing_required=1" replace />;
