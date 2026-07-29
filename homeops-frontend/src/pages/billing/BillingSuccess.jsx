@@ -3,6 +3,7 @@ import {useNavigate, useSearchParams} from "react-router-dom";
 import {Loader2, CheckCircle, AlertCircle} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import {markPostLoginWelcomeGreeting} from "../../utils/authNavigation";
+import {setBillingGateCache} from "../../utils/billingGateCache";
 import AppApi from "../../api/api";
 import {PLAN_CODE_TO_SUBSCRIPTION_TIER} from "../onboarding/onboardingPlans";
 
@@ -46,6 +47,7 @@ export default function BillingSuccess() {
 
       let accountId = null;
       let primaryAccount = null;
+      let refreshedUser = null;
       try {
         const onboardingData = {role, subscriptionTier};
         if (stripeSessionId) onboardingData.stripeSessionId = stripeSessionId;
@@ -72,8 +74,8 @@ export default function BillingSuccess() {
           }
         }
         if (lastErr) throw lastErr;
-        const user = await refreshCurrentUser();
-        const accounts = await AppApi.getUserAccounts(user?.id).catch(() => []);
+        refreshedUser = await refreshCurrentUser();
+        const accounts = await AppApi.getUserAccounts(refreshedUser?.id).catch(() => []);
         primaryAccount = accounts?.[0] || null;
         accountId = primaryAccount?.id || null;
       } catch (err) {
@@ -114,6 +116,7 @@ export default function BillingSuccess() {
           ) {
             setStatus("active");
             markPostLoginWelcomeGreeting();
+            setBillingGateCache(accountId, true, refreshedUser?.id);
             const accountUrl =
               primaryAccount?.url?.replace(/^\/+/, "") || primaryAccount?.name;
             if (accountUrl) {

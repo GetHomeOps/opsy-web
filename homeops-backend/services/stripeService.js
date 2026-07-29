@@ -177,6 +177,122 @@ async function markEventProcessed(stripeEventId) {
   );
 }
 
+/** Expand paths for checkout subscription retrieves (price + discounts for coupon redemption). */
+const CHECKOUT_SUBSCRIPTION_EXPAND = [
+  "items.data.price",
+  "discount",
+  "discounts",
+  "discounts.promotion_code",
+];
+
+const CHECKOUT_SESSION_EXPAND = [
+  "subscription.items.data.price",
+  "subscription.discount",
+  "subscription.discounts",
+  "subscription.discounts.promotion_code",
+  "total_details.breakdown.discounts.discount",
+];
+
+/** Normalize expandable Stripe field (string id or { id }). */
+function stripeExpandableId(value) {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value.id) return String(value.id);
+  return null;
+}
+
+/**
+ * Extract coupon + promotion code IDs from a Discount object.
+ * Supports legacy `coupon` and modern `source.coupon` (API 2025-09-30+).
+ */
+function extractDiscountRefs(discount) {
+  if (!discount || typeof discount !== "object") {
+    return { stripeCouponId: null, stripePromoCodeId: null };
+  }
+
+  const stripePromoCodeId = stripeExpandableId(discount.promotion_code);
+
+  let stripeCouponId = stripeExpandableId(discount.source?.coupon);
+  if (!stripeCouponId) {
+    stripeCouponId = stripeExpandableId(discount.coupon);
+  }
+
+  return { stripeCouponId, stripePromoCodeId };
+}
+
+/** Collect expanded Discount objects from a subscription. */
+function collectSubscriptionDiscounts(subscription) {
+  if (!subscription || typeof subscription !== "object") return [];
+  const out = [];
+  if (subscription.discount && typeof subscription.discount === "object") {
+    out.push(subscription.discount);
+  }
+  if (Array.isArray(subscription.discounts)) {
+    for (const d of subscription.discounts) {
+      if (d && typeof d === "object" && (d.object === "discount" || d.coupon || d.source || d.promotion_code)) {
+        out.push(d);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolve a local coupon row from Stripe discount refs and record a redemption.
+ * Idempotent — safe to call from checkout sync and customer.discount.created.
+ */
+async function recordCouponRedemptionFromDiscount({
+  discount,
+  accountId,
+  userId,
+  stripeSubscriptionId,
+  stripeCustomerId,
+}) {
+  const { stripeCouponId, stripePromoCodeId } = extractDiscountRefs(discount);
+  if (!stripeCouponId && !stripePromoCodeId) return { recorded: false, reason: "no_discount_refs" };
+
+  let resolvedAccountId = accountId ? parseInt(accountId, 10) : null;
+  let resolvedUserId = userId != null ? parseInt(userId, 10) : null;
+
+  if ((!resolvedAccountId || !resolvedUserId) && stripeCustomerId) {
+    const accountRes = await db.query(
+      `SELECT a.id, a.owner_user_id FROM accounts WHERE stripe_customer_id = $1`,
+      [stripeCustomerId]
+    );
+    if (accountRes.rows[0]) {
+      resolvedAccountId = resolvedAccountId || accountRes.rows[0].id;
+      resolvedUserId = resolvedUserId || accountRes.rows[0].owner_user_id;
+    }
+  }
+
+  if (!resolvedAccountId || !resolvedUserId) {
+    return { recorded: false, reason: "account_not_found" };
+  }
+
+  const Coupon = require("../models/coupon");
+
+  let coupon = null;
+  if (stripePromoCodeId) {
+    coupon = await Coupon.findByStripePromoCodeId(stripePromoCodeId);
+  }
+  if (!coupon && stripeCouponId) {
+    coupon = await Coupon.findByStripeCouponId(stripeCouponId);
+  }
+  if (!coupon) return { recorded: false, reason: "coupon_not_found" };
+
+  try {
+    return await Coupon.recordRedemption({
+      couponId: coupon.id,
+      accountId: resolvedAccountId,
+      userId: resolvedUserId,
+      stripeSubscriptionId: stripeSubscriptionId || null,
+    });
+  } catch (err) {
+    if (err.code === "23505") return { recorded: false, reason: "already_recorded" };
+    throw err;
+  }
+}
+
 /** Safely convert Stripe unix timestamp (number or string) to Date. Returns null if invalid. */
 function toValidDate(unixTimestamp) {
   if (unixTimestamp == null) return null;
@@ -264,7 +380,7 @@ async function handleCheckoutCompleted(session, { prefetchedSubscription = null 
   const subscription = prefetchedSubscription
     && (typeof sub !== "string" || prefetchedSubscription.id === sub)
     ? prefetchedSubscription
-    : await stripe.subscriptions.retrieve(subscriptionId, { expand: ["items.data.price"] });
+    : await stripe.subscriptions.retrieve(subscriptionId, { expand: CHECKOUT_SUBSCRIPTION_EXPAND });
   const priceId = subscription.items?.data?.[0]?.price?.id;
   const status = subscription.status;
   const { start: periodStart, end: periodEnd } = getSubscriptionPeriodDates(subscription);
@@ -300,6 +416,59 @@ async function handleCheckoutCompleted(session, { prefetchedSubscription = null 
      WHERE account_id = $1 AND stripe_subscription_id IS NULL AND status = 'active'`,
     [accountId]
   );
+
+  // Record coupon redemption immediately (webhook-independent). Idempotent with customer.discount.created.
+  let discounts = collectSubscriptionDiscounts(subscription);
+
+  // Fallback: session total_details breakdown (when subscription.discounts aren't expanded).
+  if (discounts.length === 0) {
+    const breakdownDiscounts = session.total_details?.breakdown?.discounts;
+    if (Array.isArray(breakdownDiscounts)) {
+      for (const entry of breakdownDiscounts) {
+        if (entry?.discount && typeof entry.discount === "object") {
+          discounts.push(entry.discount);
+        }
+      }
+    }
+  }
+
+  // Fallback: synthesize refs from session.discounts [{ coupon, promotion_code }] when present as IDs.
+  if (discounts.length === 0 && Array.isArray(session.discounts)) {
+    for (const d of session.discounts) {
+      if (!d || typeof d !== "object") continue;
+      const promoId = stripeExpandableId(d.promotion_code);
+      const couponId = stripeExpandableId(d.coupon);
+      if (promoId || couponId) {
+        discounts.push({
+          promotion_code: promoId,
+          coupon: couponId,
+          source: couponId ? { type: "coupon", coupon: couponId } : undefined,
+        });
+      }
+    }
+  }
+
+  for (const discount of discounts) {
+    try {
+      const result = await recordCouponRedemptionFromDiscount({
+        discount,
+        accountId,
+        userId: session.metadata?.user_id,
+        stripeSubscriptionId: subscription.id,
+        stripeCustomerId: session.customer || subscription.customer,
+      });
+      if (result.recorded) {
+        console.info(
+          `[webhooks/stripe] checkout.session.completed: recorded coupon redemption for account=${accountId}`
+        );
+      }
+    } catch (err) {
+      console.warn(
+        "[webhooks/stripe] checkout.session.completed: failed to record coupon redemption",
+        err.message
+      );
+    }
+  }
 }
 
 /**
@@ -313,7 +482,7 @@ async function syncCheckoutSessionSubscription(sessionId, { userId, prefetchedSe
   if (BILLING_MOCK_MODE || !stripe) return { synced: true, mock: true };
 
   const session = prefetchedSession
-    || await stripe.checkout.sessions.retrieve(sessionId, { expand: ["subscription.items.data.price"] });
+    || await stripe.checkout.sessions.retrieve(sessionId, { expand: CHECKOUT_SESSION_EXPAND });
   if (!session) return { synced: false, reason: "session_not_found" };
 
   if (userId && session.metadata?.user_id && String(session.metadata.user_id) !== String(userId)) {
@@ -327,7 +496,7 @@ async function syncCheckoutSessionSubscription(sessionId, { userId, prefetchedSe
   // session.subscription is the expanded object when we asked for it; otherwise it's an id string.
   const subscription = typeof session.subscription === "object"
     ? session.subscription
-    : await stripe.subscriptions.retrieve(session.subscription, { expand: ["items.data.price"] });
+    : await stripe.subscriptions.retrieve(session.subscription, { expand: CHECKOUT_SUBSCRIPTION_EXPAND });
   if (!(subscription.status === "active" || subscription.status === "trialing")) {
     return { synced: false, reason: "subscription_not_active", status: subscription.status };
   }
@@ -507,43 +676,25 @@ async function handleInvoicePayment(invoice) {
 
 /** Handle customer.discount.created — record coupon redemption when Stripe applies a discount. */
 async function handleDiscountCreated(discount) {
-  const stripeCouponId = discount.coupon?.id;
-  const stripePromoCodeId = discount.promotion_code || null;
-  const stripeCustomerId = discount.customer;
-  if (!stripeCouponId || !stripeCustomerId) return;
-
-  const Coupon = require("../models/coupon");
-
-  // For batch (unique) coupons, multiple DB rows share the same stripe_coupon_id
-  // but each has a distinct stripe_promo_code_id. Match on promo code first.
-  let coupon = null;
-  if (stripePromoCodeId) {
-    coupon = await Coupon.findByStripePromoCodeId(stripePromoCodeId);
-  }
-  if (!coupon) {
-    coupon = await Coupon.findByStripeCouponId(stripeCouponId);
-  }
-  if (!coupon) return;
-
-  const accountRes = await db.query(
-    `SELECT a.id, a.owner_user_id FROM accounts WHERE stripe_customer_id = $1`,
-    [stripeCustomerId]
-  );
-  if (!accountRes.rows[0]) return;
-
-  const accountId = accountRes.rows[0].id;
-  const userId = accountRes.rows[0].owner_user_id;
-  const subscriptionId = discount.subscription || null;
+  const stripeCustomerId = stripeExpandableId(discount.customer) || discount.customer;
+  const subscriptionId = stripeExpandableId(discount.subscription) || discount.subscription || null;
 
   try {
-    await Coupon.recordRedemption({
-      couponId: coupon.id,
-      accountId,
-      userId,
+    const result = await recordCouponRedemptionFromDiscount({
+      discount,
       stripeSubscriptionId: subscriptionId,
+      stripeCustomerId,
     });
+    if (result.recorded) {
+      console.info(
+        `[webhooks/stripe] customer.discount.created: recorded redemption customer=${stripeCustomerId}`
+      );
+    } else if (result.reason && result.reason !== "already_recorded") {
+      console.info(
+        `[webhooks/stripe] customer.discount.created: skipped (${result.reason}) customer=${stripeCustomerId}`
+      );
+    }
   } catch (err) {
-    if (err.code === "23505") return; // unique violation — already recorded
     console.warn("[webhooks/stripe] handleDiscountCreated: failed to record redemption", err.message);
   }
 }
@@ -988,7 +1139,7 @@ async function verifyCheckoutSession(sessionId, { userId, prefetchedSession = nu
 
   try {
     const session = prefetchedSession
-      || await stripe.checkout.sessions.retrieve(sessionId, { expand: ["subscription.items.data.price"] });
+      || await stripe.checkout.sessions.retrieve(sessionId, { expand: CHECKOUT_SESSION_EXPAND });
 
     if (userId && session.metadata?.user_id && String(session.metadata.user_id) !== String(userId)) {
       return { valid: false, reason: "session_user_mismatch" };
@@ -1005,7 +1156,7 @@ async function verifyCheckoutSession(sessionId, { userId, prefetchedSession = nu
       try {
         const subscription = typeof session.subscription === "object"
           ? session.subscription
-          : await stripe.subscriptions.retrieve(session.subscription, { expand: ["items.data.price"] });
+          : await stripe.subscriptions.retrieve(session.subscription, { expand: CHECKOUT_SUBSCRIPTION_EXPAND });
         if (subscription.status === "active" || subscription.status === "trialing") {
           return { valid: true, session, subscription };
         }

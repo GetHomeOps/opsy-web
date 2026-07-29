@@ -892,6 +892,7 @@
   "subscriptions.deleting": "Deleting...",
   "subscriptions.endDate": "End Date",
   "subscriptions.endDateRequired": "End date is required",
+  "subscriptions.coupon": "Coupon",
   "subscriptions.fetchError": "Error loading subscriptions",
   "subscriptions.loading": "Loading subscriptions...",
   "subscriptions.newSubscription": "New Subscription",

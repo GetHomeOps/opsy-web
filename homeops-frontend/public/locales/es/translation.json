@@ -859,6 +859,7 @@
   "subscriptions.deleting": "Eliminando...",
   "subscriptions.endDate": "Fecha de fin",
   "subscriptions.endDateRequired": "La fecha de fin es obligatoria",
+  "subscriptions.coupon": "Cupón",
   "subscriptions.fetchError": "Error al cargar suscripciones",
   "subscriptions.loading": "Cargando suscripciones...",
   "subscriptions.newSubscription": "Nueva suscripción",

@@ -107,6 +107,11 @@ router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function
       const validation = await Coupon.validate(couponCode, accountIdToUse, planCode);
       if (!validation.valid) throw new BadRequestError(validation.reason);
       resolvedPromoCodeId = validation.coupon?.stripePromoCodeId || undefined;
+      if (!resolvedPromoCodeId && !BILLING_MOCK_MODE) {
+        throw new BadRequestError(
+          "This coupon is not linked to Stripe. Recreate it in Coupons admin, or contact support."
+        );
+      }
     }
 
     const { url } = await stripeService.createCheckoutSession({

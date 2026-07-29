@@ -30,6 +30,22 @@ function formatSubscriptionPriceUsd(amount) {
   }).format(n);
 }
 
+/** Display string for a redeemed coupon (code + discount summary). */
+function formatSubscriptionCoupon(coupon) {
+  if (!coupon?.code) return null;
+  const val = Number(coupon.discountValue);
+  const amount =
+    coupon.discountType === "percent"
+      ? `${val}% off`
+      : `$${val % 1 === 0 ? val : val.toFixed(2)} off`;
+  let discount = amount;
+  if (coupon.duration === "once") discount = `${amount} (first invoice)`;
+  else if (coupon.duration === "forever") discount = `${amount} (forever)`;
+  else if (coupon.duration === "repeating")
+    discount = `${amount} for ${coupon.durationInMonths} months`;
+  return `${coupon.code} — ${discount}`;
+}
+
 const initialFormData = {
   userId: "",
   subscriptionProductId: "",
@@ -988,6 +1004,15 @@ function SubscriptionFormContainer() {
                         </label>
                         <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
                           {state.formData.subscriptionEndDate || "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <label className={getLabelClasses()}>
+                          {t("subscriptions.coupon")}
+                        </label>
+                        <div className="form-input w-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 cursor-not-allowed">
+                          {formatSubscriptionCoupon(state.subscription?.coupon) ||
+                            "—"}
                         </div>
                       </div>
                     </div>

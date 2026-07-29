@@ -18,7 +18,7 @@ const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 const router = express.Router();
 
 /**
- * Sync redemption state from Stripe for all unique coupon codes whose local
+ * Sync redemption state from Stripe for unique coupon codes whose local
  * redemption_count is 0 but Stripe shows they've been redeemed.
  * Groups by stripe_coupon_id so we make one Stripe list call per underlying coupon.
  */
@@ -61,16 +61,56 @@ async function syncBatchRedemptionsFromStripe() {
   }
 }
 
+/**
+ * Sync redemption counts for general coupons from Stripe promotion codes.
+ * Updates local count when Stripe's times_redeemed is higher (missed webhooks / local dev).
+ */
+async function syncGeneralRedemptionsFromStripe() {
+  const staleRows = await db.query(
+    `SELECT id, stripe_promo_code_id AS "stripePromoCodeId", redemption_count AS "redemptionCount"
+     FROM coupons
+     WHERE coupon_type = 'general'
+       AND stripe_promo_code_id IS NOT NULL`
+  );
+  if (staleRows.rows.length === 0) return;
+
+  for (const row of staleRows.rows) {
+    try {
+      const promo = await stripe.promotionCodes.retrieve(row.stripePromoCodeId);
+      const timesRedeemed = promo.times_redeemed || 0;
+      if (timesRedeemed > (row.redemptionCount || 0)) {
+        await db.query(
+          `UPDATE coupons
+           SET redemption_count = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [timesRedeemed, row.id]
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[coupons] Stripe promo retrieve failed for ${row.stripePromoCodeId}:`,
+        err.message
+      );
+    }
+  }
+}
+
+/** Sync all coupon redemption counts from Stripe (unique + general). */
+async function syncCouponRedemptionsFromStripe() {
+  await syncBatchRedemptionsFromStripe();
+  await syncGeneralRedemptionsFromStripe();
+}
+
 /** GET /coupons — List coupons. ?view=batches returns grouped view. */
 router.get("/", ensureLoggedIn, ensureSuperAdmin, async function (req, res, next) {
   try {
     if (req.query.view === "batches") {
-      // Sync unique-coupon redemption state from Stripe before returning grouped data.
+      // Sync redemption state from Stripe before returning (covers missed webhooks / local dev).
       if (stripe && !BILLING_MOCK_MODE) {
         try {
-          await syncBatchRedemptionsFromStripe();
+          await syncCouponRedemptionsFromStripe();
         } catch (syncErr) {
-          console.warn("[coupons] Stripe batch sync failed, continuing with local data:", syncErr.message);
+          console.warn("[coupons] Stripe redemption sync failed, continuing with local data:", syncErr.message);
         }
       }
       const grouped = await Coupon.findAllGrouped();
@@ -145,6 +185,30 @@ router.get("/:id", ensureLoggedIn, ensureSuperAdmin, async function (req, res, n
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) throw new BadRequestError("Invalid coupon ID");
+
+    // Refresh redemption count from Stripe for this coupon (general or unique).
+    if (stripe && !BILLING_MOCK_MODE) {
+      try {
+        const current = await Coupon.findById(id);
+        if (current.stripePromoCodeId) {
+          const promo = await stripe.promotionCodes.retrieve(current.stripePromoCodeId);
+          const timesRedeemed = promo.times_redeemed || 0;
+          if (timesRedeemed > (current.redemptionCount || 0)) {
+            await db.query(
+              `UPDATE coupons
+               SET redemption_count = $1,
+                   is_active = CASE WHEN coupon_type = 'unique' AND $1 > 0 THEN false ELSE is_active END,
+                   updated_at = NOW()
+               WHERE id = $2`,
+              [timesRedeemed, id]
+            );
+          }
+        }
+      } catch (syncErr) {
+        console.warn("[coupons] Stripe sync failed for coupon detail, continuing:", syncErr.message);
+      }
+    }
+
     const coupon = await Coupon.findById(id);
     return res.json({ coupon });
   } catch (err) {

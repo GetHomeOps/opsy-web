@@ -964,7 +964,15 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
         try {
           prefetchedSession = await stripeService.stripe.checkout.sessions.retrieve(
             stripeSessionId,
-            { expand: ["subscription.items.data.price"] }
+            {
+              expand: [
+                "subscription.items.data.price",
+                "subscription.discount",
+                "subscription.discounts",
+                "subscription.discounts.promotion_code",
+                "total_details.breakdown.discounts.discount",
+              ],
+            }
           );
         } catch (retrieveErr) {
           console.warn(`[complete-onboarding] Stripe session retrieve failed for user ${userId}: ${retrieveErr.message}`);

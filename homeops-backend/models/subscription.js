@@ -15,6 +15,7 @@
 const db = require("../db");
 const { NotFoundError, BadRequestError } = require("../expressError");
 const { sqlForPartialUpdate } = require("../helpers/sql");
+const Coupon = require("./coupon");
 
 /** When platform staff own an account, show the real customer member instead. */
 const SUBSCRIPTION_OWNER_JOINS = `
@@ -131,7 +132,12 @@ class Subscription {
     );
     const subscription = result.rows[0];
     if (!subscription) throw new NotFoundError(`No subscription with id: ${id}`);
-    return Subscription.enrichSubscriptionRow(subscription);
+    const enriched = Subscription.enrichSubscriptionRow(subscription);
+    enriched.coupon = await Coupon.findForSubscription({
+      accountId: enriched.accountId,
+      stripeSubscriptionId: enriched.stripeSubscriptionId,
+    });
+    return enriched;
   }
 
   static async getAll({ status, accountId } = {}) {

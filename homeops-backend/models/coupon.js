@@ -365,8 +365,39 @@ class Coupon {
   }
 
   /**
+   * Find the coupon redeemed for a subscription.
+   * Prefers a redemption matching stripeSubscriptionId; falls back to the
+   * latest redemption for the account (covers pre-backfill rows).
+   * Returns { code, name, discountType, discountValue, duration, durationInMonths, redeemedAt } or null.
+   */
+  static async findForSubscription({ accountId, stripeSubscriptionId }) {
+    if (!accountId && !stripeSubscriptionId) return null;
+
+    const result = await db.query(
+      `SELECT c.code, c.name,
+              c.discount_type AS "discountType",
+              c.discount_value AS "discountValue",
+              c.duration,
+              c.duration_in_months AS "durationInMonths",
+              cr.redeemed_at AS "redeemedAt"
+       FROM coupon_redemptions cr
+       JOIN coupons c ON c.id = cr.coupon_id
+       WHERE ($1::text IS NOT NULL AND cr.stripe_subscription_id = $1)
+          OR ($2::int IS NOT NULL AND cr.account_id = $2)
+       ORDER BY
+         CASE WHEN $1::text IS NOT NULL AND cr.stripe_subscription_id = $1 THEN 0 ELSE 1 END,
+         cr.redeemed_at DESC
+       LIMIT 1`,
+      [stripeSubscriptionId || null, accountId || null]
+    );
+    return result.rows[0] || null;
+  }
+
+  /**
    * Record a redemption and increment the counter atomically.
+   * Idempotent per (coupon_id, account_id): duplicate calls do not bump the count.
    * For unique coupons, also sets is_active = false ("crossed off").
+   * Returns { recorded: boolean }.
    */
   static async recordRedemption({ couponId, accountId, userId, stripeSubscriptionId }) {
     const client = await db.connect();
@@ -378,15 +409,34 @@ class Coupon {
         [couponId]
       );
       const coupon = lockRes.rows[0];
+      if (!coupon) {
+        await client.query("ROLLBACK");
+        return { recorded: false };
+      }
 
-      await client.query(
+      const insertRes = await client.query(
         `INSERT INTO coupon_redemptions (coupon_id, account_id, user_id, stripe_subscription_id)
          VALUES ($1, $2, $3, $4)
-         ON CONFLICT (coupon_id, account_id) DO NOTHING`,
+         ON CONFLICT (coupon_id, account_id) DO NOTHING
+         RETURNING id`,
         [couponId, accountId, userId, stripeSubscriptionId || null]
       );
 
-      const deactivateClause = coupon?.couponType === "unique"
+      if (insertRes.rows.length === 0) {
+        // Already recorded (e.g. checkout sync + discount webhook). Fill subscription id if missing.
+        if (stripeSubscriptionId) {
+          await client.query(
+            `UPDATE coupon_redemptions
+             SET stripe_subscription_id = COALESCE(stripe_subscription_id, $1)
+             WHERE coupon_id = $2 AND account_id = $3`,
+            [stripeSubscriptionId, couponId, accountId]
+          );
+        }
+        await client.query("COMMIT");
+        return { recorded: false };
+      }
+
+      const deactivateClause = coupon.couponType === "unique"
         ? ", is_active = false"
         : "";
 
@@ -397,6 +447,7 @@ class Coupon {
       );
 
       await client.query("COMMIT");
+      return { recorded: true };
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;

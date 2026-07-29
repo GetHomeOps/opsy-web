@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
 import {markPostLoginWelcomeGreeting} from "../../utils/authNavigation";
+import {setBillingGateCache} from "../../utils/billingGateCache";
 import AppApi from "../../api/api";
 import opsyImg from "../../images/opsy1.png";
 import OpsyHeader from "../../images/OpsyHeader.png";
@@ -783,6 +784,7 @@ export default function OnboardingWizard() {
   async function handleComplete() {
     setError(null);
     setIsSubmitting(true);
+    let redirectingToStripe = false;
     try {
       if (isFreePlan) {
         const tier = PLAN_CODE_TO_SUBSCRIPTION_TIER[plan] || plan;
@@ -792,11 +794,13 @@ export default function OnboardingWizard() {
           planCode: plan,
           billingInterval,
         });
-        await refreshCurrentUser();
-        const accounts = await AppApi.getUserAccounts(currentUser?.id);
+        const refreshedUser = await refreshCurrentUser();
+        const accounts = await AppApi.getUserAccounts(refreshedUser?.id);
+        const accountId = accounts?.[0]?.id || null;
         const accountUrl =
           accounts?.[0]?.url?.replace(/^\/+/, "") || accounts?.[0]?.name;
         markPostLoginWelcomeGreeting();
+        setBillingGateCache(accountId, true, refreshedUser?.id);
         if (accountUrl) {
           navigate(`/${accountUrl}/home`, {replace: true});
         } else {
@@ -815,15 +819,20 @@ export default function OnboardingWizard() {
           cancelUrl,
           couponCode: appliedCoupon?.code || undefined,
         });
-        if (url) window.location.href = url;
-        else setError("Could not start checkout. Please try again.");
+        if (url) {
+          redirectingToStripe = true;
+          window.location.href = url;
+        } else {
+          setError("Could not start checkout. Please try again.");
+        }
       }
     } catch (err) {
       setError(
         err?.message || "Failed to complete onboarding. Please try again.",
       );
     } finally {
-      setIsSubmitting(false);
+      // Keep submitting UI while the browser navigates to Stripe
+      if (!redirectingToStripe) setIsSubmitting(false);
     }
   }
 
