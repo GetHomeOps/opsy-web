@@ -8,6 +8,7 @@ const { wrapStripeErrors } = require("../utils/stripeErrors");
 const Coupon = require("../models/coupon");
 const db = require("../db");
 const { BILLING_MOCK_MODE, STRIPE_SECRET_KEY } = require("../config");
+const stripeService = require("../services/stripeService");
 
 const couponCreateSchema = require("../schemas/couponCreate.json");
 const couponUpdateSchema = require("../schemas/couponUpdate.json");
@@ -186,14 +187,16 @@ router.get("/:id", ensureLoggedIn, ensureSuperAdmin, async function (req, res, n
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) throw new BadRequestError("Invalid coupon ID");
 
-    // Refresh redemption count from Stripe for this coupon (general or unique).
+    let coupon = await Coupon.findById(id);
+
+    // Refresh redemption count from Stripe, then backfill missing redemption rows
+    // (missed webhooks / local dev only synced the aggregate counter).
     if (stripe && !BILLING_MOCK_MODE) {
       try {
-        const current = await Coupon.findById(id);
-        if (current.stripePromoCodeId) {
-          const promo = await stripe.promotionCodes.retrieve(current.stripePromoCodeId);
+        if (coupon.stripePromoCodeId) {
+          const promo = await stripe.promotionCodes.retrieve(coupon.stripePromoCodeId);
           const timesRedeemed = promo.times_redeemed || 0;
-          if (timesRedeemed > (current.redemptionCount || 0)) {
+          if (timesRedeemed > (coupon.redemptionCount || 0)) {
             await db.query(
               `UPDATE coupons
                SET redemption_count = $1,
@@ -202,14 +205,20 @@ router.get("/:id", ensureLoggedIn, ensureSuperAdmin, async function (req, res, n
                WHERE id = $2`,
               [timesRedeemed, id]
             );
+            coupon.redemptionCount = timesRedeemed;
           }
+        }
+
+        const localRows = coupon.redemptions?.length || 0;
+        if ((coupon.redemptionCount || 0) > localRows) {
+          await stripeService.backfillCouponRedemptionsFromStripe(coupon);
+          coupon = await Coupon.findById(id);
         }
       } catch (syncErr) {
         console.warn("[coupons] Stripe sync failed for coupon detail, continuing:", syncErr.message);
       }
     }
 
-    const coupon = await Coupon.findById(id);
     return res.json({ coupon });
   } catch (err) {
     return next(err);

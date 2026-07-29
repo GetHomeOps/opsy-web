@@ -394,6 +394,49 @@ class Coupon {
   }
 
   /**
+   * Ensure a redemption row exists without bumping redemption_count.
+   * Used when backfilling from Stripe after the aggregate count was already synced.
+   * Idempotent per (coupon_id, account_id).
+   * Returns { inserted: boolean }.
+   */
+  static async ensureRedemptionRow({
+    couponId,
+    accountId,
+    userId,
+    stripeSubscriptionId,
+    redeemedAt,
+  }) {
+    const insertRes = await db.query(
+      `INSERT INTO coupon_redemptions
+         (coupon_id, account_id, user_id, stripe_subscription_id, redeemed_at)
+       VALUES ($1, $2, $3, $4, COALESCE($5, NOW()))
+       ON CONFLICT (coupon_id, account_id) DO NOTHING
+       RETURNING id`,
+      [
+        couponId,
+        accountId,
+        userId,
+        stripeSubscriptionId || null,
+        redeemedAt || null,
+      ]
+    );
+
+    if (insertRes.rows.length === 0) {
+      if (stripeSubscriptionId) {
+        await db.query(
+          `UPDATE coupon_redemptions
+           SET stripe_subscription_id = COALESCE(stripe_subscription_id, $1)
+           WHERE coupon_id = $2 AND account_id = $3`,
+          [stripeSubscriptionId, couponId, accountId]
+        );
+      }
+      return { inserted: false };
+    }
+
+    return { inserted: true };
+  }
+
+  /**
    * Record a redemption and increment the counter atomically.
    * Idempotent per (coupon_id, account_id): duplicate calls do not bump the count.
    * For unique coupons, also sets is_active = false ("crossed off").

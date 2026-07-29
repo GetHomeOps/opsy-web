@@ -1062,6 +1062,154 @@ async function ensureFreePlanFallback(accountId, pendingPlanCode) {
   console.info(`[billing] ensureFreePlanFallback: inserted free plan for account=${accountId}`);
 }
 
+/** True when a Stripe discount references this coupon's promo and/or coupon IDs. */
+function discountMatchesCoupon(discount, { stripePromoCodeId, stripeCouponId, couponType }) {
+  const refs = extractDiscountRefs(discount);
+  if (stripePromoCodeId && refs.stripePromoCodeId === stripePromoCodeId) return true;
+  // Unique batches share one Stripe coupon across many codes — never match coupon-only.
+  if (couponType === "unique") return false;
+  if (stripeCouponId && refs.stripeCouponId === stripeCouponId) return true;
+  return false;
+}
+
+function discountStartDate(discount) {
+  return toValidDate(discount?.start) || null;
+}
+
+/**
+ * Backfill coupon_redemptions rows from Stripe subscription/invoice discounts.
+ * Does not bump redemption_count (that may already be synced from times_redeemed).
+ * Returns { inserted, scannedSubscriptions, scannedInvoices }.
+ */
+async function backfillCouponRedemptionsFromStripe(coupon) {
+  if (BILLING_MOCK_MODE || !stripe || !coupon?.id) {
+    return { inserted: 0, scannedSubscriptions: 0, scannedInvoices: 0 };
+  }
+
+  const stripePromoCodeId = coupon.stripePromoCodeId || null;
+  const stripeCouponId = coupon.stripeCouponId || null;
+  const couponType = coupon.couponType || "general";
+  if (!stripePromoCodeId && !stripeCouponId) {
+    return { inserted: 0, scannedSubscriptions: 0, scannedInvoices: 0 };
+  }
+
+  const targetCount = Math.max(coupon.redemptionCount || 0, 0);
+  const existing = await db.query(
+    `SELECT COUNT(*)::int AS count FROM coupon_redemptions WHERE coupon_id = $1`,
+    [coupon.id]
+  );
+  let have = existing.rows[0]?.count || 0;
+  if (targetCount > 0 && have >= targetCount) {
+    return { inserted: 0, scannedSubscriptions: 0, scannedInvoices: 0 };
+  }
+
+  const Coupon = require("../models/coupon");
+  const accountByCustomer = new Map();
+  const accountsRes = await db.query(
+    `SELECT id, owner_user_id AS "ownerUserId", stripe_customer_id AS "stripeCustomerId"
+     FROM accounts
+     WHERE stripe_customer_id IS NOT NULL`
+  );
+  for (const row of accountsRes.rows) {
+    accountByCustomer.set(row.stripeCustomerId, row);
+  }
+
+  let inserted = 0;
+  let scannedSubscriptions = 0;
+  let scannedInvoices = 0;
+
+  async function recordFromDiscount(discount, { stripeCustomerId, stripeSubscriptionId }) {
+    if (!discountMatchesCoupon(discount, { stripePromoCodeId, stripeCouponId, couponType })) {
+      return false;
+    }
+    const account = accountByCustomer.get(stripeCustomerId);
+    if (!account?.id || !account?.ownerUserId) return false;
+
+    const result = await Coupon.ensureRedemptionRow({
+      couponId: coupon.id,
+      accountId: account.id,
+      userId: account.ownerUserId,
+      stripeSubscriptionId: stripeSubscriptionId || null,
+      redeemedAt: discountStartDate(discount),
+    });
+    if (result.inserted) {
+      inserted += 1;
+      have += 1;
+    }
+    return result.inserted;
+  }
+
+  // Active/past subscriptions still carrying the discount (covers forever/repeating).
+  let startingAfter;
+  for (;;) {
+    if (targetCount > 0 && have >= targetCount) break;
+    const page = await stripe.subscriptions.list({
+      status: "all",
+      limit: 100,
+      expand: ["data.discount", "data.discounts"],
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
+    for (const sub of page.data) {
+      scannedSubscriptions += 1;
+      const customerId = stripeExpandableId(sub.customer);
+      if (!customerId) continue;
+      for (const discount of collectSubscriptionDiscounts(sub)) {
+        await recordFromDiscount(discount, {
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: sub.id,
+        });
+      }
+    }
+    if (!page.has_more || page.data.length === 0) break;
+    startingAfter = page.data[page.data.length - 1].id;
+  }
+
+  // Paid invoices catch once-duration discounts that no longer sit on the subscription.
+  if (!(targetCount > 0 && have >= targetCount)) {
+    startingAfter = undefined;
+    for (;;) {
+      if (targetCount > 0 && have >= targetCount) break;
+      const page = await stripe.invoices.list({
+        status: "paid",
+        limit: 100,
+        expand: ["data.discounts"],
+        ...(startingAfter ? { starting_after: startingAfter } : {}),
+      });
+      for (const invoice of page.data) {
+        scannedInvoices += 1;
+        const customerId = stripeExpandableId(invoice.customer);
+        if (!customerId) continue;
+        const discounts = [];
+        if (invoice.discount && typeof invoice.discount === "object") {
+          discounts.push(invoice.discount);
+        }
+        if (Array.isArray(invoice.discounts)) {
+          for (const d of invoice.discounts) {
+            if (d && typeof d === "object") discounts.push(d);
+          }
+        }
+        for (const discount of discounts) {
+          await recordFromDiscount(discount, {
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: stripeExpandableId(invoice.subscription),
+          });
+        }
+      }
+      if (!page.has_more || page.data.length === 0) break;
+      startingAfter = page.data[page.data.length - 1].id;
+    }
+  }
+
+  if (inserted > 0) {
+    console.info(
+      `[coupons] backfilled ${inserted} redemption row(s) for coupon=${coupon.id} ` +
+        `(scanned subs=${scannedSubscriptions} invoices=${scannedInvoices})`
+    );
+  }
+
+  return { inserted, scannedSubscriptions, scannedInvoices };
+}
+
 /**
  * Sync every subscription in Stripe into the local DB (paginated).
  * Returns { synced, failed }.
@@ -1188,6 +1336,7 @@ module.exports = {
   isEventProcessed,
   handleSubscriptionUpdated,
   syncAllStripeSubscriptions,
+  backfillCouponRedemptionsFromStripe,
   listActivePrices,
   getCustomerPaymentMethod,
   listCustomerInvoices,
