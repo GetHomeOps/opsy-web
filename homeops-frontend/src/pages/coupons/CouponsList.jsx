@@ -767,7 +767,7 @@ function CouponsList() {
                         <th className="px-4 py-3 whitespace-nowrap text-left font-semibold">Redemptions</th>
                         <th className="px-4 py-3 whitespace-nowrap text-left font-semibold">Expires</th>
                         <th className="px-4 py-3 whitespace-nowrap text-left font-semibold">Status</th>
-                        <th className="px-4 py-3 whitespace-nowrap text-right font-semibold">Actions</th>
+                        <th className="px-4 py-3 whitespace-nowrap text-right font-semibold">Active</th>
                       </tr>
                     </thead>
                     <tbody className="text-sm divide-y divide-gray-200 dark:divide-gray-700/60">

@@ -43,6 +43,7 @@ function CouponForm() {
   const [banner, setBanner] = useState({ open: false, type: "success", message: "" });
   const [copiedCode, setCopiedCode] = useState(false);
   const [redemptions, setRedemptions] = useState([]);
+  const [redemptionCount, setRedemptionCount] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -74,7 +75,11 @@ function CouponForm() {
             codePrefix: "",
             batchName: c.batchName || "",
           });
-          setRedemptions(c.redemptions || []);
+          const rows = c.redemptions || [];
+          setRedemptions(rows);
+          setRedemptionCount(
+            Math.max(c.redemptionCount ?? 0, rows.length)
+          );
         }
       } catch (err) {
         setBanner({ open: true, type: "error", message: err.message });
@@ -568,36 +573,51 @@ function CouponForm() {
                 </div>
 
                 {/* Redemptions Table (edit only) */}
-                {isEdit && redemptions.length > 0 && (
+                {isEdit && (
                   <div className="mt-8">
                     <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">
-                      Redemptions ({redemptions.length})
+                      Redemptions ({redemptionCount})
                     </h2>
+                    {redemptionCount > redemptions.length && (
+                      <p className="text-xs text-gray-400 mb-2">
+                        Showing {redemptions.length} recorded redemption
+                        {redemptions.length === 1 ? "" : "s"}; total count may
+                        include redemptions synced from Stripe.
+                      </p>
+                    )}
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl overflow-hidden">
-                      <table className="table-auto w-full text-sm">
-                        <thead className="text-xs uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20">
-                          <tr>
-                            <th className="px-4 py-2 text-left">Account</th>
-                            <th className="px-4 py-2 text-left">User</th>
-                            <th className="px-4 py-2 text-left">Date</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700/60">
-                          {redemptions.map((r) => (
-                            <tr key={r.id}>
-                              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
-                                {r.accountName || `#${r.accountId}`}
-                              </td>
-                              <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
-                                {r.userEmail || `#${r.userId}`}
-                              </td>
-                              <td className="px-4 py-2 text-gray-500">
-                                {r.redeemedAt ? new Date(r.redeemedAt).toLocaleString() : "\u2014"}
-                              </td>
+                      {redemptions.length > 0 ? (
+                        <table className="table-auto w-full text-sm">
+                          <thead className="text-xs uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20">
+                            <tr>
+                              <th className="px-4 py-2 text-left">Account</th>
+                              <th className="px-4 py-2 text-left">User</th>
+                              <th className="px-4 py-2 text-left">Date</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700/60">
+                            {redemptions.map((r) => (
+                              <tr key={r.id}>
+                                <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                                  {r.accountName || `#${r.accountId}`}
+                                </td>
+                                <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
+                                  {r.userEmail || `#${r.userId}`}
+                                </td>
+                                <td className="px-4 py-2 text-gray-500">
+                                  {r.redeemedAt
+                                    ? new Date(r.redeemedAt).toLocaleString()
+                                    : "\u2014"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <p className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                          No redemptions recorded yet.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
