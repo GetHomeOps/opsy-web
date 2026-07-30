@@ -14,6 +14,7 @@ import {
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {PAGE_LAYOUT, SETTINGS_CARD} from "../../constants/layout";
 import ImageUploadField from "../../components/ImageUploadField";
+import LogoCropModal from "../../components/LogoCropModal";
 import useImageUpload from "../../hooks/useImageUpload";
 import {S3_UPLOAD_FOLDER} from "../../constants/s3UploadFolders";
 import AgentCard from "../home/components/AgentCard";
@@ -137,6 +138,9 @@ function CustomizationPage() {
   const [readOnlyReason, setReadOnlyReason] = useState(null);
   const [banner, setBanner] = useState({open: false, type: "success", message: ""});
   const [fallbackIds, setFallbackIds] = useState(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState(null);
+  const cropImageSrcRef = React.useRef(null);
   const hasLoadedOnceRef = React.useRef(false);
   const loadGenerationRef = React.useRef(0);
 
@@ -194,6 +198,46 @@ function CustomizationPage() {
     clearLogoPreview();
     clearLogoUploaded();
   }, [clearLogoPreview, clearLogoUploaded]);
+
+  const closeCropModal = useCallback(() => {
+    setCropModalOpen(false);
+    if (cropImageSrcRef.current) {
+      URL.revokeObjectURL(cropImageSrcRef.current);
+      cropImageSrcRef.current = null;
+    }
+    setCropImageSrc(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (cropImageSrcRef.current) {
+        URL.revokeObjectURL(cropImageSrcRef.current);
+        cropImageSrcRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleLogoFilePick = useCallback((file) => {
+    if (!file || !file.type.startsWith("image/")) {
+      setLogoUploadError("Please select an image file (JPEG, PNG, WebP)");
+      return;
+    }
+    setLogoUploadError(null);
+    if (cropImageSrcRef.current) {
+      URL.revokeObjectURL(cropImageSrcRef.current);
+    }
+    const url = URL.createObjectURL(file);
+    cropImageSrcRef.current = url;
+    setCropImageSrc(url);
+    setCropModalOpen(true);
+  }, [setLogoUploadError]);
+
+  const handleCropConfirm = useCallback(
+    async (croppedFile) => {
+      await uploadLogo(croppedFile);
+    },
+    [uploadLogo],
+  );
 
   const loadBranding = useCallback(
     async (id) => {
@@ -625,7 +669,7 @@ function CustomizationPage() {
                           imageSrc={logoSrc}
                           hasImage={Boolean(logoSrc)}
                           imageUploading={logoUploading}
-                          onUpload={uploadLogo}
+                          onUpload={handleLogoFilePick}
                           onRemove={() => {
                             clearLogoPreview();
                             clearLogoUploaded();
@@ -640,6 +684,7 @@ function CustomizationPage() {
                           imageUploadError={logoUploadError}
                           onDismissError={() => setLogoUploadError(null)}
                           size="sm"
+                          variant="logo"
                           placeholder="generic"
                           alt="Logo"
                           uploadLabel="Upload logo"
@@ -661,7 +706,7 @@ function CustomizationPage() {
                             <img
                               src={logoSrc}
                               alt=""
-                              className="h-10 w-10 object-contain"
+                              className="h-12 max-w-[7.5rem] object-contain"
                             />
                           ) : (
                             <span
@@ -810,6 +855,14 @@ function CustomizationPage() {
           )}
         </main>
       </div>
+
+      <LogoCropModal
+        open={cropModalOpen}
+        onClose={closeCropModal}
+        imageSrc={cropImageSrc}
+        accentColor={form.accentColor || DEFAULT_ACCENT}
+        onConfirm={handleCropConfirm}
+      />
     </div>
   );
 }

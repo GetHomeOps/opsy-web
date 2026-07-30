@@ -32,7 +32,7 @@ function AgentAgencyFooter({agency, onClick, companyLogoUrl, companyNameOverride
     <>
       <span className="relative flex-shrink-0 w-8 h-8 rounded-lg overflow-hidden ring-1 ring-[color-mix(in_srgb,var(--agent-card-fg,#fff)_25%,transparent)] bg-white/10 shadow-sm flex items-center justify-center">
         {logoUrl ? (
-          <img src={logoUrl} alt="" className="w-full h-full object-cover" />
+          <img src={logoUrl} alt="" className="w-full h-full object-contain p-0.5" />
         ) : (
           <span className="text-[10px] font-bold text-[color-mix(in_srgb,var(--agent-card-fg,#fff)_90%,transparent)] leading-none">
             {initials}

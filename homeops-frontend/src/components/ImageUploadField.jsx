@@ -38,6 +38,7 @@ const SIZES = {
  * @param {string} [props.emptyLabel] - Label shown below icon when empty (e.g. "Add image")
  * @param {string} [props.emptyBackgroundSrc] - Background image when empty (e.g. property placeholder)
  * @param {boolean} [props.showEmptyUploadButton=false] - Orange upload button over empty background
+ * @param {'photo'|'logo'} [props.variant='photo'] - photo: cover + white plate; logo: contain + checkerboard
  */
 function ImageUploadField({
   imageSrc,
@@ -62,9 +63,11 @@ function ImageUploadField({
   fileInputRef,
   menuOpen = false,
   onMenuToggle,
+  variant = "photo",
 }) {
   const sizeClass = SIZES[size] || SIZES.md;
   const isCompact = size === "xs";
+  const isLogo = variant === "logo";
   const PlaceholderIcon = placeholder === "avatar" ? User : ImagePlus;
   const [showOverlay, setShowOverlay] = useState(false);
   const internalInputRef = useRef(null);
@@ -102,7 +105,7 @@ function ImageUploadField({
       <div
         className={`${sizeClass} ${isCompact ? "rounded-lg" : "rounded-xl"} overflow-hidden transition-all duration-200 flex flex-col items-center justify-center relative ${
           hasImage
-            ? `bg-white shadow-sm cursor-pointer${
+            ? `${isLogo ? "shadow-sm cursor-pointer" : "bg-white shadow-sm cursor-pointer"}${
                 isXl
                   ? ""
                   : " ring-2 ring-gray-200 dark:ring-gray-600 ring-offset-2 dark:ring-offset-gray-800"
@@ -111,6 +114,17 @@ function ImageUploadField({
               ? "bg-neutral-900 cursor-default"
               : "bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-750 border-2 border-dashed border-gray-300 dark:border-gray-600 cursor-pointer hover:from-gray-100 hover:to-gray-200 dark:hover:from-gray-650 dark:hover:to-gray-700"
         }`}
+        style={
+          hasImage && isLogo
+            ? {
+                backgroundImage:
+                  "linear-gradient(45deg, #e5e7eb 25%, transparent 25%), linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e7eb 75%), linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)",
+                backgroundSize: "12px 12px",
+                backgroundPosition: "0 0, 0 6px, 6px -6px, -6px 0",
+                backgroundColor: "#f9fafb",
+              }
+            : undefined
+        }
         onClick={handleAreaClick}
         role={areaOpensPicker ? "button" : undefined}
         tabIndex={areaOpensPicker ? 0 : undefined}
@@ -142,7 +156,7 @@ function ImageUploadField({
               key={imageSrc}
               src={imageSrc}
               alt={alt}
-              className="w-full h-full object-cover"
+              className={`w-full h-full ${isLogo ? "object-contain p-1" : "object-cover"}`}
               onError={(e) => {
                 e.target.onerror = null;
                 e.target.src = PLACEHOLDER_FALLBACK;
