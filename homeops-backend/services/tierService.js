@@ -18,7 +18,21 @@ const DEFAULT_LIMITS = {
   maxProperties: 3, maxContacts: 50, maxViewers: 5, maxTeamMembers: 10,
   aiTokenMonthlyQuota: 50000, maxDocumentsPerSystem: 5, aiFeaturesEnabled: true,
   prePurchaseEnabled: false,
+  assistantsEnabled: false,
+  maxAssistants: 0,
 };
+
+const PLAN_LIMITS_SELECT = `
+            pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
+            pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
+            pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+            pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
+            pl.ai_token_price_usd AS "aiTokenPriceUsd",
+            pl.max_documents_per_system AS "maxDocumentsPerSystem",
+            COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
+            COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled",
+            COALESCE(pl.assistants_enabled, false) AS "assistantsEnabled",
+            COALESCE(pl.max_assistants, 0) AS "maxAssistants"`;
 
 function isAdminRole(role) {
   return role === "super_admin" || role === "admin";
@@ -43,14 +57,7 @@ function applyAiTokenQuota(row) {
 async function getLimitsForPlanCode(planCode) {
   if (!planCode) return { ...DEFAULT_LIMITS };
   const limRes = await db.query(
-    `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
-            pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
-            pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
-            pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
-            pl.ai_token_price_usd AS "aiTokenPriceUsd",
-            pl.max_documents_per_system AS "maxDocumentsPerSystem",
-            COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
-            COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
+    `SELECT ${PLAN_LIMITS_SELECT}
      FROM plan_limits pl
      JOIN subscription_products sp ON sp.id = pl.subscription_product_id
      WHERE sp.code = $1
@@ -74,14 +81,7 @@ async function getAccountLimits(accountId) {
   const productId = subRes.rows[0]?.subscription_product_id;
   if (productId) {
     const limRes = await db.query(
-      `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
-              pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
-              pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
-              pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
-              pl.ai_token_price_usd AS "aiTokenPriceUsd",
-              pl.max_documents_per_system AS "maxDocumentsPerSystem",
-              COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
-              COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
+      `SELECT ${PLAN_LIMITS_SELECT}
        FROM plan_limits pl WHERE pl.subscription_product_id = $1`,
       [productId]
     );
@@ -107,14 +107,7 @@ async function getAccountLimits(accountId) {
   }
 
   const freeRes = await db.query(
-    `SELECT pl.max_properties AS "maxProperties", pl.max_contacts AS "maxContacts",
-            pl.max_viewers AS "maxViewers", pl.max_team_members AS "maxTeamMembers",
-            pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
-            pl.ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
-            pl.ai_token_price_usd AS "aiTokenPriceUsd",
-            pl.max_documents_per_system AS "maxDocumentsPerSystem",
-            COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
-            COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
+    `SELECT ${PLAN_LIMITS_SELECT}
      FROM plan_limits pl
      JOIN subscription_products sp ON sp.id = pl.subscription_product_id
      WHERE sp.code = 'homeowner_free' LIMIT 1`
@@ -163,9 +156,36 @@ function resolveAiTokenMonthlyQuota(limits) {
   return null;
 }
 
+/** Load complimentary AI features override flags for a user. */
+async function getAiFeaturesOverride(userId) {
+  const res = await db.query(
+    `SELECT COALESCE(ai_features_override_enabled, false) AS enabled,
+            ai_features_token_monthly_quota AS quota
+     FROM users WHERE id = $1`,
+    [userId]
+  );
+  const row = res.rows[0];
+  if (!row) return { enabled: false, quota: null };
+  return {
+    enabled: row.enabled === true,
+    quota: row.quota != null ? Number(row.quota) : null,
+  };
+}
+
+/** Monthly AI tokens used by this user (complimentary allotment meter). */
+async function countAiTokensUsedThisMonth(userId) {
+  const usedRes = await db.query(
+    `SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0)::bigint AS used
+     FROM user_api_usage WHERE user_id = $1 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`,
+    [userId]
+  );
+  return Number(usedRes.rows[0]?.used || 0);
+}
+
 /** Check if user has AI token quota remaining this month. Returns { allowed, used, quota }.
  *  Pass { propertyId } so agent-subsidized properties inherit the sponsor's quota cap.
- *  Usage is always metered per user; only the cap is resolved from the property plan. */
+ *  Usage is always metered per user; only the cap is resolved from the property plan.
+ *  When plan/property AI is off, a complimentary per-user override may supply a monthly cap. */
 async function checkAiTokenQuota(userId, userRole, { propertyId } = {}) {
   if (isAdminRole(userRole)) return { allowed: true, used: 0, quota: 999999 };
   if (BILLING_MOCK_MODE) return { allowed: true, used: 0, quota: 999999 };
@@ -173,34 +193,67 @@ async function checkAiTokenQuota(userId, userRole, { propertyId } = {}) {
   const limits = propertyId
     ? await getPropertyEntitlements(propertyId)
     : await getEffectiveLimits(userId);
-  const quota = resolveAiTokenMonthlyQuota(limits);
-  if (quota === 0) return { allowed: false, used: 0, quota: 0 };
-  if (quota == null) return { allowed: true, used: 0, quota: 999999 };
 
-  const usedRes = await db.query(
-    `SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0)::bigint AS used
-     FROM user_api_usage WHERE user_id = $1 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`,
-    [userId]
-  );
-  const used = Number(usedRes.rows[0]?.used || 0);
-  return { allowed: used < quota, used, quota };
+  if (limits.aiFeaturesEnabled === false) {
+    const override = await getAiFeaturesOverride(userId);
+    if (!override.enabled) {
+      return { allowed: false, used: 0, quota: 0, source: "plan" };
+    }
+    const quota = override.quota;
+    if (quota == null || quota < 1) {
+      return {
+        allowed: false,
+        used: 0,
+        quota: 0,
+        source: "override",
+        message:
+          "AI complimentary access is not configured with a monthly token limit.",
+      };
+    }
+    const used = await countAiTokensUsedThisMonth(userId);
+    return {
+      allowed: used < quota,
+      used,
+      quota,
+      source: "override",
+      message:
+        used < quota
+          ? undefined
+          : "You have used all complimentary AI tokens for this month. Upgrade to a plan that includes AI for more.",
+    };
+  }
+
+  const quota = resolveAiTokenMonthlyQuota(limits);
+  if (quota === 0) return { allowed: false, used: 0, quota: 0, source: "plan" };
+  if (quota == null) return { allowed: true, used: 0, quota: 999999, source: "plan" };
+
+  const used = await countAiTokensUsedThisMonth(userId);
+  return { allowed: used < quota, used, quota, source: "plan" };
 }
 
 /** Whether inspection analysis + AI chat are allowed for this user’s plan (admins / mock bypass).
- *  Pass { propertyId } so agent-subsidized properties inherit the sponsor's AI entitlement. */
+ *  Pass { propertyId } so agent-subsidized properties inherit the sponsor's AI entitlement.
+ *  When plan/property AI is off, agents/homeowners may receive a complimentary per-user override. */
 async function checkAiFeaturesAllowed(userId, userRole, { propertyId } = {}) {
-  if (isAdminRole(userRole)) return { allowed: true };
-  if (BILLING_MOCK_MODE) return { allowed: true };
+  if (isAdminRole(userRole)) return { allowed: true, source: "admin" };
+  if (BILLING_MOCK_MODE) return { allowed: true, source: "mock" };
 
   const limits = propertyId
     ? await getPropertyEntitlements(propertyId)
     : await getEffectiveLimits(userId);
-  const enabled = limits.aiFeaturesEnabled !== false;
+  if (limits.aiFeaturesEnabled !== false) {
+    return { allowed: true, source: "plan" };
+  }
+
+  const override = await getAiFeaturesOverride(userId);
+  if (override.enabled) {
+    return { allowed: true, source: "override" };
+  }
+
   return {
-    allowed: enabled,
-    message: enabled
-      ? undefined
-      : "AI features (inspection analysis and assistant) are not included in your current plan. Upgrade to a plan that includes AI.",
+    allowed: false,
+    message:
+      "AI features (inspection analysis and assistant) are not included in your current plan. Upgrade to a plan that includes AI.",
   };
 }
 
@@ -556,6 +609,10 @@ async function countPropertiesForLimit({ accountId, userId, userRole }) {
   if (role === "agent") {
     return countAgentManagedProperties(userId);
   }
+  /* Assistants share the agent's account limits; count account-owned properties. */
+  if (role === "assistant") {
+    return countAccountOwnedProperties(accountId);
+  }
   return countAccountOwnedProperties(accountId);
 }
 
@@ -711,6 +768,55 @@ async function canUploadDocumentToSystem(accountId, propertyId, systemKey, userR
   return { allowed: current < max, current, max };
 }
 
+/** Count tethered assistants for an agent (pending + active; revoked clear tether). */
+async function countAssistantsForAgent(agentUserId) {
+  const res = await db.query(
+    `SELECT COUNT(*)::int AS count
+     FROM users
+     WHERE assistant_of_user_id = $1 AND role = 'assistant'`,
+    [agentUserId]
+  );
+  return res.rows[0]?.count || 0;
+}
+
+/** Whether the agent's plan includes assistants. */
+async function checkAssistantsAllowed(agentUserId) {
+  const limits = await getEffectiveLimits(agentUserId);
+  const allowed = limits.assistantsEnabled === true;
+  return {
+    allowed,
+    max: Number(limits.maxAssistants) || 0,
+    message: allowed
+      ? undefined
+      : "Assistants are not included in your current plan. Upgrade to a plan that includes assistants.",
+  };
+}
+
+/** Whether the agent can create another assistant under plan limits. */
+async function canCreateAssistant(agentUserId) {
+  const limits = await getEffectiveLimits(agentUserId);
+  if (limits.assistantsEnabled !== true) {
+    return {
+      allowed: false,
+      current: 0,
+      max: 0,
+      message:
+        "Assistants are not included in your current plan. Upgrade to a plan that includes assistants.",
+    };
+  }
+  const current = await countAssistantsForAgent(agentUserId);
+  const max = Number(limits.maxAssistants) || 0;
+  return {
+    allowed: current < max,
+    current,
+    max,
+    message:
+      current < max
+        ? undefined
+        : "You have reached the maximum number of assistants for your plan.",
+  };
+}
+
 module.exports = {
   getAccountLimits,
   getLimitsForPlanCode,
@@ -731,10 +837,15 @@ module.exports = {
   getViewerInviteEligibilityByProperty,
   checkAiTokenQuota,
   checkAiFeaturesAllowed,
+  getAiFeaturesOverride,
+  countAiTokensUsedThisMonth,
   checkPrePurchaseAllowed,
   checkPrePurchaseCreateAllowed,
   getPrePurchaseOverride,
   countPrePurchaseAnalysesCreatedBy,
   canUploadDocumentToSystem,
+  countAssistantsForAgent,
+  checkAssistantsAllowed,
+  canCreateAssistant,
   isAdminRole,
 };

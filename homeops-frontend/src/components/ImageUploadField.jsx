@@ -38,7 +38,8 @@ const SIZES = {
  * @param {string} [props.emptyLabel] - Label shown below icon when empty (e.g. "Add image")
  * @param {string} [props.emptyBackgroundSrc] - Background image when empty (e.g. property placeholder)
  * @param {boolean} [props.showEmptyUploadButton=false] - Orange upload button over empty background
- * @param {'photo'|'logo'} [props.variant='photo'] - photo: cover + white plate; logo: contain + checkerboard
+ * @param {'photo'|'logo'} [props.variant='photo'] - photo: cover + white plate; logo: contain on accent (or checkerboard fallback)
+ * @param {string} [props.logoBackdropColor] - Accent/shell color behind logo previews (preferred over checkerboard)
  */
 function ImageUploadField({
   imageSrc,
@@ -64,6 +65,7 @@ function ImageUploadField({
   menuOpen = false,
   onMenuToggle,
   variant = "photo",
+  logoBackdropColor,
 }) {
   const sizeClass = SIZES[size] || SIZES.md;
   const isCompact = size === "xs";
@@ -116,13 +118,15 @@ function ImageUploadField({
         }`}
         style={
           hasImage && isLogo
-            ? {
-                backgroundImage:
-                  "linear-gradient(45deg, #e5e7eb 25%, transparent 25%), linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e7eb 75%), linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)",
-                backgroundSize: "12px 12px",
-                backgroundPosition: "0 0, 0 6px, 6px -6px, -6px 0",
-                backgroundColor: "#f9fafb",
-              }
+            ? logoBackdropColor
+              ? {backgroundColor: logoBackdropColor}
+              : {
+                  backgroundImage:
+                    "linear-gradient(45deg, #e5e7eb 25%, transparent 25%), linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e7eb 75%), linear-gradient(-45deg, transparent 75%, #e5e7eb 75%)",
+                  backgroundSize: "12px 12px",
+                  backgroundPosition: "0 0, 0 6px, 6px -6px, -6px 0",
+                  backgroundColor: "#f9fafb",
+                }
             : undefined
         }
         onClick={handleAreaClick}

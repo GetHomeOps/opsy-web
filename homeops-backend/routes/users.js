@@ -519,23 +519,48 @@ router.patch("/:id", ensureLoggedIn, async function (req, res, next) {
       delete profileBody.opsyScoutFreeAnalysesLimit;
       delete profileBody.opsy_scout_override_enabled;
       delete profileBody.opsy_scout_free_analyses_limit;
-    } else if (
-      profileBody.opsyScoutOverrideEnabled !== undefined ||
-      profileBody.opsyScoutFreeAnalysesLimit !== undefined
-    ) {
-      const enabled = profileBody.opsyScoutOverrideEnabled === true;
-      if (enabled) {
-        const limit = Number(profileBody.opsyScoutFreeAnalysesLimit);
-        if (!Number.isInteger(limit) || limit < 1) {
-          throw new BadRequestError(
-            "opsyScoutFreeAnalysesLimit must be a positive integer when Opsy Scout override is enabled."
-          );
+      delete profileBody.aiFeaturesOverrideEnabled;
+      delete profileBody.aiFeaturesTokenMonthlyQuota;
+      delete profileBody.ai_features_override_enabled;
+      delete profileBody.ai_features_token_monthly_quota;
+    } else {
+      if (
+        profileBody.opsyScoutOverrideEnabled !== undefined ||
+        profileBody.opsyScoutFreeAnalysesLimit !== undefined
+      ) {
+        const enabled = profileBody.opsyScoutOverrideEnabled === true;
+        if (enabled) {
+          const limit = Number(profileBody.opsyScoutFreeAnalysesLimit);
+          if (!Number.isInteger(limit) || limit < 1) {
+            throw new BadRequestError(
+              "opsyScoutFreeAnalysesLimit must be a positive integer when Opsy Scout override is enabled."
+            );
+          }
+          profileBody.opsyScoutOverrideEnabled = true;
+          profileBody.opsyScoutFreeAnalysesLimit = limit;
+        } else if (profileBody.opsyScoutOverrideEnabled === false) {
+          profileBody.opsyScoutOverrideEnabled = false;
+          profileBody.opsyScoutFreeAnalysesLimit = null;
         }
-        profileBody.opsyScoutOverrideEnabled = true;
-        profileBody.opsyScoutFreeAnalysesLimit = limit;
-      } else if (profileBody.opsyScoutOverrideEnabled === false) {
-        profileBody.opsyScoutOverrideEnabled = false;
-        profileBody.opsyScoutFreeAnalysesLimit = null;
+      }
+      if (
+        profileBody.aiFeaturesOverrideEnabled !== undefined ||
+        profileBody.aiFeaturesTokenMonthlyQuota !== undefined
+      ) {
+        const enabled = profileBody.aiFeaturesOverrideEnabled === true;
+        if (enabled) {
+          const quota = Number(profileBody.aiFeaturesTokenMonthlyQuota);
+          if (!Number.isInteger(quota) || quota < 1) {
+            throw new BadRequestError(
+              "aiFeaturesTokenMonthlyQuota must be a positive integer when AI features override is enabled."
+            );
+          }
+          profileBody.aiFeaturesOverrideEnabled = true;
+          profileBody.aiFeaturesTokenMonthlyQuota = quota;
+        } else if (profileBody.aiFeaturesOverrideEnabled === false) {
+          profileBody.aiFeaturesOverrideEnabled = false;
+          profileBody.aiFeaturesTokenMonthlyQuota = null;
+        }
       }
     }
 

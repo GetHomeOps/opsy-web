@@ -1184,13 +1184,37 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
         user = existingUser.rows[0];
         if (!user.is_active && password) {
           const hashedPassword = await bcrypt.hash(password, BCRYPT_WORK_FACTOR);
-          await db.query(
-            `UPDATE users SET password_hash = $1, is_active = true WHERE id = $2`,
-            [hashedPassword, user.id]
-          );
+          const nameUpdate = name && user.role === "assistant" ? name : null;
+          if (nameUpdate) {
+            await db.query(
+              `UPDATE users
+               SET password_hash = $1, is_active = true, name = $2,
+                   onboarding_completed = true, email_verified = true
+               WHERE id = $3`,
+              [hashedPassword, nameUpdate, user.id]
+            );
+            user.name = nameUpdate;
+          } else if (user.role === "assistant") {
+            await db.query(
+              `UPDATE users
+               SET password_hash = $1, is_active = true,
+                   onboarding_completed = true, email_verified = true
+               WHERE id = $2`,
+              [hashedPassword, user.id]
+            );
+          } else {
+            await db.query(
+              `UPDATE users SET password_hash = $1, is_active = true WHERE id = $2`,
+              [hashedPassword, user.id]
+            );
+          }
         }
 
-        const hasAccount = await User.userHasAccount(user.id);
+        /* Assistants are tethered to an agent's account — never create a
+           personal account/subscription for them. */
+        const hasAccount = user.role === "assistant"
+          ? true
+          : await User.userHasAccount(user.id);
         if (!hasAccount) {
           const userName = name || user.name || invitation.inviteeEmail;
           const newAccount = await Account.linkNewUserToAccount({ name: userName, userId: user.id });

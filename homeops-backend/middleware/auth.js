@@ -395,7 +395,12 @@ function ensureCanViewUser(paramName = "email") {
 /** Require super_admin, admin, or agent role. */
 function ensureAdminOrSuperAdmin(req, res, next) {
   const userRole = res.locals.user?.role;
-  if (userRole === 'super_admin' || userRole === 'admin' || userRole === 'agent') {
+  if (
+    userRole === "super_admin" ||
+    userRole === "admin" ||
+    userRole === "agent" ||
+    userRole === "assistant"
+  ) {
     return next();
   }
   // After ensureLoggedIn, 403 distinguishes “signed in, not allowed” from 401 “no valid session”.

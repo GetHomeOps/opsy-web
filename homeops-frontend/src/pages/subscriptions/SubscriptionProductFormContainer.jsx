@@ -182,6 +182,8 @@ const initialFormData = {
   maxDocumentsPerSystem: 5,
   aiFeaturesEnabled: true,
   prePurchaseEnabled: false,
+  assistantsEnabled: false,
+  maxAssistants: 0,
   stripePriceIdMonth: "",
   stripePriceIdYear: "",
   priceActiveMonth: true,
@@ -285,6 +287,8 @@ function mapProductToForm(product) {
     maxDocumentsPerSystem: lim.maxDocumentsPerSystem ?? 5,
     aiFeaturesEnabled: lim.aiFeaturesEnabled !== false,
     prePurchaseEnabled: lim.prePurchaseEnabled === true,
+    assistantsEnabled: lim.assistantsEnabled === true,
+    maxAssistants: lim.maxAssistants ?? 0,
     stripePriceIdMonth:
       priceMonth?.stripePriceId || priceMonth?.stripe_price_id || "",
     stripePriceIdYear:
@@ -754,6 +758,10 @@ function SubscriptionProductFormContainer() {
           Number(state.formData.maxDocumentsPerSystem) ?? 5,
         aiFeaturesEnabled: !!state.formData.aiFeaturesEnabled,
         prePurchaseEnabled: !!state.formData.prePurchaseEnabled,
+        assistantsEnabled: !!state.formData.assistantsEnabled,
+        maxAssistants: state.formData.assistantsEnabled
+          ? Number(state.formData.maxAssistants) || 0
+          : 0,
         stripePriceIdMonth: state.formData.stripePriceIdMonth?.trim() || null,
         stripePriceIdYear: state.formData.stripePriceIdYear?.trim() || null,
         stripePriceId:
@@ -839,6 +847,10 @@ function SubscriptionProductFormContainer() {
             Number(state.formData.maxDocumentsPerSystem) ?? 5,
           aiFeaturesEnabled: !!state.formData.aiFeaturesEnabled,
           prePurchaseEnabled: !!state.formData.prePurchaseEnabled,
+          assistantsEnabled: !!state.formData.assistantsEnabled,
+          maxAssistants: state.formData.assistantsEnabled
+            ? Number(state.formData.maxAssistants) || 0
+            : 0,
         },
         prices: {
           month: state.formData.stripePriceIdMonth?.trim() || null,
@@ -1696,6 +1708,48 @@ function SubscriptionProductFormContainer() {
                           </span>
                         </span>
                       </label>
+                      <label className="flex items-start gap-3 cursor-pointer max-w-2xl">
+                        <input
+                          id="assistantsEnabled"
+                          type="checkbox"
+                          checked={!!state.formData.assistantsEnabled}
+                          onChange={handleChange}
+                          className="mt-1 rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
+                            {t(
+                              "subscriptionProducts.tierLimits.assistantsEnabled",
+                            ) || "Include Assistants"}
+                          </span>
+                          <span className="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                            {t(
+                              "subscriptionProducts.tierLimits.assistantsEnabledHint",
+                            ) ||
+                              "When enabled, agents on this plan can invite team assistants tethered to their account. Assistants cannot manage billing."}
+                          </span>
+                        </span>
+                      </label>
+                      {!!state.formData.assistantsEnabled && (
+                        <div className="max-w-xs pl-7">
+                          <label
+                            className="block text-sm font-medium text-gray-800 dark:text-gray-100 mb-1"
+                            htmlFor="maxAssistants"
+                          >
+                            {t(
+                              "subscriptionProducts.tierLimits.maxAssistants",
+                            ) || "Max Assistants"}
+                          </label>
+                          <input
+                            id="maxAssistants"
+                            type="number"
+                            min={0}
+                            value={state.formData.maxAssistants ?? 0}
+                            onChange={handleChange}
+                            className="form-input w-full"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

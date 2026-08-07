@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- ENUM Types
 -- ============================================================
 CREATE TYPE user_role AS ENUM (
-  'super_admin', 'admin', 'agent', 'homeowner',
+  'super_admin', 'admin', 'agent', 'assistant', 'homeowner',
   'insurance', 'lender', 'attorney'
 );
 
@@ -55,9 +55,14 @@ CREATE TABLE users (
     demo_expiry_notified_at TIMESTAMPTZ,
     opsy_scout_override_enabled BOOLEAN NOT NULL DEFAULT false,
     opsy_scout_free_analyses_limit INTEGER,
+    ai_features_override_enabled BOOLEAN NOT NULL DEFAULT false,
+    ai_features_token_monthly_quota INTEGER,
+    assistant_of_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX idx_users_assistant_of_user_id ON users(assistant_of_user_id);
 
 CREATE TABLE accounts (
     id SERIAL PRIMARY KEY,
@@ -682,6 +687,8 @@ CREATE TABLE plan_limits (
     max_documents_per_system INTEGER DEFAULT 5,
     ai_features_enabled BOOLEAN NOT NULL DEFAULT true,
     pre_purchase_enabled BOOLEAN NOT NULL DEFAULT false,
+    assistants_enabled BOOLEAN NOT NULL DEFAULT false,
+    max_assistants INTEGER NOT NULL DEFAULT 0,
     other_limits JSONB DEFAULT '{}',
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -1668,6 +1675,16 @@ CREATE TABLE teams (
     office_id INTEGER NOT NULL REFERENCES offices(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     status entity_approval_status NOT NULL DEFAULT 'pending',
+    -- White-label branding (used when parent agency has no customization)
+    accent_color VARCHAR(7),
+    sidebar_icon_key TEXT,
+    agent_card_logo_key TEXT,
+    agent_card_accent_color VARCHAR(7),
+    agent_card_background_color VARCHAR(7),
+    agent_card_agent_label VARCHAR(80),
+    agent_card_company_name VARCHAR(120),
+    sidebar_text_color VARCHAR(7),
+    agent_card_text_color VARCHAR(7),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

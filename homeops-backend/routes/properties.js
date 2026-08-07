@@ -465,8 +465,14 @@ router.get(
   async function (req, res, next) {
     try {
       const viewer = res.locals.user;
-      const agentUserId =
-        viewer?.role === "agent" ? viewer.id : null;
+      let agentUserId = viewer?.role === "agent" ? viewer.id : null;
+      if (!agentUserId && viewer?.role === "assistant" && viewer?.id) {
+        const tether = await db.query(
+          `SELECT assistant_of_user_id AS "agentId" FROM users WHERE id = $1`,
+          [viewer.id]
+        );
+        agentUserId = tether.rows[0]?.agentId || null;
+      }
       const rows = await Property.getAcceptedHomeownersByAccountId(
         req.params.accountId,
         { agentUserId },

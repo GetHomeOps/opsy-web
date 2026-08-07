@@ -68,6 +68,7 @@ const emailDeliveryRoutes = require("./routes/emailDelivery");
 const affiliationsRoutes = require("./routes/affiliations");
 const affiliationRequestsRoutes = require("./routes/affiliationRequests");
 const agenciesAdminRoutes = require("./routes/agenciesAdmin");
+const assistantsRoutes = require("./routes/assistants");
 
 const app = express();
 
@@ -205,6 +206,7 @@ app.use("/email-delivery", emailDeliveryRoutes);
 app.use("/affiliations", affiliationsRoutes);
 app.use("/affiliation-requests", affiliationRequestsRoutes);
 app.use("/agencies-admin", agenciesAdminRoutes);
+app.use("/assistants", assistantsRoutes);
 
 // Serve React SPA when frontend build is present (same-origin deployment)
 const publicPath = path.join(__dirname, 'public');

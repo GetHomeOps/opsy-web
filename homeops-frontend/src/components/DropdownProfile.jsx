@@ -10,6 +10,7 @@ import usePwaInstall from "../hooks/usePwaInstall";
 
 import {useTranslation} from "react-i18next";
 import "../i18n/index";
+import {shouldHideBilling} from "../utils/roles";
 
 function getInitials(name) {
   if (!name || typeof name !== "string") return "?";
@@ -76,7 +77,7 @@ function DropdownProfile() {
     return () => document.removeEventListener("keydown", keyHandler);
   });
 
-  const hideBilling = ["super_admin", "admin"].includes(currentUser?.role);
+  const hideBilling = shouldHideBilling(currentUser?.role);
 
   const handleInstall = async () => {
     setDropdownOpen(false);

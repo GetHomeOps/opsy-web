@@ -64,9 +64,17 @@ export default function useImageUpload({
       setImageUploadError(null);
 
       try {
-        const toUpload = await compressImageForUpload(file, {
-          preserveTransparency,
-        });
+        // Logo crop already emits high-quality WebP with alpha — skip a second lossy pass.
+        const alreadyCroppedWebp =
+          preserveTransparency && file.type === "image/webp";
+        const toUpload = alreadyCroppedWebp
+          ? file
+          : await compressImageForUpload(file, {
+              preserveTransparency,
+              ...(preserveTransparency
+                ? { maxWidth: 2048, quality: 0.95 }
+                : {}),
+            });
         const document = await AppApi.uploadDocument(toUpload, { uploadFolder });
         const key =
           document?.key ??

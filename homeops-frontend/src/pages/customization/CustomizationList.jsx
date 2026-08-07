@@ -52,6 +52,7 @@ function CustomizationList() {
   const [activeTab, setActiveTab] = useState("accounts");
   const [accounts, setAccounts] = useState([]);
   const [agencies, setAgencies] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeFilters, setActiveFilters] = useState([]);
@@ -69,15 +70,18 @@ function CustomizationList() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [accountList, agencyList] = await Promise.all([
+      const [accountList, agencyList, teamList] = await Promise.all([
         AppApi.getAllAccounts(),
         AppApi.getAgenciesForCustomization(),
+        AppApi.getTeamsForCustomization(),
       ]);
       setAccounts(Array.isArray(accountList) ? accountList : []);
       setAgencies(Array.isArray(agencyList) ? agencyList : []);
+      setTeams(Array.isArray(teamList) ? teamList : []);
     } catch (err) {
       setAccounts([]);
       setAgencies([]);
+      setTeams([]);
       showBanner(
         "error",
         Array.isArray(err) ? err.join(", ") : err?.message || "Failed to load customization data",
@@ -115,8 +119,21 @@ function CustomizationList() {
     [],
   );
 
+  const teamFilterCategories = useMemo(
+    () => [
+      {type: "agency", labelKey: "agency"},
+      {type: "customizable", labelKey: "customizable"},
+      {type: "customization", labelKey: "customization"},
+    ],
+    [],
+  );
+
   const filterCategories =
-    activeTab === "accounts" ? accountFilterCategories : agencyFilterCategories;
+    activeTab === "accounts"
+      ? accountFilterCategories
+      : activeTab === "teams"
+        ? teamFilterCategories
+        : agencyFilterCategories;
 
   const accountFilterOptions = useMemo(() => {
     const types = [
@@ -155,8 +172,29 @@ function CustomizationList() {
     };
   }, [agencies]);
 
+  const teamFilterOptions = useMemo(() => {
+    const agencyNames = [
+      ...new Set(teams.map((t) => t.agencyName).filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b));
+    return {
+      agency: agencyNames.map((value) => ({value, label: value})),
+      customizable: [
+        {value: "yes", label: "Yes"},
+        {value: "no", label: "No"},
+      ],
+      customization: [
+        {value: "yes", label: "Yes"},
+        {value: "no", label: "No"},
+      ],
+    };
+  }, [teams]);
+
   const filterOptions =
-    activeTab === "accounts" ? accountFilterOptions : agencyFilterOptions;
+    activeTab === "accounts"
+      ? accountFilterOptions
+      : activeTab === "teams"
+        ? teamFilterOptions
+        : agencyFilterOptions;
 
   const filteredAccounts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -269,8 +307,69 @@ function CustomizationList() {
     });
   }, [agencies, search, activeFilters, sortConfig]);
 
+  const filteredTeams = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = teams;
+
+    if (q) {
+      list = list.filter(
+        (t) =>
+          t.name?.toLowerCase().includes(q) ||
+          t.agencyName?.toLowerCase().includes(q) ||
+          t.officeName?.toLowerCase().includes(q) ||
+          t.status?.toLowerCase().includes(q) ||
+          String(t.id).includes(q),
+      );
+    }
+
+    if (activeFilters.length > 0) {
+      const filtersByType = {};
+      activeFilters.forEach((f) => {
+        if (!filtersByType[f.type]) filtersByType[f.type] = [];
+        filtersByType[f.type].push(f.value);
+      });
+
+      list = list.filter((t) =>
+        Object.entries(filtersByType).every(([type, values]) => {
+          if (type === "agency") {
+            return values.includes(t.agencyName);
+          }
+          if (type === "customizable") {
+            const yes = !!t.customizable;
+            return values.some((v) => (v === "yes" ? yes : !yes));
+          }
+          if (type === "customization") {
+            const has = !!t.hasCustomization;
+            return values.some((v) => (v === "yes" ? has : !has));
+          }
+          return true;
+        }),
+      );
+    }
+
+    const {key, direction} = sortConfig;
+    return [...list].sort((a, b) => {
+      let av;
+      let bv;
+      if (key === "hasCustomization" || key === "customizable") {
+        av = a[key] ? 1 : 0;
+        bv = b[key] ? 1 : 0;
+      } else {
+        av = (a[key] ?? "").toString().toLowerCase();
+        bv = (b[key] ?? "").toString().toLowerCase();
+      }
+      if (av < bv) return direction === "asc" ? -1 : 1;
+      if (av > bv) return direction === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [teams, search, activeFilters, sortConfig]);
+
   const filteredItems =
-    activeTab === "accounts" ? filteredAccounts : filteredAgencies;
+    activeTab === "accounts"
+      ? filteredAccounts
+      : activeTab === "teams"
+        ? filteredTeams
+        : filteredAgencies;
 
   const paginatedItems = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -352,6 +451,18 @@ function CustomizationList() {
         totalItems: filteredAgencies.length,
         visibleAgencyIds: filteredAgencies.map((a) => a.id),
         listTab: "agencies",
+      },
+    });
+  };
+
+  const handleTeamClick = (team) => {
+    const currentIndex = filteredTeams.findIndex((t) => t.id === team.id) + 1;
+    navigate(`${base}/team/${team.id}`, {
+      state: {
+        currentIndex,
+        totalItems: filteredTeams.length,
+        visibleTeamIds: filteredTeams.map((t) => t.id),
+        listTab: "teams",
       },
     });
   };
@@ -456,7 +567,60 @@ function CustomizationList() {
     [],
   );
 
-  const columns = activeTab === "accounts" ? accountColumns : agencyColumns;
+  const teamColumns = useMemo(
+    () => [
+      {
+        key: "name",
+        label: "Team",
+        sortable: true,
+        render: (value) => (
+          <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
+            {value || <span className="text-gray-400">&mdash;</span>}
+          </span>
+        ),
+      },
+      {
+        key: "agencyName",
+        label: "Agency",
+        sortable: true,
+        render: (value) => (
+          <span className="text-gray-600 dark:text-gray-400 truncate">
+            {value || <span className="text-gray-400">&mdash;</span>}
+          </span>
+        ),
+      },
+      {
+        key: "officeName",
+        label: "Office",
+        sortable: true,
+        render: (value) => (
+          <span className="text-gray-600 dark:text-gray-400 truncate">
+            {value || <span className="text-gray-400">&mdash;</span>}
+          </span>
+        ),
+      },
+      {
+        key: "customizable",
+        label: "Customizable",
+        sortable: true,
+        render: (value) => <YesNoBadge value={!!value} />,
+      },
+      {
+        key: "hasCustomization",
+        label: "Customization",
+        sortable: true,
+        render: (value) => <YesNoBadge value={!!value} />,
+      },
+    ],
+    [],
+  );
+
+  const columns =
+    activeTab === "accounts"
+      ? accountColumns
+      : activeTab === "teams"
+        ? teamColumns
+        : agencyColumns;
 
   const renderItem = (item, handleSelect, selected, onItemClick) => (
     <DataTableItem
@@ -491,8 +655,8 @@ function CustomizationList() {
               Customization
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Customize shell accent, sidebar icon, and agent card for agencies and
-              unaffiliated agent accounts.
+              Customize shell accent, sidebar icon, and agent card for agencies, teams,
+              and unaffiliated agent accounts.
             </p>
             <div
               className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm text-gray-600 dark:text-gray-300"
@@ -503,16 +667,19 @@ function CustomizationList() {
               </p>
               <ul className="list-disc pl-5 space-y-1 leading-snug">
                 <li>
-                  Only <span className="font-medium">agencies</span> and{" "}
+                  <span className="font-medium">Agencies</span>,{" "}
+                  <span className="font-medium">teams</span> (when the parent agency has
+                  no branding), and{" "}
                   <span className="font-medium">agent accounts without an agency</span>{" "}
                   can be customized.
                 </li>
                 <li>
-                  Agents affiliated with an agency inherit that agency&apos;s branding.
+                  Agency branding overrides team branding. Affiliated agents inherit
+                  agency branding when set; otherwise team branding when set.
                 </li>
                 <li>
                   Homeowners inherit branding from their sponsoring agent (or the
-                  agent&apos;s agency) when sponsored; otherwise they use Opsy defaults.
+                  agent&apos;s agency/team) when sponsored; otherwise they use Opsy defaults.
                 </li>
               </ul>
             </div>
@@ -522,6 +689,7 @@ function CustomizationList() {
             {[
               {id: "accounts", label: "Accounts"},
               {id: "agencies", label: "Agencies"},
+              {id: "teams", label: "Teams"},
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -556,7 +724,9 @@ function CustomizationList() {
                 placeholder={
                   activeTab === "accounts"
                     ? "Search by name, URL, email, type, or agency…"
-                    : "Search agencies by name or status…"
+                    : activeTab === "teams"
+                      ? "Search teams by name, agency, or office…"
+                      : "Search agencies by name or status…"
                 }
                 value={search}
                 onChange={handleSearchChange}
@@ -643,10 +813,20 @@ function CustomizationList() {
                 items={paginatedItems}
                 columns={columns}
                 onItemClick={
-                  activeTab === "accounts" ? handleAccountClick : handleAgencyClick
+                  activeTab === "accounts"
+                    ? handleAccountClick
+                    : activeTab === "teams"
+                      ? handleTeamClick
+                      : handleAgencyClick
                 }
                 totalItems={filteredItems.length}
-                title={activeTab === "accounts" ? "accounts" : "agencies"}
+                title={
+                  activeTab === "accounts"
+                    ? "accounts"
+                    : activeTab === "teams"
+                      ? "teams"
+                      : "agencies"
+                }
                 sortConfig={sortConfig}
                 onSort={handleSort}
                 renderItem={renderItem}

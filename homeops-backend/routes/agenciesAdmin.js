@@ -11,6 +11,7 @@ const AgentAffiliation = require("../models/agentAffiliation");
 const User = require("../models/user");
 const { addPresignedUrlToItem } = require("../helpers/presignedUrls");
 const accountBrandingUpdateSchema = require("../schemas/accountBrandingUpdate.json");
+const { assertTeamCustomizable } = require("../services/brandingService");
 
 const router = express.Router();
 
@@ -79,6 +80,59 @@ router.get(
     try {
       const agencies = await Agency.listForCustomization();
       return res.json({ agencies });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** GET /teams/for-customization — teams for Customization admin tab (platform admin). */
+router.get(
+  "/teams/for-customization",
+  ensureLoggedIn,
+  ensurePlatformAdmin,
+  async function (req, res, next) {
+    try {
+      const teams = await Team.listForCustomization();
+      return res.json({ teams });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** GET /teams/:teamId/branding — team branding (platform admin). */
+router.get(
+  "/teams/:teamId/branding",
+  ensureLoggedIn,
+  ensurePlatformAdmin,
+  async function (req, res, next) {
+    try {
+      const teamId = parseRouteId(req.params.teamId, "team id");
+      const branding = await Team.getBranding(teamId);
+      return res.json({ branding });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** PATCH /teams/:teamId/branding — update team branding (platform admin). */
+router.patch(
+  "/teams/:teamId/branding",
+  ensureLoggedIn,
+  ensurePlatformAdmin,
+  async function (req, res, next) {
+    try {
+      const teamId = parseRouteId(req.params.teamId, "team id");
+      await assertTeamCustomizable(teamId);
+      const validator = jsonschema.validate(req.body, accountBrandingUpdateSchema);
+      if (!validator.valid) {
+        const errs = validator.errors.map((e) => e.stack);
+        throw new BadRequestError(errs);
+      }
+      const branding = await Team.updateBranding(teamId, req.body);
+      return res.json({ branding });
     } catch (err) {
       return next(err);
     }

@@ -1,7 +1,61 @@
 "use strict";
 
 const db = require("../db");
-const { NotFoundError } = require("../expressError");
+const { NotFoundError, BadRequestError } = require("../expressError");
+const { sqlForPartialUpdate } = require("../helpers/sql");
+const { addPresignedUrlToItem } = require("../helpers/presignedUrls");
+
+const TEAM_BRANDING_SELECT = `
+  id,
+  office_id AS "officeId",
+  name,
+  status,
+  accent_color AS "accentColor",
+  sidebar_icon_key AS "sidebarIconKey",
+  agent_card_logo_key AS "agentCardLogoKey",
+  agent_card_accent_color AS "agentCardAccentColor",
+  agent_card_background_color AS "agentCardBackgroundColor",
+  agent_card_agent_label AS "agentCardAgentLabel",
+  agent_card_company_name AS "agentCardCompanyName",
+  sidebar_text_color AS "sidebarTextColor",
+  agent_card_text_color AS "agentCardTextColor",
+  created_at AS "createdAt",
+  updated_at AS "updatedAt"`;
+
+const BRANDING_JS_TO_SQL = {
+  accentColor: "accent_color",
+  sidebarIconKey: "sidebar_icon_key",
+  agentCardLogoKey: "agent_card_logo_key",
+  agentCardAccentColor: "agent_card_accent_color",
+  agentCardBackgroundColor: "agent_card_background_color",
+  agentCardAgentLabel: "agent_card_agent_label",
+  agentCardCompanyName: "agent_card_company_name",
+  sidebarTextColor: "sidebar_text_color",
+  agentCardTextColor: "agent_card_text_color",
+};
+
+const HAS_CUSTOMIZATION_SQL = (alias) => `(
+  ${alias}.accent_color IS NOT NULL
+  OR ${alias}.sidebar_icon_key IS NOT NULL
+  OR ${alias}.agent_card_logo_key IS NOT NULL
+  OR ${alias}.agent_card_accent_color IS NOT NULL
+  OR ${alias}.agent_card_background_color IS NOT NULL
+  OR ${alias}.agent_card_agent_label IS NOT NULL
+  OR ${alias}.agent_card_company_name IS NOT NULL
+  OR ${alias}.sidebar_text_color IS NOT NULL
+  OR ${alias}.agent_card_text_color IS NOT NULL
+)`;
+
+function normalizeBrandingValue(key, value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed === "") return null;
+    return trimmed;
+  }
+  return value;
+}
 
 class Team {
   static _rowToApi(row) {
@@ -11,6 +65,17 @@ class Team {
       officeId: row.officeId ?? row.office_id,
       name: row.name,
       status: row.status,
+      accentColor: row.accentColor ?? row.accent_color ?? null,
+      sidebarIconKey: row.sidebarIconKey ?? row.sidebar_icon_key ?? null,
+      agentCardLogoKey: row.agentCardLogoKey ?? row.agent_card_logo_key ?? null,
+      agentCardAccentColor: row.agentCardAccentColor ?? row.agent_card_accent_color ?? null,
+      agentCardBackgroundColor:
+        row.agentCardBackgroundColor ?? row.agent_card_background_color ?? null,
+      agentCardAgentLabel: row.agentCardAgentLabel ?? row.agent_card_agent_label ?? null,
+      agentCardCompanyName: row.agentCardCompanyName ?? row.agent_card_company_name ?? null,
+      sidebarTextColor: row.sidebarTextColor ?? row.sidebar_text_color ?? null,
+      agentCardTextColor: row.agentCardTextColor ?? row.agent_card_text_color ?? null,
+      hasCustomization: row.hasCustomization ?? null,
       createdAt: row.createdAt ?? row.created_at,
       updatedAt: row.updatedAt ?? row.updated_at,
     };
@@ -18,8 +83,7 @@ class Team {
 
   static async getById(id) {
     const result = await db.query(
-      `SELECT id, office_id AS "officeId", name, status,
-              created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT ${TEAM_BRANDING_SELECT}
        FROM teams WHERE id = $1`,
       [id]
     );
@@ -157,6 +221,159 @@ class Team {
       officeName: office.rows[0]?.name || null,
     };
   }
+
+  /**
+   * List teams for the Customization admin UI (platform admin).
+   * Includes hasCustomization and customizable (!agencyHasCustomization).
+   */
+  static async listForCustomization() {
+    const result = await db.query(
+      `SELECT t.id,
+              t.name,
+              t.status,
+              t.office_id AS "officeId",
+              o.name AS "officeName",
+              ag.id AS "agencyId",
+              ag.name AS "agencyName",
+              ${HAS_CUSTOMIZATION_SQL("t")} AS "hasCustomization",
+              ${HAS_CUSTOMIZATION_SQL("ag")} AS "agencyHasCustomization",
+              t.created_at AS "createdAt",
+              t.updated_at AS "updatedAt"
+       FROM teams t
+       INNER JOIN offices o ON o.id = t.office_id
+       INNER JOIN agencies ag ON ag.id = o.agency_id
+       ORDER BY ag.name ASC, o.name ASC, t.name ASC`
+    );
+    return result.rows.map((row) => {
+      const agencyHasCustomization = !!row.agencyHasCustomization;
+      return {
+        id: row.id,
+        name: row.name,
+        status: row.status,
+        officeId: row.officeId,
+        officeName: row.officeName,
+        agencyId: row.agencyId,
+        agencyName: row.agencyName,
+        hasCustomization: !!row.hasCustomization,
+        agencyHasCustomization,
+        customizable: !agencyHasCustomization,
+        inheritsFromLabel: agencyHasCustomization
+          ? row.agencyName
+            ? `Overridden by agency ${row.agencyName}`
+            : "Overridden by agency branding"
+          : null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+    });
+  }
+
+  /** Get branding fields for a team, with presigned display URLs. */
+  static async getBranding(id) {
+    const result = await db.query(
+      `SELECT t.id,
+              t.name,
+              t.status,
+              t.office_id AS "officeId",
+              o.name AS "officeName",
+              ag.id AS "agencyId",
+              ag.name AS "agencyName",
+              t.accent_color AS "accentColor",
+              t.sidebar_icon_key AS "sidebarIconKey",
+              t.agent_card_logo_key AS "agentCardLogoKey",
+              t.agent_card_accent_color AS "agentCardAccentColor",
+              t.agent_card_background_color AS "agentCardBackgroundColor",
+              t.agent_card_agent_label AS "agentCardAgentLabel",
+              t.agent_card_company_name AS "agentCardCompanyName",
+              t.sidebar_text_color AS "sidebarTextColor",
+              t.agent_card_text_color AS "agentCardTextColor",
+              ${HAS_CUSTOMIZATION_SQL("t")} AS "hasCustomization",
+              ${HAS_CUSTOMIZATION_SQL("ag")} AS "agencyHasCustomization"
+       FROM teams t
+       INNER JOIN offices o ON o.id = t.office_id
+       INNER JOIN agencies ag ON ag.id = o.agency_id
+       WHERE t.id = $1`,
+      [id]
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError(`Team not found: ${id}`);
+    return Team._withBrandingUrls(row);
+  }
+
+  /** Partial-update branding fields. Pass null to clear a field. */
+  static async updateBranding(id, data) {
+    const payload = {};
+    for (const key of Object.keys(BRANDING_JS_TO_SQL)) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        payload[key] = normalizeBrandingValue(key, data[key]);
+      }
+    }
+    if (Object.keys(payload).length === 0) {
+      throw new BadRequestError("No branding data to update");
+    }
+
+    const { setCols, values } = sqlForPartialUpdate(payload, BRANDING_JS_TO_SQL);
+    const idVarIdx = "$" + (values.length + 1);
+
+    const result = await db.query(
+      `UPDATE teams
+       SET ${setCols}, updated_at = NOW()
+       WHERE id = ${idVarIdx}
+       RETURNING id`,
+      [...values, id]
+    );
+
+    if (!result.rows[0]) throw new NotFoundError(`Team not found: ${id}`);
+    return Team.getBranding(id);
+  }
+
+  static async _withBrandingUrls(row) {
+    let withSidebar = await addPresignedUrlToItem(
+      row,
+      "sidebarIconKey",
+      "sidebarIconUrl"
+    );
+    withSidebar = await addPresignedUrlToItem(
+      withSidebar,
+      "agentCardLogoKey",
+      "agentCardLogoUrl"
+    );
+    const agencyHasCustomization = !!withSidebar.agencyHasCustomization;
+    const customizable = !agencyHasCustomization;
+    return {
+      id: withSidebar.id,
+      name: withSidebar.name,
+      url: null,
+      officeId: withSidebar.officeId ?? null,
+      officeName: withSidebar.officeName ?? null,
+      agencyId: withSidebar.agencyId ?? null,
+      agencyName: withSidebar.agencyName ?? null,
+      accentColor: withSidebar.accentColor ?? null,
+      sidebarIconKey: withSidebar.sidebarIconKey ?? null,
+      sidebarIconUrl: withSidebar.sidebarIconUrl ?? null,
+      agentCardLogoKey: withSidebar.agentCardLogoKey ?? null,
+      agentCardLogoUrl: withSidebar.agentCardLogoUrl ?? null,
+      agentCardAccentColor: withSidebar.agentCardAccentColor ?? null,
+      agentCardBackgroundColor: withSidebar.agentCardBackgroundColor ?? null,
+      agentCardAgentLabel: withSidebar.agentCardAgentLabel ?? null,
+      agentCardCompanyName: withSidebar.agentCardCompanyName ?? null,
+      sidebarTextColor: withSidebar.sidebarTextColor ?? null,
+      agentCardTextColor: withSidebar.agentCardTextColor ?? null,
+      status: withSidebar.status ?? null,
+      hasCustomization: !!withSidebar.hasCustomization,
+      agencyHasCustomization,
+      customizable,
+      source: "team",
+      inheritsFromLabel: agencyHasCustomization
+        ? withSidebar.agencyName
+          ? `Overridden by agency ${withSidebar.agencyName}`
+          : "Overridden by agency branding"
+        : null,
+      inheritsFromType: agencyHasCustomization ? "agency" : null,
+    };
+  }
 }
+
+Team.HAS_CUSTOMIZATION_SQL = HAS_CUSTOMIZATION_SQL;
 
 module.exports = Team;

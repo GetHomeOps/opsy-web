@@ -17,11 +17,25 @@ const stripeService = require("../services/stripeService");
 const planModel = require("../models/plan");
 const Coupon = require("../models/coupon");
 const { BILLING_MOCK_MODE } = require("../config");
-const { countPropertiesForLimit, getPrePurchaseOverride, countPrePurchaseAnalysesCreatedBy } = require("../services/tierService");
+const {
+  countPropertiesForLimit,
+  getPrePurchaseOverride,
+  countPrePurchaseAnalysesCreatedBy,
+  getAiFeaturesOverride,
+} = require("../services/tierService");
 const propertySponsorshipService = require("../services/propertySponsorshipService");
 const { wrapStripeErrors } = require("../utils/stripeErrors");
+const { isAssistantRole } = require("../helpers/roles");
 
 const router = express.Router();
+
+function assertNotAssistantBilling(user) {
+  if (isAssistantRole(user?.role)) {
+    throw new ForbiddenError(
+      "Assistants cannot manage billing or subscriptions. Ask the account agent to make billing changes."
+    );
+  }
+}
 
 /** POST /billing/checkout-session
  *  Body: { planCode, billingInterval?, accountId?, successUrl?, cancelUrl? }
@@ -29,6 +43,7 @@ const router = express.Router();
  */
 router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
   try {
+    assertNotAssistantBilling(res.locals.user);
     const userId = res.locals.user?.id;
     if (!userId) throw new ForbiddenError("Authentication required");
 
@@ -138,6 +153,7 @@ router.post("/checkout-session", ensureLoggedIn, wrapStripeErrors(async function
  */
 router.post("/downgrade-to-plan", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
   try {
+    assertNotAssistantBilling(res.locals.user);
     const userId = res.locals.user?.id;
     if (!userId) throw new ForbiddenError("Authentication required");
 
@@ -181,6 +197,7 @@ router.post("/downgrade-to-plan", ensureLoggedIn, wrapStripeErrors(async functio
  */
 router.post("/reactivate", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
   try {
+    assertNotAssistantBilling(res.locals.user);
     const userId = res.locals.user?.id;
     if (!userId) throw new ForbiddenError("Authentication required");
 
@@ -214,6 +231,7 @@ router.post("/reactivate", ensureLoggedIn, wrapStripeErrors(async function (req,
  */
 router.post("/portal-session", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
   try {
+    assertNotAssistantBilling(res.locals.user);
     const userId = res.locals.user?.id;
     if (!userId) throw new ForbiddenError("Authentication required");
 
@@ -327,7 +345,9 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
                 pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
                 pl.max_documents_per_system AS "maxDocumentsPerSystem",
                 COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
-                COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
+                COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled",
+                COALESCE(pl.assistants_enabled, false) AS "assistantsEnabled",
+                COALESCE(pl.max_assistants, 0) AS "maxAssistants"
          FROM plan_limits pl
          JOIN subscription_products sp ON sp.id = pl.subscription_product_id
          WHERE sp.code = $1`,
@@ -353,7 +373,9 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
                   pl.ai_token_monthly_quota AS "aiTokenMonthlyQuota",
                   pl.max_documents_per_system AS "maxDocumentsPerSystem",
                   COALESCE(pl.ai_features_enabled, true) AS "aiFeaturesEnabled",
-                  COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled"
+                  COALESCE(pl.pre_purchase_enabled, false) AS "prePurchaseEnabled",
+                  COALESCE(pl.assistants_enabled, false) AS "assistantsEnabled",
+                  COALESCE(pl.max_assistants, 0) AS "maxAssistants"
            FROM plan_limits pl
            JOIN subscription_products sp ON sp.id = pl.subscription_product_id
            WHERE sp.code = $1`,
@@ -441,6 +463,24 @@ router.get("/status", ensureLoggedIn, async function (req, res, next) {
       }
     }
 
+    // Complimentary AI features override: unlock AI in UI when plan lacks it.
+    // Token cap only applies while the plan does not include AI features.
+    if (!limits || limits.aiFeaturesEnabled === false) {
+      try {
+        const aiOverride = await getAiFeaturesOverride(userId);
+        if (aiOverride.enabled) {
+          limits = {
+            ...(limits || {}),
+            aiFeaturesEnabled: true,
+            aiFeaturesFromOverride: true,
+            aiTokenMonthlyQuota: aiOverride.quota,
+          };
+        }
+      } catch (aiOverrideErr) {
+        console.warn("[billing/status] AI features override lookup failed:", aiOverrideErr?.message);
+      }
+    }
+
     return res.json({
       subscription: subscription ? {
         status: subscription.status,
@@ -489,6 +529,7 @@ async function resolveAccessibleAccountId(req, res) {
 /** POST /billing/sponsorship/accept — homeowner transfers billing to their agent's plan. */
 router.post("/sponsorship/accept", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
   try {
+    assertNotAssistantBilling(res.locals.user);
     const { userId, accountId } = await resolveAccessibleAccountId(req, res);
     const userRole = (res.locals.user?.role || "homeowner").toLowerCase();
     const result = await propertySponsorshipService.acceptOffer({ userId, accountId, userRole });
@@ -501,6 +542,7 @@ router.post("/sponsorship/accept", ensureLoggedIn, wrapStripeErrors(async functi
 /** POST /billing/sponsorship/cancel — homeowner cancels a pending offer (keep paying). */
 router.post("/sponsorship/cancel", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
   try {
+    assertNotAssistantBilling(res.locals.user);
     const { userId, accountId } = await resolveAccessibleAccountId(req, res);
     const result = await propertySponsorshipService.cancelPendingOffer({ userId, accountId });
     return res.json(result);
@@ -512,6 +554,7 @@ router.post("/sponsorship/cancel", ensureLoggedIn, wrapStripeErrors(async functi
 /** POST /billing/sponsorship/:id/end — agent or homeowner ends an active sponsorship. */
 router.post("/sponsorship/:id/end", ensureLoggedIn, wrapStripeErrors(async function (req, res, next) {
   try {
+    assertNotAssistantBilling(res.locals.user);
     const { userId, accountId } = await resolveAccessibleAccountId(req, res);
     const result = await propertySponsorshipService.endSponsorshipByParticipant({
       sponsorshipId: req.params.id,

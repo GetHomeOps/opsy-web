@@ -633,6 +633,9 @@ function PropertyFormContainer() {
   const isPaidUser =
     isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
   const aiFeaturesEnabled = limits?.aiFeaturesEnabled ?? true;
+  const aiFromOverride = !!limits?.aiFeaturesFromOverride;
+  const canUseAiFeatures =
+    isAdmin || (!!aiFeaturesEnabled && (isPaidUser || aiFromOverride));
   const aiDemoGate = useDemoFeatureGate("ai");
   const [homeopsTeam, setHomeopsTeam] = useState([]);
   const [systemsSetupModalOpen, setSystemsSetupModalOpen] = useState(false);
@@ -715,24 +718,22 @@ function PropertyFormContainer() {
       aiDemoGate.showModal();
       return;
     }
-    if (!isAdmin && !aiFeaturesEnabled) {
-      setUpgradePromptTitle("AI not included on this plan");
-      setUpgradePromptMsg(
-        "Your subscription does not include AI inspection analysis or the Opsy assistant. Upgrade to a plan that includes AI features.",
+    if (!canUseAiFeatures) {
+      setUpgradePromptTitle(
+        isPaidUser && !aiFeaturesEnabled
+          ? "AI not included on this plan"
+          : "Opsy Assistant not included",
       );
-      setUpgradePromptOpen(true);
-      return;
-    }
-    if (!isPaidUser) {
-      setUpgradePromptTitle("Opsy Assistant not included");
       setUpgradePromptMsg(
-        "Your plan does not include the Opsy assistant. Upgrade to get AI-powered maintenance and property insights.",
+        isPaidUser && !aiFeaturesEnabled
+          ? "Your subscription does not include AI inspection analysis or the Opsy assistant. Upgrade to a plan that includes AI features."
+          : "Your plan does not include the Opsy assistant. Upgrade to get AI-powered maintenance and property insights.",
       );
       setUpgradePromptOpen(true);
       return;
     }
     setAiSidebarOpen(true);
-  }, [aiDemoGate, isAdmin, aiFeaturesEnabled, isPaidUser]);
+  }, [aiDemoGate, canUseAiFeatures, isPaidUser, aiFeaturesEnabled]);
 
   const aiAssistantPropertyHeader = useMemo(
     () => getPropertyAssistantHeaderLines(state.formData.identity),
@@ -745,7 +746,7 @@ function PropertyFormContainer() {
         aiDemoGate.showModal();
         return;
       }
-      if (!isAdmin && !aiFeaturesEnabled) {
+      if (!canUseAiFeatures) {
         setUpgradePromptTitle("AI inspection analysis not included");
         setUpgradePromptMsg(
           "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features.",
@@ -775,7 +776,7 @@ function PropertyFormContainer() {
       }
       setBlankModalOpen(true);
     },
-    [aiDemoGate.blocked, aiDemoGate.showModal, isAdmin, aiFeaturesEnabled],
+    [aiDemoGate.blocked, aiDemoGate.showModal, canUseAiFeatures],
   );
 
   // Merged formData – declared early so callbacks can reference it
@@ -1058,10 +1059,11 @@ function PropertyFormContainer() {
     });
   }, [homeopsTeam]);
 
-  /* Only platform role `agent` counts — admins/super_admins should still see
-     the "invite an agent" CTA on properties they own/created. */
-  const isCurrentUserAgent =
-    (currentUser?.role ?? "").toLowerCase() === "agent";
+  /* Platform agents and tethered assistants share agent-like workspace UX —
+     admins/super_admins should still see the "invite an agent" CTA. */
+  const isCurrentUserAgent = ["agent", "assistant"].includes(
+    (currentUser?.role ?? "").toLowerCase(),
+  );
 
   // Invitation mode is only enabled when the invitation belongs to the
   // current user and targets the currently viewed property.
@@ -3525,7 +3527,7 @@ function PropertyFormContainer() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setActionsDropdownOpen(false);
-                            if (!isPaidUser) {
+                            if (!canUseAiFeatures) {
                               setUpgradePromptTitle(
                                 "Inspection Analysis not included",
                               );
@@ -4760,19 +4762,16 @@ function PropertyFormContainer() {
             setUpgradePromptOpen(true);
           }}
           onUploadReport={() => {
-            if (!isAdmin && !aiFeaturesEnabled) {
-              setUpgradePromptTitle("AI inspection analysis not included");
-              setUpgradePromptMsg(
-                "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features.",
+            if (!canUseAiFeatures) {
+              setUpgradePromptTitle(
+                isPaidUser && !aiFeaturesEnabled
+                  ? "AI inspection analysis not included"
+                  : "Inspection Analysis not included",
               );
-              setUpgradePromptOpen(true);
-              setBlankModalOpen(false);
-              return;
-            }
-            if (!isPaidUser) {
-              setUpgradePromptTitle("Inspection Analysis not included");
               setUpgradePromptMsg(
-                "Your plan doesn't support AI inspection report analysis. Upgrade to analyze inspection reports with AI.",
+                isPaidUser && !aiFeaturesEnabled
+                  ? "Your subscription does not include AI inspection analysis. Upgrade to a plan that includes AI features."
+                  : "Your plan doesn't support AI inspection report analysis. Upgrade to analyze inspection reports with AI.",
               );
               setUpgradePromptOpen(true);
               setBlankModalOpen(false);

@@ -109,9 +109,13 @@ function UserConfirmationEmail() {
       if (res?.success === true) {
         try {
           await login({email: userEmail, password: formData.password});
-          /* Send invitees through onboarding so they must choose a plan. If they
-             already completed onboarding (e.g. re-confirming), OnboardingRoute
-             bounces them straight to their account home. */
+          /* Assistants skip onboarding and land in the tethered agent workspace.
+             Other invitees must choose a plan via onboarding. */
+          if (res?.role === "assistant" || res?.onboardingCompleted === true) {
+            const accountUrl = res?.accountUrl || "home";
+            navigate(`/${accountUrl}/home`, {replace: true});
+            return;
+          }
           navigate("/onboarding", {replace: true});
           return;
         } catch (loginErr) {

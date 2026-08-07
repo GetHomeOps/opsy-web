@@ -20,6 +20,7 @@ import {
   PLAN_CODE_TO_SUBSCRIPTION_TIER,
 } from "../onboarding/onboardingPlans";
 import CouponCodeInput from "../../components/billing/CouponCodeInput";
+import {isAssistantRole} from "../../utils/roles";
 
 /**
  * Color variants for PricingSwitch — emerald (user type) + violet (billing).
@@ -152,6 +153,13 @@ function UpgradePlanPage() {
   const targetRole = ["agent", "admin"].includes(userRole)
     ? "agent"
     : "homeowner";
+
+  useEffect(() => {
+    if (isAssistantRole(currentUser?.role) && accountUrl) {
+      navigate(`/${accountUrl}/home`, {replace: true});
+    }
+  }, [currentUser?.role, accountUrl, navigate]);
+
   /** Super admins can switch between homeowner and agent pricing (reference). */
   const [planAudience, setPlanAudience] = useState("homeowner");
   const audienceForFetch = isSuperAdmin ? planAudience : targetRole;

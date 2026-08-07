@@ -66,6 +66,8 @@ async function getPlansForAudience(audienceType) {
               max_documents_per_system AS "maxDocumentsPerSystem",
               COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
               COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled",
+              COALESCE(assistants_enabled, false) AS "assistantsEnabled",
+              COALESCE(max_assistants, 0) AS "maxAssistants",
               other_limits AS "otherLimits"
        FROM plan_limits WHERE subscription_product_id = $1`,
       [p.id]
@@ -79,6 +81,8 @@ async function getPlansForAudience(audienceType) {
       maxDocumentsPerSystem: 5,
       aiFeaturesEnabled: true,
       prePurchaseEnabled: false,
+      assistantsEnabled: false,
+      maxAssistants: 0,
       otherLimits: {},
     };
 
@@ -163,6 +167,8 @@ async function getAll() {
               max_documents_per_system AS "maxDocumentsPerSystem",
               COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
               COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled",
+              COALESCE(assistants_enabled, false) AS "assistantsEnabled",
+              COALESCE(max_assistants, 0) AS "maxAssistants",
               other_limits AS "otherLimits"
        FROM plan_limits WHERE subscription_product_id = $1`,
       [p.id]
@@ -264,13 +270,15 @@ async function updatePlanLimits(productId, limits) {
   const {
     maxProperties, maxContacts, maxViewers, maxTeamMembers,
     aiTokenMonthlyQuota, maxDocumentsPerSystem, otherLimits, aiFeaturesEnabled,
-    prePurchaseEnabled,
+    prePurchaseEnabled, assistantsEnabled, maxAssistants,
   } = limits;
   const aiFeatParam = aiFeaturesEnabled === undefined ? null : !!aiFeaturesEnabled;
   const prePurchaseParam = prePurchaseEnabled === undefined ? null : !!prePurchaseEnabled;
+  const assistantsParam = assistantsEnabled === undefined ? null : !!assistantsEnabled;
+  const maxAssistantsParam = maxAssistants === undefined ? null : Number(maxAssistants) || 0;
   await db.query(
-    `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, max_documents_per_system, ai_features_enabled, pre_purchase_enabled, other_limits, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true), COALESCE($9, false), $10, NOW())
+    `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, max_documents_per_system, ai_features_enabled, pre_purchase_enabled, assistants_enabled, max_assistants, other_limits, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true), COALESCE($9, false), COALESCE($10, false), COALESCE($11, 0), $12, NOW())
      ON CONFLICT (subscription_product_id) DO UPDATE SET
        max_properties = EXCLUDED.max_properties,
        max_contacts = EXCLUDED.max_contacts,
@@ -280,6 +288,8 @@ async function updatePlanLimits(productId, limits) {
        max_documents_per_system = EXCLUDED.max_documents_per_system,
        ai_features_enabled = COALESCE(EXCLUDED.ai_features_enabled, plan_limits.ai_features_enabled),
        pre_purchase_enabled = COALESCE(EXCLUDED.pre_purchase_enabled, plan_limits.pre_purchase_enabled),
+       assistants_enabled = COALESCE(EXCLUDED.assistants_enabled, plan_limits.assistants_enabled),
+       max_assistants = COALESCE(EXCLUDED.max_assistants, plan_limits.max_assistants),
        other_limits = EXCLUDED.other_limits,
        updated_at = NOW()`,
     [
@@ -292,6 +302,8 @@ async function updatePlanLimits(productId, limits) {
       maxDocumentsPerSystem ?? 5,
       aiFeatParam,
       prePurchaseParam,
+      assistantsParam,
+      maxAssistantsParam,
       otherLimits ? JSON.stringify(otherLimits) : "{}",
     ]
   );
@@ -371,6 +383,8 @@ async function getPlanById(id) {
             max_documents_per_system AS "maxDocumentsPerSystem",
             COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
             COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled",
+            COALESCE(assistants_enabled, false) AS "assistantsEnabled",
+            COALESCE(max_assistants, 0) AS "maxAssistants",
             other_limits AS "otherLimits"
      FROM plan_limits WHERE subscription_product_id = $1`,
     [id]

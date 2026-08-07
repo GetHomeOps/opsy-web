@@ -117,12 +117,18 @@ function formFromBranding(branding) {
 }
 
 function CustomizationPage() {
-  const {accountUrl, accountId: accountIdParam, agencyId: agencyIdParam} =
-    useParams();
+  const {
+    accountUrl,
+    accountId: accountIdParam,
+    agencyId: agencyIdParam,
+    teamId: teamIdParam,
+  } = useParams();
   const isAgencyMode = Boolean(agencyIdParam);
+  const isTeamMode = Boolean(teamIdParam);
   const accountId = accountIdParam ? Number(accountIdParam) : null;
   const agencyId = agencyIdParam ? Number(agencyIdParam) : null;
-  const entityId = isAgencyMode ? agencyId : accountId;
+  const teamId = teamIdParam ? Number(teamIdParam) : null;
+  const entityId = isAgencyMode ? agencyId : isTeamMode ? teamId : accountId;
   const navigate = useNavigate();
   const location = useLocation();
   const {currentAccount} = useCurrentAccount();
@@ -130,6 +136,7 @@ function CustomizationPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [accountName, setAccountName] = useState("");
   const [accountUrlSlug, setAccountUrlSlug] = useState("");
+  const [subtitleMeta, setSubtitleMeta] = useState("");
   const [form, setForm] = useState(DEFAULT_FORM);
   const [savedForm, setSavedForm] = useState(DEFAULT_FORM);
   const [loadingBranding, setLoadingBranding] = useState(true);
@@ -154,20 +161,34 @@ function CustomizationPage() {
     setSavedForm(next);
     setAccountName(branding.name || "");
     setAccountUrlSlug(branding.url || "");
-    if (!isAgencyMode && branding.customizable === false) {
+    if (isTeamMode) {
+      const parts = [branding.agencyName, branding.officeName].filter(Boolean);
+      setSubtitleMeta(parts.join(" · "));
+    } else {
+      setSubtitleMeta("");
+    }
+    if ((isTeamMode || !isAgencyMode) && branding.customizable === false) {
       setReadOnlyReason(
         branding.inheritsFromLabel ||
-          "This account isn’t customizable.",
+          (isTeamMode
+            ? "This team isn’t customizable while its agency has branding."
+            : "This account isn’t customizable."),
       );
     } else {
       setReadOnlyReason(null);
     }
-  }, [isAgencyMode]);
+  }, [isAgencyMode, isTeamMode]);
 
   const updateField = (key, value) => {
     if (readOnlyReason) return;
     setForm((prev) => ({...prev, [key]: value}));
   };
+
+  const uploadFolder = isAgencyMode
+    ? S3_UPLOAD_FOLDER.AGENCY_BRANDING
+    : isTeamMode
+      ? S3_UPLOAD_FOLDER.TEAM_BRANDING
+      : S3_UPLOAD_FOLDER.ACCOUNT_BRANDING;
 
   const {
     uploadImage: uploadLogo,
@@ -179,9 +200,7 @@ function CustomizationPage() {
     clearPreview: clearLogoPreview,
     clearUploadedUrl: clearLogoUploaded,
   } = useImageUpload({
-    uploadFolder: isAgencyMode
-      ? S3_UPLOAD_FOLDER.AGENCY_BRANDING
-      : S3_UPLOAD_FOLDER.ACCOUNT_BRANDING,
+    uploadFolder,
     preserveTransparency: true,
     onSuccess: (key, displayUrl) => {
       setForm((prev) => ({
@@ -246,6 +265,7 @@ function CustomizationPage() {
         setSavedForm(DEFAULT_FORM);
         setAccountName("");
         setAccountUrlSlug("");
+        setSubtitleMeta("");
         setReadOnlyReason(null);
         setLoadingBranding(false);
         setSwitchingAccount(false);
@@ -261,9 +281,14 @@ function CustomizationPage() {
       }
 
       try {
-        const branding = isAgencyMode
-          ? await AppApi.getAgencyBranding(id)
-          : await AppApi.getAccountBranding(id);
+        let branding;
+        if (isAgencyMode) {
+          branding = await AppApi.getAgencyBranding(id);
+        } else if (isTeamMode) {
+          branding = await AppApi.getTeamBranding(id);
+        } else {
+          branding = await AppApi.getAccountBranding(id);
+        }
         if (generation !== loadGenerationRef.current) return;
         clearImagePreviews();
         applyBranding(branding);
@@ -279,6 +304,7 @@ function CustomizationPage() {
         setSavedForm(DEFAULT_FORM);
         setAccountName("");
         setAccountUrlSlug("");
+        setSubtitleMeta("");
         setReadOnlyReason(null);
       } finally {
         if (generation === loadGenerationRef.current) {
@@ -287,7 +313,7 @@ function CustomizationPage() {
         }
       }
     },
-    [showBanner, applyBranding, clearImagePreviews, isAgencyMode],
+    [showBanner, applyBranding, clearImagePreviews, isAgencyMode, isTeamMode],
   );
 
   useEffect(() => {
@@ -299,6 +325,8 @@ function CustomizationPage() {
     const fromList = location.state;
     if (isAgencyMode) {
       if (fromList?.visibleAgencyIds?.length) return;
+    } else if (isTeamMode) {
+      if (fromList?.visibleTeamIds?.length) return;
     } else if (fromList?.visibleAccountIds?.length) return;
 
     let cancelled = false;
@@ -315,6 +343,18 @@ function CustomizationPage() {
               }),
             )
             .map((a) => a.id);
+          setFallbackIds(ids);
+        } else if (isTeamMode) {
+          const list = await AppApi.getTeamsForCustomization();
+          if (cancelled) return;
+          const ids = (Array.isArray(list) ? list : [])
+            .slice()
+            .sort((a, b) =>
+              (a.name || "").localeCompare(b.name || "", undefined, {
+                sensitivity: "base",
+              }),
+            )
+            .map((t) => t.id);
           setFallbackIds(ids);
         } else {
           const list = await AppApi.getAllAccounts();
@@ -337,7 +377,7 @@ function CustomizationPage() {
     return () => {
       cancelled = true;
     };
-  }, [location.state, isAgencyMode]);
+  }, [location.state, isAgencyMode, isTeamMode]);
 
   const navState = useMemo(() => {
     const fromList = location.state;
@@ -347,6 +387,14 @@ function CustomizationPage() {
           currentIndex: fromList.currentIndex,
           totalItems: fromList.totalItems ?? fromList.visibleAgencyIds.length,
           visibleIds: fromList.visibleAgencyIds,
+        };
+      }
+    } else if (isTeamMode) {
+      if (fromList?.visibleTeamIds?.length && fromList.currentIndex != null) {
+        return {
+          currentIndex: fromList.currentIndex,
+          totalItems: fromList.totalItems ?? fromList.visibleTeamIds.length,
+          visibleIds: fromList.visibleTeamIds,
         };
       }
     } else if (
@@ -367,13 +415,15 @@ function CustomizationPage() {
       totalItems: fallbackIds.length,
       visibleIds: fallbackIds,
     };
-  }, [location.state, fallbackIds, entityId, isAgencyMode]);
+  }, [location.state, fallbackIds, entityId, isAgencyMode, isTeamMode]);
 
   const goToEntity = (nextId, nextIndex) => {
     if (!nextId || !navState) return;
     const path = isAgencyMode
       ? `/${accountUrl}/customization/agency/${nextId}`
-      : `/${accountUrl}/customization/${nextId}`;
+      : isTeamMode
+        ? `/${accountUrl}/customization/team/${nextId}`
+        : `/${accountUrl}/customization/${nextId}`;
     navigate(path, {
       state: {
         ...location.state,
@@ -381,7 +431,9 @@ function CustomizationPage() {
         totalItems: navState.totalItems,
         ...(isAgencyMode
           ? {visibleAgencyIds: navState.visibleIds}
-          : {visibleAccountIds: navState.visibleIds}),
+          : isTeamMode
+            ? {visibleTeamIds: navState.visibleIds}
+            : {visibleAccountIds: navState.visibleIds}),
       },
     });
   };
@@ -419,17 +471,20 @@ function CustomizationPage() {
     setLogoUploadError(null);
   };
 
+  const persistBranding = async (payload) => {
+    if (isAgencyMode) return AppApi.updateAgencyBranding(entityId, payload);
+    if (isTeamMode) return AppApi.updateTeamBranding(entityId, payload);
+    return AppApi.updateAccountBranding(entityId, payload);
+  };
+
   const handleUpdate = async () => {
     if (!entityId || readOnlyReason) return;
     setSaving(true);
     try {
-      const payload = normalizeForm(form);
-      const branding = isAgencyMode
-        ? await AppApi.updateAgencyBranding(entityId, payload)
-        : await AppApi.updateAccountBranding(entityId, payload);
+      const branding = await persistBranding(normalizeForm(form));
       applyBranding(branding);
       clearImagePreviews();
-      if (!isAgencyMode && entityId === currentAccount?.id) {
+      if (!isAgencyMode && !isTeamMode && entityId === currentAccount?.id) {
         await refreshBranding();
       }
       showBanner("success", "Branding updated.");
@@ -458,12 +513,10 @@ function CustomizationPage() {
         sidebarTextColor: null,
         agentCardTextColor: null,
       };
-      const branding = isAgencyMode
-        ? await AppApi.updateAgencyBranding(entityId, resetPayload)
-        : await AppApi.updateAccountBranding(entityId, resetPayload);
+      const branding = await persistBranding(resetPayload);
       applyBranding(branding);
       clearImagePreviews();
-      if (!isAgencyMode && entityId === currentAccount?.id) {
+      if (!isAgencyMode && !isTeamMode && entityId === currentAccount?.id) {
         await refreshBranding();
       }
       showBanner("success", "Reset to Opsy defaults.");
@@ -494,7 +547,11 @@ function CustomizationPage() {
               className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              {isAgencyMode ? "All agencies" : "All accounts"}
+              {isAgencyMode
+                ? "All agencies"
+                : isTeamMode
+                  ? "All teams"
+                  : "All accounts"}
             </Link>
 
             <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -507,7 +564,12 @@ function CustomizationPage() {
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-2xl md:text-[1.75rem] leading-tight text-gray-900 dark:text-gray-50 font-bold truncate">
-                    {accountName || (isAgencyMode ? "Agency customization" : "Customization")}
+                    {accountName ||
+                      (isAgencyMode
+                        ? "Agency customization"
+                        : isTeamMode
+                          ? "Team customization"
+                          : "Customization")}
                   </h1>
                   {accountUrlSlug && (
                     <div className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md bg-gray-100 dark:bg-gray-800/80 px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-300 ring-1 ring-inset ring-gray-200/80 dark:ring-gray-700/80">
@@ -517,10 +579,17 @@ function CustomizationPage() {
                       </span>
                     </div>
                   )}
+                  {subtitleMeta && (
+                    <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {subtitleMeta}
+                    </p>
+                  )}
                   <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
                     {isAgencyMode
-                      ? "White-label this agency’s shell accent, logo, and homeowner agent card. Affiliated agents inherit these settings."
-                      : "White-label this account’s shell accent, logo, and homeowner agent card."}
+                      ? "White-label this agency’s shell accent, logo, and homeowner agent card. Affiliated agents inherit these settings (overriding team branding)."
+                      : isTeamMode
+                        ? "White-label this team’s shell accent, logo, and homeowner agent card. Applies only when the parent agency has no customization."
+                        : "White-label this account’s shell accent, logo, and homeowner agent card."}
                   </p>
                 </div>
               </div>
@@ -615,8 +684,10 @@ function CustomizationPage() {
           {readOnlyReason && !loadingBranding && (
             <div className="mb-4">
               <Banner open type="warning" setOpen={() => {}}>
-                {readOnlyReason} Branding below is inherited and cannot be edited
-                on this account.
+                {readOnlyReason}{" "}
+                {isTeamMode
+                  ? "Team branding is stored but overridden by the agency until agency branding is cleared."
+                  : "Branding below is inherited and cannot be edited on this account."}
               </Banner>
             </div>
           )}
@@ -642,7 +713,7 @@ function CustomizationPage() {
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       Controls the app accent color, sidebar text, and the logo shown in the
                       sidebar and agent card for this
-                      {isAgencyMode ? " agency" : " account"}.
+                      {isAgencyMode ? " agency" : isTeamMode ? " team" : " account"}.
                     </p>
                   </div>
                   <div className={`${SETTINGS_CARD.body} space-y-5`}>
@@ -685,12 +756,17 @@ function CustomizationPage() {
                           onDismissError={() => setLogoUploadError(null)}
                           size="sm"
                           variant="logo"
+                          logoBackdropColor={form.accentColor || DEFAULT_ACCENT}
                           placeholder="generic"
                           alt="Logo"
                           uploadLabel="Upload logo"
                           removeLabel="Remove logo"
                           emptyLabel="Add logo"
                         />
+                        <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500 max-w-[11rem]">
+                          If you see a white box or checkerboard on the accent,
+                          re-upload and enable Remove background.
+                        </p>
                       </div>
                     </div>
                     <div>

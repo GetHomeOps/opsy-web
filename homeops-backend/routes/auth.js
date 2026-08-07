@@ -635,9 +635,22 @@ router.post("/confirm", async function (req, res, next) {
       throw new BadRequestError("Token and password are required");
     }
     const result = await acceptInvitation({ rawToken: token, password, name });
+    let accountUrl = null;
+    if (result?.user?.role === "assistant" && result?.user?.id) {
+      try {
+        const Account = require("../models/account");
+        const accounts = await Account.getUserAccounts(result.user.id);
+        accountUrl = accounts?.[0]?.url || null;
+      } catch (_) {
+        accountUrl = null;
+      }
+    }
     return res.json({
       success: true,
       message: "Account activated successfully",
+      role: result?.user?.role || null,
+      onboardingCompleted: result?.user?.role === "assistant" ? true : undefined,
+      accountUrl,
     });
   } catch (err) {
     return next(err);

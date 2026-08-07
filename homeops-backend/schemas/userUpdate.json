@@ -20,6 +20,13 @@
         { "type": "integer", "minimum": 1 },
         { "type": "null" }
       ]
+    },
+    "aiFeaturesOverrideEnabled": { "type": "boolean" },
+    "aiFeaturesTokenMonthlyQuota": {
+      "anyOf": [
+        { "type": "integer", "minimum": 1 },
+        { "type": "null" }
+      ]
     }
   },
   "additionalProperties": true,

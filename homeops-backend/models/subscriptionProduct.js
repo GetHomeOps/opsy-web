@@ -27,20 +27,22 @@ async function upsertPlanLimits(productId, limits) {
   const {
     maxProperties, maxContacts, maxViewers, maxTeamMembers,
     aiTokenMonthlyQuota, aiTokenMonthlyValueUsd, aiTokenPriceUsd, maxDocumentsPerSystem,
-    aiFeaturesEnabled, prePurchaseEnabled,
+    aiFeaturesEnabled, prePurchaseEnabled, assistantsEnabled, maxAssistants,
   } = limits || {};
   const valueUsd = aiTokenMonthlyValueUsd != null && aiTokenMonthlyValueUsd !== "" ? Number(aiTokenMonthlyValueUsd) : null;
   const priceUsd = aiTokenPriceUsd != null && aiTokenPriceUsd !== "" ? Number(aiTokenPriceUsd) : null;
   const aiFeatParam = aiFeaturesEnabled === undefined ? null : !!aiFeaturesEnabled;
   const prePurchaseParam = prePurchaseEnabled === undefined ? null : !!prePurchaseEnabled;
+  const assistantsParam = assistantsEnabled === undefined ? null : !!assistantsEnabled;
+  const maxAssistantsParam = maxAssistants === undefined ? null : Number(maxAssistants) || 0;
   const baseParams = [
     productId, maxProperties ?? 1, maxContacts ?? 25, maxViewers ?? 2, maxTeamMembers ?? 5,
     aiTokenMonthlyQuota ?? 50000, valueUsd, priceUsd, maxDocumentsPerSystem ?? 5,
   ];
   try {
     await db.query(
-      `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, ai_token_monthly_value_usd, ai_token_price_usd, max_documents_per_system, ai_features_enabled, pre_purchase_enabled, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, true), COALESCE($11, false), NOW())
+      `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, ai_token_monthly_value_usd, ai_token_price_usd, max_documents_per_system, ai_features_enabled, pre_purchase_enabled, assistants_enabled, max_assistants, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, true), COALESCE($11, false), COALESCE($12, false), COALESCE($13, 0), NOW())
        ON CONFLICT (subscription_product_id) DO UPDATE SET
          max_properties = COALESCE(EXCLUDED.max_properties, plan_limits.max_properties),
          max_contacts = COALESCE(EXCLUDED.max_contacts, plan_limits.max_contacts),
@@ -52,10 +54,38 @@ async function upsertPlanLimits(productId, limits) {
          max_documents_per_system = COALESCE(EXCLUDED.max_documents_per_system, plan_limits.max_documents_per_system),
          ai_features_enabled = COALESCE(EXCLUDED.ai_features_enabled, plan_limits.ai_features_enabled),
          pre_purchase_enabled = COALESCE(EXCLUDED.pre_purchase_enabled, plan_limits.pre_purchase_enabled),
+         assistants_enabled = COALESCE(EXCLUDED.assistants_enabled, plan_limits.assistants_enabled),
+         max_assistants = COALESCE(EXCLUDED.max_assistants, plan_limits.max_assistants),
          updated_at = NOW()`,
-      [...baseParams, aiFeatParam, prePurchaseParam]
+      [...baseParams, aiFeatParam, prePurchaseParam, assistantsParam, maxAssistantsParam]
     );
   } catch (err) {
+    if (isMissingColumnError(err, "assistants_enabled") || isMissingColumnError(err, "max_assistants")) {
+      try {
+        await db.query(
+          `INSERT INTO plan_limits (subscription_product_id, max_properties, max_contacts, max_viewers, max_team_members, ai_token_monthly_quota, ai_token_monthly_value_usd, ai_token_price_usd, max_documents_per_system, ai_features_enabled, pre_purchase_enabled, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, true), COALESCE($11, false), NOW())
+           ON CONFLICT (subscription_product_id) DO UPDATE SET
+             max_properties = COALESCE(EXCLUDED.max_properties, plan_limits.max_properties),
+             max_contacts = COALESCE(EXCLUDED.max_contacts, plan_limits.max_contacts),
+             max_viewers = COALESCE(EXCLUDED.max_viewers, plan_limits.max_viewers),
+             max_team_members = COALESCE(EXCLUDED.max_team_members, plan_limits.max_team_members),
+             ai_token_monthly_quota = COALESCE(EXCLUDED.ai_token_monthly_quota, plan_limits.ai_token_monthly_quota),
+             ai_token_monthly_value_usd = COALESCE(EXCLUDED.ai_token_monthly_value_usd, plan_limits.ai_token_monthly_value_usd),
+             ai_token_price_usd = COALESCE(EXCLUDED.ai_token_price_usd, plan_limits.ai_token_price_usd),
+             max_documents_per_system = COALESCE(EXCLUDED.max_documents_per_system, plan_limits.max_documents_per_system),
+             ai_features_enabled = COALESCE(EXCLUDED.ai_features_enabled, plan_limits.ai_features_enabled),
+             pre_purchase_enabled = COALESCE(EXCLUDED.pre_purchase_enabled, plan_limits.pre_purchase_enabled),
+             updated_at = NOW()`,
+          [...baseParams, aiFeatParam, prePurchaseParam]
+        );
+        return;
+      } catch (err2) {
+        if (!isMissingColumnError(err2, "pre_purchase_enabled") && !isMissingColumnError(err2, "ai_features_enabled")) {
+          throw err2;
+        }
+      }
+    }
     if (isMissingColumnError(err, "pre_purchase_enabled")) {
       try {
         await db.query(
@@ -78,7 +108,7 @@ async function upsertPlanLimits(productId, limits) {
       } catch (err2) {
         if (!isMissingColumnError(err2, "ai_features_enabled")) throw err2;
       }
-    } else if (!isMissingColumnError(err, "ai_features_enabled")) {
+    } else if (!isMissingColumnError(err, "ai_features_enabled") && !isMissingColumnError(err, "assistants_enabled")) {
       throw err;
     }
     await db.query(
@@ -236,12 +266,35 @@ async function getLimitsForProduct(productId) {
               ai_token_price_usd AS "aiTokenPriceUsd",
               max_documents_per_system AS "maxDocumentsPerSystem",
               COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
-              COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled"
+              COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled",
+              COALESCE(assistants_enabled, false) AS "assistantsEnabled",
+              COALESCE(max_assistants, 0) AS "maxAssistants"
        FROM plan_limits WHERE subscription_product_id = $1`,
       [productId]
     );
     return limRes.rows[0] || null;
   } catch (err) {
+    if (isMissingColumnError(err, "assistants_enabled") || isMissingColumnError(err, "max_assistants")) {
+      try {
+        const limRes = await db.query(
+          `SELECT max_properties AS "maxProperties", max_contacts AS "maxContacts", max_viewers AS "maxViewers",
+                  max_team_members AS "maxTeamMembers", ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+                  ai_token_monthly_value_usd AS "aiTokenMonthlyValueUsd",
+                  ai_token_price_usd AS "aiTokenPriceUsd",
+                  max_documents_per_system AS "maxDocumentsPerSystem",
+                  COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
+                  COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled"
+           FROM plan_limits WHERE subscription_product_id = $1`,
+          [productId]
+        );
+        if (!limRes.rows[0]) return null;
+        return { ...limRes.rows[0], assistantsEnabled: false, maxAssistants: 0 };
+      } catch (err2) {
+        if (!isMissingColumnError(err2, "pre_purchase_enabled") && !isMissingColumnError(err2, "ai_features_enabled")) {
+          throw err2;
+        }
+      }
+    }
     if (isMissingColumnError(err, "pre_purchase_enabled")) {
       try {
         const limRes = await db.query(
@@ -519,13 +572,30 @@ class SubscriptionProduct {
                   max_contacts AS "maxContacts", ai_token_monthly_quota AS "aiTokenMonthlyQuota",
                   max_documents_per_system AS "maxDocumentsPerSystem",
                   COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
-                  COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled"
+                  COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled",
+                  COALESCE(assistants_enabled, false) AS "assistantsEnabled",
+                  COALESCE(max_assistants, 0) AS "maxAssistants"
            FROM plan_limits
            WHERE subscription_product_id = ANY($1::int[])`,
           [products.map((p) => p.id)]
         );
       } catch (limErr) {
-        if (!isMissingColumnError(limErr, "pre_purchase_enabled")) throw limErr;
+        if (isMissingColumnError(limErr, "assistants_enabled") || isMissingColumnError(limErr, "max_assistants")) {
+          limitsRes = await db.query(
+            `SELECT subscription_product_id AS "subscriptionProductId", max_properties AS "maxProperties",
+                    max_contacts AS "maxContacts", ai_token_monthly_quota AS "aiTokenMonthlyQuota",
+                    max_documents_per_system AS "maxDocumentsPerSystem",
+                    COALESCE(ai_features_enabled, true) AS "aiFeaturesEnabled",
+                    COALESCE(pre_purchase_enabled, false) AS "prePurchaseEnabled"
+             FROM plan_limits
+             WHERE subscription_product_id = ANY($1::int[])`,
+            [products.map((p) => p.id)]
+          );
+          for (const row of limitsRes.rows) {
+            row.assistantsEnabled = false;
+            row.maxAssistants = 0;
+          }
+        } else if (!isMissingColumnError(limErr, "pre_purchase_enabled")) throw limErr;
         limitsRes = await db.query(
           `SELECT subscription_product_id AS "subscriptionProductId", max_properties AS "maxProperties",
                   max_contacts AS "maxContacts", ai_token_monthly_quota AS "aiTokenMonthlyQuota",

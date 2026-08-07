@@ -24,7 +24,9 @@ function GlobalAIAssistantPanel({isOpen, onClose}) {
   const isPaidUser =
     isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
   const aiFeaturesOnPlan = isAdmin || limits?.aiFeaturesEnabled !== false;
-  const canUseAiAssistant = isPaidUser && aiFeaturesOnPlan;
+  const aiFromOverride = !!limits?.aiFeaturesFromOverride;
+  const canUseAiAssistant =
+    isAdmin || (aiFeaturesOnPlan && (isPaidUser || aiFromOverride));
   const aiDemoGate = useDemoFeatureGate("ai");
   const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [systemContext, setSystemContext] = useState(null);

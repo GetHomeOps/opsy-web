@@ -15,6 +15,8 @@ export const S3_UPLOAD_FOLDER = {
   ACCOUNT_BRANDING: "account_branding",
   /** Agency white-label assets (same S3 prefix / admin gate as account branding) */
   AGENCY_BRANDING: "account_branding",
+  /** Team white-label assets (same S3 prefix / admin gate as account branding) */
+  TEAM_BRANDING: "account_branding",
   /** Pre-purchase analysis document uploads */
   PRE_PURCHASE: "pre_purchase",
 };

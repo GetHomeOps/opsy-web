@@ -2,12 +2,13 @@ import {t} from "i18next";
 import React from "react";
 import {NavLink, useLocation} from "react-router-dom";
 import {useAuth} from "../../context/AuthContext";
+import {shouldHideBilling} from "../../utils/roles";
 
 function SettingsSidebar() {
   const location = useLocation();
   const {pathname} = location;
   const {currentUser} = useAuth();
-  const hideBilling = ["super_admin", "admin"].includes(currentUser?.role);
+  const hideBilling = shouldHideBilling(currentUser?.role);
 
   return (
     <div className="flex flex-nowrap overflow-x-scroll no-scrollbar md:block md:overflow-auto px-3 py-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700/60 min-w-[15rem] md:space-y-3">

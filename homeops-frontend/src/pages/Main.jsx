@@ -15,7 +15,7 @@ import WelcomeModal from "../components/WelcomeModal";
  * Role-based routing:
  *   • homeowner   → HomeownerHome
  *   • super_admin → SuperAdminHome
- *   • agent / admin → AgentHome
+ *   • agent / assistant / admin → AgentHome
  *
  * Each home component is responsible for its own data-fetching,
  * scoped to the logged-in user via PropertyContext + AuthContext.

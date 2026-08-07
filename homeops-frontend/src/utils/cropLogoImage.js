@@ -1,10 +1,12 @@
 /**
  * Crop a logo image (react-easy-crop pixel area) and optionally punch out
- * near-white pixels to transparent. Exports as WebP with alpha.
+ * light / checkerboard backgrounds to transparent. Exports as WebP with alpha.
  */
 
-const DEFAULT_WHITE_THRESHOLD = 245;
-const DEFAULT_SOFT_EDGE = 10;
+/** Near-neutral, high-luminance pixels at or above this are fully punched. */
+const DEFAULT_LUMINANCE_THRESHOLD = 200;
+const DEFAULT_SOFT_EDGE = 16;
+const DEFAULT_MAX_CHROMA = 18;
 
 /**
  * Load an image from a URL (blob: or http(s):).
@@ -21,52 +23,58 @@ function loadImage(src) {
 }
 
 /**
- * Punch near-white pixels to transparent (soft edge near threshold).
+ * Punch near-neutral light pixels to transparent (white plates + gray/white checkerboards).
  * @param {ImageData} imageData
- * @param {number} threshold - RGB channel min to treat as white (0–255)
+ * @param {number} luminanceThreshold - Avg RGB above this → fully transparent
  * @param {number} softEdge - fade range below threshold
+ * @param {number} maxChroma - skip saturated brand colors
  */
-function removeNearWhite(imageData, threshold = DEFAULT_WHITE_THRESHOLD, softEdge = DEFAULT_SOFT_EDGE) {
+function removeLightBackground(
+  imageData,
+  luminanceThreshold = DEFAULT_LUMINANCE_THRESHOLD,
+  softEdge = DEFAULT_SOFT_EDGE,
+  maxChroma = DEFAULT_MAX_CHROMA,
+) {
   const {data} = imageData;
-  const softStart = Math.max(0, threshold - softEdge);
+  const softStart = Math.max(0, luminanceThreshold - softEdge);
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
-    const minChannel = Math.min(r, g, b);
-    // Only punch near-neutral whites (avoid wiping light brand colors)
     const maxChannel = Math.max(r, g, b);
+    const minChannel = Math.min(r, g, b);
     const chroma = maxChannel - minChannel;
-    if (chroma > 18) continue;
+    if (chroma > maxChroma) continue;
 
-    if (minChannel >= threshold) {
+    const luminance = (r + g + b) / 3;
+    if (luminance >= luminanceThreshold) {
       data[i + 3] = 0;
-    } else if (minChannel >= softStart && softEdge > 0) {
-      const t = (minChannel - softStart) / softEdge;
+    } else if (luminance >= softStart && softEdge > 0) {
+      const t = (luminance - softStart) / softEdge;
       data[i + 3] = Math.round(data[i + 3] * (1 - t));
     }
   }
 }
 
 /**
- * Crop image to the given pixel area and optionally remove a white background.
+ * Crop image to the given pixel area and optionally remove a light background.
  *
  * @param {string} imageSrc - Object URL or image URL
  * @param {{ x: number, y: number, width: number, height: number }} pixelCrop - From react-easy-crop
  * @param {Object} [options]
- * @param {boolean} [options.removeWhiteBackground=false]
- * @param {number} [options.whiteThreshold=245]
- * @param {number} [options.maxSize=960] - Max longest side of output
- * @param {number} [options.quality=0.92]
+ * @param {boolean} [options.removeWhiteBackground=false] - Punch light / checkerboard mats
+ * @param {number} [options.luminanceThreshold=200]
+ * @param {number} [options.maxSize=2048] - Max longest side of output
+ * @param {number} [options.quality=0.95]
  * @param {string} [options.fileName='logo.webp']
  * @returns {Promise<File>}
  */
 export async function cropLogoImage(imageSrc, pixelCrop, options = {}) {
   const {
     removeWhiteBackground = false,
-    whiteThreshold = DEFAULT_WHITE_THRESHOLD,
-    maxSize = 960,
-    quality = 0.92,
+    luminanceThreshold = DEFAULT_LUMINANCE_THRESHOLD,
+    maxSize = 2048,
+    quality = 0.95,
     fileName = "logo.webp",
   } = options;
 
@@ -101,7 +109,7 @@ export async function cropLogoImage(imageSrc, pixelCrop, options = {}) {
 
   if (removeWhiteBackground) {
     const imageData = ctx.getImageData(0, 0, outW, outH);
-    removeNearWhite(imageData, whiteThreshold);
+    removeLightBackground(imageData, luminanceThreshold);
     ctx.putImageData(imageData, 0, 0);
   }
 
@@ -118,7 +126,7 @@ export async function cropLogoImage(imageSrc, pixelCrop, options = {}) {
 }
 
 /**
- * Build a preview data URL of the cropped (optionally punched) logo for live UI preview.
+ * Build a preview object URL of the cropped (optionally punched) logo for live UI preview.
  * @param {string} imageSrc
  * @param {{ x: number, y: number, width: number, height: number }} pixelCrop
  * @param {boolean} removeWhiteBackground

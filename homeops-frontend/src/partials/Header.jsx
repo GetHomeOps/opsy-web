@@ -38,8 +38,10 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const isPaidUser =
     isAdmin || (plan?.code && !FREE_PLAN_CODES.includes(plan.code));
   const aiFeaturesOnPlan = isAdmin || limits?.aiFeaturesEnabled !== false;
-  const aiAssistantLocked =
-    !isAdmin && (billingLoading || !isPaidUser || !aiFeaturesOnPlan);
+  const aiFromOverride = !!limits?.aiFeaturesFromOverride;
+  const canUseAiAssistant =
+    isAdmin || (aiFeaturesOnPlan && (isPaidUser || aiFromOverride));
+  const aiAssistantLocked = !isAdmin && (billingLoading || !canUseAiAssistant);
 
   const isImpersonating = !!impersonation?.active;
 
@@ -96,12 +98,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
       aiDemoGate.showModal();
       return;
     }
-    // Free users: show upgrade modal instead of opening the AI panel
-    if (!isPaidUser) {
-      requestAnimationFrame(() => setAiUpgradeModalOpen(true));
-      return;
-    }
-    if (!aiFeaturesOnPlan) {
+    if (!canUseAiAssistant) {
       requestAnimationFrame(() => setAiUpgradeModalOpen(true));
       return;
     }

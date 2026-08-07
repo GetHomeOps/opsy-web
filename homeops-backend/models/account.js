@@ -130,6 +130,7 @@ class Account {
    * Throws NotFoundError if no accounts are found.
    **/
   static async getAll() {
+    const { HAS_CUSTOMIZATION_SQL } = require("../services/brandingService");
     const result = await db.query(
       `SELECT a.id,
               a.name,
@@ -139,6 +140,10 @@ class Account {
               COALESCE(u.role::text, 'unknown') AS "accountType",
               aff.agency_id AS "agencyId",
               ag.name AS "agencyName",
+              ${HAS_CUSTOMIZATION_SQL("ag")} AS "agencyHasCustomization",
+              aff.team_id AS "teamId",
+              tm.name AS "teamName",
+              ${HAS_CUSTOMIZATION_SQL("tm")} AS "teamHasCustomization",
               a.accent_color AS "accentColor",
               a.sidebar_icon_key AS "sidebarIconKey",
               a.agent_card_logo_key AS "agentCardLogoKey",
@@ -151,39 +156,41 @@ class Account {
               a.created_at AS "createdAt",
               a.updated_at AS "updatedAt",
               (
-                a.accent_color IS NOT NULL
-                OR a.sidebar_icon_key IS NOT NULL
-                OR a.agent_card_logo_key IS NOT NULL
-                OR a.agent_card_accent_color IS NOT NULL
-                OR a.agent_card_background_color IS NOT NULL
-                OR a.agent_card_agent_label IS NOT NULL
-                OR a.agent_card_company_name IS NOT NULL
-                OR a.sidebar_text_color IS NOT NULL
-                OR a.agent_card_text_color IS NOT NULL
+                (
+                  aff.agency_id IS NULL
+                  AND (
+                    a.accent_color IS NOT NULL
+                    OR a.sidebar_icon_key IS NOT NULL
+                    OR a.agent_card_logo_key IS NOT NULL
+                    OR a.agent_card_accent_color IS NOT NULL
+                    OR a.agent_card_background_color IS NOT NULL
+                    OR a.agent_card_agent_label IS NOT NULL
+                    OR a.agent_card_company_name IS NOT NULL
+                    OR a.sidebar_text_color IS NOT NULL
+                    OR a.agent_card_text_color IS NOT NULL
+                  )
+                )
                 OR (
                   aff.agency_id IS NOT NULL
-                  AND (
-                    ag.accent_color IS NOT NULL
-                    OR ag.sidebar_icon_key IS NOT NULL
-                    OR ag.agent_card_logo_key IS NOT NULL
-                    OR ag.agent_card_accent_color IS NOT NULL
-                    OR ag.agent_card_background_color IS NOT NULL
-                    OR ag.agent_card_agent_label IS NOT NULL
-                    OR ag.agent_card_company_name IS NOT NULL
-                    OR ag.sidebar_text_color IS NOT NULL
-                    OR ag.agent_card_text_color IS NOT NULL
-                  )
+                  AND ${HAS_CUSTOMIZATION_SQL("ag")}
+                )
+                OR (
+                  aff.agency_id IS NOT NULL
+                  AND NOT COALESCE(${HAS_CUSTOMIZATION_SQL("ag")}, false)
+                  AND aff.team_id IS NOT NULL
+                  AND ${HAS_CUSTOMIZATION_SQL("tm")}
                 )
               ) AS "hasCustomization"
        FROM accounts a
        LEFT JOIN users u ON u.id = a.owner_user_id
        LEFT JOIN LATERAL (
-         SELECT aa.agency_id
+         SELECT aa.agency_id, aa.team_id
          FROM agent_affiliations aa
          WHERE aa.user_id = a.owner_user_id AND aa.status = 'active'
          LIMIT 1
        ) aff ON true
        LEFT JOIN agencies ag ON ag.id = aff.agency_id
+       LEFT JOIN teams tm ON tm.id = aff.team_id
        ORDER BY a.name ASC`
     );
 

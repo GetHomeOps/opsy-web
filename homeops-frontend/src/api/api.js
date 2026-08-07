@@ -475,6 +475,30 @@ class AppApi {
     return res.agents ?? [];
   }
 
+  static async getAssistants() {
+    return this.request("assistants");
+  }
+
+  static async getAssistant(id) {
+    return this.request(`assistants/${id}`);
+  }
+
+  static async createAssistant(data) {
+    return this.request("assistants", data, "POST");
+  }
+
+  static async updateAssistant(id, data) {
+    return this.request(`assistants/${id}`, data, "PATCH");
+  }
+
+  static async revokeAssistant(id) {
+    return this.request(`assistants/${id}`, {}, "DELETE");
+  }
+
+  static async resendAssistantInvite(id) {
+    return this.request(`assistants/${id}/resend-invite`, {}, "POST");
+  }
+
   static async updateUser(id, data) {
     let res = await this.request(`users/${id}`, data, 'PATCH');
     const user = res.user;
@@ -567,6 +591,28 @@ class AppApi {
   static async updateAgencyBranding(agencyId, data) {
     let res = await this.request(
       `agencies-admin/${agencyId}/branding`,
+      data,
+      "PATCH",
+    );
+    return res.branding;
+  }
+
+  /** Teams for Customization admin tab (platform admin). */
+  static async getTeamsForCustomization() {
+    let res = await this.request("agencies-admin/teams/for-customization");
+    return res.teams ?? [];
+  }
+
+  /** Team branding (platform admin). */
+  static async getTeamBranding(teamId) {
+    let res = await this.request(`agencies-admin/teams/${teamId}/branding`);
+    return res.branding;
+  }
+
+  /** Update team branding (platform admin). */
+  static async updateTeamBranding(teamId, data) {
+    let res = await this.request(
+      `agencies-admin/teams/${teamId}/branding`,
       data,
       "PATCH",
     );

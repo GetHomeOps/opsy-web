@@ -57,6 +57,8 @@ const Property = lazy(() => import("../properties/Property"));
 const PrePurchaseDashboard = lazy(prePurchaseDashboardImport);
 const PrePurchaseNewAnalysis = lazy(() => import("../pre-purchase/PrePurchaseNewAnalysis"));
 const PrePurchaseAnalysisPage = lazy(() => import("../pre-purchase/PrePurchaseAnalysisPage"));
+const AssistantsList = lazy(() => import("../assistants/AssistantsList"));
+const AssistantFormContainer = lazy(() => import("../assistants/AssistantFormContainer"));
 const UserConfirmationEmail = lazy(() => import("../users/UserConfirmationEmail"));
 const MaintenanceRecordPage = lazy(() => import("../properties/MaintenanceRecordPage"));
 const PdfFileExample = lazy(() => import("../pdfFileExample"));
@@ -483,9 +485,33 @@ function RoutesList() {
         }
       />
       <Route
-        path="/:accountUrl/pre-purchase"
+        path="/:accountUrl/assistants"
         element={
           <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+            <AssistantsList />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/assistants/new"
+        element={
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+            <AssistantFormContainer />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/assistants/:id"
+        element={
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+            <AssistantFormContainer />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/pre-purchase"
+        element={
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <PrePurchaseDashboard />
           </AdminRoute>
         }
@@ -493,7 +519,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/pre-purchase/new"
         element={
-          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <PrePurchaseNewAnalysis />
           </AdminRoute>
         }
@@ -501,7 +527,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/pre-purchase/:analysisId"
         element={
-          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <PrePurchaseAnalysisPage />
           </AdminRoute>
         }
@@ -800,6 +826,14 @@ function RoutesList() {
         }
       />
       <Route
+        path="/:accountUrl/customization/team/:teamId"
+        element={
+          <AdminRoute>
+            <CustomizationPage />
+          </AdminRoute>
+        }
+      />
+      <Route
         path="/:accountUrl/customization/:accountId"
         element={
           <AdminRoute>
@@ -892,7 +926,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/resources/new"
         element={
-          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <Resource />
           </AdminRoute>
         }
@@ -900,7 +934,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/resources/:id/preview"
         element={
-          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <ResourcePreviewPage />
           </AdminRoute>
         }
@@ -916,7 +950,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/resources/:id"
         element={
-          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <Resource />
           </AdminRoute>
         }
@@ -924,7 +958,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/resources"
         element={
-          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <ResourcesManagement />
           </AdminRoute>
         }
@@ -932,7 +966,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/communications/new"
         element={
-          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <CommunicationComposer />
           </AdminRoute>
         }
@@ -948,7 +982,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/communications/:id"
         element={
-          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <CommunicationComposer />
           </AdminRoute>
         }
@@ -956,7 +990,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/communications"
         element={
-          <AdminRoute allowedRoles={["super_admin", "admin", "agent"]}>
+          <AdminRoute allowedRoles={["super_admin", "admin", "agent", "assistant"]}>
             <CommunicationsList />
           </AdminRoute>
         }

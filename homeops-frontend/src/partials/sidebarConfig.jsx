@@ -5,7 +5,8 @@
  * Role rules:
  * - superAdminOnly: visible to super_admin only
  * - adminOnly: visible to admin + super_admin
- * - adminOrAgent: visible to admin + super_admin + agent
+ * - adminOrAgent: visible to admin + super_admin + agent + assistant
+ * - agentOrAdmin: visible to admin + super_admin + agent (not assistants)
  * - all: visible to all authenticated users
  */
 
@@ -184,6 +185,14 @@ export const SIDEBAR_CONFIG = [
         path: "communications",
         icon: icon(BookOpen),
         roles: "adminOrAgent",
+      },
+      {
+        id: "assistants",
+        label: "Assistants",
+        path: "assistants",
+        icon: icon(UsersRound),
+        roles: "agentOrAdmin",
+        activePaths: ["assistants"],
       },
       {
         id: "homeowner-messages",

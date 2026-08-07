@@ -85,7 +85,7 @@ class User {
  *
  * Throws BadRequestError on duplicates.
  **/
-  static async register({ name, email, password, phone = null, role = 'homeowner', contact = 0, is_active = false, onboarding_completed, role_locked, demo_login_password = null, demo_provisioned_by_user_id = null }) {
+  static async register({ name, email, password, phone = null, role = 'homeowner', contact = 0, is_active = false, onboarding_completed, role_locked, assistant_of_user_id = null, demo_login_password = null, demo_provisioned_by_user_id = null }) {
     if (name == null || (typeof name === 'string' && name.trim() === '')) {
       throw new BadRequestError("Name is required");
     }
@@ -117,10 +117,17 @@ class User {
     if (onboarding_completed === false) {
       baseCols.push("onboarding_completed");
       baseVals.push(false);
+    } else if (onboarding_completed === true) {
+      baseCols.push("onboarding_completed");
+      baseVals.push(true);
     }
     if (role_locked === true) {
       baseCols.push("role_locked");
       baseVals.push(true);
+    }
+    if (assistant_of_user_id != null) {
+      baseCols.push("assistant_of_user_id");
+      baseVals.push(assistant_of_user_id);
     }
     if (demo_login_password) {
       baseCols.push("demo_login_password");
@@ -183,7 +190,10 @@ class User {
              demo_paired_agent_id AS "demoPairedAgentId",
              demo_expires_at AS "demoExpiresAt",
              COALESCE(opsy_scout_override_enabled, false) AS "opsyScoutOverrideEnabled",
-             opsy_scout_free_analyses_limit AS "opsyScoutFreeAnalysesLimit"
+             opsy_scout_free_analyses_limit AS "opsyScoutFreeAnalysesLimit",
+             COALESCE(ai_features_override_enabled, false) AS "aiFeaturesOverrideEnabled",
+             ai_features_token_monthly_quota AS "aiFeaturesTokenMonthlyQuota",
+             assistant_of_user_id AS "assistantOfUserId"
        FROM users
        WHERE id = $1`,
       [id]
@@ -196,6 +206,13 @@ class User {
       [id]
     );
     user.opsyScoutFreeAnalysesUsed = usedRes.rows[0]?.count || 0;
+
+    const tokensRes = await db.query(
+      `SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0)::bigint AS used
+       FROM user_api_usage WHERE user_id = $1 AND created_at >= date_trunc('month', CURRENT_TIMESTAMP)`,
+      [id]
+    );
+    user.aiFeaturesTokensUsedThisMonth = Number(tokensRes.rows[0]?.used || 0);
     return user;
   }
 
@@ -721,6 +738,8 @@ class User {
     welcome_modal_dismissed,
     opsyScoutOverrideEnabled,
     opsyScoutFreeAnalysesLimit,
+    aiFeaturesOverrideEnabled,
+    aiFeaturesTokenMonthlyQuota,
   }) {
     try {
       const fields = {};
@@ -736,6 +755,12 @@ class User {
       if (opsyScoutFreeAnalysesLimit !== undefined) {
         fields.opsy_scout_free_analyses_limit = opsyScoutFreeAnalysesLimit;
       }
+      if (aiFeaturesOverrideEnabled !== undefined) {
+        fields.ai_features_override_enabled = !!aiFeaturesOverrideEnabled;
+      }
+      if (aiFeaturesTokenMonthlyQuota !== undefined) {
+        fields.ai_features_token_monthly_quota = aiFeaturesTokenMonthlyQuota;
+      }
 
       if (Object.keys(fields).length === 0) {
         throw new BadRequestError("No data to update");
@@ -746,6 +771,8 @@ class User {
           contact_id: "contact_id",
           opsy_scout_override_enabled: "opsy_scout_override_enabled",
           opsy_scout_free_analyses_limit: "opsy_scout_free_analyses_limit",
+          ai_features_override_enabled: "ai_features_override_enabled",
+          ai_features_token_monthly_quota: "ai_features_token_monthly_quota",
         });
       const idVarIdx = "$" + (values.length + 1);
 
@@ -765,7 +792,9 @@ class User {
                 welcome_modal_dismissed AS "welcomeModalDismissed",
              COALESCE(affiliation_onboarding_skipped, false) AS "affiliationOnboardingSkipped",
              COALESCE(opsy_scout_override_enabled, false) AS "opsyScoutOverrideEnabled",
-             opsy_scout_free_analyses_limit AS "opsyScoutFreeAnalysesLimit"
+             opsy_scout_free_analyses_limit AS "opsyScoutFreeAnalysesLimit",
+             COALESCE(ai_features_override_enabled, false) AS "aiFeaturesOverrideEnabled",
+             ai_features_token_monthly_quota AS "aiFeaturesTokenMonthlyQuota"
                 `;
       const result = await db.query(querySql, [...values, id]);
       const user = result.rows[0];

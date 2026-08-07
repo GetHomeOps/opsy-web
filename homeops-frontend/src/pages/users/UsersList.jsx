@@ -43,6 +43,7 @@ const STATUS_OPTIONS = [
 const ROLE_COLORS = {
   admin: "#6366f1",
   agent: "#3b82f6",
+  assistant: "#0d9488",
   homeowner: "#22c55e",
   super_admin: "#9333ea",
   superadmin: "#9333ea",
@@ -228,6 +229,7 @@ function UsersList() {
     const roleLabels = {
       admin: "Admin",
       agent: "Agent",
+      assistant: "Assistant",
       homeowner: "Homeowner",
       super_admin: "Super Admin",
       superadmin: "Super Admin",

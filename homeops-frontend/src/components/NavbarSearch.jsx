@@ -111,13 +111,17 @@ function NavbarSearch({disabled = false}) {
   const isSuperAdmin = role === "super_admin";
   const isAdmin = role === "admin";
   const isAgent = role === "agent";
+  const isAssistant = role === "assistant";
+  const isAgentLike = isAgent || isAssistant;
   const canManageUsers = isSuperAdmin || isAdmin;
 
   const visiblePages = useMemo(() => {
     const baseFilter = (p) => {
       if (p.roles === "superAdminOnly" && !isSuperAdmin) return false;
       if (p.roles === "adminOnly" && !canManageUsers) return false;
-      if (p.roles === "adminOrAgent" && !(canManageUsers || isAgent))
+      if (p.roles === "adminOrAgent" && !(canManageUsers || isAgentLike))
+        return false;
+      if (p.roles === "agentOrAdmin" && !(canManageUsers || isAgent))
         return false;
       if (p.hideForPlatformAdmins && canManageUsers) return false;
       return true;
@@ -128,7 +132,7 @@ function NavbarSearch({disabled = false}) {
       return baseFilter(p);
     });
     return [...fromSidebar, ...extra];
-  }, [isSuperAdmin, canManageUsers, isAgent, accountUrl]);
+  }, [isSuperAdmin, canManageUsers, isAgent, isAgentLike, accountUrl]);
 
   useEffect(() => {
     if (open && currentUser && !["super_admin"].includes(role)) {

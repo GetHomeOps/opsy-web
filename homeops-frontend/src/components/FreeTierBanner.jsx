@@ -56,9 +56,13 @@ export default function FreeTierBanner() {
 
   const isFreeByPlanCode = !!plan?.code && FREE_PLAN_CODES.includes(plan.code);
   const isFreeByTier = currentUser?.subscriptionTier === "free";
-  /* Tier can show immediately; plan.code waits for billing/status. */
+  /* Tier can show immediately; plan.code waits for billing/status.
+     Assistants are tethered and cannot manage billing — never show upgrade CTA. */
+  const isAssistant = currentUser?.role === "assistant";
   const isFreePlan =
-    !isAdmin && (isFreeByTier || (!loading && isFreeByPlanCode));
+    !isAdmin &&
+    !isAssistant &&
+    (isFreeByTier || (!loading && isFreeByPlanCode));
 
   if (!isFreePlan || dismissed) return null;
 

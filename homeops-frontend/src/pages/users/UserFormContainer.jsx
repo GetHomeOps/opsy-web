@@ -106,12 +106,24 @@ const initialFormData = {
   officeId: "",
   opsyScoutOverrideEnabled: false,
   opsyScoutFreeAnalysesLimit: "",
+  aiFeaturesOverrideEnabled: false,
+  aiFeaturesTokenMonthlyQuota: "",
 };
 
 function isAgentRole(role) {
   return String(role || "")
     .toLowerCase()
     .replace(/\s+/g, "_") === "agent";
+}
+
+function isHomeownerRole(role) {
+  return String(role || "")
+    .toLowerCase()
+    .replace(/\s+/g, "_") === "homeowner";
+}
+
+function canReceiveAiComplimentary(role) {
+  return isAgentRole(role) || isHomeownerRole(role);
 }
 
 const initialState = {
@@ -176,6 +188,12 @@ function reducer(state, action) {
               opsyScoutFreeAnalysesLimit:
                 action.payload.opsyScoutFreeAnalysesLimit != null
                   ? String(action.payload.opsyScoutFreeAnalysesLimit)
+                  : "",
+              aiFeaturesOverrideEnabled:
+                action.payload.aiFeaturesOverrideEnabled === true,
+              aiFeaturesTokenMonthlyQuota:
+                action.payload.aiFeaturesTokenMonthlyQuota != null
+                  ? String(action.payload.aiFeaturesTokenMonthlyQuota)
                   : "",
             }
           : initialFormData,
@@ -938,6 +956,8 @@ function UsersFormContainer() {
       officeId: _officeId,
       opsyScoutOverrideEnabled,
       opsyScoutFreeAnalysesLimit,
+      aiFeaturesOverrideEnabled,
+      aiFeaturesTokenMonthlyQuota,
       ...formFields
     } = state.formData;
     const userData = {
@@ -955,6 +975,16 @@ function UsersFormContainer() {
     } else {
       userData.opsyScoutOverrideEnabled = false;
       userData.opsyScoutFreeAnalysesLimit = null;
+    }
+
+    if (canReceiveAiComplimentary(state.formData.role)) {
+      userData.aiFeaturesOverrideEnabled = !!aiFeaturesOverrideEnabled;
+      userData.aiFeaturesTokenMonthlyQuota = aiFeaturesOverrideEnabled
+        ? Number(aiFeaturesTokenMonthlyQuota)
+        : null;
+    } else {
+      userData.aiFeaturesOverrideEnabled = false;
+      userData.aiFeaturesTokenMonthlyQuota = null;
     }
 
     const demoPasswordChanged =
@@ -1101,6 +1131,19 @@ function UsersFormContainer() {
         newErrors.opsyScoutFreeAnalysesLimit =
           t("opsyScoutFreeAnalysesLimitRequired") ||
           "Enter a positive number of free analyses.";
+      }
+    }
+
+    if (
+      !state.isNew &&
+      canReceiveAiComplimentary(state.formData.role) &&
+      state.formData.aiFeaturesOverrideEnabled
+    ) {
+      const quota = Number(state.formData.aiFeaturesTokenMonthlyQuota);
+      if (!Number.isInteger(quota) || quota < 1) {
+        newErrors.aiFeaturesTokenMonthlyQuota =
+          t("aiFeaturesTokenMonthlyQuotaRequired") ||
+          "Enter a positive monthly AI token limit.";
       }
     }
 
@@ -1451,6 +1494,10 @@ function UsersFormContainer() {
       payload.officeId = "";
       payload.opsyScoutOverrideEnabled = false;
       payload.opsyScoutFreeAnalysesLimit = "";
+    }
+    if (!canReceiveAiComplimentary(value)) {
+      payload.aiFeaturesOverrideEnabled = false;
+      payload.aiFeaturesTokenMonthlyQuota = "";
     }
     dispatch({
       type: "SET_FORM_DATA",
@@ -2583,6 +2630,121 @@ function UsersFormContainer() {
                                   state.formData.opsyScoutFreeAnalysesLimit ||
                                   "—",
                                 defaultValue: "Used: {{used}} of {{limit}}",
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* AI features complimentary override (existing agents / homeowners) */}
+                  {!state.isNew &&
+                    canReceiveAiComplimentary(state.formData.role) && (
+                    <div className="mt-6 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40 space-y-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                            {t("aiFeaturesComplimentary") ||
+                              "AI features (complimentary)"}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {t("aiFeaturesComplimentaryHelper") ||
+                              "Applies only while the user’s plan does not include AI features."}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={
+                            !!state.formData.aiFeaturesOverrideEnabled
+                          }
+                          aria-label={
+                            t("enableAiFeatures") || "Enable AI features"
+                          }
+                          onClick={() => {
+                            const next =
+                              !state.formData.aiFeaturesOverrideEnabled;
+                            dispatch({
+                              type: "SET_FORM_DATA",
+                              payload: {
+                                aiFeaturesOverrideEnabled: next,
+                                ...(next
+                                  ? {}
+                                  : {aiFeaturesTokenMonthlyQuota: ""}),
+                              },
+                            });
+                            if (state.errors.aiFeaturesTokenMonthlyQuota) {
+                              dispatch({
+                                type: "SET_ERRORS",
+                                payload: {
+                                  ...state.errors,
+                                  aiFeaturesTokenMonthlyQuota: null,
+                                },
+                              });
+                            }
+                            if (state.isInitialLoad) {
+                              dispatch({
+                                type: "SET_FORM_CHANGED",
+                                payload: true,
+                              });
+                            }
+                          }}
+                          className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                            state.formData.aiFeaturesOverrideEnabled
+                              ? "bg-[#456564]"
+                              : "bg-gray-300 dark:bg-gray-600"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                              state.formData.aiFeaturesOverrideEnabled
+                                ? "left-6"
+                                : "left-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {state.formData.aiFeaturesOverrideEnabled && (
+                        <div>
+                          <label
+                            className={getLabelClasses()}
+                            htmlFor="aiFeaturesTokenMonthlyQuota"
+                          >
+                            {t("aiFeaturesTokenMonthlyQuota") ||
+                              "Monthly AI token limit"}
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            id="aiFeaturesTokenMonthlyQuota"
+                            name="aiFeaturesTokenMonthlyQuota"
+                            value={
+                              state.formData.aiFeaturesTokenMonthlyQuota || ""
+                            }
+                            onChange={handleChange}
+                            className={getInputClasses(
+                              "aiFeaturesTokenMonthlyQuota",
+                            )}
+                            placeholder="e.g. 25000"
+                          />
+                          {state.errors.aiFeaturesTokenMonthlyQuota && (
+                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                              {state.errors.aiFeaturesTokenMonthlyQuota}
+                            </p>
+                          )}
+                          {state.user?.aiFeaturesTokensUsedThisMonth !=
+                            null && (
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {t("aiFeaturesTokensUsedThisMonth", {
+                                used: state.user.aiFeaturesTokensUsedThisMonth,
+                                limit:
+                                  state.formData.aiFeaturesTokenMonthlyQuota ||
+                                  "—",
+                                defaultValue:
+                                  "Used this month: {{used}} of {{limit}}",
                               })}
                             </p>
                           )}

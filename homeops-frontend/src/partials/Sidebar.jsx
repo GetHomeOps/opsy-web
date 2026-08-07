@@ -30,6 +30,11 @@ const FEATURE_UPGRADE_COPY = {
     message:
       "Your plan does not include Opsy Scout. Upgrade to analyze properties and generate Scout reports.",
   },
+  assistantsEnabled: {
+    title: "Assistants not included",
+    message:
+      "Your plan does not include team assistants. Upgrade to invite assistants tethered to your account.",
+  },
 };
 
 /**
@@ -284,12 +289,15 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const isSuperAdmin = currentUser?.role === "super_admin";
   const isAdmin = currentUser?.role === "admin";
   const isAgent = currentUser?.role === "agent";
+  const isAssistant = currentUser?.role === "assistant";
   const isHomeowner = currentUser?.role === "homeowner";
+  const isAgentLike = isAgent || isAssistant;
   const canManageUsers = isDemoSite()
     ? canAccessUsersOnDemo(currentUser)
     : isSuperAdmin || isAdmin;
   /** Agent/homeowner: show Professionals as a section link; admin/super_admin: keep Directory collapsible. */
-  const usesFlatProfessionalsNav = !canManageUsers && (isAgent || isHomeowner);
+  const usesFlatProfessionalsNav =
+    !canManageUsers && (isAgentLike || isHomeowner);
   const [featureUpgrade, setFeatureUpgrade] = useState(null);
   const lockedNavButtonRef = useRef(null);
 
@@ -430,7 +438,10 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     if (item.demoSiteOnly && !isDemoSite()) return false;
     if (item.roles === "superAdminOnly") return isSuperAdmin;
     if (item.roles === "adminOnly") return canManageUsers;
-    if (item.roles === "adminOrAgent" && !(canManageUsers || isAgent)) {
+    if (item.roles === "adminOrAgent" && !(canManageUsers || isAgentLike)) {
+      return false;
+    }
+    if (item.roles === "agentOrAdmin" && !(canManageUsers || isAgent)) {
       return false;
     }
     if (item.hideForSuperAdmin && isSuperAdmin) return false;

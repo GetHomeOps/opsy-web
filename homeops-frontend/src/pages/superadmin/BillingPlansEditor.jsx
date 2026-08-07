@@ -418,6 +418,7 @@ function BillingPlansEditor() {
                                 {key: "maxViewers", label: "Max Viewers"},
                                 {key: "maxTeamMembers", label: "Max Home Owners"},
                                 {key: "maxDocumentsPerSystem", label: "Docs/System"},
+                                {key: "maxAssistants", label: "Max Assistants"},
                               ].map(({key, label}) => (
                                 <div key={key}>
                                   <label className="block text-xs text-gray-500 mb-1">{label}</label>
@@ -463,6 +464,21 @@ function BillingPlansEditor() {
                               />
                               <span className="text-sm text-gray-700 dark:text-gray-300">
                                 Include Opsy Scout
+                              </span>
+                            </label>
+                            <label className="flex items-start gap-2 mt-3 cursor-pointer max-w-xl">
+                              <input
+                                type="checkbox"
+                                className="mt-1 rounded border-gray-300 dark:border-gray-600"
+                                checked={lim.assistantsEnabled === true}
+                                onChange={(e) =>
+                                  handlePlanUpdate(p.id, {
+                                    limits: {...lim, assistantsEnabled: e.target.checked},
+                                  })
+                                }
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                Include Assistants
                               </span>
                             </label>
                             <button

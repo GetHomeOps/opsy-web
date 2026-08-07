@@ -21,6 +21,7 @@ import {
   isSponsorshipOfferSnoozed,
   snoozeSponsorshipOffer,
 } from "../../components/SponsorshipOfferWatcher";
+import {isAssistantRole} from "../../utils/roles";
 
 /**
  * Billing page — current plan, usage vs limits, Stripe Customer Portal.
@@ -38,6 +39,12 @@ function BillingPage() {
   const {currentUser} = useAuth();
   const {refreshBranding} = useAccountBranding();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
+
+  useEffect(() => {
+    if (isAssistantRole(currentUser?.role) && accountUrl) {
+      navigate(`/${accountUrl}/home`, {replace: true});
+    }
+  }, [currentUser?.role, accountUrl, navigate]);
   const [billing, setBilling] = useState(null);
   const [plans, setPlans] = useState([]);
   const [invoices, setInvoices] = useState([]);
