@@ -89,7 +89,7 @@ function AssistantsList() {
                 <button
                   type="button"
                   onClick={() => navigate(`/${accountUrl}/assistants/new`)}
-                  className="inline-flex items-center gap-2 btn bg-[#456564] hover:bg-[#3a5554] text-white"
+                  className="inline-flex items-center gap-2 btn btn-primary"
                 >
                   <Plus className="w-4 h-4" />
                   {t("assistants.invite", {defaultValue: "Invite assistant"})}
@@ -143,7 +143,7 @@ function AssistantsList() {
                   <button
                     type="button"
                     onClick={() => navigate(`/${accountUrl}/assistants/new`)}
-                    className="btn bg-[#456564] hover:bg-[#3a5554] text-white"
+                    className="btn btn-primary"
                   >
                     {t("assistants.invite", {defaultValue: "Invite assistant"})}
                   </button>
@@ -180,7 +180,7 @@ function AssistantsList() {
                           <td className="px-4 py-3">
                             <Link
                               to={`/${accountUrl}/assistants/${a.id}`}
-                              className="font-medium text-[#456564] hover:underline"
+                              className="font-medium text-[var(--opsy-accent,#456564)] hover:underline"
                             >
                               {a.name || "—"}
                             </Link>

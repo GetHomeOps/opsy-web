@@ -349,7 +349,7 @@ function AssistantFormContainer() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="btn bg-[#456564] hover:bg-[#3a5554] text-white disabled:opacity-50"
+                    className="btn btn-primary disabled:opacity-50"
                   >
                     {saving && (
                       <Loader2 className="w-4 h-4 animate-spin mr-2 inline" />
