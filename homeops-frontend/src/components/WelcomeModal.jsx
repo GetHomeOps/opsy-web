@@ -1,9 +1,17 @@
-import React, {useState, useEffect, useCallback, useMemo} from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useContext,
+  useRef,
+} from "react";
 import {useTranslation} from "react-i18next";
 import {useNavigate} from "react-router-dom";
 import {Sparkles, Check, ChevronRight} from "lucide-react";
 import ModalBlank from "./ModalBlank";
 import {useAuth} from "../context/AuthContext";
+import PropertyContext from "../context/PropertyContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useOnboardingProgress from "../hooks/useOnboardingProgress";
 import AppApi from "../api/api";
@@ -67,9 +75,12 @@ function useCustomActionHandlers({onClose, accountUrl, navigate, onBrokerageAffi
 function WelcomeModal() {
   const {currentUser, refreshCurrentUser} = useAuth();
   const {currentAccount} = useCurrentAccount();
+  const {propertiesLoading = false} = useContext(PropertyContext) ?? {};
   const navigate = useNavigate();
   const {t} = useTranslation();
   const [modalOpen, setModalOpen] = useState(false);
+  /** Ensures we only auto-dismiss once when checklist is already complete on load. */
+  const autoDismissedRef = useRef(false);
   /** True when this open was triggered right after sign-in (sessionStorage flag). Computed once at mount. */
   const [useWelcomeHeadline] = useState(() => {
     try {
@@ -243,18 +254,33 @@ function WelcomeModal() {
       setModalOpen(false);
       return;
     }
-    if (onboardingDataLoaded && allComplete) {
+    // Wait until onboarding APIs + properties are ready so completed users never flash.
+    if (!onboardingDataLoaded || propertiesLoading) {
       setModalOpen(false);
       return;
     }
-    setModalOpen(true);
+    setModalOpen(!allComplete);
+
+    if (allComplete && !autoDismissedRef.current) {
+      autoDismissedRef.current = true;
+      (async () => {
+        try {
+          await AppApi.dismissWelcomeModal(userId);
+          refreshCurrentUser?.();
+        } catch {
+          // Local close already applied; remount may retry next visit.
+        }
+      })();
+    }
   }, [
     userId,
     showForRole,
     allComplete,
     onboardingDataLoaded,
+    propertiesLoading,
     welcomeDismissedPermanently,
     sessionSkipped,
+    refreshCurrentUser,
   ]);
 
   // v2: earlier builds set localStorage before drawing; invisible confetti still blocked retries.

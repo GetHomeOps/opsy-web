@@ -4,11 +4,14 @@ import {NavLink, useLocation} from "react-router-dom";
 import {ChevronDown, ChevronLeft, ChevronRight} from "lucide-react";
 
 import OpsyIcon from "../images/opsy_new_logo.webp";
-import PoweredByHomeOps from "../images/powered_by_homeops.png";
 import useCurrentAccount from "../hooks/useCurrentAccount";
 import useBillingStatus from "../hooks/useBillingStatus";
 import {useAuth} from "../context/AuthContext";
-import {useAccountBranding} from "../context/AccountBrandingContext";
+import {
+  DEFAULT_ACCENT,
+  hexLuminance,
+  useAccountBranding,
+} from "../context/AccountBrandingContext";
 import Transition from "../utils/Transition";
 import UpgradePrompt from "../components/UpgradePrompt";
 import {
@@ -36,6 +39,45 @@ const FEATURE_UPGRADE_COPY = {
       "Your plan does not include team assistants. Upgrade to invite assistants tethered to your account.",
   },
 };
+
+/** Live sidebar fill — prefer the CSS var actually painted on the shell. */
+function readSidebarAccent(fallback) {
+  if (typeof document === "undefined") return fallback;
+  const inline = document.documentElement.style
+    .getPropertyValue("--opsy-accent")
+    .trim();
+  if (inline) return inline;
+  const computed = getComputedStyle(document.documentElement)
+    .getPropertyValue("--opsy-accent")
+    .trim();
+  return computed || fallback;
+}
+
+/** Attribution under custom logos. Light/white accents use brand teal so
+ *  "HomeOps" never disappears (the old PNG baked in white). */
+function PoweredByHomeOpsMark({className = ""}) {
+  const {effectiveAccent} = useAccountBranding();
+  const accentBg = readSidebarAccent(effectiveAccent || DEFAULT_ACCENT);
+  const homeOpsColor =
+    hexLuminance(accentBg) > 0.55 ? DEFAULT_ACCENT : "#ffffff";
+
+  return (
+    <p
+      className={`flex items-baseline justify-end gap-1 leading-none whitespace-nowrap ${className}`}
+      aria-label="Powered by HomeOps"
+    >
+      <span className="text-[9px] 2xl:text-[10px] font-semibold tracking-wide text-[#E9C185]">
+        Powered by
+      </span>
+      <span
+        className="font-auth-serif text-[11px] 2xl:text-[12px]"
+        style={{color: homeOpsColor}}
+      >
+        HomeOps
+      </span>
+    </p>
+  );
+}
 
 /**
  * Stripe-style submenu flyout — when sidebar is collapsed, hovering over an expandable
@@ -771,11 +813,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
                   />
                 </NavLink>
                 {hasCustomSidebarLogo && (!isCollapsed || sidebarOpen) ? (
-                  <img
-                    src={PoweredByHomeOps}
-                    alt="Powered by HomeOps"
-                    className="block self-end w-[96px] 2xl:w-[104px] h-auto -mt-3 2xl:-mt-4 mr-1 opacity-[0.92]"
-                  />
+                  <PoweredByHomeOpsMark className="self-end -mt-2 2xl:-mt-3 mr-1 opacity-[0.92]" />
                 ) : null}
               </div>
             </div>

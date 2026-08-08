@@ -178,7 +178,7 @@ function AssistantsList() {
                           onClick={() =>
                             navigate(`/${accountUrl}/assistants/${a.id}`)
                           }
-                          className="hover:bg-gray-50 dark:hover:bg-gray-900/30 cursor-pointer"
+                          className="hover:bg-gray-100 dark:hover:bg-gray-700/40 cursor-pointer"
                         >
                           <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">
                             {a.name || "—"}

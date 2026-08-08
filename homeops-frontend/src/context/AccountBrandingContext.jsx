@@ -56,6 +56,30 @@ export function darkenHex(hex, amount = 0.18) {
   return `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** Expand #RGB → #RRGGBB; return null if not a hex color. */
+function normalizeHexColor(hex) {
+  const raw = String(hex || "").trim();
+  const short = raw.match(/^#([0-9A-Fa-f]{3})$/);
+  if (short) {
+    const [r, g, b] = short[1].split("");
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  const full = raw.match(/^#([0-9A-Fa-f]{6})$/);
+  return full ? `#${full[1].toLowerCase()}` : null;
+}
+
+/** Relative luminance for a hex color (0–1). Supports #RGB and #RRGGBB. */
+export function hexLuminance(hex) {
+  const normalized = normalizeHexColor(hex);
+  if (!normalized) return 0.5;
+  const n = parseInt(normalized.slice(1), 16);
+  const channels = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
 /**
  * Apply shell accent + primary button CSS vars.
  * Button bg falls back to accent; button text defaults to white.
