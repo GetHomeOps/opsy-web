@@ -26,6 +26,8 @@ const AGENCY_BRANDING_SELECT = `
   agent_card_company_name AS "agentCardCompanyName",
   sidebar_text_color AS "sidebarTextColor",
   agent_card_text_color AS "agentCardTextColor",
+  button_color AS "buttonColor",
+  button_text_color AS "buttonTextColor",
   created_at AS "createdAt",
   updated_at AS "updatedAt"`;
 
@@ -39,6 +41,8 @@ const BRANDING_JS_TO_SQL = {
   agentCardCompanyName: "agent_card_company_name",
   sidebarTextColor: "sidebar_text_color",
   agentCardTextColor: "agent_card_text_color",
+  buttonColor: "button_color",
+  buttonTextColor: "button_text_color",
 };
 
 function normalizeBrandingValue(key, value) {
@@ -76,6 +80,8 @@ class Agency {
       agentCardCompanyName: row.agentCardCompanyName ?? row.agent_card_company_name ?? null,
       sidebarTextColor: row.sidebarTextColor ?? row.sidebar_text_color ?? null,
       agentCardTextColor: row.agentCardTextColor ?? row.agent_card_text_color ?? null,
+      buttonColor: row.buttonColor ?? row.button_color ?? null,
+      buttonTextColor: row.buttonTextColor ?? row.button_text_color ?? null,
       hasCustomization: row.hasCustomization ?? null,
       createdAt: row.createdAt ?? row.created_at,
       updatedAt: row.updatedAt ?? row.updated_at,
@@ -397,6 +403,8 @@ class Agency {
               agent_card_company_name AS "agentCardCompanyName",
               sidebar_text_color AS "sidebarTextColor",
               agent_card_text_color AS "agentCardTextColor",
+              button_color AS "buttonColor",
+              button_text_color AS "buttonTextColor",
               (
                 accent_color IS NOT NULL
                 OR sidebar_icon_key IS NOT NULL
@@ -407,6 +415,8 @@ class Agency {
                 OR agent_card_company_name IS NOT NULL
                 OR sidebar_text_color IS NOT NULL
                 OR agent_card_text_color IS NOT NULL
+                OR button_color IS NOT NULL
+                OR button_text_color IS NOT NULL
               ) AS "hasCustomization",
               created_at AS "createdAt",
               updated_at AS "updatedAt"
@@ -485,6 +495,8 @@ class Agency {
       agentCardCompanyName: withSidebar.agentCardCompanyName ?? null,
       sidebarTextColor: withSidebar.sidebarTextColor ?? null,
       agentCardTextColor: withSidebar.agentCardTextColor ?? null,
+      buttonColor: withSidebar.buttonColor ?? null,
+      buttonTextColor: withSidebar.buttonTextColor ?? null,
       status: withSidebar.status ?? null,
       customizable: true,
       source: "agency",

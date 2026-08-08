@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from "react";
-import {Link, useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {Loader2, Plus, UserRound} from "lucide-react";
 import Sidebar from "../../partials/Sidebar";
@@ -175,15 +175,13 @@ function AssistantsList() {
                       {assistants.map((a) => (
                         <tr
                           key={a.id}
-                          className="hover:bg-gray-50 dark:hover:bg-gray-900/30"
+                          onClick={() =>
+                            navigate(`/${accountUrl}/assistants/${a.id}`)
+                          }
+                          className="hover:bg-gray-50 dark:hover:bg-gray-900/30 cursor-pointer"
                         >
-                          <td className="px-4 py-3">
-                            <Link
-                              to={`/${accountUrl}/assistants/${a.id}`}
-                              className="font-medium text-[var(--opsy-accent,#456564)] hover:underline"
-                            >
-                              {a.name || "—"}
-                            </Link>
+                          <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">
+                            {a.name || "—"}
                           </td>
                           <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                             {a.email}

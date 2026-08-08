@@ -14,6 +14,8 @@ import useCurrentAccount from "../hooks/useCurrentAccount";
 export const DEFAULT_ACCENT = "#456564";
 export const DEFAULT_ACCENT_HOVER = "#34514f";
 export const DEFAULT_SIDEBAR_TEXT = "#ffffff";
+export const DEFAULT_BUTTON = DEFAULT_ACCENT;
+export const DEFAULT_BUTTON_TEXT = "#ffffff";
 
 const EMPTY_BRANDING = {
   id: null,
@@ -30,6 +32,8 @@ const EMPTY_BRANDING = {
   agentCardCompanyName: null,
   sidebarTextColor: null,
   agentCardTextColor: null,
+  buttonColor: null,
+  buttonTextColor: null,
 };
 
 const AccountBrandingContext = createContext({
@@ -52,14 +56,47 @@ export function darkenHex(hex, amount = 0.18) {
   return `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function applyCssVars(accent, sidebarText) {
+/**
+ * Apply shell accent + primary button CSS vars.
+ * Button bg falls back to accent; button text defaults to white.
+ */
+function applyCssVars({
+  accent,
+  sidebarText,
+  buttonColor,
+  buttonTextColor,
+} = {}) {
   const root = document.documentElement;
   const color = accent || DEFAULT_ACCENT;
   const hover = darkenHex(color);
   const fg = sidebarText || DEFAULT_SIDEBAR_TEXT;
+  const button = buttonColor || color || DEFAULT_BUTTON;
+  const buttonHover = darkenHex(button);
+  const buttonFg = buttonTextColor || DEFAULT_BUTTON_TEXT;
   root.style.setProperty("--opsy-accent", color);
   root.style.setProperty("--opsy-accent-hover", hover);
   root.style.setProperty("--opsy-accent-fg", fg);
+  root.style.setProperty("--opsy-button", button);
+  root.style.setProperty("--opsy-button-hover", buttonHover);
+  root.style.setProperty("--opsy-button-fg", buttonFg);
+}
+
+function applyDefaults() {
+  applyCssVars({
+    accent: DEFAULT_ACCENT,
+    sidebarText: DEFAULT_SIDEBAR_TEXT,
+    buttonColor: DEFAULT_BUTTON,
+    buttonTextColor: DEFAULT_BUTTON_TEXT,
+  });
+}
+
+function applyFromBranding(data) {
+  applyCssVars({
+    accent: data?.accentColor || DEFAULT_ACCENT,
+    sidebarText: data?.sidebarTextColor || DEFAULT_SIDEBAR_TEXT,
+    buttonColor: data?.buttonColor || null,
+    buttonTextColor: data?.buttonTextColor || null,
+  });
 }
 
 export function AccountBrandingProvider({children}) {
@@ -76,7 +113,7 @@ export function AccountBrandingProvider({children}) {
     // (e.g. after stopping impersonation) while the next fetch is in flight.
     if (resetFirst || !accountId) {
       setBranding(EMPTY_BRANDING);
-      applyCssVars(DEFAULT_ACCENT, DEFAULT_SIDEBAR_TEXT);
+      applyDefaults();
     }
 
     if (!accountId) {
@@ -89,14 +126,11 @@ export function AccountBrandingProvider({children}) {
       const data = await AppApi.getAccountBranding(accountId);
       if (gen !== loadGenRef.current) return;
       setBranding(data || EMPTY_BRANDING);
-      applyCssVars(
-        data?.accentColor || DEFAULT_ACCENT,
-        data?.sidebarTextColor || DEFAULT_SIDEBAR_TEXT,
-      );
+      applyFromBranding(data);
     } catch {
       if (gen !== loadGenRef.current) return;
       setBranding(EMPTY_BRANDING);
-      applyCssVars(DEFAULT_ACCENT, DEFAULT_SIDEBAR_TEXT);
+      applyDefaults();
     } finally {
       if (gen === loadGenRef.current) {
         setLoading(false);
@@ -139,12 +173,11 @@ export function AccountBrandingProvider({children}) {
           const next = {...prev, ...partial};
           if (
             partial.accentColor !== undefined ||
-            partial.sidebarTextColor !== undefined
+            partial.sidebarTextColor !== undefined ||
+            partial.buttonColor !== undefined ||
+            partial.buttonTextColor !== undefined
           ) {
-            applyCssVars(
-              next.accentColor || DEFAULT_ACCENT,
-              next.sidebarTextColor || DEFAULT_SIDEBAR_TEXT,
-            );
+            applyFromBranding(next);
           }
           return next;
         });

@@ -19,6 +19,8 @@ const TEAM_BRANDING_SELECT = `
   agent_card_company_name AS "agentCardCompanyName",
   sidebar_text_color AS "sidebarTextColor",
   agent_card_text_color AS "agentCardTextColor",
+  button_color AS "buttonColor",
+  button_text_color AS "buttonTextColor",
   created_at AS "createdAt",
   updated_at AS "updatedAt"`;
 
@@ -32,6 +34,8 @@ const BRANDING_JS_TO_SQL = {
   agentCardCompanyName: "agent_card_company_name",
   sidebarTextColor: "sidebar_text_color",
   agentCardTextColor: "agent_card_text_color",
+  buttonColor: "button_color",
+  buttonTextColor: "button_text_color",
 };
 
 const HAS_CUSTOMIZATION_SQL = (alias) => `(
@@ -44,6 +48,8 @@ const HAS_CUSTOMIZATION_SQL = (alias) => `(
   OR ${alias}.agent_card_company_name IS NOT NULL
   OR ${alias}.sidebar_text_color IS NOT NULL
   OR ${alias}.agent_card_text_color IS NOT NULL
+  OR ${alias}.button_color IS NOT NULL
+  OR ${alias}.button_text_color IS NOT NULL
 )`;
 
 function normalizeBrandingValue(key, value) {
@@ -75,6 +81,8 @@ class Team {
       agentCardCompanyName: row.agentCardCompanyName ?? row.agent_card_company_name ?? null,
       sidebarTextColor: row.sidebarTextColor ?? row.sidebar_text_color ?? null,
       agentCardTextColor: row.agentCardTextColor ?? row.agent_card_text_color ?? null,
+      buttonColor: row.buttonColor ?? row.button_color ?? null,
+      buttonTextColor: row.buttonTextColor ?? row.button_text_color ?? null,
       hasCustomization: row.hasCustomization ?? null,
       createdAt: row.createdAt ?? row.created_at,
       updatedAt: row.updatedAt ?? row.updated_at,
@@ -287,6 +295,8 @@ class Team {
               t.agent_card_company_name AS "agentCardCompanyName",
               t.sidebar_text_color AS "sidebarTextColor",
               t.agent_card_text_color AS "agentCardTextColor",
+              t.button_color AS "buttonColor",
+              t.button_text_color AS "buttonTextColor",
               ${HAS_CUSTOMIZATION_SQL("t")} AS "hasCustomization",
               ${HAS_CUSTOMIZATION_SQL("ag")} AS "agencyHasCustomization"
        FROM teams t
@@ -359,6 +369,8 @@ class Team {
       agentCardCompanyName: withSidebar.agentCardCompanyName ?? null,
       sidebarTextColor: withSidebar.sidebarTextColor ?? null,
       agentCardTextColor: withSidebar.agentCardTextColor ?? null,
+      buttonColor: withSidebar.buttonColor ?? null,
+      buttonTextColor: withSidebar.buttonTextColor ?? null,
       status: withSidebar.status ?? null,
       hasCustomization: !!withSidebar.hasCustomization,
       agencyHasCustomization,

@@ -56,6 +56,18 @@
         {"type": "null"},
         {"type": "string", "pattern": "^#([0-9A-Fa-f]{6})$"}
       ]
+    },
+    "buttonColor": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^#([0-9A-Fa-f]{6})$"}
+      ]
+    },
+    "buttonTextColor": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^#([0-9A-Fa-f]{6})$"}
+      ]
     }
   }
 }

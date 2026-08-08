@@ -10,6 +10,8 @@ import {
   useAccountBranding,
   DEFAULT_ACCENT,
   DEFAULT_SIDEBAR_TEXT,
+  DEFAULT_BUTTON,
+  DEFAULT_BUTTON_TEXT,
 } from "../../context/AccountBrandingContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {PAGE_LAYOUT, SETTINGS_CARD} from "../../constants/layout";
@@ -33,6 +35,8 @@ const DEFAULT_FORM = {
   agentCardCompanyName: "",
   sidebarTextColor: DEFAULT_SIDEBAR_TEXT,
   agentCardTextColor: DEFAULT_CARD_TEXT,
+  buttonColor: DEFAULT_BUTTON,
+  buttonTextColor: DEFAULT_BUTTON_TEXT,
 };
 
 const PREVIEW_AGENT = {
@@ -56,6 +60,8 @@ function normalizeForm(form) {
     agentCardCompanyName: form.agentCardCompanyName || null,
     sidebarTextColor: form.sidebarTextColor || null,
     agentCardTextColor: form.agentCardTextColor || null,
+    buttonColor: form.buttonColor || null,
+    buttonTextColor: form.buttonTextColor || null,
   };
 }
 
@@ -65,10 +71,32 @@ function formsEqual(a, b) {
   return Object.keys(na).every((key) => na[key] === nb[key]);
 }
 
-function ColorField({label, value, onChange, fallback}) {
-  const fallbackHex = fallback || DEFAULT_ACCENT;
+function normalizeHex(hex) {
+  if (typeof hex !== "string") return "";
+  return hex.trim().toLowerCase();
+}
+
+/** True when value matches default, or both are empty/null (optional cleared fields). */
+function isAtDefault(value, defaultValue) {
+  const v = normalizeHex(value ?? "");
+  const d = normalizeHex(defaultValue ?? "");
+  if (!v && !d) return true;
+  return v === d;
+}
+
+function ColorField({label, value, onChange, fallback, defaultValue}) {
+  const resetTo = defaultValue !== undefined ? defaultValue : fallback;
+  const fallbackHex =
+    (typeof fallback === "string" && fallback) ||
+    (typeof resetTo === "string" && resetTo) ||
+    DEFAULT_ACCENT;
+  const pickerFallback =
+    typeof fallbackHex === "string" && /^#[0-9A-Fa-f]{6}$/.test(fallbackHex)
+      ? fallbackHex
+      : DEFAULT_ACCENT;
   const isValidHex = typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value);
-  const pickerValue = isValidHex ? value : fallbackHex;
+  const pickerValue = isValidHex ? value : pickerFallback;
+  const showDefault = !isAtDefault(value, resetTo);
   return (
     <div>
       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
@@ -88,12 +116,37 @@ function ColorField({label, value, onChange, fallback}) {
             const v = e.target.value.trim();
             if (v === "" || /^#[0-9A-Fa-f]{0,6}$/.test(v)) onChange(v || null);
           }}
-          placeholder={fallbackHex}
+          placeholder={pickerFallback}
           className="form-input font-mono text-xs w-28"
           maxLength={7}
           spellCheck={false}
         />
+        {showDefault && (
+          <button
+            type="button"
+            onClick={() => onChange(resetTo)}
+            className="text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors shrink-0"
+          >
+            Default
+          </button>
+        )}
       </div>
+    </div>
+  );
+}
+
+function FieldGroup({title, hint, children}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+          {title}
+        </p>
+        {hint ? (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hint}</p>
+        ) : null}
+      </div>
+      {children}
     </div>
   );
 }
@@ -113,6 +166,8 @@ function formFromBranding(branding) {
     agentCardCompanyName: branding.agentCardCompanyName || "",
     sidebarTextColor: branding.sidebarTextColor || DEFAULT_SIDEBAR_TEXT,
     agentCardTextColor: branding.agentCardTextColor || DEFAULT_CARD_TEXT,
+    buttonColor: branding.buttonColor || branding.accentColor || DEFAULT_BUTTON,
+    buttonTextColor: branding.buttonTextColor || DEFAULT_BUTTON_TEXT,
   };
 }
 
@@ -464,6 +519,8 @@ function CustomizationPage() {
   );
 
   const shellTextColor = form.sidebarTextColor || DEFAULT_SIDEBAR_TEXT;
+  const buttonPreviewBg = form.buttonColor || form.accentColor || DEFAULT_BUTTON;
+  const buttonPreviewFg = form.buttonTextColor || DEFAULT_BUTTON_TEXT;
 
   const handleCancel = () => {
     setForm(savedForm);
@@ -512,6 +569,8 @@ function CustomizationPage() {
         agentCardCompanyName: null,
         sidebarTextColor: null,
         agentCardTextColor: null,
+        buttonColor: null,
+        buttonTextColor: null,
       };
       const branding = await persistBranding(resetPayload);
       applyBranding(branding);
@@ -708,72 +767,74 @@ function CustomizationPage() {
                 <div className={SETTINGS_CARD.card}>
                   <div className={SETTINGS_CARD.header}>
                     <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-                      Shell accent & logo
+                      Shell & branding
                     </h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Controls the app accent color, sidebar text, and the logo shown in the
-                      sidebar and agent card for this
+                      Sidebar colors, primary buttons, and the logo shown in the sidebar and
+                      agent card for this
                       {isAgencyMode ? " agency" : isTeamMode ? " team" : " account"}.
                     </p>
                   </div>
-                  <div className={`${SETTINGS_CARD.body} space-y-5`}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                      <div className="space-y-4">
-                        <ColorField
-                          label="Accent color"
-                          value={form.accentColor}
-                          onChange={(v) => updateField("accentColor", v)}
-                          fallback={DEFAULT_ACCENT}
-                        />
-                        <ColorField
-                          label="Sidebar text color"
-                          value={form.sidebarTextColor}
-                          onChange={(v) => updateField("sidebarTextColor", v)}
-                          fallback={DEFAULT_SIDEBAR_TEXT}
-                        />
+                  <div className={`${SETTINGS_CARD.body} space-y-8`}>
+                    <FieldGroup
+                      title="Sidebar"
+                      hint="Accent fills the sidebar; text color applies to nav labels."
+                    >
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
+                        <div className="space-y-4">
+                          <ColorField
+                            label="Accent color"
+                            value={form.accentColor}
+                            onChange={(v) => updateField("accentColor", v)}
+                            fallback={DEFAULT_ACCENT}
+                            defaultValue={DEFAULT_ACCENT}
+                          />
+                          <ColorField
+                            label="Sidebar text color"
+                            value={form.sidebarTextColor}
+                            onChange={(v) => updateField("sidebarTextColor", v)}
+                            fallback={DEFAULT_SIDEBAR_TEXT}
+                            defaultValue={DEFAULT_SIDEBAR_TEXT}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                            Logo
+                          </label>
+                          <ImageUploadField
+                            imageSrc={logoSrc}
+                            hasImage={Boolean(logoSrc)}
+                            imageUploading={logoUploading}
+                            onUpload={handleLogoFilePick}
+                            onRemove={() => {
+                              clearLogoPreview();
+                              clearLogoUploaded();
+                              updateField("sidebarIconKey", null);
+                              updateField("sidebarIconUrl", null);
+                              updateField("agentCardLogoKey", null);
+                              updateField("agentCardLogoUrl", null);
+                            }}
+                            showRemove={Boolean(
+                              form.sidebarIconKey || form.agentCardLogoKey || logoSrc,
+                            )}
+                            imageUploadError={logoUploadError}
+                            onDismissError={() => setLogoUploadError(null)}
+                            size="sm"
+                            variant="logo"
+                            logoBackdropColor={form.accentColor || DEFAULT_ACCENT}
+                            placeholder="generic"
+                            alt="Logo"
+                            uploadLabel="Upload logo"
+                            removeLabel="Remove logo"
+                            emptyLabel="Add logo"
+                          />
+                          <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500 max-w-[11rem]">
+                            If you see a white box or checkerboard on the accent,
+                            re-upload and enable Remove background.
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-                          Logo
-                        </label>
-                        <ImageUploadField
-                          imageSrc={logoSrc}
-                          hasImage={Boolean(logoSrc)}
-                          imageUploading={logoUploading}
-                          onUpload={handleLogoFilePick}
-                          onRemove={() => {
-                            clearLogoPreview();
-                            clearLogoUploaded();
-                            updateField("sidebarIconKey", null);
-                            updateField("sidebarIconUrl", null);
-                            updateField("agentCardLogoKey", null);
-                            updateField("agentCardLogoUrl", null);
-                          }}
-                          showRemove={Boolean(
-                            form.sidebarIconKey || form.agentCardLogoKey || logoSrc,
-                          )}
-                          imageUploadError={logoUploadError}
-                          onDismissError={() => setLogoUploadError(null)}
-                          size="sm"
-                          variant="logo"
-                          logoBackdropColor={form.accentColor || DEFAULT_ACCENT}
-                          placeholder="generic"
-                          alt="Logo"
-                          uploadLabel="Upload logo"
-                          removeLabel="Remove logo"
-                          emptyLabel="Add logo"
-                        />
-                        <p className="mt-1.5 text-[11px] text-gray-400 dark:text-gray-500 max-w-[11rem]">
-                          If you see a white box or checkerboard on the accent,
-                          re-upload and enable Remove background.
-                        </p>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                        Preview
-                      </p>
-                      <div className="flex items-center gap-3 flex-wrap rounded-lg border border-gray-100 dark:border-gray-700/60 bg-gray-50/80 dark:bg-gray-900/40 p-3">
+                      <div className="rounded-lg border border-gray-100 dark:border-gray-700/60 bg-gray-50/80 dark:bg-gray-900/40 p-3 inline-flex">
                         <div
                           className="w-36 h-14 rounded-lg flex items-center justify-center"
                           style={{backgroundColor: form.accentColor || DEFAULT_ACCENT}}
@@ -793,18 +854,48 @@ function CustomizationPage() {
                             </span>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          className="btn text-sm pointer-events-none shadow-sm"
-                          style={{
-                            backgroundColor: form.accentColor || DEFAULT_ACCENT,
-                            color: shellTextColor,
-                          }}
-                        >
-                          Primary button
-                        </button>
                       </div>
-                    </div>
+                    </FieldGroup>
+
+                    <div className="border-t border-gray-100 dark:border-gray-700/60" />
+
+                    <FieldGroup
+                      title="Primary buttons"
+                      hint="Used for primary CTAs across the app. Independent from sidebar accent."
+                    >
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
+                        <div className="space-y-4">
+                          <ColorField
+                            label="Button color"
+                            value={form.buttonColor}
+                            onChange={(v) => updateField("buttonColor", v)}
+                            fallback={DEFAULT_BUTTON}
+                            defaultValue={DEFAULT_BUTTON}
+                          />
+                          <ColorField
+                            label="Button text color"
+                            value={form.buttonTextColor}
+                            onChange={(v) => updateField("buttonTextColor", v)}
+                            fallback={DEFAULT_BUTTON_TEXT}
+                            defaultValue={DEFAULT_BUTTON_TEXT}
+                          />
+                        </div>
+                        <div className="flex items-end sm:min-h-[5.5rem]">
+                          <div className="rounded-lg border border-gray-100 dark:border-gray-700/60 bg-gray-50/80 dark:bg-gray-900/40 p-3">
+                            <button
+                              type="button"
+                              className="btn text-sm pointer-events-none shadow-sm"
+                              style={{
+                                backgroundColor: buttonPreviewBg,
+                                color: buttonPreviewFg,
+                              }}
+                            >
+                              Primary button
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </FieldGroup>
                   </div>
                 </div>
 
@@ -814,67 +905,79 @@ function CustomizationPage() {
                       Agent card
                     </h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Branding shown on the homeowner home agent card, including colors and
-                      labels. Uses the logo from Shell accent & logo above.
+                      Branding shown on the homeowner home agent card. Uses the logo from
+                      Shell & branding above.
                     </p>
                   </div>
-                  <div className={`${SETTINGS_CARD.body} space-y-5`}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                      <div className="space-y-4">
+                  <div className={`${SETTINGS_CARD.body} space-y-8`}>
+                    <FieldGroup
+                      title="Colors"
+                      hint="Accent, background tint, and text on the homeowner agent card."
+                    >
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-start">
                         <ColorField
                           label="Card accent color"
                           value={form.agentCardAccentColor}
                           onChange={(v) => updateField("agentCardAccentColor", v)}
                           fallback={DEFAULT_ACCENT}
+                          defaultValue={DEFAULT_ACCENT}
                         />
                         <ColorField
                           label="Card background tint"
                           value={form.agentCardBackgroundColor}
                           onChange={(v) => updateField("agentCardBackgroundColor", v || "")}
                           fallback="#ffffff"
+                          defaultValue=""
+                        />
+                        <ColorField
+                          label="Card text color"
+                          value={form.agentCardTextColor}
+                          onChange={(v) => updateField("agentCardTextColor", v)}
+                          fallback={DEFAULT_CARD_TEXT}
+                          defaultValue={DEFAULT_CARD_TEXT}
                         />
                       </div>
-                      <ColorField
-                        label="Card text color"
-                        value={form.agentCardTextColor}
-                        onChange={(v) => updateField("agentCardTextColor", v)}
-                        fallback={DEFAULT_CARD_TEXT}
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-                          Agent label
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input w-full"
-                          value={form.agentCardAgentLabel}
-                          onChange={(e) =>
-                            updateField("agentCardAgentLabel", e.target.value)
-                          }
-                          placeholder="Your Agent"
-                          maxLength={80}
-                        />
+                    </FieldGroup>
+
+                    <div className="border-t border-gray-100 dark:border-gray-700/60" />
+
+                    <FieldGroup title="Labels" hint="Optional copy overrides on the card.">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                            Agent label
+                          </label>
+                          <input
+                            type="text"
+                            className="form-input w-full"
+                            value={form.agentCardAgentLabel}
+                            onChange={(e) =>
+                              updateField("agentCardAgentLabel", e.target.value)
+                            }
+                            placeholder="Your Agent"
+                            maxLength={80}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                            Company name override
+                          </label>
+                          <input
+                            type="text"
+                            className="form-input w-full"
+                            value={form.agentCardCompanyName}
+                            onChange={(e) =>
+                              updateField("agentCardCompanyName", e.target.value)
+                            }
+                            placeholder="Company name on card"
+                            maxLength={120}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-                          Company name override
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input w-full"
-                          value={form.agentCardCompanyName}
-                          onChange={(e) =>
-                            updateField("agentCardCompanyName", e.target.value)
-                          }
-                          placeholder="Company name on card"
-                          maxLength={120}
-                        />
-                      </div>
-                    </div>
+                    </FieldGroup>
+
                     <div>
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-2">
                         Live preview
                       </p>
                       <div className="relative rounded-xl overflow-hidden min-h-[220px] bg-gradient-to-br from-gray-700 to-gray-900 p-6 flex items-start">

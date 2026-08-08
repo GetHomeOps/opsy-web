@@ -37,6 +37,8 @@ const ACCOUNT_SELECT = `
   agent_card_company_name AS "agentCardCompanyName",
   sidebar_text_color AS "sidebarTextColor",
   agent_card_text_color AS "agentCardTextColor",
+  button_color AS "buttonColor",
+  button_text_color AS "buttonTextColor",
   created_at AS "createdAt",
   updated_at AS "updatedAt"`;
 
@@ -50,6 +52,8 @@ const BRANDING_JS_TO_SQL = {
   agentCardCompanyName: "agent_card_company_name",
   sidebarTextColor: "sidebar_text_color",
   agentCardTextColor: "agent_card_text_color",
+  buttonColor: "button_color",
+  buttonTextColor: "button_text_color",
 };
 
 /** Normalize empty strings to null for optional branding fields. */
@@ -153,6 +157,8 @@ class Account {
               a.agent_card_company_name AS "agentCardCompanyName",
               a.sidebar_text_color AS "sidebarTextColor",
               a.agent_card_text_color AS "agentCardTextColor",
+              a.button_color AS "buttonColor",
+              a.button_text_color AS "buttonTextColor",
               a.created_at AS "createdAt",
               a.updated_at AS "updatedAt",
               (
@@ -168,6 +174,8 @@ class Account {
                     OR a.agent_card_company_name IS NOT NULL
                     OR a.sidebar_text_color IS NOT NULL
                     OR a.agent_card_text_color IS NOT NULL
+                    OR a.button_color IS NOT NULL
+                    OR a.button_text_color IS NOT NULL
                   )
                 )
                 OR (
@@ -233,6 +241,8 @@ class Account {
               a.agent_card_company_name AS "agentCardCompanyName",
               a.sidebar_text_color AS "sidebarTextColor",
               a.agent_card_text_color AS "agentCardTextColor",
+              a.button_color AS "buttonColor",
+              a.button_text_color AS "buttonTextColor",
               a.created_at AS "createdAt",
               a.updated_at AS "updatedAt"
        FROM accounts a
@@ -346,6 +356,8 @@ class Account {
       agentCardCompanyName: withSidebar.agentCardCompanyName ?? null,
       sidebarTextColor: withSidebar.sidebarTextColor ?? null,
       agentCardTextColor: withSidebar.agentCardTextColor ?? null,
+      buttonColor: withSidebar.buttonColor ?? null,
+      buttonTextColor: withSidebar.buttonTextColor ?? null,
     };
   }
 

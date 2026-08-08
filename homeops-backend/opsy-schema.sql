@@ -79,6 +79,8 @@ CREATE TABLE accounts (
     agent_card_company_name VARCHAR(120),
     sidebar_text_color VARCHAR(7),
     agent_card_text_color VARCHAR(7),
+    button_color VARCHAR(7),
+    button_text_color VARCHAR(7),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -1646,6 +1648,8 @@ CREATE TABLE agencies (
     agent_card_company_name VARCHAR(120),
     sidebar_text_color VARCHAR(7),
     agent_card_text_color VARCHAR(7),
+    button_color VARCHAR(7),
+    button_text_color VARCHAR(7),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -1685,6 +1689,8 @@ CREATE TABLE teams (
     agent_card_company_name VARCHAR(120),
     sidebar_text_color VARCHAR(7),
     agent_card_text_color VARCHAR(7),
+    button_color VARCHAR(7),
+    button_text_color VARCHAR(7),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

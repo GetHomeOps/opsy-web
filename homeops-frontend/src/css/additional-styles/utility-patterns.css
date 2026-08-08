@@ -49,34 +49,34 @@
   @apply px-2 py-0.5;
 }
 
-/* Primary CTA using account branding accent (falls back to Opsy teal). */
+/* Primary CTA using account branding button colors (falls back to Opsy teal). */
 .btn-primary {
-  background-color: var(--opsy-accent, #456564);
-  color: var(--opsy-accent-fg, #fff);
+  background-color: var(--opsy-button, #456564);
+  color: var(--opsy-button-fg, #fff);
 }
 .btn-primary:hover {
-  background-color: var(--opsy-accent-hover, #34514f);
+  background-color: var(--opsy-button-hover, #34514f);
 }
 .btn-primary:focus-visible {
-  outline: 2px solid var(--opsy-accent, #456564);
+  outline: 2px solid var(--opsy-button, #456564);
   outline-offset: 2px;
 }
 
-/* Outline primary action (border + text use accent). */
+/* Outline primary action (border + text use button color). */
 .btn-primary-outline {
   background-color: transparent;
-  border: 1px solid var(--opsy-accent, #456564);
-  color: var(--opsy-accent, #456564);
+  border: 1px solid var(--opsy-button, #456564);
+  color: var(--opsy-button, #456564);
 }
 .btn-primary-outline:hover {
-  background-color: color-mix(in srgb, var(--opsy-accent, #456564) 10%, transparent);
+  background-color: color-mix(in srgb, var(--opsy-button, #456564) 10%, transparent);
 }
 
 /* Active segmented control (Month/Week/Day, wizard steps, etc.). */
 .btn-segment-active {
-  background-color: var(--opsy-accent, #456564);
-  border-color: var(--opsy-accent, #456564);
-  color: var(--opsy-accent-fg, #fff);
+  background-color: var(--opsy-button, #456564);
+  border-color: var(--opsy-button, #456564);
+  color: var(--opsy-button-fg, #fff);
 }
 
 /* Forms */

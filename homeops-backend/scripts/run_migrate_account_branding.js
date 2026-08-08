@@ -25,6 +25,10 @@ const STATEMENTS = [
     ADD COLUMN IF NOT EXISTS sidebar_text_color VARCHAR(7)`,
   `ALTER TABLE accounts
     ADD COLUMN IF NOT EXISTS agent_card_text_color VARCHAR(7)`,
+  `ALTER TABLE accounts
+    ADD COLUMN IF NOT EXISTS button_color VARCHAR(7)`,
+  `ALTER TABLE accounts
+    ADD COLUMN IF NOT EXISTS button_text_color VARCHAR(7)`,
   // Unify sidebar icon + company logo into one logical logo (keep both columns in sync).
   `UPDATE accounts
     SET sidebar_icon_key = COALESCE(sidebar_icon_key, agent_card_logo_key)

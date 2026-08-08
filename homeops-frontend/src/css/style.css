@@ -87,6 +87,9 @@
   --color-opsy-accent: var(--opsy-accent, #456564);
   --color-opsy-accent-hover: var(--opsy-accent-hover, #34514f);
   --color-opsy-accent-fg: var(--opsy-accent-fg, #ffffff);
+  --color-opsy-button: var(--opsy-button, #456564);
+  --color-opsy-button-hover: var(--opsy-button-hover, #34514f);
+  --color-opsy-button-fg: var(--opsy-button-fg, #ffffff);
 
   --font-inter: "Inter", "sans-serif";
   --font-auth-serif: "Playfair Display", Georgia, "Times New Roman", serif;
@@ -381,9 +384,12 @@ button {
     both;
 }
 
-/* Account branding (shell accent). Defaults match classic Opsy teal. */
+/* Account branding (shell accent + primary buttons). Defaults match classic Opsy teal. */
 :root {
   --opsy-accent: #456564;
   --opsy-accent-hover: #34514f;
   --opsy-accent-fg: #ffffff;
+  --opsy-button: #456564;
+  --opsy-button-hover: #34514f;
+  --opsy-button-fg: #ffffff;
 }

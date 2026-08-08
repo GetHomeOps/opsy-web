@@ -30,6 +30,8 @@ const EMPTY_BRANDING_FIELDS = {
   agentCardCompanyName: null,
   sidebarTextColor: null,
   agentCardTextColor: null,
+  buttonColor: null,
+  buttonTextColor: null,
 };
 
 const HAS_CUSTOMIZATION_SQL = Team.HAS_CUSTOMIZATION_SQL;
