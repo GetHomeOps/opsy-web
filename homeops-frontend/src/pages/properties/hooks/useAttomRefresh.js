@@ -13,7 +13,7 @@ import AppApi from "../../../api/api";
  * Non-destructive merge is guaranteed server-side — this hook only wires UI.
  *
  * @param {string|number|null|undefined} propertyId
- * @param {{ onComplete?: () => void | Promise<void>, onFail?: (err: string) => void }} [opts]
+ * @param {{ onComplete?: (populatedKeys?: string[]) => void | Promise<void>, onFail?: (err: string) => void }} [opts]
  */
 export function useAttomRefresh(propertyId, opts = {}) {
   const {onComplete, onFail} = opts;
@@ -33,6 +33,13 @@ export function useAttomRefresh(propertyId, opts = {}) {
   const manualRefreshRequestedRef = useRef(false);
   /** When true, failures are logged but do not invoke onFail (background auto-pull). */
   const silentRefreshRef = useRef(false);
+  /** Latest populatedKeys from the polled job (avoids stale state in onComplete). */
+  const populatedKeysRef = useRef([]);
+  /** Always call the latest callbacks (avoids stale closures during long polls). */
+  const onCompleteRef = useRef(onComplete);
+  const onFailRef = useRef(onFail);
+  onCompleteRef.current = onComplete;
+  onFailRef.current = onFail;
 
   const isActive = jobStatus === "queued" || jobStatus === "processing";
 
@@ -47,10 +54,13 @@ export function useAttomRefresh(propertyId, opts = {}) {
         setJobStatus(null);
         setJobError(null);
         setPopulatedKeys([]);
+        populatedKeysRef.current = [];
         return null;
       }
+      const keys = Array.isArray(job.populatedKeys) ? job.populatedKeys : [];
+      populatedKeysRef.current = keys;
       setJobStatus(job.status);
-      setPopulatedKeys(Array.isArray(job.populatedKeys) ? job.populatedKeys : []);
+      setPopulatedKeys(keys);
       setJobError(
         job.status === "failed"
           ? job.errorMessage ||
@@ -64,6 +74,46 @@ export function useAttomRefresh(propertyId, opts = {}) {
       return null;
     }
   }, [propertyId]);
+
+  /** Fire onComplete/onFail once for a terminal job started by this hook. */
+  const settleRequestedJob = useCallback((status, errorMessage) => {
+    if (!manualRefreshRequestedRef.current) return;
+
+    if (status === "completed" && !completionHandledRef.current) {
+      completionHandledRef.current = true;
+      manualRefreshRequestedRef.current = false;
+      silentRefreshRef.current = false;
+      setModalView("result");
+      const cb = onCompleteRef.current;
+      if (typeof cb === "function") {
+        Promise.resolve(cb(populatedKeysRef.current)).catch((err) =>
+          console.error("[useAttomRefresh] onComplete error:", err),
+        );
+      }
+      return;
+    }
+
+    if (status === "failed" && !failureHandledRef.current) {
+      failureHandledRef.current = true;
+      manualRefreshRequestedRef.current = false;
+      const wasSilent = silentRefreshRef.current;
+      silentRefreshRef.current = false;
+      setModalView("result");
+      const cb = onFailRef.current;
+      if (typeof cb === "function" && !wasSilent) {
+        try {
+          cb(errorMessage);
+        } catch (err) {
+          console.error("[useAttomRefresh] onFail error:", err);
+        }
+      } else if (wasSilent && errorMessage) {
+        console.info(
+          "[useAttomRefresh] silent background lookup failed:",
+          errorMessage,
+        );
+      }
+    }
+  }, []);
 
   useEffect(() => {
     setInitialLoaded(false);
@@ -98,7 +148,17 @@ export function useAttomRefresh(propertyId, opts = {}) {
   useEffect(() => {
     if (!isActive || !propertyId) return undefined;
     pollTimerRef.current = setInterval(() => {
-      void syncLatestJob();
+      void (async () => {
+        const job = await syncLatestJob();
+        if (!job) return;
+        const err =
+          job.status === "failed"
+            ? job.errorMessage ||
+              job.errorCode ||
+              "ATTOM lookup failed. Please try again."
+            : null;
+        settleRequestedJob(job.status, err);
+      })();
     }, 3000);
     return () => {
       if (pollTimerRef.current) {
@@ -106,44 +166,12 @@ export function useAttomRefresh(propertyId, opts = {}) {
         pollTimerRef.current = null;
       }
     };
-  }, [isActive, propertyId, syncLatestJob]);
+  }, [isActive, propertyId, syncLatestJob, settleRequestedJob]);
 
   useEffect(() => {
     if (!initialLoaded) return;
-    if (
-      manualRefreshRequestedRef.current &&
-      jobStatus === "completed" &&
-      !completionHandledRef.current
-    ) {
-      completionHandledRef.current = true;
-      manualRefreshRequestedRef.current = false;
-      setModalView("result");
-      if (typeof onComplete === "function") {
-        Promise.resolve(onComplete()).catch((err) =>
-          console.error("[useAttomRefresh] onComplete error:", err),
-        );
-      }
-    } else if (
-      manualRefreshRequestedRef.current &&
-      jobStatus === "failed" &&
-      !failureHandledRef.current
-    ) {
-      failureHandledRef.current = true;
-      manualRefreshRequestedRef.current = false;
-      const wasSilent = silentRefreshRef.current;
-      silentRefreshRef.current = false;
-      setModalView("result");
-      if (typeof onFail === "function" && !wasSilent) {
-        try {
-          onFail(jobError);
-        } catch (err) {
-          console.error("[useAttomRefresh] onFail error:", err);
-        }
-      } else if (wasSilent && jobError) {
-        console.info("[useAttomRefresh] silent background lookup failed:", jobError);
-      }
-    }
-  }, [jobStatus, initialLoaded, jobError, onComplete, onFail]);
+    settleRequestedJob(jobStatus, jobError);
+  }, [jobStatus, initialLoaded, jobError, settleRequestedJob]);
 
   const isAtLookupLimit = lookupCount >= lookupLimit;
 
@@ -158,14 +186,21 @@ export function useAttomRefresh(propertyId, opts = {}) {
           setConfirmOpen(true);
           setModalView("result");
         }
-        if (typeof onFail === "function" && !silent) onFail(message);
+        if (typeof onFailRef.current === "function" && !silent) {
+          onFailRef.current(message);
+        }
         return;
       }
       if (!silent) {
         setConfirmOpen(true);
         setModalView("progress");
       }
+      // Optimistically move off any prior terminal status BEFORE flipping the
+      // request refs. Otherwise clearing jobError can re-run the settle effect
+      // against the previous failed/completed job and swallow onComplete for
+      // the new lookup (common after address-change auto-pull).
       setJobError(null);
+      setJobStatus("queued");
       completionHandledRef.current = false;
       failureHandledRef.current = false;
       manualRefreshRequestedRef.current = true;
@@ -174,7 +209,18 @@ export function useAttomRefresh(propertyId, opts = {}) {
         const res = await AppApi.refreshPropertyAttomLookup(propertyId);
         if (res?.lookupCount != null) setLookupCount(Number(res.lookupCount) || 0);
         if (res?.lookupLimit != null) setLookupLimit(Number(res.lookupLimit) || 4);
-        await syncLatestJob();
+        const job = await syncLatestJob();
+        // If the worker finished before React could observe a status transition
+        // (e.g. previous status was already "completed"), settle immediately.
+        if (job?.status === "completed" || job?.status === "failed") {
+          const err =
+            job.status === "failed"
+              ? job.errorMessage ||
+                job.errorCode ||
+                "ATTOM lookup failed. Please try again."
+              : null;
+          settleRequestedJob(job.status, err);
+        }
       } catch (err) {
         console.error("[useAttomRefresh] refresh request failed:", err);
         const message =
@@ -185,13 +231,17 @@ export function useAttomRefresh(propertyId, opts = {}) {
         }
         manualRefreshRequestedRef.current = false;
         silentRefreshRef.current = false;
-        if (typeof onFail === "function" && !silent) onFail(message);
-        else if (silent) {
-          console.info("[useAttomRefresh] silent background lookup failed:", message);
+        if (typeof onFailRef.current === "function" && !silent) {
+          onFailRef.current(message);
+        } else if (silent) {
+          console.info(
+            "[useAttomRefresh] silent background lookup failed:",
+            message,
+          );
         }
       }
     },
-    [propertyId, syncLatestJob, onFail, isAtLookupLimit, lookupLimit],
+    [propertyId, syncLatestJob, settleRequestedJob, isAtLookupLimit, lookupLimit],
   );
 
   const openConfirm = useCallback(() => {

@@ -291,6 +291,30 @@ const SWITCHABLE_EMAIL_TYPES = {
       { key: "brandName", description: "Product brand name" },
     ],
   },
+  plan_selected_ops: {
+    label: "Plan selected (ops)",
+    description:
+      "Internal alert when a user picks a free/zero-cost plan or completes Stripe Checkout for a paid plan. Recipients: kino@, dirk.snel@, and dev@heyopsy.com.",
+    customerIoDefaultEvent: "plan_selected_ops",
+    mergeVariables: [
+      { key: "userName", description: "User name" },
+      { key: "userEmail", description: "User email" },
+      { key: "userRole", description: "User role" },
+      { key: "userId", description: "User ID" },
+      { key: "accountId", description: "Account ID" },
+      { key: "accountName", description: "Account name" },
+      { key: "accountUrl", description: "Account URL slug" },
+      { key: "planCode", description: "Plan code" },
+      { key: "planName", description: "Plan display name" },
+      { key: "paidLabel", description: "Paid or Free" },
+      { key: "billingInterval", description: "Billing interval (month/year)" },
+      { key: "amountPaid", description: "Formatted amount paid (Checkout)" },
+      { key: "source", description: "onboarding, upgrade_downgrade, or stripe_checkout" },
+      { key: "sourceLabel", description: "Human-readable source" },
+      { key: "detailsHtml", description: "Pre-rendered details table HTML" },
+      { key: "brandName", description: "Product brand name" },
+    ],
+  },
 };
 
 const EMAIL_TYPE_KEYS = Object.keys(SWITCHABLE_EMAIL_TYPES);

@@ -58,6 +58,7 @@ const { onUserCreated } = require("../services/resourceAutoSend");
 const commAutoSend = require("../services/commAutoSend");
 const { trySendWelcomeEmailForUser } = require("../services/emailService");
 const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
+const { notifyPlanSelected } = require("../services/planSelectedNotifyService");
 const stripeService = require("../services/stripeService");
 const Account = require("../models/account");
 const Contact = require("../models/contact");
@@ -1078,6 +1079,20 @@ router.post("/complete-onboarding", ensureLoggedIn, async function (req, res, ne
           accountResult.rows[0].account_id,
           selectedFreePlanCode
         );
+        // Free/zero-cost only (paid path notifies from Stripe webhook).
+        // Only on first completion so retries do not re-alert ops.
+        if (completingOnboarding) {
+          void notifyPlanSelected({
+            userId,
+            accountId: accountResult.rows[0].account_id,
+            planCode: selectedFreePlanCode,
+            isPaid: false,
+            billingInterval,
+            source: "onboarding",
+          }).catch((err) =>
+            console.error("[planSelectedNotify] complete-onboarding:", err.message)
+          );
+        }
       } catch (subErr) {
         console.error("Warning: failed to create subscription after onboarding", subErr.message);
       }

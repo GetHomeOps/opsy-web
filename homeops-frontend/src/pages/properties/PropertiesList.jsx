@@ -1102,6 +1102,12 @@ function PropertiesList() {
                             navigate(`/${accountUrl}/properties/import`)
                         : undefined
                     }
+                    onBulkOnboard={
+                      canImportProperties
+                        ? () =>
+                            navigate(`/${accountUrl}/properties/bulk-onboard`)
+                        : undefined
+                    }
                     onInviteUser={
                       canImportProperties ? handleBulkInvite : undefined
                     }

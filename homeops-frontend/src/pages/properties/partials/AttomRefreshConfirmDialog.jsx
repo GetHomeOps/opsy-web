@@ -10,6 +10,9 @@ import {AlertCircle, CheckCircle2, Loader2} from "lucide-react";
  *
  * View is driven by `modalView` (and in-flight `jobStatus`), not by a stale
  * completed job — otherwise reopening after a successful pull skips confirm.
+ *
+ * When `hasUnsavedChanges` is true on confirm, we block the pull and ask the
+ * user to save first (ATTOM reads the persisted address, not the form).
  */
 function AttomRefreshConfirmDialog({
   modalView = "confirm",
@@ -18,8 +21,10 @@ function AttomRefreshConfirmDialog({
   populatedKeys = [],
   lookupCount = 0,
   lookupLimit = 4,
+  hasUnsavedChanges = false,
   onCancel,
   onConfirm,
+  onSaveAndPull,
 }) {
   const portalContainer =
     typeof document !== "undefined" ? document.body : null;
@@ -29,9 +34,24 @@ function AttomRefreshConfirmDialog({
   const remainingLookups = Math.max(0, lookupLimit - lookupCount);
   const canPullAgain = remainingLookups > 0;
   const usageLine = `Used ${lookupCount} of ${lookupLimit} lookups for this property (${remainingLookups} remaining).`;
+  const needsSaveFirst =
+    hasUnsavedChanges && modalView === "confirm" && !isActive;
 
-  let title = "Fill missing property details from ATTOM?";
-  let body = (
+  let title = needsSaveFirst
+    ? "Save your changes before pulling?"
+    : "Fill missing property details from ATTOM?";
+  let body = needsSaveFirst ? (
+    <>
+      <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+        ATTOM uses the <span className="font-medium">saved</span> address on
+        this property. You have unsaved edits — save first so the lookup uses
+        your latest address and details.
+      </p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+        {usageLine}
+      </p>
+    </>
+  ) : (
     <>
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
         We'll look up public records and fill in any currently empty Identity
@@ -43,7 +63,24 @@ function AttomRefreshConfirmDialog({
       </p>
     </>
   );
-  let actions = (
+  let actions = needsSaveFirst ? (
+    <div className="flex justify-end gap-2">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="btn-sm border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        onClick={onSaveAndPull || onConfirm}
+        className="btn-sm bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+      >
+        Save &amp; pull
+      </button>
+    </div>
+  ) : (
     <div className="flex justify-end gap-2">
       <button
         type="button"
@@ -129,19 +166,48 @@ function AttomRefreshConfirmDialog({
       </div>
     );
   } else if (modalView === "result") {
-    title = "Property details updated";
+    const didUpdateFields = populatedKeys.length > 0;
+    title = didUpdateFields
+      ? "Property details updated"
+      : "ATTOM lookup finished";
     body = (
       <div className="mb-4 space-y-2">
-        <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 dark:border-emerald-800/70 dark:bg-emerald-950/30">
-          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+        <div
+          className={`flex items-start gap-3 rounded-lg border px-3 py-3 ${
+            didUpdateFields
+              ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800/70 dark:bg-emerald-950/30"
+              : "border-sky-200 bg-sky-50 dark:border-sky-800/70 dark:bg-sky-950/30"
+          }`}
+        >
+          <CheckCircle2
+            className={`mt-0.5 h-5 w-5 shrink-0 ${
+              didUpdateFields
+                ? "text-emerald-600 dark:text-emerald-300"
+                : "text-sky-600 dark:text-sky-300"
+            }`}
+          />
           <div>
-            <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
-              {populatedKeys.length > 0
+            <p
+              className={`text-sm font-medium ${
+                didUpdateFields
+                  ? "text-emerald-900 dark:text-emerald-100"
+                  : "text-sky-900 dark:text-sky-100"
+              }`}
+            >
+              {didUpdateFields
                 ? `Updated ${populatedKeys.length} field${populatedKeys.length === 1 ? "" : "s"}`
-                : "ATTOM lookup completed"}
+                : "No empty Identity fields to fill"}
             </p>
-            <p className="text-xs text-emerald-700 dark:text-emerald-300">
-              Empty Identity fields were filled from public records. Existing edits were preserved.
+            <p
+              className={`text-xs ${
+                didUpdateFields
+                  ? "text-emerald-700 dark:text-emerald-300"
+                  : "text-sky-700 dark:text-sky-300"
+              }`}
+            >
+              {didUpdateFields
+                ? "Empty Identity fields were filled from public records. Existing edits were preserved."
+                : "Public records were found, but every field ATTOM returned was already filled (or unavailable for this property)."}
             </p>
           </div>
         </div>

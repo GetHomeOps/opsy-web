@@ -1286,6 +1286,14 @@ function getDemoAccountOpsRecipients() {
   );
 }
 
+/** Internal ops recipients when a user picks or pays for a plan. */
+function getPlanSelectedOpsRecipients() {
+  return parseRecipientList(
+    process.env.PLAN_SELECTED_OPS_EMAIL,
+    "kino@heyopsy.com,dirk.snel@heyopsy.com,dev@heyopsy.com"
+  );
+}
+
 function formatDemoTimestamp(value) {
   if (value == null || value === "") return "";
   const d = value instanceof Date ? value : new Date(value);
@@ -1348,6 +1356,117 @@ function buildDemoAccountMergePayload(user, { includeWasOpened = false } = {}) {
     detailsHtml,
     ...(includeWasOpened ? { wasOpened } : {}),
   };
+}
+
+const PLAN_SELECTED_SOURCE_LABELS = {
+  onboarding: "Onboarding",
+  upgrade_downgrade: "Upgrade / downgrade",
+  stripe_checkout: "Stripe Checkout",
+};
+
+/**
+ * Internal ops email when a user picks a free/zero-cost plan or pays via Checkout.
+ * Recipients: kino@, dirk.snel@, dev@ (override via PLAN_SELECTED_OPS_EMAIL).
+ *
+ * @param {object} detail
+ * @param {string} [detail.userName]
+ * @param {string} [detail.userEmail]
+ * @param {string} [detail.userRole]
+ * @param {string|number} [detail.userId]
+ * @param {string|number} [detail.accountId]
+ * @param {string} [detail.accountName]
+ * @param {string} [detail.accountUrl]
+ * @param {string} [detail.planCode]
+ * @param {string} [detail.planName]
+ * @param {boolean} [detail.isPaid]
+ * @param {string} [detail.billingInterval]
+ * @param {string} [detail.amountPaid] formatted amount e.g. "$29.00 USD"
+ * @param {"onboarding"|"upgrade_downgrade"|"stripe_checkout"} [detail.source]
+ */
+async function sendPlanSelectedOpsEmail(detail) {
+  if (!detail || (!detail.userId && !detail.userEmail && !detail.accountId)) {
+    return { success: false, reason: "no_detail" };
+  }
+
+  const userName = detail.userName || "";
+  const userEmail = detail.userEmail || "";
+  const userRole = detail.userRole || "";
+  const userId = detail.userId != null ? String(detail.userId) : "";
+  const accountId = detail.accountId != null ? String(detail.accountId) : "";
+  const accountName = detail.accountName || "";
+  const accountUrl = detail.accountUrl
+    ? String(detail.accountUrl).replace(/^\/+|\/+$/g, "")
+    : "";
+  const planCode = detail.planCode || "";
+  const planName = detail.planName || planCode || "Unknown plan";
+  const paidLabel = detail.isPaid ? "Paid" : "Free";
+  const billingInterval = detail.billingInterval || "";
+  const amountPaid = detail.amountPaid || "";
+  const source = detail.source || "";
+  const sourceLabel = PLAN_SELECTED_SOURCE_LABELS[source] || source || "";
+
+  const accountLabel = accountName
+    ? accountId
+      ? `${accountName} (ID ${accountId})`
+      : accountName
+    : accountId;
+
+  const detailsHtml = detailsTableTicket([
+    ["Name", userName],
+    ["Email", userEmail],
+    ["Role", userRole],
+    ["User ID", userId],
+    ["Account", accountLabel],
+    ["Account URL", accountUrl],
+    ["Plan", planName],
+    ["Plan code", planCode],
+    ["Type", paidLabel],
+    ["Billing interval", billingInterval],
+    ["Amount paid", amountPaid],
+    ["Source", sourceLabel],
+  ]);
+
+  const who = userEmail || userName || userId || accountLabel || "user";
+  const subject = `Plan selected: ${who} — ${planName}`;
+  const intro = detail.isPaid
+    ? "A user completed Stripe Checkout for a paid plan."
+    : "A user selected a free or zero-cost plan.";
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+      <h2 style="color: #456564; margin: 0 0 12px;">Plan selected</h2>
+      <p style="margin: 12px 0; line-height: 1.6;">${escapeHtml(intro)}</p>
+      ${detailsHtml}
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  const mergeData = {
+    brandName,
+    userName,
+    userEmail,
+    userRole,
+    userId,
+    accountId,
+    accountName,
+    accountUrl,
+    planCode,
+    planName,
+    paidLabel,
+    billingInterval,
+    amountPaid,
+    source,
+    sourceLabel,
+    detailsHtml,
+  };
+
+  return deliverToRecipients({
+    emailType: "plan_selected_ops",
+    recipients: getPlanSelectedOpsRecipients(),
+    subject,
+    html,
+    mergeData,
+  });
 }
 
 /**
@@ -1744,6 +1863,8 @@ module.exports = {
   getHelpdeskInspectionReviewOpsRecipients,
   getHelpdeskTicketOpsRecipients,
   getDemoAccountOpsRecipients,
+  getPlanSelectedOpsRecipients,
+  sendPlanSelectedOpsEmail,
   sendDemoAccountOpenedEmail,
   sendDemoAccountExpiredEmail,
   sendSponsorshipLifecycleEmail,

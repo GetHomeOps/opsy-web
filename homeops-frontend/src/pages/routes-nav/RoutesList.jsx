@@ -53,6 +53,7 @@ const UsersImport = lazy(() => import("../users/usersImport"));
 const Contact = lazy(() => import("../contacts/Contact"));
 const PropertiesList = lazy(propertiesListImport);
 const PropertiesImport = lazy(() => import("../properties/propertiesImport"));
+const BulkOnboardWizard = lazy(() => import("../properties/BulkOnboardWizard"));
 const Property = lazy(() => import("../properties/Property"));
 const PrePurchaseDashboard = lazy(prePurchaseDashboardImport);
 const PrePurchaseNewAnalysis = lazy(() => import("../pre-purchase/PrePurchaseNewAnalysis"));
@@ -537,6 +538,14 @@ function RoutesList() {
         element={
           <AdminRoute>
             <PropertiesImport />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/:accountUrl/properties/bulk-onboard"
+        element={
+          <AdminRoute>
+            <BulkOnboardWizard />
           </AdminRoute>
         }
       />

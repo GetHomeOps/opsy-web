@@ -1036,6 +1036,18 @@ class AppApi {
     return res.property;
   }
 
+  /** Admin bulk agent onboarding — dry-run match/validation. */
+  static async previewBulkOnboard(data) {
+    let res = await this.request(`properties/bulk-onboard/preview`, data, "POST");
+    return res;
+  }
+
+  /** Admin bulk agent onboarding — create properties, assign agent, invite homeowners. */
+  static async executeBulkOnboard(data) {
+    let res = await this.request(`properties/bulk-onboard`, data, "POST");
+    return res;
+  }
+
   static async getAllProperties() {
     let res = await this.request(`properties`);
     return res.properties;

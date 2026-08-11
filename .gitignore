@@ -19,6 +19,9 @@ homeops-backend/public/
 rentcast-debug.json
 homeops-backend/scripts/.cio_patch_output/
 
+# Local scratch notes (keep on disk, do not commit)
+homeops-backend/docs/GENERAL.md
+
 # Logs
 *.log
 npm-debug.log*

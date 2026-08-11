@@ -1,11 +1,12 @@
 import React, {useState, useRef, useEffect} from "react";
 import Transition from "../../utils/Transition";
 import {useTranslation} from "react-i18next";
-import {Settings, UserPlus, Building2, UserMinus, RefreshCw} from "lucide-react";
+import {Settings, UserPlus, Building2, UserMinus, RefreshCw, Users} from "lucide-react";
 
 function ListDropdown({
   align,
   onImport,
+  onBulkOnboard,
   onExport,
   onDelete,
   onDuplicate,
@@ -59,6 +60,13 @@ function ListDropdown({
     e.stopPropagation();
     if (disabled) return;
     onImport?.();
+    setDropdownOpen(false);
+  }
+
+  function handleBulkOnboard(e) {
+    e.stopPropagation();
+    if (disabled) return;
+    onBulkOnboard?.();
     setDropdownOpen(false);
   }
 
@@ -223,6 +231,20 @@ function ListDropdown({
                     <line x1="12" y1="3" x2="12" y2="15" />
                   </svg>
                   <span className="text-sm font-medium ml-2">{t("import")}</span>
+                </button>
+              </li>
+            )}
+            {onBulkOnboard && (
+              <li>
+                <button
+                  type="button"
+                  className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
+                  onClick={handleBulkOnboard}
+                >
+                  <Users className="w-5 h-5" strokeWidth={1.5} />
+                  <span className="text-sm font-medium ml-2">
+                    {t("bulkOnboard", {defaultValue: "Bulk onboard"})}
+                  </span>
                 </button>
               </li>
             )}

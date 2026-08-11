@@ -1,4 +1,10 @@
-import React, {useState, useEffect, useRef, useCallback} from "react";
+import React, {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+} from "react";
 import {createPortal} from "react-dom";
 import {NavLink, useLocation} from "react-router-dom";
 import {ChevronDown, ChevronLeft, ChevronRight} from "lucide-react";
@@ -39,6 +45,9 @@ const FEATURE_UPGRADE_COPY = {
       "Your plan does not include team assistants. Upgrade to invite assistants tethered to your account.",
   },
 };
+
+/** Survives remounts when each page owns its own Sidebar chrome. */
+let lastSidebarScrollTop = 0;
 
 /** Live sidebar fill — prefer the CSS var actually painted on the shell. */
 function readSidebarAccent(fallback) {
@@ -441,6 +450,22 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     },
     [pathname, accountUrl],
   );
+
+  // Restore scroll before paint so remounts (page chrome + Suspense fallback)
+  // do not flash the nav back to the top after clicking a lower item.
+  useLayoutEffect(() => {
+    const el = sidebar.current;
+    if (!el) return undefined;
+    el.scrollTop = lastSidebarScrollTop;
+    const onScroll = () => {
+      lastSidebarScrollTop = el.scrollTop;
+    };
+    el.addEventListener("scroll", onScroll, {passive: true});
+    return () => {
+      lastSidebarScrollTop = el.scrollTop;
+      el.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   useEffect(() => {
     const clickHandler = ({target}) => {

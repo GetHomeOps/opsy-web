@@ -18,6 +18,10 @@ const {
   BILLING_MOCK_MODE,
   APP_BASE_URL,
 } = require("../config");
+const {
+  notifyPlanSelected,
+  notifyPlanSelectedFromCheckoutSession,
+} = require("./planSelectedNotifyService");
 
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 
@@ -705,9 +709,20 @@ async function processWebhookEvent(event) {
   await markEventProcessed(event.id);
 
   switch (event.type) {
-    case "checkout.session.completed":
-      await handleCheckoutCompleted(event.data.object);
+    case "checkout.session.completed": {
+      const session = event.data.object;
+      await handleCheckoutCompleted(session);
+      // Webhook-only notify (idempotent via stripe_webhook_events). Do not also
+      // notify from syncCheckoutSessionSubscription / complete-onboarding.
+      if (
+        session?.metadata?.account_id &&
+        session?.metadata?.subscription_product_id &&
+        session?.subscription
+      ) {
+        notifyPlanSelectedFromCheckoutSession(session);
+      }
       break;
+    }
     case "checkout.session.expired":
       await handleCheckoutExpired(event.data.object);
       break;
@@ -902,6 +917,17 @@ async function downgradeToZeroCostPlan({ accountId, userId, planCode, expectedAu
       );
     }
 
+    void notifyPlanSelected({
+      userId,
+      accountId,
+      planCode,
+      subscriptionProductId: plan.id,
+      isPaid: false,
+      source: "upgrade_downgrade",
+    }).catch((err) =>
+      console.error("[planSelectedNotify] downgrade scheduled:", err.message)
+    );
+
     return {
       scheduled: true,
       planCode,
@@ -922,6 +948,17 @@ async function downgradeToZeroCostPlan({ accountId, userId, planCode, expectedAu
      (account_id, subscription_product_id, status, current_period_start, current_period_end, cancel_at_period_end)
      VALUES ($1, $2, 'active', $3, $4, false)`,
     [accountId, plan.id, now, end]
+  );
+
+  void notifyPlanSelected({
+    userId,
+    accountId,
+    planCode,
+    subscriptionProductId: plan.id,
+    isPaid: false,
+    source: "upgrade_downgrade",
+  }).catch((err) =>
+    console.error("[planSelectedNotify] downgrade immediate:", err.message)
   );
 
   return { success: true, planCode, mock: BILLING_MOCK_MODE || false };

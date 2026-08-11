@@ -480,6 +480,33 @@ function reducer(state, action) {
         ...(aiSummaryUpdatedAt !== undefined ? {aiSummaryUpdatedAt} : {}),
       };
     }
+    /** After ATTOM completes while the form is dirty: refresh the saved
+     *  property baseline and fill only empty local identity fields so
+     *  unsaved edits are preserved but public-records values still appear. */
+    case "ATTOM_REFRESH_MERGE": {
+      const {propertyPayload, systems, identityFill, banner} = action.payload;
+      const nextProperty = propertyPayload
+        ? propertyPayload.identity && propertyPayload.systems
+          ? {...propertyPayload}
+          : splitFormDataByTabs(propertyPayload)
+        : state.property;
+      return {
+        ...state,
+        property: nextProperty,
+        formData: {
+          ...state.formData,
+          identity: {
+            ...state.formData.identity,
+            ...(identityFill ?? {}),
+          },
+        },
+        systems: systems ?? state.systems,
+        isInitialLoad: false,
+        bannerOpen: banner?.open ?? false,
+        bannerType: banner?.type ?? "success",
+        bannerMessage: banner?.message ?? "",
+      };
+    }
     case "SET_PROPERTY_ACCESS_DENIED":
       return {...state, propertyAccessDenied: action.payload};
     case "SET_PROPERTY_NOT_FOUND":
@@ -1606,75 +1633,132 @@ function PropertyFormContainer() {
     setPropertyNotes((prev) => prev.filter((n) => n.id !== noteId));
   }, []);
 
-  /** Called by IdentityTab after a background ATTOM lookup completes. Refetches
-   *  the property, reapplies identity fields to the form (without marking it
-   *  dirty), and shows a success banner. No-op if the user has unsaved edits —
-   *  we don't want to stomp on changes they're mid-editing. */
-  const handleAttomRefreshComplete = useCallback(async () => {
-    if (!effectivePropertyId || uid === "new") return;
-    if (state.formDataChanged) {
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "info",
-          message:
-            "Property data was refreshed from ATTOM. Save or discard your current edits to see the new values.",
-        },
-      });
-      return;
-    }
-    try {
-      const refreshed = await getPropertyById(uid);
-      if (!refreshed) return;
-      const systemsRes = await getSystemsByPropertyId(
-        effectivePropertyId,
-      ).catch(() => null);
-      const systemsFromBackend =
-        systemsRes?.systems ?? systemsRes ?? state.systems ?? [];
-      const propertyPayload = {
-        ...buildPropertyPayloadFromRefresh(
-          refreshed,
-          systemsFromBackend ?? [],
-          refreshed,
-        ),
-        maintenanceRecords: state.formData.maintenanceRecords ?? [],
-      };
-      const scrollEl = document.querySelector(".flex-1.overflow-y-auto");
-      const scrollPos = scrollEl?.scrollTop ?? window.scrollY ?? 0;
-      dispatch({
-        type: "SAVE_COMPLETED",
-        payload: {
-          propertyPayload,
-          systems: systemsFromBackend ?? state.systems,
-          banner: {
-            open: true,
-            type: "success",
-            message:
-              "Missing property details filled from ATTOM public records.",
-          },
-        },
-      });
-      requestAnimationFrame(() => {
+  /** Latest form snapshot for ATTOM completion (poll may finish after many renders). */
+  const attomFormSnapshotRef = useRef({
+    formDataChanged: false,
+    formData: null,
+    systems: null,
+  });
+  attomFormSnapshotRef.current = {
+    formDataChanged: state.formDataChanged,
+    formData: state.formData,
+    systems: state.systems,
+  };
+
+  /** Called after a background ATTOM lookup completes. Refetches the property
+   *  and applies newly filled identity fields to the form. When the form is
+   *  dirty, only empty local fields are filled so unsaved edits are kept. */
+  const handleAttomRefreshComplete = useCallback(
+    async (populatedKeys = []) => {
+      if (!effectivePropertyId || uid === "new") return;
+      try {
+        const refreshed = await getPropertyById(uid);
+        if (!refreshed) return;
+        const systemsRes = await getSystemsByPropertyId(
+          effectivePropertyId,
+        ).catch(() => null);
+        const snapshot = attomFormSnapshotRef.current;
+        const systemsFromBackend =
+          systemsRes?.systems ?? systemsRes ?? snapshot.systems ?? [];
+        const propertyPayload = {
+          ...buildPropertyPayloadFromRefresh(
+            refreshed,
+            systemsFromBackend ?? [],
+            refreshed,
+          ),
+          maintenanceRecords: snapshot.formData?.maintenanceRecords ?? [],
+        };
+        const scrollEl = document.querySelector(".flex-1.overflow-y-auto");
+        const scrollPos = scrollEl?.scrollTop ?? window.scrollY ?? 0;
+        const wroteCount = Array.isArray(populatedKeys)
+          ? populatedKeys.length
+          : 0;
+
+        if (snapshot.formDataChanged) {
+          const refreshedFlat = mergeFormDataFromTabs(propertyPayload);
+          const localFlat = mergeFormDataFromTabs(snapshot.formData);
+          const identityKeys = [
+            ...IDENTITY_SECTIONS.flatMap((s) => s.fields ?? []),
+            "fullAddress",
+            "addressLine2",
+            "county",
+          ];
+          const isEmptyVal = (v) =>
+            v == null ||
+            v === "" ||
+            (typeof v === "string" && v.trim() === "") ||
+            (typeof v === "number" && !Number.isFinite(v));
+          const isFilledVal = (v) => !isEmptyVal(v);
+          const identityFill = {};
+          for (const key of identityKeys) {
+            if (isEmptyVal(localFlat[key]) && isFilledVal(refreshedFlat[key])) {
+              identityFill[key] = refreshedFlat[key];
+            }
+          }
+          if (refreshedFlat.identityDataSource != null) {
+            identityFill.identityDataSource = refreshedFlat.identityDataSource;
+          }
+          if (refreshedFlat.identityLookupPopulatedKeys != null) {
+            identityFill.identityLookupPopulatedKeys =
+              refreshedFlat.identityLookupPopulatedKeys;
+          }
+          const filledCount = Object.keys(identityFill).filter(
+            (k) =>
+              k !== "identityDataSource" &&
+              k !== "identityLookupPopulatedKeys",
+          ).length;
+          dispatch({
+            type: "ATTOM_REFRESH_MERGE",
+            payload: {
+              propertyPayload,
+              systems: systemsFromBackend ?? snapshot.systems,
+              identityFill,
+              banner: {
+                open: true,
+                type: filledCount > 0 || wroteCount > 0 ? "success" : "info",
+                message:
+                  filledCount > 0
+                    ? "Missing property details filled from ATTOM public records. Your unsaved edits were preserved."
+                    : "ATTOM lookup finished. No additional empty Identity fields were available to fill. Your unsaved edits were preserved.",
+              },
+            },
+          });
+        } else {
+          dispatch({
+            type: "SAVE_COMPLETED",
+            payload: {
+              propertyPayload,
+              systems: systemsFromBackend ?? snapshot.systems,
+              banner: {
+                open: true,
+                type: wroteCount > 0 ? "success" : "info",
+                message:
+                  wroteCount > 0
+                    ? "Missing property details filled from ATTOM public records."
+                    : "ATTOM lookup finished. No additional empty Identity fields were available to fill.",
+              },
+            },
+          });
+        }
         requestAnimationFrame(() => {
-          const el = document.querySelector(".flex-1.overflow-y-auto");
-          if (el) el.scrollTop = scrollPos;
-          else if (scrollPos) window.scrollTo(0, scrollPos);
+          requestAnimationFrame(() => {
+            const el = document.querySelector(".flex-1.overflow-y-auto");
+            if (el) el.scrollTop = scrollPos;
+            else if (scrollPos) window.scrollTo(0, scrollPos);
+          });
         });
-      });
-    } catch (err) {
-      console.error("[PropertyForm] handleAttomRefreshComplete error:", err);
-    }
-  }, [
-    effectivePropertyId,
-    uid,
-    state.formDataChanged,
-    state.systems,
-    state.formData.maintenanceRecords,
-    getPropertyById,
-    getSystemsByPropertyId,
-    dispatch,
-  ]);
+      } catch (err) {
+        console.error("[PropertyForm] handleAttomRefreshComplete error:", err);
+      }
+    },
+    [
+      effectivePropertyId,
+      uid,
+      getPropertyById,
+      getSystemsByPropertyId,
+      dispatch,
+    ],
+  );
 
   const handleAttomRefreshFailed = useCallback(
     (message) => {
@@ -1705,8 +1789,12 @@ function PropertyFormContainer() {
   );
 
   const initialAttomPullAttemptedRef = useRef(false);
+  /** Set when user chooses "Save & pull" so we enqueue ATTOM after a successful save
+   *  even if the address fingerprint did not change. */
+  const pendingAttomPullAfterSaveRef = useRef(false);
   useEffect(() => {
     initialAttomPullAttemptedRef.current = false;
+    pendingAttomPullAfterSaveRef.current = false;
   }, [effectivePropertyId]);
 
   /** Auto-pull ATTOM when a saved property has never had a lookup and has a complete address.
@@ -2372,6 +2460,7 @@ function PropertyFormContainer() {
       return v == null || (typeof v === "string" && !v.trim());
     });
     if (missing.length > 0) {
+      pendingAttomPullAfterSaveRef.current = false;
       const newErrors = {};
       missing.forEach(({key, label}) => {
         newErrors[key] = `${label} is required`;
@@ -2626,14 +2715,16 @@ function PropertyFormContainer() {
           });
         });
 
-        if (
-          addressChangedForAttom &&
+        const shouldPullAttom =
+          (addressChangedForAttom || pendingAttomPullAfterSaveRef.current) &&
           !attomRefresh.isActive &&
-          !attomRefresh.isAtLookupLimit
-        ) {
+          !attomRefresh.isAtLookupLimit;
+        pendingAttomPullAfterSaveRef.current = false;
+        if (shouldPullAttom) {
           void attomRefresh.startRefresh({silent: true});
         }
       } else {
+        pendingAttomPullAfterSaveRef.current = false;
         dispatch({
           type: "SET_BANNER",
           payload: {
@@ -2644,6 +2735,7 @@ function PropertyFormContainer() {
         });
       }
     } catch (err) {
+      pendingAttomPullAfterSaveRef.current = false;
       console.error("Error updating property:", err);
       dispatch({
         type: "SET_BANNER",
@@ -2659,6 +2751,12 @@ function PropertyFormContainer() {
       dispatch({type: "SET_SUBMITTING", payload: false});
     }
   }
+
+  const handleSaveAndPullAttom = async () => {
+    pendingAttomPullAfterSaveRef.current = true;
+    attomRefresh.closeConfirm();
+    await handleUpdate({preventDefault() {}});
+  };
 
   // Build prev/next nav state; URL param is property_uid. We still track by id internally.
   useAutoCloseBanner(state.bannerOpen, state.bannerMessage, () =>
@@ -4664,8 +4762,16 @@ function PropertyFormContainer() {
           populatedKeys={attomRefresh.populatedKeys}
           lookupCount={attomRefresh.lookupCount}
           lookupLimit={attomRefresh.lookupLimit}
+          hasUnsavedChanges={state.formDataChanged}
           onCancel={attomRefresh.closeConfirm}
-          onConfirm={() => attomRefresh.startRefresh()}
+          onConfirm={() => {
+            if (state.formDataChanged) {
+              attomRefresh.openConfirm();
+              return;
+            }
+            void attomRefresh.startRefresh();
+          }}
+          onSaveAndPull={handleSaveAndPullAttom}
         />
       )}
 
