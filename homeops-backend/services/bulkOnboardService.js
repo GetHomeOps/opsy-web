@@ -554,7 +554,7 @@ async function executeBulkOnboard({
   }
 
   const enqueueAttom = options.enqueueAttomLookup !== false;
-  const sendHomeownerInvites = options.sendHomeownerInvites !== false;
+  const sendHomeownerInvites = options.sendHomeownerInvites === true;
 
   const results = [];
   for (const row of normalized) {

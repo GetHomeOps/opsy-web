@@ -12,6 +12,7 @@ const {
   acceptInvitation,
   acceptInvitationForLoggedInUser,
   resendInvitation,
+  sendPendingInvitations,
   resolvePropertyInvitationInviteUrl,
 } = require("../services/invitationService");
 const { canInviteViewer, canAddTeamMember } = require("../services/tierService");
@@ -323,6 +324,27 @@ router.post("/bulk-property", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
+/**
+ * POST /send-pending — Send emails for never-sent pending invitations.
+ * Body: { invitationIds: string[], accountId?: number }
+ * Platform admin only. Partial success allowed.
+ */
+router.post("/send-pending", ensureLoggedIn, async function (req, res, next) {
+  try {
+    const { invitationIds, accountId } = req.body || {};
+    const user = res.locals.user;
+    const result = await sendPendingInvitations({
+      invitationIds,
+      actorUserId: user.id,
+      actorRole: user.role,
+      accountId: accountId != null ? Number(accountId) : undefined,
+    });
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** POST /:id/accept - Accept invitation. Body: token, password, name. Token required for email flow. */
 router.post("/:id/accept", async function (req, res, next) {
   try {
@@ -442,7 +464,12 @@ router.get("/property/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param
 router.get("/account/:accountId", ensureLoggedIn, ensureUserCanAccessAccountByParam("accountId"), async function (req, res, next) {
   try {
     const { status } = req.query;
-    const invitations = await Invitation.getByAccount(req.params.accountId, { status });
+    const emailNeverSent =
+      req.query.emailNeverSent === "true" || req.query.emailNeverSent === true;
+    const invitations = await Invitation.getByAccount(req.params.accountId, {
+      status,
+      emailNeverSent: emailNeverSent || undefined,
+    });
     return res.json({ invitations });
   } catch (err) {
     return next(err);

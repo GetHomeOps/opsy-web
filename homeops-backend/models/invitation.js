@@ -12,11 +12,23 @@
  * - getByAccount / getByProperty / getSentByUser: List invitations by scope
  * - accept / decline / revoke: Update invitation status
  * - expirePending: Mark expired invitations
+ * - markEmailSent: Record successful invitation email delivery
  */
 
 const db = require("../db");
 const crypto = require("crypto");
 const { BadRequestError, NotFoundError, UnauthorizedError } = require("../expressError");
+
+const INVITATION_SELECT_CORE = `
+  id, type, inviter_user_id AS "inviterUserId", invitee_email AS "inviteeEmail",
+  account_id AS "accountId", property_id AS "propertyId",
+  intended_role AS "intendedRole",
+  intended_property_role AS "intendedPropertyRole",
+  permissions,
+  status, expires_at AS "expiresAt",
+  accepted_at AS "acceptedAt", accepted_by_user_id AS "acceptedByUserId",
+  email_sent_at AS "emailSentAt",
+  created_at AS "createdAt"`;
 
 class Invitation {
   static async create({ type, inviterUserId, inviteeEmail, accountId, propertyId, intendedRole, intendedPropertyRole, permissions, tokenHash, expiresAt }) {
@@ -34,6 +46,7 @@ class Invitation {
                  intended_property_role AS "intendedPropertyRole",
                  permissions,
                  status, expires_at AS "expiresAt",
+                 email_sent_at AS "emailSentAt",
                  created_at AS "createdAt"`,
       [type, inviterUserId, inviteeEmail, accountId, propertyId || null, intendedRole, intendedPropertyRole || null, permsJson, tokenHash, expiresAt]
     );
@@ -42,14 +55,7 @@ class Invitation {
 
   static async findByToken(tokenHash) {
     const result = await db.query(
-      `SELECT id, type, inviter_user_id AS "inviterUserId", invitee_email AS "inviteeEmail",
-              account_id AS "accountId", property_id AS "propertyId",
-              intended_role AS "intendedRole",
-              intended_property_role AS "intendedPropertyRole",
-              permissions,
-              status, expires_at AS "expiresAt",
-              accepted_at AS "acceptedAt", accepted_by_user_id AS "acceptedByUserId",
-              created_at AS "createdAt"
+      `SELECT ${INVITATION_SELECT_CORE}
        FROM invitations
        WHERE token_hash = $1 AND status = 'pending' AND expires_at > NOW()`,
       [tokenHash]
@@ -59,14 +65,7 @@ class Invitation {
 
   static async get(id) {
     const result = await db.query(
-      `SELECT id, type, inviter_user_id AS "inviterUserId", invitee_email AS "inviteeEmail",
-              account_id AS "accountId", property_id AS "propertyId",
-              intended_role AS "intendedRole",
-              intended_property_role AS "intendedPropertyRole",
-              permissions,
-              status, expires_at AS "expiresAt",
-              accepted_at AS "acceptedAt", accepted_by_user_id AS "acceptedByUserId",
-              created_at AS "createdAt"
+      `SELECT ${INVITATION_SELECT_CORE}
        FROM invitations WHERE id = $1`,
       [id]
     );
@@ -74,24 +73,35 @@ class Invitation {
     return result.rows[0];
   }
 
-  static async getByAccount(accountId, { status } = {}) {
+  /**
+   * @param {number|string} accountId
+   * @param {{ status?: string, emailNeverSent?: boolean }} [opts]
+   */
+  static async getByAccount(accountId, { status, emailNeverSent } = {}) {
     const clauses = [`i.account_id = $1`];
     const values = [accountId];
     if (status) {
       values.push(status);
       clauses.push(`i.status = $${values.length}`);
     }
+    if (emailNeverSent === true) {
+      clauses.push(`i.email_sent_at IS NULL`);
+    }
     const result = await db.query(
       `SELECT i.id, i.type, i.inviter_user_id AS "inviterUserId",
               u.name AS "inviterName",
               i.invitee_email AS "inviteeEmail",
               i.account_id AS "accountId", i.property_id AS "propertyId",
+              p.property_uid AS "propertyUid",
+              p.address AS "propertyAddress",
               i.intended_role AS "intendedRole",
               i.intended_property_role AS "intendedPropertyRole",
               i.status,
+              i.email_sent_at AS "emailSentAt",
               i.expires_at AS "expiresAt", i.created_at AS "createdAt"
        FROM invitations i
        LEFT JOIN users u ON u.id = i.inviter_user_id
+       LEFT JOIN properties p ON p.id = i.property_id
        WHERE ${clauses.join(" AND ")}
        ORDER BY i.created_at DESC`,
       values
@@ -115,6 +125,7 @@ class Invitation {
               i.intended_property_role AS "intendedPropertyRole",
               i.permissions,
               i.status,
+              i.email_sent_at AS "emailSentAt",
               i.expires_at AS "expiresAt", i.created_at AS "createdAt"
        FROM invitations i
        LEFT JOIN users u ON u.id = i.inviter_user_id
@@ -132,6 +143,7 @@ class Invitation {
               i.intended_role AS "intendedRole",
               i.intended_property_role AS "intendedPropertyRole",
               i.status,
+              i.email_sent_at AS "emailSentAt",
               i.expires_at AS "expiresAt", i.accepted_at AS "acceptedAt",
               i.created_at AS "createdAt"
        FROM invitations i
@@ -158,6 +170,7 @@ class Invitation {
               i.intended_role AS "intendedRole",
               i.intended_property_role AS "intendedPropertyRole",
               i.status,
+              i.email_sent_at AS "emailSentAt",
               i.expires_at AS "expiresAt", i.created_at AS "createdAt",
               u.name AS "inviterName", u.email AS "inviterEmail",
               a.name AS "accountName",
@@ -171,6 +184,31 @@ class Invitation {
       values
     );
     return result.rows;
+  }
+
+  /** Mark invitation email as successfully sent. */
+  static async markEmailSent(id) {
+    const result = await db.query(
+      `UPDATE invitations
+       SET email_sent_at = NOW()
+       WHERE id = $1 AND status = 'pending'
+       RETURNING id, email_sent_at AS "emailSentAt"`,
+      [id]
+    );
+    return result.rows[0] || null;
+  }
+
+  /** Mark many invitation emails as successfully sent. */
+  static async markEmailSentMany(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return 0;
+    const result = await db.query(
+      `UPDATE invitations
+       SET email_sent_at = NOW()
+       WHERE id = ANY($1::uuid[]) AND status = 'pending'
+       RETURNING id`,
+      [ids]
+    );
+    return result.rows.length;
   }
 
   static async accept(id, acceptedByUserId) {

@@ -71,6 +71,14 @@ function formsEqual(a, b) {
   return Object.keys(na).every((key) => na[key] === nb[key]);
 }
 
+function ensurePeriod(text) {
+  if (!text || typeof text !== "string") return "";
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  if (/[.!?]$/.test(trimmed)) return trimmed;
+  return `${trimmed}.`;
+}
+
 function normalizeHex(hex) {
   if (typeof hex !== "string") return "";
   return hex.trim().toLowerCase();
@@ -198,6 +206,7 @@ function CustomizationPage() {
   const [switchingAccount, setSwitchingAccount] = useState(false);
   const [saving, setSaving] = useState(false);
   const [readOnlyReason, setReadOnlyReason] = useState(null);
+  const [inheritanceInfo, setInheritanceInfo] = useState(null);
   const [banner, setBanner] = useState({open: false, type: "success", message: ""});
   const [fallbackIds, setFallbackIds] = useState(null);
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -211,7 +220,19 @@ function CustomizationPage() {
   }, []);
 
   const applyBranding = useCallback((branding) => {
-    const next = formFromBranding(branding);
+    // Account edit form must use stored agent branding. When the agent currently
+    // inherits team/agency/defaults, start from Opsy defaults so saving creates
+    // a real agent-level override instead of copying inherited values.
+    const editingInheritedAccount =
+      !isAgencyMode &&
+      !isTeamMode &&
+      branding.customizable !== false &&
+      branding.source &&
+      branding.source !== "account";
+
+    const next = editingInheritedAccount
+      ? DEFAULT_FORM
+      : formFromBranding(branding);
     setForm(next);
     setSavedForm(next);
     setAccountName(branding.name || "");
@@ -226,11 +247,17 @@ function CustomizationPage() {
       setReadOnlyReason(
         branding.inheritsFromLabel ||
           (isTeamMode
-            ? "This team isn’t customizable while its agency has branding."
+            ? "This team isn’t customizable."
             : "This account isn’t customizable."),
       );
+      setInheritanceInfo(null);
     } else {
       setReadOnlyReason(null);
+      setInheritanceInfo(
+        !isAgencyMode && !isTeamMode && branding.inheritsFromLabel
+          ? branding.inheritsFromLabel
+          : null,
+      );
     }
   }, [isAgencyMode, isTeamMode]);
 
@@ -322,6 +349,7 @@ function CustomizationPage() {
         setAccountUrlSlug("");
         setSubtitleMeta("");
         setReadOnlyReason(null);
+        setInheritanceInfo(null);
         setLoadingBranding(false);
         setSwitchingAccount(false);
         return;
@@ -361,6 +389,7 @@ function CustomizationPage() {
         setAccountUrlSlug("");
         setSubtitleMeta("");
         setReadOnlyReason(null);
+        setInheritanceInfo(null);
       } finally {
         if (generation === loadGenerationRef.current) {
           setLoadingBranding(false);
@@ -645,10 +674,10 @@ function CustomizationPage() {
                   )}
                   <p className="mt-2.5 max-w-xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
                     {isAgencyMode
-                      ? "White-label this agency’s shell accent, logo, and homeowner agent card. Affiliated agents inherit these settings (overriding team branding)."
+                      ? "White-label this agency’s shell accent, logo, and homeowner agent card. Applies when agents and their teams have no branding."
                       : isTeamMode
-                        ? "White-label this team’s shell accent, logo, and homeowner agent card. Applies only when the parent agency has no customization."
-                        : "White-label this account’s shell accent, logo, and homeowner agent card."}
+                        ? "White-label this team’s shell accent, logo, and homeowner agent card. Overrides agency branding; agent branding overrides this when set."
+                        : "White-label this account’s shell accent, logo, and homeowner agent card. Overrides team and agency branding when set."}
                   </p>
                 </div>
               </div>
@@ -743,10 +772,17 @@ function CustomizationPage() {
           {readOnlyReason && !loadingBranding && (
             <div className="mb-4">
               <Banner open type="warning" setOpen={() => {}}>
-                {readOnlyReason}{" "}
-                {isTeamMode
-                  ? "Team branding is stored but overridden by the agency until agency branding is cleared."
-                  : "Branding below is inherited and cannot be edited on this account."}
+                {ensurePeriod(readOnlyReason)}{" "}
+                Branding below is inherited and cannot be edited on this account.
+              </Banner>
+            </div>
+          )}
+
+          {inheritanceInfo && !readOnlyReason && !loadingBranding && (
+            <div className="mb-4">
+              <Banner open type="warning" setOpen={() => {}}>
+                {ensurePeriod(inheritanceInfo)}{" "}
+                Saving customization on this agent overrides team and agency branding.
               </Banner>
             </div>
           )}

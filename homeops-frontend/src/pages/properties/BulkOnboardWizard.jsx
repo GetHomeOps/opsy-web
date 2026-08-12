@@ -20,6 +20,7 @@ import {
   FileSpreadsheet,
   Home,
   Loader2,
+  Mail,
   Search,
   Upload,
   User,
@@ -384,7 +385,7 @@ function BulkOnboardWizard() {
   const [previewAccount, setPreviewAccount] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
-  const [sendHomeownerInvites, setSendHomeownerInvites] = useState(true);
+  const [sendHomeownerInvites, setSendHomeownerInvites] = useState(false);
   const [enqueueAttomLookup, setEnqueueAttomLookup] = useState(true);
   const [showAllRows, setShowAllRows] = useState(false);
 
@@ -544,6 +545,22 @@ function BulkOnboardWizard() {
     [previewRows]
   );
 
+  const noCreatableHint = useMemo(() => {
+    if (creatableSelectedCount > 0) return null;
+    const selected = previewRows.filter((r) => r.selected);
+    if (selected.length === 0) {
+      return "No creatable rows selected. Fix validation errors or select rows that can be created.";
+    }
+    const blockedByExisting = selected.every(
+      (r) =>
+        r.propertyMatch?.status === "existing" && r.forceCreate !== true
+    );
+    if (blockedByExisting) {
+      return 'Selected properties already exist. Enable "Create anyway" to create duplicates, or deselect them.';
+    }
+    return "No creatable rows selected. Fix validation errors or select rows that can be created.";
+  }, [previewRows, creatableSelectedCount]);
+
   const displayPreviewRows = useMemo(() => {
     if (showAllRows || previewRows.length <= PREVIEW_PAGE_SIZE) return previewRows;
     return previewRows.slice(0, PREVIEW_PAGE_SIZE);
@@ -650,7 +667,7 @@ function BulkOnboardWizard() {
               </h1>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
                 Select one agent, upload properties with homeowners, review matches, then
-                create and invite in one pass.
+                create in one pass.
               </p>
             </div>
 
@@ -961,26 +978,51 @@ function BulkOnboardWizard() {
                     </p>
                   </div>
                   <div className="p-4 space-y-4">
-                    <div className="flex flex-wrap gap-4 text-sm">
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="form-checkbox"
-                          checked={sendHomeownerInvites}
-                          onChange={(e) => setSendHomeownerInvites(e.target.checked)}
+                    <div className="flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/30">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Mail className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                            Send homeowner invite emails
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {sendHomeownerInvites
+                              ? "Homeowners will receive an invitation email to join each property."
+                              : "Invitations are created but not emailed. You can send them later from Properties → Actions."}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={sendHomeownerInvites}
+                        aria-label="Send homeowner invite emails"
+                        onClick={() =>
+                          setSendHomeownerInvites(!sendHomeownerInvites)
+                        }
+                        disabled={isExecuting}
+                        className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                          sendHomeownerInvites
+                            ? "bg-[#456564]"
+                            : "bg-gray-300 dark:bg-gray-600"
+                        } ${isExecuting ? "opacity-60 cursor-not-allowed" : ""}`}
+                      >
+                        <span
+                          className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            sendHomeownerInvites ? "left-6" : "left-1"
+                          }`}
                         />
-                        Send homeowner invite emails
-                      </label>
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="form-checkbox"
-                          checked={enqueueAttomLookup}
-                          onChange={(e) => setEnqueueAttomLookup(e.target.checked)}
-                        />
-                        Queue public-records lookup (ATTOM)
-                      </label>
+                      </button>
                     </div>
+                    <label className="inline-flex items-center gap-2 cursor-pointer text-sm">
+                      <input
+                        type="checkbox"
+                        className="form-checkbox"
+                        checked={enqueueAttomLookup}
+                        onChange={(e) => setEnqueueAttomLookup(e.target.checked)}
+                      />
+                      Queue public-records lookup (ATTOM)
+                    </label>
 
                     <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
                       <table className="table-auto w-full text-sm">
@@ -1171,7 +1213,7 @@ function BulkOnboardWizard() {
                         ) : (
                           <>
                             <Users className="w-4 h-4" />
-                            Create & invite ({creatableSelectedCount})
+                            Create ({creatableSelectedCount})
                           </>
                         )}
                       </button>
@@ -1182,10 +1224,9 @@ function BulkOnboardWizard() {
                         {executeError}
                       </div>
                     )}
-                    {creatableSelectedCount === 0 && (
+                    {noCreatableHint && (
                       <p className="text-sm text-amber-700 dark:text-amber-300">
-                        No creatable rows selected. Uncheck existing matches, enable
-                        &quot;Create anyway&quot;, or fix validation errors.
+                        {noCreatableHint}
                       </p>
                     )}
                   </div>
@@ -1302,7 +1343,7 @@ function BulkOnboardWizard() {
                           )
                         }
                       >
-                        Done — view properties
+                        Done
                       </button>
                       <button
                         type="button"

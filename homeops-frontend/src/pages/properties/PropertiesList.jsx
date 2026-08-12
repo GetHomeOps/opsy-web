@@ -30,6 +30,7 @@ import {useAuth} from "../../context/AuthContext";
 import AppApi, {getApiErrorMessage} from "../../api/api";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import BulkInviteModal from "./partials/BulkInviteModal";
+import SendPendingInvitationsModal from "./partials/SendPendingInvitationsModal";
 import homePlaceholder from "../../images/home_placeholder.png";
 import usePersistListUiSession, {
   HYDRATE_LIST_UI,
@@ -399,6 +400,7 @@ function PropertiesList() {
   }, [location.state, location.pathname, navigate]);
   const [selectedProperties, setSelectedProperties] = useState([]);
   const [bulkInviteOpen, setBulkInviteOpen] = useState(false);
+  const [sendPendingInvitesOpen, setSendPendingInvitesOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({
     key: "passport_id",
     direction: "asc",
@@ -1108,6 +1110,11 @@ function PropertiesList() {
                             navigate(`/${accountUrl}/properties/bulk-onboard`)
                         : undefined
                     }
+                    onSendPendingInvitations={
+                      canImportProperties
+                        ? () => setSendPendingInvitesOpen(true)
+                        : undefined
+                    }
                     onInviteUser={
                       canImportProperties ? handleBulkInvite : undefined
                     }
@@ -1408,6 +1415,11 @@ function PropertiesList() {
         modalOpen={bulkInviteOpen}
         setModalOpen={setBulkInviteOpen}
         selectedProperties={bulkInviteProperties}
+        currentAccount={currentAccount}
+      />
+      <SendPendingInvitationsModal
+        modalOpen={sendPendingInvitesOpen}
+        setModalOpen={setSendPendingInvitesOpen}
         currentAccount={currentAccount}
       />
       <DemoFeatureUnavailableModal {...aiDemoGate.modalProps} />

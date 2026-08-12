@@ -49,7 +49,7 @@ router.get(
   }
 );
 
-/** PATCH /:id/branding - Update account branding. Platform admin only; unaffiliated agents only. */
+/** PATCH /:id/branding - Update account branding. Platform admin only; agent accounts only. */
 router.patch(
   "/:id/branding",
   ensureLoggedIn,

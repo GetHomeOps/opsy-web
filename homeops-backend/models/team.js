@@ -232,7 +232,7 @@ class Team {
 
   /**
    * List teams for the Customization admin UI (platform admin).
-   * Includes hasCustomization and customizable (!agencyHasCustomization).
+   * Teams are always customizable; agent branding overrides team at runtime.
    */
   static async listForCustomization() {
     const result = await db.query(
@@ -264,12 +264,8 @@ class Team {
         agencyName: row.agencyName,
         hasCustomization: !!row.hasCustomization,
         agencyHasCustomization,
-        customizable: !agencyHasCustomization,
-        inheritsFromLabel: agencyHasCustomization
-          ? row.agencyName
-            ? `Overridden by agency ${row.agencyName}`
-            : "Overridden by agency branding"
-          : null,
+        customizable: true,
+        inheritsFromLabel: null,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       };
@@ -349,7 +345,6 @@ class Team {
       "agentCardLogoUrl"
     );
     const agencyHasCustomization = !!withSidebar.agencyHasCustomization;
-    const customizable = !agencyHasCustomization;
     return {
       id: withSidebar.id,
       name: withSidebar.name,
@@ -374,14 +369,10 @@ class Team {
       status: withSidebar.status ?? null,
       hasCustomization: !!withSidebar.hasCustomization,
       agencyHasCustomization,
-      customizable,
+      customizable: true,
       source: "team",
-      inheritsFromLabel: agencyHasCustomization
-        ? withSidebar.agencyName
-          ? `Overridden by agency ${withSidebar.agencyName}`
-          : "Overridden by agency branding"
-        : null,
-      inheritsFromType: agencyHasCustomization ? "agency" : null,
+      inheritsFromLabel: null,
+      inheritsFromType: null,
     };
   }
 }

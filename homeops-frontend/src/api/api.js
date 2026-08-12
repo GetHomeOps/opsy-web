@@ -676,6 +676,11 @@ class AppApi {
     return res.invitations;
   }
 
+  /** Send emails for never-sent pending invitations. Body: { invitationIds, accountId? } */
+  static async sendPendingInvitations(data) {
+    return this.request("invitations/send-pending", data, "POST");
+  }
+
   static async getReceivedInvitations(params = {}) {
     let res = await this.request("invitations/received", params);
     return res.invitations;

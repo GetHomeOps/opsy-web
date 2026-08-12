@@ -601,12 +601,16 @@ CREATE TABLE invitations (
     expires_at TIMESTAMPTZ NOT NULL,
     accepted_at TIMESTAMPTZ,
     accepted_by_user_id INTEGER REFERENCES users(id),
+    -- NULL = invitation email never successfully sent (e.g. skipInviteEmail / failed send)
+    email_sent_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX idx_invitations_email_status ON invitations(invitee_email, status);
 CREATE INDEX idx_invitations_account ON invitations(account_id, status);
 CREATE INDEX idx_invitations_property ON invitations(property_id, status);
+CREATE INDEX idx_invitations_account_never_sent ON invitations(account_id)
+  WHERE status = 'pending' AND email_sent_at IS NULL;
 
 -- ============================================================
 -- Subscription Products & Account Subscriptions (incl. Stripe billing)
@@ -1638,7 +1642,7 @@ CREATE TABLE agencies (
     phone VARCHAR(50),
     logo_url VARCHAR(500),
     status entity_approval_status NOT NULL DEFAULT 'pending',
-    -- White-label branding (agents with an active affiliation inherit these)
+    -- White-label branding (applies when agent and team have no branding)
     accent_color VARCHAR(7),
     sidebar_icon_key TEXT,
     agent_card_logo_key TEXT,
@@ -1679,7 +1683,7 @@ CREATE TABLE teams (
     office_id INTEGER NOT NULL REFERENCES offices(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     status entity_approval_status NOT NULL DEFAULT 'pending',
-    -- White-label branding (used when parent agency has no customization)
+    -- White-label branding (overrides agency; overridden by agent account branding)
     accent_color VARCHAR(7),
     sidebar_icon_key TEXT,
     agent_card_logo_key TEXT,

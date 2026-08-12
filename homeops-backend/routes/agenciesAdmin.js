@@ -11,7 +11,6 @@ const AgentAffiliation = require("../models/agentAffiliation");
 const User = require("../models/user");
 const { addPresignedUrlToItem } = require("../helpers/presignedUrls");
 const accountBrandingUpdateSchema = require("../schemas/accountBrandingUpdate.json");
-const { assertTeamCustomizable } = require("../services/brandingService");
 
 const router = express.Router();
 
@@ -125,7 +124,6 @@ router.patch(
   async function (req, res, next) {
     try {
       const teamId = parseRouteId(req.params.teamId, "team id");
-      await assertTeamCustomizable(teamId);
       const validator = jsonschema.validate(req.body, accountBrandingUpdateSchema);
       if (!validator.valid) {
         const errs = validator.errors.map((e) => e.stack);

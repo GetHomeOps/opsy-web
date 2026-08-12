@@ -3,11 +3,11 @@
 /**
  * Resolve effective white-label branding for an account.
  *
- * Rules:
- * - Agency with customization → agency branding
+ * Rules (most specific wins):
+ * - Agent account with customization → own account branding
  * - Else team with customization → team branding
- * - Agent without affiliation → own account branding
- * - Affiliated agent with neither agency nor team customization → Opsy defaults
+ * - Else agency with customization → agency branding
+ * - Else → Opsy defaults (empty fields)
  * - Homeowner with active property sponsor → sponsor agent’s effective branding
  * - Otherwise → Opsy defaults (empty fields)
  */
@@ -49,6 +49,7 @@ async function getAccountOwnerContext(accountId) {
             u.role::text AS "ownerRole",
             u.name AS "ownerName",
             u.email AS "ownerEmail",
+            ${HAS_CUSTOMIZATION_SQL("a")} AS "accountHasCustomization",
             aff.agency_id AS "agencyId",
             ag.name AS "agencyName",
             ${HAS_CUSTOMIZATION_SQL("ag")} AS "agencyHasCustomization",
@@ -72,6 +73,7 @@ async function getAccountOwnerContext(accountId) {
   if (!row) throw new NotFoundError(`No account with id: ${accountId}`);
   return {
     ...row,
+    accountHasCustomization: !!row.accountHasCustomization,
     agencyHasCustomization: !!row.agencyHasCustomization,
     teamHasCustomization: !!row.teamHasCustomization,
   };
@@ -97,42 +99,30 @@ async function getActiveSponsorAccountId(accountId) {
 }
 
 /**
- * Whether this account may be customized (unaffiliated agent account).
+ * Whether this account may be customized (any agent account).
  * @param {number|string} accountId
  */
 async function isAccountCustomizable(accountId) {
   const ctx = await getAccountOwnerContext(accountId);
-  return ctx.ownerRole === "agent" && !ctx.agencyId;
+  return ctx.ownerRole === "agent";
 }
 
 /**
- * Whether a team may be customized (parent agency has no branding).
+ * Whether a team may be customized (team exists).
  * @param {number|string} teamId
  */
 async function isTeamCustomizable(teamId) {
-  const result = await db.query(
-    `SELECT ${HAS_CUSTOMIZATION_SQL("ag")} AS "agencyHasCustomization"
-     FROM teams t
-     INNER JOIN offices o ON o.id = t.office_id
-     INNER JOIN agencies ag ON ag.id = o.agency_id
-     WHERE t.id = $1`,
-    [teamId]
-  );
+  const result = await db.query(`SELECT id FROM teams WHERE id = $1`, [teamId]);
   if (!result.rows[0]) throw new NotFoundError(`Team not found: ${teamId}`);
-  return !result.rows[0].agencyHasCustomization;
+  return true;
 }
 
 /**
- * Reject branding updates for teams overridden by agency branding.
+ * Reject branding updates when the team does not exist.
  * @param {number|string} teamId
  */
 async function assertTeamCustomizable(teamId) {
-  const ok = await isTeamCustomizable(teamId);
-  if (!ok) {
-    throw new BadRequestError(
-      "This team can’t be customized while its agency has branding. Clear the agency customization first, or edit the agency instead."
-    );
-  }
+  await isTeamCustomizable(teamId);
 }
 
 /**
@@ -145,59 +135,70 @@ function buildListMeta(row) {
   const agencyName = row.agencyName ?? null;
   const teamId = row.teamId ?? null;
   const teamName = row.teamName ?? null;
+  const accountHasCustomization = !!row.accountHasCustomization;
   const agencyHasCustomization = !!row.agencyHasCustomization;
   const teamHasCustomization = !!row.teamHasCustomization;
-  const customizable = accountType === "agent" && !agencyId;
+  const customizable = accountType === "agent";
 
   let inheritsFromLabel = null;
   let inheritsFromType = null;
 
-  if (!customizable) {
-    if (accountType === "agent" && agencyId) {
-      if (agencyHasCustomization) {
-        inheritsFromType = "agency";
-        inheritsFromLabel = agencyName
-          ? `Inherits from agency ${agencyName}`
-          : "Inherits from agency";
-      } else if (teamId && teamHasCustomization) {
-        inheritsFromType = "team";
-        inheritsFromLabel = teamName
-          ? `Inherits from team ${teamName}`
-          : "Inherits from team";
+  if (accountType === "agent") {
+    if (accountHasCustomization) {
+      inheritsFromType = "account";
+      inheritsFromLabel = null;
+    } else if (teamId && teamHasCustomization) {
+      inheritsFromType = "team";
+      inheritsFromLabel = teamName
+        ? `Inherits from team ${teamName}.`
+        : "Inherits from team.";
+    } else if (agencyId && agencyHasCustomization) {
+      inheritsFromType = "agency";
+      inheritsFromLabel = agencyName
+        ? `Inherits from agency ${agencyName}.`
+        : "Inherits from agency.";
+    } else {
+      inheritsFromType = "default";
+      inheritsFromLabel = "Uses Opsy defaults (no agent, team, or agency branding).";
+    }
+  } else if (accountType === "homeowner") {
+    if (row.sponsorAccountId || row.inheritsFromSponsor) {
+      if (row.sponsorAccountHasCustomization) {
+        const sponsorName =
+          row.sponsorAccountName ||
+          row.sponsorAgencyName ||
+          row.inheritsFromLabelName;
+        inheritsFromType = "sponsor_agent";
+        inheritsFromLabel = sponsorName
+          ? `Inherits from sponsoring agent ${sponsorName}.`
+          : "Inherits from sponsoring agent.";
+      } else if (row.sponsorTeamHasCustomization) {
+        inheritsFromType = "sponsor_team";
+        inheritsFromLabel = row.sponsorTeamName
+          ? `Inherits from team ${row.sponsorTeamName} (via sponsoring agent).`
+          : "Inherits from sponsoring agent's team.";
+      } else if (row.sponsorAgencyHasCustomization) {
+        inheritsFromType = "sponsor_agency";
+        inheritsFromLabel = row.sponsorAgencyName
+          ? `Inherits from agency ${row.sponsorAgencyName} (via sponsoring agent).`
+          : "Inherits from sponsoring agent's agency.";
       } else {
-        inheritsFromType = "default";
-        inheritsFromLabel = "Uses Opsy defaults (no agency or team branding)";
-      }
-    } else if (accountType === "homeowner") {
-      if (row.sponsorAccountId || row.inheritsFromSponsor) {
-        if (row.sponsorAgencyHasCustomization) {
-          inheritsFromType = "sponsor_agency";
-          inheritsFromLabel = row.sponsorAgencyName
-            ? `Inherits from agency ${row.sponsorAgencyName} (via sponsoring agent)`
-            : "Inherits from sponsoring agent's agency";
-        } else if (row.sponsorTeamHasCustomization) {
-          inheritsFromType = "sponsor_team";
-          inheritsFromLabel = row.sponsorTeamName
-            ? `Inherits from team ${row.sponsorTeamName} (via sponsoring agent)`
-            : "Inherits from sponsoring agent's team";
-        } else {
-          const sponsorName =
-            row.sponsorAccountName ||
-            row.sponsorAgencyName ||
-            row.inheritsFromLabelName;
-          inheritsFromType = "sponsor_agent";
-          inheritsFromLabel = sponsorName
-            ? `Inherits from sponsoring agent ${sponsorName}`
-            : "Inherits from sponsoring agent";
-        }
-      } else {
-        inheritsFromType = "default";
-        inheritsFromLabel = "Homeowner accounts aren’t customizable";
+        const sponsorName =
+          row.sponsorAccountName ||
+          row.sponsorAgencyName ||
+          row.inheritsFromLabelName;
+        inheritsFromType = "sponsor_agent";
+        inheritsFromLabel = sponsorName
+          ? `Inherits from sponsoring agent ${sponsorName}.`
+          : "Inherits from sponsoring agent.";
       }
     } else {
       inheritsFromType = "default";
-      inheritsFromLabel = "Only agent accounts without an agency can be customized";
+      inheritsFromLabel = "Homeowner accounts aren’t customizable.";
     }
+  } else {
+    inheritsFromType = "default";
+    inheritsFromLabel = "Only agent accounts can be customized.";
   }
 
   return {
@@ -228,6 +229,7 @@ async function enrichAccountsWithSponsorshipMeta(accounts) {
             p.active_sponsor_account_id AS "sponsorAccountId",
             sa.name AS "sponsorAccountName",
             sa.url AS "sponsorAccountUrl",
+            ${HAS_CUSTOMIZATION_SQL("sa")} AS "sponsorAccountHasCustomization",
             aff.agency_id AS "sponsorAgencyId",
             ag.name AS "sponsorAgencyName",
             ${HAS_CUSTOMIZATION_SQL("ag")} AS "sponsorAgencyHasCustomization",
@@ -268,6 +270,7 @@ async function enrichAccountsWithSponsorshipMeta(accounts) {
       sponsorAccountId: sponsor.sponsorAccountId,
       sponsorAccountName: sponsor.sponsorAccountName,
       sponsorAccountUrl: sponsor.sponsorAccountUrl,
+      sponsorAccountHasCustomization: !!sponsor.sponsorAccountHasCustomization,
       sponsorAgencyId: sponsor.sponsorAgencyId,
       sponsorAgencyName: sponsor.sponsorAgencyName,
       sponsorAgencyHasCustomization: !!sponsor.sponsorAgencyHasCustomization,
@@ -304,79 +307,64 @@ async function getAccountStoredBrandingPayload(accountId) {
 }
 
 /**
- * Resolve effective branding for an agent account (agency, team, or own).
+ * Resolve effective branding for an agent account (own, team, or agency).
  * Does not handle homeowners.
  */
 async function resolveAgentEffectiveBranding(accountId, ctx) {
-  if (ctx.agencyId && ctx.agencyHasCustomization) {
-    const branding = await getAgencyBrandingPayload(ctx.agencyId);
+  const baseMeta = {
+    id: ctx.id,
+    name: ctx.name,
+    url: ctx.url,
+    customizable: true,
+    agencyId: ctx.agencyId ?? null,
+    agencyName: ctx.agencyName ?? null,
+    teamId: ctx.teamId ?? null,
+    teamName: ctx.teamName ?? null,
+  };
+
+  if (ctx.accountHasCustomization) {
+    const branding = await getAccountStoredBrandingPayload(accountId);
     return {
       ...branding,
-      // Keep account identity in payload for UI shell context
-      id: ctx.id,
-      name: ctx.name,
-      url: ctx.url,
-      source: "agency",
-      customizable: false,
-      agencyId: ctx.agencyId,
-      agencyName: ctx.agencyName,
-      teamId: ctx.teamId ?? null,
-      teamName: ctx.teamName ?? null,
-      inheritsFromLabel: ctx.agencyName
-        ? `Inherits from agency ${ctx.agencyName}`
-        : "Inherits from agency",
-      inheritsFromType: "agency",
+      ...baseMeta,
+      source: "account",
+      inheritsFromLabel: null,
+      inheritsFromType: null,
     };
   }
 
-  if (ctx.agencyId && ctx.teamId && ctx.teamHasCustomization) {
+  if (ctx.teamId && ctx.teamHasCustomization) {
     const branding = await getTeamBrandingPayload(ctx.teamId);
     return {
       ...branding,
-      id: ctx.id,
-      name: ctx.name,
-      url: ctx.url,
+      ...baseMeta,
       source: "team",
-      customizable: false,
-      agencyId: ctx.agencyId,
-      agencyName: ctx.agencyName,
-      teamId: ctx.teamId,
-      teamName: ctx.teamName,
       inheritsFromLabel: ctx.teamName
-        ? `Inherits from team ${ctx.teamName}`
-        : "Inherits from team",
+        ? `Inherits from team ${ctx.teamName}.`
+        : "Inherits from team.",
       inheritsFromType: "team",
     };
   }
 
-  if (ctx.agencyId) {
+  if (ctx.agencyId && ctx.agencyHasCustomization) {
+    const branding = await getAgencyBrandingPayload(ctx.agencyId);
     return {
-      ...EMPTY_BRANDING_FIELDS,
-      id: ctx.id,
-      name: ctx.name,
-      url: ctx.url,
-      source: "default",
-      customizable: false,
-      agencyId: ctx.agencyId,
-      agencyName: ctx.agencyName,
-      teamId: ctx.teamId ?? null,
-      teamName: ctx.teamName ?? null,
-      inheritsFromLabel: "Uses Opsy defaults (no agency or team branding)",
-      inheritsFromType: "default",
+      ...branding,
+      ...baseMeta,
+      source: "agency",
+      inheritsFromLabel: ctx.agencyName
+        ? `Inherits from agency ${ctx.agencyName}.`
+        : "Inherits from agency.",
+      inheritsFromType: "agency",
     };
   }
 
-  const branding = await getAccountStoredBrandingPayload(accountId);
   return {
-    ...branding,
-    source: "account",
-    customizable: true,
-    agencyId: null,
-    agencyName: null,
-    teamId: null,
-    teamName: null,
-    inheritsFromLabel: null,
-    inheritsFromType: null,
+    ...EMPTY_BRANDING_FIELDS,
+    ...baseMeta,
+    source: "default",
+    inheritsFromLabel: "Uses Opsy defaults (no agent, team, or agency branding).",
+    inheritsFromType: "default",
   };
 }
 
@@ -406,12 +394,12 @@ async function getEffectiveAccountBranding(accountId) {
 
       let inheritsFromLabel =
         sponsorCtx.name
-          ? `Inherits from sponsoring agent ${sponsorCtx.name}`
-          : "Inherits from sponsoring agent";
+          ? `Inherits from sponsoring agent ${sponsorCtx.name}.`
+          : "Inherits from sponsoring agent.";
       if (sponsorEffective.source === "agency" && sponsorCtx.agencyName) {
-        inheritsFromLabel = `Inherits from agency ${sponsorCtx.agencyName} (via sponsoring agent)`;
+        inheritsFromLabel = `Inherits from agency ${sponsorCtx.agencyName} (via sponsoring agent).`;
       } else if (sponsorEffective.source === "team" && sponsorCtx.teamName) {
-        inheritsFromLabel = `Inherits from team ${sponsorCtx.teamName} (via sponsoring agent)`;
+        inheritsFromLabel = `Inherits from team ${sponsorCtx.teamName} (via sponsoring agent).`;
       }
 
       return {
@@ -443,7 +431,7 @@ async function getEffectiveAccountBranding(accountId) {
       agencyName: null,
       teamId: null,
       teamName: null,
-      inheritsFromLabel: "Homeowner accounts aren’t customizable",
+      inheritsFromLabel: "Homeowner accounts aren’t customizable.",
       inheritsFromType: "default",
     };
   }
@@ -459,7 +447,7 @@ async function getEffectiveAccountBranding(accountId) {
     agencyName: null,
     teamId: null,
     teamName: null,
-    inheritsFromLabel: "Only agent accounts without an agency can be customized",
+    inheritsFromLabel: "Only agent accounts can be customized.",
     inheritsFromType: "default",
   };
 }
@@ -471,9 +459,7 @@ async function getEffectiveAccountBranding(accountId) {
 async function assertAccountCustomizable(accountId) {
   const ok = await isAccountCustomizable(accountId);
   if (!ok) {
-    throw new BadRequestError(
-      "Only agent accounts that are not affiliated with an agency can be customized."
-    );
+    throw new BadRequestError("Only agent accounts can be customized.");
   }
 }
 

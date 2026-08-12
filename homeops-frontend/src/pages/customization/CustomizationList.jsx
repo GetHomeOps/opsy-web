@@ -425,7 +425,7 @@ function CustomizationList() {
       showBanner(
         "warning",
         account.inheritsFromLabel ||
-          "This account isn’t customizable. Only unaffiliated agent accounts can be customized.",
+          "This account isn’t customizable. Only agent accounts can be customized.",
       );
       return;
     }
@@ -656,30 +656,29 @@ function CustomizationList() {
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Customize shell accent, sidebar icon, and agent card for agencies, teams,
-              and unaffiliated agent accounts.
+              and agent accounts.
             </p>
             <div
               className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm text-gray-600 dark:text-gray-300"
               role="note"
             >
               <p className="font-medium text-gray-800 dark:text-gray-100 mb-1.5">
-                Who can be customized
+                Branding hierarchy
               </p>
               <ul className="list-disc pl-5 space-y-1 leading-snug">
                 <li>
                   <span className="font-medium">Agencies</span>,{" "}
-                  <span className="font-medium">teams</span> (when the parent agency has
-                  no branding), and{" "}
-                  <span className="font-medium">agent accounts without an agency</span>{" "}
-                  can be customized.
+                  <span className="font-medium">teams</span>, and{" "}
+                  <span className="font-medium">agent accounts</span> can be customized.
                 </li>
                 <li>
-                  Agency branding overrides team branding. Affiliated agents inherit
-                  agency branding when set; otherwise team branding when set.
+                  Most specific wins: agent branding overrides team and agency. Team
+                  branding overrides agency when the agent has no personal branding.
+                  Agency branding applies when neither agent nor team is customized.
                 </li>
                 <li>
-                  Homeowners inherit branding from their sponsoring agent (or the
-                  agent&apos;s agency/team) when sponsored; otherwise they use Opsy defaults.
+                  Homeowners inherit the sponsoring agent&apos;s effective branding when
+                  sponsored; otherwise they use Opsy defaults.
                 </li>
               </ul>
             </div>

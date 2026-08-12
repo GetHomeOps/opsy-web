@@ -518,6 +518,7 @@ async function createPropertyInvitation({
         mainPlainOverride: invitationEmailMainPlain || null,
         cc: invitationEmailCc,
       });
+      await Invitation.markEmailSent(invitation.id);
     } catch (err) {
       console.error("[invitationService] Failed to send invitation email:", err.message);
     }
@@ -763,6 +764,7 @@ async function createBulkPropertyInvitations({
           inviteeUserId,
           inviteeName: trimmedInviteeName || null,
         });
+        await Invitation.markEmailSentMany(autoAcceptedRows.map(({ invitation }) => invitation.id));
       } catch (err) {
         console.error("[invitationService] Failed to send bulk property-added email:", err.message);
       }
@@ -775,6 +777,7 @@ async function createBulkPropertyInvitations({
         inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
         inviteeName: trimmedInviteeName || null,
       });
+      await Invitation.markEmailSentMany(createdRows.map(({ invitation }) => invitation.id));
     } catch (err) {
       console.error("[invitationService] Failed to send bulk invitation email:", err.message);
     }
@@ -816,6 +819,7 @@ async function createAccountInvitation({
   let emailSent = false;
   try {
     await sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type: "account" });
+    await Invitation.markEmailSent(invitation.id);
     emailSent = true;
   } catch (err) {
     console.error("[invitationService] Failed to send invitation email:", err.message);
@@ -834,7 +838,10 @@ function sendAccountInvitationEmailInBackground({ invitation, token, inviterUser
     inviterUserId,
     type: "account",
   })
-    .then(() => ({ emailSent: true }))
+    .then(async () => {
+      await Invitation.markEmailSent(invitation.id);
+      return { emailSent: true };
+    })
     .catch((err) => {
       console.error("[invitationService] Background invitation email failed:", err.message);
       return { emailSent: false };
@@ -1546,7 +1553,70 @@ async function resendInvitation(invitationId, inviterUserId) {
   const { invitation, token } = await Invitation.regenerateToken(invitationId);
   const type = invitation.type || 'account';
   await sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type });
+  await Invitation.markEmailSent(invitation.id);
   return { invitation, token };
+}
+
+/**
+ * Send emails for pending invitations that have never been emailed.
+ * Partial success allowed. Only property/account invites with status=pending
+ * and email_sent_at IS NULL are eligible.
+ *
+ * @param {{ invitationIds: string[], actorUserId: number, actorRole: string, accountId?: number }} opts
+ */
+async function sendPendingInvitations({ invitationIds, actorUserId, actorRole, accountId }) {
+  if (!Array.isArray(invitationIds) || invitationIds.length === 0) {
+    throw new BadRequestError("invitationIds must be a non-empty array");
+  }
+  const uniqueIds = [...new Set(invitationIds.map((id) => String(id).trim()).filter(Boolean))];
+  if (uniqueIds.length === 0) {
+    throw new BadRequestError("invitationIds must be a non-empty array");
+  }
+
+  const isPlatformAdmin = actorRole === "admin" || actorRole === "super_admin";
+  if (!isPlatformAdmin) {
+    throw new ForbiddenError("Only platform admins can send pending invitations in bulk");
+  }
+
+  const sent = [];
+  const failed = [];
+
+  for (const id of uniqueIds) {
+    try {
+      const invitation = await Invitation.get(id);
+      if (invitation.status !== "pending") {
+        failed.push({ id, error: "Invitation is no longer pending" });
+        continue;
+      }
+      if (invitation.emailSentAt) {
+        failed.push({ id, error: "Invitation email was already sent" });
+        continue;
+      }
+      if (accountId != null && Number(invitation.accountId) !== Number(accountId)) {
+        failed.push({ id, error: "Invitation does not belong to this account" });
+        continue;
+      }
+      if (new Date(invitation.expiresAt) <= new Date()) {
+        failed.push({ id, error: "Invitation has expired" });
+        continue;
+      }
+
+      const { invitation: refreshed, token } = await Invitation.regenerateToken(id);
+      const type = refreshed.type || "account";
+      await sendInvitationEmailForInvitation({
+        invitation: refreshed,
+        token,
+        inviterUserId: actorUserId,
+        type,
+      });
+      await Invitation.markEmailSent(refreshed.id);
+      sent.push({ id: refreshed.id, inviteeEmail: refreshed.inviteeEmail });
+    } catch (err) {
+      failed.push({ id, error: err.message || "Failed to send invitation" });
+    }
+  }
+
+  return { sent, failed };
 }
 
 module.exports = {
@@ -1557,5 +1627,6 @@ module.exports = {
   acceptInvitation,
   acceptInvitationForLoggedInUser,
   resendInvitation,
+  sendPendingInvitations,
   resolvePropertyInvitationInviteUrl,
 };

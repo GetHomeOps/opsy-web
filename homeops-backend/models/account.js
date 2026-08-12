@@ -148,6 +148,7 @@ class Account {
               aff.team_id AS "teamId",
               tm.name AS "teamName",
               ${HAS_CUSTOMIZATION_SQL("tm")} AS "teamHasCustomization",
+              ${HAS_CUSTOMIZATION_SQL("a")} AS "accountHasCustomization",
               a.accent_color AS "accentColor",
               a.sidebar_icon_key AS "sidebarIconKey",
               a.agent_card_logo_key AS "agentCardLogoKey",
@@ -162,31 +163,17 @@ class Account {
               a.created_at AS "createdAt",
               a.updated_at AS "updatedAt",
               (
-                (
-                  aff.agency_id IS NULL
-                  AND (
-                    a.accent_color IS NOT NULL
-                    OR a.sidebar_icon_key IS NOT NULL
-                    OR a.agent_card_logo_key IS NOT NULL
-                    OR a.agent_card_accent_color IS NOT NULL
-                    OR a.agent_card_background_color IS NOT NULL
-                    OR a.agent_card_agent_label IS NOT NULL
-                    OR a.agent_card_company_name IS NOT NULL
-                    OR a.sidebar_text_color IS NOT NULL
-                    OR a.agent_card_text_color IS NOT NULL
-                    OR a.button_color IS NOT NULL
-                    OR a.button_text_color IS NOT NULL
-                  )
-                )
+                ${HAS_CUSTOMIZATION_SQL("a")}
                 OR (
-                  aff.agency_id IS NOT NULL
-                  AND ${HAS_CUSTOMIZATION_SQL("ag")}
-                )
-                OR (
-                  aff.agency_id IS NOT NULL
-                  AND NOT COALESCE(${HAS_CUSTOMIZATION_SQL("ag")}, false)
+                  NOT ${HAS_CUSTOMIZATION_SQL("a")}
                   AND aff.team_id IS NOT NULL
                   AND ${HAS_CUSTOMIZATION_SQL("tm")}
+                )
+                OR (
+                  NOT ${HAS_CUSTOMIZATION_SQL("a")}
+                  AND NOT COALESCE(${HAS_CUSTOMIZATION_SQL("tm")}, false)
+                  AND aff.agency_id IS NOT NULL
+                  AND ${HAS_CUSTOMIZATION_SQL("ag")}
                 )
               ) AS "hasCustomization"
        FROM accounts a
