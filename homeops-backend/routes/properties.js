@@ -8,6 +8,10 @@ const Property = require("../models/property");
 const propertyNewSchema = require("../schemas/propertyNew.json");
 const propertyUpdateSchema = require("../schemas/propertyUpdate.json");
 const { generatePassportId, isPropertyUid } = require("../helpers/properties");
+const {
+  resolvePropertiesListUserId,
+  resolveAssistantAgentUserId,
+} = require("../helpers/propertyAccess");
 const { addPresignedUrlToItem, addPresignedUrlsToItems, addUserAvatarUrlsToItems } = require("../helpers/presignedUrls");
 const { canCreateProperty, checkAiTokenQuota, checkAiFeaturesAllowed, getAccountLimits } = require("../services/tierService");
 const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
@@ -281,8 +285,11 @@ router.get("/user/:userId", ensureLoggedIn, ensurePropertyAccess({ scope: "user"
       inviteeEmail = targetUser?.email ?? null;
     }
 
+    /* Assistants are tethered to an agent and are not copied onto every
+       property_users row — list the agent's portfolio for them. */
+    const listUserId = await resolvePropertiesListUserId(req.params.userId);
     const [properties, rawPending] = await Promise.all([
-      Property.getPropertiesByUserId(req.params.userId),
+      Property.getPropertiesByUserId(listUserId),
       inviteeEmail
         ? Property.getPropertiesWithPendingInvitations(inviteeEmail)
         : Promise.resolve([]),
@@ -467,11 +474,7 @@ router.get(
       const viewer = res.locals.user;
       let agentUserId = viewer?.role === "agent" ? viewer.id : null;
       if (!agentUserId && viewer?.role === "assistant" && viewer?.id) {
-        const tether = await db.query(
-          `SELECT assistant_of_user_id AS "agentId" FROM users WHERE id = $1`,
-          [viewer.id]
-        );
-        agentUserId = tether.rows[0]?.agentId || null;
+        agentUserId = await resolveAssistantAgentUserId(viewer.id);
       }
       const rows = await Property.getAcceptedHomeownersByAccountId(
         req.params.accountId,
