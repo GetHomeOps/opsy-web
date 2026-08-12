@@ -7,7 +7,8 @@ const ROLE_SORT_ORDER = {
   superadmin: 0,
   admin: 1,
   agent: 2,
-  homeowner: 3,
+  assistant: 3,
+  homeowner: 4,
 };
 
 const BILLING_SORT_RANK = {
@@ -75,7 +76,12 @@ export function getUserRoleSortValue(user) {
 
 export function getUserBillingSortMeta(user) {
   const role = (user?.role || "").toLowerCase();
-  if (role === "super_admin" || role === "admin" || role === "superadmin") {
+  if (
+    role === "super_admin" ||
+    role === "admin" ||
+    role === "superadmin" ||
+    role === "assistant"
+  ) {
     return {rank: BILLING_SORT_RANK.exempt_staff, tie: 0};
   }
 

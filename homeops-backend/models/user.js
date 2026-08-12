@@ -462,6 +462,8 @@ class User {
   /* Get all users by account id */
   static async getByAccountId(accountId) {
     try {
+      /* Include account members plus pending tethered assistants for agents on
+         this account (assistants join account_users only after invite accept). */
       const userRes = await db.query(`
       SELECT u.id,
              u.email,
@@ -469,14 +471,49 @@ class User {
              u.phone,
              u.contact_id AS "contact",
              u.is_active AS "isActive",
+             u.onboarding_completed AS "onboardingCompleted",
              u.image,
              u.avatar_url AS "avatarUrl",
-             au.role,
+             u.role::text AS role,
+             au.role::text AS "accountRole",
+             u.assistant_of_user_id AS "assistantOfUserId",
+             tether_agent.name AS "assistantOfUserName",
+             tether_agent.email AS "assistantOfUserEmail",
              a.url AS "accountUrl"
       FROM account_users au
       JOIN users u ON u.id = au.user_id
       JOIN accounts a ON a.id = au.account_id
-      WHERE au.account_id = $1`,
+      LEFT JOIN users tether_agent ON tether_agent.id = u.assistant_of_user_id
+      WHERE au.account_id = $1
+
+      UNION
+
+      SELECT u.id,
+             u.email,
+             u.name,
+             u.phone,
+             u.contact_id AS "contact",
+             u.is_active AS "isActive",
+             u.onboarding_completed AS "onboardingCompleted",
+             u.image,
+             u.avatar_url AS "avatarUrl",
+             u.role::text AS role,
+             NULL::text AS "accountRole",
+             u.assistant_of_user_id AS "assistantOfUserId",
+             tether_agent.name AS "assistantOfUserName",
+             tether_agent.email AS "assistantOfUserEmail",
+             a.url AS "accountUrl"
+      FROM users u
+      JOIN users tether_agent ON tether_agent.id = u.assistant_of_user_id
+      JOIN account_users au_agent ON au_agent.user_id = u.assistant_of_user_id
+      JOIN accounts a ON a.id = au_agent.account_id
+      WHERE au_agent.account_id = $1
+        AND u.role = 'assistant'
+        AND u.assistant_of_user_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM account_users au_self
+          WHERE au_self.account_id = $1 AND au_self.user_id = u.id
+        )`,
         [accountId]
       );
       return userRes.rows;
@@ -598,6 +635,9 @@ class User {
                u.created_at AS "createdAt",
                u.updated_at AS "updatedAt",
                u.demo_expires_at AS "demoExpiresAt",
+               u.assistant_of_user_id AS "assistantOfUserId",
+               tether_agent.name AS "assistantOfUserName",
+               tether_agent.email AS "assistantOfUserEmail",
                primary_account.url AS "accountUrl",
                latest_sub.status AS "latestSubscriptionStatus",
                latest_sub.code AS "latestSubscriptionPlanCode",
@@ -665,6 +705,7 @@ class User {
                  ELSE 'active'
                END AS "accessState"
         FROM users u
+        LEFT JOIN users tether_agent ON tether_agent.id = u.assistant_of_user_id
         LEFT JOIN LATERAL (
           SELECT a.url
           FROM account_users au
