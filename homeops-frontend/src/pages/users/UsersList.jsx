@@ -679,7 +679,10 @@ function UsersList() {
     try {
       const user = await startImpersonation(impersonateTarget.id);
       setImpersonateTarget(null);
-      const targetAccountUrl = user?.accounts?.[0]?.url || accountUrl;
+      const targetAccountUrl =
+        user?.accounts?.[0]?.url ||
+        impersonateTarget?.accountUrl ||
+        accountUrl;
       navigate(targetAccountUrl ? `/${targetAccountUrl}/home` : "/");
     } catch (error) {
       dispatch({

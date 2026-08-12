@@ -418,6 +418,17 @@ router.get("/by-id/:userId", ensureLoggedIn, ensurePlatformAdmin, async function
       userWithUrl.affiliation = await AgentAffiliation.getActiveForUser(userId);
     }
 
+    if (user.role === "assistant" && user.assistantOfUserId) {
+      try {
+        const agent = await User.getById(user.assistantOfUserId);
+        userWithUrl.assistantOfUserName = agent?.name || null;
+        userWithUrl.assistantOfUserEmail = agent?.email || null;
+      } catch (_) {
+        userWithUrl.assistantOfUserName = null;
+        userWithUrl.assistantOfUserEmail = null;
+      }
+    }
+
     let pairedHomeowner = null;
     if (isDemoEnvironment() && res.locals.user?.role === "super_admin" && user.role === "agent") {
       pairedHomeowner = await getPairedDemoHomeownerForAgent(userId);

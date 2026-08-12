@@ -195,6 +195,8 @@ function UsersTable({
         "bg-indigo-100 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400",
       agent:
         "bg-[#3b82f6]/20 dark:bg-[#3b82f6]/20 text-[#1d4ed8] dark:text-[#93c5fd]",
+      assistant:
+        "bg-teal-100 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300",
       homeowner:
         "bg-[#22c55e]/20 dark:bg-[#22c55e]/20 text-[#15803d] dark:text-[#86efac]",
       super_admin:
@@ -213,6 +215,7 @@ function UsersTable({
     const labels = {
       admin: "Admin",
       agent: t("subscriptionProducts.agent") || "Agent",
+      assistant: t("assistants.roleLabel", {defaultValue: "Assistant"}),
       homeowner: t("subscriptionProducts.homeowner") || "Homeowner",
       super_admin: "Super Admin",
       superadmin: "Super Admin",
@@ -255,15 +258,33 @@ function UsersTable({
         key: "role",
         label: t("role"),
         sortable: true,
-        render: (value) => (
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getRolePillStyles(
-              value,
-            )}`}
-          >
-            {getRoleLabel(value)}
-          </span>
-        ),
+        render: (value, item) => {
+          const tetherName =
+            item?.assistantOfUserName || item?.assistant_of_user_name || "";
+          const isAssistant = (value || "").toLowerCase() === "assistant";
+          return (
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold w-fit ${getRolePillStyles(
+                  value,
+                )}`}
+              >
+                {getRoleLabel(value)}
+              </span>
+              {isAssistant && tetherName ? (
+                <span
+                  className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[12rem]"
+                  title={tetherName}
+                >
+                  {t("assistants.tetheredTo", {
+                    defaultValue: "Tethered to {{name}}",
+                    name: tetherName,
+                  })}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         key: "status",
@@ -382,6 +403,14 @@ function UsersTable({
             return badge(
               gray,
               t("users.billingExemptStaff", {defaultValue: "Exempt (staff)"}),
+            );
+          }
+          if (role === "assistant") {
+            return badge(
+              gray,
+              t("users.billingExemptAssistant", {
+                defaultValue: "Exempt (assistant)",
+              }),
             );
           }
 
