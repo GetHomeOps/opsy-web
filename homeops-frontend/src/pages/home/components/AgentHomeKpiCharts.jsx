@@ -24,9 +24,19 @@ function formatEngagementEventType(t, eventType) {
   return String(eventType).replace(/_/g, " ");
 }
 
+function ChartSkeleton({className = "h-36"}) {
+  return (
+    <div
+      className={`${className} bg-gray-100 dark:bg-gray-700/60 rounded-lg animate-pulse`}
+      aria-hidden
+    />
+  );
+}
+
 function AgentHomeKpiCharts({
   t,
   totalProperties,
+  propertiesLoading = false,
   chartOptions,
   healthDoughnutData,
   healthDistribution,
@@ -66,7 +76,9 @@ function AgentHomeKpiCharts({
               {t("agentHome.mostVisitedPropertiesDesc") ||
                 "Top properties visited by homeowners this week"}
             </p>
-            {propertyVisitsChartData ? (
+            {propertiesLoading ? (
+              <ChartSkeleton className="h-36" />
+            ) : propertyVisitsChartData ? (
               <div className="h-36 min-h-0">
                 <Bar
                   data={propertyVisitsChartData}
@@ -131,7 +143,9 @@ function AgentHomeKpiCharts({
               {t("agentHome.activitiesPerPropertyDesc") ||
                 "AI requests, documents, to-dos, and more"}
             </p>
-            {activitiesByPropertyChartData ? (
+            {propertiesLoading ? (
+              <ChartSkeleton className="h-44" />
+            ) : activitiesByPropertyChartData ? (
               <div className="h-44">
                 <Bar
                   data={activitiesByPropertyChartData}
@@ -189,7 +203,9 @@ function AgentHomeKpiCharts({
               {t("agentHome.healthDistributionDescription") ||
                 "Property health scores across your portfolio"}
             </p>
-            {healthDoughnutData ? (
+            {propertiesLoading ? (
+              <ChartSkeleton className="h-44" />
+            ) : healthDoughnutData ? (
               <>
                 <div className="h-44 flex items-center justify-center">
                   <Doughnut
@@ -451,7 +467,9 @@ function AgentHomeKpiCharts({
               {t("agentHome.healthByPropertyDesc") ||
                 "Individual property health scores"}
             </p>
-            {healthByPropertyData ? (
+            {propertiesLoading ? (
+              <ChartSkeleton className="h-48" />
+            ) : healthByPropertyData ? (
               <div className="h-48">
                 <Bar
                   data={healthByPropertyData}
@@ -489,7 +507,9 @@ function AgentHomeKpiCharts({
               {t("agentHome.teamByPropertyDesc") ||
                 "Team members assigned to each property"}
             </p>
-            {teamByPropertyData ? (
+            {propertiesLoading ? (
+              <ChartSkeleton className="h-48" />
+            ) : teamByPropertyData ? (
               <div className="h-48">
                 <Bar
                   data={teamByPropertyData}

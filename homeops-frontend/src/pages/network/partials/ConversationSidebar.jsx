@@ -1,5 +1,6 @@
 import React, {useState, useMemo} from "react";
 import {MessageSquare, UserPlus, Share2, Search, X} from "lucide-react";
+import NewConversationDropdown from "./NewConversationDropdown";
 
 const KIND_ICONS = {
   text: MessageSquare,
@@ -34,7 +35,17 @@ function formatTime(iso) {
   return d.toLocaleDateString("en-US", {month: "short", day: "numeric"});
 }
 
-function primaryParticipant(conv, forHomeowner) {
+function primaryParticipant(conv, forHomeowner, currentUserId) {
+  if (!conv.propertyUid) {
+    const iAmHomeownerSlot = Number(conv.homeownerUserId) === Number(currentUserId);
+    const name = iAmHomeownerSlot
+      ? conv.agentName || "User"
+      : conv.homeownerName || "User";
+    return {
+      name,
+      initial: (name || "?").charAt(0).toUpperCase(),
+    };
+  }
   if (forHomeowner) {
     return {
       name: conv.agentName || "Agent",
@@ -55,6 +66,13 @@ function ConversationSidebar({
   msgSidebarOpen,
   setMsgSidebarOpen,
   forHomeowner = false,
+  canStartConversation = false,
+  partners = [],
+  partnersLoading = false,
+  startingConversation = false,
+  onStartConversation,
+  forAdmin = false,
+  currentUserId,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -78,7 +96,7 @@ function ConversationSidebar({
     >
       <div className="sticky top-16 bg-white dark:bg-[#151D2C] overflow-x-hidden overflow-y-auto no-scrollbar shrink-0 border-r border-gray-200 dark:border-gray-700/60 md:w-[18rem] lg:w-[20rem] h-[calc(100dvh-64px)]">
         {/* Header */}
-        <div className="sticky top-0 z-10">
+        <div className="sticky top-0 z-20 overflow-visible">
           <div className="flex items-center bg-white dark:bg-[#151D2C] border-b border-gray-200 dark:border-gray-700/60 px-5 h-16">
             <div className="w-full flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -90,14 +108,26 @@ function ConversationSidebar({
                   </span>
                 )}
               </div>
-              <button
-                className="md:hidden text-gray-400 hover:text-gray-500"
-                onClick={() => setMsgSidebarOpen(false)}
-                aria-controls="messages-sidebar"
-              >
-                <span className="sr-only">Close sidebar</span>
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                {canStartConversation && (
+                  <NewConversationDropdown
+                    partners={partners}
+                    loading={partnersLoading}
+                    starting={startingConversation}
+                    forHomeowner={forHomeowner}
+                    forAdmin={forAdmin}
+                    onSelect={onStartConversation}
+                  />
+                )}
+                <button
+                  className="md:hidden text-gray-400 hover:text-gray-500"
+                  onClick={() => setMsgSidebarOpen(false)}
+                  aria-controls="messages-sidebar"
+                >
+                  <span className="sr-only">Close sidebar</span>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -144,7 +174,7 @@ function ConversationSidebar({
                 const selected = conv.id === selectedConvId;
                 const unread = (conv.unreadCount || 0) > 0;
                 const Icon = KIND_ICONS[conv.lastMessageKind] || MessageSquare;
-                const primary = primaryParticipant(conv, forHomeowner);
+                const primary = primaryParticipant(conv, forHomeowner, currentUserId);
 
                 return (
                   <li key={conv.id}>

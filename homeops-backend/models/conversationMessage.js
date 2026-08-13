@@ -106,6 +106,65 @@ class ConversationMessage {
     return result.rows;
   }
 
+  /** Public fields copied onto a share_contact payload for the recipient. */
+  static snapshotFromContact(contact) {
+    if (!contact) return null;
+    return {
+      contactId: contact.id,
+      name: contact.name || null,
+      phone: contact.phone || null,
+      email: contact.email || null,
+      role: contact.role || null,
+    };
+  }
+
+  /**
+   * Attach name/phone/email/role to share_contact messages that only have contactId.
+   * Does not persist; used when listing so older messages still render for recipients.
+   */
+  static async hydrateShareContactPayloads(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) return messages;
+
+    const ids = [
+      ...new Set(
+        messages
+          .filter(
+            (m) =>
+              m.kind === "share_contact" &&
+              m.payload?.contactId &&
+              m.payload.name == null
+          )
+          .map((m) => parseInt(m.payload.contactId, 10))
+          .filter((id) => id && !Number.isNaN(id))
+      ),
+    ];
+    if (ids.length === 0) return messages;
+
+    const result = await db.query(
+      `SELECT id, name, phone, email, role FROM contacts WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+    const byId = new Map(result.rows.map((r) => [Number(r.id), r]));
+
+    return messages.map((m) => {
+      if (m.kind !== "share_contact" || m.payload?.name != null || !m.payload?.contactId) {
+        return m;
+      }
+      const contact = byId.get(Number(m.payload.contactId));
+      if (!contact) return m;
+      return {
+        ...m,
+        payload: {
+          ...m.payload,
+          name: contact.name || null,
+          phone: contact.phone || null,
+          email: contact.email || null,
+          role: contact.role || null,
+        },
+      };
+    });
+  }
+
   static async getById(id) {
     const result = await db.query(
       `SELECT id, conversation_id AS "conversationId",

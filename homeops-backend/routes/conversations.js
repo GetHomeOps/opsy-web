@@ -2,10 +2,13 @@
 
 const express = require("express");
 const { ensureLoggedIn, ensureAdminOrSuperAdmin } = require("../middleware/auth");
+const { ForbiddenError, BadRequestError } = require("../expressError");
 const Conversation = require("../models/conversation");
 const ConversationMessage = require("../models/conversationMessage");
+const Contact = require("../models/contact");
 const Property = require("../models/property");
 const User = require("../models/user");
+const Account = require("../models/account");
 const Notification = require("../models/notification");
 
 const router = express.Router();
@@ -20,25 +23,80 @@ function messageNotificationTitle(kind, senderName) {
   return `${who} sent you a message`;
 }
 
-/** POST / — Create or find a conversation (any logged-in user on the property). */
+/** POST / — Create or find a conversation. */
 router.post("/", ensureLoggedIn, async (req, res, next) => {
   try {
     const userId = res.locals.user.id;
-    const { propertyUid, agentUserId, accountId } = req.body || {};
-    if (!propertyUid || agentUserId == null || !accountId) {
-      return res.status(400).json({ error: { message: "propertyUid, agentUserId, and accountId are required" } });
+    const role = String(res.locals.user.role || "").toLowerCase();
+    const { propertyUid, agentUserId, homeownerUserId, accountId, otherUserId } = req.body || {};
+
+    if (role === "admin" || role === "super_admin") {
+      if (!accountId || otherUserId == null) {
+        throw new BadRequestError("accountId and otherUserId are required");
+      }
+      if (Number(otherUserId) === Number(userId)) {
+        throw new BadRequestError("Cannot message yourself.");
+      }
+      if (role === "admin") {
+        const linked = await Account.isUserLinkedToAccount(userId, accountId);
+        if (!linked) throw new ForbiddenError("Not authorized to start a conversation on this account.");
+        const belongs = await Conversation.userBelongsToAccount(otherUserId, accountId);
+        if (!belongs) {
+          throw new ForbiddenError("That user is not on this account.");
+        }
+      } else {
+        const other = await User.getById(otherUserId);
+        if (!other || other.isActive === false) {
+          throw new BadRequestError("That user is not available.");
+        }
+      }
+      const conv = await Conversation.findOrCreateDirect({
+        accountId,
+        userAId: userId,
+        userBId: otherUserId,
+      });
+      return res.status(200).json({ conversation: conv });
+    }
+
+    if (!propertyUid || !accountId) {
+      throw new BadRequestError("propertyUid and accountId are required");
+    }
+
+    let resolvedHomeownerId;
+    let resolvedAgentId;
+
+    if (role === "homeowner") {
+      if (agentUserId == null) {
+        throw new BadRequestError("agentUserId is required");
+      }
+      resolvedHomeownerId = userId;
+      resolvedAgentId = agentUserId;
+    } else if (role === "agent") {
+      if (homeownerUserId == null) {
+        throw new BadRequestError("homeownerUserId is required");
+      }
+      resolvedHomeownerId = homeownerUserId;
+      resolvedAgentId = userId;
+    } else {
+      throw new ForbiddenError("Only homeowners, agents, admins, and super admins can start a conversation.");
     }
 
     const property = await Property.get(propertyUid);
     if (Number(property.account_id) !== Number(accountId)) {
-      return res.status(400).json({ error: { message: "accountId does not match this property" } });
+      throw new BadRequestError("accountId does not match this property");
     }
+
+    await Conversation.verifyParticipantsOnProperty(
+      property.id,
+      resolvedHomeownerId,
+      resolvedAgentId
+    );
 
     const conv = await Conversation.findOrCreate({
       accountId: property.account_id,
       propertyId: property.id,
-      homeownerUserId: userId,
-      agentUserId,
+      homeownerUserId: resolvedHomeownerId,
+      agentUserId: resolvedAgentId,
     });
 
     return res.status(200).json({ conversation: conv });
@@ -94,6 +152,38 @@ router.get("/as-agent", ensureLoggedIn, async (req, res, next) => {
   }
 });
 
+/** GET /partners — Related people the current user can start a conversation with. */
+router.get("/partners", ensureLoggedIn, async (req, res, next) => {
+  try {
+    const user = res.locals.user;
+    const role = String(user.role || "").toLowerCase();
+    if (
+      role !== "homeowner" &&
+      role !== "agent" &&
+      role !== "admin" &&
+      role !== "super_admin"
+    ) {
+      return res.status(403).json({ error: { message: "You cannot list messaging partners." } });
+    }
+    const accountId = req.query.accountId;
+    if (role === "admin") {
+      if (!accountId) {
+        throw new BadRequestError("accountId is required");
+      }
+      const linked = await Account.isUserLinkedToAccount(user.id, accountId);
+      if (!linked) throw new ForbiddenError("Not authorized to view this account.");
+    }
+    const partners = await Conversation.listPartners({
+      userId: user.id,
+      role,
+      accountId,
+    });
+    return res.json({ partners });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 /** GET /:id/messages — Paginated message history for a conversation. */
 router.get("/:id/messages", ensureLoggedIn, async (req, res, next) => {
   try {
@@ -102,7 +192,8 @@ router.get("/:id/messages", ensureLoggedIn, async (req, res, next) => {
       limit: req.query.limit,
       before: req.query.before,
     });
-    return res.json({ messages });
+    const hydrated = await ConversationMessage.hydrateShareContactPayloads(messages);
+    return res.json({ messages: hydrated });
   } catch (err) {
     return next(err);
   }
@@ -116,7 +207,21 @@ router.post("/:id/messages", ensureLoggedIn, async (req, res, next) => {
     const { kind } = req.body;
 
     ConversationMessage.assertKind(kind);
-    const payload = ConversationMessage.normalizePayload(kind, req.body);
+    let payload = ConversationMessage.normalizePayload(kind, req.body);
+
+    if (kind === "share_contact") {
+      const allowed = await Contact.userCanAccess(
+        payload.contactId,
+        senderUserId,
+        res.locals.user.role
+      );
+      if (!allowed) throw new ForbiddenError("You do not have access to this contact.");
+      const contact = await Contact.get(payload.contactId);
+      payload = {
+        ...payload,
+        ...ConversationMessage.snapshotFromContact(contact),
+      };
+    }
 
     const msg = await ConversationMessage.create({
       conversationId: conv.id,

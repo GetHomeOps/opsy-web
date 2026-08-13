@@ -1,6 +1,6 @@
 import React, {useState, useEffect} from "react";
-import {Briefcase, Phone, Mail, Star, MapPin} from "lucide-react";
-import AppApi from "../../../api/api";
+import {Briefcase, Phone, Mail, Star, MapPin, Bookmark, Check, Loader2} from "lucide-react";
+import AppApi, {getApiErrorMessage} from "../../../api/api";
 import {
   formatUSPhoneInput,
   telUriFromUSPhone,
@@ -9,13 +9,19 @@ import {
 function SharedProfessionalCard({professionalId, isOwn}) {
   const [professional, setProfessional] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     AppApi.getProfessional(professionalId)
       .then((p) => {
-        if (!cancelled) setProfessional(p);
+        if (!cancelled) {
+          setProfessional(p);
+          setSaved(Boolean(p?.saved));
+        }
       })
       .catch(() => {
         if (!cancelled) setProfessional(null);
@@ -27,6 +33,21 @@ function SharedProfessionalCard({professionalId, isOwn}) {
       cancelled = true;
     };
   }, [professionalId]);
+
+  const handleSave = async (e) => {
+    e.stopPropagation();
+    if (saving || saved || !professionalId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await AppApi.saveProfessional(professionalId);
+      setSaved(true);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Could not save professional"));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -116,6 +137,29 @@ function SharedProfessionalCard({professionalId, isOwn}) {
           </a>
         )}
       </div>
+
+      {!isOwn && (
+        <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || saved}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-[#456564] text-white hover:bg-[#3a5554] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : saved ? (
+              <Check className="w-3 h-3" />
+            ) : (
+              <Bookmark className="w-3 h-3" />
+            )}
+            {saved ? "Saved" : "Save to Professionals"}
+          </button>
+          {error && (
+            <p className="text-[11px] text-red-500 mt-1.5">{error}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

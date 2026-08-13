@@ -2,6 +2,7 @@ import React, {useState, useEffect, useCallback} from "react";
 import {useTranslation} from "react-i18next";
 import {Building2} from "lucide-react";
 import AppApi from "../../../api/api";
+import {useAuth} from "../../../context/AuthContext";
 
 function agencyInitials(name) {
   if (!name || typeof name !== "string") return "A";
@@ -19,10 +20,17 @@ function agencyInitials(name) {
  */
 function AgentHomeAgencyCard() {
   const {t} = useTranslation();
-  const [loading, setLoading] = useState(true);
+  const {currentUser} = useAuth();
+  const isAgent = (currentUser?.role ?? "").toLowerCase() === "agent";
+  const [loading, setLoading] = useState(isAgent);
   const [agency, setAgency] = useState(null);
 
   const load = useCallback(async () => {
+    if (!isAgent) {
+      setAgency(null);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await AppApi.getMyAffiliation();
       if (res?.status === "affiliated" && res?.affiliation?.agency?.name) {
@@ -35,13 +43,18 @@ function AgentHomeAgencyCard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAgent]);
 
   useEffect(() => {
+    if (!isAgent) {
+      setAgency(null);
+      setLoading(false);
+      return undefined;
+    }
     load();
     window.addEventListener("opsy:affiliation-refresh", load);
     return () => window.removeEventListener("opsy:affiliation-refresh", load);
-  }, [load]);
+  }, [load, isAgent]);
 
   if (loading || !agency) return null;
 

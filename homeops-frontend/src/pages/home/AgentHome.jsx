@@ -22,7 +22,6 @@ import {
   MapPin,
   Activity,
   Home,
-  Loader2,
   Sparkles,
   Newspaper,
   MessageSquarePlus,
@@ -59,6 +58,31 @@ const DEFAULT_AGENT_HOME_PROPERTIES_PER_PAGE = 6;
 
 const AGENT_HOMEOWNERS_PAGE_SIZES = [5, 10, 20];
 const DEFAULT_AGENT_HOMEOWNERS_PER_PAGE = 10;
+
+function PropertyCardSkeleton() {
+  return (
+    <div
+      className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 overflow-hidden shadow-sm"
+      aria-hidden
+    >
+      <div className="aspect-[16/10] bg-gray-200 dark:bg-gray-700 animate-pulse" />
+      <div className="p-4 space-y-3">
+        <div className="space-y-2">
+          <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="h-3 w-1/2 bg-gray-100 dark:bg-gray-700/60 rounded animate-pulse" />
+        </div>
+        <div className="h-2 w-full bg-gray-100 dark:bg-gray-700/60 rounded-full animate-pulse" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            <div className="h-3 w-16 bg-gray-100 dark:bg-gray-700/60 rounded animate-pulse" />
+          </div>
+          <div className="h-4 w-4 bg-gray-100 dark:bg-gray-700/60 rounded animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function HomeownerCardSkeleton() {
   return (
@@ -248,7 +272,7 @@ function AgentHome() {
   const {t} = useTranslation();
   const {currentUser} = useAuth();
   const navigate = useNavigate();
-  const {properties, getPropertyTeam, currentAccount} =
+  const {properties, propertiesLoading, getPropertyTeam, currentAccount} =
     useContext(PropertyContext);
   const {users} = useContext(UserContext);
   const {contacts} = useContext(ContactContext);
@@ -802,17 +826,6 @@ function AgentHome() {
     navigate(`/${accountUrl}/properties/${uid}`);
   };
 
-  // ─── Loading State ──────────────────────────────────────────────
-  const isLoading = !properties;
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <Loader2 className="w-10 h-10 text-[#456564] animate-spin mb-4" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* ============================================ */}
@@ -828,7 +841,9 @@ function AgentHome() {
               "Here's an overview of your properties and homeowner engagement."}
           </p>
         </div>
-        <AgentHomeAgencyCard />
+        {(currentUser?.role ?? "").toLowerCase() === "agent" && (
+          <AgentHomeAgencyCard />
+        )}
       </div>
 
       {/* ============================================ */}
@@ -839,6 +854,7 @@ function AgentHome() {
         totalProperties={totalProperties}
         stats={stats}
         loading={isLoadingHomeowners}
+        propertiesLoading={propertiesLoading}
         onHomeownersClick={() => setHomeownersModalOpen(true)}
       />
 
@@ -1042,9 +1058,16 @@ function AgentHome() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               {t("agentHome.yourProperties") || "Your Properties"}
             </h2>
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-              {totalProperties}
-            </span>
+            {propertiesLoading ? (
+              <span
+                className="h-5 w-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"
+                aria-hidden
+              />
+            ) : (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                {totalProperties}
+              </span>
+            )}
           </div>
           <button
             onClick={() => navigate(`/${accountUrl}/properties`)}
@@ -1055,8 +1078,13 @@ function AgentHome() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {totalProperties === 0 ? (
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          aria-busy={propertiesLoading}
+        >
+          {propertiesLoading ? (
+            [1, 2, 3].map((i) => <PropertyCardSkeleton key={i} />)
+          ) : totalProperties === 0 ? (
             <div className="col-span-full flex flex-col items-center justify-center py-8 px-6 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
               <Building2 className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
               <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1.5">
@@ -1214,6 +1242,7 @@ function AgentHome() {
         <AgentHomeKpiCharts
           t={t}
           totalProperties={totalProperties}
+          propertiesLoading={propertiesLoading}
           chartOptions={chartOptions}
           healthDoughnutData={healthDoughnutData}
           healthDistribution={healthDistribution}

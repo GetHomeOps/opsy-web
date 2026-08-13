@@ -1,13 +1,39 @@
-import React, {useState, useRef, useCallback} from "react";
-import {Send, Plus, Loader2} from "lucide-react";
+import React, {useState, useRef, useCallback, useEffect} from "react";
+import {Send, Plus, Loader2, User} from "lucide-react";
 import SharePicker from "./SharePicker";
 import AppApi from "../../../api/api";
 
-function ConversationFooter({conversationId, onMessageSent, accountId}) {
+function ConversationFooter({conversationId, onMessageSent, accountId, focusNonce = 0}) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
   const textareaRef = useRef(null);
+  const attachWrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!focusNonce) return;
+    textareaRef.current?.focus();
+  }, [focusNonce, conversationId]);
+
+  useEffect(() => {
+    if (!attachMenuOpen) return undefined;
+    const handler = (e) => {
+      if (attachWrapRef.current?.contains(e.target)) return;
+      setAttachMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [attachMenuOpen]);
+
+  useEffect(() => {
+    if (!attachMenuOpen) return undefined;
+    const handler = (e) => {
+      if (e.key === "Escape") setAttachMenuOpen(false);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [attachMenuOpen]);
 
   const handleSend = useCallback(async () => {
     if (!text.trim() || sending || !conversationId) return;
@@ -43,6 +69,7 @@ function ConversationFooter({conversationId, onMessageSent, accountId}) {
           contactId,
         });
         setSharePickerOpen(false);
+        setAttachMenuOpen(false);
         onMessageSent?.();
       } catch (err) {
         console.error("Failed to share contact:", err);
@@ -60,6 +87,7 @@ function ConversationFooter({conversationId, onMessageSent, accountId}) {
           professionalId,
         });
         setSharePickerOpen(false);
+        setAttachMenuOpen(false);
         onMessageSent?.();
       } catch (err) {
         console.error("Failed to share professional:", err);
@@ -68,19 +96,52 @@ function ConversationFooter({conversationId, onMessageSent, accountId}) {
     [conversationId, onMessageSent],
   );
 
+  const handlePlusClick = () => {
+    if (sharePickerOpen) {
+      setSharePickerOpen(false);
+      return;
+    }
+    setAttachMenuOpen((prev) => !prev);
+  };
+
   return (
     <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700/60">
       <div className="flex items-center gap-2 px-4 sm:px-6 md:px-5 py-3">
         {/* Attachment / Share button */}
-        <div className="relative shrink-0">
+        <div className="relative shrink-0" ref={attachWrapRef}>
           <button
             type="button"
-            onClick={() => setSharePickerOpen(!sharePickerOpen)}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={handlePlusClick}
             className="p-2 rounded-lg text-gray-400 hover:text-[#456564] dark:hover:text-[#6fb5b4] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            aria-label="Share contact or professional"
+            aria-label="Attach"
+            aria-expanded={attachMenuOpen || sharePickerOpen}
+            aria-haspopup="menu"
           >
             <Plus className="w-5 h-5" />
           </button>
+
+          {attachMenuOpen && (
+            <div
+              className="absolute bottom-full left-0 mb-2 w-52 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-30"
+              role="menu"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAttachMenuOpen(false);
+                  setSharePickerOpen(true);
+                }}
+                className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <User className="w-4 h-4 text-[#456564] dark:text-[#6fb5b4] shrink-0" />
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  Share a contact
+                </span>
+              </button>
+            </div>
+          )}
 
           {sharePickerOpen && (
             <SharePicker

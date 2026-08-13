@@ -7,12 +7,19 @@ function ConversationHeader({
   msgSidebarOpen,
   setMsgSidebarOpen,
   forHomeowner = false,
+  currentUserId,
 }) {
   const {accountUrl} = useParams();
   const conv = conversation;
-  const primaryName = forHomeowner
-    ? conv.agentName || "Agent"
-    : conv.homeownerName || "Homeowner";
+  const isDirect = !conv.propertyUid;
+  const iAmHomeownerSlot = Number(conv.homeownerUserId) === Number(currentUserId);
+  const primaryName = isDirect
+    ? iAmHomeownerSlot
+      ? conv.agentName || "User"
+      : conv.homeownerName || "User"
+    : forHomeowner
+      ? conv.agentName || "Agent"
+      : conv.homeownerName || "Homeowner";
   const primaryInitial = (primaryName || "?").charAt(0).toUpperCase();
 
   return (

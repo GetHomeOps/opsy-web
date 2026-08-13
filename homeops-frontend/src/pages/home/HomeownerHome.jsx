@@ -128,6 +128,7 @@ function HomeownerHome() {
   const navigate = useNavigate();
   const {
     properties,
+    propertiesLoading,
     getPropertyTeam,
     getPropertyById,
     getSystemsByPropertyId,
@@ -657,7 +658,7 @@ function HomeownerHome() {
         </div>
 
         {/* Empty state: mascot + CTA over homepage hero imagery */}
-        {!hasProperties && (
+        {!propertiesLoading && !hasProperties && (
           <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-4 pointer-events-none">
             <div className="text-center px-4 max-w-md flex flex-col items-center gap-4 pointer-events-auto">
               <img

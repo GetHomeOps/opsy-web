@@ -2542,9 +2542,20 @@ class AppApi {
     return res.conversations ?? [];
   }
 
-  static async createConversation({ accountId, propertyUid, agentUserId }) {
-    const res = await this.request("conversations", { accountId, propertyUid, agentUserId }, "POST");
+  static async createConversation({ accountId, propertyUid, agentUserId, homeownerUserId, otherUserId }) {
+    const body = { accountId };
+    if (propertyUid != null) body.propertyUid = propertyUid;
+    if (agentUserId != null) body.agentUserId = agentUserId;
+    if (homeownerUserId != null) body.homeownerUserId = homeownerUserId;
+    if (otherUserId != null) body.otherUserId = otherUserId;
+    const res = await this.request("conversations", body, "POST");
     return res.conversation;
+  }
+
+  static async getConversationPartners(accountId) {
+    const params = accountId != null ? { accountId } : {};
+    const res = await this.request("conversations/partners", params);
+    return res.partners ?? [];
   }
 
   static async getConversationMessages(conversationId, params = {}) {

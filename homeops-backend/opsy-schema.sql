@@ -1122,14 +1122,16 @@ CREATE INDEX idx_hai_agent_account ON homeowner_agent_inquiries(agent_user_id, a
 CREATE INDEX idx_hai_account_created ON homeowner_agent_inquiries(account_id, created_at DESC);
 
 -- ============================================================
--- Conversations (bidirectional messaging between homeowner and agent)
--- One conversation per homeowner/agent/property triple.
+-- Conversations
+-- Property threads: one row per homeowner/agent/property triple.
+-- Direct DMs (admin/super_admin): property_id IS NULL; participants stored
+-- in homeowner_user_id / agent_user_id as LEAST / GREATEST user ids.
 -- ============================================================
 
 CREATE TABLE conversations (
     id SERIAL PRIMARY KEY,
     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
     homeowner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     agent_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     homeowner_last_read_at TIMESTAMPTZ,
@@ -1143,6 +1145,9 @@ CREATE INDEX idx_conversations_account ON conversations(account_id);
 CREATE INDEX idx_conversations_agent ON conversations(agent_user_id, account_id);
 CREATE INDEX idx_conversations_homeowner ON conversations(homeowner_user_id);
 CREATE INDEX idx_conversations_last_msg ON conversations(account_id, last_message_at DESC);
+CREATE UNIQUE INDEX idx_conversations_direct_pair
+    ON conversations (account_id, homeowner_user_id, agent_user_id)
+    WHERE property_id IS NULL;
 
 CREATE TABLE conversation_messages (
     id SERIAL PRIMARY KEY,

@@ -110,6 +110,25 @@ const initialFormData = {
   aiFeaturesTokenMonthlyQuota: "",
 };
 
+function getDuplicateFormData(duplicateFrom) {
+  if (!duplicateFrom || typeof duplicateFrom !== "object") return null;
+  return {
+    name: duplicateFrom.name || "",
+    email: "",
+    phone: duplicateFrom.phone || "",
+    role: duplicateFrom.role || "",
+    contact: duplicateFrom.contact || "",
+    image: duplicateFrom.image || "",
+    agencyId: duplicateFrom.agencyId || "",
+    officeId: duplicateFrom.officeId || "",
+    opsyScoutOverrideEnabled: duplicateFrom.opsyScoutOverrideEnabled === true,
+    opsyScoutFreeAnalysesLimit: duplicateFrom.opsyScoutFreeAnalysesLimit || "",
+    aiFeaturesOverrideEnabled: duplicateFrom.aiFeaturesOverrideEnabled === true,
+    aiFeaturesTokenMonthlyQuota:
+      duplicateFrom.aiFeaturesTokenMonthlyQuota || "",
+  };
+}
+
 function isAgentRole(role) {
   return String(role || "")
     .toLowerCase()
@@ -161,6 +180,9 @@ function reducer(state, action) {
     case "SET_SUBMITTING":
       return {...state, isSubmitting: action.payload};
     case "SET_USER":
+      if (!action.payload && !state.user && state.isNew) {
+        return state;
+      }
       return {
         ...state,
         user: action.payload,
@@ -267,6 +289,8 @@ function UsersFormContainer() {
   const {id} = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const duplicateFrom = location.state?.duplicateFrom;
+  const isDuplicating = Boolean(duplicateFrom);
   const {t} = useTranslation();
   const {
     users,
@@ -444,6 +468,26 @@ function UsersFormContainer() {
       cancelled = true;
     };
   }, [id, users, usersLoading, t, isDemoSuperAdmin]);
+
+  useEffect(() => {
+    if (id !== "new") return;
+    const prefill = getDuplicateFormData(duplicateFrom);
+    if (!prefill) return;
+    dispatch({type: "SET_FORM_DATA", payload: prefill});
+    const sourceName = duplicateFrom.sourceName || prefill.name || "";
+    dispatch({
+      type: "SET_BANNER",
+      payload: {
+        open: true,
+        type: "warning",
+        message: t("userDuplicatedPrefillMessage", {
+          name: sourceName,
+          defaultValue:
+            "Duplicated from {{name}}. Enter a new email to create this user.",
+        }),
+      },
+    });
+  }, [id, duplicateFrom, t]);
 
   useEffect(() => {
     if (id === "new" && !canCreateUser) {
@@ -657,11 +701,15 @@ function UsersFormContainer() {
       // Reset contact selection tracking when user changes
       setContactSelectedByUser(false);
     } else {
-      dispatch({type: "SET_FORM_DATA", payload: initialFormData});
+      const prefill = getDuplicateFormData(duplicateFrom);
+      dispatch({
+        type: "SET_FORM_DATA",
+        payload: prefill || initialFormData,
+      });
       // Reset contact selection tracking for new users
       setContactSelectedByUser(false);
     }
-  }, [state.user]);
+  }, [state.user, duplicateFrom]);
 
   /* Handles form change */
   const handleChange = (e) => {
@@ -847,10 +895,29 @@ function UsersFormContainer() {
           console.error("Error assigning agency:", affErr);
         }
 
+        let complimentaryFields = {};
+        try {
+          complimentaryFields =
+            (await applyComplimentaryOverrides(res.id)) || {};
+        } catch (overrideErr) {
+          console.error("Error applying complimentary overrides:", overrideErr);
+        }
+
+        if (Object.keys(complimentaryFields).length > 0) {
+          setUsers((prev) =>
+            prev.map((u) =>
+              Number(u.id) === Number(res.id)
+                ? {...u, ...complimentaryFields}
+                : u,
+            ),
+          );
+        }
+
         dispatch({
           type: "SET_USER",
           payload: {
             ...res,
+            ...complimentaryFields,
             ...(res.invitation
               ? {
                   invitation: res.invitation,
@@ -1122,7 +1189,7 @@ function UsersFormContainer() {
     }
 
     if (
-      !state.isNew &&
+      (!state.isNew || isDuplicating) &&
       isAgentRole(state.formData.role) &&
       state.formData.opsyScoutOverrideEnabled
     ) {
@@ -1135,7 +1202,7 @@ function UsersFormContainer() {
     }
 
     if (
-      !state.isNew &&
+      (!state.isNew || isDuplicating) &&
       canReceiveAiComplimentary(state.formData.role) &&
       state.formData.aiFeaturesOverrideEnabled
     ) {
@@ -1190,7 +1257,37 @@ function UsersFormContainer() {
     dispatch({type: "SET_USER", payload: null});
     dispatch({type: "SET_FORM_DATA", payload: initialFormData});
     dispatch({type: "SET_ERRORS", payload: {}});
-    navigate(`/${accountUrl}/users/new`);
+    navigate(`/${accountUrl}/users/new`, {state: {}});
+  }
+
+  function handleDuplicate() {
+    if (!state.user || !canCreateUser) return;
+    if (
+      state.user.role === "super_admin" ||
+      state.user.role === "superAdmin"
+    ) {
+      return;
+    }
+    navigate(`/${accountUrl}/users/new`, {
+      state: {
+        duplicateFrom: {
+          name: state.formData.name || "",
+          phone: state.formData.phone || "",
+          role: state.formData.role || "",
+          contact: state.formData.contact || "",
+          image: state.formData.image || "",
+          agencyId: state.formData.agencyId || "",
+          officeId: state.formData.officeId || "",
+          opsyScoutOverrideEnabled: !!state.formData.opsyScoutOverrideEnabled,
+          opsyScoutFreeAnalysesLimit:
+            state.formData.opsyScoutFreeAnalysesLimit || "",
+          aiFeaturesOverrideEnabled: !!state.formData.aiFeaturesOverrideEnabled,
+          aiFeaturesTokenMonthlyQuota:
+            state.formData.aiFeaturesTokenMonthlyQuota || "",
+          sourceName: state.user.name || state.formData.name || "",
+        },
+      },
+    });
   }
 
   /* Handles delete button */
@@ -1351,7 +1448,7 @@ function UsersFormContainer() {
       });
       dispatch({type: "SET_FORM_CHANGED", payload: false});
       dispatch({type: "SET_ERRORS", payload: {}});
-      navigate(`/${accountUrl}/users/new`);
+      navigate(`/${accountUrl}/users/new`, {state: {}});
     }
   }
 
@@ -1534,6 +1631,7 @@ function UsersFormContainer() {
   const [officesLoading, setOfficesLoading] = useState(false);
 
   const showAgentAffiliationFields = isAgentRole(state.formData.role);
+  const showComplimentaryFields = !state.isNew || isDuplicating;
 
   useEffect(() => {
     if (!showAgentAffiliationFields) {
@@ -1651,6 +1749,29 @@ function UsersFormContainer() {
         ? {officeId: Number(state.formData.officeId)}
         : {}),
     });
+  }
+
+  async function applyComplimentaryOverrides(userId) {
+    const payload = {};
+    if (isAgentRole(state.formData.role)) {
+      if (state.formData.opsyScoutOverrideEnabled) {
+        payload.opsyScoutOverrideEnabled = true;
+        payload.opsyScoutFreeAnalysesLimit = Number(
+          state.formData.opsyScoutFreeAnalysesLimit,
+        );
+      }
+    }
+    if (canReceiveAiComplimentary(state.formData.role)) {
+      if (state.formData.aiFeaturesOverrideEnabled) {
+        payload.aiFeaturesOverrideEnabled = true;
+        payload.aiFeaturesTokenMonthlyQuota = Number(
+          state.formData.aiFeaturesTokenMonthlyQuota,
+        );
+      }
+    }
+    if (Object.keys(payload).length === 0) return null;
+    await AppApi.updateUser(userId, payload);
+    return payload;
   }
 
   // Handler for contact change
@@ -2079,6 +2200,11 @@ function UsersFormContainer() {
               <DropdownFilter
                 onDelete={
                   state.user?.role === "super_admin" ? undefined : handleDelete
+                }
+                onDuplicate={
+                  canCreateUser && !isSuperAdminUser
+                    ? handleDuplicate
+                    : undefined
                 }
                 onResendInvitation={
                   isPendingUser
@@ -2532,8 +2658,8 @@ function UsersFormContainer() {
                     )}
                   </div>
 
-                  {/* Opsy Scout complimentary override (existing agents only) */}
-                  {!state.isNew && showAgentAffiliationFields && (
+                  {/* Opsy Scout complimentary override (existing agents, or duplicated new user) */}
+                  {showComplimentaryFields && showAgentAffiliationFields && (
                     <div className="mt-6 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40 space-y-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
@@ -2638,8 +2764,8 @@ function UsersFormContainer() {
                     </div>
                   )}
 
-                  {/* AI features complimentary override (existing agents / homeowners) */}
-                  {!state.isNew &&
+                  {/* AI features complimentary override (existing agents / homeowners, or duplicated new user) */}
+                  {showComplimentaryFields &&
                     canReceiveAiComplimentary(state.formData.role) && (
                     <div className="mt-6 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40 space-y-4">
                       <div className="flex items-start justify-between gap-4">

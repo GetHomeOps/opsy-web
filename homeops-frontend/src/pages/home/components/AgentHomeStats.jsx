@@ -10,6 +10,7 @@ function AgentHomeStats({
   totalProperties,
   stats,
   loading = false,
+  propertiesLoading = false,
   onHomeownersClick,
 }) {
   return (
@@ -20,6 +21,7 @@ function AgentHomeStats({
         value={totalProperties}
         subtitle={`${stats.healthyCount} ${t("agentHome.healthy") || "healthy"}`}
         color="bg-[#456564]"
+        loading={propertiesLoading}
       />
       <StatCard
         icon={Heart}
@@ -31,6 +33,7 @@ function AgentHomeStats({
             : t("agentHome.allOnTrack") || "All on track"
         }
         color={stats.avgHealth >= 60 ? "bg-emerald-500" : "bg-amber-500"}
+        loading={propertiesLoading}
       />
       <StatCard
         icon={Users}
@@ -48,6 +51,7 @@ function AgentHomeStats({
         value={`${Math.min(100, Math.round((stats.healthyCount / Math.max(totalProperties, 1)) * 100))}%`}
         subtitle={t("agentHome.propertyCompletion") || "Portfolio health rate"}
         color="bg-purple-500"
+        loading={propertiesLoading}
       />
     </div>
   );

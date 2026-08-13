@@ -1,12 +1,40 @@
-import React, {useState, useEffect} from "react";
-import {User, Phone, Mail} from "lucide-react";
-import AppApi from "../../../api/api";
+import React, {useState, useEffect, useContext, useMemo} from "react";
+import {User, Phone, Mail, UserPlus, Check, Loader2} from "lucide-react";
+import AppApi, {getApiErrorMessage} from "../../../api/api";
+import ContactContext from "../../../context/ContactContext";
+import useCurrentAccount from "../../../hooks/useCurrentAccount";
 
-function SharedContactCard({contactId, isOwn}) {
-  const [contact, setContact] = useState(null);
-  const [loading, setLoading] = useState(true);
+function snapshotFromPayload(payload) {
+  if (!payload || payload.name == null) return null;
+  return {
+    name: payload.name,
+    phone: payload.phone || null,
+    email: payload.email || null,
+    role: payload.role || null,
+  };
+}
+
+function SharedContactCard({contactId, payload, isOwn}) {
+  const {contacts = [], refreshContacts} = useContext(ContactContext);
+  const {currentAccount} = useCurrentAccount();
+  const [contact, setContact] = useState(() => snapshotFromPayload(payload));
+  const [loading, setLoading] = useState(() => !snapshotFromPayload(payload));
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    const snap = snapshotFromPayload(payload);
+    if (snap) {
+      setContact(snap);
+      setLoading(false);
+      return undefined;
+    }
+    if (!contactId) {
+      setContact(null);
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     setLoading(true);
     AppApi.getContact(contactId)
@@ -19,8 +47,44 @@ function SharedContactCard({contactId, isOwn}) {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
-  }, [contactId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [contactId, payload?.name, payload?.phone, payload?.email, payload?.role]);
+
+  const alreadyInContacts = useMemo(() => {
+    const email = (contact?.email || "").trim().toLowerCase();
+    if (!email) return false;
+    return contacts.some(
+      (c) => (c.email || "").trim().toLowerCase() === email,
+    );
+  }, [contacts, contact?.email]);
+
+  const handleAdd = async (e) => {
+    e.stopPropagation();
+    if (adding || added || alreadyInContacts || !contact) return;
+    if (!currentAccount?.id) {
+      setError("No account available");
+      return;
+    }
+    setAdding(true);
+    setError(null);
+    try {
+      await AppApi.createContact({
+        name: contact.name || "Unnamed",
+        phone: contact.phone || "",
+        email: contact.email || "",
+        role: contact.role || null,
+        accountId: currentAccount.id,
+      });
+      setAdded(true);
+      refreshContacts?.();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Could not add contact"));
+    } finally {
+      setAdding(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -37,6 +101,8 @@ function SharedContactCard({contactId, isOwn}) {
       </div>
     );
   }
+
+  const isSaved = added || alreadyInContacts;
 
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 w-64 shadow-sm">
@@ -76,6 +142,33 @@ function SharedContactCard({contactId, isOwn}) {
           </a>
         )}
       </div>
+
+      {!isOwn && (
+        <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={adding || isSaved}
+            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-[#456564] text-white hover:bg-[#3a5554] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {adding ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : isSaved ? (
+              <Check className="w-3 h-3" />
+            ) : (
+              <UserPlus className="w-3 h-3" />
+            )}
+            {alreadyInContacts
+              ? "Already in contacts"
+              : added
+                ? "Added"
+                : "Add to Contact List"}
+          </button>
+          {error && (
+            <p className="text-[11px] text-red-500 mt-1.5">{error}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

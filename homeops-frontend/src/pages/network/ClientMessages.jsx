@@ -20,6 +20,8 @@ function ClientMessages() {
   const {currentUser} = useAuth();
   const isHomeownerViewer = currentUser?.role === "homeowner";
   const isAgentViewer = currentUser?.role === "agent";
+  const isAdminViewer =
+    currentUser?.role === "admin" || currentUser?.role === "super_admin";
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -32,6 +34,12 @@ function ClientMessages() {
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
+  const [partners, setPartners] = useState([]);
+  const [partnersLoading, setPartnersLoading] = useState(false);
+  const [startingConversation, setStartingConversation] = useState(false);
+  const [composerFocusNonce, setComposerFocusNonce] = useState(0);
+
+  const canStartConversation = isHomeownerViewer || isAgentViewer || isAdminViewer;
   const selectedConv = conversations.find((c) => c.id === selectedConvId) || null;
 
   // Fetch conversations list (homeowners: /mine; agents: /as-agent; admins: account-scoped)
@@ -64,6 +72,26 @@ function ClientMessages() {
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  const fetchPartners = useCallback(async () => {
+    if (!canStartConversation || !currentUser?.id) return;
+    if (isAdminViewer && !currentAccount?.id) return;
+    setPartnersLoading(true);
+    try {
+      const list = await AppApi.getConversationPartners(
+        isAdminViewer ? currentAccount.id : undefined,
+      );
+      setPartners(Array.isArray(list) ? list : []);
+    } catch {
+      setPartners([]);
+    } finally {
+      setPartnersLoading(false);
+    }
+  }, [canStartConversation, currentUser?.id, isAdminViewer, currentAccount?.id]);
+
+  useEffect(() => {
+    fetchPartners();
+  }, [fetchPartners]);
 
   // Poll conversations
   useEffect(() => {
@@ -128,6 +156,74 @@ function ClientMessages() {
     setMsgSidebarOpen(false);
   };
 
+  const handleStartConversation = useCallback(
+    async (partner) => {
+      if (!partner || startingConversation) return;
+
+      const existing = conversations.find((c) => {
+        if (isAdminViewer) {
+          if (c.propertyUid) return false;
+          return (
+            Number(c.homeownerUserId) === Number(partner.userId) ||
+            Number(c.agentUserId) === Number(partner.userId)
+          );
+        }
+        const sameProperty = String(c.propertyUid) === String(partner.propertyUid);
+        if (!sameProperty) return false;
+        if (isHomeownerViewer) {
+          return Number(c.agentUserId) === Number(partner.userId);
+        }
+        return Number(c.homeownerUserId) === Number(partner.userId);
+      });
+
+      if (existing) {
+        setSelectedConvId(existing.id);
+        setMsgSidebarOpen(false);
+        setComposerFocusNonce((n) => n + 1);
+        return;
+      }
+
+      setStartingConversation(true);
+      try {
+        const payload = isAdminViewer
+          ? {
+              accountId: currentAccount?.id,
+              otherUserId: partner.userId,
+            }
+          : isHomeownerViewer
+          ? {
+              accountId: partner.accountId,
+              propertyUid: partner.propertyUid,
+              agentUserId: partner.userId,
+            }
+          : {
+              accountId: partner.accountId,
+              propertyUid: partner.propertyUid,
+              homeownerUserId: partner.userId,
+            };
+        const conv = await AppApi.createConversation(payload);
+        await fetchConversations(true);
+        if (conv?.id) {
+          setSelectedConvId(conv.id);
+          setMsgSidebarOpen(false);
+          setComposerFocusNonce((n) => n + 1);
+        }
+      } catch (err) {
+        console.error("Failed to start conversation:", err);
+      } finally {
+        setStartingConversation(false);
+      }
+    },
+    [
+      conversations,
+      isHomeownerViewer,
+      isAdminViewer,
+      currentAccount?.id,
+      startingConversation,
+      fetchConversations,
+    ],
+  );
+
   const handleMessageSent = useCallback(() => {
     if (selectedConvId) {
       fetchMessages(selectedConvId, true);
@@ -158,6 +254,13 @@ function ClientMessages() {
               msgSidebarOpen={msgSidebarOpen}
               setMsgSidebarOpen={setMsgSidebarOpen}
               forHomeowner={isHomeownerViewer}
+              forAdmin={isAdminViewer}
+              currentUserId={currentUser?.id}
+              canStartConversation={canStartConversation}
+              partners={partners}
+              partnersLoading={partnersLoading}
+              startingConversation={startingConversation}
+              onStartConversation={handleStartConversation}
             />
 
             <div
@@ -172,6 +275,7 @@ function ClientMessages() {
                     msgSidebarOpen={msgSidebarOpen}
                     setMsgSidebarOpen={setMsgSidebarOpen}
                     forHomeowner={isHomeownerViewer}
+                    currentUserId={currentUser?.id}
                   />
                   <ConversationBody
                     messages={messages}
@@ -183,6 +287,7 @@ function ClientMessages() {
                     conversationId={selectedConvId}
                     onMessageSent={handleMessageSent}
                     accountId={currentAccount?.id}
+                    focusNonce={composerFocusNonce}
                   />
                 </>
               ) : loadingConversations ? (
@@ -228,8 +333,8 @@ function ClientMessages() {
                       No conversations yet
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xs mx-auto">
-                      {isHomeownerViewer
-                        ? "When you message your agent from a property, the conversation will appear here."
+                      {canStartConversation
+                        ? "Use the + button to start a conversation."
                         : "When a homeowner contacts you through their property dashboard, the conversation will appear here."}
                     </p>
                   </div>

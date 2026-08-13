@@ -30,7 +30,11 @@ function MessageBubble({msg, isOwn}) {
   if (kind === "share_contact" && payload?.contactId) {
     return (
       <div className={`max-w-xs sm:max-w-sm ${isOwn ? "ml-auto" : ""}`}>
-        <SharedContactCard contactId={payload.contactId} isOwn={isOwn} />
+        <SharedContactCard
+          contactId={payload.contactId}
+          payload={payload}
+          isOwn={isOwn}
+        />
         <div className={`flex items-center gap-1 mt-1 ${isOwn ? "justify-end" : ""}`}>
           <span className="text-xs text-gray-500 font-medium">{formatTime(msg.createdAt)}</span>
         </div>
