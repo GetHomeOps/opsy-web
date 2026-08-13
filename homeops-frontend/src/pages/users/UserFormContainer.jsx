@@ -1455,12 +1455,20 @@ function UsersFormContainer() {
   // Check if the user being edited is a super_admin
   const isSuperAdminUser =
     state.user?.role === "super_admin" || state.user?.role === "superAdmin";
+  const isAssistantUser =
+    !state.isNew && (state.user?.role || "").toLowerCase() === "assistant";
+  const roleSelectLocked = isSuperAdminUser || isAssistantUser;
 
   // Role options for the select dropdown based on current user's role
   const roleOptions = useMemo(() => {
     // If the user being edited is super_admin, show only Super Admin option
     if (isSuperAdminUser) {
       return [{id: "Super Admin", name: "Super Admin"}];
+    }
+
+    /* Assistants are created via the Assistants page — keep role locked here. */
+    if (isAssistantUser) {
+      return [{id: "assistant", name: "Assistant"}];
     }
 
     // If current user is super_admin, they can see: admin, agent, homeowner
@@ -1494,6 +1502,7 @@ function UsersFormContainer() {
   }, [
     currentUser?.role,
     isSuperAdminUser,
+    isAssistantUser,
     state.isNew,
     state.provisionDemoOnCreate,
     isDemoSuperAdmin,
@@ -2579,8 +2588,8 @@ function UsersFormContainer() {
                         placeholder={t("selectRole") || "Select role"}
                         name="role"
                         id="role"
-                        clearable={!isSuperAdminUser}
-                        disabled={isSuperAdminUser}
+                        clearable={!roleSelectLocked}
+                        disabled={roleSelectLocked}
                         error={!!state.errors.role}
                         required={true}
                       />
@@ -2589,6 +2598,22 @@ function UsersFormContainer() {
                           <AlertCircle className="h-4 w-4 mr-1" />
                           <span>{state.errors.role}</span>
                         </div>
+                      )}
+                      {isAssistantUser && (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {state.user?.assistantOfUserName ||
+                          state.user?.assistantOfUserEmail
+                            ? t("assistants.tetheredTo", {
+                                defaultValue: "Tethered to {{name}}",
+                                name:
+                                  state.user.assistantOfUserName ||
+                                  state.user.assistantOfUserEmail,
+                              })
+                            : t("assistants.managedViaAssistantsPage", {
+                                defaultValue:
+                                  "Team assistants are managed from the Assistants page.",
+                              })}
+                        </p>
                       )}
                     </div>
 

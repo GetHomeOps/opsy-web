@@ -11,6 +11,7 @@ const { isPropertyUid } = require("../helpers/properties");
 const {
   hasPropertyMembership,
   hasPendingInvitationForProperty,
+  hasAssistantInheritedMembership,
 } = require("../helpers/propertyAccess");
 const { assertDemoAccountAccessAllowed } = require("../helpers/demoEnvironment");
 
@@ -265,6 +266,17 @@ function ensurePropertyAccess(options = {}) {
       if (cachedGrant && cachedGrant.expiresAt > Date.now()) return next();
 
       if (await hasPropertyMembership({ userId: user.id, propertyId })) {
+        _accessGrantCache.set(ck, { expiresAt: Date.now() + _ACCESS_TTL_MS });
+        return next();
+      }
+
+      /* Tethered assistants share their agent's property portfolio. */
+      if (
+        await hasAssistantInheritedMembership({
+          userId: user.id,
+          propertyId,
+        })
+      ) {
         _accessGrantCache.set(ck, { expiresAt: Date.now() + _ACCESS_TTL_MS });
         return next();
       }
