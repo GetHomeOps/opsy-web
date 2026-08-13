@@ -13,7 +13,11 @@ import Sidebar from "../../partials/Sidebar";
 import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import userContext from "../../context/UserContext";
-import AppApi, {API_ERROR_CODES, getUserDeleteErrorMessage} from "../../api/api";
+import AppApi, {
+  API_ERROR_CODES,
+  getApiErrorMessage,
+  getUserDeleteErrorMessage,
+} from "../../api/api";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import FilterDropdown from "../../components/FilterDropdown";

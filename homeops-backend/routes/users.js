@@ -259,7 +259,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       }
       inviteMs = Date.now() - inviteStart;
     } else {
-      invitationSkipped = !shouldSendInviteEmail;
+      invitationSkipped = true;
       console.warn(
         `[users.create] No accountId resolved for invitation to ${newUser.email}; skipping auto-invite.`
       );
