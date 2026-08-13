@@ -109,6 +109,45 @@ class Invitation {
     return result.rows;
   }
 
+  /**
+   * Platform-admin listing of pending invitations that have never been emailed.
+   * @param {{ type?: string }} [opts]
+   */
+  static async getPendingNeverSent({ type } = {}) {
+    const clauses = [
+      `i.status = 'pending'`,
+      `i.email_sent_at IS NULL`,
+      `i.expires_at > NOW()`,
+    ];
+    const values = [];
+    if (type) {
+      values.push(type);
+      clauses.push(`i.type = $${values.length}`);
+    }
+    const result = await db.query(
+      `SELECT i.id, i.type, i.inviter_user_id AS "inviterUserId",
+              u.name AS "inviterName",
+              i.invitee_email AS "inviteeEmail",
+              invitee.role::text AS "inviteeRole",
+              i.account_id AS "accountId", i.property_id AS "propertyId",
+              p.property_uid AS "propertyUid",
+              p.address AS "propertyAddress",
+              i.intended_role AS "intendedRole",
+              i.intended_property_role AS "intendedPropertyRole",
+              i.status,
+              i.email_sent_at AS "emailSentAt",
+              i.expires_at AS "expiresAt", i.created_at AS "createdAt"
+       FROM invitations i
+       LEFT JOIN users u ON u.id = i.inviter_user_id
+       LEFT JOIN users invitee ON LOWER(TRIM(invitee.email)) = LOWER(TRIM(i.invitee_email))
+       LEFT JOIN properties p ON p.id = i.property_id
+       WHERE ${clauses.join(" AND ")}
+       ORDER BY i.created_at DESC`,
+      values
+    );
+    return result.rows;
+  }
+
   static async getByProperty(propertyId, { status } = {}) {
     const clauses = [`i.property_id = $1`];
     const values = [propertyId];

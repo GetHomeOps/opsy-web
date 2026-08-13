@@ -3,7 +3,27 @@ import {AlertCircle, Check, Loader2, Mail, Send} from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import AppApi, {getApiErrorMessage} from "../../../api/api";
 
+function formatPlatformRole(role) {
+  const r = String(role || "")
+    .toLowerCase()
+    .replace(/-/g, "_")
+    .trim();
+  const labels = {
+    admin: "Admin",
+    agent: "Agent",
+    assistant: "Assistant",
+    homeowner: "Homeowner",
+    super_admin: "Super Admin",
+    superadmin: "Super Admin",
+  };
+  if (labels[r]) return labels[r];
+  if (!r) return "";
+  return r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function formatRole(inv) {
+  const inviteeRole = formatPlatformRole(inv.inviteeRole);
+  if (inviteeRole) return inviteeRole;
   const category = (inv.intendedPropertyRole || "").trim();
   const access = (inv.intendedRole || "").trim();
   if (category && access) return `${category} · ${access}`;
@@ -24,14 +44,17 @@ function formatDate(value) {
 }
 
 /**
- * Modal to list never-sent pending invitations for an account and send selected ones.
+ * Modal to list never-sent pending invitations and send selected ones.
+ * invitationType: "property" (account-scoped) or "account" (platform-wide).
  */
 function SendPendingInvitationsModal({
   modalOpen,
   setModalOpen,
   currentAccount,
+  invitationType = "property",
 }) {
   const accountId = currentAccount?.id;
+  const isAccountType = invitationType === "account";
   const [invitations, setInvitations] = useState([]);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
@@ -40,7 +63,7 @@ function SendPendingInvitationsModal({
   const [results, setResults] = useState(null);
 
   const loadInvitations = useCallback(async () => {
-    if (!accountId) {
+    if (!isAccountType && !accountId) {
       setInvitations([]);
       setLoadError("No account selected.");
       return;
@@ -48,16 +71,20 @@ function SendPendingInvitationsModal({
     setLoading(true);
     setLoadError("");
     try {
-      const list = await AppApi.getAccountInvitations(accountId, {
-        status: "pending",
-        emailNeverSent: true,
-      });
-      // Prefer property invitations for this Properties Actions flow
-      const propertyOnly = (list || []).filter(
-        (inv) => inv.type === "property" || inv.propertyId != null,
-      );
-      setInvitations(propertyOnly);
-      setSelectedIds(new Set(propertyOnly.map((inv) => inv.id)));
+      let list;
+      if (isAccountType) {
+        list = await AppApi.getPendingUnsentInvitations({type: "account"});
+      } else {
+        list = await AppApi.getAccountInvitations(accountId, {
+          status: "pending",
+          emailNeverSent: true,
+        });
+        list = (list || []).filter(
+          (inv) => inv.type === "property" || inv.propertyId != null,
+        );
+      }
+      setInvitations(list || []);
+      setSelectedIds(new Set((list || []).map((inv) => inv.id)));
     } catch (err) {
       setInvitations([]);
       setSelectedIds(new Set());
@@ -67,7 +94,7 @@ function SendPendingInvitationsModal({
     } finally {
       setLoading(false);
     }
-  }, [accountId]);
+  }, [accountId, isAccountType]);
 
   useEffect(() => {
     if (!modalOpen) {
@@ -108,7 +135,8 @@ function SendPendingInvitationsModal({
   };
 
   const handleSend = async () => {
-    if (!someSelected || isSubmitting || !accountId) return;
+    if (!someSelected || isSubmitting) return;
+    if (!isAccountType && !accountId) return;
     setIsSubmitting(true);
     try {
       const invitationIds = invitations
@@ -116,7 +144,7 @@ function SendPendingInvitationsModal({
         .map((inv) => inv.id);
       const res = await AppApi.sendPendingInvitations({
         invitationIds,
-        accountId,
+        ...(isAccountType ? {} : {accountId}),
       });
       const sentIds = new Set((res.sent || []).map((row) => row.id));
       setResults({
@@ -270,7 +298,9 @@ function SendPendingInvitationsModal({
                           />
                         </th>
                         <th className="px-3 py-2 text-left">Invitee</th>
-                        <th className="px-3 py-2 text-left">Property</th>
+                        {!isAccountType ? (
+                          <th className="px-3 py-2 text-left">Property</th>
+                        ) : null}
                         <th className="px-3 py-2 text-left">Role</th>
                         <th className="px-3 py-2 text-left">Created</th>
                       </tr>
@@ -293,9 +323,11 @@ function SendPendingInvitationsModal({
                           <td className="px-3 py-2.5 text-gray-800 dark:text-gray-100">
                             {inv.inviteeEmail}
                           </td>
-                          <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300">
-                            {inv.propertyAddress || "—"}
-                          </td>
+                          {!isAccountType ? (
+                            <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300">
+                              {inv.propertyAddress || "—"}
+                            </td>
+                          ) : null}
                           <td className="px-3 py-2.5 text-gray-600 dark:text-gray-300 capitalize">
                             {formatRole(inv)}
                           </td>

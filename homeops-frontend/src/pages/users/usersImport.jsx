@@ -188,7 +188,7 @@ function UsersImport() {
   const [showAllRows, setShowAllRows] = useState(false);
   const [templateError, setTemplateError] = useState("");
   const [isTemplateDownloading, setIsTemplateDownloading] = useState(false);
-  const [sendInviteOnImport, setSendInviteOnImport] = useState(true);
+  const [sendInviteOnImport, setSendInviteOnImport] = useState(false);
   const previewSectionRef = useRef(null);
 
   const currentStep = allRows.length > 0 ? 3 : pendingFile ? 2 : 1;
@@ -854,7 +854,7 @@ function UsersImport() {
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                               {sendInviteOnImport
                                 ? "Each user will get an invitation email to set a password and finish onboarding."
-                                : "Users will be created without emails. You can send invitations later from each user page."}
+                                : "Users will be created without emails. You can send invitations later from Actions → Send pending invitations."}
                             </p>
                           </div>
                         </div>

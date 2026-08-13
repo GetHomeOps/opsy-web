@@ -298,13 +298,13 @@ export function AuthProvider({children}) {
     }
   }
 
-  /** Super admin: view the app as another user. */
+  /** Admin or super admin: view the app as another user. */
   async function startImpersonation(userId) {
     const {accessToken, refreshToken} = await AppApi.startImpersonation(userId);
     return applySessionTokens(accessToken, refreshToken);
   }
 
-  /** End impersonation and restore the super admin session. */
+  /** End impersonation and restore the admin session. */
   async function stopImpersonation() {
     const {accessToken, refreshToken} = await AppApi.stopImpersonation();
     return applySessionTokens(accessToken, refreshToken);

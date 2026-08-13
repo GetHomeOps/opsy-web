@@ -160,7 +160,7 @@ const initialState = {
   isActive: false,
   ownershipTransferModalOpen: false,
   accountHasPropertiesModalOpen: false,
-  sendInviteOnCreate: !isDemoSite(),
+  sendInviteOnCreate: false,
   provisionDemoOnCreate: false,
   includePairedHomeownerLogin: true,
   demoPassword: "",
@@ -338,7 +338,7 @@ function UsersFormContainer() {
     fetchPreview: fetchUserPhotoPresigned,
     clearUrl: clearUserPhotoPresignedUrl,
     currentKey: userPhotoPresignedKey,
-  } = usePresignedPreview();
+  } = usePresignedPreview({forImage: true});
 
   useEffect(() => {
     if (userImageKeyNeedsPresigned && userImageKey) {
@@ -693,6 +693,7 @@ function UsersFormContainer() {
             : state.user.role || "",
         phone: state.user.phone || "",
         contact: state.user.contact || "",
+        image: state.user.image || "",
       };
       dispatch({
         type: "SET_FORM_DATA",
@@ -965,7 +966,7 @@ function UsersFormContainer() {
         } else if (invitationSkipped) {
           inviteSuffix = ` ${t("invitationEmailSkippedSuffix", {
             defaultValue:
-              "No invitation email was sent. Use “Resend invitation email” when you're ready.",
+              "No invitation email was sent. Use Actions → Send pending invitations when you're ready.",
           })}`;
           bannerType = "success";
         } else if (invitationEmailQueued || res?.invitation) {
@@ -1242,6 +1243,7 @@ function UsersFormContainer() {
   const userPhotoDisplayUrl =
     userPhotoPreviewUrl ||
     state.user?.image_url ||
+    (isDuplicating ? duplicateFrom?.image_url : null) ||
     userPhotoUploadedUrl ||
     (state.formData.image?.startsWith?.("blob:") ||
     state.formData.image?.startsWith?.("http")
@@ -1275,7 +1277,8 @@ function UsersFormContainer() {
           phone: state.formData.phone || "",
           role: state.formData.role || "",
           contact: state.formData.contact || "",
-          image: state.formData.image || "",
+          image: state.formData.image || state.user.image || "",
+          image_url: userPhotoDisplayUrl || state.user.image_url || "",
           agencyId: state.formData.agencyId || "",
           officeId: state.formData.officeId || "",
           opsyScoutOverrideEnabled: !!state.formData.opsyScoutOverrideEnabled,
@@ -2456,12 +2459,24 @@ function UsersFormContainer() {
               <div className="flex items-start gap-3 sm:gap-4 min-w-0 w-full">
                 <ImageUploadField
                   imageSrc={userPhotoDisplayUrl}
-                  hasImage={!!(state.formData.image || state.user?.image)}
+                  hasImage={
+                    !!(
+                      state.formData.image ||
+                      state.user?.image ||
+                      userPhotoDisplayUrl
+                    )
+                  }
                   imageUploading={userPhotoUploading}
                   onUpload={uploadUserPhoto}
                   onRemove={handleRemoveUserPhoto}
                   onPasteUrl={null}
-                  showRemove={!!(state.formData.image || state.user?.image)}
+                  showRemove={
+                    !!(
+                      state.formData.image ||
+                      state.user?.image ||
+                      userPhotoDisplayUrl
+                    )
+                  }
                   imageUploadError={userPhotoUploadError}
                   onDismissError={() => setUserPhotoUploadError(null)}
                   size="md"
@@ -2647,6 +2662,9 @@ function UsersFormContainer() {
                             agenciesLoading
                               ? t("loading") || "Loading..."
                               : t("selectAgency") || "Select agency"
+                          }
+                          emptyMessage={
+                            t("noAgenciesExist") || "No agencies exist"
                           }
                           name="agencyId"
                           id="agencyId"

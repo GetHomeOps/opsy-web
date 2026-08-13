@@ -1,4 +1,5 @@
 import React, {useState, useRef, useEffect} from "react";
+import {Settings} from "lucide-react";
 import Transition from "../utils/Transition";
 import {useTranslation} from "react-i18next";
 
@@ -69,16 +70,9 @@ function DropdownFilter({
         onClick={() => setDropdownOpen(!dropdownOpen)}
         aria-expanded={dropdownOpen}
       >
-        <span className="sr-only">Filter</span>
+        <span className="sr-only">Actions</span>
         <wbr />
-        <svg
-          className="fill-current"
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-        >
-          <path d="M0 3a1 1 0 0 1 1-1h14a1 1 0 1 1 0 2H1a1 1 0 0 1-1-1ZM3 8a1 1 0 0 1 1-1h8a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1ZM7 12a1 1 0 1 0 0 2h2a1 1 0 1 0 0-2H7Z" />
-        </svg>
+        <Settings className="w-4 h-4 shrink-0 text-gray-500 dark:text-gray-400" />
       </button>
       <Transition
         show={dropdownOpen}

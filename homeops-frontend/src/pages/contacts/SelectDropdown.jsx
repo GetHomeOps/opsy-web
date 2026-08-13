@@ -15,6 +15,7 @@ function SelectDropdown({
   linkTarget = "_blank", // Where to open links
   showLinkIcon = true, // Whether to show link icon for link options
   clearable = true, // Whether to show clear button when option is selected
+  emptyMessage = "No options available",
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState(null);
@@ -153,40 +154,46 @@ function SelectDropdown({
       {isOpen && (
         <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-2xl max-h-35 overflow-auto">
           <ul className="py-1" role="listbox">
-            {options.map((option, index) => (
-              <li
-                key={getOptionValue(option)}
-                className={`
-                  relative cursor-pointer select-none py-2 px-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-sm pl-8
-                  ${
+            {options.length === 0 ? (
+              <li className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                {emptyMessage}
+              </li>
+            ) : (
+              options.map((option) => (
+                <li
+                  key={getOptionValue(option)}
+                  className={`
+                    relative cursor-pointer select-none py-2 px-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-sm pl-8
+                    ${
+                      selectedOption &&
+                      getOptionValue(selectedOption) === getOptionValue(option)
+                        ? "text-violet-500"
+                        : "text-gray-900 dark:text-gray-100"
+                    }
+                    ${option.link ? "flex items-center justify-between" : ""}
+                  `}
+                  onClick={() => handleOptionClick(option)}
+                  role="option"
+                  aria-selected={
                     selectedOption &&
                     getOptionValue(selectedOption) === getOptionValue(option)
-                      ? "text-violet-500"
-                      : "text-gray-900 dark:text-gray-100"
                   }
-                  ${option.link ? "flex items-center justify-between" : ""}
-                `}
-                onClick={() => handleOptionClick(option)}
-                role="option"
-                aria-selected={
-                  selectedOption &&
-                  getOptionValue(selectedOption) === getOptionValue(option)
-                }
-              >
-                <span
-                  className={`block truncate ${
-                    option.link
-                      ? "text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
-                      : ""
-                  }`}
                 >
-                  {getOptionLabel(option)}
-                </span>
-                {option.link && showLinkIcon && (
-                  <ExternalLink className="h-4 w-4 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 ml-2 shrink-0" />
-                )}
-              </li>
-            ))}
+                  <span
+                    className={`block truncate ${
+                      option.link
+                        ? "text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
+                        : ""
+                    }`}
+                  >
+                    {getOptionLabel(option)}
+                  </span>
+                  {option.link && showLinkIcon && (
+                    <ExternalLink className="h-4 w-4 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 ml-2 shrink-0" />
+                  )}
+                </li>
+              ))
+            )}
           </ul>
         </div>
       )}

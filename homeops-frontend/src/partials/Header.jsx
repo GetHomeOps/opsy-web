@@ -60,9 +60,16 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
           currentUser.subscriptionTier,
         )));
 
+  const isImpersonatingPending =
+    isImpersonating &&
+    (currentUser?.isActive ?? currentUser?.is_active) === false;
+
   let impersonationStatusNote = null;
   if (isImpersonating) {
-    if (currentUser?.onboardingCompleted === false) {
+    if (isImpersonatingPending) {
+      impersonationStatusNote =
+        "This user hasn't activated their account yet";
+    } else if (currentUser?.onboardingCompleted === false) {
       impersonationStatusNote =
         "This user hasn't completed onboarding — you're seeing their plan-selection flow.";
     } else if (

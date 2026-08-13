@@ -676,6 +676,12 @@ class AppApi {
     return res.invitations;
   }
 
+  /** Platform admin: pending invitations that have never been emailed. Query: { type? } */
+  static async getPendingUnsentInvitations(params = {}) {
+    let res = await this.request("invitations/pending-unsent", params);
+    return res.invitations;
+  }
+
   /** Send emails for never-sent pending invitations. Body: { invitationIds, accountId? } */
   static async sendPendingInvitations(data) {
     return this.request("invitations/send-pending", data, "POST");

@@ -2110,6 +2110,49 @@ function PropertyFormContainer() {
     {key: "zip", label: "ZIP"},
   ];
 
+  /* Persist team members invited before the property existed as invitation rows. */
+  async function persistPendingTeamInvitations(propertyId, team) {
+    const inviteAccountId = currentAccount?.id;
+    if (!propertyId || !inviteAccountId) return;
+    const pending = (team || []).filter(
+      (m) =>
+        m &&
+        m._pending === true &&
+        !m.invitationId &&
+        (m.email || m.inviteeEmail),
+    );
+    for (const member of pending) {
+      const inviteeEmail = (member.email || member.inviteeEmail || "").trim();
+      if (!inviteeEmail) continue;
+      const intendedRole = member.property_role || "editor";
+      const intendedPropertyRole = member.intendedPropertyRole;
+      const permissions = member.permissions;
+      try {
+        const res = await AppApi.createInvitation({
+          type: "property",
+          inviteeEmail,
+          inviteeName: (member.name || "").trim() || undefined,
+          accountId: inviteAccountId,
+          propertyId,
+          intendedRole,
+          ...(intendedPropertyRole ? {intendedPropertyRole} : {}),
+          ...(permissions && Object.keys(permissions).length > 0
+            ? {permissions}
+            : {}),
+          skipInviteEmail: member._sendInviteEmail !== true,
+        });
+        if (res?.invitation?.id) {
+          member.invitationId = res.invitation.id;
+        }
+      } catch (err) {
+        console.error(
+          "[property create] failed to persist pending invitation:",
+          err?.message || err,
+        );
+      }
+    }
+  }
+
   /* Handles the submission of the property (create) */
   async function handleSubmit(event) {
     event.preventDefault();
@@ -2156,6 +2199,7 @@ function PropertyFormContainer() {
             prepareTeamForProperty(teamWithoutCreator),
           );
         }
+        await persistPendingTeamInvitations(propertyId, homeopsTeam);
         const systemsPayloads = prepareSystemsForApi(
           state.formData.systems ?? {},
           propertyId,
@@ -3160,6 +3204,8 @@ function PropertyFormContainer() {
             property_role: intendedRole,
             permissions: permissions ?? {},
             _pending: true,
+            _sendInviteEmail: skipInviteEmail !== true,
+            ...(intendedPropertyRole ? {intendedPropertyRole} : {}),
           };
           const inviteAccountId =
             savedMergedPropertyData?.accountId ?? currentAccount?.id;
@@ -3319,6 +3365,7 @@ function PropertyFormContainer() {
               prepareTeamForProperty(teamWithoutCreator),
             );
           }
+          await persistPendingTeamInvitations(propertyId, homeopsTeam);
           setCreatedPropertyFromModal({
             id: propertyId,
             property_uid: res.property_uid ?? res.id,

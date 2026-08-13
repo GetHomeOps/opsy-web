@@ -22,7 +22,7 @@ function billingGateKey(userId, accountId, requiresPaid) {
  * - Does not render sidebar/navbar; those are rendered by each page only when mounted (authenticated).
  */
 function ProtectedRoute({children}) {
-  const {currentUser, isLoading} = useAuth();
+  const {currentUser, isLoading, impersonation} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const location = useLocation();
   const accountId = currentAccount?.id || currentUser?.accounts?.[0]?.id || null;
@@ -161,8 +161,13 @@ function ProtectedRoute({children}) {
     );
   }
 
-  // Users who haven't completed onboarding must finish first (except billing/success - return from Stripe)
-  if (currentUser.onboardingCompleted === false) {
+  const isImpersonatingPending =
+    !!impersonation?.active &&
+    (currentUser.isActive ?? currentUser.is_active) === false;
+
+  // Users who haven't completed onboarding must finish first (except billing/success
+  // and pending impersonation, so staff can set up the account before the invitee logs in)
+  if (currentUser.onboardingCompleted === false && !isImpersonatingPending) {
     if (path.includes("/billing/success")) return children;
     return <Navigate to="/onboarding" replace />;
   }

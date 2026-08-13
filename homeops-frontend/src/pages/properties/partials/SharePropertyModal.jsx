@@ -808,6 +808,7 @@ function SharePropertyModal({
   const [searchMoreModalOpen, setSearchMoreModalOpen] = useState(false);
   const [linkJustCopied, setLinkJustCopied] = useState(false);
   const [personalizeInviteOpen, setPersonalizeInviteOpen] = useState(false);
+  const [sendInviteEmail, setSendInviteEmail] = useState(false);
   const emailDropdownRef = useRef(null);
   const inviteEmailAccountId =
     accountIdForProperty ?? currentAccount?.id ?? null;
@@ -871,6 +872,7 @@ function SharePropertyModal({
       setLinkJustCopied(false);
       setInviteBusyAction(null);
       setPersonalizeInviteOpen(false);
+      setSendInviteEmail(false);
     } else {
       setRemoveConfirmMember(null);
       setRemoveError("");
@@ -1127,6 +1129,7 @@ function SharePropertyModal({
     try {
       await onInvite?.({
         ...buildInviteRequestPayload(),
+        skipInviteEmail: !sendInviteEmail,
         ...emailExtras,
       });
       setSuccessType("invite");
@@ -1472,7 +1475,9 @@ function SharePropertyModal({
                     ? "Invitation email resent!"
                     : successType === "ownership_sent"
                       ? "Transfer request sent. They will be notified to accept or decline."
-                      : "Invite sent successfully!"}
+                      : sendInviteEmail
+                        ? "Invite sent successfully!"
+                        : "Invite added. Email was not sent."}
                 </p>
               </div>
             </div>
@@ -2010,6 +2015,39 @@ function SharePropertyModal({
                             </div>
                           </div>
                         )}
+                        <div className="mt-4 flex items-start justify-between gap-4 py-3 px-4 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/40">
+                          <div className="flex items-start gap-2 min-w-0">
+                            <Mail className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                Send invitation email
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                {sendInviteEmail
+                                  ? "They will get an email to accept this invitation."
+                                  : "Add them without emailing. You can send the invitation later."}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={sendInviteEmail}
+                            aria-label="Send invitation email"
+                            onClick={() => setSendInviteEmail((v) => !v)}
+                            className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                              sendInviteEmail
+                                ? "bg-[#456564]"
+                                : "bg-gray-300 dark:bg-gray-600"
+                            }`}
+                          >
+                            <span
+                              className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                                sendInviteEmail ? "left-6" : "left-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>
@@ -2064,18 +2102,20 @@ function SharePropertyModal({
                     {!(activeTab === "agent" && hasAgent) &&
                       !isInsuranceOrMortgageComingSoon && (
                         <>
-                          <button
-                            type="button"
-                            onClick={() => setPersonalizeInviteOpen(true)}
-                            disabled={
-                              !canSubmit ||
-                              inviteActionBusy ||
-                              inviteSubmitBlocked
-                            }
-                            className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Customize email…
-                          </button>
+                          {sendInviteEmail ? (
+                            <button
+                              type="button"
+                              onClick={() => setPersonalizeInviteOpen(true)}
+                              disabled={
+                                !canSubmit ||
+                                inviteActionBusy ||
+                                inviteSubmitBlocked
+                              }
+                              className="btn border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Customize email…
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={handleInvite}
@@ -2089,12 +2129,16 @@ function SharePropertyModal({
                             {inviteBusyAction === "send" ? (
                               <span className="flex items-center gap-2">
                                 <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                                Sending…
+                                {sendInviteEmail ? "Sending…" : "Adding…"}
                               </span>
                             ) : (
                               <span className="flex items-center gap-2">
-                                Send invite
-                                <Send className="w-4 h-4" />
+                                {sendInviteEmail ? "Send invite" : "Add invite"}
+                                {sendInviteEmail ? (
+                                  <Send className="w-4 h-4" />
+                                ) : (
+                                  <UserPlus className="w-4 h-4" />
+                                )}
                               </span>
                             )}
                           </button>

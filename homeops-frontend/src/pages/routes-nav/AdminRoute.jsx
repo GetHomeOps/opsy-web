@@ -13,7 +13,7 @@ const DEFAULT_ALLOWED_ROLES = ["super_admin", "admin"];
  * - Redirects to home if authenticated but lacking the required role.
  */
 function AdminRoute({children, allowedRoles = DEFAULT_ALLOWED_ROLES}) {
-  const {currentUser, isLoading} = useAuth();
+  const {currentUser, isLoading, impersonation} = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -35,7 +35,11 @@ function AdminRoute({children, allowedRoles = DEFAULT_ALLOWED_ROLES}) {
     );
   }
 
-  if (currentUser.onboardingCompleted === false) {
+  const isImpersonatingPending =
+    !!impersonation?.active &&
+    (currentUser.isActive ?? currentUser.is_active) === false;
+
+  if (currentUser.onboardingCompleted === false && !isImpersonatingPending) {
     return <Navigate to="/onboarding" replace />;
   }
 

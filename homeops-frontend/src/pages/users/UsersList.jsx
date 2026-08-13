@@ -20,6 +20,7 @@ import FilterDropdown from "../../components/FilterDropdown";
 import SearchInput from "../../components/SearchInput";
 import UsersTable from "./UsersTable";
 import ListDropdown from "../../partials/buttons/ListDropdown";
+import SendPendingInvitationsModal from "../properties/partials/SendPendingInvitationsModal";
 import {useAuth} from "../../context/AuthContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {canCreateUsersOnDemo, isDemoSite} from "../../utils/demoSite";
@@ -27,6 +28,7 @@ import usePersistListUiSession, {
   HYDRATE_LIST_UI,
 } from "../../hooks/usePersistListUiSession";
 import {getUserAccountStatus} from "./userSort";
+import {isAdminRole} from "../../utils/roles";
 
 const USER_FILTER_CATEGORIES = [
   {type: "role", labelKey: "role"},
@@ -195,6 +197,8 @@ function UsersList() {
   const [impersonateTarget, setImpersonateTarget] = useState(null);
   const [resendingInvitationUserId, setResendingInvitationUserId] =
     useState(null);
+  const [sendPendingInvitesOpen, setSendPendingInvitesOpen] = useState(false);
+  const isPlatformAdmin = isAdminRole(currentUser?.role);
   const listScopeId = accountUrl ? `users:${accountUrl}` : "";
 
   // Set up component's initial state
@@ -658,18 +662,6 @@ function UsersList() {
   }
 
   function handleImpersonateClick(user) {
-    const isActive = user?.isActive ?? user?.is_active ?? false;
-    if (!isActive) {
-      dispatch({
-        type: "SET_BANNER",
-        payload: {
-          open: true,
-          type: "error",
-          message: "This user is not active and cannot be impersonated.",
-        },
-      });
-      return;
-    }
     setImpersonateTarget(user);
   }
 
@@ -692,7 +684,7 @@ function UsersList() {
           type: "error",
           message: getApiErrorMessage(
             error,
-            "This user is not active and cannot be impersonated.",
+            "Unable to impersonate this user. Please try again.",
           ),
         },
       });
@@ -1028,6 +1020,11 @@ function UsersList() {
                       align="right"
                       hasSelection={selectedItems.length > 0}
                       onImport={() => navigate(`/${accountUrl}/users/import`)}
+                      onSendPendingInvitations={
+                        isPlatformAdmin
+                          ? () => setSendPendingInvitesOpen(true)
+                          : undefined
+                      }
                       onDelete={handleDeleteClick}
                     />
 
@@ -1143,6 +1140,7 @@ function UsersList() {
                 onUserClick={handleUserClick}
                 sortConfig={sortConfig}
                 onSort={handleSort}
+                isPlatformAdmin={isPlatformAdmin}
                 isSuperAdmin={currentUser?.role === "super_admin"}
                 isImpersonating={!!impersonation?.active}
                 currentUserId={currentUser?.id}
@@ -1168,6 +1166,11 @@ function UsersList() {
           </div>
         </main>
       </div>
+      <SendPendingInvitationsModal
+        modalOpen={sendPendingInvitesOpen}
+        setModalOpen={setSendPendingInvitesOpen}
+        invitationType="account"
+      />
     </div>
   );
 }

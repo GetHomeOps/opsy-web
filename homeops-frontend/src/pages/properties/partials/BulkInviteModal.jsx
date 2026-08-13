@@ -15,6 +15,7 @@ import {
   X,
   Search,
   AlertCircle,
+  Mail,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import AppApi from "../../../api/api";
@@ -358,6 +359,7 @@ function BulkInviteModal({
   const [results, setResults] = useState(null);
   const [removedIds, setRemovedIds] = useState(new Set());
   const [requireApproval, setRequireApproval] = useState(true);
+  const [sendInviteEmail, setSendInviteEmail] = useState(false);
   const agentDropdownRef = useRef(null);
 
   const visibleProperties = useMemo(
@@ -388,6 +390,7 @@ function BulkInviteModal({
       setResults(null);
       setRemovedIds(new Set());
       setRequireApproval(true);
+      setSendInviteEmail(false);
     }
   }, [modalOpen]);
 
@@ -470,6 +473,7 @@ function BulkInviteModal({
           intendedRole: "editor",
           intendedPropertyRole: "agent",
           requireApproval: effectiveRequireApproval,
+          skipInviteEmail: !sendInviteEmail,
         });
         for (const row of res.succeeded || []) {
           const prop = byId.get(row.propertyId);
@@ -494,7 +498,12 @@ function BulkInviteModal({
       }
     }
 
-    setResults({succeeded, failed, autoAdded: !effectiveRequireApproval});
+    setResults({
+      succeeded,
+      failed,
+      autoAdded: !effectiveRequireApproval,
+      emailSent: sendInviteEmail,
+    });
     setIsSubmitting(false);
   };
 
@@ -531,9 +540,15 @@ function BulkInviteModal({
                     ? t("bulkInvite.propertiesAddedSuccess", {
                         count: results.succeeded.length,
                       })
-                    : t("bulkInvite.invitationsSentSuccess", {
-                        count: results.succeeded.length,
-                      })}
+                    : results.emailSent
+                      ? t("bulkInvite.invitationsSentSuccess", {
+                          count: results.succeeded.length,
+                        })
+                      : t("bulkInvite.invitationsCreatedSuccess", {
+                          count: results.succeeded.length,
+                          defaultValue:
+                            "{{count}} invitations created without sending email.",
+                        })}
                 </p>
               )}
               {results.failed.length > 0 && (
@@ -717,7 +732,7 @@ function BulkInviteModal({
               </div>
             </div>
 
-            <div className="px-6 pb-2 shrink-0">
+            <div className="px-6 pb-2 shrink-0 space-y-3">
               <div className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -754,6 +769,48 @@ function BulkInviteModal({
                   />
                 </button>
               </div>
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <div className="flex items-start gap-2 min-w-0">
+                  <Mail className="w-4 h-4 mt-0.5 text-[#456564] dark:text-[#7aa3a2] shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {t("bulkInvite.sendInvitationEmail", {
+                        defaultValue: "Send invitation email",
+                      })}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {sendInviteEmail
+                        ? t("bulkInvite.sendInvitationEmailHelpOn", {
+                            defaultValue:
+                              "They will get an email for these property invitations.",
+                          })
+                        : t("bulkInvite.sendInvitationEmailHelpOff", {
+                            defaultValue:
+                              "Create invitations without emailing. You can send them later from Actions.",
+                          })}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={sendInviteEmail}
+                  aria-label={t("bulkInvite.sendInvitationEmail", {
+                    defaultValue: "Send invitation email",
+                  })}
+                  onClick={() => setSendInviteEmail(!sendInviteEmail)}
+                  disabled={isSubmitting}
+                  className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                    sendInviteEmail ? "bg-[#456564]" : "bg-gray-300 dark:bg-gray-600"
+                  } ${isSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
+                >
+                  <span
+                    className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                      sendInviteEmail ? "left-6" : "left-1"
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
 
             <div className="p-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex gap-3 shrink-0">
@@ -775,14 +832,27 @@ function BulkInviteModal({
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                    Sending...
+                    {sendInviteEmail ? "Sending..." : "Adding..."}
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
                     {effectiveRequireApproval
-                      ? t("bulkInvite.sendInvites", {count: visibleProperties.length})
-                      : t("bulkInvite.addToProperties", {count: visibleProperties.length})}
-                    <Send className="w-4 h-4" />
+                      ? sendInviteEmail
+                        ? t("bulkInvite.sendInvites", {
+                            count: visibleProperties.length,
+                          })
+                        : t("bulkInvite.addInvites", {
+                            count: visibleProperties.length,
+                            defaultValue: "Add {{count}} invites",
+                          })
+                      : t("bulkInvite.addToProperties", {
+                          count: visibleProperties.length,
+                        })}
+                    {sendInviteEmail ? (
+                      <Send className="w-4 h-4" />
+                    ) : (
+                      <UserPlus className="w-4 h-4" />
+                    )}
                   </span>
                 )}
               </button>

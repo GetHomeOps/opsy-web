@@ -160,6 +160,7 @@ function UsersTable({
   sortConfig,
   onSort,
   onUserClick,
+  isPlatformAdmin = false,
   isSuperAdmin = false,
   isImpersonating = false,
   currentUserId,
@@ -506,6 +507,7 @@ function UsersTable({
           <UserActionsMenu
             user={item}
             currentUserId={currentUserId}
+            isPlatformAdmin={isPlatformAdmin}
             isSuperAdmin={isSuperAdmin}
             isImpersonating={isImpersonating}
             onImpersonate={onImpersonate}
@@ -522,6 +524,7 @@ function UsersTable({
     t,
     showDemoExpiry,
     currentUserId,
+    isPlatformAdmin,
     isSuperAdmin,
     isImpersonating,
     onImpersonate,

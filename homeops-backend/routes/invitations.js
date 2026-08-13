@@ -1,7 +1,7 @@
 "use strict";
 
 const express = require("express");
-const { ensureLoggedIn, ensurePropertyOwner, ensurePropertyAccess, ensureUserCanAccessAccountByParam } = require("../middleware/auth");
+const { ensureLoggedIn, ensurePropertyOwner, ensurePropertyAccess, ensureUserCanAccessAccountByParam, ensurePlatformAdmin } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const Invitation = require("../models/invitation");
 const Notification = require("../models/notification");
@@ -293,7 +293,7 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
 /** POST /bulk-property — Invite one email to many properties in one request; one consolidated email. Body: inviteeEmail, accountId, propertyIds[], intendedRole?, inviteeName? */
 router.post("/bulk-property", ensureLoggedIn, async function (req, res, next) {
   try {
-    const { inviteeEmail, inviteeName, accountId, propertyIds, intendedRole, intendedPropertyRole, permissions, requireApproval } = req.body;
+    const { inviteeEmail, inviteeName, accountId, propertyIds, intendedRole, intendedPropertyRole, permissions, requireApproval, skipInviteEmail } = req.body;
     if (!inviteeEmail || !accountId) {
       throw new BadRequestError("inviteeEmail and accountId are required");
     }
@@ -315,6 +315,7 @@ router.post("/bulk-property", ensureLoggedIn, async function (req, res, next) {
       permissions,
       inviterUserRole: userRole,
       requireApproval: requireApproval !== false,
+      skipInviteEmail: skipInviteEmail === true,
     });
 
     const statusCode = result.succeeded.length > 0 ? 201 : 200;
@@ -442,6 +443,25 @@ router.get("/received", ensureLoggedIn, async function (req, res, next) {
     }
     const invitations = await Invitation.getReceivedByEmail(userEmail, {
       status: status || "pending",
+    });
+    return res.json({ invitations });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * GET /pending-unsent — Platform admin: pending invitations that have never been emailed.
+ * Query: type=account|property
+ */
+router.get("/pending-unsent", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    const type = typeof req.query.type === "string" ? req.query.type.trim() : "";
+    if (type && type !== "account" && type !== "property") {
+      throw new BadRequestError("type must be account or property");
+    }
+    const invitations = await Invitation.getPendingNeverSent({
+      type: type || undefined,
     });
     return res.json({ invitations });
   } catch (err) {

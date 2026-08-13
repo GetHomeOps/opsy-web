@@ -8,7 +8,7 @@
  * - Refresh token: long-lived (7d), used only to obtain new access tokens
  *
  * Optional impersonation claims (access + refresh):
- * - impersonatorId, impersonatorEmail — set when a super admin is viewing as another user
+ * - impersonatorId, impersonatorEmail — set when an admin is viewing as another user
  *
  * Exports: createAccessToken, createRefreshToken, createToken (alias)
  */

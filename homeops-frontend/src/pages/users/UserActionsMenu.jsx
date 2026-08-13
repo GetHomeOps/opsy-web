@@ -14,6 +14,7 @@ function isSuperAdminUserRole(role) {
 export default function UserActionsMenu({
   user,
   currentUserId,
+  isPlatformAdmin = false,
   isSuperAdmin = false,
   isImpersonating = false,
   onImpersonate,
@@ -41,7 +42,7 @@ export default function UserActionsMenu({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [open]);
 
-  if (!isSuperAdmin) {
+  if (!isPlatformAdmin) {
     return <span className="text-gray-400">-</span>;
   }
 
@@ -52,6 +53,7 @@ export default function UserActionsMenu({
     typeof onImpersonate === "function";
 
   const canReconcile =
+    isSuperAdmin &&
     user?.paidRequired &&
     !user?.hasActivePaidSubscription &&
     typeof onReconcileBilling === "function";

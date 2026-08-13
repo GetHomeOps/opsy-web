@@ -147,7 +147,7 @@ function UpgradeRedirect() {
 }
 
 function RoutesList() {
-  const {currentUser, isLoading} = useAuth();
+  const {currentUser, isLoading, impersonation} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const location = useLocation();
 
@@ -1104,7 +1104,11 @@ function RoutesList() {
         path="/"
         element={
           currentUser ? (
-            currentUser.onboardingCompleted === false ? (
+            currentUser.onboardingCompleted === false &&
+            !(
+              impersonation?.active &&
+              (currentUser.isActive ?? currentUser.is_active) === false
+            ) ? (
               <Navigate to="/onboarding" replace />
             ) : currentAccount?.url ? (
               <Navigate to={`/${currentAccount.url}/home`} replace />

@@ -29,7 +29,10 @@ const User = require("../models/user");
 const Account = require("../models/account");
 const AgentAffiliation = require("../models/agentAffiliation");
 const userUpdateSchema = require("../schemas/userUpdate.json");
-const { addUserAvatarUrlToItem, addUserAvatarUrlsToItems } = require("../helpers/presignedUrls");
+const { addUserAvatarUrlToItem, addUserAvatarUrlsToItems, isSafeS3Key } = require("../helpers/presignedUrls");
+const { copyFile } = require("../services/s3Service");
+const { isAllowedS3KeyPrefix } = require("../constants/s3Upload");
+const { ulid } = require("ulid");
 const db = require("../db");
 const { notifyNewUserAccount } = require("../services/opsTeamNotifyService");
 const {
@@ -48,17 +51,33 @@ const {
 const router = express.Router();
 const DEMO_HOMEOWNER_RESET_EMAIL = "hello-homeowner@heyopsy.com";
 
+/** Copy an existing user photo to a new key owned by the created user. */
+async function copyUserPhotoForNewUser(sourceKey, userId) {
+  if (!sourceKey || typeof sourceKey !== "string") return null;
+  const trimmed = sourceKey.trim();
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("blob:")
+  ) {
+    return null;
+  }
+  if (!isSafeS3Key(trimmed) || !isAllowedS3KeyPrefix(trimmed)) return null;
+  const ext = (trimmed.split(".").pop() || "jpg")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "") || "jpg";
+  const destKey = `user_photos/${userId}/${Date.now()}-${ulid().slice(-8)}.${ext}`;
+  await copyFile(trimmed, destKey);
+  return destKey;
+}
+
 /** POST / - Admin-created user. Creates user as pending (is_active=false,
- *  onboarding_completed=false) and, by default, immediately sends an invitation
- *  email so the invitee can set a password and run through the onboarding /
- *  payment workflow on their own. Account linking, activation, and onboarding
- *  completion happen when the user accepts the invitation and finishes picking
- *  a plan.
+ *  onboarding_completed=false) and creates an invitation row without sending
+ *  email unless `sendInvite: true` (or `sendInvitationEmail: true`) is passed.
+ *  Homeowner/agent users still get an invitee-scoped account so the invitation
+ *  can be emailed later from Actions → Send pending invitations.
  *
- *  Pass `sendInvite: false` (or `sendInvitationEmail: false`) in the body to
- *  skip the invitation email — useful when bulk-creating users who shouldn't be
- *  contacted yet. The invitation can still be sent later via the existing
- *  "Resend invitation email" action in the user form. */
+ *  Pass `sendInvite: true` in the body to send the invitation email immediately. */
 router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
   const t0 = Date.now();
   let registerMs = 0;
@@ -109,8 +128,8 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       await ensureDemoUserSchema();
     }
 
-    const shouldSendInvite =
-      wantsProvision || sendInvite === false || sendInvitationEmail === false ? false : true;
+    const shouldSendInviteEmail =
+      !wantsProvision && (sendInvite === true || sendInvitationEmail === true);
 
     /* Lock the role for admin-created homeowner/agent users so they can
        only see plans matching the role the admin chose during onboarding,
@@ -134,7 +153,14 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
     registerMs = Date.now() - registerStart;
 
     if (image) {
-      await User.update({ id: newUser.id, image });
+      let imageKey = image;
+      try {
+        const copiedKey = await copyUserPhotoForNewUser(image, newUser.id);
+        if (copiedKey) imageKey = copiedKey;
+      } catch (copyErr) {
+        console.error("[users.create] failed to copy user image:", copyErr.message);
+      }
+      await User.update({ id: newUser.id, image: imageKey });
     }
 
     if (!isDemoEnvironment()) {
@@ -175,8 +201,9 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
     const inviterUserId = res.locals.user?.id;
     let resolvedAccountId = accountId ? Number(accountId) : null;
     /* Homeowner/agent invitees need an account scoped to them (not the admin's
-       platform account) so the invitation email can always be created. */
-    if (shouldSendInvite && isLockableRole && !wantsProvision) {
+       platform account) so the invitation can always be created, even when
+       the invitation email is skipped. */
+    if (isLockableRole && !wantsProvision) {
       try {
         const userAccount = await Account.linkNewUserToAccount({
           name: newUser.name || name,
@@ -199,13 +226,8 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
     let invitationEmailSent = false;
     let invitationEmailQueued = false;
     let invitationSkipped = false;
-    if (!shouldSendInvite) {
+    if (wantsProvision) {
       invitationSkipped = true;
-      if (!wantsProvision) {
-        console.info(
-          `[users.create] sendInvite=false; skipping invitation email for ${newUser.email}.`
-        );
-      }
     } else if (resolvedAccountId) {
       const inviteStart = Date.now();
       try {
@@ -217,7 +239,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
           skipEmail: true,
         });
         invitation = inviteResult?.invitation || null;
-        if (invitation && inviteResult?.token) {
+        if (invitation && inviteResult?.token && shouldSendInviteEmail) {
           invitationEmailQueued = true;
           sendAccountInvitationEmailInBackground({
             invitation,
@@ -226,12 +248,18 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
           }).catch((emailErr) => {
             console.error("[users.create] background invitation email:", emailErr.message);
           });
+        } else if (invitation && !shouldSendInviteEmail) {
+          invitationSkipped = true;
+          console.info(
+            `[users.create] sendInvite=false; created pending invitation without email for ${newUser.email}.`
+          );
         }
       } catch (inviteErr) {
         console.error("[users.create] failed to create invitation:", inviteErr.message);
       }
       inviteMs = Date.now() - inviteStart;
-    } else if (!wantsProvision) {
+    } else {
+      invitationSkipped = !shouldSendInviteEmail;
       console.warn(
         `[users.create] No accountId resolved for invitation to ${newUser.email}; skipping auto-invite.`
       );
@@ -243,7 +271,7 @@ router.post("/", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, 
       email: newUser.email,
       role,
       wantsProvision,
-      shouldSendInvite,
+      shouldSendInviteEmail,
       resolvedAccountId,
       invitationEmailQueued,
       registerMs,

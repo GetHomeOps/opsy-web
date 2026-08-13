@@ -542,6 +542,7 @@ async function createBulkPropertyInvitations({
   permissions,
   inviterUserRole,
   requireApproval = true,
+  skipInviteEmail = false,
 }) {
   const emailLower = (inviteeEmail || "").trim().toLowerCase();
   if (!emailLower) throw new BadRequestError("inviteeEmail is required");
@@ -757,29 +758,33 @@ async function createBulkPropertyInvitations({
     }
 
     if (autoAcceptedRows.length > 0) {
-      try {
-        await sendBulkPropertyAddedEmailForInvites({
-          invitationsWithTokens: autoAcceptedRows.map(({ invitation, token }) => ({ invitation, token })),
-          inviterUserId,
-          inviteeUserId,
-          inviteeName: trimmedInviteeName || null,
-        });
-        await Invitation.markEmailSentMany(autoAcceptedRows.map(({ invitation }) => invitation.id));
-      } catch (err) {
-        console.error("[invitationService] Failed to send bulk property-added email:", err.message);
+      if (!skipInviteEmail) {
+        try {
+          await sendBulkPropertyAddedEmailForInvites({
+            invitationsWithTokens: autoAcceptedRows.map(({ invitation, token }) => ({ invitation, token })),
+            inviterUserId,
+            inviteeUserId,
+            inviteeName: trimmedInviteeName || null,
+          });
+          await Invitation.markEmailSentMany(autoAcceptedRows.map(({ invitation }) => invitation.id));
+        } catch (err) {
+          console.error("[invitationService] Failed to send bulk property-added email:", err.message);
+        }
       }
     }
   } else {
-    try {
-      await sendBulkInvitationEmailForPropertyInvites({
-        invitationsWithTokens: createdRows.map(({ invitation, token }) => ({ invitation, token })),
-        inviterUserId,
-        inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
-        inviteeName: trimmedInviteeName || null,
-      });
-      await Invitation.markEmailSentMany(createdRows.map(({ invitation }) => invitation.id));
-    } catch (err) {
-      console.error("[invitationService] Failed to send bulk invitation email:", err.message);
+    if (!skipInviteEmail) {
+      try {
+        await sendBulkInvitationEmailForPropertyInvites({
+          invitationsWithTokens: createdRows.map(({ invitation, token }) => ({ invitation, token })),
+          inviterUserId,
+          inviteeUserId: inviteeUserIsActive ? inviteeUserId : null,
+          inviteeName: trimmedInviteeName || null,
+        });
+        await Invitation.markEmailSentMany(createdRows.map(({ invitation }) => invitation.id));
+      } catch (err) {
+        console.error("[invitationService] Failed to send bulk invitation email:", err.message);
+      }
     }
 
     for (const row of createdRows) {

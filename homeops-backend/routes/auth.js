@@ -33,7 +33,7 @@ const {
 } = require("../helpers/tokens");
 const { createMfaTicket, verifyMfaTicket } = require("../helpers/mfaTicket");
 const { buildAuthUrl, exchangeCodeForTokens, verifyIdToken } = require("../helpers/googleOAuth");
-const { ensureLoggedIn, ensureSuperAdmin, ensureNotImpersonating } = require("../middleware/auth");
+const { ensureLoggedIn, ensurePlatformAdmin, ensureNotImpersonating } = require("../middleware/auth");
 const {
   SECRET_KEY,
   GOOGLE_CLIENT_ID,
@@ -375,13 +375,13 @@ const impersonationLimiter = rateLimit({
   },
 });
 
-/** POST /auth/impersonate/:userId — Super admin views the app as another user. */
+/** POST /auth/impersonate/:userId — Admin or super admin views the app as another user. */
 router.post(
   "/impersonate/:userId",
   impersonationLimiter,
   ensureLoggedIn,
   ensureNotImpersonating,
-  ensureSuperAdmin,
+  ensurePlatformAdmin,
   async function (req, res, next) {
     try {
       const adminId = res.locals.user.id;
@@ -399,9 +399,6 @@ router.post(
       }
       if (targetUser.role === "super_admin") {
         throw new ForbiddenError("Cannot impersonate another super admin");
-      }
-      if (targetUser.isActive !== true) {
-        throw new BadRequestError("This user is not active and cannot be impersonated.");
       }
 
       const adminUser = await User.getById(adminId);
@@ -422,7 +419,7 @@ router.post(
   }
 );
 
-/** POST /auth/stop-impersonating — Restore the super admin session. */
+/** POST /auth/stop-impersonating — Restore the admin or super admin session. */
 router.post(
   "/stop-impersonating",
   impersonationLimiter,
@@ -436,7 +433,9 @@ router.post(
       }
 
       const impersonator = await User.getById(impersonatorId);
-      if (!impersonator || impersonator.role !== "super_admin") {
+      const impersonatorIsPlatformAdmin =
+        impersonator?.role === "super_admin" || impersonator?.role === "admin";
+      if (!impersonator || !impersonatorIsPlatformAdmin) {
         throw new ForbiddenError("Invalid impersonation session");
       }
 
