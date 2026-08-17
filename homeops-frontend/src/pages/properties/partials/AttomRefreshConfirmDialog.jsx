@@ -31,9 +31,14 @@ function AttomRefreshConfirmDialog({
   if (!portalContainer) return null;
 
   const isActive = jobStatus === "queued" || jobStatus === "processing";
-  const remainingLookups = Math.max(0, lookupLimit - lookupCount);
-  const canPullAgain = remainingLookups > 0;
-  const usageLine = `Used ${lookupCount} of ${lookupLimit} lookups for this property (${remainingLookups} remaining).`;
+  const isUnlimited = lookupLimit == null;
+  const remainingLookups = isUnlimited
+    ? null
+    : Math.max(0, lookupLimit - lookupCount);
+  const canPullAgain = isUnlimited || remainingLookups > 0;
+  const usageLine = isUnlimited
+    ? "Unlimited lookups for admin users."
+    : `Used ${lookupCount} of ${lookupLimit} lookups for this property (${remainingLookups} remaining).`;
   const needsSaveFirst =
     hasUnsavedChanges && modalView === "confirm" && !isActive;
 

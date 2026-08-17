@@ -228,6 +228,7 @@ async function enqueueAttomIfIdentitySparse({
   propertyId,
   accountId,
   userId,
+  userRole,
   propertyPayload,
 }) {
   const populated = Array.isArray(propertyPayload.identity_lookup_populated_keys)
@@ -237,8 +238,9 @@ async function enqueueAttomIfIdentitySparse({
   if (!hasCompleteAddressForAttom(propertyPayload)) return null;
 
   try {
+    const lookupLimit = AttomLookupJob.getLookupLimitForRole(userRole);
     const lookupCount = await AttomLookupJob.countForProperty(propertyId);
-    if (lookupCount >= AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY) return null;
+    if (lookupLimit != null && lookupCount >= lookupLimit) return null;
     const job = await AttomLookupJob.create({
       property_id: propertyId,
       account_id: accountId,
@@ -1052,6 +1054,7 @@ router.post("/:id/convert-to-property", async function (req, res, next) {
       propertyId: created.id,
       accountId: analysis.account_id,
       userId: user.id,
+      userRole: user.role,
       propertyPayload,
     });
 

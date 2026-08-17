@@ -3630,7 +3630,9 @@ function PropertyFormContainer() {
                                 ? "Queued…"
                                 : attomRefresh.jobStatus === "processing"
                                   ? "Pulling property data…"
-                                  : `Pull property data (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit})`}
+                                  : attomRefresh.lookupLimit == null
+                                    ? "Pull property data"
+                                    : `Pull property data (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit})`}
                           </span>
                         </button>
                       </li>

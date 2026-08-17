@@ -15,6 +15,7 @@
 
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
+const { isAdminRole } = require("../helpers/roles");
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "skipped"]);
 const ACTIVE_STATUSES = new Set(["queued", "processing"]);
@@ -172,6 +173,14 @@ class AttomLookupJob {
       [ids]
     );
     return result.rows;
+  }
+
+  /**
+   * Per-property lookup cap for a role. `null` means unlimited (admin / super_admin).
+   * Do not return Infinity — JSON serializes it as null and clients treat that as 4.
+   */
+  static getLookupLimitForRole(role) {
+    return isAdminRole(role) ? null : MAX_LOOKUPS_PER_PROPERTY;
   }
 
   /** Total lookup jobs ever created for a property (each job = one ATTOM call envelope). */

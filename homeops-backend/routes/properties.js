@@ -808,6 +808,9 @@ router.post(
     try {
       const propertyId = req.params.propertyId;
       const userId = res.locals.user?.id || null;
+      const lookupLimit = AttomLookupJob.getLookupLimitForRole(
+        res.locals.user?.role
+      );
 
       const existing = await AttomLookupJob.getLatestActiveForProperty(propertyId);
       if (existing) {
@@ -823,14 +826,14 @@ router.post(
           },
           reused: true,
           lookupCount,
-          lookupLimit: AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY,
+          lookupLimit,
         });
       }
 
       const lookupCount = await AttomLookupJob.countForProperty(propertyId);
-      if (lookupCount >= AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY) {
+      if (lookupLimit != null && lookupCount >= lookupLimit) {
         throw new ForbiddenError(
-          `ATTOM lookup limit reached (${AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY} per property). Contact support if you need another refresh.`
+          `ATTOM lookup limit reached (${lookupLimit} per property). Contact support if you need another refresh.`
         );
       }
 
@@ -862,7 +865,7 @@ router.post(
         },
         reused: false,
         lookupCount: lookupCount + 1,
-        lookupLimit: AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY,
+        lookupLimit,
       });
     } catch (err) {
       return next(err);
@@ -883,6 +886,9 @@ router.get(
   async function (req, res, next) {
     try {
       const propertyId = req.params.propertyId;
+      const lookupLimit = AttomLookupJob.getLookupLimitForRole(
+        res.locals.user?.role
+      );
       const [job, lookupCount] = await Promise.all([
         AttomLookupJob.getLatestForProperty(propertyId),
         AttomLookupJob.countForProperty(propertyId),
@@ -891,7 +897,7 @@ router.get(
         return res.json({
           job: null,
           lookupCount,
-          lookupLimit: AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY,
+          lookupLimit,
         });
       }
 
@@ -925,7 +931,7 @@ router.get(
           updatedAt: job.updated_at,
         },
         lookupCount,
-        lookupLimit: AttomLookupJob.MAX_LOOKUPS_PER_PROPERTY,
+        lookupLimit,
       });
     } catch (err) {
       return next(err);

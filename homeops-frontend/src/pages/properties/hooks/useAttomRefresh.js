@@ -1,6 +1,13 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import AppApi from "../../../api/api";
 
+/** `null` from the API means unlimited (admin / super_admin). Missing/invalid → 4. */
+function parseLookupLimit(value) {
+  if (value === null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 4;
+}
+
 /**
  * useAttomRefresh
  *
@@ -49,7 +56,9 @@ export function useAttomRefresh(propertyId, opts = {}) {
       const res = await AppApi.getPropertyAttomLookupStatus(propertyId);
       const job = res?.job ?? null;
       setLookupCount(Number(res?.lookupCount) || 0);
-      setLookupLimit(Number(res?.lookupLimit) || 4);
+      if (res && Object.prototype.hasOwnProperty.call(res, "lookupLimit")) {
+        setLookupLimit(parseLookupLimit(res.lookupLimit));
+      }
       if (!job) {
         setJobStatus(null);
         setJobError(null);
@@ -173,7 +182,7 @@ export function useAttomRefresh(propertyId, opts = {}) {
     settleRequestedJob(jobStatus, jobError);
   }, [jobStatus, initialLoaded, jobError, settleRequestedJob]);
 
-  const isAtLookupLimit = lookupCount >= lookupLimit;
+  const isAtLookupLimit = lookupLimit != null && lookupCount >= lookupLimit;
 
   /** Kick off a new job. Pass `{ silent: true }` to skip the confirm dialog (e.g. address-change auto-pull). */
   const startRefresh = useCallback(
@@ -208,7 +217,9 @@ export function useAttomRefresh(propertyId, opts = {}) {
       try {
         const res = await AppApi.refreshPropertyAttomLookup(propertyId);
         if (res?.lookupCount != null) setLookupCount(Number(res.lookupCount) || 0);
-        if (res?.lookupLimit != null) setLookupLimit(Number(res.lookupLimit) || 4);
+        if (res && Object.prototype.hasOwnProperty.call(res, "lookupLimit")) {
+          setLookupLimit(parseLookupLimit(res.lookupLimit));
+        }
         const job = await syncLatestJob();
         // If the worker finished before React could observe a status transition
         // (e.g. previous status was already "completed"), settle immediately.

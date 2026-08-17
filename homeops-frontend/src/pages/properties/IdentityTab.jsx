@@ -882,7 +882,9 @@ function IdentityTab({
                 title={
                   attomRefresh.isAtLookupLimit
                     ? `ATTOM lookup limit reached (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit} used)`
-                    : `Fill missing identity fields from ATTOM public records (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit} used)`
+                    : attomRefresh.lookupLimit == null
+                      ? "Fill missing identity fields from ATTOM public records"
+                      : `Fill missing identity fields from ATTOM public records (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit} used)`
                 }
                 onClick={attomRefresh.openConfirm}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#456564]/50 hover:text-[#456564] dark:hover:text-[#7fa3a1] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
@@ -904,14 +906,16 @@ function IdentityTab({
                   !attomRefresh.jobError ? (
                   <>
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    Pull property data ({attomRefresh.lookupCount}/
-                    {attomRefresh.lookupLimit})
+                    {attomRefresh.lookupLimit == null
+                      ? "Pull property data"
+                      : `Pull property data (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit})`}
                   </>
                 ) : (
                   <>
                     <RefreshCw className="w-3.5 h-3.5" />
-                    Pull property data ({attomRefresh.lookupCount}/
-                    {attomRefresh.lookupLimit})
+                    {attomRefresh.lookupLimit == null
+                      ? "Pull property data"
+                      : `Pull property data (${attomRefresh.lookupCount}/${attomRefresh.lookupLimit})`}
                   </>
                 )}
               </button>
