@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import DocumentAnalysisPromptModal from "./documents/DocumentAnalysisPromptModal";
 import InspectionOpsymizationPromptModal from "./documents/InspectionOpsymizationPromptModal";
 import PendingAnalysisBanner from "./documents/PendingAnalysisBanner";
@@ -14,6 +14,7 @@ import {
   toFiledDocumentForAnalysis,
 } from "../helpers/documentAnalysisFlow";
 import {canUseAiOnDemo} from "../../../utils/demoSite";
+import ContactContext from "../../../context/ContactContext";
 
 /**
  * Orchestrates post-file AI analysis prompts and results modals.
@@ -35,6 +36,7 @@ function DocumentAnalysisOrchestrator({
   const [promptBusy, setPromptBusy] = useState(false);
   const [opsymizationBusy, setOpsymizationBusy] = useState(false);
   const [promptSource, setPromptSource] = useState(null);
+  const { refreshContacts } = useContext(ContactContext) || {};
 
   const analysis = useDocumentAnalysis(propertyId);
   const analysisRef = useRef(analysis);
@@ -99,20 +101,6 @@ function DocumentAnalysisOrchestrator({
       if (String(e.detail?.propertyId) !== String(propertyId)) return;
       const doc = e.detail?.document;
       if (!doc?.id) return;
-      const active = analysisRef.current;
-      if (
-        currentDocRef.current?.id === doc.id &&
-        (active.status === "loading" ||
-          active.status === "ready" ||
-          active.status === "error" ||
-          active.status === "quota_exceeded")
-      ) {
-        setCurrentDoc(doc);
-        setPromptOpen(false);
-        setOpsymizationPromptOpen(false);
-        setResultsOpen(true);
-        return;
-      }
       showAnalysisPromptFor(doc, "manual");
     };
     window.addEventListener(REQUEST_DOCUMENT_ANALYSIS_EVENT, handler);
@@ -271,11 +259,17 @@ function DocumentAnalysisOrchestrator({
   }, [queue, beginSinglePrompt]);
 
   const handleApply = useCallback(
-    async (resultId, selectedFieldKeys) => {
+    async (resultId, selectedFieldKeys, fieldOverrides, createContactFieldKeys) => {
       setApplying(true);
       try {
-        await analysis.applySelected(resultId, selectedFieldKeys);
-        onSystemsUpdated?.();
+        await analysis.applySelected(
+          resultId,
+          selectedFieldKeys,
+          fieldOverrides,
+          createContactFieldKeys,
+        );
+        if (createContactFieldKeys?.length) refreshContacts?.();
+        await onSystemsUpdated?.();
         setResultsOpen(false);
         analysis.reset();
         if (currentDoc) clearCurrentDoc(currentDoc.id);
@@ -283,7 +277,7 @@ function DocumentAnalysisOrchestrator({
         setApplying(false);
       }
     },
-    [analysis, onSystemsUpdated, currentDoc, clearCurrentDoc],
+    [analysis, onSystemsUpdated, currentDoc, clearCurrentDoc, refreshContacts],
   );
 
   const handleReject = useCallback(

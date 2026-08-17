@@ -211,7 +211,7 @@ class Account {
    * @param {number} userId
    * @returns [{ id, name, url, ownerUserId, branding..., createdAt, updatedAt }, ...]
    *
-   * Throws NotFoundError if user has no accounts.
+   * Returns an empty array if the user has no account memberships.
    **/
   static async getUserAccounts(userId) {
     const result = await db.query(
@@ -239,10 +239,7 @@ class Account {
       [userId]
     );
 
-    const accounts = result.rows;
-    if (accounts.length === 0) throw new NotFoundError(`No accounts found for user with ID: ${userId}`);
-
-    return accounts;
+    return result.rows;
   }
 
   /** Update account data with `data`.

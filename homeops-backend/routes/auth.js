@@ -401,6 +401,27 @@ router.post(
         throw new ForbiddenError("Cannot impersonate another super admin");
       }
 
+      /* Pending homeowner/agent users may exist without a workspace (admin
+         create can fail partway). Provision one so staff can open Home while
+         the real user still completes onboarding. */
+      const targetRole = String(targetUser.role || "").toLowerCase();
+      if (targetRole === "homeowner" || targetRole === "agent") {
+        const existingAccounts = await Account.getUserAccounts(targetUser.id);
+        if (!existingAccounts.length) {
+          try {
+            await Account.linkNewUserToAccount({
+              name: targetUser.name,
+              userId: targetUser.id,
+            });
+          } catch (provisionErr) {
+            console.error(
+              `[impersonate] failed to provision account for user ${targetUser.id}:`,
+              provisionErr.message
+            );
+          }
+        }
+      }
+
       const adminUser = await User.getById(adminId);
       const tokens = await issueTokenPair(targetUser, adminUser);
 
@@ -667,15 +688,7 @@ router.get("/bootstrap", ensureLoggedIn, async function (req, res, next) {
     }
 
     const user = await User.getById(userId);
-    let accounts = [];
-    try {
-      accounts = await Account.getUserAccounts(userId);
-    } catch (err) {
-      const message = err?.message || "";
-      if (!message.includes("No accounts found")) {
-        throw err;
-      }
-    }
+    const accounts = await Account.getUserAccounts(userId);
 
     const userWithAvatar = await addUserAvatarUrlToItem(user);
     return res.json({ user: { ...userWithAvatar, accounts } });

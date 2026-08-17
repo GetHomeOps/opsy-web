@@ -25,6 +25,22 @@ class Tag {
     return result.rows[0];
   }
 
+  /** Find a tag by account + name, or create it. Does not overwrite color on conflict. */
+  static async findOrCreate({ accountId, name, color = null }) {
+    const trimmed = String(name ?? "").trim();
+    if (!trimmed) {
+      throw new Error("name is required");
+    }
+    const result = await db.query(
+      `INSERT INTO tags (account_id, name, color)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (account_id, name) DO UPDATE SET name = tags.name
+       RETURNING id, account_id, name, color, created_at`,
+      [accountId, trimmed, color]
+    );
+    return result.rows[0];
+  }
+
   /** Get all tags for an account. */
   static async getByAccountId(accountId) {
     const result = await db.query(

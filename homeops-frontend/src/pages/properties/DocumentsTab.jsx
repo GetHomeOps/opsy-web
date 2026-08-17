@@ -832,10 +832,10 @@ function DocumentsTab({
     (doc) => {
       if (!propertyId || !doc) return;
       const analysisItem = getAnalysisItem(doc.id);
-      const uiState = getDocumentAnalysisUiState(analysisItem);
+      const uiState = getDocumentAnalysisUiState(doc.id);
       if (uiState.action === "reopen") {
         emitReopenDocumentAnalysis(propertyId, doc, analysisItem);
-      } else {
+      } else if (!uiState.disabled) {
         emitRequestDocumentAnalysis(propertyId, doc);
       }
     },
@@ -1000,6 +1000,10 @@ function DocumentsTab({
               }
             },
           });
+          if (propertyId && updated) {
+            emitDocumentsFiled(propertyId, [updated]);
+            emitPropertyDocumentsChanged(propertyId);
+          }
         } catch (err) {
           if (err?.status === 403 && err?.message?.toLowerCase().includes("limit")) {
             setUpgradePromptMsg(err.message);

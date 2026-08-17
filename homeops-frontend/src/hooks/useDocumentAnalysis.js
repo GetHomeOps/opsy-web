@@ -102,8 +102,13 @@ export function useDocumentAnalysis(propertyId) {
   );
 
   const applySelected = useCallback(
-    async (resultId, selectedFieldKeys) => {
-      const res = await AppApi.applyDocumentAnalysis(resultId, selectedFieldKeys);
+    async (resultId, selectedFieldKeys, fieldOverrides, createContactFieldKeys) => {
+      const res = await AppApi.applyDocumentAnalysis(
+        resultId,
+        selectedFieldKeys,
+        fieldOverrides,
+        createContactFieldKeys,
+      );
       setResult(res.result);
       setStatus("applied");
       if (propertyId) emitDocumentAnalysisUpdated(propertyId);

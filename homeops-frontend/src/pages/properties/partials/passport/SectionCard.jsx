@@ -31,14 +31,14 @@ function SectionCard({
       {(title || action) && (
         <div className="px-4 md:px-5 pt-4 pb-2">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between md:gap-3">
-            <div className="min-w-0 md:flex-1">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start gap-2 min-w-0">
                 {Icon && (
                   <Icon
-                    className={`w-4 h-4 shrink-0 ${iconClassName ?? "text-neutral-400 dark:text-neutral-500"}`}
+                    className={`w-4 h-4 shrink-0 mt-0.5 ${iconClassName ?? "text-neutral-400 dark:text-neutral-500"}`}
                   />
                 )}
-                <h3 className="text-sm font-semibold text-neutral-900 dark:text-white truncate min-w-0">
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-white min-w-0 flex-1 break-words">
                   {title}
                 </h3>
                 {badge && (

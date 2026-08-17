@@ -3,8 +3,9 @@
 /**
  * Document Analysis Service
  *
- * Downloads a filed property document from S3, extracts text or uses vision for
- * images, classifies document type, and extracts structured findings.
+ * Downloads a filed property document from S3, extracts text (and a first-page
+ * screenshot for PDFs) or uses vision for images, classifies document type, and
+ * extracts structured findings.
  */
 
 const { PDFParse } = require("pdf-parse");
@@ -16,6 +17,10 @@ const DocumentAnalysisResult = require("../models/documentAnalysisResult");
 const { AWS_S3_BUCKET } = require("../config");
 const { logAiUsage } = require("./usageService");
 const { normalizeFindings } = require("./documentAnalysisFieldMapper");
+const {
+  getSystemCatalog,
+  buildExtractionPrompt,
+} = require("./documentAnalysisSystemCatalog");
 
 const MODEL = process.env.AI_DOCUMENT_ANALYSIS_MODEL || "gpt-4o-mini";
 const VISION_MODEL = process.env.AI_DOCUMENT_ANALYSIS_VISION_MODEL || "gpt-4o-mini";
@@ -45,59 +50,44 @@ Category guide:
 Hints — filename: {FILENAME}, document_type: {DOC_TYPE}, system: {SYSTEM_KEY}
 `;
 
-const EXTRACTION_PROMPTS = {
-  installation_invoice: `Extract installation/invoice details from this document for the "{SYSTEM_KEY}" system.
-Output ONLY valid JSON:
-{
-  "summary": "1-2 sentence summary",
-  "items": [
-    { "fieldKey": "brand|model|installDate|installer|vendor|cost|warranty|maintenanceScheduleRecommendation", "label": "Human label", "value": "extracted value or array for lists", "confidence": 0.0-1.0, "evidence": "short verbatim quote" }
-  ]
+function screenshotToDataUrl(page) {
+  if (!page) return null;
+  if (typeof page.dataUrl === "string" && page.dataUrl.startsWith("data:")) {
+    return page.dataUrl;
+  }
+  if (page.data) {
+    return `data:image/png;base64,${Buffer.from(page.data).toString("base64")}`;
+  }
+  return null;
 }
-Include only fields you can support with evidence. Dates as YYYY-MM-DD when possible.`,
 
-  maintenance_report: `Extract maintenance report details for the "{SYSTEM_KEY}" system.
-Output ONLY valid JSON:
-{
-  "summary": "1-2 sentence summary",
-  "items": [
-    { "fieldKey": "reportDate|technician|condition|findings|suggestedNextDates|maintenanceScheduleRecommendation", "label": "Human label", "value": "string or array", "confidence": 0.0-1.0, "evidence": "short verbatim quote" }
-  ]
-}
-findings and suggestedNextDates may be arrays of strings.`,
-
-  inspection_report: `Extract inspection report details for the "{SYSTEM_KEY}" system.
-Output ONLY valid JSON:
-{
-  "summary": "1-2 sentence summary",
-  "items": [
-    { "fieldKey": "reportDate|condition|findings|suggestedNextDates|nextServiceDate", "label": "Human label", "value": "string or array", "confidence": 0.0-1.0, "evidence": "short verbatim quote" }
-  ]
-}`,
-
-  bid: `Extract bid/quote details for the "{SYSTEM_KEY}" system.
-Output ONLY valid JSON:
-{
-  "summary": "1-2 sentence summary",
-  "items": [
-    { "fieldKey": "vendor|totalPrice|lineItems|termsAndConditions|scope|validUntil", "label": "Human label", "value": "string or array", "confidence": 0.0-1.0, "evidence": "short verbatim quote" }
-  ]
-}`,
-
-  other: `Extract useful property document details for the "{SYSTEM_KEY}" system.
-Output ONLY valid JSON:
-{
-  "summary": "1-2 sentence summary",
-  "items": [
-    { "fieldKey": "summary|keyDates|notes", "label": "Human label", "value": "string or array", "confidence": 0.0-1.0, "evidence": "short verbatim quote if available" }
-  ]
-}`,
-};
-
-async function extractTextFromPdf(buffer) {
+async function extractPdfContent(buffer) {
   const parser = new PDFParse({ data: buffer });
-  const result = await parser.getText();
-  return result.text || "";
+  try {
+    const textResult = await parser.getText();
+    const text = textResult.text || "";
+    let pageImageDataUrl = null;
+    try {
+      const shot = await parser.getScreenshot({
+        first: 1,
+        desiredWidth: 1024,
+        imageDataUrl: true,
+      });
+      pageImageDataUrl = screenshotToDataUrl(shot?.pages?.[0]);
+    } catch (err) {
+      console.warn(
+        "[documentAnalysis] PDF screenshot failed, using text only:",
+        err.message,
+      );
+    }
+    return { text, pageImageDataUrl };
+  } finally {
+    try {
+      await parser.destroy();
+    } catch {
+      // parser cleanup is best-effort
+    }
+  }
 }
 
 function isImageMime(mimeType) {
@@ -143,16 +133,17 @@ async function callChat(openai, messages, usageCtx) {
   return parseJsonFromResponse(content);
 }
 
-async function extractViaVision(openai, buffer, mimeType, prompt, usageCtx) {
-  const base64 = buffer.toString("base64");
-  const dataUrl = `data:${mimeType || "image/jpeg"};base64,${base64}`;
+async function extractWithImage(openai, { dataUrl, prompt, text, usageCtx }) {
+  const promptText = text
+    ? `${prompt}\n\nUse both the document image (including header, logo, and letterhead) and this extracted text:\n${text.slice(0, 30000)}`
+    : prompt;
   const response = await openai.chat.completions.create({
     model: VISION_MODEL,
     messages: [
       {
         role: "user",
         content: [
-          { type: "text", text: prompt },
+          { type: "text", text: promptText },
           { type: "image_url", image_url: { url: dataUrl } },
         ],
       },
@@ -172,6 +163,11 @@ async function extractViaVision(openai, buffer, mimeType, prompt, usageCtx) {
     }).catch(() => {});
   }
   return parseJsonFromResponse(content);
+}
+
+async function extractViaVision(openai, buffer, mimeType, prompt, usageCtx) {
+  const dataUrl = `data:${mimeType || "image/jpeg"};base64,${buffer.toString("base64")}`;
+  return extractWithImage(openai, { dataUrl, prompt, usageCtx });
 }
 
 function buildFindingsFromExtraction(parsed, category) {
@@ -233,13 +229,16 @@ async function runDocumentAnalysis(jobId) {
   };
 
   let text = "";
+  let pageImageDataUrl = null;
   const useVision = isImageMime(job.mime_type);
 
   if (useVision) {
     await DocumentAnalysisJob.updateStatus(jobId, { progress: "Analyzing image..." });
   } else {
     await DocumentAnalysisJob.updateStatus(jobId, { progress: "Extracting text..." });
-    text = await extractTextFromPdf(buffer);
+    const pdfContent = await extractPdfContent(buffer);
+    text = pdfContent.text;
+    pageImageDataUrl = pdfContent.pageImageDataUrl;
     if (!text || text.trim().length < 30) {
       await DocumentAnalysisJob.updateStatus(jobId, {
         status: "failed",
@@ -293,13 +292,42 @@ async function runDocumentAnalysis(jobId) {
 
   await DocumentAnalysisJob.updateStatus(jobId, { progress: "Extracting findings..." });
 
-  const extractTemplate = EXTRACTION_PROMPTS[category] || EXTRACTION_PROMPTS.other;
-  const extractPrompt = extractTemplate.replace("{SYSTEM_KEY}", job.system_key || "general");
+  const catalog = getSystemCatalog(job.system_key);
+  const extractPrompt = buildExtractionPrompt({
+    catalog,
+    category,
+    documentType: job.document_type,
+  });
 
   let extraction;
   try {
     if (useVision) {
       extraction = await extractViaVision(openai, buffer, job.mime_type, extractPrompt, usageCtx);
+    } else if (pageImageDataUrl) {
+      try {
+        extraction = await extractWithImage(openai, {
+          dataUrl: pageImageDataUrl,
+          prompt: extractPrompt,
+          text,
+          usageCtx,
+        });
+      } catch (visionErr) {
+        console.warn(
+          "[documentAnalysis] PDF vision extraction failed, using text only:",
+          visionErr.message,
+        );
+        extraction = await callChat(
+          openai,
+          [
+            { role: "system", content: "Output only valid JSON." },
+            {
+              role: "user",
+              content: `${extractPrompt}\n\nDocument text:\n${text.slice(0, 30000)}`,
+            },
+          ],
+          usageCtx,
+        );
+      }
     } else {
       extraction = await callChat(
         openai,

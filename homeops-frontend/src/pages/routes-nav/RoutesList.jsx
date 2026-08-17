@@ -1105,10 +1105,7 @@ function RoutesList() {
         element={
           currentUser ? (
             currentUser.onboardingCompleted === false &&
-            !(
-              impersonation?.active &&
-              (currentUser.isActive ?? currentUser.is_active) === false
-            ) ? (
+            !impersonation?.active ? (
               <Navigate to="/onboarding" replace />
             ) : currentAccount?.url ? (
               <Navigate to={`/${currentAccount.url}/home`} replace />

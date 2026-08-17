@@ -758,6 +758,7 @@ function MaintenanceTab({
             onOpenInNewTab={handleOpenInNewTab}
             onDismissSuccess={() => setSuccessMessage(null)}
             onAttachFiles={handleAttachFiles}
+            contacts={contacts}
           />
         )
       )}

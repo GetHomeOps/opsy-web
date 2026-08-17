@@ -123,17 +123,18 @@ function DocumentsPreviewPanel({
 
   function renderAnalyzeButton({ compact = false } = {}) {
     if (!showDocumentAnalysis) return null;
-    const { analyzing, label } = documentAnalysisState;
+    const { analyzing, label, disabled, title } = documentAnalysisState;
     const baseClass = compact
-      ? "btn-sm btn-primary-outline flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0"
-      : "w-full text-xs px-2 py-1.5 rounded-md btn-primary-outline flex items-center justify-center gap-1";
+      ? "btn-sm btn-primary-outline flex items-center gap-1 px-2 py-1 text-xs flex-shrink-0 disabled:opacity-60"
+      : "w-full text-xs px-2 py-1.5 rounded-md btn-primary-outline flex items-center justify-center gap-1 disabled:opacity-60";
 
     return (
       <button
         type="button"
         onClick={() => onAnalyzeDocument?.(selectedDocument)}
         className={baseClass}
-        title={label}
+        disabled={Boolean(disabled)}
+        title={title || label}
       >
         {analyzing ? (
           <Loader2 className={`${compact ? "w-3.5 h-3.5" : "w-3 h-3"} animate-spin`} />

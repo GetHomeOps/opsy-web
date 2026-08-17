@@ -46,7 +46,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const isImpersonating = !!impersonation?.active;
 
   /* Mirror ProtectedRoute's paid-subscription rule so the impersonation banner can
-     explain why the impersonated user lands on onboarding or the upgrade page. */
+     explain why the impersonated user lands on the upgrade page. */
   const impersonatedRequiresPaid =
     isImpersonating &&
     !!currentUser &&
@@ -71,7 +71,7 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
         "This user hasn't activated their account yet";
     } else if (currentUser?.onboardingCompleted === false) {
       impersonationStatusNote =
-        "This user hasn't completed onboarding — you're seeing their plan-selection flow.";
+        "This user hasn't completed onboarding yet";
     } else if (
       impersonatedRequiresPaid &&
       !billingLoading &&

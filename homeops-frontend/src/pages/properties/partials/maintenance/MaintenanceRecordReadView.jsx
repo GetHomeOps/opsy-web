@@ -40,6 +40,8 @@ import {
   openPropertyDocumentInNewTab,
   resolvePropertyDocumentIdFromLinkedFile,
 } from "../../helpers/propertyDocumentNavigation";
+import {findContactForContractor} from "../../helpers/contactNavigation";
+import ContactLinkIcon from "../ContactLinkIcon";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -135,9 +137,9 @@ function RecordInfoItem({icon: Icon, label, value}) {
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
           {label}
         </p>
-        <p className="text-sm font-semibold text-neutral-900 dark:text-white max-[1350px]:break-words min-[1351px]:truncate">
+        <div className="text-sm font-semibold text-neutral-900 dark:text-white max-[1350px]:break-words min-[1351px]:truncate">
           {value ?? "—"}
-        </p>
+        </div>
       </div>
     </div>
   );
@@ -185,6 +187,7 @@ function MaintenanceRecordReadView({
   onOpenInNewTab,
   onDismissSuccess,
   onAttachFiles,
+  contacts = [],
 }) {
   const fileInputRef = useRef(null);
   const [uploadingDocs, setUploadingDocs] = useState(false);
@@ -237,13 +240,29 @@ function MaintenanceRecordReadView({
   const isCompleted = String(record?.status ?? "") === "Completed";
 
   const recordType = String(record?.recordType ?? "").trim() || "—";
+  const contractorContact = useMemo(
+    () => findContactForContractor(record, contacts),
+    [record, contacts],
+  );
+  const contractorValue = record?.contractor ? (
+    contractorContact?.id != null ? (
+      <span className="inline-flex items-center gap-1 min-w-0">
+        <span className="truncate">{record.contractor}</span>
+        <ContactLinkIcon contactId={contractorContact.id} />
+      </span>
+    ) : (
+      record.contractor
+    )
+  ) : (
+    "—"
+  );
 
   const summaryItems = useMemo(
     () => [
       {icon: Calendar, label: "Service Date", value: formatDate(record?.date)},
       {icon: Wrench, label: "System", value: systemName},
       {icon: ClipboardList, label: "Type", value: recordType},
-      {icon: User, label: "Contractor", value: record?.contractor || "—"},
+      {icon: User, label: "Contractor", value: contractorValue},
       {icon: DollarSign, label: "Cost", value: formatCost(record?.cost)},
       {
         icon: CalendarClock,
@@ -252,7 +271,7 @@ function MaintenanceRecordReadView({
       },
       {icon: FileText, label: "Source", value: source},
     ],
-    [record, systemName, source, recordType],
+    [record, systemName, source, recordType, contractorValue],
   );
 
   const timeline = useMemo(() => {
@@ -594,9 +613,12 @@ function MaintenanceRecordReadView({
             {record?.contractor && (
               <SectionCard flat title="Contractor Details" icon={User}>
                 <div className="space-y-2 text-sm">
-                  <p className="font-semibold text-gray-900 dark:text-white">
+                  <div className="font-semibold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
                     {record.contractor}
-                  </p>
+                    {contractorContact?.id != null && (
+                      <ContactLinkIcon contactId={contractorContact.id} />
+                    )}
+                  </div>
                   {record.contractorPhone && (
                     <p className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                       <Phone className="w-3.5 h-3.5" />

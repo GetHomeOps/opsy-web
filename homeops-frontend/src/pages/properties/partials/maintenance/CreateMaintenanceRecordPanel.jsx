@@ -633,6 +633,7 @@ function CreateMaintenanceRecordPanel({
                 </label>
                 <ContractorDropdown
                   value={form.contractor}
+                  contractorEmail={form.contractorEmail}
                   contacts={contacts}
                   favoriteProfessionals={savedProfessionals}
                   onSelect={handleContractorSelect}

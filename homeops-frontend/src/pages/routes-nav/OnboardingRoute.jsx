@@ -16,11 +16,12 @@ function billingGateKey(userId, accountId, requiresPaid) {
 /**
  * Wraps the onboarding wizard. Requires authentication.
  * - If not logged in: redirect to signin
+ * - If impersonating: redirect to Home (staff skip the wizard)
  * - If logged in and onboardingCompleted: redirect to dashboard
  * - Otherwise: render children (OnboardingWizard)
  */
 function OnboardingRoute({children}) {
-  const {currentUser, isLoading} = useAuth();
+  const {currentUser, isLoading, impersonation} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const accountId = currentAccount?.id || currentUser?.accounts?.[0]?.id || null;
 
@@ -134,6 +135,19 @@ function OnboardingRoute({children}) {
     return <Navigate to="/signin" replace />;
   }
 
+  const accountUrl =
+    currentAccount?.url ||
+    currentUser?.accounts?.[0]?.url?.replace(/^\/+/, "") ||
+    currentUser?.accounts?.[0]?.name;
+
+  // Staff impersonating an incomplete user should see Home, not the wizard.
+  if (impersonation?.active) {
+    if (accountUrl) {
+      return <Navigate to={`/${accountUrl}/home`} replace />;
+    }
+    return <Navigate to="/" replace />;
+  }
+
   if (currentUser.onboardingCompleted !== false) {
     if (requiresPaidSubscription) {
       const gateReady =
@@ -152,9 +166,6 @@ function OnboardingRoute({children}) {
       }
     }
 
-    const accountUrl =
-      currentUser?.accounts?.[0]?.url?.replace(/^\/+/, "") ||
-      currentUser?.accounts?.[0]?.name;
     if (accountUrl) {
       return <Navigate to={`/${accountUrl}/home`} replace />;
     }

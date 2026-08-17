@@ -4,7 +4,6 @@ import {
   Gauge,
   Calendar,
   AlertTriangle,
-  Sparkles,
   ClipboardList,
   CheckCircle2,
   Wrench,
@@ -13,6 +12,7 @@ import SectionCard from "./SectionCard";
 import {StatusBadge} from "./StatusBadge";
 import LabelValue from "./LabelValue";
 import {formatOverviewDate} from "./SystemsOverviewPanel";
+import {SystemAdditionalDetailsCard} from "../systemDetail/SystemAdditionalDetailsCard";
 
 function conditionTone(condition) {
   const c = String(condition ?? "").toLowerCase();
@@ -30,7 +30,8 @@ function conditionTone(condition) {
  */
 export function SystemDetailCards({
   groups = {identity: [], condition: [], inspection: [], issues: []},
-  aiFindings = {needsAttention: [], maintenanceSuggestions: []},
+  additionalDetails = [],
+  propertyDocuments = [],
   linkedRecords = [],
 }) {
   const nextInspectionItem = (groups.inspection ?? []).find((i) =>
@@ -43,18 +44,6 @@ export function SystemDetailCards({
     .map((i) => i.value)
     .filter((v) => v != null && String(v).trim() !== "")
     .join("\n");
-  const aiItems = [
-    ...(aiFindings?.needsAttention ?? []).map((n) => ({
-      key: `attn-${n.title ?? n.suggestedAction}`,
-      tone: "amber",
-      text: n.title || n.suggestedAction || "AI finding",
-    })),
-    ...(aiFindings?.maintenanceSuggestions ?? []).map((m) => ({
-      key: `maint-${m.task ?? m.systemType}`,
-      tone: "neutral",
-      text: m.task || m.rationale || "Maintenance suggestion",
-    })),
-  ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
@@ -62,7 +51,11 @@ export function SystemDetailCards({
       <SectionCard flat title="System Identity" icon={FileText}>
         <div className="grid grid-cols-1 gap-y-3">
           {(groups.identity ?? []).map((item) => (
-            <LabelValue key={item.label} label={item.label} value={item.value} />
+            <LabelValue
+              key={item.label}
+              label={item.label}
+              value={item.value}
+            />
           ))}
         </div>
       </SectionCard>
@@ -113,7 +106,11 @@ export function SystemDetailCards({
         )}
         <div className="grid grid-cols-1 gap-y-3">
           {otherInspectionItems.map((item) => (
-            <LabelValue key={item.label} label={item.label} value={item.value} />
+            <LabelValue
+              key={item.label}
+              label={item.label}
+              value={item.value}
+            />
           ))}
         </div>
       </SectionCard>
@@ -135,35 +132,10 @@ export function SystemDetailCards({
         )}
       </SectionCard>
 
-      {/* AI-Extracted Insights */}
-      <SectionCard
-        flat
-        title="AI-Extracted Insights"
-        description="Insights from documents, photos, and maintenance history"
-        icon={Sparkles}
-      >
-        {aiItems.length > 0 ? (
-          <ul className="space-y-2">
-            {aiItems.slice(0, 5).map((item) => (
-              <li key={item.key} className="flex items-start gap-2.5">
-                {item.tone === "amber" ? (
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-                ) : (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                )}
-                <span className="text-sm text-neutral-700 dark:text-neutral-300">
-                  {item.text}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            No AI insights for this system yet. Upload inspection reports or
-            documents to generate findings.
-          </p>
-        )}
-      </SectionCard>
+      <SystemAdditionalDetailsCard
+        items={additionalDetails}
+        propertyDocuments={propertyDocuments}
+      />
 
       {/* Linked Records */}
       <SectionCard flat title="Linked Records" icon={ClipboardList}>

@@ -4,23 +4,21 @@ import {
   Gauge,
   Calendar,
   AlertTriangle,
-  Sparkles,
   ClipboardList,
-  CheckCircle2,
-  AlertTriangle as AlertTri,
 } from "lucide-react";
 import SectionCard from "../passport/SectionCard";
 import Tooltip from "../../../../utils/Tooltip";
-import { Info } from "lucide-react";
+import {Info} from "lucide-react";
 import DatePickerInput from "../../../../components/DatePickerInput";
 import InstallerSelect from "../InstallerSelect";
-import { STANDARD_CUSTOM_SYSTEM_FIELDS } from "../../constants/propertySystems";
+import {STANDARD_CUSTOM_SYSTEM_FIELDS} from "../../constants/propertySystems";
 import {
   getAgeFromInstallDate,
   formatAgeFromInstallDate,
 } from "../../constants/systemSections";
-import { formatOverviewDate } from "../passport/SystemsOverviewPanel";
-import { resolveDisplayNextInspectionDate } from "../../helpers/systemStatusHelpers";
+import {formatOverviewDate} from "../passport/SystemsOverviewPanel";
+import {resolveDisplayNextInspectionDate} from "../../helpers/systemStatusHelpers";
+import {SystemAdditionalDetailsCard} from "./SystemAdditionalDetailsCard";
 
 const GROUP_FOR_KEY = {
   material: "identity",
@@ -35,10 +33,10 @@ const GROUP_FOR_KEY = {
 };
 
 const GROUP_META = {
-  identity: { title: "System Identity", icon: FileText },
-  condition: { title: "Condition & Lifecycle", icon: Gauge },
-  inspection: { title: "Inspection Schedule", icon: Calendar },
-  issues: { title: "Known Issues", icon: AlertTriangle },
+  identity: {title: "System Identity", icon: FileText},
+  condition: {title: "Condition & Lifecycle", icon: Gauge},
+  inspection: {title: "Inspection Schedule", icon: Calendar},
+  issues: {title: "Known Issues", icon: AlertTriangle},
 };
 
 function CustomField({
@@ -66,7 +64,10 @@ function CustomField({
       {field.key === "lastInspection" && (
         <>
           {" "}
-          <Tooltip content="Disabled when marked as new installation" position="right">
+          <Tooltip
+            content="Disabled when marked as new installation"
+            position="right"
+          >
             <Info className="w-3.5 h-3.5 inline-block ml-0.5 align-middle text-gray-400 cursor-help" />
           </Tooltip>
         </>
@@ -99,7 +100,9 @@ function CustomField({
         >
           <option value="">Select…</option>
           {(field.options ?? []).map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
           ))}
         </select>
       </div>
@@ -110,7 +113,12 @@ function CustomField({
     return (
       <div>
         {labelEl}
-        <select name={name} value={value} onChange={handleInputChange} className="form-select w-full">
+        <select
+          name={name}
+          value={value}
+          onChange={handleInputChange}
+          className="form-select w-full"
+        >
           <option value="">Select</option>
           <option value="yes">Yes</option>
           <option value="no">No</option>
@@ -137,7 +145,12 @@ function CustomField({
     return (
       <div>
         {labelEl}
-        <InstallerSelect name={name} value={value} onChange={handleInputChange} contacts={contacts} />
+        <InstallerSelect
+          name={name}
+          value={value}
+          onChange={handleInputChange}
+          contacts={contacts}
+        />
       </div>
     );
   }
@@ -176,12 +189,12 @@ export function SystemCustomFormCards({
   handleInputChange,
   contacts,
   isNewInstall = false,
-  aiFindings,
+  additionalDetails = [],
+  propertyDocuments = [],
   linkedRecords = [],
-  onUploadDocument,
   lastInspectionDate,
 }) {
-  const grouped = { identity: [], condition: [], inspection: [], issues: [] };
+  const grouped = {identity: [], condition: [], inspection: [], issues: []};
   for (const field of STANDARD_CUSTOM_SYSTEM_FIELDS) {
     const g = GROUP_FOR_KEY[field.key] ?? "identity";
     grouped[g].push(field);
@@ -192,18 +205,6 @@ export function SystemCustomFormCards({
     nextInspectionVal,
     lastInspectionDate,
   );
-  const aiItems = [
-    ...(aiFindings?.needsAttention ?? []).map((n) => ({
-      key: `attn-${n.title ?? n.suggestedAction}`,
-      tone: "amber",
-      text: n.title || n.suggestedAction || "AI finding",
-    })),
-    ...(aiFindings?.maintenanceSuggestions ?? []).map((m) => ({
-      key: `maint-${m.task ?? m.systemType}`,
-      tone: "neutral",
-      text: m.task || m.rationale || "Maintenance suggestion",
-    })),
-  ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
@@ -215,14 +216,20 @@ export function SystemCustomFormCards({
         if (groupKey === "inspection") {
           const otherFields = fields.filter((f) => f.key !== "nextInspection");
           return (
-            <SectionCard flat key={groupKey} title={meta.title} icon={meta.icon}>
+            <SectionCard
+              flat
+              key={groupKey}
+              title={meta.title}
+              icon={meta.icon}
+            >
               {displayNextInspection ? (
                 <div className="rounded-xl bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 px-4 py-3 mb-3">
                   <p className="text-[10px] font-medium text-emerald-700/80 dark:text-emerald-300/80 uppercase tracking-[0.08em]">
                     Next Inspection
                   </p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-white mt-0.5">
-                    {formatOverviewDate(displayNextInspection) ?? displayNextInspection}
+                    {formatOverviewDate(displayNextInspection) ??
+                      displayNextInspection}
                   </p>
                 </div>
               ) : (
@@ -276,43 +283,10 @@ export function SystemCustomFormCards({
         );
       })}
 
-      <SectionCard
-        flat
-        title="AI-Extracted Insights"
-        icon={Sparkles}
-        action={
-          onUploadDocument ? (
-            <button
-              type="button"
-              onClick={onUploadDocument}
-              className="text-xs font-medium text-[#456564] hover:text-[#34514f]"
-            >
-              Upload Document
-            </button>
-          ) : null
-        }
-      >
-        {aiItems.length > 0 ? (
-          <ul className="space-y-2">
-            {aiItems.slice(0, 5).map((item) => (
-              <li key={item.key} className="flex items-start gap-2.5">
-                {item.tone === "amber" ? (
-                  <AlertTri className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-                ) : (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                )}
-                <span className="text-sm text-neutral-700 dark:text-neutral-300">
-                  {item.text}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            No AI insights for this system yet.
-          </p>
-        )}
-      </SectionCard>
+      <SystemAdditionalDetailsCard
+        items={additionalDetails}
+        propertyDocuments={propertyDocuments}
+      />
 
       <SectionCard flat title="Linked Records" icon={ClipboardList}>
         <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -321,7 +295,9 @@ export function SystemCustomFormCards({
               <span className="text-sm text-neutral-700 dark:text-neutral-300 flex-1">
                 {rec.label}
               </span>
-              <span className="text-sm font-semibold tabular-nums">{rec.count}</span>
+              <span className="text-sm font-semibold tabular-nums">
+                {rec.count}
+              </span>
             </li>
           ))}
         </ul>

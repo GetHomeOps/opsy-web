@@ -128,6 +128,17 @@ class Contact {
     );
   }
 
+  /** Add a single tag to a contact without removing existing tags. */
+  static async addTag(contactId, tagId) {
+    if (contactId == null || tagId == null) return;
+    await db.query(
+      `INSERT INTO contact_tags (contact_id, tag_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [contactId, tagId]
+    );
+  }
+
   /** Create a contact (from data), update db, return new contact data.
    *
    * data should be { name (required), image, type, phone, email, website, street1, street2, city, state, zip_code, country, country_code, notes, role, tagIds? }

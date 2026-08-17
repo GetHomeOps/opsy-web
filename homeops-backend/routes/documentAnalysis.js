@@ -7,17 +7,27 @@ const DocumentAnalysisJob = require("../models/documentAnalysisJob");
 const DocumentAnalysisResult = require("../models/documentAnalysisResult");
 const PropertyDocument = require("../models/propertyDocuments");
 const System = require("../models/system");
+const { BadRequestError, ForbiddenError } = require("../expressError");
+const Contact = require("../models/contact");
 const { enqueue } = require("../services/documentAnalysisQueue");
 const {
   mergeSelectedFields,
   formatResultForApi,
   buildReviewFields,
+  collectInstallerContactDetails,
 } = require("../services/documentAnalysisFieldMapper");
 const { checkAiFeaturesAllowed, checkAiTokenQuota } = require("../services/tierService");
 const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
 const { triggerReanalysisOnDocument } = require("../services/ai/propertyReanalysisService");
+const { isAdminRole } = require("../helpers/roles");
+const { ensureInstallerTag } = require("../services/installerTagService");
 
 const router = express.Router();
+
+const MAX_DOCUMENT_ANALYSIS_RUNS_PER_DOCUMENT =
+  DocumentAnalysisJob.MAX_COMPLETED_RUNS_PER_DOCUMENT;
+
+const DOCUMENT_ANALYSIS_RUN_LIMIT_MESSAGE = `This document has already been analyzed ${MAX_DOCUMENT_ANALYSIS_RUNS_PER_DOCUMENT} times.`;
 
 async function assertPropertyAccess(propertyId, user) {
   if (user.role === "super_admin" || user.role === "admin") return;
@@ -45,7 +55,167 @@ function inferMimeFromKey(key, fileName) {
   return null;
 }
 
-function serializeJobResponse(job, resultRow, systemRow) {
+async function getPropertyAccountId(propertyId) {
+  const res = await db.query(`SELECT account_id FROM properties WHERE id = $1`, [
+    propertyId,
+  ]);
+  return res.rows[0]?.account_id || null;
+}
+
+async function getPropertyContacts(propertyId) {
+  const accountId = await getPropertyAccountId(propertyId);
+  if (!accountId) return [];
+  try {
+    return await Contact.getByAccountId(accountId);
+  } catch {
+    return [];
+  }
+}
+
+function installerContactName(raw) {
+  if (raw == null) return "";
+  if (typeof raw === "string") return raw.trim();
+  if (typeof raw === "number" || typeof raw === "boolean") return String(raw).trim();
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    const nested = raw.name || raw.company || raw.companyName || raw.installer;
+    if (nested != null) return installerContactName(nested);
+  }
+  return String(raw).trim();
+}
+
+function contactCreatePayload(name, details) {
+  const payload = {
+    name,
+    type: 2,
+    role: "Installer",
+  };
+  if (!details) return payload;
+  if (details.phone) payload.phone = details.phone;
+  if (details.email) payload.email = details.email;
+  if (details.website) payload.website = details.website;
+  if (details.street1) payload.street1 = details.street1;
+  if (details.street2) payload.street2 = details.street2;
+  if (details.city) payload.city = details.city;
+  if (details.state) payload.state = details.state;
+  if (details.zip_code) payload.zip_code = details.zip_code;
+  if (details.country) payload.country = details.country;
+  if (details.country_code) payload.country_code = details.country_code;
+  return payload;
+}
+
+function emptyContactFieldPatch(contact, details) {
+  if (!contact || !details) return null;
+  const patch = {};
+  const keys = [
+    "phone",
+    "email",
+    "website",
+    "street1",
+    "street2",
+    "city",
+    "state",
+    "zip_code",
+    "country",
+    "country_code",
+  ];
+  for (const key of keys) {
+    const next = details[key];
+    if (next == null || String(next).trim() === "") continue;
+    const current = contact[key];
+    if (current == null || String(current).trim() === "") patch[key] = next;
+  }
+  return Object.keys(patch).length ? patch : null;
+}
+
+async function createInstallerContactsForApply({
+  propertyId,
+  systemKey,
+  findings,
+  systemRow,
+  contacts,
+  selectedFieldKeys,
+  fieldOverrides,
+  createContactFieldKeys,
+  userId,
+}) {
+  const createdContacts = [];
+  if (!Array.isArray(createContactFieldKeys) || createContactFieldKeys.length === 0) {
+    return { contacts, createdContacts };
+  }
+
+  const accountId = await getPropertyAccountId(propertyId);
+  if (!accountId) return { contacts, createdContacts };
+
+  const selected = new Set(selectedFieldKeys);
+  const overrides =
+    fieldOverrides && typeof fieldOverrides === "object" ? fieldOverrides : {};
+  const reviewFields = buildReviewFields(systemKey, findings, systemRow, { contacts });
+  const nextContacts = [...contacts];
+  const contactDetails = collectInstallerContactDetails(findings);
+
+  for (const fieldKey of createContactFieldKeys) {
+    if (!selected.has(fieldKey)) continue;
+    const field = reviewFields.find((f) => f.fieldKey === fieldKey);
+    if (!field?.canCreateInstallerContact) continue;
+    const raw = Object.prototype.hasOwnProperty.call(overrides, fieldKey)
+      ? overrides[fieldKey]
+      : field.proposedValue;
+    const name = installerContactName(raw);
+    if (name.length < 3) continue;
+    const existing = nextContacts.find((c) => {
+      const cn = String(c.name || "").trim().toLowerCase().replace(/\s+/g, " ");
+      return cn && cn === name.toLowerCase().replace(/\s+/g, " ");
+    });
+    if (existing) {
+      const patch = emptyContactFieldPatch(existing, contactDetails);
+      if (patch) {
+        const updated = await Contact.update(existing.id, patch);
+        const idx = nextContacts.findIndex((c) => c.id === existing.id);
+        if (idx >= 0) nextContacts[idx] = updated;
+      }
+      await ensureInstallerTag(existing.id, accountId);
+      continue;
+    }
+    const contact = await Contact.create(contactCreatePayload(name, contactDetails));
+    await Contact.addToAccount({
+      contactId: contact.id,
+      accountId,
+      addedByUserId: userId ?? null,
+    });
+    await ensureInstallerTag(contact.id, accountId);
+    nextContacts.push(contact);
+    createdContacts.push(contact);
+  }
+
+  return { contacts: nextContacts, createdContacts };
+}
+
+async function formatEnrichedResult(row, systemRow) {
+  const contacts = await getPropertyContacts(row.property_id);
+  return formatResultForApi(row, systemRow, { contacts });
+}
+
+function completedRunCountsByDocument(rows) {
+  const counts = {};
+  for (const row of rows) {
+    const docId = row.property_document_id;
+    if (!docId) continue;
+    if (row.status === "completed") {
+      counts[docId] = (counts[docId] || 0) + 1;
+    }
+  }
+  return counts;
+}
+
+function withAnalysisRunLimit(item, completedRunCount) {
+  return {
+    ...item,
+    completedRunCount: completedRunCount || 0,
+    maxAnalysisRuns: MAX_DOCUMENT_ANALYSIS_RUNS_PER_DOCUMENT,
+  };
+}
+
+function serializeJobResponse(job, resultRow, systemRow, contacts) {
   const response = {
     status: job.status,
     progress: job.progress,
@@ -56,7 +226,7 @@ function serializeJobResponse(job, resultRow, systemRow) {
     fileName: job.file_name,
   };
   if (job.status === "completed" && resultRow) {
-    response.result = formatResultForApi(resultRow, systemRow);
+    response.result = formatResultForApi(resultRow, systemRow, { contacts });
   }
   return response;
 }
@@ -79,6 +249,13 @@ router.post("/analyze", ensureLoggedIn, async function (req, res, next) {
     const active = await DocumentAnalysisJob.getActiveForDocument(docId);
     if (active) {
       return res.status(202).json({ jobId: active.id });
+    }
+
+    if (!isAdminRole(user.role)) {
+      const completedRuns = await DocumentAnalysisJob.countCompletedByDocument(docId);
+      if (completedRuns >= MAX_DOCUMENT_ANALYSIS_RUNS_PER_DOCUMENT) {
+        throw new ForbiddenError(DOCUMENT_ANALYSIS_RUN_LIMIT_MESSAGE);
+      }
     }
 
     const mimeType = inferMimeFromKey(doc.document_key, doc.document_name);
@@ -123,7 +300,8 @@ router.get("/jobs/:jobId", ensureLoggedIn, async function (req, res, next) {
       };
     }
     const systemRow = await getSystemRow(job.property_id, job.system_key);
-    return res.json(serializeJobResponse(job, enriched, systemRow));
+    const contacts = await getPropertyContacts(job.property_id);
+    return res.json(serializeJobResponse(job, enriched, systemRow, contacts));
   } catch (err) {
     return next(err);
   }
@@ -142,39 +320,49 @@ router.get(
       const rows = await DocumentAnalysisJob.listByProperty(propertyId);
       const systems = await System.get(propertyId);
       const systemByKey = new Map(systems.map((s) => [s.system_key, s]));
+      const contacts = await getPropertyContacts(propertyId);
+      const completedByDoc = completedRunCountsByDocument(rows);
 
       const items = rows.map((row) => {
         const systemRow = systemByKey.get(row.system_key) || null;
+        const runLimit = completedByDoc[row.property_document_id] || 0;
         if (!row.result_id) {
-          return {
-            jobId: row.id,
-            status: row.status,
-            progress: row.progress,
-            errorMessage: row.error_message,
-            propertyDocumentId: row.property_document_id,
-            systemKey: row.system_key,
-            fileName: row.file_name,
-          };
+          return withAnalysisRunLimit(
+            {
+              jobId: row.id,
+              status: row.status,
+              progress: row.progress,
+              errorMessage: row.error_message,
+              propertyDocumentId: row.property_document_id,
+              systemKey: row.system_key,
+              fileName: row.file_name,
+            },
+            runLimit,
+          );
         }
-        return formatResultForApi(
-          {
-            id: row.result_id,
-            job_id: row.id,
-            property_id: row.property_id,
-            property_document_id: row.property_document_id,
-            system_key: row.system_key,
-            detected_category: row.detected_category,
-            findings: row.findings,
-            review_status: row.review_status,
-            applied_fields: row.applied_fields,
-            created_at: row.result_created_at,
-            updated_at: row.result_updated_at,
-            document_name: row.document_name,
-            document_date: row.document_date,
-            document_key: row.document_key,
-            document_type: row.document_type,
-          },
-          systemRow,
+        return withAnalysisRunLimit(
+          formatResultForApi(
+            {
+              id: row.result_id,
+              job_id: row.id,
+              property_id: row.property_id,
+              property_document_id: row.property_document_id,
+              system_key: row.system_key,
+              detected_category: row.detected_category,
+              findings: row.findings,
+              review_status: row.review_status,
+              applied_fields: row.applied_fields,
+              created_at: row.result_created_at,
+              updated_at: row.result_updated_at,
+              document_name: row.document_name,
+              document_date: row.document_date,
+              document_key: row.document_key,
+              document_type: row.document_type,
+            },
+            systemRow,
+            { contacts },
+          ),
+          runLimit,
         );
       });
 
@@ -200,11 +388,12 @@ router.get(
 
       const rows = await DocumentAnalysisResult.listApprovedBySystem(propertyId, systemKey);
       const systemRow = await getSystemRow(propertyId, systemKey);
-      const items = rows.map((row) => formatResultForApi(row, systemRow));
+      const contacts = await getPropertyContacts(propertyId);
+      const items = rows.map((row) => formatResultForApi(row, systemRow, { contacts }));
       const pending = await DocumentAnalysisResult.listPendingByProperty(propertyId);
       const pendingForSystem = pending.filter((p) => p.system_key === systemKey);
       const pendingItems = pendingForSystem.map((row) =>
-        formatResultForApi(row, systemRow),
+        formatResultForApi(row, systemRow, { contacts }),
       );
 
       return res.json({
@@ -237,7 +426,7 @@ router.get("/results/:id", ensureLoggedIn, async function (req, res, next) {
       document_type: doc?.document_type,
     };
     const systemRow = await getSystemRow(row.property_id, row.system_key);
-    return res.json({ result: formatResultForApi(enriched, systemRow) });
+    return res.json({ result: await formatEnrichedResult(enriched, systemRow) });
   } catch (err) {
     return next(err);
   }
@@ -249,7 +438,7 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) throw new BadRequestError("Invalid result ID");
 
-    const { selectedFieldKeys } = req.body;
+    const { selectedFieldKeys, fieldOverrides, createContactFieldKeys } = req.body;
     if (!Array.isArray(selectedFieldKeys)) {
       throw new BadRequestError("selectedFieldKeys must be an array");
     }
@@ -262,10 +451,36 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
     }
 
     const systemRow = await getSystemRow(row.property_id, row.system_key);
+    const existingContacts = await getPropertyContacts(row.property_id);
+    const { contacts, createdContacts } = await createInstallerContactsForApply({
+      propertyId: row.property_id,
+      systemKey: row.system_key,
+      findings: row.findings,
+      systemRow,
+      contacts: existingContacts,
+      selectedFieldKeys,
+      fieldOverrides,
+      createContactFieldKeys,
+      userId: res.locals.user?.id,
+    });
+    const doc = await PropertyDocument.get(row.property_document_id).catch(() => null);
+    const mergeOptions = {
+      contacts,
+      fieldOverrides:
+        fieldOverrides && typeof fieldOverrides === "object" ? fieldOverrides : {},
+      systemKey: row.system_key,
+      source: {
+        propertyDocumentId: row.property_document_id,
+        documentName: doc?.document_name,
+        documentKey: doc?.document_key,
+        analysisResultId: row.id,
+      },
+    };
     const { data, next_service_date, applied } = mergeSelectedFields(
       row.findings,
       selectedFieldKeys,
-      systemRow,
+      { ...(systemRow || {}), system_key: row.system_key },
+      mergeOptions,
     );
 
     await System.update({
@@ -275,9 +490,12 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
       next_service_date,
     });
 
-    const allKeys = buildReviewFields(row.system_key, row.findings, systemRow).map(
-      (f) => f.fieldKey,
-    );
+    const allKeys = buildReviewFields(
+      row.system_key,
+      row.findings,
+      systemRow,
+      { contacts, documentName: doc?.document_name },
+    ).map((f) => f.fieldKey);
     const reviewStatus =
       selectedFieldKeys.length >= allKeys.length ? "approved" : "partially_approved";
 
@@ -290,7 +508,6 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
       console.error("[documentAnalysis] reanalysis trigger failed:", err.message);
     });
 
-    const doc = await PropertyDocument.get(row.property_document_id).catch(() => null);
     const enriched = {
       ...updated,
       document_name: doc?.document_name,
@@ -301,8 +518,9 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
     const freshSystem = await getSystemRow(row.property_id, row.system_key);
 
     return res.json({
-      result: formatResultForApi(enriched, freshSystem),
+      result: formatResultForApi(enriched, freshSystem, { contacts }),
       appliedCount: applied.length,
+      createdContacts,
     });
   } catch (err) {
     return next(err);
@@ -333,7 +551,7 @@ router.post("/results/:id/reject", ensureLoggedIn, async function (req, res, nex
     };
     const systemRow = await getSystemRow(row.property_id, row.system_key);
 
-    return res.json({ result: formatResultForApi(enriched, systemRow) });
+    return res.json({ result: await formatEnrichedResult(enriched, systemRow) });
   } catch (err) {
     return next(err);
   }

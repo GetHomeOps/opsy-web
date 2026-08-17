@@ -828,6 +828,7 @@ function MaintenanceFormPanel({
                   </label>
                   <ContractorDropdown
                     value={formData.contractor}
+                    contractorEmail={formData.contractorEmail}
                     contacts={contacts}
                     favoriteProfessionals={savedProfessionals}
                     onSelect={handleContractorSelect}

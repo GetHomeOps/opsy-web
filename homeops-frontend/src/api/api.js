@@ -1909,10 +1909,19 @@ class AppApi {
     return res.result;
   }
 
-  static async applyDocumentAnalysis(resultId, selectedFieldKeys) {
+  static async applyDocumentAnalysis(
+    resultId,
+    selectedFieldKeys,
+    fieldOverrides,
+    createContactFieldKeys,
+  ) {
     const res = await this.request(
       `document-analysis/results/${resultId}/apply`,
-      { selectedFieldKeys },
+      {
+        selectedFieldKeys,
+        fieldOverrides: fieldOverrides || {},
+        createContactFieldKeys: createContactFieldKeys || [],
+      },
       "POST",
     );
     return res;

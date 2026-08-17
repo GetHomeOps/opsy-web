@@ -4253,7 +4253,7 @@ function PropertyFormContainer() {
                 </nav>
               </div>
               <div
-                className={`px-4 md:px-5 pt-4 ${state.formDataChanged || state.isNew ? "pb-5" : "pb-2"}`}
+                className={`px-4 md:px-5 pt-4 ${state.formDataChanged || state.isNew ? "pb-5" : "pb-6"}`}
               >
                 {state.activeTab === "overview" && propertyOverviewDashboard()}
 
@@ -4312,9 +4312,7 @@ function PropertyFormContainer() {
                     inspectionAnalysis={inspectionAnalysis}
                     maintenanceEvents={maintenanceEvents}
                     onScheduleSuccess={fetchMaintenanceEvents}
-                    propertyId={
-                      state.property?.id ?? (uid && uid !== "new" ? uid : null)
-                    }
+                    propertyId={propertyIdForApi}
                     onOpenInspectionReport={(systemId) => {
                       setInspectionReportSystemId(systemId ?? null);
                       setInspectionReportModalOpen(true);

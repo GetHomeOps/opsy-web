@@ -3,7 +3,12 @@
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
 
+/** Successful analysis jobs per document (initial run + re-runs). */
+const MAX_COMPLETED_RUNS_PER_DOCUMENT = 4;
+
 class DocumentAnalysisJob {
+  static MAX_COMPLETED_RUNS_PER_DOCUMENT = MAX_COMPLETED_RUNS_PER_DOCUMENT;
+
   static async create(data) {
     const {
       property_id,
@@ -78,6 +83,18 @@ class DocumentAnalysisJob {
       [propertyDocumentId],
     );
     return result.rows[0] || null;
+  }
+
+  /** Count finished analysis jobs for a document (each successful run completes one job). */
+  static async countCompletedByDocument(propertyDocumentId) {
+    if (!propertyDocumentId) return 0;
+    const result = await db.query(
+      `SELECT COUNT(*)::int AS c
+       FROM document_analysis_jobs
+       WHERE property_document_id = $1 AND status = 'completed'`,
+      [propertyDocumentId],
+    );
+    return result.rows[0]?.c ?? 0;
   }
 
   static async listByProperty(propertyId) {

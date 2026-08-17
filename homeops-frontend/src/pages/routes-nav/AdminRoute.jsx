@@ -35,11 +35,7 @@ function AdminRoute({children, allowedRoles = DEFAULT_ALLOWED_ROLES}) {
     );
   }
 
-  const isImpersonatingPending =
-    !!impersonation?.active &&
-    (currentUser.isActive ?? currentUser.is_active) === false;
-
-  if (currentUser.onboardingCompleted === false && !isImpersonatingPending) {
+  if (currentUser.onboardingCompleted === false && !impersonation?.active) {
     return <Navigate to="/onboarding" replace />;
   }
 

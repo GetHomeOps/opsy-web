@@ -51,16 +51,31 @@ const CURRENCY_FORMATTER = new Intl.NumberFormat("en-US", {
 
 const MONEY_FIELD_KEYS = new Set([
   "cost",
-  "totalCost",
-  "totalPrice",
+  "totalcost",
+  "totalprice",
   "price",
   "amount",
-  "unitPrice",
+  "unitprice",
+  "total",
+  "balance",
+  "balancedue",
+  "amountdue",
+  "subtotal",
+  "deposit",
 ]);
 
+const MONEY_LABEL_RE =
+  /\b(cost|price|amount|total|balance|subtotal|deposit|fee)s?\b/i;
+
+function normalizeMoneyFieldKey(fieldKey) {
+  if (!fieldKey) return "";
+  return String(fieldKey).replace(/[_-\s]/g, "").toLowerCase();
+}
+
 export function isMoneyField(fieldKey, label) {
-  if (MONEY_FIELD_KEYS.has(fieldKey)) return true;
-  if (label && /\b(total\s*)?(cost|price|amount)\b/i.test(label)) return true;
+  const normalized = normalizeMoneyFieldKey(fieldKey);
+  if (normalized && MONEY_FIELD_KEYS.has(normalized)) return true;
+  if (label && MONEY_LABEL_RE.test(label)) return true;
   return false;
 }
 
@@ -360,6 +375,8 @@ const SYSTEM_DATA_KEY_LABELS = {
   install_date: "Install date",
   last_inspection: "Last inspection",
   next_service_date: "Next service date",
+  additional_details: "Additional Details",
+  installer_id: "Installer",
 };
 
 export function formatSystemDataKeyLabel(systemDataKey) {

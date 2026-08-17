@@ -15,6 +15,10 @@ import {
   Upload,
 } from "lucide-react";
 import {DOCUMENT_ANALYSIS_TROUBLE_LABEL} from "../../helpers/documentAnalysisFlow";
+import DocumentPreviewCard from "./DocumentPreviewCard";
+import DocumentsViewToggle, {
+  useDocumentsViewMode,
+} from "./DocumentsViewToggle";
 
 const PAGE_SIZE = 8;
 
@@ -200,6 +204,7 @@ function DocumentsTableView({
 }) {
   const [sortOrder, setSortOrder] = useState("newest");
   const [page, setPage] = useState(1);
+  const [viewMode, setViewMode] = useDocumentsViewMode();
 
   const sortedDocuments = useMemo(() => {
     const docs = [...documents];
@@ -274,12 +279,35 @@ function DocumentsTableView({
             <option value="oldest">Oldest First</option>
             <option value="name">Name A–Z</option>
           </select>
+          <DocumentsViewToggle viewMode={viewMode} onChange={setViewMode} />
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table or grid */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {pageDocs.length > 0 ? (
+        {pageDocs.length > 0 && viewMode === "grid" ? (
+          <div className="p-4 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+            {pageDocs.map((doc) => (
+              <div key={doc.id} className="flex justify-center">
+                <DocumentPreviewCard
+                  enableDrag
+                  doc={doc}
+                  onSelect={onSelectDocument}
+                  onOpenInNewTab={onOpenInNewTab}
+                  onDelete={onDelete}
+                  documentTypes={documentTypes}
+                  getFileTypeColor={getFileTypeColor}
+                  footer={
+                    <AiExtractionBadge
+                      status={getAnalysisStatus?.(doc.id)}
+                      errorMessage={getAnalysisErrorMessage?.(doc.id)}
+                    />
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        ) : pageDocs.length > 0 ? (
           <table className="w-full table-auto">
             <thead className="sticky top-0 bg-gray-50/95 dark:bg-gray-900/80 backdrop-blur-sm text-[10px] uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
               <tr>

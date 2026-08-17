@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Loader2, Sparkles, X } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import AppApi from "../../../api/api";
 import { useDocumentAnalysis } from "../../../hooks/useDocumentAnalysis";
 import { DOCUMENT_ANALYSIS_UPDATED_EVENT } from "../helpers/documentAnalysisFlow";
 import DocumentAnalysisResultsModal from "./documents/DocumentAnalysisResultsModal";
+import ContactContext from "../../../context/ContactContext";
 import {
   DOCUMENT_ANALYSIS_MODAL_BODY,
   DOCUMENT_ANALYSIS_MODAL_INNER,
@@ -48,6 +49,7 @@ function SystemDocumentFindingsModal({
   const [pendingCount, setPendingCount] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [applying, setApplying] = useState(false);
+  const { refreshContacts } = useContext(ContactContext) || {};
 
   const analysis = useDocumentAnalysis(propertyId);
   const {
@@ -150,11 +152,17 @@ function SystemDocumentFindingsModal({
   }, [resetAnalysis]);
 
   const handleApply = useCallback(
-    async (resultId, selectedFieldKeys) => {
+    async (resultId, selectedFieldKeys, fieldOverrides, createContactFieldKeys) => {
       setApplying(true);
       try {
-        await applySelected(resultId, selectedFieldKeys);
-        onSystemsUpdated?.();
+        await applySelected(
+          resultId,
+          selectedFieldKeys,
+          fieldOverrides,
+          createContactFieldKeys,
+        );
+        if (createContactFieldKeys?.length) refreshContacts?.();
+        await onSystemsUpdated?.();
         setReviewOpen(false);
         resetAnalysis();
         await load();
@@ -162,7 +170,7 @@ function SystemDocumentFindingsModal({
         setApplying(false);
       }
     },
-    [applySelected, onSystemsUpdated, load, resetAnalysis],
+    [applySelected, onSystemsUpdated, load, resetAnalysis, refreshContacts],
   );
 
   const handleReject = useCallback(

@@ -13,11 +13,12 @@ import NotFoundImageDark from "../../images/404-illustration-dark.svg";
  * Users who haven't completed onboarding are redirected to /onboarding instead.
  */
 function PageNotFound() {
-  const {currentUser} = useAuth();
+  const {currentUser, impersonation} = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Users who haven't finished onboarding should complete it first, not see the 404 with sidebar
-  if (currentUser?.onboardingCompleted === false) {
+  // Users who haven't finished onboarding should complete it first, not see the 404 with sidebar.
+  // Impersonating staff skip this so they stay in the app (Home), not the wizard.
+  if (currentUser?.onboardingCompleted === false && !impersonation?.active) {
     return <Navigate to="/onboarding" replace />;
   }
 

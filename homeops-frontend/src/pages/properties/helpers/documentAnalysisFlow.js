@@ -149,58 +149,119 @@ export function getDocumentAnalysisFailureMessage(analysisItem) {
   return "We're having a hard time reading this document. Try a clearer scan or re-upload.";
 }
 
+/** Successful analysis jobs per document (initial run + re-runs). */
+export const MAX_DOCUMENT_ANALYSIS_RUNS = 4;
+
+export const DOCUMENT_ANALYSIS_RUN_LIMIT_MESSAGE = `This document has already been analyzed ${MAX_DOCUMENT_ANALYSIS_RUNS} times.`;
+
+function applyAnalysisRunLimit(base, analysisItem, { isAdmin = false } = {}) {
+  const completedRunCount =
+    typeof analysisItem?.completedRunCount === "number"
+      ? analysisItem.completedRunCount
+      : 0;
+  const maxAnalysisRuns =
+    typeof analysisItem?.maxAnalysisRuns === "number"
+      ? analysisItem.maxAnalysisRuns
+      : MAX_DOCUMENT_ANALYSIS_RUNS;
+  const atRunLimit = !isAdmin && completedRunCount >= maxAnalysisRuns;
+  const disabled = Boolean(base.analyzing) || (base.action === "start" && atRunLimit);
+  const title =
+    base.action === "start" && atRunLimit
+      ? DOCUMENT_ANALYSIS_RUN_LIMIT_MESSAGE
+      : base.label;
+  return { ...base, atRunLimit, disabled, title };
+}
+
 /**
- * @returns {{ showAnalyze: boolean, analyzing: boolean, label: string, action: "start" | "reopen" }}
+ * @returns {{ showAnalyze: boolean, analyzing: boolean, label: string, action: "start" | "reopen", atRunLimit: boolean, disabled: boolean, title: string }}
  */
-export function getDocumentAnalysisUiState(analysisItem) {
+export function getDocumentAnalysisUiState(analysisItem, options = {}) {
   if (!analysisItem) {
-    return {
-      showAnalyze: true,
-      analyzing: false,
-      label: "Analyze with AI",
-      action: "start",
-    };
+    return applyAnalysisRunLimit(
+      {
+        showAnalyze: true,
+        analyzing: false,
+        label: "Analyze Document",
+        action: "start",
+      },
+      analysisItem,
+      options,
+    );
   }
 
   if (analysisItem.reviewStatus) {
     if (analysisItem.reviewStatus === "pending_review") {
-      return {
-        showAnalyze: true,
-        analyzing: false,
-        label: "Analyzed",
-        action: "reopen",
-      };
+      return applyAnalysisRunLimit(
+        {
+          showAnalyze: true,
+          analyzing: false,
+          label: "Review findings",
+          action: "reopen",
+        },
+        analysisItem,
+        options,
+      );
     }
     if (analysisItem.reviewStatus === "rejected") {
-      return {
+      return applyAnalysisRunLimit(
+        {
+          showAnalyze: true,
+          analyzing: false,
+          label: "Analyze Document",
+          action: "start",
+        },
+        analysisItem,
+        options,
+      );
+    }
+    return applyAnalysisRunLimit(
+      {
         showAnalyze: true,
         analyzing: false,
-        label: "Analyze with AI",
+        label: "Analyze again",
         action: "start",
-      };
-    }
-    return { showAnalyze: false, analyzing: false, label: "", action: "start" };
+      },
+      analysisItem,
+      options,
+    );
   }
 
   if (analysisItem.status === "queued" || analysisItem.status === "processing") {
-    return {
-      showAnalyze: true,
-      analyzing: true,
-      label: "Analyzing…",
-      action: "reopen",
-    };
+    return applyAnalysisRunLimit(
+      {
+        showAnalyze: true,
+        analyzing: true,
+        label: "Analyzing…",
+        action: "reopen",
+      },
+      analysisItem,
+      options,
+    );
   }
 
   if (analysisItem.status === "failed") {
-    return {
-      showAnalyze: true,
-      analyzing: false,
-      label: "Retry analysis",
-      action: "start",
-    };
+    return applyAnalysisRunLimit(
+      {
+        showAnalyze: true,
+        analyzing: false,
+        label: "Retry analysis",
+        action: "start",
+      },
+      analysisItem,
+      options,
+    );
   }
 
-  return { showAnalyze: false, analyzing: false, label: "", action: "start" };
+  return applyAnalysisRunLimit(
+    {
+      showAnalyze: true,
+      analyzing: false,
+      label: "Analyze Document",
+      action: "start",
+    },
+    analysisItem,
+    options,
+  );
 }
 
 /**

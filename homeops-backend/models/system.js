@@ -18,6 +18,25 @@ const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
 const { sqlForPartialUpdate } = require("../helpers/sql");
 const { onSystemCreated } = require("../services/systemRecommendationGenerator");
+const {
+  ensureInstallerTagForSystemData,
+  ensureInstallerTagsForSystems,
+} = require("../services/installerTagService");
+
+function mergePreservingAdditionalDetails(incomingData, existingData) {
+  const incoming =
+    incomingData && typeof incomingData === "object" ? { ...incomingData } : {};
+  const hasIncoming =
+    incomingData &&
+    typeof incomingData === "object" &&
+    Object.prototype.hasOwnProperty.call(incomingData, "additional_details");
+  if (hasIncoming) return incoming;
+  const existingDetails = existingData?.additional_details;
+  if (Array.isArray(existingDetails) && existingDetails.length) {
+    incoming.additional_details = existingDetails;
+  }
+  return incoming;
+}
 
 class System {
   /** Create a new system for a property.
@@ -51,6 +70,7 @@ class System {
     }
 
     await onSystemCreated(row.property_id, row.system_key, { included: row.included });
+    await ensureInstallerTagForSystemData(row.property_id, row.data);
     return row;
   }
 
@@ -81,7 +101,16 @@ class System {
   static async _updateExisting({ property_id, system_key, data, next_service_date, included }) {
     const isDateNull = next_service_date === null || next_service_date === "";
     const updateData = {};
-    if (data !== undefined) updateData.data = data;
+    if (data !== undefined) {
+      const current = await db.query(
+        `SELECT data FROM property_systems WHERE property_id = $1 AND system_key = $2`,
+        [property_id, system_key],
+      );
+      updateData.data = mergePreservingAdditionalDetails(
+        data,
+        current.rows[0]?.data,
+      );
+    }
     if (next_service_date !== undefined && !isDateNull) updateData.next_service_date = next_service_date;
     if (included !== undefined) updateData.included = included;
     let setCols, values;
@@ -119,6 +148,7 @@ class System {
     if (exists) {
       const system = await this._updateExisting({ property_id, system_key, data, next_service_date, included });
       if (!system) throw new NotFoundError(`No system found for property: ${property_id} and system: ${system_key}`);
+      await ensureInstallerTagForSystemData(system.property_id, system.data);
       return system;
     }
 
@@ -142,12 +172,19 @@ class System {
   static async batchUpsert(propertyId, systems) {
     if (!systems || systems.length === 0) return [];
 
+    const existing = await this.get(propertyId);
+    const existingByKey = new Map(existing.map((row) => [row.system_key, row]));
+
     const values = [];
     const placeholders = [];
     let idx = 1;
 
     for (const sys of systems) {
-      const data = sys.data !== undefined ? sys.data : {};
+      const existingData = existingByKey.get(sys.system_key)?.data;
+      const data = mergePreservingAdditionalDetails(
+        sys.data !== undefined ? sys.data : {},
+        existingData,
+      );
       const dateVal = (sys.next_service_date == null || sys.next_service_date === "")
         ? null
         : sys.next_service_date;
@@ -178,6 +215,8 @@ class System {
         onSystemCreated(row.property_id, row.system_key, { included: row.included })
       )
     );
+
+    await ensureInstallerTagsForSystems(propertyId, result.rows);
 
     return result.rows;
   }

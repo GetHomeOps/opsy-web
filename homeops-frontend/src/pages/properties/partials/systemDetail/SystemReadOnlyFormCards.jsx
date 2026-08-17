@@ -4,88 +4,41 @@ import {
   Gauge,
   Calendar,
   AlertTriangle,
-  Sparkles,
   ClipboardList,
   CheckCircle2,
 } from "lucide-react";
 import SectionCard from "../passport/SectionCard";
-import { StatusBadge } from "../passport/StatusBadge";
+import {StatusBadge} from "../passport/StatusBadge";
 import LabelValue from "../passport/LabelValue";
-import { formatOverviewDate } from "../passport/SystemsOverviewPanel";
-import { SYSTEM_FIELD_DEFINITIONS } from "../../constants/systemFieldConfig";
+import {formatOverviewDate} from "../passport/SystemsOverviewPanel";
+import {SYSTEM_FIELD_DEFINITIONS} from "../../constants/systemFieldConfig";
 import {
   findNextInspectionFieldName,
   groupFieldsBySystemId,
   conditionTone,
 } from "../../helpers/systemFieldDisplay";
-import { resolveDisplayNextInspectionDate } from "../../helpers/systemStatusHelpers";
+import {resolveDisplayNextInspectionDate} from "../../helpers/systemStatusHelpers";
+import {SystemAdditionalDetailsCard} from "./SystemAdditionalDetailsCard";
+import ContactLinkIcon from "../ContactLinkIcon";
 
 const GROUP_META = {
-  identity: { title: "System Identity", icon: FileText },
-  condition: { title: "Condition & Lifecycle", icon: Gauge },
-  inspection: { title: "Inspection Schedule", icon: Calendar },
-  issues: { title: "Known Issues", icon: AlertTriangle },
+  identity: {title: "System Identity", icon: FileText},
+  condition: {title: "Condition & Lifecycle", icon: Gauge},
+  inspection: {title: "Inspection Schedule", icon: Calendar},
+  issues: {title: "Known Issues", icon: AlertTriangle},
 };
 
-function AiAndLinkedCards({
-  aiFindings,
+function AdditionalAndLinkedCards({
+  additionalDetails = [],
+  propertyDocuments = [],
   linkedRecords,
-  onUploadDocument,
 }) {
-  const aiItems = [
-    ...(aiFindings?.needsAttention ?? []).map((n) => ({
-      key: `attn-${n.title ?? n.suggestedAction}`,
-      tone: "amber",
-      text: n.title || n.suggestedAction || "AI finding",
-    })),
-    ...(aiFindings?.maintenanceSuggestions ?? []).map((m) => ({
-      key: `maint-${m.task ?? m.systemType}`,
-      tone: "neutral",
-      text: m.task || m.rationale || "Maintenance suggestion",
-    })),
-  ];
-
   return (
     <>
-      <SectionCard
-        flat
-        title="AI-Extracted Insights"
-        description="Insights from documents, photos, and maintenance history"
-        icon={Sparkles}
-        action={
-          onUploadDocument ? (
-            <button
-              type="button"
-              onClick={onUploadDocument}
-              className="text-xs font-medium text-[#456564] hover:text-[#34514f] dark:text-[#7fa3a1]"
-            >
-              Upload Document
-            </button>
-          ) : null
-        }
-      >
-        {aiItems.length > 0 ? (
-          <ul className="space-y-2">
-            {aiItems.slice(0, 5).map((item) => (
-              <li key={item.key} className="flex items-start gap-2.5">
-                {item.tone === "amber" ? (
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-                ) : (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                )}
-                <span className="text-sm text-neutral-700 dark:text-neutral-300">
-                  {item.text}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            No AI insights for this system yet. Upload inspection reports or
-            documents to generate findings.
-          </p>
-        )}
-      </SectionCard>
+      <SystemAdditionalDetailsCard
+        items={additionalDetails}
+        propertyDocuments={propertyDocuments}
+      />
 
       <SectionCard flat title="Linked Records" icon={ClipboardList}>
         <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -108,7 +61,7 @@ function AiAndLinkedCards({
   );
 }
 
-function ReadOnlyField({ item }) {
+function ReadOnlyField({item}) {
   if (
     item.isCondition &&
     item.value != null &&
@@ -120,12 +73,23 @@ function ReadOnlyField({ item }) {
           {item.label}
         </div>
         <div className="mt-1">
-          <StatusBadge tone={conditionTone(item.value)}>{item.value}</StatusBadge>
+          <StatusBadge tone={conditionTone(item.value)}>
+            {item.value}
+          </StatusBadge>
         </div>
       </div>
     );
   }
-  return <LabelValue label={item.label} value={item.value} />;
+  const displayValue =
+    item.contactId != null && item.value != null && String(item.value).trim() !== "" ? (
+      <span className="inline-flex items-center gap-1.5">
+        {item.value}
+        <ContactLinkIcon contactId={item.contactId} />
+      </span>
+    ) : (
+      item.value
+    );
+  return <LabelValue label={item.label} value={displayValue} />;
 }
 
 /**
@@ -135,9 +99,9 @@ export function SystemReadOnlyFormCards({
   systemId,
   propertyData,
   groups,
-  aiFindings,
+  additionalDetails = [],
+  propertyDocuments = [],
   linkedRecords = [],
-  onUploadDocument,
   lastInspectionDate,
 }) {
   const fieldGroups = groupFieldsBySystemId(systemId);
@@ -157,8 +121,7 @@ export function SystemReadOnlyFormCards({
     nextInspectionRaw,
     lastInspectionDate,
   );
-  const nextInspectionLabel =
-    nextInspectionDef?.label ?? "Next Inspection";
+  const nextInspectionLabel = nextInspectionDef?.label ?? "Next Inspection";
 
   const issuesItems = groups.issues ?? [];
   const issuesText = issuesItems
@@ -188,14 +151,20 @@ export function SystemReadOnlyFormCards({
               : item,
           );
           return (
-            <SectionCard flat key={groupKey} title={meta.title} icon={meta.icon}>
+            <SectionCard
+              flat
+              key={groupKey}
+              title={meta.title}
+              icon={meta.icon}
+            >
               {displayNextInspection ? (
                 <div className="rounded-xl bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 px-4 py-3 mb-3">
                   <p className="text-[10px] font-medium text-emerald-700/80 dark:text-emerald-300/80 uppercase tracking-[0.08em]">
                     {nextInspectionLabel}
                   </p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-white mt-0.5">
-                    {formatOverviewDate(displayNextInspection) ?? displayNextInspection}
+                    {formatOverviewDate(displayNextInspection) ??
+                      displayNextInspection}
                   </p>
                 </div>
               ) : (
@@ -211,7 +180,9 @@ export function SystemReadOnlyFormCards({
                   items.some((i) => i.fieldName === nextInspectionField) && (
                     <ReadOnlyField
                       key={nextInspectionField}
-                      item={items.find((i) => i.fieldName === nextInspectionField)}
+                      item={items.find(
+                        (i) => i.fieldName === nextInspectionField,
+                      )}
                     />
                   )}
               </div>
@@ -246,10 +217,10 @@ export function SystemReadOnlyFormCards({
         )}
       </SectionCard>
 
-      <AiAndLinkedCards
-        aiFindings={aiFindings}
+      <AdditionalAndLinkedCards
+        additionalDetails={additionalDetails}
+        propertyDocuments={propertyDocuments}
         linkedRecords={linkedRecords}
-        onUploadDocument={onUploadDocument}
       />
     </div>
   );
@@ -258,9 +229,9 @@ export function SystemReadOnlyFormCards({
 /** Read-only custom system — mirrors SystemCustomFormCards field layout. */
 export function SystemCustomReadOnlyFormCards({
   groups,
-  aiFindings,
+  additionalDetails = [],
+  propertyDocuments = [],
   linkedRecords = [],
-  onUploadDocument,
   nextInspectionValue,
   lastInspectionValue,
 }) {
@@ -276,31 +247,37 @@ export function SystemCustomReadOnlyFormCards({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
       {["identity", "condition", "inspection"].map((groupKey) => {
-        const items = (groups[groupKey] ?? []).filter(
-          (i) => i.fieldName !== "nextInspection",
-        ).map((item) =>
-          item.fieldName === "lastInspection" && lastInspectionValue
-            ? {
-                ...item,
-                value:
-                  formatOverviewDate(lastInspectionValue) ??
-                  lastInspectionValue,
-              }
-            : item,
-        );
+        const items = (groups[groupKey] ?? [])
+          .filter((i) => i.fieldName !== "nextInspection")
+          .map((item) =>
+            item.fieldName === "lastInspection" && lastInspectionValue
+              ? {
+                  ...item,
+                  value:
+                    formatOverviewDate(lastInspectionValue) ??
+                    lastInspectionValue,
+                }
+              : item,
+          );
         if (!items.length && groupKey !== "inspection") return null;
         const meta = GROUP_META[groupKey];
 
         if (groupKey === "inspection") {
           return (
-            <SectionCard flat key={groupKey} title={meta.title} icon={meta.icon}>
+            <SectionCard
+              flat
+              key={groupKey}
+              title={meta.title}
+              icon={meta.icon}
+            >
               {displayNextInspection ? (
                 <div className="rounded-xl bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 px-4 py-3 mb-3">
                   <p className="text-[10px] font-medium text-emerald-700/80 dark:text-emerald-300/80 uppercase tracking-[0.08em]">
                     Next Inspection
                   </p>
                   <p className="text-lg font-bold text-neutral-900 dark:text-white mt-0.5">
-                    {formatOverviewDate(displayNextInspection) ?? displayNextInspection}
+                    {formatOverviewDate(displayNextInspection) ??
+                      displayNextInspection}
                   </p>
                 </div>
               ) : (
@@ -312,9 +289,13 @@ export function SystemCustomReadOnlyFormCards({
                 {items.map((item) => (
                   <ReadOnlyField key={item.fieldName} item={item} />
                 ))}
-                {(groups.inspection ?? []).find((i) => i.fieldName === "nextInspection") && (
+                {(groups.inspection ?? []).find(
+                  (i) => i.fieldName === "nextInspection",
+                ) && (
                   <ReadOnlyField
-                    item={groups.inspection.find((i) => i.fieldName === "nextInspection")}
+                    item={groups.inspection.find(
+                      (i) => i.fieldName === "nextInspection",
+                    )}
                   />
                 )}
               </div>
@@ -346,10 +327,10 @@ export function SystemCustomReadOnlyFormCards({
         )}
       </SectionCard>
 
-      <AiAndLinkedCards
-        aiFindings={aiFindings}
+      <AdditionalAndLinkedCards
+        additionalDetails={additionalDetails}
+        propertyDocuments={propertyDocuments}
         linkedRecords={linkedRecords}
-        onUploadDocument={onUploadDocument}
       />
     </div>
   );
@@ -358,9 +339,9 @@ export function SystemCustomReadOnlyFormCards({
 /** Read-only inspections system — mirrors SystemInspectionsFormCards. */
 export function SystemInspectionsReadOnlyFormCards({
   groups,
-  aiFindings,
+  additionalDetails = [],
+  propertyDocuments = [],
   linkedRecords = [],
-  onUploadDocument,
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
@@ -377,10 +358,10 @@ export function SystemInspectionsReadOnlyFormCards({
         </div>
       </SectionCard>
 
-      <AiAndLinkedCards
-        aiFindings={aiFindings}
+      <AdditionalAndLinkedCards
+        additionalDetails={additionalDetails}
+        propertyDocuments={propertyDocuments}
         linkedRecords={linkedRecords}
-        onUploadDocument={onUploadDocument}
       />
     </div>
   );

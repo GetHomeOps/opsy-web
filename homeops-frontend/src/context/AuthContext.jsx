@@ -102,10 +102,15 @@ export function AuthProvider({children}) {
     try {
       return await AppApi.getUserAccounts(userId, options);
     } catch (error) {
+      if (error?.status === 404) return [];
       const errorMessage = Array.isArray(error)
         ? error.join(" ")
         : error.message || error.toString() || "";
-      if (errorMessage.includes("404") || errorMessage.includes("Not Found")) {
+      if (
+        errorMessage.includes("404") ||
+        errorMessage.includes("Not Found") ||
+        errorMessage.includes("No accounts found")
+      ) {
         return [];
       }
       throw error;
@@ -274,17 +279,16 @@ export function AuthProvider({children}) {
 
     AppApi.token = accessToken;
     try {
-      const {email} = decode(accessToken);
-      const currentUser = await AppApi.getCurrentUser(email);
-      if (!currentUser?.id) {
+      const {currentUser: loadedUser, userAccounts} =
+        await loadUserWithAccountsForSession(accessToken);
+      if (!loadedUser?.id) {
         throw new Error("Failed to load user after session change.");
       }
-      const userAccounts = await getUserAccounts(currentUser.id);
-      const userWithAccounts = {...currentUser, accounts: userAccounts || []};
+      const userWithAccounts = {...loadedUser, accounts: userAccounts || []};
 
       setToken(accessToken);
       localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);
-      setImpersonation(mergeImpersonation(currentUser, accessToken));
+      setImpersonation(mergeImpersonation(loadedUser, accessToken));
       setCurrentUser({
         isLoading: false,
         data: userWithAccounts,

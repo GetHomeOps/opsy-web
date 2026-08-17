@@ -227,6 +227,17 @@ export function SystemDetailView({
     [selectedSystemId, inspectionAnalysis, checklistItems, maintenanceRecords],
   );
 
+  const additionalDetails = useMemo(() => {
+    const row = (systems ?? []).find(
+      (s) => (s.system_key ?? s.systemKey) === selectedSystemId,
+    );
+    const data = row?.data;
+    if (!data || typeof data !== "object") return [];
+    return Array.isArray(data.additional_details)
+      ? data.additional_details
+      : [];
+  }, [systems, selectedSystemId]);
+
   const systemChecklistKey = customSystemName ?? selectedSystemId;
 
   const loadActionItemCount = useCallback(async () => {
@@ -618,9 +629,9 @@ export function SystemDetailView({
       return (
         <SystemInspectionsReadOnlyFormCards
           groups={buildInspectionsReadOnlyGroups(propertyData)}
-          aiFindings={aiFindings}
+          additionalDetails={additionalDetails}
+          propertyDocuments={propertyDocuments}
           linkedRecords={linkedRecords}
-          onUploadDocument={openUpload}
         />
       );
     }
@@ -631,9 +642,9 @@ export function SystemDetailView({
           groups={buildCustomSystemReadOnlyGroups(systemData, resolveInstaller)}
           nextInspectionValue={systemData.nextInspection}
           lastInspectionValue={latestCompletedInspectionDate}
-          aiFindings={aiFindings}
+          additionalDetails={additionalDetails}
+          propertyDocuments={propertyDocuments}
           linkedRecords={linkedRecords}
-          onUploadDocument={openUpload}
         />
       );
     }
@@ -647,9 +658,9 @@ export function SystemDetailView({
           resolveInstaller,
         )}
         lastInspectionDate={latestCompletedInspectionDate}
-        aiFindings={aiFindings}
+        additionalDetails={additionalDetails}
+        propertyDocuments={propertyDocuments}
         linkedRecords={linkedRecords}
-        onUploadDocument={openUpload}
       />
     );
   };
@@ -671,9 +682,9 @@ export function SystemDetailView({
           handleInputChange={handleInputChange}
           contacts={contacts}
           isNewInstall={isNewInstall}
-          aiFindings={aiFindings}
+          additionalDetails={additionalDetails}
+          propertyDocuments={propertyDocuments}
           linkedRecords={linkedRecords}
-          onUploadDocument={openUpload}
           lastInspectionDate={latestCompletedInspectionDate}
         />
       );
@@ -685,9 +696,9 @@ export function SystemDetailView({
         handleInputChange={handleInputChange}
         contacts={contacts}
         isNewInstall={isNewInstall}
-        aiFindings={aiFindings}
+        additionalDetails={additionalDetails}
+        propertyDocuments={propertyDocuments}
         linkedRecords={linkedRecords}
-        onUploadDocument={openUpload}
         lastInspectionDate={latestCompletedInspectionDate}
       />
     );
@@ -810,6 +821,7 @@ export function SystemDetailView({
               documents={systemDocuments}
               aiInsightCount={aiInsightCount}
               onUploadDocument={openUpload}
+              propertyId={propertyId}
               onOpenDocumentFindings={() =>
                 onOpenDocumentFindings?.(selectedSystemId, systemLabel)
               }

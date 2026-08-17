@@ -5,6 +5,7 @@ const PropertyDocument = require("../models/propertyDocuments");
 const DocumentAnalysisJob = require("../models/documentAnalysisJob");
 const { enqueue } = require("./documentAnalysisQueue");
 const { checkAiFeaturesAllowed, checkAiTokenQuota } = require("./tierService");
+const { isAdminRole } = require("../helpers/roles");
 
 function inferMimeFromKey(key, fileName) {
   const name = (fileName || key || "").toLowerCase();
@@ -28,6 +29,13 @@ async function startAnalysisForDocument(doc, user) {
 
     const active = await DocumentAnalysisJob.getActiveForDocument(doc.id);
     if (active) return;
+
+    if (!isAdminRole(user.role)) {
+      const completedRuns = await DocumentAnalysisJob.countCompletedByDocument(doc.id);
+      if (completedRuns >= DocumentAnalysisJob.MAX_COMPLETED_RUNS_PER_DOCUMENT) {
+        return;
+      }
+    }
 
     const job = await DocumentAnalysisJob.create({
       property_id: doc.property_id,

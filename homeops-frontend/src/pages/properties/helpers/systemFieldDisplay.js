@@ -62,6 +62,17 @@ function conditionTone(condition) {
 
 export { conditionTone };
 
+/** Contact id for an installer field when the raw value is a resolvable id. */
+function installerContactId(definition, rawValue, displayedValue) {
+  if (definition?.type !== "installer") return null;
+  if (displayedValue == null || String(displayedValue).trim() === "") return null;
+  if (rawValue == null || String(rawValue).trim() === "") return null;
+  if (Number.isNaN(Number(rawValue))) return null;
+  /* Unresolved ids fall back to the raw id as the display value — no link */
+  if (String(displayedValue) === String(rawValue)) return null;
+  return rawValue;
+}
+
 /** Build { label, value } items for a standard system read-only overview. */
 export function buildStandardSystemReadOnlyGroups(
   systemId,
@@ -76,15 +87,18 @@ export function buildStandardSystemReadOnlyGroups(
     for (const fieldName of groups[groupKey] ?? []) {
       const def = SYSTEM_FIELD_DEFINITIONS[fieldName];
       if (!def) continue;
+      const rawValue = propertyData?.[fieldName];
+      const value = formatSystemFieldDisplayValue(
+        fieldName,
+        def,
+        rawValue,
+        resolveInstaller,
+      );
       result[groupKey].push({
         fieldName,
         label: def.label,
-        value: formatSystemFieldDisplayValue(
-          fieldName,
-          def,
-          propertyData?.[fieldName],
-          resolveInstaller,
-        ),
+        value,
+        contactId: installerContactId(def, rawValue, value),
         isCondition: /condition/i.test(def.label) && def.type === "select",
       });
     }
@@ -148,6 +162,7 @@ export function buildCustomSystemReadOnlyGroups(
       fieldName: field.key,
       label: field.label,
       value,
+      contactId: installerContactId(field, systemData[field.key], value),
       isCondition: field.key === "condition",
     });
   }

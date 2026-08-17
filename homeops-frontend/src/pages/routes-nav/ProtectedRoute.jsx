@@ -161,13 +161,10 @@ function ProtectedRoute({children}) {
     );
   }
 
-  const isImpersonatingPending =
-    !!impersonation?.active &&
-    (currentUser.isActive ?? currentUser.is_active) === false;
-
-  // Users who haven't completed onboarding must finish first (except billing/success
-  // and pending impersonation, so staff can set up the account before the invitee logs in)
-  if (currentUser.onboardingCompleted === false && !isImpersonatingPending) {
+  // Real users who haven't completed onboarding must finish first. Staff
+  // impersonating them skip this gate so they can open Home and set up the
+  // workspace before the invitee logs in.
+  if (currentUser.onboardingCompleted === false && !impersonation?.active) {
     if (path.includes("/billing/success")) return children;
     return <Navigate to="/onboarding" replace />;
   }
