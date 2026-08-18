@@ -11,8 +11,6 @@ import {useNavigate, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {Loader2, Sparkles} from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import SearchInput from "../../components/SearchInput";
 import DataTable from "../../components/DataTable";
@@ -239,6 +237,8 @@ const PropertyCard = ({
     resolved || property.main_photo_url || property.mainPhotoUrl || null;
 
   return (
+    <>
+
     <div
       role="button"
       tabIndex={0}
@@ -360,6 +360,8 @@ const PropertyCard = ({
         )}
       </div>
     </div>
+  
+    </>
   );
 };
 
@@ -985,23 +987,9 @@ function PropertiesList() {
   /* ─── Render ───────────────────────────────────────────────── */
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar
-        sidebarOpen={state.sidebarOpen}
-        setSidebarOpen={(open) =>
-          dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-        }
-      />
+    <>
 
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header
-          sidebarOpen={state.sidebarOpen}
-          setSidebarOpen={(open) =>
-            dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-          }
-        />
-
-        <div className="fixed right-0 w-auto sm:w-full z-50">
+            <div className="fixed right-0 w-auto sm:w-full z-50">
           <Banner
             type={state.bannerType}
             open={state.bannerOpen}
@@ -1395,35 +1383,9 @@ function PropertiesList() {
               )}
           </div>
         </main>
-      </div>
-
-      <UpgradePrompt
-        open={propertyLimitUpgradeOpen}
-        onClose={() => {
-          setPropertyLimitUpgradeOpen(false);
-          setPropertyLimitMessage("");
-        }}
-        title="Property limit reached"
-        message={
-          propertyLimitMessage ||
-          "You've used all properties on your current plan. Upgrade to add more."
-        }
-        upgradeUrl={accountUrl ? `/${accountUrl}/settings/upgrade` : undefined}
-      />
-
-      <BulkInviteModal
-        modalOpen={bulkInviteOpen}
-        setModalOpen={setBulkInviteOpen}
-        selectedProperties={bulkInviteProperties}
-        currentAccount={currentAccount}
-      />
-      <SendPendingInvitationsModal
-        modalOpen={sendPendingInvitesOpen}
-        setModalOpen={setSendPendingInvitesOpen}
-        currentAccount={currentAccount}
-      />
-      <DemoFeatureUnavailableModal {...aiDemoGate.modalProps} />
-    </div>
+      
+  
+    </>
   );
 }
 

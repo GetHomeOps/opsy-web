@@ -1,8 +1,6 @@
 import React, {useState, useEffect, useCallback, useMemo, useRef} from "react";
 import {createPortal} from "react-dom";
 import {addYears, format, subYears} from "date-fns";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import AppApi from "../../api/api";
 import EventDetailModal from "./EventDetailModal";
 import {PAGE_LAYOUT} from "../../constants/layout";
@@ -124,7 +122,6 @@ function Calendar() {
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || "";
   const today = new Date();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState("month");
   const [month, setMonth] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
@@ -454,11 +451,6 @@ function Calendar() {
   };
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="grow">
           <div className={PAGE_LAYOUT.list}>
@@ -1004,34 +996,6 @@ function Calendar() {
             </div>
           </div>
         </main>
-      </div>
-
-      {createPortal(
-        <>
-          <EventDetailModal
-            event={selectedEvent}
-            isOpen={detailModalOpen}
-            onClose={setDetailModalOpen}
-            onDeleted={refreshEvents}
-            onUpdated={refreshEvents}
-          />
-          <CalendarScheduleModal
-            isOpen={scheduleModalOpen}
-            onClose={(v) => {
-              setScheduleModalOpen(v);
-              if (!v) {
-                setScheduleModalInitialDate("");
-                setScheduleModalInitialTime("");
-              }
-            }}
-            onScheduled={refreshEvents}
-            initialDate={scheduleModalInitialDate}
-            initialTime={scheduleModalInitialTime}
-          />
-        </>,
-        document.body,
-      )}
-    </div>
   );
 }
 

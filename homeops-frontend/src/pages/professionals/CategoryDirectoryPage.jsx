@@ -2,8 +2,6 @@ import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useSearchParams, useNavigate} from "react-router-dom";
 import {ArrowLeft, SlidersHorizontal, X, Search, Loader2} from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
 import {LocationBar, ProfessionalCard, FiltersSidebar} from "./components";
@@ -51,7 +49,6 @@ function flattenCategories(hierarchy) {
 }
 
 function CategoryDirectoryPage() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -258,11 +255,6 @@ function CategoryDirectoryPage() {
   ].filter(Boolean).length;
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/50 dark:bg-gray-900">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="grow">
           <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
@@ -506,8 +498,6 @@ function CategoryDirectoryPage() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
   );
 }
 

@@ -3,8 +3,6 @@ import {useNavigate, useParams} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {Loader2, SlidersHorizontal} from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import Banner from "../../partials/containers/Banner";
 import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
@@ -48,7 +46,6 @@ function CustomizationList() {
   const {accountUrl} = useParams();
   const navigate = useNavigate();
   const {t} = useTranslation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("accounts");
   const [accounts, setAccounts] = useState([]);
   const [agencies, setAgencies] = useState([]);
@@ -644,11 +641,7 @@ function CustomizationList() {
   };
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className={PAGE_LAYOUT.list}>
+            <main className={PAGE_LAYOUT.list}>
           <div className="mb-6">
             <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold flex items-center gap-2">
               <SlidersHorizontal className="w-7 h-7 text-[var(--opsy-accent,#456564)]" />
@@ -849,8 +842,7 @@ function CustomizationList() {
             </>
           )}
         </main>
-      </div>
-    </div>
+      
   );
 }
 

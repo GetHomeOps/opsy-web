@@ -6,8 +6,6 @@ import {
   ChevronDown, ChevronRight, Users, Globe,
 } from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import Banner from "../../partials/containers/Banner";
 import FilterDropdown from "../../components/FilterDropdown";
 import SearchInput from "../../components/SearchInput";
@@ -58,6 +56,8 @@ function CouponActionsMenu({ onRefresh, onCreateCoupon }) {
   }, []);
 
   return (
+    <>
+
     <div className="relative shrink-0" ref={ref}>
       <button
         ref={buttonRef}
@@ -105,12 +105,16 @@ function CouponActionsMenu({ onRefresh, onCreateCoupon }) {
         </div>
       )}
     </div>
+  
+    </>
   );
 }
 
 function BatchProgressBar({ redeemed, total }) {
   const pct = total > 0 ? Math.round((redeemed / total) * 100) : 0;
   return (
+    <>
+
     <div className="flex items-center gap-2">
       <div className="w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
         <div
@@ -122,6 +126,8 @@ function BatchProgressBar({ redeemed, total }) {
         {redeemed} / {total}
       </span>
     </div>
+  
+    </>
   );
 }
 
@@ -471,7 +477,6 @@ function formatDate(d) {
 }
 
 function CouponsList() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [generalCoupons, setGeneralCoupons] = useState([]);
   const [batches, setBatches] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -639,13 +644,9 @@ function CouponsList() {
   const hasAnyData = generalCoupons.length > 0 || batches.length > 0;
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+    <>
 
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <div className="fixed right-0 w-auto sm:w-full z-50">
+            <div className="fixed right-0 w-auto sm:w-full z-50">
           <Banner
             type={banner.type}
             open={banner.open}
@@ -889,8 +890,9 @@ function CouponsList() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
+  
+    </>
   );
 }
 

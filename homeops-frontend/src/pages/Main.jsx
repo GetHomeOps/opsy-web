@@ -1,7 +1,5 @@
-import React, {useState} from "react";
+import React from "react";
 
-import Sidebar from "../partials/Sidebar";
-import Header from "../partials/Header";
 import {useAuth} from "../context/AuthContext";
 
 import HomeownerHome from "./home/HomeownerHome";
@@ -10,45 +8,14 @@ import SuperAdminHome from "./home/SuperAdminHome";
 import WelcomeModal from "../components/WelcomeModal";
 
 /**
- * Main — layout shell for the authenticated home page.
+ * Authenticated home page. App chrome (sidebar/header) lives in AuthenticatedLayout.
  *
  * Role-based routing:
  *   • homeowner   → HomeownerHome
  *   • super_admin → SuperAdminHome
  *   • agent / assistant / admin → AgentHome
- *
- * Each home component is responsible for its own data-fetching,
- * scoped to the logged-in user via PropertyContext + AuthContext.
  */
-class SidebarErrorBoundary extends React.Component {
-  state = {error: null};
-  static getDerivedStateFromError(error) {
-    return {error};
-  }
-  componentDidCatch(error, info) {
-    console.error("Sidebar crashed:", error, info.componentStack);
-  }
-  render() {
-    if (this.state.error) {
-      return (
-        <div className="p-4 bg-red-900/30 text-red-200 text-sm max-w-xs overflow-auto">
-          <p className="font-bold mb-1">Sidebar error</p>
-          <pre className="whitespace-pre-wrap">{this.state.error.message}</pre>
-          <button
-            className="mt-2 underline"
-            onClick={() => this.setState({error: null})}
-          >
-            Retry
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
 function Main() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const {currentUser} = useAuth();
   const role = (currentUser?.role ?? "").toLowerCase();
 
@@ -60,26 +27,12 @@ function Main() {
         : AgentHome;
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      {/* Sidebar */}
-      <SidebarErrorBoundary>
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      </SidebarErrorBoundary>
-
-      {/* Content area */}
-      <div className="relative flex min-w-0 flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        {/*  Site header */}
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <main className="grow">
-          <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
-            <HomeComponent />
-          </div>
-        </main>
-
-        {!currentUser?.welcomeModalDismissed && <WelcomeModal />}
+    <main className="grow">
+      <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
+        <HomeComponent />
       </div>
-    </div>
+      {!currentUser?.welcomeModalDismissed && <WelcomeModal />}
+    </main>
   );
 }
 

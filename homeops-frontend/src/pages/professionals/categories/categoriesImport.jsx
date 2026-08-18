@@ -7,8 +7,6 @@ import {
   normalizeCategoryHeader,
   getCategoryTemplateRow,
 } from "../../../data/categoryImportSchema";
-import Sidebar from "../../../partials/Sidebar";
-import Header from "../../../partials/Header";
 import useCurrentAccount from "../../../hooks/useCurrentAccount";
 import AppApi from "../../../api/api";
 import {
@@ -257,7 +255,6 @@ function CategoriesImport() {
     ? `/${accountUrl}/professionals/categories`
     : "/professionals/categories";
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
   const [isParsing, setIsParsing] = useState(false);
   const [parseError, setParseError] = useState("");
@@ -519,12 +516,7 @@ function CategoriesImport() {
   const previewColumns = CATEGORY_IMPORT_FIELDS.slice(0, 6);
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <main className="grow">
+            <main className="grow">
           <div className="px-3 sm:px-6 lg:px-8 xxl:px-16 py-6 w-full max-w-5xl mx-auto">
             <nav className="mb-6">
               <button
@@ -1069,8 +1061,7 @@ function CategoriesImport() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

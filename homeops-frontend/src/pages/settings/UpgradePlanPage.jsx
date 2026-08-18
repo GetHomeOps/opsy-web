@@ -8,8 +8,6 @@ import {
   AlertCircle,
   Star,
 } from "lucide-react";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
@@ -135,7 +133,6 @@ function isPlanAvailableForInterval(plan, billingInterval) {
 
 function UpgradePlanPage() {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const {currentAccount} = useCurrentAccount();
   const {currentUser} = useAuth();
   const [billing, setBilling] = useState(null);
@@ -383,10 +380,6 @@ function UpgradePlanPage() {
   );
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow">
           <div className={PAGE_LAYOUT.settingsWide}>
             {/* Back button */}
@@ -713,8 +706,6 @@ function UpgradePlanPage() {
             )}
           </div>
         </main>
-      </div>
-    </div>
   );
 }
 

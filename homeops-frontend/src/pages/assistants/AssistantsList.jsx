@@ -2,8 +2,6 @@ import React, {useCallback, useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {Loader2, Plus, UserRound} from "lucide-react";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import Banner from "../../partials/containers/Banner";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
@@ -33,7 +31,6 @@ function AssistantsList() {
   const canInvite =
     isBillingAdmin || isAdmin || limits?.assistantsEnabled === true;
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [assistants, setAssistants] = useState([]);
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -59,11 +56,7 @@ function AssistantsList() {
   }, [load]);
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className={PAGE_LAYOUT.list}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
@@ -203,8 +196,7 @@ function AssistantsList() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

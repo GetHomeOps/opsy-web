@@ -1,7 +1,5 @@
 import React, {useState, useEffect, useCallback} from "react";
 import {useParams, useNavigate} from "react-router-dom";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import {TicketFormContainer} from "./components";
 import {PAGE_LAYOUT} from "../../constants/layout";
@@ -15,7 +13,6 @@ function SupportTicket() {
   const {accountUrl, ticketId} = useParams();
   const navigate = useNavigate();
   const {currentAccount} = useCurrentAccount();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -61,10 +58,6 @@ function SupportTicket() {
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
           <main className="flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <div className="w-8 h-8 border-2 border-[#456564] border-t-transparent rounded-full animate-spin" />
@@ -73,18 +66,12 @@ function SupportTicket() {
               </p>
             </div>
           </main>
-        </div>
-      </div>
     );
   }
 
   if (error && !ticket) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main
+                <main
             className={`flex-1 overflow-y-auto ${PAGE_LAYOUT.listPaddingX} py-8`}
           >
             <div className="max-w-2xl">
@@ -107,17 +94,12 @@ function SupportTicket() {
               </div>
             </div>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main
+            <main
           className={`flex-1 overflow-y-auto ${PAGE_LAYOUT.listPaddingX} py-8`}
         >
           {ticket && (
@@ -133,8 +115,7 @@ function SupportTicket() {
             />
           )}
         </main>
-      </div>
-    </div>
+      
   );
 }
 

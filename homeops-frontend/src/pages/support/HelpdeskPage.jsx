@@ -1,8 +1,6 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useParams, useNavigate} from "react-router-dom";
 import {motion} from "framer-motion";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import {
@@ -30,7 +28,6 @@ function HelpdeskPage() {
   const navigate = useNavigate();
   const {currentUser} = useAuth();
   const isSuperAdmin = currentUser?.role === "super_admin";
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [allTickets, setAllTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inspectionReviews, setInspectionReviews] = useState([]);
@@ -165,11 +162,6 @@ function HelpdeskPage() {
   ];
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className={`${PAGE_LAYOUT.list}`}>
@@ -359,8 +351,6 @@ function HelpdeskPage() {
             )}
           </div>
         </main>
-      </div>
-    </div>
   );
 }
 

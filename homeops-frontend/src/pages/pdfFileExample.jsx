@@ -1,7 +1,5 @@
 import {useState, useRef, useEffect} from "react";
 import {Upload, FileText, ExternalLink, Eye, RefreshCw} from "lucide-react";
-import Sidebar from "../partials/Sidebar";
-import Header from "../partials/Header";
 import DocumentPreview from "../components/DocumentPreview";
 import usePresignedPreview from "../hooks/usePresignedPreview";
 import AppApi from "../api/api";
@@ -42,7 +40,6 @@ function getFileType(fileOrKey) {
 }
 
 function PdfFileExample() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [file, setFile] = useState(null);
   const [uploadedDoc, setUploadedDoc] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -123,13 +120,7 @@ function PdfFileExample() {
   };
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <main className="grow">
+            <main className="grow">
           <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             <div className="max-w-2xl mx-auto">
               <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
@@ -319,8 +310,7 @@ function PdfFileExample() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

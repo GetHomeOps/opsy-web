@@ -7,8 +7,6 @@ import {
   normalizeHeader,
   getTemplateRow,
 } from "../../data/professionalImportSchema";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
 import {
@@ -251,7 +249,6 @@ function ProfessionalsImport() {
   const { currentAccount } = useCurrentAccount();
   const accountUrl = currentAccount?.url || "";
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState(null);
   const [isParsing, setIsParsing] = useState(false);
   const [parseError, setParseError] = useState("");
@@ -588,12 +585,7 @@ function ProfessionalsImport() {
   }, [jsonBundle, currentAccount?.id, jsonSubmitting, jsonImportedCount]);
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <main className="grow">
+            <main className="grow">
           <div className="px-3 sm:px-6 lg:px-8 xxl:px-16 py-6 w-full max-w-5xl mx-auto">
             <nav className="mb-6">
               <button
@@ -1151,8 +1143,7 @@ function ProfessionalsImport() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

@@ -1,8 +1,6 @@
 import React, {useState, useEffect, useCallback, useRef} from "react";
 import {createPortal} from "react-dom";
 import {useNavigate, useParams} from "react-router-dom";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import AppApi from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
@@ -67,7 +65,6 @@ function CommunicationComposer() {
   const isNew = !id || id === "new";
   const isAdmin = ["admin", "super_admin"].includes(currentUser?.role);
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -327,27 +324,18 @@ function CommunicationComposer() {
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className="flex-1 overflow-y-auto flex justify-center items-center">
+                <main className="flex-1 overflow-y-auto flex justify-center items-center">
             <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
               <Loader2 className="w-5 h-5 animate-spin" />
               <span>Loading…</span>
             </div>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto">
           <div className="px-4 sm:px-4 lg:px-5 xxl:px-12 py-4 sm:py-8 w-full max-w-[96rem] mx-auto pb-28 xl:pb-8">
             {/* Top bar */}
             <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -717,55 +705,7 @@ function CommunicationComposer() {
             </div>
           </div>
         </main>
-      </div>
-
-      {/* Send confirmation modal */}
-      {createPortal(
-        <ModalBlank
-          id="send-comm-modal"
-          modalOpen={sendModalOpen}
-          setModalOpen={setSendModalOpen}
-          ignoreClickRef={sendButtonRef}
-        >
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              {form.deliveryMode === "schedule"
-                ? "Schedule Communication"
-                : "Send Communication"}
-            </h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-5">
-              {form.deliveryMode === "schedule"
-                ? `This will be sent at ${form.scheduledAt ? new Date(form.scheduledAt).toLocaleString() : "the scheduled time"}.`
-                : form.deliveryMode === "auto_send"
-                  ? "This will be activated for auto-send based on the configured rules."
-                  : `Send to ${estimatedCount ?? 0} recipient${(estimatedCount ?? 0) !== 1 ? "s" : ""} now?`}
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setSendModalOpen(false)}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={submitting}
-                className="px-5 py-2 btn-primary rounded-lg text-sm font-medium disabled:opacity-50"
-              >
-                {submitting
-                  ? "Processing…"
-                  : form.deliveryMode === "schedule"
-                    ? "Schedule"
-                    : "Send"}
-              </button>
-            </div>
-          </div>
-        </ModalBlank>,
-        document.body,
-      )}
-    </div>
+      
   );
 }
 

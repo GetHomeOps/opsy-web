@@ -2,24 +2,19 @@ import React from "react";
 import {Navigate, useLocation} from "react-router-dom";
 import {Loader2} from "lucide-react";
 import {useAuth} from "../../context/AuthContext";
-import FloatingFeedbackWidget from "../../components/FloatingFeedbackWidget";
-import AppChromeFallback from "../../partials/AppChromeFallback";
 
 const DEFAULT_ALLOWED_ROLES = ["super_admin", "admin"];
 
 /**
- * Wraps routes that require admin-level access.
- * - Redirects to /signin if not authenticated.
- * - Redirects to home if authenticated but lacking the required role.
+ * Role gate for nested authenticated routes. Chrome lives in AuthenticatedLayout.
  */
 function AdminRoute({children, allowedRoles = DEFAULT_ALLOWED_ROLES}) {
   const {currentUser, isLoading, impersonation} = useAuth();
   const location = useLocation();
 
   if (isLoading) {
-    if (currentUser) return <AppChromeFallback />;
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="flex flex-1 items-center justify-center min-h-[40vh]">
         <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
       </div>
     );
@@ -43,12 +38,7 @@ function AdminRoute({children, allowedRoles = DEFAULT_ALLOWED_ROLES}) {
     return <Navigate to="/" replace />;
   }
 
-  return (
-    <>
-      {children}
-      <FloatingFeedbackWidget />
-    </>
-  );
+  return children;
 }
 
 export default AdminRoute;

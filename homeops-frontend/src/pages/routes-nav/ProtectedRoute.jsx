@@ -19,7 +19,7 @@ function billingGateKey(userId, accountId, requiresPaid) {
  * Wraps content that requires authentication.
  * - Redirects to /signin when user is not logged in.
  * - Passes current location as state.from for redirect-after-login (best practice).
- * - Does not render sidebar/navbar; those are rendered by each page only when mounted (authenticated).
+ * - Does not render sidebar/navbar; AuthenticatedLayout owns chrome for nested routes.
  */
 function ProtectedRoute({children}) {
   const {currentUser, isLoading, impersonation} = useAuth();

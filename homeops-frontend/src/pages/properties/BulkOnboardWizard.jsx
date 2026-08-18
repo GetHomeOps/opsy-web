@@ -27,8 +27,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi, { getApiErrorMessage } from "../../api/api";
 import propertyContext from "../../context/PropertyContext";
@@ -367,7 +365,6 @@ function BulkOnboardWizard() {
   const accountUrl = currentAccount?.url || "";
   const { refreshProperties } = useContext(propertyContext);
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [step, setStep] = useState(1);
 
   const [agents, setAgents] = useState([]);
@@ -642,12 +639,7 @@ function BulkOnboardWizard() {
   const currentStep = step;
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <main className="grow">
+            <main className="grow">
           <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             <nav className="mb-4">
               <button
@@ -1375,8 +1367,7 @@ function BulkOnboardWizard() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

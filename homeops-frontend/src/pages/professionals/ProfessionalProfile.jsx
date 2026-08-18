@@ -30,8 +30,6 @@ import {
   X,
 } from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import ModalBlank from "../../components/ModalBlank";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
@@ -66,7 +64,6 @@ function ProfessionalProfile() {
   const location = useLocation();
   const {currentUser} = useAuth();
   const userEmail = currentUser?.email || "";
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("about");
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || "";
@@ -344,25 +341,16 @@ function ProfessionalProfile() {
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className="grow flex items-center justify-center">
+                <main className="grow flex items-center justify-center">
             <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   if (!professional || error) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className="grow flex items-center justify-center">
+                <main className="grow flex items-center justify-center">
             <div className="text-center">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
                 Professional not found
@@ -387,8 +375,7 @@ function ProfessionalProfile() {
               </button>
             </div>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
@@ -444,14 +431,11 @@ function ProfessionalProfile() {
   ];
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div
         ref={scrollContainerRef}
         className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden scroll-smooth bg-gray-50 dark:bg-gray-950"
       >
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="grow">
           <div className="w-full max-w-6xl mx-auto px-3 sm:px-4 lg:px-5 xxl:px-12 pt-4 pb-16">
@@ -1193,7 +1177,6 @@ function ProfessionalProfile() {
           </div>
         </div>
       </div>
-    </div>
   );
 }
 

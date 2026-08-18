@@ -1,7 +1,5 @@
 import React, {useState, useEffect, useCallback, useMemo, useRef} from "react";
 import {createPortal} from "react-dom";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import PaginationClassic from "../../components/PaginationClassic";
 import useSuppressBrowserAddressAutofill from "../../hooks/useSuppressBrowserAddressAutofill";
@@ -527,7 +525,6 @@ function UserActivityRow({user, isLast, heatmapDayKeys = []}) {
 }
 
 function AccountAnalytics() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [activityHeatmapDays, setActivityHeatmapDays] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -621,13 +618,7 @@ function AccountAnalytics() {
   }, []);
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <main className="flex flex-col flex-1 min-h-0 overflow-auto">
+            <main className="flex flex-col flex-1 min-h-0 overflow-auto">
           <div className={`${PAGE_LAYOUT.listPaddingX} py-6`}>
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div>
@@ -808,8 +799,7 @@ function AccountAnalytics() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

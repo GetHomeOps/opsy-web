@@ -12,8 +12,6 @@ import {
   Users,
 } from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {ProfessionalCard} from "./components";
 import AppApi from "../../api/api";
@@ -27,7 +25,6 @@ const RATING_OPTIONS = [
 ];
 
 function MyProfessionals() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState("list");
@@ -148,26 +145,15 @@ function MyProfessionals() {
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/50 dark:bg-gray-900">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className="grow flex items-center justify-center">
+                <main className="grow flex items-center justify-center">
             <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden bg-gray-50/50 dark:bg-gray-900">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <main className="grow">
+            <main className="grow">
           <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             <button
               type="button"
@@ -470,8 +456,7 @@ function MyProfessionals() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

@@ -1,6 +1,4 @@
 import React, {useState, useEffect, useCallback} from "react";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
 import {Loader2, Save, ChevronDown, ChevronUp, Plus, Trash2, Check, X, Eye, Star, ArrowUp, ArrowDown} from "lucide-react";
@@ -131,7 +129,6 @@ function FeaturePreview({features}) {
 
 function BillingPlansEditor() {
   const {currentAccount} = useCurrentAccount();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [plans, setPlans] = useState([]);
   const [stripePrices, setStripePrices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -288,11 +285,7 @@ function BillingPlansEditor() {
   };
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
             <div className="mb-8">
               <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
@@ -585,8 +578,7 @@ function BillingPlansEditor() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

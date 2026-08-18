@@ -11,8 +11,6 @@ import {
   RotateCcw,
   AlertTriangle,
 } from "lucide-react";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import {useAuth} from "../../context/AuthContext";
 import AppApi from "../../api/api";
 import {PAGE_LAYOUT, SETTINGS_CARD} from "../../constants/layout";
@@ -37,7 +35,6 @@ const LANGUAGES = [
 
 function ConfigurationPage() {
   const {t, i18n} = useTranslation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const {currentUser, refreshCurrentUser, updateCurrentUser} = useAuth();
   const isAgent = (currentUser?.role ?? "").toLowerCase() === "agent";
   const [name, setName] = useState("");
@@ -404,10 +401,6 @@ function ConfigurationPage() {
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="grow">
           <div className={PAGE_LAYOUT.settings}>
             <div className="mb-10">
@@ -1223,8 +1216,6 @@ function ConfigurationPage() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
   );
 }
 

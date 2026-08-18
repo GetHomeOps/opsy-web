@@ -9,8 +9,6 @@ import {useNavigate, useParams} from "react-router-dom";
 
 import {useTranslation} from "react-i18next";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import userContext from "../../context/UserContext";
 import AppApi, {
@@ -699,26 +697,9 @@ function UsersList() {
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        sidebarOpen={state.sidebarOpen}
-        setSidebarOpen={(open) =>
-          dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-        }
-      />
+    <>
 
-      {/* Content area */}
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        {/*  Site header */}
-        <Header
-          sidebarOpen={state.sidebarOpen}
-          setSidebarOpen={(open) =>
-            dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-          }
-        />
-
-        {/* Banner */}
+            {/* Banner */}
         <div className="fixed right-0 w-auto sm:w-full z-50">
           <Banner
             type={state.bannerType}
@@ -1170,13 +1151,9 @@ function UsersList() {
             </>
           </div>
         </main>
-      </div>
-      <SendPendingInvitationsModal
-        modalOpen={sendPendingInvitesOpen}
-        setModalOpen={setSendPendingInvitesOpen}
-        invitationType="account"
-      />
-    </div>
+      
+  
+    </>
   );
 }
 export default UsersList;

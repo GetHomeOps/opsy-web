@@ -1,8 +1,6 @@
-import React, {useState} from "react";
+import React from "react";
 import {NavLink} from "react-router-dom";
 import {Building2} from "lucide-react";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AffiliationRequestsList from "./AffiliationRequestsList";
@@ -10,7 +8,6 @@ import AgenciesManage from "./AgenciesManage";
 import AgentsList from "./AgentsList";
 
 function AgenciesAdminHub({activeTab = "manage"}) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const base = accountUrl ? `/${accountUrl}/agencies` : "/agencies";
@@ -22,11 +19,7 @@ function AgenciesAdminHub({activeTab = "manage"}) {
   ];
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className={PAGE_LAYOUT.list}>
             <div className="mb-6">
               <div className="flex items-center gap-2">
@@ -64,8 +57,7 @@ function AgenciesAdminHub({activeTab = "manage"}) {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

@@ -2,8 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import { useAuth } from "../../context/AuthContext";
 import AppApi from "../../api/api";
@@ -18,7 +16,6 @@ function SupportList() {
   const { t } = useTranslation();
   const { accountUrl } = useParams();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { currentAccount } = useCurrentAccount();
   const { currentUser } = useAuth();
   const [tickets, setTickets] = useState([]);
@@ -78,27 +75,18 @@ function SupportList() {
 
   if (!accountId) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 overflow-y-auto">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className={`grow ${PAGE_LAYOUT.settings}`}>
+                <main className={`grow ${PAGE_LAYOUT.settings}`}>
             <p className="text-gray-600 dark:text-gray-400">
               {t("support.selectAccount") ||
                 "Select an account to submit a support ticket."}
             </p>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex-col flex-1 min-w-0 overflow-hidden flex">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto">
           <div className={PAGE_LAYOUT.list}>
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -142,8 +130,7 @@ function SupportList() {
             />
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

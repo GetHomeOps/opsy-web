@@ -9,8 +9,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-import Sidebar from "../../../partials/Sidebar";
-import Header from "../../../partials/Header";
 import Banner from "../../../partials/containers/Banner";
 import ModalBlank from "../../../components/ModalBlank";
 import AppApi from "../../../api/api";
@@ -46,7 +44,6 @@ function frequencyLabel(tpl) {
 function SystemRecommendationsList() {
   const [grouped, setGrouped] = useState({});
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [banner, setBanner] = useState({open: false, type: "success", message: ""});
   const showBanner = useCallback((type, message) => {
@@ -144,13 +141,9 @@ function SystemRecommendationsList() {
   };
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+    <>
 
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <div className="fixed right-0 w-auto sm:w-full z-50">
+            <div className="fixed right-0 w-auto sm:w-full z-50">
           <Banner
             type={banner.type}
             open={banner.open}
@@ -310,59 +303,9 @@ function SystemRecommendationsList() {
             )}
           </div>
         </main>
-      </div>
-
-      <SystemRecommendationFormModal
-        open={formOpen}
-        setOpen={setFormOpen}
-        template={editingTemplate}
-        defaultSystemKey={defaultSystemKey}
-        systemOptions={SYSTEM_OPTIONS}
-        onSubmit={handleSubmit}
-      />
-
-      <ModalBlank
-        modalOpen={Boolean(deleteTarget)}
-        setModalOpen={(open) => {
-          if (!open) setDeleteTarget(null);
-        }}
-        contentClassName="max-w-md"
-      >
-        <div className="p-5">
-          <div className="flex items-start gap-3">
-            <div className="shrink-0 rounded-full bg-red-100 dark:bg-red-500/15 p-2">
-              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-                Delete recommendation
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Delete &ldquo;{deleteTarget?.title}&rdquo;? This only affects
-                future properties. Action Items already generated for existing
-                properties are not removed.
-              </p>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-5">
-            <button
-              className="btn-sm border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-300"
-              onClick={() => setDeleteTarget(null)}
-              disabled={deleting}
-            >
-              Cancel
-            </button>
-            <button
-              className="btn-sm bg-red-600 text-white hover:bg-red-700"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? "Deleting…" : "Delete"}
-            </button>
-          </div>
-        </div>
-      </ModalBlank>
-    </div>
+      
+  
+    </>
   );
 }
 

@@ -2,8 +2,6 @@ import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
 import { PAGE_LAYOUT, SETTINGS_CARD } from "../../constants/layout";
@@ -16,7 +14,6 @@ function SupportNew() {
   const { t } = useTranslation();
   const { accountUrl } = useParams();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { currentAccount } = useCurrentAccount();
   const [type, setType] = useState("support");
   const [subject, setSubject] = useState("");
@@ -94,27 +91,18 @@ function SupportNew() {
 
   if (!accountId) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 overflow-y-auto">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className={`grow ${PAGE_LAYOUT.settings}`}>
+                <main className={`grow ${PAGE_LAYOUT.settings}`}>
             <p className="text-gray-600 dark:text-gray-400">
               {t("support.selectAccount") ||
                 "Select an account to submit a support ticket."}
             </p>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className={PAGE_LAYOUT.settings}>
             <button
               type="button"
@@ -225,8 +213,7 @@ function SupportNew() {
             </section>
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

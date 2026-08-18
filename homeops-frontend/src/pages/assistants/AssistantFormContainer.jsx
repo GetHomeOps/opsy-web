@@ -2,8 +2,6 @@ import React, {useEffect, useState} from "react";
 import {useNavigate, useParams} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {ArrowLeft, Loader2} from "lucide-react";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import Banner from "../../partials/containers/Banner";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
@@ -25,7 +23,6 @@ function AssistantFormContainer() {
   const canInvite =
     isBillingAdmin || isAdmin || limits?.assistantsEnabled === true;
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [agents, setAgents] = useState([]);
@@ -214,11 +211,7 @@ function AssistantFormContainer() {
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className={PAGE_LAYOUT.form}>
             <button
               type="button"
@@ -387,8 +380,7 @@ function AssistantFormContainer() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

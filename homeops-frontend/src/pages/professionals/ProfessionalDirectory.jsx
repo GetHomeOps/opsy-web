@@ -2,8 +2,6 @@ import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useNavigate} from "react-router-dom";
 import {ArrowRight, Bookmark, Loader2, Search} from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
 import {LocationBar, CategorySectionRow, ProfessionalCard} from "./components";
@@ -101,7 +99,6 @@ function mapHierarchyToSections(hierarchy) {
 }
 
 function ProfessionalDirectory() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [location, setLocation] = useState(null);
   const [hierarchy, setHierarchy] = useState([]);
   const [savedPros, setSavedPros] = useState([]);
@@ -165,11 +162,7 @@ function ProfessionalDirectory() {
 
   if (loading) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className="grow">
+                <main className="grow">
             <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto relative">
               <div className="absolute top-8 right-4 sm:right-5 flex items-center gap-2 text-gray-500 dark:text-gray-400">
                 <Loader2 className="w-5 h-5 text-[#456564] animate-spin shrink-0" />
@@ -180,18 +173,13 @@ function ProfessionalDirectory() {
               <ProfessionalDirectorySkeleton />
             </div>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   if (error) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className="grow flex items-center justify-center">
+                <main className="grow flex items-center justify-center">
             <div className="text-center">
               <p className="text-sm text-red-600 dark:text-red-400 mb-2">
                 {error}
@@ -205,17 +193,11 @@ function ProfessionalDirectory() {
               </button>
             </div>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         <main className="grow">
           <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
@@ -322,8 +304,6 @@ function ProfessionalDirectory() {
             </section>
           </div>
         </main>
-      </div>
-    </div>
   );
 }
 

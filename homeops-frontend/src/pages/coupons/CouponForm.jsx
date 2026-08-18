@@ -2,8 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Copy, Check, Loader2, Users, Globe } from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import Banner from "../../partials/containers/Banner";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
@@ -35,7 +33,6 @@ function CouponForm() {
   const { currentAccount } = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [plans, setPlans] = useState([]);
   const [isLoading, setIsLoading] = useState(!!isEdit);
@@ -185,13 +182,9 @@ function CouponForm() {
   const isUnique = form.couponType === "unique";
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+    <>
 
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <div className="fixed right-0 w-auto sm:w-full z-50">
+            <div className="fixed right-0 w-auto sm:w-full z-50">
           <Banner
             type={banner.type}
             open={banner.open}
@@ -625,8 +618,9 @@ function CouponForm() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
+  
+    </>
   );
 }
 

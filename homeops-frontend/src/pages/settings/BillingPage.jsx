@@ -9,8 +9,6 @@ import {
   ShieldCheck,
   Home,
 } from "lucide-react";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAuth} from "../../context/AuthContext";
 import {useAccountBranding} from "../../context/AccountBrandingContext";
@@ -31,7 +29,6 @@ function BillingPage() {
   const {t} = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState(
     location.state?.planChanged || null,
   );
@@ -230,26 +227,17 @@ function BillingPage() {
 
   if (!accountId) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 overflow-y-auto">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className={`grow ${PAGE_LAYOUT.settings}`}>
+                <main className={`grow ${PAGE_LAYOUT.settings}`}>
             <p className="text-gray-600 dark:text-gray-400">
               Select an account to view billing.
             </p>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className={PAGE_LAYOUT.settings}>
             <div className="mb-8">
               <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
@@ -797,15 +785,7 @@ function BillingPage() {
             )}
           </div>
         </main>
-      </div>
-
-      <SponsorshipOfferModal
-        open={offerModalOpen}
-        eligibility={sponsorship.eligibility}
-        onConfirm={handleAcceptSponsorship}
-        onClose={() => setOfferModalOpen(false)}
-      />
-    </div>
+      
   );
 }
 

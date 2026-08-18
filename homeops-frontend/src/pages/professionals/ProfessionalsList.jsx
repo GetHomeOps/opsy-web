@@ -2,8 +2,6 @@ import React, {useCallback, useMemo, useReducer, useState, useEffect, useRef} fr
 import {useNavigate} from "react-router-dom";
 import {Loader2} from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
@@ -139,6 +137,8 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove}) {
   };
 
   return (
+    <>
+
     <div className="relative" ref={dropdownRef}>
       <button
         ref={buttonRef}
@@ -295,6 +295,8 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove}) {
         </div>
       )}
     </div>
+  
+    </>
   );
 }
 
@@ -643,23 +645,9 @@ function ProfessionalsList() {
   /* ─── Render ───────────────────────────────────────────────── */
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar
-        sidebarOpen={state.sidebarOpen}
-        setSidebarOpen={(open) =>
-          dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-        }
-      />
+    <>
 
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header
-          sidebarOpen={state.sidebarOpen}
-          setSidebarOpen={(open) =>
-            dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-          }
-        />
-
-        <div className="fixed right-0 w-auto sm:w-full z-50">
+            <div className="fixed right-0 w-auto sm:w-full z-50">
           <Banner
             type={state.bannerType}
             open={state.bannerOpen}
@@ -885,8 +873,9 @@ function ProfessionalsList() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
+  
+    </>
   );
 }
 

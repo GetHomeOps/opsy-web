@@ -18,7 +18,7 @@ import AdminRoute from "./AdminRoute";
 import SuperAdminRoute from "./SuperAdminRoute";
 import PublicRoute from "./PublicRoute";
 import OnboardingRoute from "./OnboardingRoute";
-import AppChromeFallback from "../../partials/AppChromeFallback";
+import AuthenticatedLayout from "../../partials/AuthenticatedLayout";
 import {
   contactsListImport,
   propertiesListImport,
@@ -250,55 +250,49 @@ function RoutesList() {
     </>
   );
 
-  // Private routes: require auth; redirect to /signin with return URL if not logged in
+  // Private routes: chrome lives in AuthenticatedLayout so the sidebar does not remount.
   const privateRoutes = (
-    <>
+    <Route
+      element={
+        <ProtectedRoute>
+          <AuthenticatedLayout />
+        </ProtectedRoute>
+      }
+    >
       <Route
         path="/settings/account"
         element={
-          <ProtectedRoute>
             <Account />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/settings/accounts"
         element={
-          <ProtectedRoute>
             <Databases />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/settings/upgrade"
         element={
-          <ProtectedRoute>
             <UpgradeRedirect />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/home"
         element={
-          <ProtectedRoute>
             <Main />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/dashboard"
         element={
-          <ProtectedRoute>
             <DashboardOverview />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/dashboard/accounts"
         element={
-          <ProtectedRoute>
             <AccountAnalytics />
-          </ProtectedRoute>
         }
       />
       <Route
@@ -336,121 +330,91 @@ function RoutesList() {
       <Route
         path="/:accountUrl/dashboard/costs"
         element={
-          <ProtectedRoute>
             <CostAnalytics />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/dashboard/engagement"
         element={
-          <ProtectedRoute>
             <EngagementDashboard />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/dashboard/growth"
         element={
-          <ProtectedRoute>
             <GrowthDashboard />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/invitations"
         element={
-          <ProtectedRoute>
             <InvitationsList />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/settings/billing"
         element={
-          <ProtectedRoute>
             <BillingPage />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/settings/upgrade"
         element={
-          <ProtectedRoute>
             <UpgradePlanPage />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/settings/configuration"
         element={
-          <ProtectedRoute>
             <ConfigurationPage />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/settings/support/new"
         element={
-          <ProtectedRoute>
             <SupportNew />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/settings/support/data-adjustment"
         element={
-          <ProtectedRoute>
             <DataAdjustmentRequest />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/settings/support/:ticketId"
         element={
-          <ProtectedRoute>
             <SupportTicket />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/settings/support"
         element={
-          <ProtectedRoute>
             <SupportList />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/contacts"
         element={
-          <ProtectedRoute>
             <ContactList />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/contacts/import"
         element={
-          <ProtectedRoute>
             <ContactsImport />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/contacts/new"
         element={
-          <ProtectedRoute>
             <Contact />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/contacts/:id"
         element={
-          <ProtectedRoute>
             <Contact />
-          </ProtectedRoute>
         }
       />
       <Route
@@ -480,9 +444,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/properties"
         element={
-          <ProtectedRoute>
             <PropertiesList />
-          </ProtectedRoute>
         }
       />
       <Route
@@ -552,177 +514,133 @@ function RoutesList() {
       <Route
         path="/:accountUrl/calendar"
         element={
-          <ProtectedRoute>
             <Calendar />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/properties/:uid"
         element={
-          <ProtectedRoute>
             <Property />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/properties/:uid/maintenance/:systemId/:recordId"
         element={
-          <ProtectedRoute>
             <MaintenanceRecordPage />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals"
         element={
-          <ProtectedRoute>
             <ProfessionalDirectory />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/coming-soon"
         element={
-          <ProtectedRoute>
             <ComingSoon />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/coming-soon"
         element={
-          <ProtectedRoute>
             <ComingSoon />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/professionals-sample"
         element={
-          <ProtectedRoute>
             <ProfessionalsDirectorySample />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/professionals-sample/search"
         element={
-          <ProtectedRoute>
             <CategoryDirectoryPageSample />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals-sample"
         element={
-          <ProtectedRoute>
             <ProfessionalsDirectorySample />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals-sample/search"
         element={
-          <ProtectedRoute>
             <CategoryDirectoryPageSample />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals/search"
         element={
-          <ProtectedRoute>
             <CategoryDirectoryPage />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals/manage"
         element={
-          <ProtectedRoute>
             <ProfessionalsList />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals/import"
         element={
-          <ProtectedRoute>
             <ProfessionalsImport />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals/manage/new"
         element={
-          <ProtectedRoute>
             <ProfessionalFormContainer />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals/manage/:professionalId"
         element={
-          <ProtectedRoute>
             <ProfessionalFormContainer />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals/categories"
         element={
-          <ProtectedRoute>
             <CategoriesList />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals/categories/import"
         element={
-          <ProtectedRoute>
             <CategoriesImport />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals/categories/:categoryId"
         element={
-          <ProtectedRoute>
             <CategoryFormContainer />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/professionals/:proId"
         element={
-          <ProtectedRoute>
             <ProfessionalProfile />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/my-professionals"
         element={
-          <ProtectedRoute>
             <MyProfessionals />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/my-professionals-sample"
         element={
-          <ProtectedRoute>
             <MyProfessionalsSample />
-          </ProtectedRoute>
         }
       />
       <Route
         path="/:accountUrl/my-professionals-sample"
         element={
-          <ProtectedRoute>
             <MyProfessionalsSample />
-          </ProtectedRoute>
         }
       />
       <Route
@@ -951,9 +869,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/resources/:id/view"
         element={
-          <ProtectedRoute>
             <ResourceViewerPage />
-          </ProtectedRoute>
         }
       />
       <Route
@@ -983,9 +899,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/communications/:id/view"
         element={
-          <ProtectedRoute>
             <CommunicationViewerPage />
-          </ProtectedRoute>
         }
       />
       <Route
@@ -1007,9 +921,7 @@ function RoutesList() {
       <Route
         path="/:accountUrl/homeowner-messages"
         element={
-          <ProtectedRoute>
             <ClientMessages />
-          </ProtectedRoute>
         }
       />
       <Route
@@ -1079,24 +991,18 @@ function RoutesList() {
       <Route
         path="/:accountUrl/pdfexample"
         element={
-          <ProtectedRoute>
             <PdfFileExample />
-          </ProtectedRoute>
         }
       />
-    </>
+    </Route>
   );
 
   return (
     <Suspense
       fallback={
-        currentUser ? (
-          <AppChromeFallback />
-        ) : (
-          <div className="flex justify-center items-center h-screen">
-            <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
-          </div>
-        )
+        <div className="flex justify-center items-center h-screen">
+          <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
+        </div>
       }
     >
       <Routes>

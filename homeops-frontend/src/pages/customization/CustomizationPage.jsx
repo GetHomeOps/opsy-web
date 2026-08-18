@@ -2,8 +2,6 @@ import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {Link, useLocation, useNavigate, useParams} from "react-router-dom";
 import {ArrowLeft, Link2, Loader2, RotateCcw, SlidersHorizontal} from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import Banner from "../../partials/containers/Banner";
 import AppApi from "../../api/api";
 import {
@@ -196,7 +194,6 @@ function CustomizationPage() {
   const location = useLocation();
   const {currentAccount} = useCurrentAccount();
   const {refreshBranding} = useAccountBranding();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [accountName, setAccountName] = useState("");
   const [accountUrlSlug, setAccountUrlSlug] = useState("");
   const [subtitleMeta, setSubtitleMeta] = useState("");
@@ -624,10 +621,6 @@ function CustomizationPage() {
   const canEdit = !readOnlyReason;
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className={PAGE_LAYOUT.settings}>
           <div className="mb-8">
             <Link
@@ -1069,16 +1062,6 @@ function CustomizationPage() {
             )
           )}
         </main>
-      </div>
-
-      <LogoCropModal
-        open={cropModalOpen}
-        onClose={closeCropModal}
-        imageSrc={cropImageSrc}
-        accentColor={form.accentColor || DEFAULT_ACCENT}
-        onConfirm={handleCropConfirm}
-      />
-    </div>
   );
 }
 

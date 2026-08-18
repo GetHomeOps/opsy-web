@@ -1,7 +1,5 @@
 import React, {useState, useEffect, useCallback} from "react";
 import {useParams, useNavigate} from "react-router-dom";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import {ArrowLeft, ExternalLink, Loader2, FileText} from "lucide-react";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
@@ -21,7 +19,6 @@ function ResourcePreviewPage() {
   const navigate = useNavigate();
   const {currentAccount} = useCurrentAccount();
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [resource, setResource] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -73,18 +70,13 @@ function ResourcePreviewPage() {
 
   if (loading || !resource) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className="flex-1 overflow-y-auto flex items-center justify-center">
+                <main className="flex-1 overflow-y-auto flex items-center justify-center">
             <div className="flex flex-col items-center gap-3 text-gray-500 dark:text-gray-400">
               <Loader2 className="w-10 h-10 animate-spin text-[#456564]" />
               <span>Loading preview…</span>
             </div>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
@@ -99,10 +91,6 @@ function ResourcePreviewPage() {
     DEFAULT_HEADER_IMAGE;
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
         <main className="flex-1 overflow-y-auto">
           <div className={PAGE_LAYOUT.list}>
             {/* Toolbar */}
@@ -253,8 +241,6 @@ function ResourcePreviewPage() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
   );
 }
 

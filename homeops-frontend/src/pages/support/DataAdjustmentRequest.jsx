@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import { useAuth } from "../../context/AuthContext";
 import AppApi from "../../api/api";
@@ -26,7 +24,6 @@ function DataAdjustmentRequest() {
   const { accountUrl } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { currentAccount } = useCurrentAccount();
 
   const [propertyId, setPropertyId] = useState("");
@@ -229,26 +226,17 @@ function DataAdjustmentRequest() {
 
   if (!accountId) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className="relative flex flex-col flex-1 overflow-y-auto">
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className={`grow ${PAGE_LAYOUT.settings}`}>
+                <main className={`grow ${PAGE_LAYOUT.settings}`}>
             <p className="text-gray-600 dark:text-gray-400">
               Please select an account to submit a data adjustment request.
             </p>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className={PAGE_LAYOUT.settings}>
             <button
               type="button"
@@ -415,8 +403,7 @@ function DataAdjustmentRequest() {
             </section>
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

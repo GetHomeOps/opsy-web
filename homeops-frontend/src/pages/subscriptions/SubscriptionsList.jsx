@@ -2,9 +2,7 @@ import React, {useState, useEffect, useReducer, useMemo, useRef} from "react";
 import {useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 
-import Sidebar from "../../partials/Sidebar";
 import {useAuth} from "../../context/AuthContext";
-import Header from "../../partials/Header";
 import PaginationClassic from "../../components/PaginationClassic";
 import SearchInput from "../../components/SearchInput";
 import Banner from "../../partials/containers/Banner";
@@ -242,6 +240,8 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
   };
 
   return (
+    <>
+
     <div className="relative" ref={dropdownRef}>
       <button
         ref={buttonRef}
@@ -400,6 +400,8 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
         </div>
       )}
     </div>
+  
+    </>
   );
 }
 
@@ -1040,26 +1042,9 @@ function SubscriptionsList() {
   );
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        sidebarOpen={state.sidebarOpen}
-        setSidebarOpen={(open) =>
-          dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-        }
-      />
+    <>
 
-      {/* Content area */}
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        {/* Site header */}
-        <Header
-          sidebarOpen={state.sidebarOpen}
-          setSidebarOpen={(open) =>
-            dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-          }
-        />
-
-        {/* Banner */}
+            {/* Banner */}
         <div className="fixed right-0 w-auto sm:w-full z-50">
           <Banner
             type={state.bannerType}
@@ -1383,8 +1368,9 @@ function SubscriptionsList() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
+  
+    </>
   );
 }
 

@@ -1,7 +1,5 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useTranslation} from "react-i18next";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import PaginationClassic from "../../components/PaginationClassic";
 import FilterDropdown from "../../components/FilterDropdown";
@@ -154,7 +152,6 @@ function comparePropertyAnalyticsDefault(a, b) {
 
 function PropertyAnalytics() {
   const {t} = useTranslation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -375,13 +372,7 @@ function PropertyAnalytics() {
   };
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <main className="flex flex-col flex-1 min-h-0 overflow-auto">
+            <main className="flex flex-col flex-1 min-h-0 overflow-auto">
           <div className={`${PAGE_LAYOUT.listPaddingX} py-6`}>
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div>
@@ -830,8 +821,7 @@ function PropertyAnalytics() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

@@ -1,7 +1,5 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {useTranslation} from "react-i18next";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import DatePickerInput from "../../components/DatePickerInput";
 import PaginationClassic from "../../components/PaginationClassic";
@@ -89,7 +87,6 @@ function KpiCard({label, value, sub, icon: Icon, accent}) {
 function DemoSalesDashboard() {
   const {t} = useTranslation();
   const {currentUser} = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [summary, setSummary] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -182,11 +179,7 @@ function DemoSalesDashboard() {
 
   if (!isDemoSite() || !canAccess) {
     return (
-      <div className="flex h-[100dvh] overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <div className={`relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden ${PAGE_LAYOUT}`}>
-          <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-          <main className="grow">
+                <main className="grow">
             <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-3xl">
               <p className="text-gray-600 dark:text-gray-400">
                 {t("demoSales.unavailable", {
@@ -196,8 +189,7 @@ function DemoSalesDashboard() {
               </p>
             </div>
           </main>
-        </div>
-      </div>
+        
     );
   }
 
@@ -205,11 +197,7 @@ function DemoSalesDashboard() {
   const creators = summary?.creators ?? [];
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className={`relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden ${PAGE_LAYOUT}`}>
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-7xl mx-auto w-full">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
               <div>
@@ -544,8 +532,7 @@ function DemoSalesDashboard() {
             </section>
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

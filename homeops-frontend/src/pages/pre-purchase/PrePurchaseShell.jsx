@@ -1,8 +1,6 @@
-import React, {useState} from "react";
+import React from "react";
 import {Navigate} from "react-router-dom";
 import {Loader2} from "lucide-react";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import useBillingStatus from "../../hooks/useBillingStatus";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
@@ -12,7 +10,6 @@ import useCurrentAccount from "../../hooks/useCurrentAccount";
  * Redirects agents without the Pre-Purchase plan entitlement.
  */
 export default function PrePurchaseShell({children}) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const {currentAccount} = useCurrentAccount();
   const {limits, loading, isAdmin} = useBillingStatus();
   const accountUrl = currentAccount?.url || "";
@@ -24,11 +21,7 @@ export default function PrePurchaseShell({children}) {
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           {!isAdmin && loading ? (
             <div className="flex justify-center items-center min-h-[40vh]">
               <Loader2 className="w-10 h-10 text-[#456564] animate-spin" />
@@ -37,7 +30,6 @@ export default function PrePurchaseShell({children}) {
             <div className={PAGE_LAYOUT.list}>{children}</div>
           )}
         </main>
-      </div>
-    </div>
+      
   );
 }

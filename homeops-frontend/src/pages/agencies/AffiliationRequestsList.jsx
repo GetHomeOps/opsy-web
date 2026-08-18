@@ -1,13 +1,10 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
 import {Loader2, RefreshCw, Building2} from "lucide-react";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import SearchInput from "../../components/SearchInput";
 
 function AffiliationRequestsList({embedded = false}) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -255,15 +252,10 @@ function AffiliationRequestsList({embedded = false}) {
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className={PAGE_LAYOUT.list}>{tableContent}</div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

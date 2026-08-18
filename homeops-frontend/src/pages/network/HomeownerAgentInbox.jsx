@@ -10,8 +10,6 @@ import {
   MapPin,
 } from "lucide-react";
 
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import AppApi from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {PAGE_LAYOUT} from "../../constants/layout";
@@ -94,7 +92,6 @@ function HomeownerAgentInbox() {
   const {accountUrl} = useParams();
   const {currentAccount} = useCurrentAccount();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
@@ -157,11 +154,7 @@ function HomeownerAgentInbox() {
   };
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto">
           <div className={PAGE_LAYOUT.list}>
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -262,8 +255,7 @@ function HomeownerAgentInbox() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 

@@ -1,7 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {useLocation, useNavigate, useParams} from "react-router-dom";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import Banner from "../../partials/containers/Banner";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import {useAgencyListCache} from "../../context/AgencyContext";
@@ -63,7 +61,6 @@ function AgencyFormContainer() {
     routeAgencyId,
   );
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(
     !isNew && !hasInvalidRouteId && !hasInstantAgency,
   );
@@ -334,13 +331,9 @@ function AgencyFormContainer() {
       (loading && !hasPreviewAgency));
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+    <>
 
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-
-        <div className="fixed top-18 right-0 w-auto sm:w-full z-50">
+            <div className="fixed top-18 right-0 w-auto sm:w-full z-50">
           <Banner
             type={bannerType}
             open={bannerOpen}
@@ -469,8 +462,9 @@ function AgencyFormContainer() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
+      
+  
+    </>
   );
 }
 

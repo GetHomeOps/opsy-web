@@ -3,9 +3,7 @@ import {useNavigate, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {ChevronRight, ChevronDown, Layers, Tag, Users, FolderTree} from "lucide-react";
 
-import Sidebar from "../../../partials/Sidebar";
 import ListDropdown from "../../../partials/buttons/ListDropdown";
-import Header from "../../../partials/Header";
 import PaginationClassic from "../../../components/PaginationClassic";
 import DataTable from "../../../components/DataTable";
 import ModalBlank from "../../../components/ModalBlank";
@@ -56,6 +54,8 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
   };
 
   return (
+    <>
+
     <div className="relative" ref={dropdownRef}>
       <button
         ref={buttonRef}
@@ -152,6 +152,8 @@ function FilterDropdown({filterOptions, activeFilters, onAdd, onRemove, t}) {
         </div>
       )}
     </div>
+  
+    </>
   );
 }
 
@@ -651,6 +653,8 @@ function CategoriesList() {
       if (!parent) return null;
 
       return (
+    <>
+
         <tr
           key={`group-${groupId}`}
           className="bg-gradient-to-r from-gray-50 to-gray-50/50 dark:from-gray-700/40 dark:to-gray-700/20 cursor-pointer hover:from-gray-100 hover:to-gray-50 dark:hover:from-gray-700/60 dark:hover:to-gray-700/30 transition-colors border-l-3 border-l-[#456564]"
@@ -712,7 +716,9 @@ function CategoriesList() {
             </span>
           </td>
         </tr>
-      );
+      
+    </>
+  );
     },
     [selectedItems, state.hierarchy, handleCategoryClick],
   );
@@ -790,23 +796,9 @@ function CategoriesList() {
   /* ─── Render ───────────────────────────────────────────────── */
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar
-        sidebarOpen={state.sidebarOpen}
-        setSidebarOpen={(open) =>
-          dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-        }
-      />
+    <>
 
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header
-          sidebarOpen={state.sidebarOpen}
-          setSidebarOpen={(open) =>
-            dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-          }
-        />
-
-        <div className="fixed right-0 w-auto sm:w-full z-50">
+            <div className="fixed right-0 w-auto sm:w-full z-50">
           <Banner
             type={state.bannerType}
             open={state.bannerOpen}
@@ -1071,8 +1063,9 @@ function CategoriesList() {
             )}
           </div>
         </main>
-      </div>
-    </div>
+      
+  
+    </>
   );
 }
 

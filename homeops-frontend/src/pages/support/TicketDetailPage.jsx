@@ -1,7 +1,5 @@
 import React, {useState, useEffect, useCallback} from "react";
 import {useParams, useNavigate} from "react-router-dom";
-import Header from "../../partials/Header";
-import Sidebar from "../../partials/Sidebar";
 import AppApi from "../../api/api";
 import {TicketWorkspace} from "./components/workspace";
 import {
@@ -24,7 +22,6 @@ function tierToPriority(tier) {
 function TicketDetailPage({variant = "support"}) {
   const {accountUrl, ticketId} = useParams();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -179,10 +176,8 @@ function TicketDetailPage({variant = "support"}) {
   }
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+    <>
+
 
         {loading && (
           <main className="flex-1 flex items-center justify-center">
@@ -243,8 +238,8 @@ function TicketDetailPage({variant = "support"}) {
             />
           </main>
         )}
-      </div>
-    </div>
+  
+    </>
   );
 }
 

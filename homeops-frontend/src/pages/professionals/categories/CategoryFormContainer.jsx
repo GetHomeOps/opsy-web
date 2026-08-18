@@ -11,8 +11,6 @@ import {useNavigate, useParams, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {Layers, Tag, Users} from "lucide-react";
 
-import Sidebar from "../../../partials/Sidebar";
-import Header from "../../../partials/Header";
 import Banner from "../../../partials/containers/Banner";
 import useCurrentAccount from "../../../hooks/useCurrentAccount";
 import useImageUpload from "../../../hooks/useImageUpload";
@@ -462,23 +460,9 @@ function CategoryFormContainer() {
   const isParent = state.formData.type === "parent";
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar
-        sidebarOpen={state.sidebarOpen}
-        setSidebarOpen={(open) =>
-          dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-        }
-      />
+    <>
 
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header
-          sidebarOpen={state.sidebarOpen}
-          setSidebarOpen={(open) =>
-            dispatch({type: "SET_SIDEBAR_OPEN", payload: open})
-          }
-        />
-
-        <div className="m-1.5">
+            <div className="m-1.5">
           <ModalBlank
             id="category-delete-modal"
             modalOpen={deleteModalOpen}
@@ -842,8 +826,9 @@ function CategoryFormContainer() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
+      
+  
+    </>
   );
 }
 

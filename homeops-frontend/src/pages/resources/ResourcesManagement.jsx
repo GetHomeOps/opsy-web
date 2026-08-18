@@ -1,7 +1,5 @@
 import React, {useState, useEffect, useCallback} from "react";
 import {useParams, useNavigate} from "react-router-dom";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import ModalBlank from "../../components/ModalBlank";
 import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
@@ -20,7 +18,6 @@ const RESOURCE_TYPES = {
 function ResourcesManagement() {
   const {accountUrl} = useParams();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedResources, setSelectedResources] = useState([]);
@@ -171,11 +168,7 @@ function ResourcesManagement() {
   );
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto">
           <div className={PAGE_LAYOUT.list}>
             <div className="flex items-center justify-between mb-6">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -205,40 +198,7 @@ function ResourcesManagement() {
             />
           </div>
         </main>
-      </div>
-
-      <ModalBlank
-        id="resource-delete-modal"
-        modalOpen={deleteModalOpen}
-        setModalOpen={setDeleteModalOpen}
-      >
-        <div className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-            Delete Communication
-          </h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-4">
-            Are you sure? This cannot be undone.
-          </p>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setDeleteModalOpen(false)}
-              className="px-4 py-2 text-gray-600 dark:text-gray-400"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={submitting}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium disabled:opacity-50"
-            >
-              {submitting ? "Deleting…" : "Delete"}
-            </button>
-          </div>
-        </div>
-      </ModalBlank>
-    </div>
+      
   );
 }
 

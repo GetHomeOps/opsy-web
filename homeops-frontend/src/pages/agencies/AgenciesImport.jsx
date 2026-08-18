@@ -11,8 +11,6 @@ import {
   rowToAgencyImportPayload,
 } from "../../data/agencyImportSchema";
 import UsStateSelect from "../../components/UsStateSelect";
-import Sidebar from "../../partials/Sidebar";
-import Header from "../../partials/Header";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import AppApi from "../../api/api";
 import {dynamicImportWithRetry} from "../../utils/lazyWithRetry";
@@ -106,7 +104,6 @@ function AgenciesImport() {
   const accountUrl = currentAccount?.url || currentAccount?.name || "";
   const fileRef = useRef(null);
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rows, setRows] = useState([]);
   const [rowErrors, setRowErrors] = useState({});
   const [parseError, setParseError] = useState("");
@@ -229,11 +226,7 @@ function AgenciesImport() {
   const backPath = accountUrl ? `/${accountUrl}/agencies/manage` : "/agencies/manage";
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
-      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-        <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-        <main className="grow">
+            <main className="grow">
           <div className="px-3 sm:px-6 lg:px-8 py-6 w-full max-w-4xl mx-auto">
             <button
               type="button"
@@ -400,8 +393,7 @@ function AgenciesImport() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
+      
   );
 }
 
