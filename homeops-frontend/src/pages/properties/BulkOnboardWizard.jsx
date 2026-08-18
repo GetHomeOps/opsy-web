@@ -526,6 +526,7 @@ function BulkOnboardWizard() {
     () =>
       previewRows.filter((r) => {
         if (!r.selected) return false;
+        if ((r.errors || []).length > 0) return false;
         const canCreate =
           r.propertyMatch?.status === "none" || r.forceCreate === true;
         if (!canCreate) return false;

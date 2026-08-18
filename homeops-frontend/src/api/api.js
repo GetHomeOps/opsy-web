@@ -2674,9 +2674,10 @@ class AppApi {
     return this.request("agencies-admin/agents/affiliations", body, "POST");
   }
 
-  static async assignAgentAffiliation(userId, { agencyId, officeId }) {
+  static async assignAgentAffiliation(userId, { agencyId, officeId, teamId }) {
     const body = { agencyId };
     if (officeId != null && officeId !== "") body.officeId = officeId;
+    if (teamId !== undefined) body.teamId = teamId;
     const res = await this.request(
       `agencies-admin/agents/${userId}/affiliation`,
       body,

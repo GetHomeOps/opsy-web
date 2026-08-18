@@ -254,8 +254,6 @@ function AgencyFormContainer() {
 
   const handleBack = () => navigate(listPath);
 
-  const handleCancel = () => navigate(listPath);
-
   const handleSubmit = async (form) => {
     const str = (v) => String(v ?? "").trim();
     const name = str(form.name);
@@ -282,7 +280,6 @@ function AgencyFormContainer() {
         const agency = await AppApi.updateAdminAgency(editingId, payload);
         setFormInitial(agencyToFormValues(agency));
         updateAgencyInListCache(agency);
-        showBanner("success", "Agency updated successfully");
         return {agency};
       }
 
@@ -463,7 +460,9 @@ function AgencyFormContainer() {
                   saving={saving}
                   formError={formError}
                   onSubmit={handleSubmit}
-                  onCancel={handleCancel}
+                  onSaveSuccess={() =>
+                    showBanner("success", "Agency updated successfully")
+                  }
                   onAgencyCreated={handleAgencyCreated}
                 />
               )}

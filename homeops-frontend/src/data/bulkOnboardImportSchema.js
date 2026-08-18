@@ -9,7 +9,7 @@ export const BULK_ONBOARD_FIELDS = [
   { key: "property_name", label: "Property Name", required: false, type: "string" },
   { key: "address", label: "Address", required: true, type: "string" },
   { key: "city", label: "City", required: true, type: "string" },
-  { key: "state", label: "State", required: true, type: "string" },
+  { key: "state", label: "State (2-letter)", required: true, type: "string" },
   { key: "zip", label: "Zip", required: true, type: "string" },
   { key: "homeowner_name", label: "Homeowner Name", required: false, type: "string" },
   { key: "homeowner_email", label: "Homeowner Email", required: true, type: "email" },
@@ -22,6 +22,14 @@ export const BULK_ONBOARD_KEYS = BULK_ONBOARD_FIELDS.map((f) => f.key);
 
 const EMAIL_REGEX =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+const STATE_CODE_REGEX = /^[A-Za-z]{2}$/;
+
+function invalidStateCodeMessage(state) {
+  const value = String(state || "").trim();
+  return value
+    ? `State must be a 2-letter code (e.g. HI), not "${value}"`
+    : "State must be a 2-letter code (e.g. HI)";
+}
 
 const LABEL_TO_KEY = new Map();
 BULK_ONBOARD_FIELDS.forEach(({ key, label }) => {
@@ -36,6 +44,8 @@ BULK_ONBOARD_FIELDS.forEach(({ key, label }) => {
     if (v && !LABEL_TO_KEY.has(v)) LABEL_TO_KEY.set(v, key);
   });
 });
+LABEL_TO_KEY.set("state", "state");
+LABEL_TO_KEY.set("State", "state");
 LABEL_TO_KEY.set("zip code", "zip");
 LABEL_TO_KEY.set("postal code", "zip");
 LABEL_TO_KEY.set("property", "property_name");
@@ -121,6 +131,10 @@ export function validateRow(row) {
   for (const field of BULK_ONBOARD_FIELDS.filter((f) => f.required && f.type !== "email")) {
     const val = String(row[field.key] ?? "").trim();
     if (!val) errors.push(`${field.label} is required`);
+  }
+  const state = String(row.state ?? "").trim();
+  if (state && !STATE_CODE_REGEX.test(state)) {
+    errors.push(invalidStateCodeMessage(state));
   }
   const homeowners = extractHomeownersFromRow(row);
   if (homeowners.length === 0) {
@@ -218,6 +232,10 @@ export function mergeRowsByAddress(rows) {
 
   const groups = Array.from(groupsByKey.values()).map((group) => {
     const errors = [...group.errors];
+    const state = String(group.state || "").trim();
+    if (state && !STATE_CODE_REGEX.test(state)) {
+      errors.push(invalidStateCodeMessage(state));
+    }
     if (group.homeowners.length === 0) {
       errors.push("At least one homeowner email is required");
     }

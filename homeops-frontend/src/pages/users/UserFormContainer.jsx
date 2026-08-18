@@ -104,6 +104,7 @@ const initialFormData = {
   image: "",
   agencyId: "",
   officeId: "",
+  teamId: "",
   opsyScoutOverrideEnabled: false,
   opsyScoutFreeAnalysesLimit: "",
   aiFeaturesOverrideEnabled: false,
@@ -121,6 +122,7 @@ function getDuplicateFormData(duplicateFrom) {
     image: duplicateFrom.image || "",
     agencyId: duplicateFrom.agencyId || "",
     officeId: duplicateFrom.officeId || "",
+    teamId: duplicateFrom.teamId || "",
     opsyScoutOverrideEnabled: duplicateFrom.opsyScoutOverrideEnabled === true,
     opsyScoutFreeAnalysesLimit: duplicateFrom.opsyScoutFreeAnalysesLimit || "",
     aiFeaturesOverrideEnabled: duplicateFrom.aiFeaturesOverrideEnabled === true,
@@ -205,6 +207,11 @@ function reducer(state, action) {
               officeId: action.payload.affiliation?.officeId
                 ? String(action.payload.affiliation.officeId)
                 : "",
+              teamId: action.payload.affiliation?.teamId
+                ? String(action.payload.affiliation.teamId)
+                : action.payload.affiliation?.team?.id
+                  ? String(action.payload.affiliation.team.id)
+                  : "",
               opsyScoutOverrideEnabled:
                 action.payload.opsyScoutOverrideEnabled === true,
               opsyScoutFreeAnalysesLimit:
@@ -1022,6 +1029,7 @@ function UsersFormContainer() {
     const {
       agencyId: _agencyId,
       officeId: _officeId,
+      teamId: _teamId,
       opsyScoutOverrideEnabled,
       opsyScoutFreeAnalysesLimit,
       aiFeaturesOverrideEnabled,
@@ -1281,6 +1289,7 @@ function UsersFormContainer() {
           image_url: userPhotoDisplayUrl || state.user.image_url || "",
           agencyId: state.formData.agencyId || "",
           officeId: state.formData.officeId || "",
+          teamId: state.formData.teamId || "",
           opsyScoutOverrideEnabled: !!state.formData.opsyScoutOverrideEnabled,
           opsyScoutFreeAnalysesLimit:
             state.formData.opsyScoutFreeAnalysesLimit || "",
@@ -1601,6 +1610,7 @@ function UsersFormContainer() {
     if (!isAgentRole(value)) {
       payload.agencyId = "";
       payload.officeId = "";
+      payload.teamId = "";
       payload.opsyScoutOverrideEnabled = false;
       payload.opsyScoutFreeAnalysesLimit = "";
     }
@@ -1639,8 +1649,10 @@ function UsersFormContainer() {
   const [resendingInvitation, setResendingInvitation] = useState(false);
   const [agencyOptions, setAgencyOptions] = useState([]);
   const [officeOptions, setOfficeOptions] = useState([]);
+  const [teamOptions, setTeamOptions] = useState([]);
   const [agenciesLoading, setAgenciesLoading] = useState(false);
   const [officesLoading, setOfficesLoading] = useState(false);
+  const [teamsLoading, setTeamsLoading] = useState(false);
 
   const showAgentAffiliationFields = isAgentRole(state.formData.role);
   const showComplimentaryFields = !state.isNew || isDuplicating;
@@ -1649,6 +1661,7 @@ function UsersFormContainer() {
     if (!showAgentAffiliationFields) {
       setAgencyOptions([]);
       setOfficeOptions([]);
+      setTeamOptions([]);
       return;
     }
     let cancelled = false;
@@ -1708,7 +1721,40 @@ function UsersFormContainer() {
     };
   }, [showAgentAffiliationFields, state.formData.agencyId]);
 
-  // Prefill agency/office option labels when affiliation exists but lists haven't loaded yet
+  useEffect(() => {
+    if (!showAgentAffiliationFields || !state.formData.officeId) {
+      setTeamOptions([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadTeams() {
+      setTeamsLoading(true);
+      try {
+        const list = await AppApi.searchAffiliationTeams(
+          state.formData.officeId,
+          "",
+          100,
+        );
+        if (cancelled) return;
+        setTeamOptions(
+          (list || []).map((tm) => ({
+            id: String(tm.id),
+            name: tm.name,
+          })),
+        );
+      } catch {
+        if (!cancelled) setTeamOptions([]);
+      } finally {
+        if (!cancelled) setTeamsLoading(false);
+      }
+    }
+    loadTeams();
+    return () => {
+      cancelled = true;
+    };
+  }, [showAgentAffiliationFields, state.formData.officeId]);
+
+  // Prefill agency/office/team option labels when affiliation exists but lists haven't loaded yet
   useEffect(() => {
     const aff = state.user?.affiliation;
     if (!aff?.agency?.id) return;
@@ -1731,12 +1777,24 @@ function UsersFormContainer() {
         ];
       });
     }
+    if (aff.team?.id) {
+      setTeamOptions((prev) => {
+        if (prev.some((o) => String(o.id) === String(aff.team.id))) return prev;
+        return [
+          ...prev,
+          {
+            id: String(aff.team.id),
+            name: aff.team.name || `Team #${aff.team.id}`,
+          },
+        ];
+      });
+    }
   }, [state.user?.affiliation]);
 
   function handleAgencyChange(value) {
     dispatch({
       type: "SET_FORM_DATA",
-      payload: {agencyId: value ? String(value) : "", officeId: ""},
+      payload: {agencyId: value ? String(value) : "", officeId: "", teamId: ""},
     });
     if (state.isInitialLoad) {
       dispatch({type: "SET_FORM_CHANGED", payload: true});
@@ -1746,7 +1804,17 @@ function UsersFormContainer() {
   function handleOfficeChange(value) {
     dispatch({
       type: "SET_FORM_DATA",
-      payload: {officeId: value ? String(value) : ""},
+      payload: {officeId: value ? String(value) : "", teamId: ""},
+    });
+    if (state.isInitialLoad) {
+      dispatch({type: "SET_FORM_CHANGED", payload: true});
+    }
+  }
+
+  function handleTeamChange(value) {
+    dispatch({
+      type: "SET_FORM_DATA",
+      payload: {teamId: value ? String(value) : ""},
     });
     if (state.isInitialLoad) {
       dispatch({type: "SET_FORM_CHANGED", payload: true});
@@ -1760,6 +1828,7 @@ function UsersFormContainer() {
       ...(state.formData.officeId
         ? {officeId: Number(state.formData.officeId)}
         : {}),
+      teamId: state.formData.teamId ? Number(state.formData.teamId) : null,
     });
   }
 
@@ -2696,6 +2765,36 @@ function UsersFormContainer() {
                           id="officeId"
                           clearable={true}
                           disabled={!state.formData.agencyId || officesLoading}
+                        />
+                      </div>
+                    )}
+
+                    {/* Team (agents only, after office) */}
+                    {showAgentAffiliationFields && (
+                      <div>
+                        <label className={getLabelClasses()} htmlFor="teamId">
+                          {t("team") || "Team"}
+                        </label>
+                        <SelectDropdown
+                          options={teamOptions}
+                          value={state.formData.teamId || ""}
+                          onChange={handleTeamChange}
+                          placeholder={
+                            !state.formData.officeId
+                              ? t("selectOfficeFirst") || "Select an office first"
+                              : teamsLoading
+                                ? t("loading") || "Loading..."
+                                : t("selectTeam") ||
+                                  "Independent within office — or select"
+                          }
+                          emptyMessage={
+                            t("noTeamsListedIndependent") ||
+                            "No teams listed — independent within office"
+                          }
+                          name="teamId"
+                          id="teamId"
+                          clearable={true}
+                          disabled={!state.formData.officeId || teamsLoading}
                         />
                       </div>
                     )}

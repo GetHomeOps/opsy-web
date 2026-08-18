@@ -23,8 +23,22 @@ const { assertAtMostOneAgentOnProperty } = require("./propertyAgentPolicy");
 
 const EMAIL_REGEX =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+const STATE_CODE_REGEX = /^[A-Za-z]{2}$/;
 
 const MAX_BATCH_ROWS = 200;
+
+function invalidStateCodeMessage(state) {
+  const value = String(state || "").trim();
+  return value
+    ? `State must be a 2-letter code (e.g. HI), not "${value}"`
+    : "State must be a 2-letter code (e.g. HI)";
+}
+
+function isStateVarcharTooLongError(err) {
+  if (!err) return false;
+  const msg = String(err.message || "");
+  return err.code === "22001" || /character varying\(2\)/i.test(msg);
+}
 
 function normalizeAddressKey({ address, city, state, zip } = {}) {
   return [address, city, state, zip]
@@ -223,7 +237,11 @@ function validatePropertyFields(row) {
   const errors = [];
   if (!row.address) errors.push("Address is required");
   if (!row.city) errors.push("City is required");
-  if (!row.state) errors.push("State is required");
+  if (!row.state) {
+    errors.push("State is required");
+  } else if (!STATE_CODE_REGEX.test(String(row.state).trim())) {
+    errors.push(invalidStateCodeMessage(row.state));
+  }
   if (!row.zip) errors.push("Zip is required");
   if (!row.homeowners.length) errors.push("At least one homeowner email is required");
   return errors;
@@ -576,7 +594,9 @@ async function executeBulkOnboard({
         propertyUid: null,
         invitations: [],
         homeowners: [],
-        error: err.message || "Unexpected error",
+        error: isStateVarcharTooLongError(err)
+          ? invalidStateCodeMessage(row.state)
+          : err.message || "Unexpected error",
       });
     }
   }

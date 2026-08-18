@@ -55,6 +55,44 @@ function agencyFormDiffers(
   return false;
 }
 
+function structureDraftHasContent(draft) {
+  if (!draft) return false;
+  return Object.values(draft).some((value) => String(value ?? "").trim() !== "");
+}
+
+function officeRowDiffers(office, draft) {
+  if (!office || !draft) return false;
+  return (
+    String(office.name || "").trim() !== String(draft.name || "").trim() ||
+    String(office.addressLine1 || "").trim() !==
+      String(draft.addressLine1 || "").trim() ||
+    String(office.city || "").trim() !== String(draft.city || "").trim() ||
+    normalizeStateCode(office.state) !== normalizeStateCode(draft.state) ||
+    String(office.phone || "").trim() !== String(draft.phone || "").trim()
+  );
+}
+
+function teamRowDiffers(team, draft) {
+  if (!team || !draft) return false;
+  return (
+    String(team.name || "").trim() !== String(draft.name || "").trim() ||
+    String(team.officeId ?? "") !== String(draft.officeId ?? "")
+  );
+}
+
+function validateOfficeName(draft) {
+  const errs = {};
+  if (!draft?.name?.trim()) errs.name = "Office name is required";
+  return errs;
+}
+
+function validateTeamDraft(draft) {
+  const errs = {};
+  if (!draft?.officeId) errs.officeId = "Office is required";
+  if (!draft?.name?.trim()) errs.name = "Team name is required";
+  return errs;
+}
+
 const EMPTY_FORM = {
   name: "",
   website: "",
@@ -67,6 +105,16 @@ const EMPTY_FORM = {
   /** Working image URL from API (presigned); not part of dirty checks */
   logoDisplayUrl: "",
 };
+
+const EMPTY_NEW_OFFICE = {
+  name: "",
+  addressLine1: "",
+  city: "",
+  state: "",
+  phone: "",
+};
+
+const EMPTY_NEW_TEAM = {officeId: "", name: ""};
 
 const TABS = [
   {id: "agency", label: "Agency"},
@@ -521,7 +569,7 @@ function AgencyFormFields({
   saving = false,
   formError = null,
   onSubmit,
-  onCancel,
+  onSaveSuccess,
   onAgencyCreated,
 }) {
   const [form, setForm] = useState({...EMPTY_FORM, ...initialValues});
@@ -535,14 +583,8 @@ function AgencyFormFields({
   const [structureError, setStructureError] = useState(null);
   const [addingOffice, setAddingOffice] = useState(false);
   const [addingTeam, setAddingTeam] = useState(false);
-  const [newOffice, setNewOffice] = useState({
-    name: "",
-    addressLine1: "",
-    city: "",
-    state: "",
-    phone: "",
-  });
-  const [newTeam, setNewTeam] = useState({officeId: "", name: ""});
+  const [newOffice, setNewOffice] = useState({...EMPTY_NEW_OFFICE});
+  const [newTeam, setNewTeam] = useState({...EMPTY_NEW_TEAM});
   const [editingOfficeId, setEditingOfficeId] = useState(null);
   const [officeEditDraft, setOfficeEditDraft] = useState(null);
   const [editingTeamId, setEditingTeamId] = useState(null);
@@ -553,7 +595,9 @@ function AgencyFormFields({
   const [newTeamErrors, setNewTeamErrors] = useState({});
   const [officeEditErrors, setOfficeEditErrors] = useState({});
   const [teamEditErrors, setTeamEditErrors] = useState({});
+  const [structureTouched, setStructureTouched] = useState(false);
   const baselineFormRef = useRef(null);
+  const baselineLogoDisplayUrlRef = useRef("");
 
   const agencyId =
     typeof editingId === "number" && Number.isFinite(editingId) && editingId > 0
@@ -574,16 +618,36 @@ function AgencyFormFields({
     };
     setForm(nextForm);
     baselineFormRef.current = normalizeAgencyFormValues(nextForm);
+    baselineLogoDisplayUrlRef.current = String(
+      nextForm.logoDisplayUrl ?? "",
+    ).trim();
     setCommittedHero(toHeroDisplay(nextForm));
   }, [initialValues, editingId]);
 
+  const hasAgencyChanges = agencyFormDiffers(
+    baselineFormRef.current,
+    normalizeAgencyFormValues(form),
+    {includeOfficeName: isNew},
+  );
+  const hasNewOfficeDraft = structureDraftHasContent(newOffice);
+  const hasNewTeamDraft = structureDraftHasContent(newTeam);
+  const editingOffice =
+    offices.find((office) => office.id === editingOfficeId) ?? null;
+  const editingTeam = teams.find((team) => team.id === editingTeamId) ?? null;
+  const hasOfficeEditChanges = officeRowDiffers(
+    editingOffice,
+    officeEditDraft,
+  );
+  const hasTeamEditChanges = teamRowDiffers(editingTeam, teamEditDraft);
+  const hasStructureChanges =
+    hasNewOfficeDraft ||
+    hasNewTeamDraft ||
+    hasOfficeEditChanges ||
+    hasTeamEditChanges;
   const hasChanges =
-    isNew ||
-    agencyFormDiffers(
-      baselineFormRef.current,
-      normalizeAgencyFormValues(form),
-      {includeOfficeName: isNew},
-    );
+    hasAgencyChanges || hasStructureChanges || structureTouched;
+  const structureSaving =
+    addingOffice || addingTeam || Boolean(savingStructureId);
 
   const logoKey = (form.logoUrl || "").trim();
   const logoDisplayUrl = (form.logoDisplayUrl || "").trim();
@@ -685,6 +749,7 @@ function AgencyFormFields({
     setTeamEditErrors({});
     setNewOfficeErrors({});
     setNewTeamErrors({});
+    setStructureTouched(false);
     loadStructure();
   }, [loadStructure]);
 
@@ -717,55 +782,12 @@ function AgencyFormFields({
     }
   }, [clearPreview, clearUploadedUrl, clearPresignedUrl]);
 
-  const handleSaveAgency = async (e) => {
-    e.preventDefault();
-    const errs = {};
-    if (!form.name.trim()) errs.name = "Agency name is required";
-    if (Object.keys(errs).length > 0) {
-      setFieldErrors(errs);
-      setActiveTab("agency");
-      return;
-    }
-    setFieldErrors({});
-
-    const result = await onSubmit?.(form);
-    if (result?.agency) {
-      // API returns null for empty optional fields — coerce so controlled inputs stay strings
-      const saved = {
-        ...EMPTY_FORM,
-        ...normalizeAgencyFormValues({
-          name: result.agency.name,
-          website: result.agency.website,
-          addressLine1: result.agency.addressLine1,
-          city: result.agency.city,
-          state: result.agency.state,
-          phone: result.agency.phone,
-          logoUrl: result.agency.logoUrl,
-        }),
-        state: normalizeStateName(result.agency.state),
-        logoDisplayUrl: String(result.agency.logoDisplayUrl ?? "").trim(),
-      };
-      baselineFormRef.current = normalizeAgencyFormValues(saved);
-      setCommittedHero(toHeroDisplay(saved));
-      // Keep logo visible immediately from API display URL (blob may be cleared on remount)
-      setForm((f) => ({
-        ...f,
-        ...saved,
-        state: normalizeStateName(saved.state),
-      }));
-      if (result.agency.id && !editingId) {
-        onAgencyCreated?.(result.agency);
-      }
-    }
-  };
-
   const handleAddOffice = async () => {
-    if (!agencyId) return;
-    const errs = {};
-    if (!newOffice.name.trim()) errs.name = "Office name is required";
+    if (!agencyId) return false;
+    const errs = validateOfficeName(newOffice);
     if (Object.keys(errs).length > 0) {
       setNewOfficeErrors(errs);
-      return;
+      return false;
     }
     setNewOfficeErrors({});
     setAddingOffice(true);
@@ -778,33 +800,28 @@ function AgencyFormFields({
         state: newOffice.state.trim() || null,
         phone: newOffice.phone.trim() || null,
       });
-      setNewOffice({
-        name: "",
-        addressLine1: "",
-        city: "",
-        state: "",
-        phone: "",
-      });
+      setNewOffice({...EMPTY_NEW_OFFICE});
+      setStructureTouched(true);
       await loadStructure();
+      return true;
     } catch (err) {
       setStructureError(
         Array.isArray(err)
           ? err.join(" ")
           : err.message || "Failed to add office",
       );
+      return false;
     } finally {
       setAddingOffice(false);
     }
   };
 
   const handleAddTeam = async () => {
-    if (!agencyId) return;
-    const errs = {};
-    if (!newTeam.officeId) errs.officeId = "Office is required";
-    if (!newTeam.name.trim()) errs.name = "Team name is required";
+    if (!agencyId) return false;
+    const errs = validateTeamDraft(newTeam);
     if (Object.keys(errs).length > 0) {
       setNewTeamErrors(errs);
-      return;
+      return false;
     }
     setNewTeamErrors({});
     setAddingTeam(true);
@@ -814,14 +831,17 @@ function AgencyFormFields({
         officeId: Number(newTeam.officeId),
         name: newTeam.name.trim(),
       });
-      setNewTeam({officeId: "", name: ""});
+      setNewTeam({...EMPTY_NEW_TEAM});
+      setStructureTouched(true);
       await loadStructure();
+      return true;
     } catch (err) {
       setStructureError(
         Array.isArray(err)
           ? err.join(" ")
           : err.message || "Failed to add team",
       );
+      return false;
     } finally {
       setAddingTeam(false);
     }
@@ -849,12 +869,11 @@ function AgencyFormFields({
   };
 
   const saveOfficeEdit = async (office) => {
-    if (!agencyId) return;
-    const errs = {};
-    if (!officeEditDraft?.name?.trim()) errs.name = "Office name is required";
+    if (!agencyId) return false;
+    const errs = validateOfficeName(officeEditDraft);
     if (Object.keys(errs).length > 0) {
       setOfficeEditErrors(errs);
-      return;
+      return false;
     }
     setOfficeEditErrors({});
     setSavingStructureId(`office-${office.id}`);
@@ -882,12 +901,15 @@ function AgencyFormFields({
         ),
       );
       cancelEditOffice();
+      setStructureTouched(true);
+      return true;
     } catch (err) {
       setStructureError(
         Array.isArray(err)
           ? err.join(" ")
           : err.message || "Failed to update office",
       );
+      return false;
     } finally {
       setSavingStructureId(null);
     }
@@ -912,13 +934,11 @@ function AgencyFormFields({
   };
 
   const saveTeamEdit = async (team) => {
-    if (!agencyId) return;
-    const errs = {};
-    if (!teamEditDraft?.name?.trim()) errs.name = "Team name is required";
-    if (!teamEditDraft?.officeId) errs.officeId = "Office is required";
+    if (!agencyId) return false;
+    const errs = validateTeamDraft(teamEditDraft);
     if (Object.keys(errs).length > 0) {
       setTeamEditErrors(errs);
-      return;
+      return false;
     }
     setTeamEditErrors({});
     setSavingStructureId(`team-${team.id}`);
@@ -932,15 +952,162 @@ function AgencyFormFields({
         prev.map((t) => (t.id === team.id ? {...t, ...updated} : t)),
       );
       cancelEditTeam();
+      setStructureTouched(true);
+      return true;
     } catch (err) {
       setStructureError(
         Array.isArray(err)
           ? err.join(" ")
           : err.message || "Failed to update team",
       );
+      return false;
     } finally {
       setSavingStructureId(null);
     }
+  };
+
+  const handleSaveAgency = async (e) => {
+    e.preventDefault();
+    const shouldSaveAgency = isNew || hasAgencyChanges;
+
+    if (shouldSaveAgency) {
+      const errs = {};
+      if (!form.name.trim()) errs.name = "Agency name is required";
+      if (Object.keys(errs).length > 0) {
+        setFieldErrors(errs);
+        setActiveTab("agency");
+        return;
+      }
+      setFieldErrors({});
+    }
+
+    if (hasOfficeEditChanges) {
+      const errs = validateOfficeName(officeEditDraft);
+      if (Object.keys(errs).length > 0) {
+        setOfficeEditErrors(errs);
+        setActiveTab("offices");
+        return;
+      }
+    }
+    if (hasNewOfficeDraft) {
+      const errs = validateOfficeName(newOffice);
+      if (Object.keys(errs).length > 0) {
+        setNewOfficeErrors(errs);
+        setActiveTab("offices");
+        return;
+      }
+    }
+    if (hasTeamEditChanges) {
+      const errs = validateTeamDraft(teamEditDraft);
+      if (Object.keys(errs).length > 0) {
+        setTeamEditErrors(errs);
+        setActiveTab("teams");
+        return;
+      }
+    }
+    if (hasNewTeamDraft) {
+      const errs = validateTeamDraft(newTeam);
+      if (Object.keys(errs).length > 0) {
+        setNewTeamErrors(errs);
+        setActiveTab("teams");
+        return;
+      }
+    }
+
+    if (shouldSaveAgency) {
+      const result = await onSubmit?.(form);
+      if (!result?.agency) return;
+      // API returns null for empty optional fields — coerce so controlled inputs stay strings
+      const saved = {
+        ...EMPTY_FORM,
+        ...normalizeAgencyFormValues({
+          name: result.agency.name,
+          website: result.agency.website,
+          addressLine1: result.agency.addressLine1,
+          city: result.agency.city,
+          state: result.agency.state,
+          phone: result.agency.phone,
+          logoUrl: result.agency.logoUrl,
+        }),
+        state: normalizeStateName(result.agency.state),
+        logoDisplayUrl: String(result.agency.logoDisplayUrl ?? "").trim(),
+      };
+      baselineFormRef.current = normalizeAgencyFormValues(saved);
+      baselineLogoDisplayUrlRef.current = saved.logoDisplayUrl;
+      setCommittedHero(toHeroDisplay(saved));
+      // Keep logo visible immediately from API display URL (blob may be cleared on remount)
+      setForm((f) => ({
+        ...f,
+        ...saved,
+        state: normalizeStateName(saved.state),
+      }));
+      if (result.agency.id && !editingId) {
+        onAgencyCreated?.(result.agency);
+      }
+    }
+
+    if (hasOfficeEditChanges && editingOffice) {
+      const saved = await saveOfficeEdit(editingOffice);
+      if (!saved) {
+        setActiveTab("offices");
+        return;
+      }
+    }
+    if (hasTeamEditChanges && editingTeam) {
+      const saved = await saveTeamEdit(editingTeam);
+      if (!saved) {
+        setActiveTab("teams");
+        return;
+      }
+    }
+    if (hasNewOfficeDraft) {
+      const saved = await handleAddOffice();
+      if (!saved) {
+        setActiveTab("offices");
+        return;
+      }
+    }
+    if (hasNewTeamDraft) {
+      const saved = await handleAddTeam();
+      if (!saved) {
+        setActiveTab("teams");
+        return;
+      }
+    }
+
+    setStructureTouched(false);
+    if (editingId) {
+      onSaveSuccess?.();
+    }
+  };
+
+  const handleCancelChanges = () => {
+    const baseline = baselineFormRef.current;
+    const restored = {
+      ...EMPTY_FORM,
+      ...(baseline || {}),
+      state: normalizeStateName(baseline?.state),
+      logoDisplayUrl: baselineLogoDisplayUrlRef.current || "",
+    };
+    setForm(restored);
+    setCommittedHero(toHeroDisplay(restored));
+    clearPreview();
+    clearUploadedUrl();
+    clearPresignedUrl();
+    setImageUploadError(null);
+    setNewOffice({...EMPTY_NEW_OFFICE});
+    setNewTeam({...EMPTY_NEW_TEAM});
+    setEditingOfficeId(null);
+    setOfficeEditDraft(null);
+    setEditingTeamId(null);
+    setTeamEditDraft(null);
+    setOfficeEditErrors({});
+    setTeamEditErrors({});
+    setNewOfficeErrors({});
+    setNewTeamErrors({});
+    setFieldErrors({});
+    setStructureError(null);
+    setStructureTouched(false);
   };
 
   const hero = isNew ? form : committedHero;
@@ -1464,7 +1631,7 @@ function AgencyFormFields({
           <div className="flex justify-end gap-3">
             <button
               type="button"
-              onClick={onCancel}
+              onClick={handleCancelChanges}
               className="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300 shadow-sm"
               disabled={saving}
             >
@@ -1472,10 +1639,10 @@ function AgencyFormFields({
             </button>
             <button
               type="submit"
-              disabled={saving || imageUploading}
+              disabled={saving || imageUploading || structureSaving}
               className="btn shadow-sm min-w-[100px] btn-primary disabled:opacity-60"
             >
-              {saving ? (
+              {saving || structureSaving ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Saving...

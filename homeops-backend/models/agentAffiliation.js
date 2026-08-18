@@ -129,9 +129,11 @@ class AgentAffiliation {
 
   /**
    * Admin assign/update: resolve default office when omitted, clear team on
-   * agency/office change, preserve team when hierarchy is unchanged.
+   * agency/office change. When teamId is omitted, preserve team if agency and
+   * office are unchanged. Pass teamId explicitly (including null) to set or
+   * clear the team.
    */
-  static async adminAssign({ userId, agencyId, officeId = null, teamId = null }) {
+  static async adminAssign({ userId, agencyId, officeId = null, teamId }) {
     const resolvedAgencyId = Number(agencyId);
     if (!resolvedAgencyId) throw new BadRequestError("agencyId is required");
 
@@ -141,8 +143,13 @@ class AgentAffiliation {
     }
 
     const existing = await AgentAffiliation.getActiveForUser(userId);
-    let resolvedTeamId = teamId != null && teamId !== "" ? Number(teamId) : null;
-    if (resolvedTeamId == null && existing) {
+    let resolvedTeamId = null;
+    if (teamId !== undefined) {
+      resolvedTeamId = teamId != null && teamId !== "" ? Number(teamId) : null;
+      if (resolvedTeamId != null && (!Number.isFinite(resolvedTeamId) || resolvedTeamId <= 0)) {
+        throw new BadRequestError("Invalid team id");
+      }
+    } else if (existing) {
       const sameAgency = Number(existing.agencyId) === resolvedAgencyId;
       const sameOffice = Number(existing.officeId) === resolvedOfficeId;
       if (sameAgency && sameOffice && existing.teamId != null) {

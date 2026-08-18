@@ -343,8 +343,16 @@ router.patch(
         req.body.officeId != null && req.body.officeId !== ""
           ? Number(req.body.officeId)
           : null;
+      const teamIdProvided = Object.prototype.hasOwnProperty.call(req.body, "teamId");
+      const teamId =
+        !teamIdProvided || req.body.teamId == null || req.body.teamId === ""
+          ? null
+          : Number(req.body.teamId);
 
       if (!agencyId) throw new BadRequestError("agencyId is required");
+      if (teamIdProvided && teamId != null && (!Number.isFinite(teamId) || teamId <= 0)) {
+        throw new BadRequestError("Invalid team id");
+      }
 
       const user = await User.getById(userId);
       if (!user) throw new BadRequestError(`User not found: ${userId}`);
@@ -356,6 +364,7 @@ router.patch(
         userId,
         agencyId,
         officeId,
+        ...(teamIdProvided ? { teamId } : {}),
       });
 
       return res.json({
