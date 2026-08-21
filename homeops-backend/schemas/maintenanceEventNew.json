@@ -37,7 +37,7 @@
     "checklist_item_id": {"type": ["integer", "null"]},
     "event_type": {
       "type": "string",
-      "enum": ["maintenance", "inspection"]
+      "enum": ["maintenance", "inspection", "homeAnniversary", "other"]
     }
   },
   "required": ["system_key", "scheduled_date"],

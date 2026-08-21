@@ -13,6 +13,7 @@ const AttomLookupJob = require("../models/attomLookupJob");
 const { enqueue: enqueueAttomLookup } = require("./attomLookupQueue");
 const { generatePassportId } = require("../helpers/properties");
 const { onPropertyCreated } = require("./resourceAutoSend");
+const { ensureHomeAnniversaryEvents } = require("./homeAnniversaryService");
 const { syncPropertyMissingAgentAdminNotifications } = require("./propertyMissingAgentNotifications");
 const { createPropertyInvitation } = require("./invitationService");
 const {
@@ -408,6 +409,12 @@ async function executeOneRow({
     throw err;
   } finally {
     client.release();
+  }
+
+  try {
+    await ensureHomeAnniversaryEvents(property.id, { createdByUserId: adminUserId });
+  } catch (annivErr) {
+    console.error("[bulkOnboard] homeAnniversary:", annivErr?.message);
   }
 
   if (enqueueAttom) {

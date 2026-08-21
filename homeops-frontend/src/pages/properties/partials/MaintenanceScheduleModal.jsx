@@ -18,6 +18,7 @@ import {
   Star,
   MapPin,
   Info,
+  FileText,
 } from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
@@ -36,6 +37,11 @@ const STEPS = [
   {id: "contractor", label: "Contractor"},
   {id: "schedule", label: "Schedule"},
   {id: "message", label: "Message & AI"},
+];
+
+const OTHER_STEPS = [
+  {id: "type", label: "Request Type"},
+  {id: "details", label: "Details"},
 ];
 
 function coerceContractorId(sourceId) {
@@ -206,6 +212,13 @@ function StepIndicator({currentStep, steps}) {
 /* ──────────────────── Step 0: Request Type ──────────────────── */
 
 function RequestTypeStep({requestType, setRequestType}) {
+  const cardClass = (selected) =>
+    `py-3 px-3 rounded-lg text-sm font-medium border transition-all duration-150 flex flex-col items-center gap-1.5 text-center ${
+      selected
+        ? "border-[#456564] bg-[#456564]/10 text-[#456564] dark:text-[#7aa3a2] dark:border-[#7aa3a2] dark:bg-[#7aa3a2]/10"
+        : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500"
+    }`;
+
   return (
     <div className="space-y-5">
       <div>
@@ -213,19 +226,15 @@ function RequestTypeStep({requestType, setRequestType}) {
           What type of request is this?
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Choose whether you need an inspection or routine maintenance.
+          Choose an inspection, routine maintenance, or something else.
         </p>
       </div>
 
-      <div className="flex gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <button
           type="button"
           onClick={() => setRequestType("inspection")}
-          className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium border transition-all duration-150 flex flex-col items-center gap-1.5 ${
-            requestType === "inspection"
-              ? "border-[#456564] bg-[#456564]/10 text-[#456564] dark:text-[#7aa3a2] dark:border-[#7aa3a2] dark:bg-[#7aa3a2]/10"
-              : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500"
-          }`}
+          className={cardClass(requestType === "inspection")}
         >
           <span className="font-semibold">Inspection</span>
           <span className="text-xs opacity-90">
@@ -235,14 +244,18 @@ function RequestTypeStep({requestType, setRequestType}) {
         <button
           type="button"
           onClick={() => setRequestType("maintenance")}
-          className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium border transition-all duration-150 flex flex-col items-center gap-1.5 ${
-            requestType === "maintenance"
-              ? "border-[#456564] bg-[#456564]/10 text-[#456564] dark:text-[#7aa3a2] dark:border-[#7aa3a2] dark:bg-[#7aa3a2]/10"
-              : "border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500"
-          }`}
+          className={cardClass(requestType === "maintenance")}
         >
           <span className="font-semibold">Maintenance</span>
           <span className="text-xs opacity-90">Routine service, repairs</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setRequestType("other")}
+          className={cardClass(requestType === "other")}
+        >
+          <span className="font-semibold">Other</span>
+          <span className="text-xs opacity-90">Reminder or anything else</span>
         </button>
       </div>
     </div>
@@ -617,17 +630,18 @@ function ScheduleStep({
   checklistItems = [],
   selectedChecklistItemId,
   setSelectedChecklistItemId,
+  dateLabel = "Maintenance Date",
+  showChecklist = true,
+  heading = "Schedule Details",
+  subtitle = "Choose a date to continue (required). Then set recurrence and reminders below.",
 }) {
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
-          Schedule Details
+          {heading}
         </h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Choose a date to continue (required). Then set recurrence and
-          reminders below.
-        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
       </div>
 
       {/* Date & Time */}
@@ -636,7 +650,7 @@ function ScheduleStep({
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             <span className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-[#456564]" />
-              Maintenance Date
+              {dateLabel}
               <span
                 className="text-red-500 dark:text-red-400 font-normal"
                 aria-hidden
@@ -677,12 +691,13 @@ function ScheduleStep({
       </div>
 
       {/* Link to ToDo (checklist item) */}
-      {(() => {
-        const pendingItems = checklistItems.filter(
-          (item) => (item.status || "").toLowerCase() !== "completed",
-        );
-        return pendingItems.length > 0;
-      })() && (
+      {showChecklist &&
+        (() => {
+          const pendingItems = checklistItems.filter(
+            (item) => (item.status || "").toLowerCase() !== "completed",
+          );
+          return pendingItems.length > 0;
+        })() && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             Link to ToDo
@@ -829,6 +844,98 @@ function ScheduleStep({
             />
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────── Other: title, date, notes ──────────────────── */
+
+function OtherDetailsStep({
+  title,
+  setTitle,
+  notes,
+  setNotes,
+  scheduledDate,
+  setScheduledDate,
+  scheduledTime,
+  setScheduledTime,
+  recurrenceType,
+  setRecurrenceType,
+  customIntervalValue,
+  setCustomIntervalValue,
+  customIntervalUnit,
+  setCustomIntervalUnit,
+  alertTiming,
+  setAlertTiming,
+  alertCustomDays,
+  setAlertCustomDays,
+  emailReminder,
+  setEmailReminder,
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          <span className="flex items-center gap-1.5">
+            <FileText className="w-4 h-4 text-[#456564]" />
+            Title
+            <span
+              className="text-red-500 dark:text-red-400 font-normal"
+              aria-hidden
+            >
+              *
+            </span>
+            <span className="sr-only">(required)</span>
+          </span>
+        </label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value.slice(0, 100))}
+          maxLength={100}
+          placeholder="e.g. HOA meeting, warranty reminder"
+          className="form-input w-full"
+        />
+      </div>
+
+      <ScheduleStep
+        scheduledDate={scheduledDate}
+        setScheduledDate={setScheduledDate}
+        scheduledTime={scheduledTime}
+        setScheduledTime={setScheduledTime}
+        recurrenceType={recurrenceType}
+        setRecurrenceType={setRecurrenceType}
+        customIntervalValue={customIntervalValue}
+        setCustomIntervalValue={setCustomIntervalValue}
+        customIntervalUnit={customIntervalUnit}
+        setCustomIntervalUnit={setCustomIntervalUnit}
+        alertTiming={alertTiming}
+        setAlertTiming={setAlertTiming}
+        alertCustomDays={alertCustomDays}
+        setAlertCustomDays={setAlertCustomDays}
+        emailReminder={emailReminder}
+        setEmailReminder={setEmailReminder}
+        dateLabel="Date"
+        showChecklist={false}
+        heading="When"
+        subtitle="Pick a date. Recurrence and reminders are optional."
+      />
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          Notes
+          <span className="ml-1 text-xs font-normal text-gray-400">
+            (optional)
+          </span>
+        </label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder="Add details for this event"
+          className="form-textarea w-full"
+        />
       </div>
     </div>
   );
@@ -1105,7 +1212,9 @@ function SuccessOverlay({requestType}) {
           <p className="text-base font-semibold text-gray-900 dark:text-white">
             {requestType === "inspection"
               ? "Inspection scheduled!"
-              : "Maintenance scheduled!"}
+              : requestType === "other"
+                ? "Event scheduled!"
+                : "Maintenance scheduled!"}
           </p>
         </div>
       </div>
@@ -1139,6 +1248,8 @@ function MaintenanceScheduleModal({
 
   // Step 0 state
   const [requestType, setRequestType] = useState(null);
+  const [otherTitle, setOtherTitle] = useState("");
+  const [otherNotes, setOtherNotes] = useState("");
   // Step 1 state
   const [hasContractor, setHasContractor] = useState(null);
   const [selectedContractor, setSelectedContractor] = useState(null);
@@ -1183,6 +1294,8 @@ function MaintenanceScheduleModal({
   const professionalsPath = accountUrl
     ? `/${accountUrl}/professionals`
     : "/professionals";
+  const isOther = requestType === "other";
+  const activeSteps = isOther ? OTHER_STEPS : STEPS;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1237,6 +1350,8 @@ function MaintenanceScheduleModal({
     setShowSuccess(false);
     setSaving(false);
     setRequestType(null);
+    setOtherTitle("");
+    setOtherNotes("");
     setHasContractor(null);
     setSelectedContractor(null);
     setContractorSearch("");
@@ -1342,7 +1457,7 @@ function MaintenanceScheduleModal({
   }, [propertyId, systemType, systemLabel, propertyData, requestType]);
 
   const handleNext = () => {
-    if (currentStep < STEPS.length - 1) {
+    if (currentStep < activeSteps.length - 1) {
       setCurrentStep((s) => s + 1);
     }
   };
@@ -1355,6 +1470,9 @@ function MaintenanceScheduleModal({
 
   const canAdvance = () => {
     if (currentStep === 0) return requestType !== null;
+    if (isOther) {
+      return !!otherTitle.trim() && !!scheduledDate;
+    }
     if (currentStep === 1) return hasContractor !== null;
     if (currentStep === 2) return !!scheduledDate;
     return true;
@@ -1363,6 +1481,10 @@ function MaintenanceScheduleModal({
   const nextDisabledTitle = () => {
     if (canAdvance()) return undefined;
     if (currentStep === 0) return "Select a request type to continue";
+    if (isOther && currentStep === 1) {
+      if (!otherTitle.trim()) return "Enter a title to continue";
+      if (!scheduledDate) return "Select a date to continue";
+    }
     if (currentStep === 1)
       return "Choose whether you have a contractor to continue";
     if (currentStep === 2) return "Select a date to continue";
@@ -1382,15 +1504,27 @@ function MaintenanceScheduleModal({
 
     const eventPayload = {
       system_key: systemKeyStr,
-      system_name:
-        systemLabel && systemLabel !== "General" ? systemLabel : null,
-      event_type: requestType === "inspection" ? "inspection" : "maintenance",
-      contractor_id: coerceContractorId(selectedContractor?.sourceId),
-      contractor_source: selectedContractor?.source ?? null,
-      contractor_name: selectedContractor?.name ?? null,
-      checklist_item_id: selectedChecklistItemId
-        ? parseInt(selectedChecklistItemId, 10)
-        : null,
+      system_name: isOther
+        ? otherTitle.trim().slice(0, 100)
+        : systemLabel && systemLabel !== "General"
+          ? systemLabel
+          : null,
+      event_type:
+        requestType === "inspection"
+          ? "inspection"
+          : requestType === "other"
+            ? "other"
+            : "maintenance",
+      contractor_id: isOther
+        ? null
+        : coerceContractorId(selectedContractor?.sourceId),
+      contractor_source: isOther ? null : (selectedContractor?.source ?? null),
+      contractor_name: isOther ? null : (selectedContractor?.name ?? null),
+      checklist_item_id: isOther
+        ? null
+        : selectedChecklistItemId
+          ? parseInt(selectedChecklistItemId, 10)
+          : null,
       scheduled_date: scheduledDate,
       scheduled_time: (() => {
         const t = scheduledTime?.trim();
@@ -1406,16 +1540,22 @@ function MaintenanceScheduleModal({
       alert_timing: alertTiming,
       alert_custom_days: alertTiming === "custom" ? alertCustomDays : null,
       email_reminder: emailReminder,
-      message_enabled: sendEmail && !!selectedContractor,
-      message_body: sendEmail ? messageBody : null,
-      contractor_email:
-        sendEmail && selectedContractor?.email
-          ? selectedContractor.email
+      message_enabled: isOther ? false : sendEmail && !!selectedContractor,
+      message_body: isOther
+        ? otherNotes.trim() || null
+        : sendEmail
+          ? messageBody
           : null,
+      contractor_email:
+        isOther || !sendEmail || !selectedContractor?.email
+          ? null
+          : selectedContractor.email,
       reply_email: replyEmail?.trim()
         ? replyEmail.trim()
         : currentUser?.data?.email || currentUser?.email || null,
-      send_email_now: sendEmail && !!selectedContractor?.email,
+      send_email_now: isOther
+        ? false
+        : sendEmail && !!selectedContractor?.email,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
 
@@ -1449,7 +1589,7 @@ function MaintenanceScheduleModal({
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Schedule Maintenance
+              {isOther ? "Schedule Event" : "Schedule Maintenance"}
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {systemLabel}
@@ -1468,7 +1608,7 @@ function MaintenanceScheduleModal({
 
       {/* Step indicator */}
       <div className="pt-4 pb-2">
-        <StepIndicator currentStep={currentStep} steps={STEPS} />
+        <StepIndicator currentStep={currentStep} steps={activeSteps} />
       </div>
 
       {/* Step content */}
@@ -1479,7 +1619,31 @@ function MaintenanceScheduleModal({
             setRequestType={setRequestType}
           />
         )}
-        {currentStep === 1 && (
+        {isOther && currentStep === 1 && (
+          <OtherDetailsStep
+            title={otherTitle}
+            setTitle={setOtherTitle}
+            notes={otherNotes}
+            setNotes={setOtherNotes}
+            scheduledDate={scheduledDate}
+            setScheduledDate={setScheduledDate}
+            scheduledTime={scheduledTime}
+            setScheduledTime={setScheduledTime}
+            recurrenceType={recurrenceType}
+            setRecurrenceType={setRecurrenceType}
+            customIntervalValue={customIntervalValue}
+            setCustomIntervalValue={setCustomIntervalValue}
+            customIntervalUnit={customIntervalUnit}
+            setCustomIntervalUnit={setCustomIntervalUnit}
+            alertTiming={alertTiming}
+            setAlertTiming={setAlertTiming}
+            alertCustomDays={alertCustomDays}
+            setAlertCustomDays={setAlertCustomDays}
+            emailReminder={emailReminder}
+            setEmailReminder={setEmailReminder}
+          />
+        )}
+        {!isOther && currentStep === 1 && (
           <ContractorStep
             contacts={contacts}
             savedProfessionals={savedProfessionals}
@@ -1498,7 +1662,7 @@ function MaintenanceScheduleModal({
             professionalsPath={professionalsPath}
           />
         )}
-        {currentStep === 2 && (
+        {!isOther && currentStep === 2 && (
           <ScheduleStep
             scheduledDate={scheduledDate}
             setScheduledDate={setScheduledDate}
@@ -1521,7 +1685,7 @@ function MaintenanceScheduleModal({
             setSelectedChecklistItemId={setSelectedChecklistItemId}
           />
         )}
-        {currentStep === 3 && (
+        {!isOther && currentStep === 3 && (
           <MessageStep
             selectedContractor={selectedContractor}
             sendEmail={sendEmail}
@@ -1546,7 +1710,7 @@ function MaintenanceScheduleModal({
             {saveError}
           </p>
         ) : null}
-        {currentStep === STEPS.length - 1 &&
+        {currentStep === activeSteps.length - 1 &&
           calendarIntegrations.length > 0 && (
             <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
@@ -1580,7 +1744,7 @@ function MaintenanceScheduleModal({
             >
               Cancel
             </button>
-            {currentStep < STEPS.length - 1 ? (
+            {currentStep < activeSteps.length - 1 ? (
               <button
                 type="button"
                 onClick={handleNext}
@@ -1594,9 +1758,19 @@ function MaintenanceScheduleModal({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={!scheduledDate || saving}
+                disabled={
+                  !scheduledDate ||
+                  saving ||
+                  (isOther && !otherTitle.trim())
+                }
                 className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                title={!scheduledDate ? "Select a date to continue" : undefined}
+                title={
+                  isOther && !otherTitle.trim()
+                    ? "Enter a title to continue"
+                    : !scheduledDate
+                      ? "Select a date to continue"
+                      : undefined
+                }
               >
                 {saving ? (
                   <span className="flex items-center gap-2">

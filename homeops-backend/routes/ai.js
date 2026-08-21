@@ -140,7 +140,7 @@ async function saveMessage(conversationId, role, content, uiDirectives = null) {
   );
 }
 
-async function getSystemContextFromDb(propertyId, systemId) {
+async function getSystemContextFromDb(propertyId, systemId, viewerRole) {
   const systemKey = (systemId || "").toLowerCase();
   const [analysisRes, maintenanceRes, recordsRes, checklistRes] = await Promise.all([
     db.query(
@@ -153,10 +153,11 @@ async function getSystemContextFromDb(propertyId, systemId) {
     ),
     db.query(
       `SELECT system_key, system_name, scheduled_date, status
-       FROM maintenance_events
-       WHERE property_id = $1 AND (system_key = $2 OR system_key ILIKE $2)
+       FROM maintenance_events me
+       WHERE me.property_id = $1 AND (me.system_key = $2 OR me.system_key ILIKE $2)
+         AND ${MaintenanceEvent.sqlAudienceVisibleToRole("me", "$3")}
        ORDER BY scheduled_date DESC LIMIT 5`,
-      [propertyId, systemKey]
+      [propertyId, systemKey, viewerRole || ""]
     ),
     db.query(
       `SELECT system_key, completed_at, next_service_date, data
@@ -300,7 +301,7 @@ router.get(
 
       await ensurePropertyAccessForUser(resolvedId, userId, res.locals.user.role);
 
-      const ctx = await getSystemContextFromDb(resolvedId, systemId);
+      const ctx = await getSystemContextFromDb(resolvedId, systemId, res.locals.user?.role);
       const systemName = (systemId || "").charAt(0).toUpperCase() + (systemId || "").slice(1);
       return res.json({ propertyId: resolvedId, systemId, systemName, ...ctx });
     } catch (err) {
@@ -455,7 +456,7 @@ router.post(
       const switchTarget = detectSystemSwitchIntent(message);
       if (switchTarget) {
         systemId = switchTarget;
-        systemCtx = await getSystemContextFromDb(resolvedId, systemId);
+        systemCtx = await getSystemContextFromDb(resolvedId, systemId, res.locals.user?.role);
         systemName = systemId.charAt(0).toUpperCase() + systemId.slice(1);
         contextSwitched = true;
       } else if (clientSystemContext?.systemId) {
@@ -515,7 +516,8 @@ router.post(
       const { context: focusedContext, analysisDate } = await buildFocusedContext(
         resolvedId,
         intent,
-        contextSummary
+        contextSummary,
+        res.locals.user?.role
       );
 
       // --- Document RAG (scoped to system when in system context, else property-wide) ---

@@ -81,6 +81,17 @@ function systemDisplayName(systemKey) {
 }
 
 function isUpcomingMaintenanceEvent(event, maintenanceRecords, todayIso) {
+  const eventType = event.event_type ?? event.eventType;
+  const eventSystem = event.system_key ?? event.systemKey;
+  if (
+    eventType === "homeAnniversary" ||
+    eventSystem === "homeAnniversary" ||
+    eventType === "other" ||
+    eventSystem === "other"
+  ) {
+    return false;
+  }
+
   const date = event.scheduled_date ?? event.scheduledDate;
   if (!date || String(date).slice(0, 10) < todayIso) return false;
 
@@ -95,7 +106,6 @@ function isUpcomingMaintenanceEvent(event, maintenanceRecords, todayIso) {
   }
 
   const eventDate = String(date).slice(0, 10);
-  const eventSystem = event.system_key ?? event.systemKey;
   if (eventSystem) {
     const fulfilledByRecord = (maintenanceRecords ?? []).some((record) => {
       if (!isCompletedMaintenanceRecord(record)) return false;

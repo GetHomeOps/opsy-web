@@ -27,6 +27,7 @@ const PrePurchaseNote = require("../models/prePurchaseNote");
 const PrePurchaseTrueCost = require("../models/prePurchaseTrueCost");
 const Account = require("../models/account");
 const Property = require("../models/property");
+const { ensureHomeAnniversaryEvents } = require("../services/homeAnniversaryService");
 const PropertyDocument = require("../models/propertyDocuments");
 const InspectionAnalysisJob = require("../models/inspectionAnalysisJob");
 const AttomLookupJob = require("../models/attomLookupJob");
@@ -1016,6 +1017,14 @@ router.post("/:id/convert-to-property", async function (req, res, next) {
       user_id: analysis.created_by || user.id,
       role: "owner",
     });
+
+    try {
+      await ensureHomeAnniversaryEvents(created.id, {
+        createdByUserId: analysis.created_by || user.id,
+      });
+    } catch (annivErr) {
+      console.error("[pre-purchase convert] homeAnniversary:", annivErr?.message);
+    }
 
     const sourceDocs = await PrePurchaseAnalysis.getDocuments(analysis.id);
     const hasMigratableDocs = sourceDocs.some((d) => d?.document_key);

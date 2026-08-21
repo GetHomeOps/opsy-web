@@ -16,6 +16,7 @@ const { addPresignedUrlToItem, addPresignedUrlsToItems, addUserAvatarUrlsToItems
 const { canCreateProperty, checkAiTokenQuota, checkAiFeaturesAllowed, getAccountLimits } = require("../services/tierService");
 const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
 const { onPropertyCreated } = require("../services/resourceAutoSend");
+const { ensureHomeAnniversaryEvents } = require("../services/homeAnniversaryService");
 const { syncPropertyMissingAgentAdminNotifications } = require("../services/propertyMissingAgentNotifications");
 const { assertAtMostOneAgentOnProperty } = require("../services/propertyAgentPolicy");
 const propertySponsorshipService = require("../services/propertySponsorshipService");
@@ -173,6 +174,12 @@ router.post("/", ensureLoggedIn, ensureUserCanAccessAccountFromBody(), async fun
       throw err;
     } finally {
       client.release();
+    }
+
+    try {
+      await ensureHomeAnniversaryEvents(property.id, { createdByUserId: creatorId });
+    } catch (annivErr) {
+      console.error("[homeAnniversary] property created:", annivErr?.message);
     }
 
     /* Bulk-import path enqueues an async ATTOM public-records lookup. The queue
@@ -1081,6 +1088,15 @@ router.patch("/:propertyId", ensureLoggedIn, ensurePropertyAccess({ param: "prop
   try {
     const t0 = Date.now();
     const property = await Property.updateProperty(req.params.propertyId, req.body);
+    if (Object.prototype.hasOwnProperty.call(req.body, "last_sale_date")) {
+      try {
+        await ensureHomeAnniversaryEvents(property.id, {
+          createdByUserId: res.locals.user?.id,
+        });
+      } catch (annivErr) {
+        console.error("[homeAnniversary] property updated:", annivErr?.message);
+      }
+    }
     const tDb = Date.now();
     const propertyWithUrl = await addPresignedUrlToItem(property, "main_photo", "main_photo_url");
     if (process.env.NODE_ENV !== "production") {

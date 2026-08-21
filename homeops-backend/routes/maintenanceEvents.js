@@ -251,7 +251,10 @@ router.get(
   ensurePropertyAccess({ param: "propertyId" }),
   async function (req, res, next) {
     try {
-      const events = await MaintenanceEvent.getByPropertyId(req.params.propertyId);
+      const events = await MaintenanceEvent.getByPropertyId(
+        req.params.propertyId,
+        res.locals.user?.role,
+      );
       return res.json({ events });
     } catch (err) {
       return next(err);

@@ -3,6 +3,7 @@ import {X, Loader2, Calendar, Clock, FileText, CheckCircle} from "lucide-react";
 import ModalBlank from "../../components/ModalBlank";
 import DatePickerInput from "../../components/DatePickerInput";
 import AppApi from "../../api/api";
+import {useAuth} from "../../context/AuthContext";
 
 const STATUS_OPTIONS = [
   {
@@ -24,6 +25,10 @@ const STATUS_OPTIONS = [
 ];
 
 function EventEditModal({event, isOpen, onClose, onUpdated}) {
+  const {currentUser} = useAuth();
+  const hideHomeownerNotes =
+    event?.systemKey === "homeAnniversary" &&
+    (currentUser?.role ?? "").toLowerCase() === "homeowner";
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -55,7 +60,7 @@ function EventEditModal({event, isOpen, onClose, onUpdated}) {
       } else {
         payload.scheduled_time = null;
       }
-      if (notes.trim()) {
+      if (!hideHomeownerNotes && notes.trim()) {
         payload.message_body = notes.trim();
       }
       await AppApi.updateMaintenanceEvent(event.id, payload);
@@ -72,7 +77,7 @@ function EventEditModal({event, isOpen, onClose, onUpdated}) {
   const hasChanges =
     scheduledDate !== (event?.date || "") ||
     scheduledTime !== (event?.scheduledTime || "") ||
-    notes !== (event?.notes || "") ||
+    (!hideHomeownerNotes && notes !== (event?.notes || "")) ||
     status !== (event?.status || "scheduled");
 
   return (
@@ -137,19 +142,21 @@ function EventEditModal({event, isOpen, onClose, onUpdated}) {
               />
             </div>
 
-            <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                <FileText className="w-4 h-4 text-[#456564]" />
-                Notes
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                className="form-textarea w-full"
-                placeholder="Add notes..."
-              />
-            </div>
+            {!hideHomeownerNotes && (
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  <FileText className="w-4 h-4 text-[#456564]" />
+                  Notes
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  className="form-textarea w-full"
+                  placeholder="Add notes..."
+                />
+              </div>
+            )}
 
             <div>
               <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">

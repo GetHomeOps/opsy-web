@@ -35,7 +35,7 @@
       "enum": ["scheduled", "completed", "cancelled"]
     },
     "timezone": {"type": ["string", "null"], "maxLength": 50},
-    "event_type": {"type": "string", "enum": ["maintenance", "inspection"]}
+    "event_type": {"type": "string", "enum": ["maintenance", "inspection", "homeAnniversary", "other"]}
   },
   "additionalProperties": false
 }

@@ -6,7 +6,7 @@
  * @param {string} [event.title]
  * @param {string} event.date - YYYY-MM-DD
  * @param {string} [event.scheduledTime] - HH:mm (24h)
- * @param {string} [event.type] - "maintenance" | "inspection"
+ * @param {string} [event.type] - "maintenance" | "inspection" | "homeAnniversary" | "other"
  * @param {string} [event.propertyName]
  * @param {string} [event.address]
  * @param {string} [event.contractorName]
@@ -34,7 +34,13 @@ export function buildGoogleCalendarUrl(event) {
   const dates = `${fmt(start)}/${fmt(end)}`;
 
   const detailsParts = [
-    event?.type === "inspection" ? "Inspection" : "Maintenance",
+    event?.type === "inspection"
+      ? "Inspection"
+      : event?.type === "homeAnniversary"
+        ? "Home Anniversary"
+        : event?.type === "other"
+          ? "Other"
+          : "Maintenance",
     event?.propertyName && `Property: ${event.propertyName}`,
     event?.contractorName && `Contractor: ${event.contractorName}`,
     event?.notes,

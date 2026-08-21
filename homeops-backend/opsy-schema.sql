@@ -926,7 +926,8 @@ CREATE TABLE maintenance_events (
     message_enabled BOOLEAN DEFAULT false,
     message_body TEXT,
     status VARCHAR(30) DEFAULT 'scheduled',
-    event_type VARCHAR(20) NOT NULL DEFAULT 'maintenance' CHECK (event_type IN ('maintenance', 'inspection')),
+    event_type VARCHAR(20) NOT NULL DEFAULT 'maintenance' CHECK (event_type IN ('maintenance', 'inspection', 'homeAnniversary', 'other')),
+    audience VARCHAR(20) NOT NULL DEFAULT 'all' CHECK (audience IN ('all', 'homeowner', 'agent')),
     timezone VARCHAR(50),
     checklist_item_id INTEGER,
     created_by INTEGER REFERENCES users(id),
@@ -939,6 +940,9 @@ CREATE INDEX idx_maintenance_events_date ON maintenance_events(scheduled_date);
 CREATE INDEX idx_maintenance_events_status ON maintenance_events(status);
 CREATE INDEX idx_maintenance_events_property_date ON maintenance_events(property_id, scheduled_date);
 CREATE INDEX idx_maintenance_events_recurrence_parent ON maintenance_events(recurrence_parent_id);
+CREATE UNIQUE INDEX idx_maintenance_events_home_anniversary
+    ON maintenance_events (property_id, audience)
+    WHERE system_key = 'homeAnniversary' AND recurrence_parent_id IS NULL;
 
 -- ============================================================
 -- Calendar Integrations (OAuth connections for Google/Outlook)

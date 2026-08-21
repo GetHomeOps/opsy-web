@@ -504,8 +504,15 @@ function HomeownerHome() {
       id: item.id,
       title: item.title,
       date: item.dueAt,
-      type: item.systemType,
+      type:
+        item.systemKey === "homeAnniversary"
+          ? "homeAnniversary"
+          : item.systemType === "other"
+            ? "other"
+            : item.systemType,
       propertyId: item.propertyId,
+      propertyUid: item.propertyUid ?? null,
+      systemKey: item.systemKey ?? null,
       status: item.isBooked ? "scheduled" : "due",
       propertyName: item.propertyName ?? null,
       address: item.address ?? null,

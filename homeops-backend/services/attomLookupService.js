@@ -21,6 +21,7 @@
 
 const db = require("../db");
 const AttomLookupJob = require("../models/attomLookupJob");
+const { ensureHomeAnniversaryEvents } = require("./homeAnniversaryService");
 
 const ATTOM_API_KEY = process.env.ATTOM_API_KEY;
 const ATTOM_BASE_URL = "https://api.gateway.attomdata.com/propertyapi/v1.0.0";
@@ -694,6 +695,15 @@ async function runAttomLookupJob(jobId) {
       columns: writableColumns,
       mergedPopulatedKeys,
     });
+    if (Object.prototype.hasOwnProperty.call(writableColumns, "last_sale_date")) {
+      try {
+        await ensureHomeAnniversaryEvents(job.property_id, {
+          createdByUserId: job.user_id || null,
+        });
+      } catch (annivErr) {
+        console.error("[homeAnniversary] attom lookup:", annivErr?.message);
+      }
+    }
   } else {
     // Nothing to write (all target columns were already populated). Still record
     // that ATTOM responded for this property so the UI can reflect the source.

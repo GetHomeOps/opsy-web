@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node helpers/propertyAccess.assistant.test.js && node routes/auth.test.js && node services/homeownerOwnershipTransfer.test.js && node models/user.remove.test.js && node models/platformMetrics.agentAnalytics.test.js",
+    "test": "node helpers/propertyAccess.assistant.test.js && node routes/auth.test.js && node services/homeownerOwnershipTransfer.test.js && node models/user.remove.test.js && node models/platformMetrics.agentAnalytics.test.js && node services/homeAnniversaryService.test.js",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "node scripts/build-client.js",
@@ -12,6 +12,8 @@
     "ensure:agent-free": "node scripts/run_ensure_agent_free_plan.js",
     "cleanup:incomplete-signups": "node scripts/cleanup-incomplete-signups.js",
     "migrate:maintenance-events-recurrence-parent": "node scripts/run_migrate_maintenance_events_recurrence_parent.js",
+    "migrate:maintenance-events-audience": "node scripts/run_migrate_maintenance_events_audience.js",
+    "migrate:maintenance-events-event-type": "node scripts/run_migrate_maintenance_events_event_type.js",
     "migrate:property-sponsorships": "node scripts/run_migrate_property_sponsorships.js",
     "migrate:pre-purchase": "node scripts/run_migrate_pre_purchase.js",
     "migrate:pre-purchase-true-cost": "node scripts/run_migrate_pre_purchase_true_cost.js",

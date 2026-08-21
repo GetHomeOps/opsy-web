@@ -1,4 +1,5 @@
 import React, {useState, useEffect} from "react";
+import {Link} from "react-router-dom";
 import {
   X,
   MapPin,
@@ -11,12 +12,17 @@ import {
   Pencil,
   Repeat,
   Bell,
+  Mail,
 } from "lucide-react";
 import ModalBlank from "../../components/ModalBlank";
 import AppApi from "../../api/api";
 import {buildGoogleCalendarUrl} from "../../lib/googleCalendarLink";
 import {parseDateInput} from "../../lib/dateOffset";
 import EventEditModal from "./EventEditModal";
+import {useAuth} from "../../context/AuthContext";
+import useCurrentAccount from "../../hooks/useCurrentAccount";
+
+const AGENT_AUDIENCE_ROLES = ["agent", "assistant", "admin", "super_admin"];
 
 const ALERT_TIMING_LABELS = {
   "1d": "1 day before",
@@ -56,8 +62,10 @@ function reminderLabel(event) {
  * @property {string} id
  * @property {string} title
  * @property {string} date - YYYY-MM-DD
- * @property {string} type - "maintenance" | "inspection"
+ * @property {string} type - "maintenance" | "inspection" | "homeAnniversary" | "other"
  * @property {number} propertyId
+ * @property {string} [propertyUid]
+ * @property {string} [systemKey]
  * @property {string} status
  * @property {string} [propertyName]
  * @property {string} [address]
@@ -68,6 +76,23 @@ function reminderLabel(event) {
  */
 
 function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
+  const {currentUser} = useAuth();
+  const {currentAccount} = useCurrentAccount();
+  const accountUrl = currentAccount?.url || "";
+  const role = (currentUser?.role ?? "").toLowerCase();
+  const isHomeAnniversary = event?.systemKey === "homeAnniversary";
+  const hideHomeownerNotes = isHomeAnniversary && role === "homeowner";
+  const showCommunicationsLink =
+    isHomeAnniversary && AGENT_AUDIENCE_ROLES.includes(role);
+  const propertyPathId = event?.propertyUid ?? event?.propertyId;
+  const propertyHref =
+    accountUrl && propertyPathId
+      ? `/${accountUrl}/properties/${propertyPathId}`
+      : null;
+  const communicationsHref = accountUrl
+    ? `/${accountUrl}/communications`
+    : null;
+
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteScope, setDeleteScope] = useState("single"); // "single" | "series"
@@ -160,11 +185,22 @@ function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
             : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
     : "";
 
-  const typeLabel = event?.type === "inspection" ? "Inspection" : "Maintenance";
+  const typeLabel =
+    event?.type === "inspection"
+      ? "Inspection"
+      : event?.type === "homeAnniversary"
+        ? "Home Anniversary"
+        : event?.type === "other"
+          ? "Other"
+          : "Maintenance";
   const typeBadgeClass =
     event?.type === "inspection"
       ? "bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300"
-      : "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300";
+      : event?.type === "homeAnniversary"
+        ? "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"
+        : event?.type === "other"
+          ? "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300"
+          : "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300";
 
   const eventDate = event?.date ? parseDateInput(event.date) : null;
   const formattedDate = eventDate
@@ -237,9 +273,20 @@ function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Property
                     </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {event.propertyName}
-                    </p>
+                    {propertyHref ? (
+                      <Link
+                        to={propertyHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-[#456564] dark:text-[#6fb5b4] hover:underline"
+                      >
+                        {event.propertyName}
+                      </Link>
+                    ) : (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {event.propertyName}
+                      </p>
+                    )}
                     {event.address && (
                       <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
                         {event.address}
@@ -285,7 +332,7 @@ function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
                 </div>
               )}
 
-              {event.notes && (
+              {event.notes && !hideHomeownerNotes && (
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
                     <FileText className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -297,6 +344,27 @@ function EventDetailModal({event, isOpen, onClose, onDeleted, onUpdated}) {
                     <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
                       {event.notes}
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {showCommunicationsLink && communicationsHref && (
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                    <Mail className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Communications
+                    </p>
+                    <Link
+                      to={communicationsHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-[#456564] dark:text-[#6fb5b4] hover:underline"
+                    >
+                      Open communications
+                    </Link>
                   </div>
                 </div>
               )}

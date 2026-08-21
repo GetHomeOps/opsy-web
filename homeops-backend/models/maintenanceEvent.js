@@ -12,11 +12,25 @@ const COLUMNS = `
   recurrence_parent_id,
   alert_timing, alert_custom_days, email_reminder,
   message_enabled, message_body,
-  status, event_type, timezone, checklist_item_id, created_by,
+  status, event_type, audience, timezone, checklist_item_id, created_by,
   created_at, updated_at`;
 
+/** SQL predicate: event is visible given a viewer platform-role expression (text). */
+function sqlAudienceVisibleToRole(eventAlias, roleExpr) {
+  const col = eventAlias ? `${eventAlias}.audience` : "audience";
+  return `(
+    COALESCE(${col}, 'all') = 'all'
+    OR (${col} = 'homeowner' AND ${roleExpr} = 'homeowner')
+    OR (${col} = 'agent' AND ${roleExpr} IN ('agent', 'assistant', 'admin', 'super_admin'))
+  )`;
+}
+
 /** Map stored event_type to calendar API type (synthetic due-dates use inspection without a row). */
-function calendarTypeFromEventType(eventType) {
+function calendarTypeFromEventType(eventType, systemKey) {
+  if (eventType === "homeAnniversary" || systemKey === "homeAnniversary") {
+    return "homeAnniversary";
+  }
+  if (eventType === "other") return "other";
   return eventType === "inspection" ? "inspection" : "maintenance";
 }
 
@@ -95,7 +109,8 @@ class MaintenanceEvent {
       recurrence_parent_id = null,
       alert_timing = "3d", alert_custom_days = null, email_reminder = false,
       message_enabled = false, message_body = null,
-      status = "scheduled", event_type = "maintenance", timezone = null, checklist_item_id = null, created_by = null,
+      status = "scheduled", event_type = "maintenance", audience = "all",
+      timezone = null, checklist_item_id = null, created_by = null,
     } = data;
 
     const result = await client.query(
@@ -107,8 +122,8 @@ class MaintenanceEvent {
           recurrence_parent_id,
           alert_timing, alert_custom_days, email_reminder,
           message_enabled, message_body,
-          status, event_type, timezone, checklist_item_id, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+          status, event_type, audience, timezone, checklist_item_id, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
        RETURNING ${COLUMNS}`,
       [
         property_id, system_key, system_name || null,
@@ -118,7 +133,7 @@ class MaintenanceEvent {
         recurrence_parent_id,
         alert_timing, alert_custom_days, email_reminder,
         message_enabled, message_body,
-        status, event_type, timezone, checklist_item_id, created_by,
+        status, event_type, audience || "all", timezone, checklist_item_id, created_by,
       ],
     );
     return result.rows[0];
@@ -201,7 +216,13 @@ class MaintenanceEvent {
     return result.rows;
   }
 
-  static async getByPropertyId(propertyId) {
+  static async getByPropertyId(propertyId, viewerRole) {
+    const params = [propertyId];
+    let audienceSql = "";
+    if (viewerRole) {
+      params.push(viewerRole);
+      audienceSql = `AND ${sqlAudienceVisibleToRole("me", "$2")}`;
+    }
     const result = await db.query(
       `SELECT me.id, me.property_id, me.system_key, me.system_name,
          me.contractor_id, me.contractor_source, me.contractor_name,
@@ -209,14 +230,15 @@ class MaintenanceEvent {
          me.recurrence_type, me.recurrence_interval_value, me.recurrence_interval_unit,
          me.alert_timing, me.alert_custom_days, me.email_reminder,
          me.message_enabled, me.message_body,
-         me.status, me.event_type, me.timezone, me.checklist_item_id, me.created_by,
+         me.status, me.event_type, me.audience, me.timezone, me.checklist_item_id, me.created_by,
          me.created_at, me.updated_at,
          ici.title AS checklist_item_title
        FROM maintenance_events me
        LEFT JOIN inspection_checklist_items ici ON me.checklist_item_id = ici.id
        WHERE me.property_id = $1
+         ${audienceSql}
        ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
-      [propertyId],
+      params,
     );
     return result.rows.map((r) => {
       const { checklist_item_title, ...rest } = r;
@@ -254,6 +276,7 @@ class MaintenanceEvent {
       message_body: "message_body",
       status: "status",
       event_type: "event_type",
+      audience: "audience",
       timezone: "timezone",
     };
 
@@ -341,7 +364,9 @@ class MaintenanceEvent {
          FROM maintenance_events me
          JOIN properties p ON p.id = me.property_id
          JOIN property_users pu ON pu.property_id = me.property_id
+         JOIN users viewer ON viewer.id = pu.user_id
          WHERE pu.user_id = $1
+           AND ${sqlAudienceVisibleToRole("me", "viewer.role::text")}
            AND me.scheduled_date >= $2
            AND me.status = 'scheduled'
          ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
@@ -383,7 +408,7 @@ class MaintenanceEvent {
     };
 
     const maintenanceEvents = eventsResult.rows.map((r) => ({
-      type: calendarTypeFromEventType(r.event_type),
+      type: calendarTypeFromEventType(r.event_type, r.system_key),
       id: r.id,
       propertyId: r.property_id,
       propertyUid: r.property_uid,
@@ -449,7 +474,9 @@ class MaintenanceEvent {
          FROM maintenance_events me
          JOIN properties p ON p.id = me.property_id
          JOIN property_users pu ON pu.property_id = me.property_id
+         JOIN users viewer ON viewer.id = pu.user_id
          WHERE pu.user_id = $1
+           AND ${sqlAudienceVisibleToRole("me", "viewer.role::text")}
            AND me.scheduled_date >= $2
            AND me.scheduled_date <= $3
          ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
@@ -498,9 +525,8 @@ class MaintenanceEvent {
       const isOverdue = daysUntilDue < 0;
       const status = r.status === "completed" ? "completed" : isOverdue ? "overdue" : "upcoming";
       const systemName = r.system_name || SYSTEM_LABELS[r.system_key] || r.system_key;
-      const isInspection = r.event_type === "inspection";
-      const cat = isInspection ? "inspection" : "maintenance";
-      const title = isInspection
+      const cat = calendarTypeFromEventType(r.event_type, r.system_key);
+      const title = cat === "inspection"
         ? `${systemName} inspection${r.contractor_name ? ` – ${r.contractor_name}` : ""}`
         : systemName + (r.contractor_name ? ` – ${r.contractor_name}` : "");
       return {
@@ -509,6 +535,7 @@ class MaintenanceEvent {
         propertyUid: r.property_uid,
         propertyName: r.property_name,
         address: [r.address, r.city, r.state].filter(Boolean).join(", "),
+        systemKey: r.system_key,
         systemType: cat,
         title,
         category: cat,
@@ -548,6 +575,7 @@ class MaintenanceEvent {
           propertyUid: r.property_uid,
           propertyName: r.property_name,
           address: [r.address, r.city, r.state].filter(Boolean).join(", "),
+          systemKey: r.system_key,
           systemType: "inspection",
           title: `${systemName} inspection due`,
           category: "inspection",
@@ -603,7 +631,9 @@ class MaintenanceEvent {
          FROM maintenance_events me
          JOIN properties p ON p.id = me.property_id
          JOIN property_users pu ON pu.property_id = me.property_id
+         JOIN users viewer ON viewer.id = pu.user_id
          WHERE pu.user_id = $1
+           AND ${sqlAudienceVisibleToRole("me", "viewer.role::text")}
            AND me.scheduled_date >= $2
            AND me.scheduled_date <= $3
          ORDER BY me.scheduled_date ASC, me.scheduled_time ASC NULLS LAST`,
@@ -654,7 +684,7 @@ class MaintenanceEvent {
     };
 
     const maintenanceEvents = eventsResult.rows.map((r) => ({
-      type: calendarTypeFromEventType(r.event_type),
+      type: calendarTypeFromEventType(r.event_type, r.system_key),
       id: r.id,
       propertyId: r.property_id,
       propertyUid: r.property_uid,
@@ -708,5 +738,7 @@ class MaintenanceEvent {
     );
   }
 }
+
+MaintenanceEvent.sqlAudienceVisibleToRole = sqlAudienceVisibleToRole;
 
 module.exports = MaintenanceEvent;

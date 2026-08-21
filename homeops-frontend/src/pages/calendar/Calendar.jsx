@@ -54,8 +54,11 @@ function normalizeEvent(raw) {
     id: raw.id,
     title: raw.systemName || raw.systemKey || "Event",
     date: raw.scheduledDate,
-    type: raw.type,
+    type:
+      raw.systemKey === "homeAnniversary" ? "homeAnniversary" : raw.type,
     propertyId: raw.propertyId,
+    propertyUid: raw.propertyUid ?? null,
+    systemKey: raw.systemKey ?? null,
     status: raw.status,
     propertyName: raw.propertyName,
     address: raw.address,
@@ -132,7 +135,7 @@ function Calendar() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
-  const [filterType, setFilterType] = useState(null); // null = all, "maintenance", "inspection"
+  const [filterType, setFilterType] = useState(null); // null = all, "maintenance", "inspection", "homeAnniversary", "other"
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -339,6 +342,8 @@ function Calendar() {
 
   const eventColorByType = (type) => {
     if (type === "inspection") return "text-white bg-sky-500";
+    if (type === "homeAnniversary") return "text-white bg-violet-500";
+    if (type === "other") return "text-white bg-slate-500";
     return "text-white bg-red-500"; // maintenance - lively red
   };
 
@@ -451,7 +456,7 @@ function Calendar() {
   };
 
   return (
-
+    <>
         <main className="grow">
           <div className={PAGE_LAYOUT.list}>
             <div className="sm:flex sm:justify-between sm:items-center mb-4">
@@ -578,6 +583,26 @@ function Calendar() {
                     >
                       <div className="w-1 h-3.5 bg-sky-500 shrink-0" />
                       <span className="ml-1.5">Inspections</span>
+                    </button>
+                  </li>
+                  <li className="m-1">
+                    <button
+                      type="button"
+                      onClick={() => setFilterType("homeAnniversary")}
+                      className={`btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-500 dark:text-gray-400 ${filterType === "homeAnniversary" ? "border-violet-500 text-violet-600 dark:text-violet-400" : ""}`}
+                    >
+                      <div className="w-1 h-3.5 bg-violet-500 shrink-0" />
+                      <span className="ml-1.5">Home Anniversary</span>
+                    </button>
+                  </li>
+                  <li className="m-1">
+                    <button
+                      type="button"
+                      onClick={() => setFilterType("other")}
+                      className={`btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-500 dark:text-gray-400 ${filterType === "other" ? "border-slate-500 text-slate-600 dark:text-slate-400" : ""}`}
+                    >
+                      <div className="w-1 h-3.5 bg-slate-500 shrink-0" />
+                      <span className="ml-1.5">Other</span>
                     </button>
                   </li>
                 </ul>
@@ -777,7 +802,11 @@ function Calendar() {
                                           })()
                                         : event.type === "inspection"
                                           ? "Inspection"
-                                          : "Maintenance",
+                                          : event.type === "homeAnniversary"
+                                            ? "Home Anniversary"
+                                            : event.type === "other"
+                                              ? "Other"
+                                              : "Maintenance",
                                       event.contractorName,
                                     ]
                                       .filter(Boolean)
@@ -996,6 +1025,33 @@ function Calendar() {
             </div>
           </div>
         </main>
+
+      {createPortal(
+        <>
+          <EventDetailModal
+            event={selectedEvent}
+            isOpen={detailModalOpen}
+            onClose={setDetailModalOpen}
+            onDeleted={refreshEvents}
+            onUpdated={refreshEvents}
+          />
+          <CalendarScheduleModal
+            isOpen={scheduleModalOpen}
+            onClose={(v) => {
+              setScheduleModalOpen(v);
+              if (!v) {
+                setScheduleModalInitialDate("");
+                setScheduleModalInitialTime("");
+              }
+            }}
+            onScheduled={refreshEvents}
+            initialDate={scheduleModalInitialDate}
+            initialTime={scheduleModalInitialTime}
+          />
+        </>,
+        document.body,
+      )}
+    </>
   );
 }
 

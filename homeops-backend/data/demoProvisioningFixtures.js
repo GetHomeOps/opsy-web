@@ -774,6 +774,7 @@ function getAgentCalendarEventsForProperty(index, propertyId, ownerName, daysAgo
       {
         property_id: propertyId,
         system_key: "agentCalendar",
+        audience: "agent",
         system_name: `Home Anniversary — ${owner}`,
         scheduled_date: daysFromNow(18),
         recurrence_type: "annually",
@@ -784,6 +785,7 @@ function getAgentCalendarEventsForProperty(index, propertyId, ownerName, daysAgo
       {
         property_id: propertyId,
         system_key: "agentCalendar",
+        audience: "agent",
         system_name: "Listing Appointment — CMA walkthrough",
         scheduled_date: daysFromNow(5),
         scheduled_time: "10:00",
@@ -815,6 +817,7 @@ function getAgentCalendarEventsForProperty(index, propertyId, ownerName, daysAgo
       {
         property_id: propertyId,
         system_key: "agentCalendar",
+        audience: "agent",
         system_name: `Homeowner action item — ${owner}`,
         scheduled_date: daysFromNow(3),
         status: "scheduled",
@@ -835,6 +838,7 @@ function getAgentCalendarEventsForProperty(index, propertyId, ownerName, daysAgo
       {
         property_id: propertyId,
         system_key: "agentCalendar",
+        audience: "agent",
         system_name: "Quarterly check-in call",
         scheduled_date: daysFromNow(7),
         scheduled_time: "14:30",
@@ -854,6 +858,7 @@ function getAgentCalendarEventsForProperty(index, propertyId, ownerName, daysAgo
       {
         property_id: propertyId,
         system_key: "agentCalendar",
+        audience: "agent",
         system_name: `Home Anniversary — ${owner}`,
         scheduled_date: daysFromNow(25),
         recurrence_type: "annually",

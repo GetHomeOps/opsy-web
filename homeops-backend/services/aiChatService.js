@@ -2,6 +2,7 @@
 
 const db = require("../db");
 const OpenAI = require("openai");
+const MaintenanceEvent = require("../models/maintenanceEvent");
 
 const SLIDING_WINDOW_SIZE = 8;
 const SUMMARY_TRIGGER_COUNT = 16;
@@ -93,7 +94,7 @@ function detectIntent(message) {
 // Context builder — only injects relevant data based on intent
 // -----------------------------------------------------------------
 
-async function buildFocusedContext(propertyId, intent, existingSummary) {
+async function buildFocusedContext(propertyId, intent, existingSummary, viewerRole) {
   const parts = [];
 
   if (existingSummary) {
@@ -128,11 +129,12 @@ async function buildFocusedContext(propertyId, intent, existingSummary) {
     // Property-wide scheduled events for calendar/scheduling questions
     const eventsRes = await db.query(
       `SELECT system_key, system_name, scheduled_date, scheduled_time, status
-       FROM maintenance_events
-       WHERE property_id = $1
+       FROM maintenance_events me
+       WHERE me.property_id = $1
+         AND ${MaintenanceEvent.sqlAudienceVisibleToRole("me", "$2")}
        ORDER BY scheduled_date ASC, scheduled_time ASC NULLS LAST
        LIMIT 20`,
-      [propertyId]
+      [propertyId, viewerRole || ""]
     );
     if (eventsRes.rows.length > 0) {
       const today = new Date().toISOString().slice(0, 10);
@@ -193,10 +195,11 @@ async function buildFocusedContext(propertyId, intent, existingSummary) {
 
     for (const sysKey of intent.systems) {
       const eventsRes = await db.query(
-        `SELECT system_name, scheduled_date, status FROM maintenance_events
-         WHERE property_id = $1 AND (system_key = $2 OR system_key ILIKE $2)
+        `SELECT system_name, scheduled_date, status FROM maintenance_events me
+         WHERE me.property_id = $1 AND (me.system_key = $2 OR me.system_key ILIKE $2)
+           AND ${MaintenanceEvent.sqlAudienceVisibleToRole("me", "$3")}
          ORDER BY scheduled_date DESC LIMIT 3`,
-        [propertyId, sysKey]
+        [propertyId, sysKey, viewerRole || ""]
       );
       if (eventsRes.rows.length > 0) {
         parts.push(`${sysKey} events: ${eventsRes.rows.map((e) => `${e.system_name} (${e.scheduled_date}, ${e.status})`).join("; ")}`);
