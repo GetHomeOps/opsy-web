@@ -573,6 +573,7 @@
   "responsiblePlaceholder": "Introduce el responsable",
   "responsibleValidationErrorMessage": "El responsable es obligatorio",
   "resendInvitationEmail": "Reenviar correo de invitación",
+  "resendPasswordResetLink": "Reenviar enlace de restablecimiento de contraseña",
   "sending": "Enviando...",
   "invitationAccountMissing": "No se pudo determinar una cuenta desde la cual enviar la invitación.",
   "sendInvitationEmailOnCreate": "Enviar correo de invitación al crear",

@@ -826,6 +826,49 @@ function UsersFormContainer() {
     }
   }
 
+  async function sendUserPasswordReset(user) {
+    const userId = user?.id || state.user?.id;
+    const email = (
+      user?.email ||
+      state.user?.email ||
+      state.formData?.email ||
+      ""
+    ).trim();
+    if (!userId) return;
+
+    setResendingPasswordReset(true);
+    try {
+      const result = await AppApi.sendUserPasswordReset(userId);
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message:
+            result?.message ||
+            (email
+              ? `Password reset email sent to ${email}.`
+              : "Password reset email sent."),
+        },
+      });
+    } catch (error) {
+      console.error("Error sending password reset:", error);
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message:
+            getApiErrorMessage(error, "Failed to send password reset email") ||
+            error?.message ||
+            "Failed to send password reset email",
+        },
+      });
+    } finally {
+      setResendingPasswordReset(false);
+    }
+  }
+
   const isPendingUser =
     state.user && !(state.user.isActive || state.user.is_active);
 
@@ -1647,6 +1690,7 @@ function UsersFormContainer() {
   const [agentPropertyCount, setAgentPropertyCount] = useState(0);
   const [agentPropertyUids, setAgentPropertyUids] = useState([]);
   const [resendingInvitation, setResendingInvitation] = useState(false);
+  const [resendingPasswordReset, setResendingPasswordReset] = useState(false);
   const [agencyOptions, setAgencyOptions] = useState([]);
   const [officeOptions, setOfficeOptions] = useState([]);
   const [teamOptions, setTeamOptions] = useState([]);
@@ -2293,6 +2337,12 @@ function UsersFormContainer() {
                     : undefined
                 }
                 resendingInvitation={resendingInvitation}
+                onResendPasswordReset={
+                  !isPendingUser
+                    ? () => sendUserPasswordReset(state.user)
+                    : undefined
+                }
+                resendingPasswordReset={resendingPasswordReset}
                 align="right"
               />
             )}

@@ -15,6 +15,7 @@
  * - PATCH /:id: Update user profile (self or platform admin)
  * - DELETE /:id: Remove user (super admin)
  * - POST /activate/:userId: Activate user (super admin)
+ * - POST /:userId/send-password-reset: Send password reset email (platform admin)
  */
 
 const express = require("express");
@@ -47,6 +48,7 @@ const {
   enqueueDemoProvision,
   getProvisionStatus,
 } = require("../services/demoProvisionQueue");
+const { requestPasswordReset } = require("../services/passwordResetService");
 
 const router = express.Router();
 const DEMO_HOMEOWNER_RESET_EMAIL = "hello-homeowner@heyopsy.com";
@@ -488,6 +490,35 @@ router.get("/:userId/provision-status", ensureLoggedIn, ensurePlatformAdmin, asy
       error: status.error,
       startedAt: status.startedAt,
       completedAt: status.completedAt,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** POST /:userId/send-password-reset — Platform admin sends a password reset email
+ *  to an active user. Pending users should receive an invitation instead. */
+router.post("/:userId/send-password-reset", ensureLoggedIn, ensurePlatformAdmin, async function (req, res, next) {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    if (!Number.isFinite(userId)) {
+      throw new BadRequestError("Invalid user id");
+    }
+    const user = await User.getById(userId);
+    if (!user) {
+      throw new NotFoundError(`No user: ${userId}`);
+    }
+    const isActive = user.isActive === true || user.is_active === true;
+    if (!isActive) {
+      throw new BadRequestError("User is not active. Send an invitation instead.");
+    }
+    if (!user.email) {
+      throw new BadRequestError("User does not have an email address.");
+    }
+    await requestPasswordReset(user.email);
+    return res.json({
+      success: true,
+      message: `Password reset email sent to ${user.email}.`,
     });
   } catch (err) {
     return next(err);

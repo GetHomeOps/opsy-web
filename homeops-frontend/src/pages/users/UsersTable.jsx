@@ -168,6 +168,8 @@ function UsersTable({
   onReconcileBilling,
   onResendInvitation,
   resendingInvitationUserId,
+  onResendPasswordReset,
+  resendingPasswordResetUserId,
   showDemoExpiry = false,
 }) {
   const {t} = useTranslation();
@@ -514,6 +516,8 @@ function UsersTable({
             onReconcileBilling={onReconcileBilling}
             onResendInvitation={onResendInvitation}
             resendingInvitation={resendingInvitationUserId === item.id}
+            onResendPasswordReset={onResendPasswordReset}
+            resendingPasswordReset={resendingPasswordResetUserId === item.id}
           />
         ),
       },
@@ -531,6 +535,8 @@ function UsersTable({
     onReconcileBilling,
     onResendInvitation,
     resendingInvitationUserId,
+    onResendPasswordReset,
+    resendingPasswordResetUserId,
   ]);
 
   // Custom item renderer

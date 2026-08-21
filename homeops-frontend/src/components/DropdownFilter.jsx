@@ -9,6 +9,8 @@ function DropdownFilter({
   onDuplicate,
   onResendInvitation,
   resendingInvitation = false,
+  onResendPasswordReset,
+  resendingPasswordReset = false,
 }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -61,6 +63,12 @@ function DropdownFilter({
     if (typeof onResendInvitation === "function") onResendInvitation();
   }
 
+  function handleResendPasswordReset(e) {
+    e.stopPropagation();
+    setDropdownOpen(false);
+    if (typeof onResendPasswordReset === "function") onResendPasswordReset();
+  }
+
   return (
     <div className="relative inline-flex">
       <button
@@ -77,7 +85,7 @@ function DropdownFilter({
       <Transition
         show={dropdownOpen}
         tag="div"
-        className={`origin-top-right z-10 absolute top-full left-0 right-auto min-w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 pt-1.5 rounded-lg shadow-xl overflow-hidden mt-1 ${
+        className={`origin-top-right z-10 absolute top-full left-0 right-auto min-w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 pt-1.5 rounded-lg shadow-xl overflow-hidden mt-1 ${
           align === "right"
             ? "md:left-auto md:right-0"
             : "md:left-0 md:right-auto"
@@ -99,7 +107,7 @@ function DropdownFilter({
                 <button
                   type="button"
                   disabled={resendingInvitation}
-                  className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full flex items-start text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
                   onClick={handleResendInvitation}
                 >
                   <svg
@@ -112,16 +120,49 @@ function DropdownFilter({
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="text-[#456564] dark:text-[#8fa3a2]"
+                    className="shrink-0 mt-0.5 text-[#456564] dark:text-[#8fa3a2]"
                   >
                     <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                     <path d="M3 7a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-10" />
                     <path d="M3 7l9 6l9 -6" />
                   </svg>
-                  <span className="text-sm font-medium ml-2">
+                  <span className="text-sm font-medium ml-2 min-w-0 text-left">
                     {resendingInvitation
                       ? t("sending") || "Sending..."
                       : t("resendInvitationEmail") || "Resend invitation email"}
+                  </span>
+                </button>
+              </li>
+            )}
+            {typeof onResendPasswordReset === "function" && (
+              <li>
+                <button
+                  type="button"
+                  disabled={resendingPasswordReset}
+                  className="w-full flex items-start text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={handleResendPasswordReset}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0 mt-0.5 text-[#456564] dark:text-[#8fa3a2]"
+                  >
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.932 -.932l-6.027 6.027a2 2 0 0 1 -1.262 .548l-.872 .002v-2.828a2 2 0 0 1 .53 -1.382l6.027 -6.027l-.932 -.932a2.877 2.877 0 0 1 0 -4.069z" />
+                    <path d="M15 9h.01" />
+                  </svg>
+                  <span className="text-sm font-medium ml-2 min-w-0 text-left">
+                    {resendingPasswordReset
+                      ? t("sending") || "Sending..."
+                      : t("resendPasswordResetLink") ||
+                        "Resend password reset link"}
                   </span>
                 </button>
               </li>
@@ -130,7 +171,7 @@ function DropdownFilter({
               <li>
                 <button
                   type="button"
-                  className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
+                  className="w-full flex items-start text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
                   onClick={handleDuplicate}
                 >
                   <svg
@@ -156,7 +197,7 @@ function DropdownFilter({
             {typeof onDelete === "function" && (
               <li>
                 <button
-                  className="w-full flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
+                  className="w-full flex items-start text-left cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2"
                   onClick={handleDelete}
                 >
                   <svg

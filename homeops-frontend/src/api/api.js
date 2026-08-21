@@ -709,6 +709,11 @@ class AppApi {
     return this.request(`auth/forgot-password`, { email }, "POST");
   }
 
+  /** Platform admin: send a password reset email to an active user. */
+  static async sendUserPasswordReset(userId) {
+    return this.request(`users/${userId}/send-password-reset`, {}, "POST");
+  }
+
   static async resetPassword(token, newPassword) {
     return this.request(`auth/reset-password`, { token, newPassword }, "POST");
   }

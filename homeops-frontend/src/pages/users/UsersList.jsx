@@ -199,6 +199,8 @@ function UsersList() {
   const [impersonateTarget, setImpersonateTarget] = useState(null);
   const [resendingInvitationUserId, setResendingInvitationUserId] =
     useState(null);
+  const [resendingPasswordResetUserId, setResendingPasswordResetUserId] =
+    useState(null);
   const [sendPendingInvitesOpen, setSendPendingInvitesOpen] = useState(false);
   const isPlatformAdmin = isAdminRole(currentUser?.role);
   const listScopeId = accountUrl ? `users:${accountUrl}` : "";
@@ -660,6 +662,41 @@ function UsersList() {
       });
     } finally {
       setResendingInvitationUserId(null);
+    }
+  }
+
+  async function handleResendPasswordReset(user) {
+    const email = user?.email;
+    if (!user?.id) return;
+    setResendingPasswordResetUserId(user.id);
+    try {
+      const result = await AppApi.sendUserPasswordReset(user.id);
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "success",
+          message:
+            result?.message ||
+            (email
+              ? `Password reset email sent to ${email}.`
+              : "Password reset email sent."),
+        },
+      });
+    } catch (error) {
+      dispatch({
+        type: "SET_BANNER",
+        payload: {
+          open: true,
+          type: "error",
+          message: getApiErrorMessage(
+            error,
+            "Failed to send password reset email. Please try again.",
+          ),
+        },
+      });
+    } finally {
+      setResendingPasswordResetUserId(null);
     }
   }
 
@@ -1134,6 +1171,8 @@ function UsersList() {
                 onReconcileBilling={handleReconcileBilling}
                 onResendInvitation={handleResendInvitation}
                 resendingInvitationUserId={resendingInvitationUserId}
+                onResendPasswordReset={handleResendPasswordReset}
+                resendingPasswordResetUserId={resendingPasswordResetUserId}
                 showDemoExpiry={isDemoSite()}
               />
               {/* Pagination */}
@@ -1151,9 +1190,14 @@ function UsersList() {
             </>
           </div>
         </main>
-      
-  
-    </>
-  );
+
+        <SendPendingInvitationsModal
+          modalOpen={sendPendingInvitesOpen}
+          setModalOpen={setSendPendingInvitesOpen}
+          currentAccount={currentAccount}
+          invitationType="account"
+        />
+      </>
+    );
 }
 export default UsersList;

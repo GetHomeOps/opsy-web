@@ -574,6 +574,7 @@
   "responsibleValidationErrorMessage": "Responsible is required",
   "results": "results",
   "resendInvitationEmail": "Resend invitation email",
+  "resendPasswordResetLink": "Resend password reset link",
   "sending": "Sending...",
   "invitationAccountMissing": "Could not determine an account to send the invitation from.",
   "sendInvitationEmailOnCreate": "Send invitation email on create",

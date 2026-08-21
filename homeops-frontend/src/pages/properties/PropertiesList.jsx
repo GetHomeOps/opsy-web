@@ -1383,10 +1383,14 @@ function PropertiesList() {
               )}
           </div>
         </main>
-      
-  
-    </>
-  );
+
+        <SendPendingInvitationsModal
+          modalOpen={sendPendingInvitesOpen}
+          setModalOpen={setSendPendingInvitesOpen}
+          currentAccount={currentAccount}
+        />
+      </>
+    );
 }
 
 export default PropertiesList;
