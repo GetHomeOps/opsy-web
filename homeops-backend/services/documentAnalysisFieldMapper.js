@@ -9,7 +9,12 @@ const { randomUUID } = require("crypto");
 const {
   getSystemCatalog,
   getSchemaField,
+  isIdentityFieldKey,
+  resolveIdentityField,
 } = require("./documentAnalysisSystemCatalog");
+const { canProposePropertyIdentity } = require("./documentAnalysisClassification");
+
+const IDENTITY_MIN_CONFIDENCE = 0.6;
 
 const CATEGORY_LABELS = {
   installation_invoice: "Installation / Invoice",
@@ -305,6 +310,162 @@ function isEmptyValue(value) {
   return false;
 }
 
+function isIdentityColumnBlank(value, valueType) {
+  if (isEmptyValue(value)) return true;
+  if (
+    (valueType === "integer" || valueType === "number") &&
+    Number(value) === 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function coerceIdentityValue(raw, valueType) {
+  if (raw == null || raw === "") return null;
+  if (valueType === "integer") {
+    const n = parseInt(String(raw).replace(/[^\d-]/g, ""), 10);
+    return Number.isFinite(n) && n !== 0 ? n : null;
+  }
+  if (valueType === "number") {
+    const n = Number(String(raw).replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) && n !== 0 ? n : null;
+  }
+  const text = typeof raw === "string" ? raw.trim() : formatValueForStorage(raw);
+  return text || null;
+}
+
+function namespaceIdentityFindings(findings, category) {
+  const items = normalizeFindings(findings);
+  if (!canProposePropertyIdentity(category)) {
+    return items.filter((item) => !isIdentityFieldKey(item.fieldKey || item.key));
+  }
+  return items.map((item) => {
+    const key = item.fieldKey || item.key;
+    const identity = resolveIdentityField(key);
+    if (!identity) return item;
+    return {
+      ...item,
+      fieldKey: identity.fieldKey,
+      label: item.label && item.label !== key ? item.label : identity.label,
+    };
+  });
+}
+
+/**
+ * Review rows for invoice-derived property identity fields.
+ * Preselects only currently blank identity columns with sufficient confidence.
+ */
+function buildIdentityReviewFields(findings, propertyRow, options = {}) {
+  const minConfidence = options.minConfidence ?? IDENTITY_MIN_CONFIDENCE;
+  const sourceDocumentName = options.documentName || null;
+  const seen = new Set();
+  const rows = [];
+
+  for (const item of normalizeFindings(findings)) {
+    const fieldKey = item.fieldKey || item.key;
+    const spec = resolveIdentityField(fieldKey);
+    if (!spec || seen.has(spec.fieldKey)) continue;
+    seen.add(spec.fieldKey);
+
+    const proposedValue = coerceIdentityValue(item.value, spec.valueType);
+    if (proposedValue == null) continue;
+
+    const currentValue = propertyRow?.[spec.column];
+    const blank = isIdentityColumnBlank(currentValue, spec.valueType);
+    const hasConflict = !blank && !valuesEqual(currentValue, proposedValue);
+    const confidence = item.confidence ?? null;
+    const confidentEnough =
+      confidence == null || Number(confidence) >= minConfidence;
+
+    rows.push({
+      fieldKey: spec.fieldKey,
+      label: spec.label,
+      proposedValue,
+      mappedValue: proposedValue,
+      mappedDisplayValue: null,
+      confidence,
+      evidence: item.evidence ?? null,
+      destination: "property_identity",
+      destinationLabel: "Property identity",
+      systemDataKey: spec.column,
+      propertyKey: spec.propertyKey,
+      currentValue: blank ? null : currentValue,
+      hasConflict,
+      selectedByDefault: blank && confidentEnough,
+      canCreateInstallerContact: false,
+      contactDetails: null,
+      contactDetailsPreview: null,
+      formFieldHint: "Property identity",
+      sourceDocumentName,
+    });
+  }
+
+  return rows;
+}
+
+function mergeSelectedIdentityFields(
+  findings,
+  selectedFieldKeys,
+  propertyRow,
+  options = {},
+) {
+  const selected = new Set(selectedFieldKeys || []);
+  const fieldOverrides = options.fieldOverrides || {};
+  const source = options.source || {};
+  const columns = {};
+  const applied = [];
+
+  if (!canProposePropertyIdentity(options.category)) {
+    return { columns, applied };
+  }
+
+  for (const item of normalizeFindings(findings)) {
+    const fieldKey = item.fieldKey || item.key;
+    const spec = resolveIdentityField(fieldKey);
+    if (!spec || (!selected.has(spec.fieldKey) && !selected.has(fieldKey))) continue;
+
+    const rawValue = getItemValue(
+      { ...item, fieldKey: spec.fieldKey },
+      fieldOverrides,
+    );
+    const stored = coerceIdentityValue(rawValue, spec.valueType);
+    if (stored == null) continue;
+
+    columns[spec.column] = stored;
+    applied.push({
+      fieldKey: spec.fieldKey,
+      label: spec.label,
+      systemDataKey: spec.column,
+      destination: "property_identity",
+      propertyKey: spec.propertyKey,
+      value: stored,
+      source: {
+        propertyDocumentId: source.propertyDocumentId || null,
+        documentName: source.documentName || null,
+        documentKey: source.documentKey || null,
+        analysisResultId: source.analysisResultId || null,
+      },
+    });
+  }
+
+  return { columns, applied };
+}
+
+function snapshotQuoteFields(findings = []) {
+  return normalizeFindings(findings)
+    .map((item) => {
+      const fieldKey = item.fieldKey || item.key;
+      if (!fieldKey) return null;
+      return {
+        fieldKey,
+        label: item.label || formatFieldLabel(fieldKey),
+        value: item.value ?? null,
+      };
+    })
+    .filter(Boolean);
+}
+
 function parseWarrantyYesNo(value) {
   const s = String(value ?? "").trim().toLowerCase();
   if (!s) return null;
@@ -510,7 +671,10 @@ function buildReviewFields(systemKey, findings, systemRow, options = {}) {
   const contactDetailsPreview = formatInstallerContactDetailsPreview(contactDetails);
 
   return normalizeFindings(findings)
-    .filter((item) => !isInstallerContactSidecarKey(item.fieldKey || item.key))
+    .filter((item) => {
+      const key = item.fieldKey || item.key;
+      return !isInstallerContactSidecarKey(key) && !isIdentityFieldKey(key);
+    })
     .map((item) => {
     const fieldKey = item.fieldKey || item.key || "unknown";
     const dest = resolveDestination(fieldKey, item.value, catalog, contacts);
@@ -654,6 +818,7 @@ function mergeSelectedFields(findings, selectedFieldKeys, systemRow, options = {
     const fieldKey = item.fieldKey || item.key;
     if (!fieldKey || !selected.has(fieldKey)) continue;
     if (isInstallerContactSidecarKey(fieldKey)) continue;
+    if (isIdentityFieldKey(fieldKey)) continue;
 
     const rawValue = getItemValue(item, fieldOverrides);
     if (rawValue == null || rawValue === "") continue;
@@ -738,8 +903,20 @@ function mergeSelectedFields(findings, selectedFieldKeys, systemRow, options = {
 }
 
 function formatResultForApi(row, systemRow, options = {}) {
-  const findings = normalizeFindings(row.findings);
+  const findings = namespaceIdentityFindings(
+    row.findings,
+    row.detected_category,
+  );
   const documentName = row.document_name || options.documentName || null;
+  const systemReview = buildReviewFields(row.system_key, findings, systemRow, {
+    contacts: options.contacts,
+    documentName,
+  });
+  const identityReview = canProposePropertyIdentity(row.detected_category)
+    ? buildIdentityReviewFields(findings, options.property || null, {
+        documentName,
+      })
+    : [];
   return {
     id: row.id,
     jobId: row.job_id,
@@ -749,10 +926,7 @@ function formatResultForApi(row, systemRow, options = {}) {
     detectedCategory: row.detected_category,
     categoryLabel: CATEGORY_LABELS[row.detected_category] || row.detected_category,
     findings,
-    reviewFields: buildReviewFields(row.system_key, findings, systemRow, {
-      contacts: options.contacts,
-      documentName,
-    }),
+    reviewFields: [...identityReview, ...systemReview],
     reviewStatus: row.review_status,
     appliedFields: row.applied_fields || [],
     documentName,
@@ -766,10 +940,16 @@ function formatResultForApi(row, systemRow, options = {}) {
 
 module.exports = {
   CATEGORY_LABELS,
+  IDENTITY_MIN_CONFIDENCE,
   buildReviewFields,
+  buildIdentityReviewFields,
   mergeSelectedFields,
+  mergeSelectedIdentityFields,
+  namespaceIdentityFindings,
+  isIdentityColumnBlank,
   formatResultForApi,
   normalizeFindings,
   formatFieldLabel,
   collectInstallerContactDetails,
+  snapshotQuoteFields,
 };

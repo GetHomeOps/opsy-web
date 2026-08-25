@@ -31,6 +31,7 @@ import {
   collectAddableSystemsFromAnalysis,
 } from "./helpers/suggestedSystemsHelpers";
 import {toDisplaySystemName} from "./helpers/aiSystemNormalization";
+import { emitOpenDocumentFindings } from "./helpers/documentAnalysisFlow";
 import {
   getConditionFieldName,
   getCurrentConditionValue,
@@ -50,7 +51,6 @@ import Tooltip from "../../utils/Tooltip";
 import AIAssistantSidebar from "./partials/AIAssistantSidebar";
 import {getPropertyAssistantHeaderLines} from "./helpers/propertyAssistantHeader";
 import AIReanalysisAuditModal from "./partials/AIReanalysisAuditModal";
-import SystemDocumentFindingsModal from "./partials/SystemDocumentFindingsModal";
 import {useDocumentAnalysisCounts} from "../../hooks/useDocumentAnalysisCounts";
 import {
   SystemsOverviewTable,
@@ -120,6 +120,7 @@ function SystemsTab({
   propertyIdFallback,
   handleInputChange,
   onSilentSystemsUpdate,
+  onDocumentAnalysisApplied,
   visibleSystemIds,
   customSystemsData = {},
   systems = [],
@@ -204,7 +205,6 @@ function SystemsTab({
 
   const documentAnalysisCounts = useDocumentAnalysisCounts(propertyId);
   const [checklistItems, setChecklistItems] = useState([]);
-  const [documentFindingsModal, setDocumentFindingsModal] = useState(null);
 
   const loadChecklistItems = useCallback(async () => {
     if (!propertyId) {
@@ -238,9 +238,17 @@ function SystemsTab({
       );
   }, [loadChecklistItems]);
 
-  const handleOpenDocumentFindings = useCallback((systemKey, systemLabel) => {
-    setDocumentFindingsModal({systemKey, systemLabel});
-  }, []);
+  const handleOpenDocumentFindings = useCallback(
+    (systemKey, systemLabel, options = {}) => {
+      emitOpenDocumentFindings(propertyId, {
+        systemKey,
+        systemLabel,
+        categoryFilter: options.categoryFilter || null,
+        initialCategory: options.initialCategory || options.categoryFilter || "bid",
+      });
+    },
+    [propertyId],
+  );
 
   const [aiAuditModalOpen, setAiAuditModalOpen] = useState(false);
   const [systemEventsModalOpen, setSystemEventsModalOpen] = useState(false);
@@ -944,15 +952,6 @@ function SystemsTab({
         isOpen={aiAuditModalOpen}
         onClose={() => setAiAuditModalOpen(false)}
         propertyId={propertyId}
-      />
-
-      <SystemDocumentFindingsModal
-        open={!!documentFindingsModal}
-        onClose={() => setDocumentFindingsModal(null)}
-        propertyId={propertyId}
-        systemKey={documentFindingsModal?.systemKey}
-        systemLabel={documentFindingsModal?.systemLabel}
-        onSystemsUpdated={onSilentSystemsUpdate}
       />
 
       <ModalBlank

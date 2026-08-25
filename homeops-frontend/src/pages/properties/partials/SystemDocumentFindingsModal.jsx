@@ -17,14 +17,7 @@ import {
   isLineItemsField,
   LineItemsList,
 } from "./documents/documentAnalysisModalShared";
-
-const CATEGORY_TABS = [
-  { id: "bid", label: "Bids" },
-  { id: "maintenance_report", label: "Maintenance" },
-  { id: "inspection_report", label: "Inspection" },
-  { id: "installation_invoice", label: "Installation" },
-  { id: "other", label: "Other" },
-];
+import { resolveFindingsModalConfig, pickQuoteSummary } from "../helpers/documentAnalysisUi";
 
 function resolveCategory(item) {
   return item.detectedCategory || "other";
@@ -41,8 +34,13 @@ function SystemDocumentFindingsModal({
   systemKey,
   systemLabel,
   onSystemsUpdated,
+  initialCategory = "bid",
+  categoryFilter = null,
 }) {
-  const [activeTab, setActiveTab] = useState("bid");
+  const modalConfig = resolveFindingsModalConfig({ categoryFilter, systemLabel });
+  const [activeTab, setActiveTab] = useState(
+    categoryFilter || initialCategory || "bid",
+  );
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
   const [pendingItems, setPendingItems] = useState([]);
@@ -85,6 +83,10 @@ function SystemDocumentFindingsModal({
   }, [open, load]);
 
   useEffect(() => {
+    if (open) setActiveTab(categoryFilter || initialCategory || "bid");
+  }, [open, categoryFilter, initialCategory]);
+
+  useEffect(() => {
     if (!open || typeof window === "undefined") return;
     const handler = (e) => {
       if (String(e.detail?.propertyId) === String(propertyId)) load();
@@ -106,18 +108,20 @@ function SystemDocumentFindingsModal({
   );
 
   const itemsByCategory = useMemo(() => {
-    const map = new Map(CATEGORY_TABS.map((tab) => [tab.id, []]));
+    const map = new Map(modalConfig.tabs.map((tab) => [tab.id, []]));
     for (const item of allItems) {
       const cat = resolveCategory(item);
+      if (categoryFilter && cat !== categoryFilter) continue;
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat).push(item);
     }
     return map;
-  }, [allItems]);
+  }, [allItems, modalConfig.tabs, categoryFilter]);
 
   const visibleTabs = useMemo(
-    () => CATEGORY_TABS.filter((tab) => (itemsByCategory.get(tab.id)?.length ?? 0) > 0),
-    [itemsByCategory],
+    () =>
+      modalConfig.tabs.filter((tab) => (itemsByCategory.get(tab.id)?.length ?? 0) > 0),
+    [itemsByCategory, modalConfig.tabs],
   );
 
   useEffect(() => {
@@ -135,7 +139,11 @@ function SystemDocumentFindingsModal({
     (item) => item.reviewStatus !== "pending_review",
   );
 
-  const totalCount = items.length + pendingItems.length;
+  const totalCount = useMemo(() => {
+    if (!categoryFilter) return allItems.length;
+    return allItems.filter((item) => resolveCategory(item) === categoryFilter)
+      .length;
+  }, [allItems, categoryFilter]);
 
   const handleReviewPending = useCallback(
     async (item) => {
@@ -242,6 +250,78 @@ function SystemDocumentFindingsModal({
     });
   }
 
+  function renderQuoteCard(item) {
+    const isPending = item.reviewStatus === "pending_review";
+    const quote = pickQuoteSummary(item);
+    return (
+      <div
+        key={item.id}
+        className="rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+      >
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+            {item.documentName || "Quote"}
+          </p>
+          <span
+            className={`text-[10px] uppercase tracking-wide shrink-0 ${
+              isPending
+                ? "text-amber-600 dark:text-amber-400"
+                : "text-[#456564]"
+            }`}
+          >
+            {isPending ? "Pending review" : "Saved"}
+          </span>
+        </div>
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-gray-600 dark:text-gray-400">
+          <div className="col-span-2">
+            <dt className="text-[10px] uppercase tracking-wide text-gray-400">
+              Contractor
+            </dt>
+            <dd className="text-sm text-gray-900 dark:text-gray-100">
+              {formatValue(quote.installer, "installer", "Contractor") || "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[10px] uppercase tracking-wide text-gray-400">
+              Total
+            </dt>
+            <dd className="text-sm font-medium text-gray-900 dark:text-gray-100">
+              {formatValue(quote.total, "totalPrice", "Total") || "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[10px] uppercase tracking-wide text-gray-400">
+              Valid until
+            </dt>
+            <dd className="text-sm text-gray-900 dark:text-gray-100">
+              {formatValue(quote.validUntil, "validUntil", "Valid until") || "—"}
+            </dd>
+          </div>
+        </dl>
+        {quote.lineItems != null && quote.lineItems !== "" && (
+          <div className="mt-2">
+            <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">
+              Line items
+            </p>
+            <LineItemsList items={quote.lineItems} />
+          </div>
+        )}
+        {isPending && (
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+            <button
+              type="button"
+              onClick={() => handleReviewPending(item)}
+              className="btn-sm btn-primary-outline flex items-center gap-1.5 px-3 py-1.5 text-xs"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Review
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function renderDocumentCard(item, { compact = false } = {}) {
     const isPending = item.reviewStatus === "pending_review";
     return (
@@ -299,10 +379,10 @@ function SystemDocumentFindingsModal({
               <OpsyModalIcon />
               <div className="min-w-0">
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                  AI document insights
+                  {modalConfig.title}
                 </h2>
                 <p className="text-xs text-gray-500 truncate">
-                  {systemLabel || systemKey}
+                  {modalConfig.description || systemLabel || systemKey}
                   {totalCount
                     ? ` · ${totalCount} document${totalCount === 1 ? "" : "s"}`
                     : ""}
@@ -351,7 +431,11 @@ function SystemDocumentFindingsModal({
               </div>
             )}
             {!loading && totalCount === 0 && (
-              <DocumentAnalysisEmptyState systemLabel={systemLabel || systemKey} />
+              <DocumentAnalysisEmptyState
+                title={modalConfig.emptyTitle}
+                description={modalConfig.emptyDescription}
+                systemLabel={systemLabel || systemKey}
+              />
             )}
 
             {!loading && totalCount > 0 && (
@@ -368,7 +452,11 @@ function SystemDocumentFindingsModal({
                           Pending review
                         </h3>
                         <div className="space-y-3">
-                          {activePendingItems.map((item) => renderDocumentCard(item))}
+                          {activePendingItems.map((item) =>
+                            categoryFilter === "bid"
+                              ? renderQuoteCard(item)
+                              : renderDocumentCard(item),
+                          )}
                         </div>
                       </div>
                     )}
@@ -380,7 +468,11 @@ function SystemDocumentFindingsModal({
                           </h3>
                         )}
                         <div className="space-y-3">
-                          {activeAppliedItems.map((item) => renderDocumentCard(item))}
+                          {activeAppliedItems.map((item) =>
+                            categoryFilter === "bid"
+                              ? renderQuoteCard(item)
+                              : renderDocumentCard(item, { compact: true }),
+                          )}
                         </div>
                       </div>
                     )}

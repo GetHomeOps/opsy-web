@@ -3,16 +3,20 @@ import DocumentAnalysisPromptModal from "./documents/DocumentAnalysisPromptModal
 import InspectionOpsymizationPromptModal from "./documents/InspectionOpsymizationPromptModal";
 import PendingAnalysisBanner from "./documents/PendingAnalysisBanner";
 import DocumentAnalysisResultsModal from "./documents/DocumentAnalysisResultsModal";
+import SystemDocumentFindingsModal from "./SystemDocumentFindingsModal";
 import { useDocumentAnalysis } from "../../../hooks/useDocumentAnalysis";
 import {
   DOCUMENT_ANALYSIS_FILED_EVENT,
   REQUEST_DOCUMENT_ANALYSIS_EVENT,
   REOPEN_DOCUMENT_ANALYSIS_EVENT,
+  OPEN_DOCUMENT_FINDINGS_EVENT,
   emitDocumentsFiled,
+  emitOpenDocumentFindings,
   emitRequestInspectionOpsymization,
   isLikelyInspectionReport,
   toFiledDocumentForAnalysis,
 } from "../helpers/documentAnalysisFlow";
+import { resolveDeclaredAnalysisCategory } from "../helpers/documentAnalysisUi";
 import {canUseAiOnDemo} from "../../../utils/demoSite";
 import ContactContext from "../../../context/ContactContext";
 
@@ -36,6 +40,7 @@ function DocumentAnalysisOrchestrator({
   const [promptBusy, setPromptBusy] = useState(false);
   const [opsymizationBusy, setOpsymizationBusy] = useState(false);
   const [promptSource, setPromptSource] = useState(null);
+  const [findingsModal, setFindingsModal] = useState(null);
   const { refreshContacts } = useContext(ContactContext) || {};
 
   const analysis = useDocumentAnalysis(propertyId);
@@ -73,6 +78,29 @@ function DocumentAnalysisOrchestrator({
       setOpsymizationPromptOpen(false);
     }
   }, []);
+
+  const openFindingsModal = useCallback(
+    ({ systemKey, systemLabel, categoryFilter = null, initialCategory = null }) => {
+      if (!systemKey) return;
+      setFindingsModal({
+        systemKey,
+        systemLabel: systemLabel || systemLabelFor(systemKey),
+        categoryFilter,
+        initialCategory: initialCategory || categoryFilter || "bid",
+      });
+    },
+    [systemLabelFor],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !propertyId) return;
+    const handler = (e) => {
+      if (String(e.detail?.propertyId) !== String(propertyId)) return;
+      openFindingsModal(e.detail || {});
+    };
+    window.addEventListener(OPEN_DOCUMENT_FINDINGS_EVENT, handler);
+    return () => window.removeEventListener(OPEN_DOCUMENT_FINDINGS_EVENT, handler);
+  }, [propertyId, openFindingsModal]);
 
   const enqueueDocuments = useCallback((documents) => {
     const normalized = (documents || []).filter((d) => d?.id);
@@ -236,14 +264,15 @@ function DocumentAnalysisOrchestrator({
     }
   }, [currentDoc, propertyId, clearCurrentDoc]);
 
-  const handleAnalyze = useCallback(async () => {
+  const handleAnalyze = useCallback(async (selectedCategory) => {
     if (!currentDoc?.id) return;
+    const category = resolveDeclaredAnalysisCategory(selectedCategory);
     setPromptBusy(true);
     setPromptOpen(false);
     setResultsOpen(true);
     setQueue((prev) => prev.filter((d) => d.id !== currentDoc.id));
     analysis.reset();
-    const result = await analysis.startAnalysis(currentDoc.id);
+    const result = await analysis.startAnalysis(currentDoc.id, { category });
     setPromptBusy(false);
 
     if (result?.detectedCategory === "inspection_report") {
@@ -262,7 +291,7 @@ function DocumentAnalysisOrchestrator({
     async (resultId, selectedFieldKeys, fieldOverrides, createContactFieldKeys) => {
       setApplying(true);
       try {
-        await analysis.applySelected(
+        const applied = await analysis.applySelected(
           resultId,
           selectedFieldKeys,
           fieldOverrides,
@@ -272,12 +301,31 @@ function DocumentAnalysisOrchestrator({
         await onSystemsUpdated?.();
         setResultsOpen(false);
         analysis.reset();
-        if (currentDoc) clearCurrentDoc(currentDoc.id);
+        const savedDoc = currentDoc;
+        if (savedDoc) clearCurrentDoc(savedDoc.id);
+        if (applied?.result?.detectedCategory === "bid" && savedDoc) {
+          emitOpenDocumentFindings(propertyId, {
+            systemKey: savedDoc.system_key || applied.result.systemKey,
+            systemLabel: systemLabelFor(
+              savedDoc.system_key || applied.result.systemKey,
+            ),
+            categoryFilter: "bid",
+            initialCategory: "bid",
+          });
+        }
       } finally {
         setApplying(false);
       }
     },
-    [analysis, onSystemsUpdated, currentDoc, clearCurrentDoc, refreshContacts],
+    [
+      analysis,
+      onSystemsUpdated,
+      currentDoc,
+      clearCurrentDoc,
+      refreshContacts,
+      propertyId,
+      systemLabelFor,
+    ],
   );
 
   const handleReject = useCallback(
@@ -345,7 +393,29 @@ function DocumentAnalysisOrchestrator({
         onApply={handleApply}
         onReject={handleReject}
         onOpenDocument={onOpenDocument}
+        onViewQuotes={() => {
+          const systemKey =
+            currentDoc?.system_key || analysis.result?.systemKey;
+          if (!propertyId || !systemKey) return;
+          emitOpenDocumentFindings(propertyId, {
+            systemKey,
+            systemLabel: systemLabelFor(systemKey),
+            categoryFilter: "bid",
+            initialCategory: "bid",
+          });
+        }}
         applying={applying}
+      />
+
+      <SystemDocumentFindingsModal
+        open={!!findingsModal}
+        onClose={() => setFindingsModal(null)}
+        propertyId={propertyId}
+        systemKey={findingsModal?.systemKey}
+        systemLabel={findingsModal?.systemLabel}
+        initialCategory={findingsModal?.initialCategory}
+        categoryFilter={findingsModal?.categoryFilter}
+        onSystemsUpdated={onSystemsUpdated}
       />
     </>
   );

@@ -314,7 +314,8 @@ function failsAnySesVerdict(parsed) {
  */
 function guessDocumentType({ filename, subject }) {
   const text = `${filename || ""} ${subject || ""}`.toLowerCase();
-  if (/\binvoice|\binvoices\b|\binv\b/.test(text)) return "receipt";
+  if (/\bbid\b|\bquote\b|\bestimate\b|\bproposal\b/.test(text)) return "bid";
+  if (/\binvoice|\binvoices\b|\binv\b/.test(text)) return "invoice";
   if (/receipt/.test(text)) return "receipt";
   if (/contract|agreement/.test(text)) return "contract";
   if (/warranty/.test(text)) return "warranty";

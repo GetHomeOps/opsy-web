@@ -33,6 +33,34 @@ const EXTRA_FIELDS = [
   { fieldKey: "permitNumber", label: "Permit number" },
 ];
 
+/** Invoice-extractable property identity fields (camelCase keys from propertyStructure). */
+const IDENTITY_FIELDS = [
+  { fieldKey: "identity.address", propertyKey: "address", column: "address", label: "Address", valueType: "string" },
+  { fieldKey: "identity.city", propertyKey: "city", column: "city", label: "City", valueType: "string" },
+  { fieldKey: "identity.state", propertyKey: "state", column: "state", label: "State", valueType: "string" },
+  { fieldKey: "identity.zip", propertyKey: "zip", column: "zip", label: "ZIP", valueType: "string" },
+  { fieldKey: "identity.county", propertyKey: "county", column: "county", label: "County", valueType: "string" },
+  { fieldKey: "identity.taxId", propertyKey: "taxId", column: "tax_id", label: "Tax / Parcel ID", valueType: "string" },
+  { fieldKey: "identity.ownerName", propertyKey: "ownerName", column: "owner_name", label: "Owner Name", valueType: "string" },
+  { fieldKey: "identity.ownerName2", propertyKey: "ownerName2", column: "owner_name_2", label: "Owner Name 2", valueType: "string" },
+  { fieldKey: "identity.ownerCity", propertyKey: "ownerCity", column: "owner_city", label: "Owner City", valueType: "string" },
+  { fieldKey: "identity.ownerPhone", propertyKey: "ownerPhone", column: "owner_phone", label: "Owner Phone", valueType: "string" },
+  { fieldKey: "identity.occupantName", propertyKey: "occupantName", column: "occupant_name", label: "Occupant Name", valueType: "string" },
+  { fieldKey: "identity.propertyType", propertyKey: "propertyType", column: "property_type", label: "Property Type", valueType: "string" },
+  { fieldKey: "identity.roofType", propertyKey: "roofType", column: "roof_type", label: "Roof", valueType: "string" },
+  { fieldKey: "identity.yearBuilt", propertyKey: "yearBuilt", column: "year_built", label: "Year Built", valueType: "integer" },
+  { fieldKey: "identity.sqFtTotal", propertyKey: "sqFtTotal", column: "sq_ft_total", label: "Total (ft²)", valueType: "number" },
+];
+
+const IDENTITY_FIELD_BY_KEY = new Map(
+  IDENTITY_FIELDS.flatMap((field) => [
+    [field.fieldKey, field],
+    [field.propertyKey, field],
+    [field.column, field],
+    [`identity_${field.propertyKey}`, field],
+  ]),
+);
+
 function schemaField(fieldKey, dataKey, label, type, extra = {}) {
   return { fieldKey, dataKey, label, type, ...extra };
 }
@@ -194,6 +222,57 @@ function getSchemaFieldByDataKey(catalog, dataKey) {
   return catalog.schemaFields.find((f) => f.dataKey === dataKey) || null;
 }
 
+function isIdentityFieldKey(fieldKey) {
+  if (!fieldKey) return false;
+  const key = String(fieldKey).trim();
+  return key.startsWith("identity.") || IDENTITY_FIELD_BY_KEY.has(key);
+}
+
+function resolveIdentityField(fieldKey) {
+  if (!fieldKey) return null;
+  const key = String(fieldKey).trim();
+  if (IDENTITY_FIELD_BY_KEY.has(key)) return IDENTITY_FIELD_BY_KEY.get(key);
+  if (key.startsWith("identity.")) {
+    return IDENTITY_FIELD_BY_KEY.get(key) || null;
+  }
+  return null;
+}
+
+function getIdentityFields() {
+  return IDENTITY_FIELDS;
+}
+
+function categoryExtractionHints(category) {
+  if (category === "bid") {
+    return `This document is a bid, quote, estimate, or proposal.
+- Extract lineItems, totalPrice/cost, validUntil, termsAndConditions, and installer (issuing contractor).
+- Do not extract property identity fields (owner, tax ID, year built). Bids are not a source of truth for the property.`;
+  }
+  if (category === "installation_invoice") {
+    const identityLines = IDENTITY_FIELDS.map(
+      (f) => `- ${f.fieldKey}: ${f.label}`,
+    ).join("\n");
+    return `This document is an invoice or paid receipt and is a source of truth for the property.
+- Extract installer, cost, installDate, warranty, brand, model, serialNumber, and line items as usual.
+- Also extract property identity fields when clearly present on the invoice (job-site / service address, Bill To owner, parcel/tax ID, year built, square footage). Use these exact fieldKeys:
+${identityLines}
+- Prefer the job-site or service address over the contractor's office address.
+- Prefer Bill To / customer as ownerName, never the contractor.
+- Only include identity fields you can support with evidence.`;
+  }
+  if (category === "maintenance_report") {
+    return `This document is a maintenance or service report.
+- Extract technician, reportDate, nextServiceDate, findings, and work performed.
+- Do not treat this as a property identity source.`;
+  }
+  if (category === "inspection_report") {
+    return `This document is an inspection or condition report.
+- Extract condition, findings, reportDate, and recommended next steps.
+- Do not treat this as a property identity source.`;
+  }
+  return `Extract only facts clearly supported by the document. Do not invent property identity values.`;
+}
+
 function buildExtractionPrompt({ catalog, category, documentType }) {
   const systemLabel = catalog.label || catalog.systemKey || "system";
   const systemKey = catalog.systemKey || "general";
@@ -213,6 +292,7 @@ function buildExtractionPrompt({ catalog, category, documentType }) {
     .join("\n");
   const categoryHint = category ? ` (${String(category).replace(/_/g, " ")})` : "";
   const typeHint = documentType ? ` Document type hint: ${documentType}.` : "";
+  const categoryRules = categoryExtractionHints(category);
 
   return `Extract information relevant to the "${systemLabel}" (${systemKey}) home system from this document${categoryHint}.${typeHint}
 Output ONLY valid JSON:
@@ -222,6 +302,8 @@ Output ONLY valid JSON:
     { "fieldKey": "string", "label": "Human label", "value": "extracted value or array", "confidence": 0.0-1.0, "evidence": "short verbatim quote" }
   ]
 }
+
+${categoryRules}
 
 Prefer these system fields when the document supports them:
 ${schemaLines}
@@ -248,8 +330,12 @@ Do not invent values.`;
 module.exports = {
   CONDITION_OPTIONS,
   EXTRA_FIELDS,
+  IDENTITY_FIELDS,
   getSystemCatalog,
   getSchemaField,
   getSchemaFieldByDataKey,
+  getIdentityFields,
+  isIdentityFieldKey,
+  resolveIdentityField,
   buildExtractionPrompt,
 };

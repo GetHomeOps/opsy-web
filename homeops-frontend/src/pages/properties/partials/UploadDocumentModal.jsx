@@ -21,6 +21,8 @@ import { resolveUploadSystemKey } from "../helpers/systemKeyUtils";
 const documentTypes = [
   {id: "contract", label: "Contract"},
   {id: "warranty", label: "Warranty"},
+  {id: "invoice", label: "Invoice"},
+  {id: "bid", label: "Bid / Quote"},
   {id: "receipt", label: "Receipt"},
   {id: "inspection", label: "Inspection Report"},
   {id: "permit", label: "Permit"},

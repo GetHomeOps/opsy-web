@@ -6,6 +6,7 @@ export const DOCUMENT_ANALYSIS_UPDATED_EVENT = "document-analysis:updated";
 export const DOCUMENT_ANALYSIS_FILED_EVENT = "document-analysis:filed";
 export const REQUEST_DOCUMENT_ANALYSIS_EVENT = "document-analysis:request-analysis";
 export const REOPEN_DOCUMENT_ANALYSIS_EVENT = "document-analysis:reopen";
+export const OPEN_DOCUMENT_FINDINGS_EVENT = "document-analysis:open-findings";
 export const REQUEST_INSPECTION_OPSYMIZATION_EVENT =
   "document-analysis:request-opsymization";
 
@@ -83,6 +84,24 @@ export function emitRequestDocumentAnalysis(propertyId, document) {
   window.dispatchEvent(
     new CustomEvent(REQUEST_DOCUMENT_ANALYSIS_EVENT, {
       detail: { propertyId: String(propertyId), document: normalized },
+    }),
+  );
+}
+
+export function emitOpenDocumentFindings(
+  propertyId,
+  { systemKey, systemLabel, categoryFilter = null, initialCategory = null } = {},
+) {
+  if (typeof window === "undefined" || !propertyId || !systemKey) return;
+  window.dispatchEvent(
+    new CustomEvent(OPEN_DOCUMENT_FINDINGS_EVENT, {
+      detail: {
+        propertyId: String(propertyId),
+        systemKey,
+        systemLabel: systemLabel || null,
+        categoryFilter,
+        initialCategory: initialCategory || categoryFilter || null,
+      },
     }),
   );
 }

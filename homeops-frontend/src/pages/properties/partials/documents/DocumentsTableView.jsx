@@ -97,7 +97,12 @@ function DocumentRow({
 }) {
   const {attributes, listeners, setNodeRef, isDragging} = useDraggable({
     id: `filed:${doc.id}`,
-    data: {type: "filed", documentId: doc.id, currentSystemKey: doc.system},
+    data: {
+      type: "filed",
+      documentId: doc.id,
+      currentSystemKey: doc.system,
+      label: doc.name || doc.document_name || "Document",
+    },
   });
 
   const FileIcon = isImageDoc(doc) ? ImageIcon : FileText;

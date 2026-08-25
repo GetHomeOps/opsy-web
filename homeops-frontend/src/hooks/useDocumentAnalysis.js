@@ -71,7 +71,7 @@ export function useDocumentAnalysis(propertyId) {
   }, [propertyId]);
 
   const startAnalysis = useCallback(
-    async (propertyDocumentId) => {
+    async (propertyDocumentId, { category } = {}) => {
       setStatus("loading");
       setError(null);
       setProgress("Starting analysis…");
@@ -82,7 +82,9 @@ export function useDocumentAnalysis(propertyId) {
       const prevSuppress = AppApi._suppressTierEmit;
       AppApi._suppressTierEmit = true;
       try {
-        const jobId = await AppApi.startDocumentAnalysis(propertyDocumentId);
+        const jobId = await AppApi.startDocumentAnalysis(propertyDocumentId, {
+          category,
+        });
         if (gen !== pollGen.current) return null;
         if (propertyId) emitDocumentAnalysisUpdated(propertyId);
         return await pollJob(jobId);
@@ -98,7 +100,7 @@ export function useDocumentAnalysis(propertyId) {
         AppApi._suppressTierEmit = prevSuppress;
       }
     },
-    [pollJob],
+    [pollJob, propertyId],
   );
 
   const applySelected = useCallback(

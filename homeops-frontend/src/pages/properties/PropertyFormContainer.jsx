@@ -1871,6 +1871,27 @@ function PropertyFormContainer() {
     state.formData.systems,
   ]);
 
+  const refreshPropertyIdentity = useCallback(async () => {
+    if (!uid || uid === "new") return;
+    try {
+      const property = await getPropertyById(uid);
+      const flat = mapPropertyFromBackend(property) ?? property;
+      const tabbed = splitFormDataByTabs(flat);
+      if (tabbed?.identity) {
+        dispatch({
+          type: "SET_IDENTITY_FORM_DATA_SILENT",
+          payload: tabbed.identity,
+        });
+      }
+    } catch (err) {
+      console.error("[PropertyForm] refreshPropertyIdentity error:", err);
+    }
+  }, [uid, getPropertyById, dispatch]);
+
+  const handleDocumentAnalysisApplied = useCallback(async () => {
+    await Promise.all([refreshPropertySystems(), refreshPropertyIdentity()]);
+  }, [refreshPropertySystems, refreshPropertyIdentity]);
+
   /* Reset form when navigating TO new from another property (not on initial mount); clear 403 when uid changes */
   const prevUidRef = useRef(null);
   useEffect(() => {
@@ -4304,6 +4325,7 @@ function PropertyFormContainer() {
                     handleInputChange={handleChange}
                     expandSectionId={expandSectionId}
                     onSilentSystemsUpdate={handleSilentSystemsUpdate}
+                    onDocumentAnalysisApplied={handleDocumentAnalysisApplied}
                     visibleSystemIds={visibleSystemIds}
                     customSystemsData={
                       state.formData.systems?.customSystemsData ?? {}
@@ -5090,7 +5112,7 @@ function PropertyFormContainer() {
               console.warn("[DocumentAnalysis] preview failed:", err.message);
             }
           }}
-          onSystemsUpdated={refreshPropertySystems}
+          onSystemsUpdated={handleDocumentAnalysisApplied}
         />
       )}
     </div>

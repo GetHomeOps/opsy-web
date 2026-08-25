@@ -773,7 +773,26 @@ export function SystemDetailView({
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_19rem] gap-4 items-start">
         <div className="space-y-4 min-w-0">
-          {activeTab === "overview" && overviewContent()}
+          {activeTab === "overview" && (
+            <>
+              {overviewContent()}
+              {!isOverviewEditing && selectedSystemId !== "inspections" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenDocumentFindings?.(selectedSystemId, systemLabel, {
+                      categoryFilter: "bid",
+                      initialCategory: "bid",
+                    })
+                  }
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[#456564] hover:underline"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  View quotes & bids
+                </button>
+              )}
+            </>
+          )}
           {activeTab === "action-items" && (
             <SystemActionItemsTab
               systemId={selectedSystemId}

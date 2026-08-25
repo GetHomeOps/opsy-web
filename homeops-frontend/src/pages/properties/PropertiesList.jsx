@@ -43,6 +43,7 @@ const FILTER_CATEGORIES = [
   {type: "owner", labelKey: "owner"},
   {type: "agent", labelKey: "agent"},
   {type: "agency", labelKey: "agency"},
+  {type: "invitationStatus", labelKey: "invitationStatus"},
   {type: "health", labelKey: "healthStatus"},
   {type: "agentAssignment", labelKey: "filterAgentAssignment"},
 ];
@@ -59,12 +60,27 @@ const AGENT_ASSIGNMENT_FILTERS = [
   {value: "without_agent", labelKey: "filterWithoutAgent"},
 ];
 
+const INVITATION_STATUS_FILTERS = [
+  {value: "pending", labelKey: "invitationPending"},
+  {value: "accepted", labelKey: "invitationAccepted"},
+  {value: "none", labelKey: "invitationNone"},
+];
+
+const INVITATION_STATUS_SORT_RANK = {pending: 2, accepted: 1, none: 0};
+
 /** Opsy list payload includes has_opsy_agent when the team has a platform role=`agent` user.
  *  admin/super_admin (HomeOps internal users) don't count as the property's agent. */
 function propertyHasOpsyAgent(property) {
   return (
     property?.has_opsy_agent === true || property?.hasOpsyAgent === true
   );
+}
+
+function getPropertyInvitationStatus(property) {
+  if (property?._pendingInvitation === true) return "pending";
+  const raw = property?.invitation_status ?? property?.invitationStatus;
+  if (raw === "pending" || raw === "accepted") return raw;
+  return "none";
 }
 
 /** Sort values aligned with table column render fallbacks (snake_case + camelCase). */
@@ -88,6 +104,8 @@ function getPropertyColumnSortValue(property, key) {
       return property.agency_name ?? property.agencyName ?? "";
     case "health":
       return property.health ?? property.hps_score ?? property.hpsScore ?? 0;
+    case "invitation_status":
+      return INVITATION_STATUS_SORT_RANK[getPropertyInvitationStatus(property)] ?? 0;
     default:
       return property[key] ?? "";
   }
@@ -99,7 +117,7 @@ function comparePropertyRowsForSort(a, b, {key, direction}) {
   const rawB = getPropertyColumnSortValue(b, key);
 
   let cmp = 0;
-  if (key === "health") {
+  if (key === "health" || key === "invitation_status") {
     const numA = Number(rawA);
     const numB = Number(rawB);
     if (Number.isFinite(numA) && Number.isFinite(numB) && numA !== numB) {
@@ -508,6 +526,10 @@ function PropertiesList() {
         value: a.value,
         label: t(a.labelKey),
       })),
+      invitationStatus: INVITATION_STATUS_FILTERS.map((a) => ({
+        value: a.value,
+        label: t(a.labelKey),
+      })),
     }),
     [uniqueCities, uniqueStates, uniqueOwners, uniqueAgents, uniqueAgencies, t],
   );
@@ -674,6 +696,11 @@ function PropertiesList() {
         if (!matchesAny) return false;
       }
 
+      if (filtersByType.invitationStatus) {
+        const status = getPropertyInvitationStatus(property);
+        if (!filtersByType.invitationStatus.includes(status)) return false;
+      }
+
       return true;
     });
   }, [
@@ -836,6 +863,33 @@ function PropertiesList() {
       label: "agency",
       sortable: true,
       render: (value, item) => value ?? item?.agencyName ?? "—",
+    },
+    {
+      key: "invitation_status",
+      label: "invitationStatus",
+      sortable: true,
+      render: (_value, item) => {
+        const status = getPropertyInvitationStatus(item);
+        if (status === "pending") {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+              {t("invitationPending", {defaultValue: "Pending"})}
+            </span>
+          );
+        }
+        if (status === "accepted") {
+          return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300">
+              {t("invitationAccepted", {defaultValue: "Accepted"})}
+            </span>
+          );
+        }
+        return (
+          <span className="text-gray-400 dark:text-gray-500">
+            {t("invitationNone", {defaultValue: "None"})}
+          </span>
+        );
+      },
     },
     {
       key: "health",

@@ -367,9 +367,9 @@ function DocumentsPreviewPanel({
               </button>
             </div>
           )}
-          <div className="flex-1 min-h-0 overflow-y-auto p-4">
+          <div className="flex-1 min-h-0 overflow-hidden p-4 flex flex-col">
             {analysisFailureMessage && !analysisFailureDismissed && (
-              <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200/80 dark:border-amber-800/50 bg-amber-50/60 dark:bg-amber-900/10 px-3 py-2">
+              <div className="mb-3 shrink-0 flex items-start gap-2 rounded-lg border border-amber-200/80 dark:border-amber-800/50 bg-amber-50/60 dark:bg-amber-900/10 px-3 py-2">
                 <AlertCircle className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-amber-900 dark:text-amber-100 leading-snug">
@@ -430,7 +430,7 @@ function DocumentsPreviewPanel({
                 </button>
               </div>
             ) : (
-              <div className="h-full min-h-[500px]">
+              <div className="flex-1 min-h-0">
                 <InlineDocumentPreview
                   url={
                     selectedDocument.document_key

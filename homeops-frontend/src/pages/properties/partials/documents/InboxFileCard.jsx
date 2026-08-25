@@ -120,7 +120,12 @@ function InboxFileCard({
 
   const {attributes, listeners, setNodeRef, isDragging} = useDraggable({
     id: `inbox:${card.clientId}`,
-    data: {type: "inbox", clientId: card.clientId, cardId: card.id},
+    data: {
+      type: "inbox",
+      clientId: card.clientId,
+      cardId: card.id,
+      label: card.proposed?.document_name || card.name || "Document",
+    },
     disabled: dndDisabled,
   });
 
@@ -267,17 +272,16 @@ function InboxFileCard({
       className={`relative flex flex-col bg-white dark:bg-gray-800 rounded-xl border ${ringClass} ${dragClass} transition-all shadow-sm hover:shadow-md overflow-hidden`}
       style={{width: 220, minHeight: 280}}
     >
-      <div
-        {...(isReady ? {...attributes, ...listeners} : {})}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleSelect?.(card.clientId, e.shiftKey || e.metaKey || e.ctrlKey);
-        }}
-        className={`relative flex-1 min-h-[280px] flex items-center justify-center bg-gray-50 dark:bg-gray-900 overflow-hidden ${
-          isReady ? "cursor-grab active:cursor-grabbing" : "cursor-default"
-        }`}
-      >
-        <CardThumbnail card={card} />
+      <div className="relative flex-1 min-h-[280px] bg-gray-50 dark:bg-gray-900 overflow-hidden">
+        <div
+          className="absolute inset-0 overflow-y-auto overscroll-contain"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect?.(card.clientId, e.shiftKey || e.metaKey || e.ctrlKey);
+          }}
+        >
+          <CardThumbnail card={card} />
+        </div>
 
         {/* Status + classification badges */}
         <div className="absolute top-1.5 left-1.5 z-10 flex flex-col items-start gap-1 max-w-[calc(100%-3rem)]">
@@ -391,7 +395,19 @@ function InboxFileCard({
             </div>
           )}
           {(isReady || card.status === "queued") && (
-            <div className="px-2 py-1.5 bg-gradient-to-t from-black/60 to-transparent">
+            <div
+              {...(isReady ? {...attributes, ...listeners} : {})}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleSelect?.(
+                  card.clientId,
+                  e.shiftKey || e.metaKey || e.ctrlKey,
+                );
+              }}
+              className={`px-2 py-1.5 bg-gradient-to-t from-black/60 to-transparent pointer-events-auto ${
+                isReady ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+              }`}
+            >
               <p
                 className="text-[10px] font-medium text-white truncate"
                 title={card.name}

@@ -28,6 +28,7 @@ const DOCUMENT_TYPE_LABELS = {
   warranty: "Warranty",
   manual: "Manual",
   invoice: "Invoice",
+  bid: "Bid / Quote",
   other: "Other",
 };
 
@@ -45,6 +46,8 @@ const FILE_TYPE_COLORS = {
   manual: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
   invoice:
     "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+  bid:
+    "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
   other: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400",
 };
 

@@ -7,6 +7,8 @@ import {
   useSensor,
   useSensors,
   DragOverlay,
+  pointerWithin,
+  closestCenter,
 } from "@dnd-kit/core";
 import {
   FileText,
@@ -124,6 +126,8 @@ const OTHER_FOLDER = {
 const documentTypes = [
   {id: "contract", label: "Contract", icon: FileText},
   {id: "warranty", label: "Warranty", icon: Shield},
+  {id: "invoice", label: "Invoice", icon: Receipt},
+  {id: "bid", label: "Bid / Quote", icon: ClipboardList},
   {id: "receipt", label: "Receipt", icon: Receipt},
   {id: "inspection", label: "Inspection Report", icon: FileCheck},
   {id: "permit", label: "Permit", icon: ClipboardList},
@@ -134,6 +138,26 @@ const documentTypes = [
 ];
 
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+
+function folderCollisionDetection(args) {
+  const pointerHits = pointerWithin(args);
+  return pointerHits.length ? pointerHits : closestCenter(args);
+}
+
+function resolveDragPreviewLabel(activeDrag, inboxCards = [], documents = []) {
+  const data = activeDrag?.data?.current;
+  if (data?.label) return data.label;
+  if (data?.type === "inbox") {
+    return (
+      inboxCards.find((c) => c.clientId === data.clientId)?.name || "Document"
+    );
+  }
+  if (data?.type === "filed") {
+    const doc = documents.find((d) => d.id === data.documentId);
+    return doc?.name || doc?.document_name || "Document";
+  }
+  return "Document";
+}
 
 function getPreviewType(url) {
   if (!url) return "other";
@@ -185,15 +209,19 @@ function InlineDocumentPreview({
   return (
     <div
       className={`rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 min-h-[200px] ${
-        fillHeight ? "h-full flex flex-col" : ""
+        fillHeight ? "h-full min-h-0 flex flex-col" : ""
       }`}
     >
       {fileType === "pdf" && (
-        <div className="flex-1 min-h-0 w-full">
+        <div
+          className={
+            fillHeight ? "flex-1 min-h-0" : "min-h-[400px] h-[70vh]"
+          }
+        >
           <object
             data={`${url}#toolbar=0`}
             type="application/pdf"
-            className="w-full h-full min-h-[400px]"
+            className="w-full h-full bg-white"
             title={fileName || "PDF preview"}
             onError={() => setError(true)}
           >
@@ -215,12 +243,20 @@ function InlineDocumentPreview({
         </div>
       )}
       {fileType === "image" && (
-        <img
-          src={url}
-          alt={fileName || "Document preview"}
-          className="w-full max-h-[600px] object-contain"
-          onError={() => setError(true)}
-        />
+        <div
+          className={
+            fillHeight
+              ? "flex-1 min-h-0 overflow-y-auto overscroll-contain"
+              : ""
+          }
+        >
+          <img
+            src={url}
+            alt={fileName || "Document preview"}
+            className="w-full h-auto object-contain"
+            onError={() => setError(true)}
+          />
+        </div>
       )}
     </div>
   );
@@ -780,6 +816,10 @@ function DocumentsTab({
         "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
       receipt:
         "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+      invoice:
+        "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400",
+      bid:
+        "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
       inspection:
         "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
       permit:
@@ -1109,6 +1149,7 @@ function DocumentsTab({
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={folderCollisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveDrag(null)}
@@ -1367,22 +1408,6 @@ function DocumentsTab({
             </button>
           </div>
         )}
-
-        {/* Drag overlay — centered on the cursor so the preview always sits
-            under the pointer regardless of where on the source card the user
-            grabbed. */}
-        <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
-          {activeDrag ? (
-            <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-[#456654]/60 rounded-lg shadow-xl text-sm font-medium text-gray-900 dark:text-gray-100 cursor-grabbing select-none pointer-events-none">
-              <FileText className="w-4 h-4 text-[#456654] dark:text-[#7a9a88]" />
-              {activeDrag.data?.current?.type === "inbox"
-                ? inbox.cards.find(
-                    (c) => c.clientId === activeDrag.data.current.clientId,
-                  )?.name || "Document"
-                : "Document"}
-            </div>
-          ) : null}
-        </DragOverlay>
 
         {/* Upload Modal — kept for the per-folder + button and inspection-report flow */}
         {showUploadModal && (
@@ -1864,6 +1889,21 @@ function DocumentsTab({
       </div>
       </div>
       <DemoFeatureUnavailableModal {...uploadDemoGate.modalProps} />
+      {/* Overlay is portaled; keep it outside overflow-hidden. Render only the
+          compact pill so snapCenterToCursor uses the preview size, not the card. */}
+      <DragOverlay
+        dropAnimation={null}
+        modifiers={[snapCenterToCursor]}
+        zIndex={10050}
+        className="pointer-events-none"
+      >
+        {activeDrag ? (
+          <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border border-[#456654]/60 rounded-lg shadow-xl text-sm font-medium text-gray-900 dark:text-gray-100 cursor-grabbing select-none whitespace-nowrap pointer-events-none">
+            <FileText className="w-4 h-4 text-[#456654] dark:text-[#7a9a88] shrink-0" />
+            {resolveDragPreviewLabel(activeDrag, inbox.cards, documents)}
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

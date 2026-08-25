@@ -72,6 +72,24 @@ const PROPERTY_LIST_HAS_OPSY_AGENT = `EXISTS (
     AND u_has_opsy_agent.role = 'agent'
 ) AS has_opsy_agent`;
 
+/** Pending if any unexpired pending invite; else accepted if any invite was accepted; else none. */
+const PROPERTY_LIST_INVITATION_STATUS = `CASE
+  WHEN EXISTS (
+    SELECT 1 FROM invitations i_pending
+    WHERE i_pending.property_id = p.id
+      AND i_pending.type = 'property'
+      AND i_pending.status = 'pending'
+      AND i_pending.expires_at > NOW()
+  ) THEN 'pending'
+  WHEN EXISTS (
+    SELECT 1 FROM invitations i_accepted
+    WHERE i_accepted.property_id = p.id
+      AND i_accepted.type = 'property'
+      AND i_accepted.status = 'accepted'
+  ) THEN 'accepted'
+  ELSE 'none'
+END AS invitation_status`;
+
 /** Agent on the property team (platform role = agent) and their active agency affiliation. */
 const PROPERTY_LIST_AGENT_AGENCY_COLUMNS = `
   agent_sub.agent_user_name,
@@ -168,6 +186,7 @@ class Property {
   static async getAll() {
     const result = await db.query(
       `SELECT ${PROPERTY_LIST_COLUMNS}, ${PROPERTY_LIST_HAS_OPSY_AGENT},
+              ${PROPERTY_LIST_INVITATION_STATUS},
               ${PROPERTY_LIST_AGENT_AGENCY_COLUMNS},
               owner_sub.name AS owner_user_name
        FROM properties p
@@ -348,6 +367,7 @@ class Property {
   static async getPropertiesByAccountId(accountId) {
     const result = await db.query(
       `SELECT ${PROPERTY_LIST_COLUMNS}, ${PROPERTY_LIST_HAS_OPSY_AGENT},
+              ${PROPERTY_LIST_INVITATION_STATUS},
               ${PROPERTY_LIST_AGENT_AGENCY_COLUMNS},
               owner_sub.name AS owner_user_name
        FROM properties p
@@ -376,6 +396,7 @@ class Property {
       `SELECT ${PROPERTY_LIST_COLUMNS}, owner_sub.name AS owner_user_name,
               pu.role AS property_role,
               ${PROPERTY_LIST_HAS_OPSY_AGENT},
+              ${PROPERTY_LIST_INVITATION_STATUS},
               ${PROPERTY_LIST_AGENT_AGENCY_COLUMNS}
        FROM properties p
        JOIN property_users pu ON p.id = pu.property_id
@@ -401,6 +422,7 @@ class Property {
       `SELECT DISTINCT ON (p.id)
         ${PROPERTY_LIST_COLUMNS},
         ${PROPERTY_LIST_HAS_OPSY_AGENT},
+        ${PROPERTY_LIST_INVITATION_STATUS},
         ${PROPERTY_LIST_AGENT_AGENCY_COLUMNS},
         i.id AS _invitation_id,
         i.intended_role AS _invitation_role,

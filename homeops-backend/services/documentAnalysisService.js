@@ -16,22 +16,21 @@ const DocumentAnalysisJob = require("../models/documentAnalysisJob");
 const DocumentAnalysisResult = require("../models/documentAnalysisResult");
 const { AWS_S3_BUCKET } = require("../config");
 const { logAiUsage } = require("./usageService");
-const { normalizeFindings } = require("./documentAnalysisFieldMapper");
+const { namespaceIdentityFindings } = require("./documentAnalysisFieldMapper");
 const {
   getSystemCatalog,
   buildExtractionPrompt,
 } = require("./documentAnalysisSystemCatalog");
+const {
+  resolveDetectedCategory,
+  resolveDeclaredCategory,
+  canonicalDocumentTypeForCategory,
+  shouldSyncDocumentType,
+} = require("./documentAnalysisClassification");
+const PropertyDocument = require("../models/propertyDocuments");
 
 const MODEL = process.env.AI_DOCUMENT_ANALYSIS_MODEL || "gpt-4o-mini";
 const VISION_MODEL = process.env.AI_DOCUMENT_ANALYSIS_VISION_MODEL || "gpt-4o-mini";
-
-const VALID_CATEGORIES = new Set([
-  "installation_invoice",
-  "maintenance_report",
-  "inspection_report",
-  "bid",
-  "other",
-]);
 
 const CLASSIFY_PROMPT = `You are a home property document classifier. Given document text/metadata, output ONLY valid JSON:
 {
@@ -171,7 +170,10 @@ async function extractViaVision(openai, buffer, mimeType, prompt, usageCtx) {
 }
 
 function buildFindingsFromExtraction(parsed, category) {
-  const items = normalizeFindings(parsed?.items || parsed?.findings || []);
+  const items = namespaceIdentityFindings(
+    parsed?.items || parsed?.findings || [],
+    category,
+  );
   const findings = items.filter((i) => i && (i.fieldKey || i.key));
   if (parsed?.summary) {
     findings.unshift({
@@ -185,7 +187,24 @@ function buildFindingsFromExtraction(parsed, category) {
   return { category, findings, summary: parsed?.summary || null };
 }
 
-async function runDocumentAnalysis(jobId) {
+async function syncDocumentTypeFromCategory(job, category) {
+  if (!job.property_document_id) return;
+  if (!shouldSyncDocumentType(job.document_type, category)) return;
+  const documentType = canonicalDocumentTypeForCategory(category);
+  if (!documentType) return;
+  try {
+    await PropertyDocument.update(job.property_document_id, {
+      document_type: documentType,
+    });
+  } catch (err) {
+    console.warn(
+      "[documentAnalysis] document type sync failed:",
+      err.message,
+    );
+  }
+}
+
+async function runDocumentAnalysis(jobId, options = {}) {
   const job = await DocumentAnalysisJob.get(jobId);
   if (job.status !== "queued" && job.status !== "processing") {
     return;
@@ -249,48 +268,60 @@ async function runDocumentAnalysis(jobId) {
     }
   }
 
-  await DocumentAnalysisJob.updateStatus(jobId, { progress: "Classifying document..." });
+  const declaredCategory = resolveDeclaredCategory(options.declaredCategory);
+  let category = declaredCategory;
 
-  const classifyPrompt = CLASSIFY_PROMPT
-    .replace("{FILENAME}", job.file_name || "")
-    .replace("{DOC_TYPE}", job.document_type || "")
-    .replace("{SYSTEM_KEY}", job.system_key || "");
+  if (!category) {
+    await DocumentAnalysisJob.updateStatus(jobId, { progress: "Classifying document..." });
 
-  let category = "other";
-  try {
-    let classified;
-    if (useVision) {
-      classified = await extractViaVision(
-        openai,
-        buffer,
-        job.mime_type,
-        `${classifyPrompt}\n\nDescribe what you see and classify.`,
-        usageCtx,
-      );
-    } else {
-      classified = await callChat(
-        openai,
-        [
-          { role: "system", content: "Output only valid JSON." },
-          { role: "user", content: `${classifyPrompt}\n\nDocument text:\n${text.slice(0, 12000)}` },
-        ],
-        usageCtx,
-      );
+    const classifyPrompt = CLASSIFY_PROMPT
+      .replace("{FILENAME}", job.file_name || "")
+      .replace("{DOC_TYPE}", job.document_type || "")
+      .replace("{SYSTEM_KEY}", job.system_key || "");
+
+    try {
+      let classified;
+      if (useVision) {
+        classified = await extractViaVision(
+          openai,
+          buffer,
+          job.mime_type,
+          `${classifyPrompt}\n\nDescribe what you see and classify.`,
+          usageCtx,
+        );
+      } else {
+        classified = await callChat(
+          openai,
+          [
+            { role: "system", content: "Output only valid JSON." },
+            { role: "user", content: `${classifyPrompt}\n\nDocument text:\n${text.slice(0, 12000)}` },
+          ],
+          usageCtx,
+        );
+      }
+      category = resolveDetectedCategory(classified?.category, {
+        documentType: job.document_type,
+        fileName: job.file_name,
+      });
+    } catch (err) {
+      console.warn("[documentAnalysis] classify failed, using hints:", err.message);
+      category = resolveDetectedCategory(null, {
+        documentType: job.document_type,
+        fileName: job.file_name,
+      });
     }
-    if (classified?.category && VALID_CATEGORIES.has(classified.category)) {
-      category = classified.category;
-    } else if (job.document_type === "inspection") {
-      category = "inspection_report";
-    } else if (job.document_type === "receipt") {
-      category = "installation_invoice";
-    } else if (job.document_type === "contract") {
-      category = "bid";
-    }
-  } catch (err) {
-    console.warn("[documentAnalysis] classify failed, using other:", err.message);
   }
 
-  await DocumentAnalysisJob.updateStatus(jobId, { progress: "Extracting findings..." });
+  await syncDocumentTypeFromCategory(job, category);
+
+  await DocumentAnalysisJob.updateStatus(jobId, {
+    progress:
+      category === "bid"
+        ? "Extracting bid details..."
+        : category === "installation_invoice"
+          ? "Extracting invoice and property identity..."
+          : "Extracting findings...",
+  });
 
   const catalog = getSystemCatalog(job.system_key);
   const extractPrompt = buildExtractionPrompt({

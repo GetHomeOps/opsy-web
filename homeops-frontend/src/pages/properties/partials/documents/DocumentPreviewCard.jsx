@@ -44,9 +44,14 @@ function DocumentPreviewCardInner({
     "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400";
 
   const showHoverActions = onOpenInNewTab || onDelete;
-  const thumbCursor = enableDrag
+  const footerCursor = enableDrag
     ? "cursor-grab active:cursor-grabbing"
     : "cursor-pointer";
+
+  const handleSelect = (e) => {
+    e.stopPropagation();
+    onSelect?.(doc);
+  };
 
   return (
     <div
@@ -54,19 +59,17 @@ function DocumentPreviewCardInner({
       className={`group relative flex flex-col bg-white dark:bg-gray-800 rounded-xl border ${ringClass} ${dragClass} transition-all overflow-hidden shadow-sm hover:shadow-md`}
       style={{width: 220, minHeight: 260}}
     >
-      <div
-        {...(enableDrag ? {...dragAttributes, ...dragListeners} : {})}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect?.(doc);
-        }}
-        className={`relative h-44 flex items-center justify-center bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 overflow-hidden ${thumbCursor}`}
-      >
-        <DocumentThumbContent
-          name={doc.name}
-          documentKey={doc.document_key}
-          fetchEnabled={!!doc.document_key}
-        />
+      <div className="relative h-44 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div
+          className="absolute inset-0 overflow-y-auto overscroll-contain"
+          onClick={handleSelect}
+        >
+          <DocumentThumbContent
+            name={doc.name}
+            documentKey={doc.document_key}
+            fetchEnabled={!!doc.document_key}
+          />
+        </div>
 
         {showHoverActions && (
           <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -101,11 +104,9 @@ function DocumentPreviewCardInner({
       </div>
 
       <div
-        className="p-2.5 flex-1 flex flex-col gap-1.5 min-h-0 cursor-pointer"
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect?.(doc);
-        }}
+        {...(enableDrag ? {...dragAttributes, ...dragListeners} : {})}
+        className={`p-2.5 flex-1 flex flex-col gap-1.5 min-h-0 ${footerCursor}`}
+        onClick={handleSelect}
       >
         <div
           className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate"
@@ -131,7 +132,12 @@ function DraggableDocumentPreviewCard(props) {
   const {doc} = props;
   const {attributes, listeners, setNodeRef, isDragging} = useDraggable({
     id: `filed-list:${doc.id}`,
-    data: {type: "filed", documentId: doc.id, currentSystemKey: doc.system},
+    data: {
+      type: "filed",
+      documentId: doc.id,
+      currentSystemKey: doc.system,
+      label: doc.name || doc.document_name || "Document",
+    },
   });
 
   return (

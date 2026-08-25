@@ -25,12 +25,14 @@ const SYSTEM_KEYWORDS = [
 const TYPE_KEYWORDS = [
   ["inspection", ["inspection"]],
   ["warranty", ["warranty", "guarantee"]],
-  ["receipt", ["receipt", "invoice", "paid"]],
+  ["invoice", ["invoice", "invoices"]],
+  ["bid", ["bid", "quote", "estimate", "proposal"]],
+  ["receipt", ["receipt", "paid"]],
   ["permit", ["permit"]],
   ["manual", ["manual", "guide", "instructions"]],
   ["insurance", ["insurance", "policy"]],
   ["mortgage", ["mortgage", "deed", "title"]],
-  ["contract", ["contract", "agreement", "estimate", "quote"]],
+  ["contract", ["contract", "agreement"]],
 ];
 
 function normalize(name) {

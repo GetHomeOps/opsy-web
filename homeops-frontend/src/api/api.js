@@ -1868,14 +1868,16 @@ class AppApi {
 
   /* --------- Document Analysis (per-document after filing) --------- */
 
-  static async startDocumentAnalysis(propertyDocumentId) {
+  static async startDocumentAnalysis(propertyDocumentId, { category } = {}) {
     assertDemoAiAllowedApi();
     const prev = AppApi._suppressTierEmit;
     AppApi._suppressTierEmit = true;
     try {
+      const body = { propertyDocumentId };
+      if (category) body.category = category;
       const res = await this.request(
         "document-analysis/analyze",
-        { propertyDocumentId },
+        body,
         "POST",
       );
       return res.jobId;

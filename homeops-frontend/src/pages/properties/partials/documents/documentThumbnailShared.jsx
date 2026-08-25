@@ -29,7 +29,9 @@ function FallbackIcon({kind, compact, label}) {
         ? "text-sky-400 dark:text-sky-300/80"
         : "text-gray-400 dark:text-gray-500";
   return (
-    <div className={`flex flex-col items-center justify-center gap-1 ${accent}`}>
+    <div
+      className={`flex flex-col items-center justify-center gap-1 w-full h-full min-h-full ${accent}`}
+    >
       <Icon className={compact ? "w-6 h-6" : "w-10 h-10"} />
       {!compact && label && (
         <span className="text-[9px] font-semibold tracking-wider uppercase">
@@ -47,7 +49,8 @@ function FallbackIcon({kind, compact, label}) {
  *  - else a kind-aware fallback icon (image / PDF / generic).
  *
  * Always fills its parent (`w-full h-full`); the parent is responsible for
- * sizing and clipping (e.g. the `h-44` zone in an InboxFileCard).
+ * sizing. Images may grow taller than the parent so the card can scroll them.
+ * PDFs are pinned to the parent and scroll inside the viewer.
  */
 export function DocumentThumbContent({
   name,
@@ -111,7 +114,7 @@ export function DocumentThumbContent({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center w-full h-full text-gray-400 dark:text-gray-500">
+      <div className="flex items-center justify-center w-full h-full min-h-full text-gray-400 dark:text-gray-500">
         <Loader2 className={`animate-spin ${compact ? "w-4 h-4" : "w-6 h-6"}`} />
       </div>
     );
@@ -122,7 +125,11 @@ export function DocumentThumbContent({
       <img
         src={resolvedUrl}
         alt={name || "Preview"}
-        className="w-full h-full object-cover"
+        className={
+          compact
+            ? "w-full h-full object-cover"
+            : "block w-full h-auto object-contain object-top"
+        }
         draggable={false}
         onError={() => setError(true)}
       />
@@ -130,17 +137,19 @@ export function DocumentThumbContent({
   }
 
   if (kind === "pdf" && resolvedUrl && !error && !compact) {
-    // Inline PDF render. We disable pointer events so dnd-kit / clicks pass
-    // through to the parent card.
+    // Keep the PDF viewer interactive so its native scrollbar / wheel
+    // actually scroll. Card chrome (not this embed) owns click + drag.
     return (
-      <object
-        data={`${resolvedUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-        type="application/pdf"
-        className="w-full h-full pointer-events-none bg-white"
-        aria-label={name || "PDF preview"}
-      >
-        <FallbackIcon kind="pdf" compact={compact} label="PDF" />
-      </object>
+      <div className="absolute inset-0">
+        <object
+          data={`${resolvedUrl}#toolbar=0&navpanes=0&view=FitH`}
+          type="application/pdf"
+          className="block w-full h-full bg-white"
+          aria-label={name || "PDF preview"}
+        >
+          <FallbackIcon kind="pdf" compact={compact} label="PDF" />
+        </object>
+      </div>
     );
   }
 

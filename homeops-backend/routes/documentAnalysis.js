@@ -12,10 +12,20 @@ const Contact = require("../models/contact");
 const { enqueue } = require("../services/documentAnalysisQueue");
 const {
   mergeSelectedFields,
+  mergeSelectedIdentityFields,
   formatResultForApi,
   buildReviewFields,
   collectInstallerContactDetails,
+  snapshotQuoteFields,
 } = require("../services/documentAnalysisFieldMapper");
+const Property = require("../models/property");
+const {
+  canProposePropertyIdentity,
+  resolveDeclaredCategory,
+  canonicalDocumentTypeForCategory,
+  shouldSyncDocumentType,
+  shouldWriteExtractedFieldsToSystem,
+} = require("../services/documentAnalysisClassification");
 const { checkAiFeaturesAllowed, checkAiTokenQuota } = require("../services/tierService");
 const { assertDemoAiAllowed } = require("../helpers/demoEnvironment");
 const { triggerReanalysisOnDocument } = require("../services/ai/propertyReanalysisService");
@@ -190,9 +200,20 @@ async function createInstallerContactsForApply({
   return { contacts: nextContacts, createdContacts };
 }
 
+async function getPropertyRow(propertyId) {
+  try {
+    return await Property.get(propertyId);
+  } catch {
+    return null;
+  }
+}
+
 async function formatEnrichedResult(row, systemRow) {
-  const contacts = await getPropertyContacts(row.property_id);
-  return formatResultForApi(row, systemRow, { contacts });
+  const [contacts, property] = await Promise.all([
+    getPropertyContacts(row.property_id),
+    getPropertyRow(row.property_id),
+  ]);
+  return formatResultForApi(row, systemRow, { contacts, property });
 }
 
 function completedRunCountsByDocument(rows) {
@@ -215,7 +236,7 @@ function withAnalysisRunLimit(item, completedRunCount) {
   };
 }
 
-function serializeJobResponse(job, resultRow, systemRow, contacts) {
+function serializeJobResponse(job, resultRow, systemRow, contacts, property) {
   const response = {
     status: job.status,
     progress: job.progress,
@@ -226,7 +247,10 @@ function serializeJobResponse(job, resultRow, systemRow, contacts) {
     fileName: job.file_name,
   };
   if (job.status === "completed" && resultRow) {
-    response.result = formatResultForApi(resultRow, systemRow, { contacts });
+    response.result = formatResultForApi(resultRow, systemRow, {
+      contacts,
+      property,
+    });
   }
   return response;
 }
@@ -235,13 +259,14 @@ function serializeJobResponse(job, resultRow, systemRow, contacts) {
 router.post("/analyze", ensureLoggedIn, async function (req, res, next) {
   try {
     assertDemoAiAllowed();
-    const { propertyDocumentId } = req.body;
+    const { propertyDocumentId, category } = req.body;
     const docId = parseInt(propertyDocumentId, 10);
     if (isNaN(docId)) throw new BadRequestError("propertyDocumentId is required");
 
     const doc = await PropertyDocument.get(docId);
     const user = res.locals.user;
     await assertPropertyAccess(doc.property_id, user);
+    const declaredCategory = resolveDeclaredCategory(category);
 
     await checkAiFeaturesAllowed(user.id, user.role);
     await checkAiTokenQuota(user.id, user.role);
@@ -259,6 +284,16 @@ router.post("/analyze", ensureLoggedIn, async function (req, res, next) {
     }
 
     const mimeType = inferMimeFromKey(doc.document_key, doc.document_name);
+    let documentType = doc.document_type;
+    if (declaredCategory) {
+      const nextType = canonicalDocumentTypeForCategory(declaredCategory);
+      if (nextType && shouldSyncDocumentType(documentType, declaredCategory)) {
+        await PropertyDocument.update(doc.id, { document_type: nextType });
+        documentType = nextType;
+      } else if (nextType && nextType !== "other") {
+        documentType = nextType;
+      }
+    }
 
     const job = await DocumentAnalysisJob.create({
       property_id: doc.property_id,
@@ -268,10 +303,10 @@ router.post("/analyze", ensureLoggedIn, async function (req, res, next) {
       file_name: doc.document_name,
       mime_type: mimeType,
       system_key: doc.system_key,
-      document_type: doc.document_type,
+      document_type: documentType,
     });
 
-    enqueue(job.id);
+    enqueue(job.id, { declaredCategory });
     return res.status(202).json({ jobId: job.id });
   } catch (err) {
     return next(err);
@@ -300,8 +335,11 @@ router.get("/jobs/:jobId", ensureLoggedIn, async function (req, res, next) {
       };
     }
     const systemRow = await getSystemRow(job.property_id, job.system_key);
-    const contacts = await getPropertyContacts(job.property_id);
-    return res.json(serializeJobResponse(job, enriched, systemRow, contacts));
+    const [contacts, property] = await Promise.all([
+      getPropertyContacts(job.property_id),
+      getPropertyRow(job.property_id),
+    ]);
+    return res.json(serializeJobResponse(job, enriched, systemRow, contacts, property));
   } catch (err) {
     return next(err);
   }
@@ -320,7 +358,10 @@ router.get(
       const rows = await DocumentAnalysisJob.listByProperty(propertyId);
       const systems = await System.get(propertyId);
       const systemByKey = new Map(systems.map((s) => [s.system_key, s]));
-      const contacts = await getPropertyContacts(propertyId);
+      const [contacts, property] = await Promise.all([
+        getPropertyContacts(propertyId),
+        getPropertyRow(propertyId),
+      ]);
       const completedByDoc = completedRunCountsByDocument(rows);
 
       const items = rows.map((row) => {
@@ -360,7 +401,7 @@ router.get(
               document_type: row.document_type,
             },
             systemRow,
-            { contacts },
+            { contacts, property },
           ),
           runLimit,
         );
@@ -388,12 +429,17 @@ router.get(
 
       const rows = await DocumentAnalysisResult.listApprovedBySystem(propertyId, systemKey);
       const systemRow = await getSystemRow(propertyId, systemKey);
-      const contacts = await getPropertyContacts(propertyId);
-      const items = rows.map((row) => formatResultForApi(row, systemRow, { contacts }));
+      const [contacts, property] = await Promise.all([
+        getPropertyContacts(propertyId),
+        getPropertyRow(propertyId),
+      ]);
+      const items = rows.map((row) =>
+        formatResultForApi(row, systemRow, { contacts, property }),
+      );
       const pending = await DocumentAnalysisResult.listPendingByProperty(propertyId);
       const pendingForSystem = pending.filter((p) => p.system_key === systemKey);
       const pendingItems = pendingForSystem.map((row) =>
-        formatResultForApi(row, systemRow, { contacts }),
+        formatResultForApi(row, systemRow, { contacts, property }),
       );
 
       return res.json({
@@ -450,7 +496,36 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
       throw new BadRequestError("This analysis was rejected and cannot be applied.");
     }
 
+    const doc = await PropertyDocument.get(row.property_document_id).catch(() => null);
     const systemRow = await getSystemRow(row.property_id, row.system_key);
+
+    if (!shouldWriteExtractedFieldsToSystem(row.detected_category)) {
+      const applied = snapshotQuoteFields(row.findings);
+      const updated = await DocumentAnalysisResult.updateReview(id, {
+        review_status: "approved",
+        applied_fields: applied,
+      });
+      const [contacts, propertyForReview] = await Promise.all([
+        getPropertyContacts(row.property_id),
+        getPropertyRow(row.property_id),
+      ]);
+      const enriched = {
+        ...updated,
+        document_name: doc?.document_name,
+        document_date: doc?.document_date,
+        document_key: doc?.document_key,
+        document_type: doc?.document_type,
+      };
+      return res.json({
+        result: formatResultForApi(enriched, systemRow, {
+          contacts,
+          property: propertyForReview,
+        }),
+        appliedCount: applied.length,
+        createdContacts: [],
+      });
+    }
+
     const existingContacts = await getPropertyContacts(row.property_id);
     const { contacts, createdContacts } = await createInstallerContactsForApply({
       propertyId: row.property_id,
@@ -463,7 +538,6 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
       createContactFieldKeys,
       userId: res.locals.user?.id,
     });
-    const doc = await PropertyDocument.get(row.property_document_id).catch(() => null);
     const mergeOptions = {
       contacts,
       fieldOverrides:
@@ -490,18 +564,38 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
       next_service_date,
     });
 
-    const allKeys = buildReviewFields(
-      row.system_key,
-      row.findings,
-      systemRow,
-      { contacts, documentName: doc?.document_name },
-    ).map((f) => f.fieldKey);
+    let identityApplied = [];
+    if (canProposePropertyIdentity(row.detected_category)) {
+      const propertyRow = await getPropertyRow(row.property_id);
+      const identityMerge = mergeSelectedIdentityFields(
+        row.findings,
+        selectedFieldKeys,
+        propertyRow,
+        {
+          ...mergeOptions,
+          category: row.detected_category,
+        },
+      );
+      if (Object.keys(identityMerge.columns).length) {
+        await Property.updateProperty(row.property_id, identityMerge.columns);
+      }
+      identityApplied = identityMerge.applied;
+    }
+
+    const allApplied = [...applied, ...identityApplied];
+
+    const propertyForReview = await getPropertyRow(row.property_id);
+    const allKeys = formatResultForApi(row, systemRow, {
+      contacts,
+      property: propertyForReview,
+      documentName: doc?.document_name,
+    }).reviewFields.map((f) => f.fieldKey);
     const reviewStatus =
       selectedFieldKeys.length >= allKeys.length ? "approved" : "partially_approved";
 
     const updated = await DocumentAnalysisResult.updateReview(id, {
       review_status: reviewStatus,
-      applied_fields: applied,
+      applied_fields: allApplied,
     });
 
     triggerReanalysisOnDocument(row.property_id, row.property_document_id).catch((err) => {
@@ -518,8 +612,11 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
     const freshSystem = await getSystemRow(row.property_id, row.system_key);
 
     return res.json({
-      result: formatResultForApi(enriched, freshSystem, { contacts }),
-      appliedCount: applied.length,
+      result: formatResultForApi(enriched, freshSystem, {
+        contacts,
+        property: propertyForReview,
+      }),
+      appliedCount: allApplied.length,
       createdContacts,
     });
   } catch (err) {
