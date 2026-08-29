@@ -17,8 +17,9 @@ COPY homeops-frontend ./homeops-frontend
 WORKDIR /app/homeops-backend
 RUN npm install --omit=dev
 
-# Install pnpm, build frontend, copy to backend/public
-RUN npm install -g pnpm && \
+# Pin the local pnpm 10 line. Latest pnpm (11+) ignores unapproved
+# lifecycle scripts and fails the image build with ERR_PNPM_IGNORED_BUILDS.
+RUN npm install -g pnpm@10.12.4 && \
     cd /app/homeops-frontend && pnpm install && \
     cd /app/homeops-backend && node scripts/build-client.js && \
     npm uninstall -g pnpm && \
