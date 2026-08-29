@@ -1061,6 +1061,13 @@ function CustomizationPage() {
               </div>
             )
           )}
+          <LogoCropModal
+            open={cropModalOpen}
+            onClose={closeCropModal}
+            imageSrc={cropImageSrc}
+            accentColor={form.accentColor || DEFAULT_ACCENT}
+            onConfirm={handleCropConfirm}
+          />
         </main>
   );
 }

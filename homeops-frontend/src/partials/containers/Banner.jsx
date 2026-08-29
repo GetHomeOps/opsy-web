@@ -1,4 +1,5 @@
 import React, {useEffect} from "react";
+import {isDemoSite} from "../../utils/demoSite";
 
 function Banner({children, className, type, open, setOpen}) {
   useEffect(() => {
@@ -72,7 +73,9 @@ function Banner({children, className, type, open, setOpen}) {
   };
   return (
     <div
-      className={`${className} fixed top-17 right-0 pr-3 transition-opacity transform ${
+      className={`${className} fixed ${
+        isDemoSite() ? "top-32" : "top-17"
+      } right-0 pr-3 z-50 transition-opacity transform ${
         open
           ? "opacity-100 translate-y-0"
           : "opacity-0 -translate-y-0 pointer-events-none"

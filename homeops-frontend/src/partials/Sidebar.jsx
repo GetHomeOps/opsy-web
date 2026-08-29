@@ -504,6 +504,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
   const visible = (item) => {
     if (item.demoSiteOnly && !isDemoSite()) return false;
     if (item.roles === "superAdminOnly") return isSuperAdmin;
+    if (item.id === "customization") return isSuperAdmin || isAdmin;
     if (item.roles === "adminOnly") return canManageUsers;
     if (item.roles === "adminOrAgent" && !(canManageUsers || isAgentLike)) {
       return false;
@@ -702,7 +703,7 @@ function Sidebar({sidebarOpen, setSidebarOpen, variant = "default"}) {
     });
 
   const renderSection = (section, sectionIndex = 0) => {
-    if (section.roles === "adminOnly" && !canManageUsers) return null;
+    if (section.roles === "adminOnly" && !(isSuperAdmin || isAdmin)) return null;
 
     const items =
       section.id === "network" && usesFlatProfessionalsNav
