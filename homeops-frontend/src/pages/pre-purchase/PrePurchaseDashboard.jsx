@@ -7,18 +7,18 @@ import {
   FileSearch,
   Loader2,
   Plus,
-  Search,
 } from "lucide-react";
 import AppApi, {getApiErrorMessage} from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import ModalBlank from "../../components/ModalBlank";
 import FilterDropdown from "../../components/FilterDropdown";
-import SectionCard from "../properties/partials/passport/SectionCard";
+import SearchInput from "../../components/SearchInput";
+import DataTable from "../../components/DataTable";
+import DataTableItem from "../../components/DataTableItem";
 import {StatusBadge} from "../properties/partials/passport/StatusBadge";
 import EmptyStateCard from "../properties/partials/passport/EmptyStateCard";
 import PaginationClassic from "../../components/PaginationClassic";
 import ListDropdown from "../../partials/buttons/ListDropdown";
-import {useSortIndicator} from "../../hooks/useSortIndicator";
 import PrePurchaseShell from "./PrePurchaseShell";
 import {
   CONDITION_BADGE,
@@ -136,34 +136,6 @@ function StatCard({label, value, tone = "neutral", hint}) {
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{hint}</p>
       )}
     </div>
-  );
-}
-
-function SortableTh({label, columnKey, sortConfig, onSort, className = ""}) {
-  const renderSortIndicator = useSortIndicator();
-  return (
-    <th
-      className={`px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-left font-semibold ${className}`}
-    >
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          className="font-semibold uppercase text-left"
-          onClick={() => onSort(columnKey)}
-        >
-          {label}
-        </button>
-        <button
-          type="button"
-          className="shrink-0 w-4 h-4 flex items-center justify-center [&_span]:ml-0"
-          onClick={() => onSort(columnKey)}
-          tabIndex={-1}
-          aria-hidden="true"
-        >
-          {renderSortIndicator(sortConfig, columnKey)}
-        </button>
-      </div>
-    </th>
   );
 }
 
@@ -303,8 +275,6 @@ export default function PrePurchaseDashboard() {
   const pageIds = paginatedAnalyses.map((a) => a.id);
   const allSelected =
     pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
-  const someSelected =
-    pageIds.some((id) => selectedIds.includes(id)) && !allSelected;
 
   function handleSort(columnKey) {
     setSortConfig((prev) => {
@@ -413,6 +383,120 @@ export default function PrePurchaseDashboard() {
   const showEmptyFiltered =
     !loading && !error && analyses.length > 0 && paginatedAnalyses.length === 0;
 
+  const columns = [
+    {
+      key: "property",
+      label: "Property",
+      sortable: true,
+      render: (_value, item) => (
+        <span className="font-medium text-gray-800 dark:text-gray-100">
+          {formatDisplayName(item)}
+        </span>
+      ),
+    },
+    {
+      key: "street",
+      label: "address",
+      sortable: true,
+      render: (_value, item) => (
+        <span className="block truncate max-w-[14rem]">{item.street || "—"}</span>
+      ),
+    },
+    {
+      key: "city",
+      label: "city",
+      sortable: true,
+      render: (_value, item) => item.city || "—",
+    },
+    {
+      key: "state",
+      label: "state",
+      sortable: true,
+      render: (_value, item) => item.state || "—",
+    },
+    {
+      key: "analysisDate",
+      label: "Analysis Date",
+      sortable: true,
+      render: (_value, item) =>
+        formatDateTime(item.completedAt || item.createdAt),
+    },
+    {
+      key: "condition",
+      label: "Condition",
+      sortable: true,
+      render: (_value, item) =>
+        item.overallConditionRating ? (
+          <StatusBadge
+            tone={CONDITION_BADGE[item.overallConditionRating] || "neutral"}
+          >
+            {item.overallConditionRating}
+          </StatusBadge>
+        ) : (
+          <span className="text-gray-400">—</span>
+        ),
+    },
+    {
+      key: "majorIssues",
+      label: "Major Issues",
+      sortable: true,
+      className: "text-left tabular-nums",
+      render: (_value, item) => item.majorIssuesCount ?? "—",
+    },
+    {
+      key: "repairRange",
+      label: "Est. Repair Range",
+      sortable: true,
+      render: (_value, item) =>
+        formatCostRange(item.repairCostLow, item.repairCostHigh),
+    },
+    {
+      key: "status",
+      label: "status",
+      sortable: true,
+      render: (_value, item) => (
+        <StatusBadge
+          tone={
+            item.status === "completed"
+              ? "emerald"
+              : item.status === "failed"
+                ? "red"
+                : isInProgress(item.status)
+                  ? "brand"
+                  : "neutral"
+          }
+        >
+          {item.status === "completed" && (
+            <CheckCircle2 className="w-3 h-3" aria-hidden />
+          )}
+          {isInProgress(item.status) && (
+            <Loader2 className="w-3 h-3 animate-spin" aria-hidden />
+          )}
+          {STATUS_LABELS[item.status] || item.status}
+        </StatusBadge>
+      ),
+    },
+  ];
+
+  const renderAnalysisRow = (
+    item,
+    handleSelect,
+    selectedItems,
+    onItemClick,
+  ) => (
+    <DataTableItem
+      item={item}
+      columns={columns}
+      onSelect={handleSelect}
+      isSelected={selectedItems.includes(item.id)}
+      onItemClick={() => onItemClick(item)}
+    />
+  );
+
+  function handleAnalysisClick(item) {
+    navigate(`/${accountUrl}/pre-purchase/${item.id}`);
+  }
+
   return (
     <PrePurchaseShell>
       <div>
@@ -472,302 +556,128 @@ export default function PrePurchaseDashboard() {
           </div>
         )}
 
-        <SectionCard title="Recent Analyses" icon={FileSearch}>
-          <div className="mb-4 space-y-3">
-            <div className="flex flex-col sm:flex-row gap-2.5">
-              <div className="relative flex-1 min-w-0">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name or address..."
-                  className="form-input pl-8 py-2 text-sm w-full"
-                  aria-label="Search analyses by name or address"
-                />
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <FilterDropdown
-                  filterCategories={FILTER_CATEGORIES}
-                  filterOptions={filterOptions}
-                  activeFilters={activeFilters}
-                  onAdd={addFilter}
-                  onRemove={removeFilter}
-                  t={filterT}
-                />
-              </div>
+        <div className="mb-5 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <SearchInput
+              placeholder="Search by name or address..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search analyses by name or address"
+            />
+            <div className="flex items-center gap-2 shrink-0">
+              <FilterDropdown
+                filterCategories={FILTER_CATEGORIES}
+                filterOptions={filterOptions}
+                activeFilters={activeFilters}
+                onAdd={addFilter}
+                onRemove={removeFilter}
+                t={filterT}
+              />
             </div>
-            {activeFilters.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                {activeFilters.map((f) => (
-                  <span
-                    key={`${f.type}-${f.value}`}
-                    className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20"
-                  >
-                    <span className="text-emerald-400 dark:text-emerald-500 font-normal">
-                      {filterT(
-                        FILTER_CATEGORIES.find((c) => c.type === f.type)?.labelKey ??
-                          f.type
-                      )}
-                      :
-                    </span>
-                    {f.label || f.value}
-                    <button
-                      type="button"
-                      onClick={() => removeFilter(f)}
-                      className="hover:opacity-75 p-0.5"
-                      aria-label={`Remove ${f.label || f.value} filter`}
-                    >
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path
-                          fillRule="evenodd"
-                          d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </button>
-                  </span>
-                ))}
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="text-sm text-[#456564] dark:text-[#7aa3a2] hover:underline"
+          </div>
+          {activeFilters.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {activeFilters.map((f) => (
+                <span
+                  key={`${f.type}-${f.value}`}
+                  className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20"
                 >
-                  Clear all
-                </button>
+                  <span className="text-emerald-400 dark:text-emerald-500 font-normal">
+                    {filterT(
+                      FILTER_CATEGORIES.find((c) => c.type === f.type)?.labelKey ??
+                        f.type
+                    )}
+                    :
+                  </span>
+                  {f.label || f.value}
+                  <button
+                    type="button"
+                    onClick={() => removeFilter(f)}
+                    className="hover:opacity-75 p-0.5"
+                    aria-label={`Remove ${f.label || f.value} filter`}
+                  >
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-sm text-[#456564] dark:text-[#7aa3a2] hover:underline"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+
+        {error ? (
+          <div className="flex items-start gap-2 text-red-600 dark:text-red-400 py-6">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden />
+            <div>
+              <p className="font-medium">Could not load analyses</p>
+              <p className="text-sm mt-1">{error}</p>
+              <button type="button" className="btn-sm mt-3 border" onClick={load}>
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : showEmptyAll ? (
+          <EmptyStateCard
+            icon={Building2}
+            title="No analyses yet"
+            description="Start a new Opsy Scout analysis by entering an address and uploading documents."
+            actionLabel="New Analysis"
+            onAction={() => navigate(`/${accountUrl}/pre-purchase/new`)}
+          />
+        ) : showEmptyFiltered ? (
+          <EmptyStateCard
+            icon={FileSearch}
+            title="No matching analyses"
+            description={
+              hasActiveQuery
+                ? "Try adjusting your search or filters."
+                : "No analyses to show."
+            }
+            actionLabel={activeFilters.length > 0 ? "Clear filters" : undefined}
+            onAction={activeFilters.length > 0 ? clearFilters : undefined}
+          />
+        ) : (
+          <>
+            <DataTable
+              items={paginatedAnalyses}
+              columns={columns}
+              onItemClick={handleAnalysisClick}
+              onSelect={toggleSelect}
+              onSelectAll={toggleSelectAll}
+              selectedItems={selectedIds}
+              totalItems={total}
+              title="Recent Analyses"
+              sortConfig={sortConfig}
+              onSort={handleSort}
+              renderItem={renderAnalysisRow}
+              allSelected={allSelected}
+              loading={loading}
+            />
+            {total > 0 && (
+              <div className="mt-8">
+                <PaginationClassic
+                  currentPage={page}
+                  totalItems={total}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setPage}
+                  onItemsPerPageChange={handleItemsPerPageChange}
+                />
               </div>
             )}
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-12 text-neutral-500 gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" aria-hidden />
-              Loading analyses…
-            </div>
-          ) : error ? (
-            <div className="flex items-start gap-2 text-red-600 dark:text-red-400 py-6">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden />
-              <div>
-                <p className="font-medium">Could not load analyses</p>
-                <p className="text-sm mt-1">{error}</p>
-                <button type="button" className="btn-sm mt-3 border" onClick={load}>
-                  Retry
-                </button>
-              </div>
-            </div>
-          ) : showEmptyAll ? (
-            <EmptyStateCard
-              icon={Building2}
-              title="No analyses yet"
-              description="Start a new Opsy Scout analysis by entering an address and uploading documents."
-              actionLabel="New Analysis"
-              onAction={() => navigate(`/${accountUrl}/pre-purchase/new`)}
-            />
-          ) : showEmptyFiltered ? (
-            <EmptyStateCard
-              icon={FileSearch}
-              title="No matching analyses"
-              description={
-                hasActiveQuery
-                  ? "Try adjusting your search or filters."
-                  : "No analyses to show."
-              }
-              actionLabel={activeFilters.length > 0 ? "Clear filters" : undefined}
-              onAction={activeFilters.length > 0 ? clearFilters : undefined}
-            />
-          ) : (
-            <>
-              <div className="overflow-x-auto -mx-1">
-                <table className="table-auto w-full text-sm">
-                  <thead className="text-xs font-semibold uppercase text-neutral-500 dark:text-neutral-400 bg-neutral-100/80 dark:bg-neutral-900/40">
-                    <tr>
-                      <th className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap w-px">
-                        <div className="flex items-center">
-                          <label className="inline-flex">
-                            <span className="sr-only">Select all</span>
-                            <input
-                              type="checkbox"
-                              className="form-checkbox"
-                              checked={allSelected}
-                              ref={(el) => {
-                                if (el) el.indeterminate = someSelected;
-                              }}
-                              onChange={toggleSelectAll}
-                            />
-                          </label>
-                        </div>
-                      </th>
-                      <SortableTh
-                        label="Property"
-                        columnKey="property"
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                      />
-                      <SortableTh
-                        label="Address"
-                        columnKey="street"
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                        className="hidden sm:table-cell"
-                      />
-                      <SortableTh
-                        label="City"
-                        columnKey="city"
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                        className="hidden md:table-cell"
-                      />
-                      <SortableTh
-                        label="State"
-                        columnKey="state"
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                        className="hidden md:table-cell"
-                      />
-                      <SortableTh
-                        label="Analysis Date"
-                        columnKey="analysisDate"
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                        className="hidden lg:table-cell"
-                      />
-                      <SortableTh
-                        label="Condition"
-                        columnKey="condition"
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                      />
-                      <SortableTh
-                        label="Major Issues"
-                        columnKey="majorIssues"
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                        className="hidden sm:table-cell"
-                      />
-                      <SortableTh
-                        label="Est. Repair Range"
-                        columnKey="repairRange"
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                        className="hidden lg:table-cell"
-                      />
-                      <SortableTh
-                        label="Status"
-                        columnKey="status"
-                        sortConfig={sortConfig}
-                        onSort={handleSort}
-                      />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                    {paginatedAnalyses.map((a) => (
-                      <tr
-                        key={a.id}
-                        className="hover:bg-neutral-50 dark:hover:bg-neutral-800/40 cursor-pointer"
-                        onClick={() => navigate(`/${accountUrl}/pre-purchase/${a.id}`)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            navigate(`/${accountUrl}/pre-purchase/${a.id}`);
-                          }
-                        }}
-                        tabIndex={0}
-                        role="link"
-                      >
-                        <td
-                          className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap w-px"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="flex items-center">
-                            <label className="inline-flex">
-                              <span className="sr-only">Select analysis</span>
-                              <input
-                                type="checkbox"
-                                className="form-checkbox"
-                                checked={selectedIds.includes(a.id)}
-                                onChange={() => toggleSelect(a.id)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </label>
-                          </div>
-                        </td>
-                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-                          <div className="font-medium text-neutral-900 dark:text-white text-left">
-                            {formatDisplayName(a)}
-                          </div>
-                          <div className="text-xs text-neutral-500 mt-0.5 sm:hidden text-left">
-                            {[a.street, a.city, a.state].filter(Boolean).join(", ") || "—"}
-                          </div>
-                        </td>
-                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-300 hidden sm:table-cell max-w-[14rem]">
-                          <span className="block truncate text-left">{a.street || "—"}</span>
-                        </td>
-                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-300 hidden md:table-cell text-left">
-                          {a.city || "—"}
-                        </td>
-                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-300 hidden md:table-cell text-left">
-                          {a.state || "—"}
-                        </td>
-                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap text-neutral-600 dark:text-neutral-300 hidden lg:table-cell text-left">
-                          {formatDateTime(a.completedAt || a.createdAt)}
-                        </td>
-                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-                          {a.overallConditionRating ? (
-                            <StatusBadge
-                              tone={CONDITION_BADGE[a.overallConditionRating] || "neutral"}
-                            >
-                              {a.overallConditionRating}
-                            </StatusBadge>
-                          ) : (
-                            <span className="text-neutral-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap tabular-nums hidden sm:table-cell text-left">
-                          {a.majorIssuesCount ?? "—"}
-                        </td>
-                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap hidden lg:table-cell text-left">
-                          {formatCostRange(a.repairCostLow, a.repairCostHigh)}
-                        </td>
-                        <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-                          <StatusBadge
-                            tone={
-                              a.status === "completed"
-                                ? "emerald"
-                                : a.status === "failed"
-                                  ? "red"
-                                  : isInProgress(a.status)
-                                    ? "brand"
-                                    : "neutral"
-                            }
-                          >
-                            {a.status === "completed" && (
-                              <CheckCircle2 className="w-3 h-3" aria-hidden />
-                            )}
-                            {isInProgress(a.status) && (
-                              <Loader2 className="w-3 h-3 animate-spin" aria-hidden />
-                            )}
-                            {STATUS_LABELS[a.status] || a.status}
-                          </StatusBadge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {total > 0 && (
-                <div className="mt-4">
-                  <PaginationClassic
-                    currentPage={page}
-                    totalItems={total}
-                    itemsPerPage={itemsPerPage}
-                    onPageChange={setPage}
-                    onItemsPerPageChange={handleItemsPerPageChange}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </SectionCard>
+          </>
+        )}
       </div>
 
       <ModalBlank

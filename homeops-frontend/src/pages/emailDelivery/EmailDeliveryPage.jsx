@@ -378,6 +378,7 @@ function EmailDeliveryPage() {
   }
 
   return (
+    <>
             <main className={PAGE_LAYOUT.settingsWide}>
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
@@ -1027,7 +1028,45 @@ function EmailDeliveryPage() {
             </div>
           )}
         </main>
-      
+      <EmailTestSendModal
+        modalOpen={testModalOpen}
+        setModalOpen={setTestModalOpen}
+        defaultEmail={currentUser?.email || ""}
+        onSend={handleTestSend}
+        sending={testing}
+        variant={testSendKind === "customer_io" ? "customer_io" : "ses"}
+      />
+      <ModalBlank
+        modalOpen={discardModalOpen}
+        setModalOpen={setDiscardModalOpen}
+        contentClassName="max-w-md"
+      >
+        <div className="p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
+            Discard changes?
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+            Unsaved edits to this template will be lost. This cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setDiscardModalOpen(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            >
+              Keep editing
+            </button>
+            <button
+              type="button"
+              onClick={applyDiscardTemplateChanges}
+              className="px-4 py-2 rounded-lg border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40"
+            >
+              Discard changes
+            </button>
+          </div>
+        </div>
+      </ModalBlank>
+    </>
   );
 }
 

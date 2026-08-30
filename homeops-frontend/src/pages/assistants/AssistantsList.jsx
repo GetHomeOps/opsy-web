@@ -9,6 +9,8 @@ import AppApi from "../../api/api";
 import {isAdminRole} from "../../utils/roles";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import useBillingStatus from "../../hooks/useBillingStatus";
+import DataTable from "../../components/DataTable";
+import DataTableItem from "../../components/DataTableItem";
 
 function statusLabel(assistant, t) {
   if (assistant.isActive) {
@@ -54,6 +56,49 @@ function AssistantsList() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const columns = [
+    {
+      key: "name",
+      label: "name",
+      render: (value) => (
+        <span className="font-medium text-gray-800 dark:text-gray-100">
+          {value || "—"}
+        </span>
+      ),
+    },
+    {key: "email", label: "email"},
+    ...(isAdmin
+      ? [
+          {
+            key: "agentName",
+            label: "assistants.agent",
+            render: (_value, item) => item.agentName || item.agentEmail || "—",
+          },
+        ]
+      : []),
+    {
+      key: "status",
+      label: "status",
+      render: (_value, item) => statusLabel(item, t),
+    },
+  ];
+
+  const renderAssistantRow = (
+    item,
+    handleSelect,
+    selectedItems,
+    onItemClick,
+  ) => (
+    <DataTableItem
+      item={item}
+      columns={columns}
+      onSelect={handleSelect}
+      isSelected={selectedItems.includes(item.id)}
+      onItemClick={() => onItemClick(item)}
+      selectable={false}
+    />
+  );
 
   return (
             <main className="grow">
@@ -143,56 +188,19 @@ function AssistantsList() {
                 )}
               </div>
             ) : (
-              <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="table-auto w-full text-sm">
-                    <thead className="text-xs uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-semibold">
-                          {t("name")}
-                        </th>
-                        <th className="px-4 py-3 text-left font-semibold">
-                          {t("email")}
-                        </th>
-                        {isAdmin && (
-                          <th className="px-4 py-3 text-left font-semibold">
-                            {t("assistants.agent", {defaultValue: "Agent"})}
-                          </th>
-                        )}
-                        <th className="px-4 py-3 text-left font-semibold">
-                          {t("status")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-                      {assistants.map((a) => (
-                        <tr
-                          key={a.id}
-                          onClick={() =>
-                            navigate(`/${accountUrl}/assistants/${a.id}`)
-                          }
-                          className="hover:bg-gray-100 dark:hover:bg-gray-700/40 cursor-pointer"
-                        >
-                          <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">
-                            {a.name || "—"}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                            {a.email}
-                          </td>
-                          {isAdmin && (
-                            <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                              {a.agentName || a.agentEmail || "—"}
-                            </td>
-                          )}
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                            {statusLabel(a, t)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <DataTable
+                items={assistants}
+                columns={columns}
+                onItemClick={(item) =>
+                  navigate(`/${accountUrl}/assistants/${item.id}`)
+                }
+                onSelect={() => {}}
+                selectedItems={[]}
+                totalItems={assistants.length}
+                title="assistants.title"
+                renderItem={renderAssistantRow}
+                selectable={false}
+              />
             )}
           </div>
         </main>

@@ -1,8 +1,10 @@
 import React, {useState, useEffect, useCallback, useMemo} from "react";
-import {Loader2, RefreshCw, Building2} from "lucide-react";
+import {RefreshCw, Building2} from "lucide-react";
 import AppApi from "../../api/api";
 import {PAGE_LAYOUT} from "../../constants/layout";
 import SearchInput from "../../components/SearchInput";
+import DataTable from "../../components/DataTable";
+import DataTableItem from "../../components/DataTableItem";
 
 function AffiliationRequestsList({embedded = false}) {
   const [requests, setRequests] = useState([]);
@@ -115,6 +117,94 @@ function AffiliationRequestsList({embedded = false}) {
     });
   }, [requests, searchTerm]);
 
+  const columns = [
+    {
+      key: "requestType",
+      label: "Type",
+      render: (value) => (
+        <span className="capitalize">{value || "—"}</span>
+      ),
+    },
+    {
+      key: "requestedName",
+      label: "name",
+      render: (value) => (
+        <span className="font-medium text-gray-800 dark:text-gray-100">
+          {value || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "parent",
+      label: "Parent",
+      render: (_value, item) => formatParent(item),
+    },
+    {
+      key: "requestedByName",
+      label: "Requested By",
+      render: (_value, item) => (
+        <div>
+          <div>{item.requestedByName || "—"}</div>
+          <div className="text-xs text-gray-500">{item.requestedByEmail}</div>
+        </div>
+      ),
+    },
+    {
+      key: "createdAt",
+      label: "Date",
+      render: (value) =>
+        value ? new Date(value).toLocaleDateString() : "—",
+    },
+    {
+      key: "details",
+      label: "Details",
+      className: "text-left max-w-xs",
+      render: (_value, item) => (
+        <span className="line-clamp-2 whitespace-normal">
+          {formatDetails(item)}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      className: "text-right",
+      render: (_value, item) => (
+        <div
+          className="text-right whitespace-nowrap"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => handleApprove(item.id)}
+            disabled={!!actionId}
+            className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 font-medium mr-3 disabled:opacity-50"
+          >
+            {actionId === `approve-${item.id}` ? "..." : "Approve"}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleReject(item.id)}
+            disabled={!!actionId}
+            className="text-red-600 hover:text-red-700 dark:text-red-400 font-medium disabled:opacity-50"
+          >
+            {actionId === `reject-${item.id}` ? "..." : "Reject"}
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const renderRequestRow = (item, handleSelect, selectedItems) => (
+    <DataTableItem
+      item={item}
+      columns={columns}
+      onSelect={handleSelect}
+      isSelected={selectedItems.includes(item.id)}
+      selectable={false}
+    />
+  );
+
   const tableContent = (
     <>
       {!embedded && (
@@ -164,86 +254,23 @@ function AffiliationRequestsList({embedded = false}) {
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl border border-gray-200 dark:border-gray-700/60 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-gray-500">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Loading requests...
-          </div>
-        ) : requests.length === 0 ? (
-          <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
-            No pending affiliation requests.
-          </div>
-        ) : filteredRequests.length === 0 ? (
-          <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
-            No requests match your search.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="table-auto w-full dark:text-gray-300">
-              <thead className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-left">Name</th>
-                  <th className="px-4 py-3 text-left">Parent</th>
-                  <th className="px-4 py-3 text-left">Requested By</th>
-                  <th className="px-4 py-3 text-left">Date</th>
-                  <th className="px-4 py-3 text-left">Details</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredRequests.map((req) => (
-                  <tr
-                    key={req.id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-900/20"
-                  >
-                    <td className="px-4 py-3 capitalize">{req.requestType}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                      {req.requestedName}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                      {formatParent(req)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div>{req.requestedByName || "—"}</div>
-                      <div className="text-xs text-gray-500">
-                        {req.requestedByEmail}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
-                      {req.createdAt
-                        ? new Date(req.createdAt).toLocaleDateString()
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 max-w-xs text-gray-600 dark:text-gray-400">
-                      <span className="line-clamp-2">{formatDetails(req)}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => handleApprove(req.id)}
-                        disabled={!!actionId}
-                        className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 font-medium mr-3 disabled:opacity-50"
-                      >
-                        {actionId === `approve-${req.id}` ? "..." : "Approve"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleReject(req.id)}
-                        disabled={!!actionId}
-                        className="text-red-600 hover:text-red-700 dark:text-red-400 font-medium disabled:opacity-50"
-                      >
-                        {actionId === `reject-${req.id}` ? "..." : "Reject"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        items={filteredRequests}
+        columns={columns}
+        onItemClick={undefined}
+        onSelect={() => {}}
+        selectedItems={[]}
+        totalItems={filteredRequests.length}
+        title="Affiliation Requests"
+        renderItem={renderRequestRow}
+        selectable={false}
+        loading={loading}
+        emptyMessage={
+          requests.length === 0
+            ? "No pending affiliation requests."
+            : "No requests match your search."
+        }
+      />
     </>
   );
 
