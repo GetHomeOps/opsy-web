@@ -461,6 +461,9 @@ function snapshotQuoteFields(findings = []) {
         fieldKey,
         label: item.label || formatFieldLabel(fieldKey),
         value: item.value ?? null,
+        certainty: item.certainty || null,
+        evidence: item.evidence || null,
+        confidence: item.confidence ?? null,
       };
     })
     .filter(Boolean);
@@ -933,6 +936,7 @@ function formatResultForApi(row, systemRow, options = {}) {
     documentDate: row.document_date || null,
     documentKey: row.document_key || null,
     documentType: row.document_type || null,
+    checklistItemId: row.checklist_item_id ?? row.checklistItemId ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

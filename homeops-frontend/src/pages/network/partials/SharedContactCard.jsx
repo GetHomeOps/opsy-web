@@ -76,6 +76,7 @@ function SharedContactCard({contactId, payload, isOwn}) {
         email: contact.email || "",
         role: contact.role || null,
         accountId: currentAccount.id,
+        source: "contact_share",
       });
       setAdded(true);
       refreshContacts?.();

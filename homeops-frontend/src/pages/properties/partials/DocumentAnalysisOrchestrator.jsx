@@ -80,13 +80,20 @@ function DocumentAnalysisOrchestrator({
   }, []);
 
   const openFindingsModal = useCallback(
-    ({ systemKey, systemLabel, categoryFilter = null, initialCategory = null }) => {
+    ({
+      systemKey,
+      systemLabel,
+      categoryFilter = null,
+      initialCategory = null,
+      checklistItemId = null,
+    }) => {
       if (!systemKey) return;
       setFindingsModal({
         systemKey,
         systemLabel: systemLabel || systemLabelFor(systemKey),
         categoryFilter,
         initialCategory: initialCategory || categoryFilter || "bid",
+        checklistItemId,
       });
     },
     [systemLabelFor],
@@ -103,7 +110,9 @@ function DocumentAnalysisOrchestrator({
   }, [propertyId, openFindingsModal]);
 
   const enqueueDocuments = useCallback((documents) => {
-    const normalized = (documents || []).filter((d) => d?.id);
+    const normalized = (documents || [])
+      .map((d) => toFiledDocumentForAnalysis(d) || d)
+      .filter((d) => d?.id);
     if (!normalized.length) return;
     setQueue((prev) => {
       const existingIds = new Set(prev.map((d) => d.id));
@@ -304,13 +313,14 @@ function DocumentAnalysisOrchestrator({
         const savedDoc = currentDoc;
         if (savedDoc) clearCurrentDoc(savedDoc.id);
         if (applied?.result?.detectedCategory === "bid" && savedDoc) {
+          const systemKey = savedDoc.system_key || applied.result.systemKey;
           emitOpenDocumentFindings(propertyId, {
-            systemKey: savedDoc.system_key || applied.result.systemKey,
-            systemLabel: systemLabelFor(
-              savedDoc.system_key || applied.result.systemKey,
-            ),
+            systemKey,
+            systemLabel: systemLabelFor(systemKey),
             categoryFilter: "bid",
             initialCategory: "bid",
+            checklistItemId:
+              applied.result.checklistItemId || savedDoc.checklist_item_id || null,
           });
         }
       } finally {
@@ -374,6 +384,8 @@ function DocumentAnalysisOrchestrator({
       <DocumentAnalysisPromptModal
         open={promptOpen && !!currentDoc}
         document={currentDoc}
+        propertyId={propertyId}
+        systemKey={currentDoc?.system_key}
         systemLabel={systemLabelFor(currentDoc?.system_key)}
         onAnalyze={handleAnalyze}
         onSkip={handleSkip}
@@ -415,6 +427,7 @@ function DocumentAnalysisOrchestrator({
         systemLabel={findingsModal?.systemLabel}
         initialCategory={findingsModal?.initialCategory}
         categoryFilter={findingsModal?.categoryFilter}
+        initialChecklistItemId={findingsModal?.checklistItemId}
         onSystemsUpdated={onSystemsUpdated}
       />
     </>

@@ -146,7 +146,7 @@ router.patch("/:id", ensureLoggedIn, loadPropertyIdFromDocument, ensurePropertyA
   try {
     const id = req.params.id;
     const existing = await PropertyDocument.get(id);
-    const { system_key, document_type, document_name, document_date } = req.body || {};
+    const { system_key, document_type, document_name, document_date, checklist_item_id } = req.body || {};
 
     const targetSystemKey = system_key ?? existing.system_key;
     const userRole = res.locals.user?.role;
@@ -171,6 +171,15 @@ router.patch("/:id", ensureLoggedIn, loadPropertyIdFromDocument, ensurePropertyA
         if (!tierCheck.allowed) {
           throw new ForbiddenError(`Document limit reached for this system (${tierCheck.current}/${tierCheck.max}). Upgrade your plan.`);
         }
+      }
+    }
+
+    if (checklist_item_id !== undefined) {
+      const { linkDocumentToItem, unlinkDocument } = require("../services/bidReviewService");
+      if (checklist_item_id == null || checklist_item_id === "") {
+        await unlinkDocument(id, res.locals.user?.id);
+      } else {
+        await linkDocumentToItem(id, checklist_item_id, res.locals.user?.id);
       }
     }
 

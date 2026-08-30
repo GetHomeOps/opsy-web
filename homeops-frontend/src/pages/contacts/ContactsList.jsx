@@ -14,6 +14,8 @@ import PaginationClassic from "../../components/PaginationClassic";
 import SearchInput from "../../components/SearchInput";
 import contactContext from "../../context/ContactContext";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
+import AppApi from "../../api/api";
+import {classificationFilterOptions} from "./helpers/contactClassificationTags";
 import ModalBlank from "../../components/ModalBlank";
 import Banner from "../../partials/containers/Banner";
 import ContactsTable from "./ContactsTable";
@@ -351,6 +353,26 @@ function ContactsList() {
     currentPage: state.currentPage,
   });
 
+  const [accountTags, setAccountTags] = useState([]);
+
+  useEffect(() => {
+    if (!currentAccount?.id) {
+      setAccountTags([]);
+      return undefined;
+    }
+    let cancelled = false;
+    AppApi.getTagsByAccountId(currentAccount.id)
+      .then((tags) => {
+        if (!cancelled) setAccountTags(Array.isArray(tags) ? tags : []);
+      })
+      .catch(() => {
+        if (!cancelled) setAccountTags([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAccount?.id]);
+
   // Initialize ContactsList when contacts change
   useEffect(() => {
     if (contacts && contacts.length > 0) {
@@ -391,30 +413,15 @@ function ContactsList() {
 
   /* ─── Filter options from data ───────────────────────────────── */
 
-  const uniqueTags = useMemo(() => {
-    const byId = new Map();
-    (contacts || []).forEach((c) => {
-      (c.tags || []).forEach((tag) => {
-        const t = typeof tag === "object" ? tag : {id: tag, name: String(tag)};
-        if (t?.id != null && !byId.has(t.id)) {
-          byId.set(t.id, {id: t.id, name: t.name || String(t.id)});
-        }
-      });
-    });
-    return [...byId.values()].sort((a, b) =>
-      (a.name || "").localeCompare(b.name || ""),
-    );
-  }, [contacts]);
-
   const filterOptions = useMemo(
     () => ({
       type: [
         {value: "individual", label: t("individual")},
         {value: "company", label: t("company")},
       ],
-      tag: uniqueTags.map((t) => ({value: String(t.id), label: t.name})),
+      tag: classificationFilterOptions(accountTags, contacts),
     }),
-    [uniqueTags, t],
+    [accountTags, contacts, t],
   );
 
   /* ─── Filtered contacts (search + filters, like PropertiesList) ── */

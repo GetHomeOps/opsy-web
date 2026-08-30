@@ -104,6 +104,7 @@ function DocumentsFolderSidebar({
   systemsToShow = [],
   documentsBySystem = {},
   totalCount = 0,
+  libraryCount,
   inboxCount = 0,
   showInbox = true,
   allSelected = false,
@@ -158,9 +159,9 @@ function DocumentsFolderSidebar({
           >
             All Documents
           </span>
-          {totalCount > 0 && (
+          {(libraryCount ?? totalCount + inboxCount) > 0 && (
             <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
-              {totalCount}
+              {libraryCount ?? totalCount + inboxCount}
             </span>
           )}
         </div>

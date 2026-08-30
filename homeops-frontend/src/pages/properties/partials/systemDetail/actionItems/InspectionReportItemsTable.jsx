@@ -24,6 +24,7 @@ export default function InspectionReportItemsTable({
     onViewEvent,
     onViewItem,
     onAddRecord,
+    onReviewBids,
     syncingItemId,
     showSchedule = true,
   } = handlers;
@@ -76,6 +77,7 @@ export default function InspectionReportItemsTable({
                 onViewEvent={onViewEvent}
                 onViewItem={onViewItem}
                 onAddRecord={onAddRecord}
+                onReviewBids={onReviewBids}
                 showSchedule={showSchedule}
               />
             ))}

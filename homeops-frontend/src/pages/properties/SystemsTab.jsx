@@ -245,6 +245,7 @@ function SystemsTab({
         systemLabel,
         categoryFilter: options.categoryFilter || null,
         initialCategory: options.initialCategory || options.categoryFilter || "bid",
+        checklistItemId: options.checklistItemId || null,
       });
     },
     [propertyId],

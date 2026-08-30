@@ -18,6 +18,7 @@ import {
   DEMO_UPLOAD_UNAVAILABLE_MESSAGE,
 } from "../../../../utils/demoSite";
 import {inferDocumentTypeFromFolder} from "./filenameHeuristics";
+import {fileAllItemFromCard} from "./inboxDocuments";
 
 /**
  * Default inbound-email domain. Override at build time with
@@ -148,36 +149,17 @@ function DocumentsInboxView({
   const selectedCards = cards.filter((c) => selected.has(c.clientId));
   const selectedCount = selectedCards.length;
   const readyCards = cards.filter((c) => c.status === "uploaded" && c.id);
-  const allReadyComplete = readyCards.every(
-    (c) =>
-      c.proposed.system_key &&
-      c.proposed.document_name?.trim() &&
-      c.proposed.document_date,
-  );
+  const missingFolderCount = readyCards.filter(
+    (c) => !c.proposed.system_key,
+  ).length;
 
   const handleFileAll = async () => {
     setBulkError(null);
     if (!readyCards.length) return;
-    if (!allReadyComplete) {
-      setBulkError(
-        "Some cards are missing a folder. Pick one on each card or use bulk-apply below.",
-      );
-      return;
-    }
     setBulkBusy(true);
     try {
-      await onFileBulk(
-        readyCards.map((c) => ({
-          clientId: c.clientId,
-          system_key: c.proposed.system_key,
-          document_type: inferDocumentTypeFromFolder(
-            c.proposed.system_key,
-            c.proposed.document_type,
-          ),
-          document_name: c.proposed.document_name,
-          document_date: c.proposed.document_date,
-        })),
-      );
+      const today = new Date().toISOString().slice(0, 10);
+      await onFileBulk(readyCards.map((c) => fileAllItemFromCard(c, today)));
       clearSelection();
     } catch (err) {
       setBulkError(err?.message || "Filing failed");
@@ -324,12 +306,12 @@ function DocumentsInboxView({
             <button
               type="button"
               onClick={handleFileAll}
-              disabled={bulkBusy || !allReadyComplete}
+              disabled={bulkBusy}
               className="btn-sm border border-[#456654]/40 text-[#456654] dark:text-[#7a9a88] hover:bg-[#456654]/10 dark:hover:bg-[#456654]/20 disabled:opacity-50 flex items-center gap-1.5 text-xs"
               title={
-                allReadyComplete
-                  ? `File all ${readyCards.length} ready cards`
-                  : "Some cards are missing metadata"
+                missingFolderCount
+                  ? `${missingFolderCount} without a folder will go to Other`
+                  : `File all ${readyCards.length} ready cards`
               }
             >
               <CheckCheck className="w-3.5 h-3.5" />

@@ -16,6 +16,8 @@ const db = require("../db");
 const { EMAIL_BRAND_NAME, APP_BASE_URL } = require("../config");
 const sesProvider = require("./emailProviders/sesProvider");
 const emailProviderRouter = require("./emailProviderRouter");
+const { getHomeaversaryHtml } = require("../data/homeaversaryEmailHtml");
+const { renderTemplate } = require("./emailTemplateRenderer");
 const brandName = EMAIL_BRAND_NAME;
 const FOOTER_IMAGE_CID = sesProvider.FOOTER_IMAGE_CID;
 
@@ -860,6 +862,69 @@ async function sendProfessionalContactEmail({
       senderName: senderName || "",
       senderEmail: replyEmail || "",
       senderLine: senderLine || senderLabel,
+    },
+    replyTo: replyEmail,
+    usage,
+  });
+}
+
+/**
+ * Clarifying questions about a contractor bid / quote.
+ */
+async function sendContractorBidInquiryEmail({
+  to,
+  contractorName,
+  actionItemTitle,
+  message,
+  senderName,
+  senderEmail,
+  replyToEmail,
+  usage,
+}) {
+  if (!to || !String(to).trim()) {
+    throw new Error("Recipient email is required");
+  }
+
+  const name = escapeHtml(contractorName || "there");
+  const project = escapeHtml(actionItemTitle || "your proposal");
+  const safeBody = escapeHtml(message || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n/g, "<br/>");
+  const replyEmail =
+    replyToEmail && String(replyToEmail).trim()
+      ? String(replyToEmail).trim()
+      : senderEmail;
+  const senderLabel = escapeHtml(senderName || replyEmail || "A homeowner");
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+      <h2 style="color: #456564;">A few questions about your proposal</h2>
+      <p>Hi ${name},</p>
+      <p>${senderLabel} has a few questions about <strong>${project}</strong>.</p>
+      <div style="margin: 16px 0; padding: 16px; background: #f9fafb; border-radius: 8px; border-left: 3px solid #456564; font-size: 15px; color: #111827; line-height: 1.5;">
+        ${safeBody}
+      </div>
+      <p style="color: #6b7280; font-size: 14px;">You can reply directly to this email.</p>
+      ${getEmailFooterHtml()}
+    </div>
+  `;
+
+  const rawSubject = `Questions about your proposal — ${actionItemTitle || "your quote"}`;
+  const subject = rawSubject.length > 200 ? `${rawSubject.slice(0, 197)}...` : rawSubject;
+
+  return emailProviderRouter.deliver({
+    emailType: "contractor_bid_inquiry",
+    to: String(to).trim(),
+    subject,
+    html,
+    mergeData: {
+      brandName,
+      contractorName: contractorName || "there",
+      actionItemTitle: actionItemTitle || "your proposal",
+      message,
+      messageHtml: safeBody,
+      senderName: senderName || "",
+      senderEmail: replyEmail || "",
     },
     replyTo: replyEmail,
     usage,
@@ -1842,6 +1907,159 @@ async function sendSponsorshipLifecycleEmail({
   }
 }
 
+/**
+ * Homeaversary congratulations for a homeowner (anniversary day).
+ */
+function homeaversaryYearInReviewMerge({
+  tasksCompletedCount,
+  documentsUploadedCount,
+  systemsServicedCount,
+  hasYearInReview,
+  yearInReviewHtml,
+  milestoneHtml,
+  milestone1Title,
+  milestone1Body,
+  milestone2Title,
+  milestone2Body,
+  milestone3Title,
+  milestone3Body,
+}) {
+  return {
+    tasksCompletedCount: String(tasksCompletedCount ?? "0"),
+    documentsUploadedCount: String(documentsUploadedCount ?? "0"),
+    systemsServicedCount: String(systemsServicedCount ?? "0"),
+    hasYearInReview: hasYearInReview || "",
+    yearInReviewHtml: yearInReviewHtml || "",
+    milestoneHtml: milestoneHtml || "",
+    milestone1Title: milestone1Title || "",
+    milestone1Body: milestone1Body || "",
+    milestone2Title: milestone2Title || "",
+    milestone2Body: milestone2Body || "",
+    milestone3Title: milestone3Title || "",
+    milestone3Body: milestone3Body || "",
+  };
+}
+
+function renderHomeaversaryFallbackHtml(audience, mergeData) {
+  return renderTemplate(getHomeaversaryHtml(audience), {
+    ...mergeData,
+    recipientFirstName: escapeHtml(mergeData.recipientFirstName),
+    propertyAddress: escapeHtml(mergeData.propertyAddress),
+    ownerName: escapeHtml(mergeData.ownerName),
+    yearsOwned: escapeHtml(mergeData.yearsOwned),
+    yearsOwnedPlural: escapeHtml(mergeData.yearsOwnedPlural),
+    anniversaryDate: escapeHtml(mergeData.anniversaryDate),
+    brandName: escapeHtml(mergeData.brandName),
+    propertyUrl: escapeHtmlAttr(mergeData.propertyUrl),
+  });
+}
+
+async function sendHomeaversaryHomeownerEmail({
+  to,
+  recipientFirstName,
+  propertyAddress,
+  propertyUrl,
+  yearsOwned,
+  anniversaryDate,
+  lastSaleDate,
+  usage,
+  ...yearInReview
+}) {
+  const toAddr = to && String(to).trim();
+  if (!toAddr) return { success: false, reason: "no_recipient" };
+
+  const firstName = recipientFirstName || "there";
+  const address = propertyAddress || "your home";
+  const years = String(yearsOwned ?? "");
+  const yearsNum = Number(yearsOwned);
+  const yearsOwnedPlural = yearsNum === 1 ? "" : "s";
+  const reviewMerge = homeaversaryYearInReviewMerge(yearInReview);
+  const mergeData = {
+    brandName,
+    audience: "homeowner",
+    recipientFirstName: firstName,
+    propertyAddress: address,
+    propertyUrl: propertyUrl || "",
+    yearsOwned: years,
+    yearsOwnedPlural,
+    anniversaryDate: anniversaryDate || "",
+    lastSaleDate: lastSaleDate || "",
+    ownerName: "",
+    ...reviewMerge,
+  };
+  const html = renderHomeaversaryFallbackHtml("homeowner", mergeData);
+
+  try {
+    return await emailProviderRouter.deliver({
+      emailType: "homeaversary_homeowner",
+      to: toAddr,
+      subject: `Happy Homeaversary — one more year at ${address}`,
+      html,
+      mergeData,
+      usage,
+    });
+  } catch (err) {
+    console.warn("[emailService] homeaversary homeowner email failed:", err.message);
+    return { success: false, reason: "send_failed" };
+  }
+}
+
+/**
+ * Homeaversary preview for an agent (7 days before the anniversary).
+ */
+async function sendHomeaversaryAgentEmail({
+  to,
+  recipientFirstName,
+  propertyAddress,
+  propertyUrl,
+  yearsOwned,
+  anniversaryDate,
+  lastSaleDate,
+  ownerName,
+  usage,
+  ...yearInReview
+}) {
+  const toAddr = to && String(to).trim();
+  if (!toAddr) return { success: false, reason: "no_recipient" };
+
+  const firstName = recipientFirstName || "there";
+  const address = propertyAddress || "a property";
+  const owner = ownerName || "your client";
+  const when = anniversaryDate || "next week";
+  const years = String(yearsOwned ?? "");
+  const yearsNum = Number(yearsOwned);
+  const yearsOwnedPlural = yearsNum === 1 ? "" : "s";
+  const reviewMerge = homeaversaryYearInReviewMerge(yearInReview);
+  const mergeData = {
+    brandName,
+    audience: "agent",
+    recipientFirstName: firstName,
+    propertyAddress: address,
+    propertyUrl: propertyUrl || "",
+    yearsOwned: years,
+    yearsOwnedPlural,
+    anniversaryDate: when,
+    lastSaleDate: lastSaleDate || "",
+    ownerName: owner,
+    ...reviewMerge,
+  };
+  const html = renderHomeaversaryFallbackHtml("agent", mergeData);
+
+  try {
+    return await emailProviderRouter.deliver({
+      emailType: "homeaversary_agent",
+      to: toAddr,
+      subject: `Homeaversary in 7 days: ${address}`,
+      html,
+      mergeData,
+      usage,
+    });
+  } catch (err) {
+    console.warn("[emailService] homeaversary agent email failed:", err.message);
+    return { success: false, reason: "send_failed" };
+  }
+}
+
 module.exports = {
   sendPasswordResetEmail,
   sendEmailVerificationEmail,
@@ -1854,6 +2072,7 @@ module.exports = {
   sendContractorReportEmail,
   sendScheduleNotificationEmail,
   sendProfessionalContactEmail,
+  sendContractorBidInquiryEmail,
   sendCommunicationNotifyEmail,
   sendInspectionAnalysisReadyEmail,
   sendSupportTicketReceivedEmail,
@@ -1868,6 +2087,8 @@ module.exports = {
   sendDemoAccountOpenedEmail,
   sendDemoAccountExpiredEmail,
   sendSponsorshipLifecycleEmail,
+  sendHomeaversaryHomeownerEmail,
+  sendHomeaversaryAgentEmail,
   buildAccountBillingUrl,
   getOpsTeamNotifyRecipients,
   sendOpsTeamInternalNotification,

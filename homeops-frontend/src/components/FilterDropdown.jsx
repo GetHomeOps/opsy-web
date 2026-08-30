@@ -11,6 +11,7 @@ import useDropdownAlignment from "../hooks/useDropdownAlignment";
  * @param {Function} props.onAdd - (filter) => void
  * @param {Function} props.onRemove - (filter) => void
  * @param {Function} props.t - Translation function
+ * @param {Object} [props.customCategoryPanels] - Optional render map: { [type]: (ctx) => node }
  */
 function FilterDropdown({
   filterCategories,
@@ -19,6 +20,7 @@ function FilterDropdown({
   onAdd,
   onRemove,
   t,
+  customCategoryPanels,
 }) {
   const [open, setOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState(null);
@@ -47,6 +49,16 @@ function FilterDropdown({
       onAdd({type, value, label});
     }
   };
+
+  const close = () => {
+    setOpen(false);
+    setActiveCategory(null);
+  };
+
+  const customPanel =
+    activeCategory && customCategoryPanels?.[activeCategory]
+      ? customCategoryPanels[activeCategory]
+      : null;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -82,9 +94,9 @@ function FilterDropdown({
 
       {open && (
         <div
-          className={`absolute top-full mt-1.5 z-30 min-w-[200px] max-w-[calc(100vw-1.5rem)] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
+          className={`absolute top-full mt-1.5 z-30 max-w-[calc(100vw-1.5rem)] bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden ${
+            customPanel ? "min-w-[288px]" : "min-w-[200px]"
+          } ${align === "right" ? "right-0" : "left-0"}`}
         >
           {!activeCategory ? (
             <ul className="py-1.5">
@@ -150,58 +162,69 @@ function FilterDropdown({
                     ?.labelKey,
                 )}
               </button>
-              <ul className="py-1.5 max-h-64 overflow-y-auto">
-                {(filterOptions[activeCategory] ?? []).map((opt) => {
-                  const active = isFilterActive(activeCategory, opt.value);
-                  return (
-                    <li key={opt.value}>
-                      <button
-                        type="button"
-                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                        onClick={() =>
-                          toggleFilter(activeCategory, opt.value, opt.label)
-                        }
-                      >
-                        <span
-                          className={`flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                            active
-                              ? "bg-[#456564] border-[#456564]"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
+              {customPanel ? (
+                customPanel({
+                  type: activeCategory,
+                  activeFilters,
+                  onAdd,
+                  onRemove,
+                  t,
+                  close,
+                })
+              ) : (
+                <ul className="py-1.5 max-h-64 overflow-y-auto">
+                  {(filterOptions[activeCategory] ?? []).map((opt) => {
+                    const active = isFilterActive(activeCategory, opt.value);
+                    return (
+                      <li key={opt.value}>
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                          onClick={() =>
+                            toggleFilter(activeCategory, opt.value, opt.label)
+                          }
                         >
-                          {active && (
-                            <svg
-                              className="w-3 h-3 text-white"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={3}
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
-                          )}
-                        </span>
-                        {opt.dot && (
                           <span
-                            className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{backgroundColor: opt.dot}}
-                          />
-                        )}
-                        <span className="truncate">{opt.label}</span>
-                      </button>
+                            className={`flex-shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                              active
+                                ? "bg-[#456564] border-[#456564]"
+                                : "border-gray-300 dark:border-gray-600"
+                            }`}
+                          >
+                            {active && (
+                              <svg
+                                className="w-3 h-3 text-white"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={3}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            )}
+                          </span>
+                          {opt.dot && (
+                            <span
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{backgroundColor: opt.dot}}
+                            />
+                          )}
+                          <span className="truncate">{opt.label}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                  {(filterOptions[activeCategory] ?? []).length === 0 && (
+                    <li className="px-3 py-3 text-sm text-gray-400 dark:text-gray-500 text-center">
+                      {t("noItemsFound")}
                     </li>
-                  );
-                })}
-                {(filterOptions[activeCategory] ?? []).length === 0 && (
-                  <li className="px-3 py-3 text-sm text-gray-400 dark:text-gray-500 text-center">
-                    {t("noItemsFound")}
-                  </li>
-                )}
-              </ul>
+                  )}
+                </ul>
+              )}
             </div>
           )}
         </div>

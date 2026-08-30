@@ -57,6 +57,7 @@ export default function ActionItemTableRow({
   onViewEvent,
   onViewItem,
   onAddRecord,
+  onReviewBids,
   showSchedule = true,
 }) {
   const [editorOpen, setEditorOpen] = useState(false);
@@ -183,6 +184,15 @@ export default function ActionItemTableRow({
             <span className="inline-flex mt-1 ml-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400">
               Inspection Report
             </span>
+          )}
+          {Number(item.bid_count) > 0 && (
+            <button
+              type="button"
+              onClick={() => onReviewBids?.(item)}
+              className="inline-flex mt-1 ml-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#456564]/10 text-[#456564] dark:bg-[#7aa3a2]/15 dark:text-[#7aa3a2] hover:underline"
+            >
+              {item.bid_count} bid{Number(item.bid_count) === 1 ? "" : "s"}
+            </button>
           )}
           <MobileMeta>
             {recurrenceLabel &&

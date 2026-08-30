@@ -826,8 +826,7 @@ function UsersList() {
           </ModalBlank>
         </div>
 
-        <div className="m-1.5">
-          <ModalBlank
+        <ModalBlank
             id="danger-modal"
             modalOpen={state.dangerModalOpen}
             setModalOpen={(open) =>
@@ -890,10 +889,8 @@ function UsersList() {
               </div>
             </div>
           </ModalBlank>
-        </div>
 
-        <div className="m-1.5">
-          <ModalBlank
+        <ModalBlank
             id="ownership-transfer-modal"
             modalOpen={state.ownershipTransferModalOpen}
             setModalOpen={(open) =>
@@ -956,10 +953,8 @@ function UsersList() {
               </div>
             </div>
           </ModalBlank>
-        </div>
 
-        <div className="m-1.5">
-          <ModalBlank
+        <ModalBlank
             id="account-has-properties-modal"
             modalOpen={state.accountHasPropertiesModalOpen}
             setModalOpen={(open) =>
@@ -1022,21 +1017,15 @@ function UsersList() {
               </div>
             </div>
           </ModalBlank>
-        </div>
 
         <main className="grow">
           <div className="px-3 sm:px-4 lg:px-5 xxl:px-12 py-8 w-full max-w-[96rem] mx-auto">
-            {/* Page header */}
-            <div className="sm:flex sm:justify-between sm:items-center mb-8">
-              {/* Left: Title */}
-              <div className="mb-4 sm:mb-0">
-                <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
-                  {t("users")}
-                </h1>
-              </div>
-
-              {/* Right: Actions */}
-              <div className="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
+            {/* ─── Header row ─────────────────────────────────── */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-5">
+              <h1 className="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
+                {t("users")}
+              </h1>
+              <div className="flex items-center gap-2">
                 {canCreateUser ? (
                   <>
                     <ListDropdown
@@ -1071,7 +1060,7 @@ function UsersList() {
               </div>
             </div>
             {/* Search bar with filter */}
-            <div className="mb-6 space-y-3">
+            <div className="mb-5 space-y-3">
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <SearchInput
                   placeholder={

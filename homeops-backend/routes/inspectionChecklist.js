@@ -62,7 +62,7 @@ router.post(
   ensurePropertyAccess({ param: "propertyId" }),
   async function (req, res, next) {
     try {
-      const { systemKey, title, description, priority } = req.body;
+      const { systemKey, title, description, priority, nextDueDate, next_due_date, status } = req.body;
       if (!systemKey || !title) {
         throw new BadRequestError("systemKey and title are required");
       }
@@ -72,6 +72,8 @@ router.post(
         title,
         description: description || null,
         priority: priority || "medium",
+        nextDueDate: nextDueDate || next_due_date || null,
+        status: status || "pending",
       });
       return res.status(201).json({ item });
     } catch (err) {

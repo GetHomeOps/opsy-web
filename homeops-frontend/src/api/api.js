@@ -1972,14 +1972,79 @@ class AppApi {
     return res.item;
   }
 
-  static async createChecklistItem(propertyId, { systemKey, title, description, priority }) {
+  static async createChecklistItem(propertyId, {
+    systemKey,
+    title,
+    description,
+    priority,
+    nextDueDate,
+    status,
+  }) {
     const res = await this.request(`properties/${propertyId}/inspection-checklist`, {
       systemKey,
       title,
       description: description || null,
       priority: priority || "medium",
+      nextDueDate: nextDueDate || null,
+      status: status || "pending",
     }, "POST");
     return res.item;
+  }
+
+  static async getSystemBidReviews(propertyId, systemKey) {
+    return this.request(
+      `properties/${propertyId}/systems/${encodeURIComponent(systemKey)}/bid-reviews`,
+      {},
+      "GET",
+    );
+  }
+
+  static async getActionItemBidReview(propertyId, itemId) {
+    return this.request(
+      `properties/${propertyId}/checklist-items/${itemId}/bid-review`,
+      {},
+      "GET",
+    );
+  }
+
+  static async compareActionItemBids(propertyId, itemId) {
+    return this.request(
+      `properties/${propertyId}/checklist-items/${itemId}/compare`,
+      {},
+      "POST",
+    );
+  }
+
+  static async regenerateBidQuestions(propertyId, itemId) {
+    return this.request(
+      `properties/${propertyId}/checklist-items/${itemId}/regenerate-questions`,
+      {},
+      "POST",
+    );
+  }
+
+  static async updateBidQuestions(propertyId, itemId, questions) {
+    return this.request(
+      `properties/${propertyId}/checklist-items/${itemId}/questions`,
+      { questions },
+      "PATCH",
+    );
+  }
+
+  static async askContractorAboutBid(propertyId, itemId, data) {
+    return this.request(
+      `properties/${propertyId}/checklist-items/${itemId}/ask-contractor`,
+      data,
+      "POST",
+    );
+  }
+
+  static async selectActionItemBid(propertyId, itemId, documentId) {
+    return this.request(
+      `properties/${propertyId}/checklist-items/${itemId}/select-bid`,
+      { documentId },
+      "POST",
+    );
   }
 
   static async deleteChecklistItem(itemId) {

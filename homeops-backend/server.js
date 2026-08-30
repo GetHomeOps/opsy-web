@@ -23,6 +23,10 @@ const { ensurePropertySponsorshipSchema } = require('./services/propertySponsors
 const { ensureSystemRecommendationTemplateSchema } = require('./services/systemRecommendationTemplateSchema');
 const { startSponsorshipSweeper } = require('./services/sponsorshipScheduler');
 const { startDemoExpirySweeper } = require('./services/demoExpiryScheduler');
+const { startHomeaversarySweeper } = require('./services/homeaversaryScheduler');
+const { ensureHomeaversarySchema } = require('./services/homeaversarySchema');
+const { ensureBidReviewSchema } = require('./services/bidReviewSchema');
+const { backfillContactSystemTags } = require('./services/contactTagService');
 const { ensureProfessionalCategories } = require('./services/professionalCategorySeedService');
 const { recoverPendingJobs: recoverAttomLookupJobs } = require('./services/attomLookupQueue');
 const { ensureDemoUserSchema } = require('./helpers/demoUserSchema');
@@ -131,9 +135,33 @@ async function startServer() {
     }
 
     try {
+      await ensureHomeaversarySchema();
+    } catch (homeaversarySchemaErr) {
+      console.warn('[startup] Homeaversary schema ensure failed:', homeaversarySchemaErr.message);
+    }
+
+    try {
+      await ensureBidReviewSchema();
+    } catch (bidReviewSchemaErr) {
+      console.warn('[startup] Bid review schema ensure failed:', bidReviewSchemaErr.message);
+    }
+
+    try {
+      await backfillContactSystemTags();
+    } catch (contactTagBackfillErr) {
+      console.warn('[startup] Contact system tag backfill failed:', contactTagBackfillErr.message);
+    }
+
+    try {
       startSponsorshipSweeper();
     } catch (sweepErr) {
       console.warn('[startup] Sponsorship sweeper failed to start:', sweepErr.message);
+    }
+
+    try {
+      startHomeaversarySweeper();
+    } catch (homeaversarySweepErr) {
+      console.warn('[startup] Homeaversary sweeper failed to start:', homeaversarySweepErr.message);
     }
 
     try {

@@ -245,7 +245,9 @@ function getIdentityFields() {
 function categoryExtractionHints(category) {
   if (category === "bid") {
     return `This document is a bid, quote, estimate, or proposal.
-- Extract lineItems, totalPrice/cost, validUntil, termsAndConditions, and installer (issuing contractor).
+- Extract installer (issuing contractor), lineItems, totalPrice, labor, materials, scopeIncluded, exclusions, warranty, deposit / payment terms, estimatedDuration, proposedStartDate, validUntil, permitResponsibility, cleanup / disposal, allowances, changeOrderTerms, and termsAndConditions.
+- For every item, set certainty to "stated" (verbatim in the document), "inferred" (implied but not explicit), or "not_found".
+- Prefer "not_found" over guessing. Never present inferred values as confirmed fact.
 - Do not extract property identity fields (owner, tax ID, year built). Bids are not a source of truth for the property.`;
   }
   if (category === "installation_invoice") {
@@ -299,7 +301,7 @@ Output ONLY valid JSON:
 {
   "summary": "1-2 sentence summary",
   "items": [
-    { "fieldKey": "string", "label": "Human label", "value": "extracted value or array", "confidence": 0.0-1.0, "evidence": "short verbatim quote" }
+    { "fieldKey": "string", "label": "Human label", "value": "extracted value or array", "confidence": 0.0-1.0, "certainty": "stated|inferred|not_found", "evidence": "short verbatim quote" }
   ]
 }
 

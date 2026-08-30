@@ -39,7 +39,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['exceljs'],
+    include: ['exceljs', 'framer-motion'],
   },
   plugins: [
     react(),

@@ -3,6 +3,7 @@ import {useTranslation} from "react-i18next";
 import {useNavigate, useParams} from "react-router-dom";
 import DataTable from "../../components/DataTable";
 import DataTableItem from "../../components/DataTableItem";
+import {classificationTagsFromContact} from "./helpers/contactClassificationTags";
 
 function ContactsTable({
   contacts,
@@ -59,9 +60,27 @@ function ContactsTable({
       sortable: true,
     },
     {
-      key: "job_position",
-      label: t("jobPosition"),
-      sortable: true,
+      key: "tags",
+      label: t("tags"),
+      sortable: false,
+      render: (_value, item) => {
+        const tags = classificationTagsFromContact(item);
+        if (!tags.length) {
+          return <span className="text-gray-400 dark:text-gray-500">—</span>;
+        }
+        return (
+          <div className="flex items-center gap-1">
+            {tags.map((tag) => (
+              <span
+                key={tag.id || tag.name}
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+              >
+                {tag.name}
+              </span>
+            ))}
+          </div>
+        );
+      },
     },
   ];
 

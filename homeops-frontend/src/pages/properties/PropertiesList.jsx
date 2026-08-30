@@ -34,6 +34,14 @@ import usePersistListUiSession, {
   HYDRATE_LIST_UI,
 } from "../../hooks/usePersistListUiSession";
 import {getPropertyStreetLine} from "./helpers/preparePropertyValues";
+import {
+  HOMEAVERSARY_FILTER_TYPE,
+  formatSaleDate,
+  matchesHomeaversaryFilter,
+  propertyLastSaleDate,
+  saleDateSortValue,
+} from "./helpers/homeaversaryFilter";
+import HomeaversaryFilterPanel from "./partials/HomeaversaryFilterPanel";
 
 const PAGE_STORAGE_KEY = "properties_list_page";
 
@@ -47,6 +55,13 @@ const FILTER_CATEGORIES = [
   {type: "health", labelKey: "healthStatus"},
   {type: "agentAssignment", labelKey: "filterAgentAssignment"},
 ];
+
+const HOMEAVERSARY_CATEGORY = {
+  type: HOMEAVERSARY_FILTER_TYPE,
+  labelKey: "homeaversary",
+};
+
+const CHIP_FILTER_CATEGORIES = [...FILTER_CATEGORIES, HOMEAVERSARY_CATEGORY];
 
 const HEALTH_RANGES = [
   {value: "healthy", labelKey: "healthy", min: 75, max: 100, color: "#22c55e"},
@@ -106,6 +121,8 @@ function getPropertyColumnSortValue(property, key) {
       return property.health ?? property.hps_score ?? property.hpsScore ?? 0;
     case "invitation_status":
       return INVITATION_STATUS_SORT_RANK[getPropertyInvitationStatus(property)] ?? 0;
+    case "last_sale_date":
+      return saleDateSortValue(propertyLastSaleDate(property));
     default:
       return property[key] ?? "";
   }
@@ -117,7 +134,19 @@ function comparePropertyRowsForSort(a, b, {key, direction}) {
   const rawB = getPropertyColumnSortValue(b, key);
 
   let cmp = 0;
-  if (key === "health" || key === "invitation_status") {
+  if (key === "last_sale_date") {
+    const strA = String(rawA).trim();
+    const strB = String(rawB).trim();
+    if (!strA && !strB) {
+      cmp = 0;
+    } else if (!strA) {
+      return 1;
+    } else if (!strB) {
+      return -1;
+    } else {
+      cmp = strA.localeCompare(strB);
+    }
+  } else if (key === "health" || key === "invitation_status") {
     const numA = Number(rawA);
     const numB = Number(rawB);
     if (Number.isFinite(numA) && Number.isFinite(numB) && numA !== numB) {
@@ -177,6 +206,26 @@ function reducer(state, action) {
             !(
               f.type === action.payload.type && f.value === action.payload.value
             ),
+        ),
+        currentPage: 1,
+      };
+    case "REPLACE_FILTER_TYPE": {
+      const next = action.payload;
+      if (!next?.type) return state;
+      return {
+        ...state,
+        activeFilters: [
+          ...state.activeFilters.filter((f) => f.type !== next.type),
+          next,
+        ],
+        currentPage: 1,
+      };
+    }
+    case "REMOVE_FILTERS_OF_TYPE":
+      return {
+        ...state,
+        activeFilters: state.activeFilters.filter(
+          (f) => f.type !== action.payload,
         ),
         currentPage: 1,
       };
@@ -395,6 +444,8 @@ function PropertiesList() {
   const canImportProperties = ["super_admin", "admin"].includes(
     currentUser?.role,
   );
+  const canFilterHomeaversary =
+    Boolean(currentUser?.role) && currentUser.role !== "homeowner";
   const [propertyLimitUpgradeOpen, setPropertyLimitUpgradeOpen] =
     useState(false);
   const [propertyLimitMessage, setPropertyLimitMessage] = useState("");
@@ -460,6 +511,19 @@ function PropertiesList() {
     sortConfig,
     setSortConfig,
   });
+
+  useEffect(() => {
+    if (currentUser?.role !== "homeowner") return;
+    if (
+      !state.activeFilters.some((f) => f.type === HOMEAVERSARY_FILTER_TYPE)
+    ) {
+      return;
+    }
+    dispatch({
+      type: "REMOVE_FILTERS_OF_TYPE",
+      payload: HOMEAVERSARY_FILTER_TYPE,
+    });
+  }, [currentUser?.role, state.activeFilters]);
 
   /* ─── Derive filter options from data ──────────────────────── */
 
@@ -533,6 +597,30 @@ function PropertiesList() {
     }),
     [uniqueCities, uniqueStates, uniqueOwners, uniqueAgents, uniqueAgencies, t],
   );
+
+  const filterCategories = useMemo(
+    () =>
+      canFilterHomeaversary
+        ? [...FILTER_CATEGORIES, HOMEAVERSARY_CATEGORY]
+        : FILTER_CATEGORIES,
+    [canFilterHomeaversary],
+  );
+
+  const customCategoryPanels = useMemo(() => {
+    if (!canFilterHomeaversary) return undefined;
+    return {
+      [HOMEAVERSARY_FILTER_TYPE]: ({activeFilters: filters, t: translate, close}) => (
+        <HomeaversaryFilterPanel
+          activeFilters={filters}
+          t={translate}
+          onSelect={(filter) => {
+            dispatch({type: "REPLACE_FILTER_TYPE", payload: filter});
+            close();
+          }}
+        />
+      ),
+    };
+  }, [canFilterHomeaversary]);
 
   /* ─── Presigned photo URLs ─────────────────────────────────── */
 
@@ -701,6 +789,17 @@ function PropertiesList() {
         if (!filtersByType.invitationStatus.includes(status)) return false;
       }
 
+      if (filtersByType[HOMEAVERSARY_FILTER_TYPE]) {
+        if (
+          !matchesHomeaversaryFilter(
+            propertyLastSaleDate(property),
+            filtersByType[HOMEAVERSARY_FILTER_TYPE],
+          )
+        ) {
+          return false;
+        }
+      }
+
       return true;
     });
   }, [
@@ -846,6 +945,13 @@ function PropertiesList() {
     },
     {key: "city", label: "city", sortable: true},
     {key: "state", label: "state", sortable: true},
+    {
+      key: "last_sale_date",
+      label: "homeaversary",
+      sortable: true,
+      render: (_value, item) =>
+        formatSaleDate(propertyLastSaleDate(item)) || "—",
+    },
     {
       key: "owner_user_name",
       label: "owner",
@@ -1215,13 +1321,14 @@ function PropertiesList() {
                 {/* Filter button + View toggle (right of search) */}
                 <div className="flex items-center gap-2 shrink-0">
                   <FilterDropdown
-                    filterCategories={FILTER_CATEGORIES}
+                    filterCategories={filterCategories}
                     filterOptions={filterOptions}
                     activeFilters={state.activeFilters}
                     onAdd={(f) => dispatch({type: "ADD_FILTER", payload: f})}
                     onRemove={(f) =>
                       dispatch({type: "REMOVE_FILTER", payload: f})
                     }
+                    customCategoryPanels={customCategoryPanels}
                     t={t}
                   />
                   <div className="flex rounded-lg border border-gray-200 dark:border-gray-700/60 overflow-hidden">
@@ -1289,7 +1396,7 @@ function PropertiesList() {
                     >
                       <span className="text-emerald-400 dark:text-emerald-500 font-normal">
                         {t(
-                          FILTER_CATEGORIES.find((c) => c.type === f.type)
+                          CHIP_FILTER_CATEGORIES.find((c) => c.type === f.type)
                             ?.labelKey ?? f.type,
                         )}
                         :

@@ -1,7 +1,12 @@
 import {lazy} from "react";
 
-/** Session flag so we only auto-reload once per visit when a deploy invalidates chunks. */
+/** Session flag so we only auto-reload once per cooldown when a deploy invalidates chunks. */
 export const CHUNK_RELOAD_KEY = "opsy-chunk-reload";
+
+/** Ignore a second auto-reload for this long after the first. Must outlast the
+ * time it takes a lazy route to fail — otherwise a failed Helpdesk import
+ * reloads, main.jsx used to clear the flag immediately, and the tab looped. */
+const CHUNK_RELOAD_COOLDOWN_MS = 30_000;
 
 export function isChunkLoadError(error) {
   const message = String(error?.message || "");
@@ -16,17 +21,20 @@ export function isChunkLoadError(error) {
 
 export function hasChunkReloadBeenAttempted() {
   try {
-    return sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
+    const raw = sessionStorage.getItem(CHUNK_RELOAD_KEY);
+    if (!raw) return false;
+    if (raw === "1") return true;
+    const ts = Number(raw);
+    return Number.isFinite(ts) && Date.now() - ts < CHUNK_RELOAD_COOLDOWN_MS;
   } catch {
     return false;
   }
 }
 
 function buildCacheBustUrl() {
-  const {pathname, search, hash} = window.location;
-  const bust = `_chunk=${Date.now()}`;
-  const nextSearch = search ? `${search}&${bust}` : `?${bust}`;
-  return `${pathname}${nextSearch}${hash}`;
+  const url = new URL(window.location.href);
+  url.searchParams.set("_chunk", String(Date.now()));
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 function hardNavigateForStaleChunk() {
@@ -37,12 +45,20 @@ export function reloadOnceForStaleChunk() {
   if (hasChunkReloadBeenAttempted()) return false;
 
   try {
-    sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()));
   } catch {
     /* ignore storage errors */
   }
 
-  if (!import.meta.env.DEV && "serviceWorker" in navigator) {
+  // Query-param cache-busting is for production CDNs. In Vite, a 504
+  // "Outdated Optimize Dep" is fixed by a plain reload (or restarting Vite),
+  // not by stacking `?_chunk=` on the URL.
+  if (import.meta.env.DEV) {
+    window.location.reload();
+    return true;
+  }
+
+  if ("serviceWorker" in navigator) {
     navigator.serviceWorker
       .getRegistrations()
       .then((registrations) =>

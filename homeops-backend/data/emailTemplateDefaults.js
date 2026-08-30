@@ -1,6 +1,23 @@
 "use strict";
 
 const { EMAIL_BRAND_NAME } = require("../config");
+const { getHomeaversaryHtml } = require("./homeaversaryEmailHtml");
+const { toMergeFields } = require("../services/homeaversaryYearInReview");
+
+const SAMPLE_YEAR_IN_REVIEW = toMergeFields(
+  {
+    tasksCompletedCount: 4,
+    documentsUploadedCount: 3,
+    systemsServicedCount: 3,
+    tasks: [
+      { title: "HVAC spring tune-up" },
+      { title: "Gutter cleaning" },
+      { title: "Roof inspection" },
+      { title: "Water heater flush" },
+    ],
+  },
+  { audience: "homeowner", yearsOwned: 7, streetLabel: "205 E 95th St" }
+);
 
 /**
  * Default SES email templates.
@@ -66,6 +83,14 @@ const DEFAULTS = {
 {{detailsSection}}
 {{messageSection}}
 <p style="color: #6b7280; font-size: 14px;">Please confirm this appointment or reach out to the homeowner to discuss the details.</p>`,
+  },
+  contractor_bid_inquiry: {
+    subject: "Questions about your proposal — {{actionItemTitle}}",
+    htmlBody: `<h2 style="color: #456564; margin: 0 0 12px;">A few questions about your proposal</h2>
+<p style="margin: 12px 0; line-height: 1.6;">Hi {{contractorName}},</p>
+<p style="margin: 12px 0; line-height: 1.6;">{{senderName}} has a few questions about <strong>{{actionItemTitle}}</strong>.</p>
+<div style="margin: 16px 0; padding: 16px; background: #f9fafb; border-radius: 8px; border-left: 3px solid #456564; font-size: 15px; color: #111827; line-height: 1.5;">{{messageHtml}}</div>
+<p style="color: #6b7280; font-size: 14px;">You can reply directly to this email.</p>`,
   },
   professional_contact: {
     subject: "{{brandName}}: Message about {{professionalCompanyName}}",
@@ -161,6 +186,14 @@ const DEFAULTS = {
 {{detailsHtml}}
 <p style="margin: 24px 0;"><a href="{{adminUrl}}" style="background-color: #456564; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">View user</a></p>`,
   },
+  homeaversary_homeowner: {
+    subject: "Happy Homeaversary — one more year at {{propertyAddress}}",
+    htmlBody: getHomeaversaryHtml("homeowner"),
+  },
+  homeaversary_agent: {
+    subject: "Homeaversary in 7 days: {{propertyAddress}}",
+    htmlBody: getHomeaversaryHtml("agent"),
+  },
 };
 
 function getDefaultSesTemplate(emailType) {
@@ -187,6 +220,8 @@ const LEGACY_MARKERS = {
   communication_notify: ["{{greeting}}", "{{title}}"],
   support_ticket_received: ["{{heading}}"],
   support_ticket_reply: ["{{intro}}"],
+  homeaversary_homeowner: ["Happy Homeaversary</h2>", "keep it in good shape"],
+  homeaversary_agent: ["Homeaversary coming up", "short note or small gift"],
 };
 
 function isLegacySesTemplate(emailType, html) {
@@ -289,6 +324,13 @@ function getSampleMergeData(emailType) {
       subjectSuffix: " — HVAC at 123 Main St",
       detailsSection: "",
       messageSection: "",
+    },
+    contractor_bid_inquiry: {
+      ...base,
+      contractorName: "John",
+      actionItemTitle: "Replace living room flooring",
+      messageHtml: "Thanks for the proposal. Does the price include furniture moving?",
+      senderName: "Jane Smith",
     },
     professional_contact: {
       ...base,
@@ -399,6 +441,45 @@ function getSampleMergeData(emailType) {
       adminUrl: "https://demo.heyopsy.com/home/users/501",
       detailsHtml:
         '<table style="border-collapse: collapse; margin: 12px 0;"><tr><td style="padding: 4px 12px 4px 0; color: #6b7280;">Name</td><td>Jordan Lee</td></tr></table>',
+    },
+    homeaversary_homeowner: {
+      ...base,
+      audience: "homeowner",
+      recipientFirstName: "Alex",
+      propertyAddress: "205 E 95th St, New York, NY",
+      propertyUrl: "https://app.heyopsy.com/home/properties/sample",
+      yearsOwned: "7",
+      yearsOwnedPlural: "s",
+      anniversaryDate: "March 1, 2026",
+      lastSaleDate: "2019-03-01",
+      ownerName: "",
+      ...SAMPLE_YEAR_IN_REVIEW,
+    },
+    homeaversary_agent: {
+      ...base,
+      audience: "agent",
+      recipientFirstName: "Jordan",
+      propertyAddress: "205 E 95th St, New York, NY",
+      propertyUrl: "https://app.heyopsy.com/home/properties/sample",
+      yearsOwned: "7",
+      yearsOwnedPlural: "s",
+      anniversaryDate: "March 1, 2026",
+      lastSaleDate: "2019-03-01",
+      ownerName: "Alex Rivera",
+      ...toMergeFields(
+        {
+          tasksCompletedCount: 4,
+          documentsUploadedCount: 3,
+          systemsServicedCount: 3,
+          tasks: [
+            { title: "HVAC spring tune-up" },
+            { title: "Gutter cleaning" },
+            { title: "Roof inspection" },
+            { title: "Water heater flush" },
+          ],
+        },
+        { audience: "agent", yearsOwned: 7, streetLabel: "205 E 95th St" }
+      ),
     },
   };
   return samples[emailType] || base;

@@ -13,12 +13,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Upload,
+  Inbox,
 } from "lucide-react";
 import {DOCUMENT_ANALYSIS_TROUBLE_LABEL} from "../../helpers/documentAnalysisFlow";
 import DocumentPreviewCard from "./DocumentPreviewCard";
 import DocumentsViewToggle, {
   useDocumentsViewMode,
 } from "./DocumentsViewToggle";
+import {isInboxDoc} from "./inboxDocuments";
 
 const PAGE_SIZE = 8;
 
@@ -85,6 +87,15 @@ function AiExtractionBadge({status, errorMessage}) {
 
 /** Draggable table row — same dnd data contract as the old tree rows so
  *  documents can still be dragged onto sidebar folders to move them. */
+function InboxStatusBadge({doc}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#456654] dark:text-[#7a9a88]">
+      <Inbox className="w-3.5 h-3.5" />
+      {doc.needsFolder ? "Needs a folder" : "Inbox"}
+    </span>
+  );
+}
+
 function DocumentRow({
   doc,
   documentTypes,
@@ -95,14 +106,24 @@ function DocumentRow({
   onOpenInNewTab,
   onDelete,
 }) {
+  const inbox = isInboxDoc(doc);
+  const dndDisabled = inbox && (!doc.stagedId || doc.status !== "uploaded");
   const {attributes, listeners, setNodeRef, isDragging} = useDraggable({
-    id: `filed:${doc.id}`,
-    data: {
-      type: "filed",
-      documentId: doc.id,
-      currentSystemKey: doc.system,
-      label: doc.name || doc.document_name || "Document",
-    },
+    id: inbox ? `inbox:${doc.clientId}` : `filed:${doc.id}`,
+    data: inbox
+      ? {
+          type: "inbox",
+          clientId: doc.clientId,
+          cardId: doc.stagedId,
+          label: doc.name || "Document",
+        }
+      : {
+          type: "filed",
+          documentId: doc.id,
+          currentSystemKey: doc.system,
+          label: doc.name || doc.document_name || "Document",
+        },
+    disabled: dndDisabled,
   });
 
   const FileIcon = isImageDoc(doc) ? ImageIcon : FileText;
@@ -129,7 +150,9 @@ function DocumentRow({
               {doc.name}
             </p>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-              Uploaded {formatDate(doc.created_at || doc.document_date)}
+              {inbox
+                ? "Unfiled · drag to a folder"
+                : `Uploaded ${formatDate(doc.created_at || doc.document_date)}`}
             </p>
           </div>
         </div>
@@ -145,10 +168,14 @@ function DocumentRow({
         </span>
       </td>
       <td className="px-4 py-3 hidden md:table-cell">
-        <AiExtractionBadge
-          status={analysisStatus}
-          errorMessage={analysisErrorMessage}
-        />
+        {inbox ? (
+          <InboxStatusBadge doc={doc} />
+        ) : (
+          <AiExtractionBadge
+            status={analysisStatus}
+            errorMessage={analysisErrorMessage}
+          />
+        )}
       </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
@@ -159,6 +186,7 @@ function DocumentRow({
         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onOpenInNewTab?.(doc);
@@ -170,9 +198,10 @@ function DocumentRow({
           </button>
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              onDelete?.(doc.id);
+              onDelete?.(doc);
             }}
             className="p-1.5 rounded-md text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             title="Delete document"
@@ -303,10 +332,14 @@ function DocumentsTableView({
                   documentTypes={documentTypes}
                   getFileTypeColor={getFileTypeColor}
                   footer={
-                    <AiExtractionBadge
-                      status={getAnalysisStatus?.(doc.id)}
-                      errorMessage={getAnalysisErrorMessage?.(doc.id)}
-                    />
+                    isInboxDoc(doc) ? (
+                      <InboxStatusBadge doc={doc} />
+                    ) : (
+                      <AiExtractionBadge
+                        status={getAnalysisStatus?.(doc.id)}
+                        errorMessage={getAnalysisErrorMessage?.(doc.id)}
+                      />
+                    )
                   }
                 />
               </div>
@@ -353,7 +386,7 @@ function DocumentsTableView({
               {searchQuery || selectedType !== "all"
                 ? "Try adjusting your search or filters."
                 : emptyDescription ||
-                  "Upload inspection reports, warranties, receipts and manuals to build your property records."}
+                  "Upload inspection reports, warranties, receipts and manuals to build your property records. Unfiled uploads also appear here."}
             </p>
             {onUploadClick && !searchQuery && selectedType === "all" && (
               <button

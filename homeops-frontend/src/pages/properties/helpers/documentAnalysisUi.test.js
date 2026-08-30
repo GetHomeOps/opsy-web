@@ -4,6 +4,11 @@ import {
   resolveFindingsModalConfig,
   guessAnalysisCategory,
   pickQuoteSummary,
+  shouldPromptActionItemLink,
+  getAnalysisPromptSteps,
+  getAnalysisPromptStepTitle,
+  filingTypeForAnalysisGroup,
+  shouldSkipAnalysisTypeStep,
 } from "./documentAnalysisUi";
 
 describe("resolveFindingsModalConfig", () => {
@@ -39,6 +44,101 @@ describe("guessAnalysisCategory", () => {
     expect(guessAnalysisCategory({ document_name: "manual.pdf" })).toBe("other");
     expect(guessAnalysisCategory(null)).toBe("other");
     expect(guessAnalysisCategory(undefined)).toBe("other");
+  });
+
+  it("keeps a declared Other category even when the filing type maps to bid", () => {
+    expect(
+      guessAnalysisCategory({
+        document_type: "contract",
+        declaredAnalysisCategory: "other",
+      }),
+    ).toBe("other");
+  });
+
+  it("still maps contract to bid when the user did not declare Other", () => {
+    expect(guessAnalysisCategory({ document_type: "contract" })).toBe("bid");
+  });
+});
+
+describe("filingTypeForAnalysisGroup", () => {
+  it("maps upload groups to filing types", () => {
+    expect(filingTypeForAnalysisGroup("bid")).toBe("bid");
+    expect(filingTypeForAnalysisGroup("installation_invoice")).toBe("invoice");
+    expect(filingTypeForAnalysisGroup("installation_invoice", "receipt")).toBe(
+      "receipt",
+    );
+    expect(filingTypeForAnalysisGroup("other", "contract")).toBe("contract");
+    expect(filingTypeForAnalysisGroup("other", "unknown")).toBe("other");
+    expect(filingTypeForAnalysisGroup("")).toBe(null);
+  });
+});
+
+describe("shouldSkipAnalysisTypeStep", () => {
+  it("skips the type step only when Bid or Invoice was already chosen", () => {
+    expect(shouldSkipAnalysisTypeStep("bid")).toBe(true);
+    expect(shouldSkipAnalysisTypeStep("installation_invoice")).toBe(true);
+    expect(shouldSkipAnalysisTypeStep("other")).toBe(false);
+    expect(shouldSkipAnalysisTypeStep(null)).toBe(false);
+  });
+});
+
+describe("shouldPromptActionItemLink", () => {
+  it("asks for an action item on bids and invoices only", () => {
+    expect(shouldPromptActionItemLink("bid")).toBe(true);
+    expect(shouldPromptActionItemLink("installation_invoice")).toBe(true);
+    expect(shouldPromptActionItemLink("other")).toBe(false);
+    expect(shouldPromptActionItemLink("inspection_report")).toBe(false);
+    expect(shouldPromptActionItemLink(null)).toBe(false);
+  });
+});
+
+describe("getAnalysisPromptSteps", () => {
+  it("starts with the action item when the document can be linked", () => {
+    expect(getAnalysisPromptSteps({ canLinkActionItem: true })).toEqual([
+      "project",
+      "type",
+      "approval",
+    ]);
+  });
+
+  it("skips the action item when link context is missing", () => {
+    expect(getAnalysisPromptSteps({ canLinkActionItem: false })).toEqual([
+      "type",
+      "approval",
+    ]);
+    expect(getAnalysisPromptSteps()).toEqual(["type", "approval"]);
+  });
+
+  it("skips the type step when Bid or Invoice was already declared", () => {
+    expect(
+      getAnalysisPromptSteps({
+        canLinkActionItem: true,
+        declaredCategory: "bid",
+      }),
+    ).toEqual(["project", "approval"]);
+    expect(
+      getAnalysisPromptSteps({
+        canLinkActionItem: false,
+        declaredCategory: "installation_invoice",
+      }),
+    ).toEqual(["approval"]);
+  });
+
+  it("keeps the type step for Other so the user can reclassify", () => {
+    expect(
+      getAnalysisPromptSteps({
+        canLinkActionItem: true,
+        declaredCategory: "other",
+      }),
+    ).toEqual(["project", "type", "approval"]);
+  });
+
+  it("titles each prompt step", () => {
+    expect(getAnalysisPromptStepTitle("project")).toBe("Which project is this for?");
+    expect(getAnalysisPromptStepTitle("type")).toBe("What is this document?");
+    expect(getAnalysisPromptStepTitle("approval")).toBe(
+      "Analyze this document with AI?",
+    );
   });
 });
 

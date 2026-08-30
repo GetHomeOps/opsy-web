@@ -11,6 +11,11 @@ const db = require("../db");
 const {
   nextAnniversaryDate,
   ownerLabel,
+  propertyAddressLabel,
+  addDays,
+  agentPreviewDate,
+  yearsOwned,
+  formatAnniversaryDate,
   ensureHomeAnniversaryEvents,
 } = require("./homeAnniversaryService");
 
@@ -61,6 +66,53 @@ describe("nextAnniversaryDate", () => {
     assert.strictEqual(nextAnniversaryDate(null, "2026-08-21"), null);
     assert.strictEqual(nextAnniversaryDate("", "2026-08-21"), null);
     assert.strictEqual(nextAnniversaryDate("not-a-date", "2026-08-21"), null);
+  });
+});
+
+describe("addDays and agentPreviewDate", () => {
+  it("subtracts 7 days for the agent preview", () => {
+    assert.strictEqual(addDays("2026-03-01", -7), "2026-02-22");
+    assert.strictEqual(agentPreviewDate("2026-03-01"), "2026-02-22");
+  });
+
+  it("crosses a year boundary", () => {
+    assert.strictEqual(addDays("2026-01-03", -7), "2025-12-27");
+    assert.strictEqual(agentPreviewDate("2026-01-03"), "2025-12-27");
+  });
+
+  it("handles leap-year Feb 29 anniversary mapped to Feb 28", () => {
+    assert.strictEqual(agentPreviewDate("2026-02-28"), "2026-02-21");
+  });
+});
+
+describe("yearsOwned", () => {
+  it("is the year difference between sale and anniversary", () => {
+    assert.strictEqual(yearsOwned("2019-03-01", "2026-03-01"), 7);
+    assert.strictEqual(yearsOwned("2025-03-01", "2026-03-01"), 1);
+  });
+
+  it("is 0 on the sale year (year-zero)", () => {
+    assert.strictEqual(yearsOwned("2026-03-01", "2026-03-01"), 0);
+  });
+});
+
+describe("formatAnniversaryDate", () => {
+  it("formats a readable date", () => {
+    assert.strictEqual(formatAnniversaryDate("2026-03-01"), "March 1, 2026");
+    assert.strictEqual(formatAnniversaryDate("2026-02-28"), "February 28, 2026");
+  });
+});
+
+describe("propertyAddressLabel", () => {
+  it("prefers full address then street/city/state", () => {
+    assert.strictEqual(
+      propertyAddressLabel({ address: "1 Main St, Austin, TX" }),
+      "1 Main St, Austin, TX",
+    );
+    assert.strictEqual(
+      propertyAddressLabel({ address_line_1: "1 Main St", city: "Austin", state: "TX" }),
+      "1 Main St, Austin, TX",
+    );
   });
 });
 

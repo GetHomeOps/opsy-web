@@ -1947,3 +1947,48 @@ CREATE TABLE pre_purchase_true_cost (
 );
 
 CREATE INDEX idx_pre_purchase_true_cost_analysis ON pre_purchase_true_cost(analysis_id);
+
+-- ============================================================
+-- Homeaversary email send claims (one per person / property / year)
+-- ============================================================
+
+CREATE TABLE homeaversary_sends (
+    id SERIAL PRIMARY KEY,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    audience VARCHAR(20) NOT NULL CHECK (audience IN ('homeowner', 'agent')),
+    anniversary_year INTEGER NOT NULL,
+    sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_homeaversary_sends_unique
+    ON homeaversary_sends (property_id, user_id, audience, anniversary_year);
+CREATE INDEX idx_homeaversary_sends_property ON homeaversary_sends (property_id);
+
+-- ============================================================
+-- Action Item bid reviews (quotes linked to checklist items)
+-- ============================================================
+
+ALTER TABLE property_documents
+    ADD COLUMN IF NOT EXISTS checklist_item_id INTEGER
+    REFERENCES inspection_checklist_items(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_property_documents_checklist_item
+    ON property_documents (checklist_item_id);
+
+ALTER TABLE inspection_checklist_items
+    ADD COLUMN IF NOT EXISTS selected_bid_document_id INTEGER
+    REFERENCES property_documents(id) ON DELETE SET NULL;
+ALTER TABLE inspection_checklist_items
+    ADD COLUMN IF NOT EXISTS bid_status VARCHAR(40) NOT NULL DEFAULT 'no_bids';
+ALTER TABLE inspection_checklist_items
+    ADD COLUMN IF NOT EXISTS bid_selected_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS action_item_bid_reviews (
+    checklist_item_id INTEGER PRIMARY KEY
+        REFERENCES inspection_checklist_items(id) ON DELETE CASCADE,
+    comparison JSONB NOT NULL DEFAULT '{}'::jsonb,
+    questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+    activity JSONB NOT NULL DEFAULT '[]'::jsonb,
+    generated_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

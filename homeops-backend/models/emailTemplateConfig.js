@@ -111,6 +111,20 @@ class EmailTemplateConfig {
         );
       }
     }
+
+    // One-time: both Homeaversary types now share the `homeaversary` event
+    // so a single Customer.io campaign can branch on event.audience.
+    await db.query(
+      `UPDATE email_template_configs
+          SET customer_io_event_name = 'homeaversary',
+              updated_at = NOW()
+        WHERE email_type IN ('homeaversary_homeowner', 'homeaversary_agent')
+          AND customer_io_event_name IN (
+            'homeaversary_homeowner',
+            'homeaversary_agent_preview'
+          )`
+    );
+
     seededOnce = true;
   }
 

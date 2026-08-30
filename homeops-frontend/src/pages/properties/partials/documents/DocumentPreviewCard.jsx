@@ -2,6 +2,7 @@ import React from "react";
 import {useDraggable} from "@dnd-kit/core";
 import {ExternalLink, Trash2} from "lucide-react";
 import {DocumentThumbContent} from "./documentThumbnailShared";
+import {isInboxDoc} from "./inboxDocuments";
 
 function formatDate(dateString) {
   if (!dateString) return "—";
@@ -44,6 +45,8 @@ function DocumentPreviewCardInner({
     "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400";
 
   const showHoverActions = onOpenInNewTab || onDelete;
+  const inbox = isInboxDoc(doc);
+  const cardDrag = enableDrag && inbox;
   const footerCursor = enableDrag
     ? "cursor-grab active:cursor-grabbing"
     : "cursor-pointer";
@@ -56,7 +59,10 @@ function DocumentPreviewCardInner({
   return (
     <div
       ref={setNodeRef}
-      className={`group relative flex flex-col bg-white dark:bg-gray-800 rounded-xl border ${ringClass} ${dragClass} transition-all overflow-hidden shadow-sm hover:shadow-md`}
+      {...(cardDrag ? {...dragAttributes, ...dragListeners} : {})}
+      className={`group relative flex flex-col bg-white dark:bg-gray-800 rounded-xl border ${ringClass} ${dragClass} transition-all overflow-hidden shadow-sm hover:shadow-md ${
+        cardDrag ? "cursor-grab active:cursor-grabbing" : ""
+      }`}
       style={{width: 220, minHeight: 260}}
     >
       <div className="relative h-44 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -68,6 +74,7 @@ function DocumentPreviewCardInner({
             name={doc.name}
             documentKey={doc.document_key}
             fetchEnabled={!!doc.document_key}
+            interactive={!isInboxDoc(doc)}
           />
         </div>
 
@@ -76,6 +83,7 @@ function DocumentPreviewCardInner({
             {onOpenInNewTab && (
               <button
                 type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenInNewTab(doc);
@@ -89,9 +97,10 @@ function DocumentPreviewCardInner({
             {onDelete && (
               <button
                 type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDelete(doc.id);
+                  onDelete(doc);
                 }}
                 className="p-1 rounded-md bg-white/90 dark:bg-gray-900/80 text-gray-500 hover:text-red-600 hover:bg-white dark:hover:bg-gray-800 backdrop-blur-sm shadow-sm transition-colors"
                 title="Delete"
@@ -104,7 +113,7 @@ function DocumentPreviewCardInner({
       </div>
 
       <div
-        {...(enableDrag ? {...dragAttributes, ...dragListeners} : {})}
+        {...(enableDrag && !cardDrag ? {...dragAttributes, ...dragListeners} : {})}
         className={`p-2.5 flex-1 flex flex-col gap-1.5 min-h-0 ${footerCursor}`}
         onClick={handleSelect}
       >
@@ -130,14 +139,24 @@ function DocumentPreviewCardInner({
 
 function DraggableDocumentPreviewCard(props) {
   const {doc} = props;
+  const inbox = isInboxDoc(doc);
+  const dndDisabled = inbox && (!doc.stagedId || doc.status !== "uploaded");
   const {attributes, listeners, setNodeRef, isDragging} = useDraggable({
-    id: `filed-list:${doc.id}`,
-    data: {
-      type: "filed",
-      documentId: doc.id,
-      currentSystemKey: doc.system,
-      label: doc.name || doc.document_name || "Document",
-    },
+    id: inbox ? `inbox:${doc.clientId}` : `filed-list:${doc.id}`,
+    data: inbox
+      ? {
+          type: "inbox",
+          clientId: doc.clientId,
+          cardId: doc.stagedId,
+          label: doc.name || "Document",
+        }
+      : {
+          type: "filed",
+          documentId: doc.id,
+          currentSystemKey: doc.system,
+          label: doc.name || doc.document_name || "Document",
+        },
+    disabled: dndDisabled,
   });
 
   return (

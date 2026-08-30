@@ -174,16 +174,34 @@ class InspectionChecklistItem {
   }
 
   /** Create a user-defined checklist item (not derived from analysis). */
-  static async createUserItem({ propertyId, systemKey, title, description, priority }) {
+  static async createUserItem({
+    propertyId,
+    systemKey,
+    title,
+    description,
+    priority,
+    nextDueDate,
+    status,
+  }) {
     if (!propertyId || !systemKey || !title) {
       throw new BadRequestError("propertyId, systemKey, and title are required");
     }
+    const allowedStatus = new Set(["pending", "in_progress"]);
+    const nextStatus = allowedStatus.has(status) ? status : "pending";
     const result = await db.query(
       `INSERT INTO inspection_checklist_items
-         (property_id, system_key, source, title, description, priority, status)
-       VALUES ($1, $2, 'user_created', $3, $4, $5, 'pending')
+         (property_id, system_key, source, title, description, priority, status, next_due_date)
+       VALUES ($1, $2, 'user_created', $3, $4, $5, $6, $7)
        RETURNING *`,
-      [propertyId, systemKey, title.slice(0, 500), description || null, priority || "medium"]
+      [
+        propertyId,
+        systemKey,
+        title.slice(0, 500),
+        description || null,
+        priority || "medium",
+        nextStatus,
+        nextDueDate || null,
+      ]
     );
     return result.rows[0];
   }
@@ -201,26 +219,29 @@ class InspectionChecklistItem {
 
   /** Get all checklist items for a property, optionally filtered. */
   static async getByPropertyId(propertyId, { systemKey, status } = {}) {
-    const conditions = ["property_id = $1"];
+    const conditions = ["i.property_id = $1"];
     const params = [propertyId];
     let idx = 2;
 
     if (systemKey) {
-      conditions.push(`LOWER(system_key) = LOWER($${idx++})`);
+      conditions.push(`LOWER(i.system_key) = LOWER($${idx++})`);
       params.push(systemKey);
     }
     if (status) {
-      conditions.push(`status = $${idx++}`);
+      conditions.push(`i.status = $${idx++}`);
       params.push(status);
     }
 
     const result = await db.query(
-      `SELECT * FROM inspection_checklist_items
+      `SELECT i.*,
+              (SELECT COUNT(*)::int FROM property_documents d
+                WHERE d.checklist_item_id = i.id) AS bid_count
+       FROM inspection_checklist_items i
        WHERE ${conditions.join(" AND ")}
        ORDER BY
-         CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
-         CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
-         created_at ASC`,
+         CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+         CASE i.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+         i.created_at ASC`,
       params
     );
     return result.rows;
@@ -290,6 +311,9 @@ class InspectionChecklistItem {
       "frequency_unit",
       "last_performed_date",
       "next_due_date",
+      "bid_status",
+      "selected_bid_document_id",
+      "bid_selected_at",
     ];
     const setClauses = [];
     const params = [];

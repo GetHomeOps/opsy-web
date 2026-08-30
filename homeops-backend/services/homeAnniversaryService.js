@@ -59,6 +59,75 @@ function nextAnniversaryDate(lastSaleDateStr, todayStr) {
   return candidate;
 }
 
+/**
+ * Add (or subtract) whole days from a YYYY-MM-DD date in UTC.
+ * @param {string} dateStr
+ * @param {number} days
+ * @returns {string|null}
+ */
+function addDays(dateStr, days) {
+  const d = toDateOnly(dateStr);
+  if (!d) return null;
+  const year = parseInt(d.slice(0, 4), 10);
+  const month = parseInt(d.slice(5, 7), 10);
+  const day = parseInt(d.slice(8, 10), 10);
+  if (![year, month, day].every(Number.isFinite)) return null;
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  dt.setUTCDate(dt.getUTCDate() + Number(days));
+  return dt.toISOString().slice(0, 10);
+}
+
+/** Agent preview date: 7 days before the anniversary. */
+function agentPreviewDate(anniversaryDateStr) {
+  return addDays(anniversaryDateStr, -7);
+}
+
+/**
+ * Whole years between last sale and this anniversary (same month/day).
+ * @returns {number}
+ */
+function yearsOwned(lastSaleDateStr, anniversaryDateStr) {
+  const sale = toDateOnly(lastSaleDateStr);
+  const anniversary = toDateOnly(anniversaryDateStr);
+  if (!sale || !anniversary) return 0;
+  const saleYear = parseInt(sale.slice(0, 4), 10);
+  const anniversaryYear = parseInt(anniversary.slice(0, 4), 10);
+  if (!Number.isFinite(saleYear) || !Number.isFinite(anniversaryYear)) return 0;
+  return Math.max(0, anniversaryYear - saleYear);
+}
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** Human-readable date, e.g. "March 1, 2026". */
+function formatAnniversaryDate(dateStr) {
+  const d = toDateOnly(dateStr);
+  if (!d) return "";
+  const year = parseInt(d.slice(0, 4), 10);
+  const month = parseInt(d.slice(5, 7), 10);
+  const day = parseInt(d.slice(8, 10), 10);
+  if (![year, month, day].every(Number.isFinite) || month < 1 || month > 12) {
+    return d;
+  }
+  return `${MONTH_NAMES[month - 1]} ${day}, ${year}`;
+}
+
+function propertyAddressLabel(property) {
+  const full = String(property?.address || "").trim();
+  if (full) return full;
+  const parts = [
+    property?.address_line_1,
+    property?.city,
+    property?.state,
+  ]
+    .map((p) => String(p || "").trim())
+    .filter(Boolean);
+  if (parts.length) return parts.join(", ");
+  return String(property?.property_name || "").trim() || "your home";
+}
+
 function ownerLabel(property) {
   const raw =
     String(property?.owner_name || "").trim() ||
@@ -158,6 +227,11 @@ module.exports = {
   SYSTEM_KEY,
   nextAnniversaryDate,
   ownerLabel,
+  propertyAddressLabel,
   toDateOnly,
+  addDays,
+  agentPreviewDate,
+  yearsOwned,
+  formatAnniversaryDate,
   ensureHomeAnniversaryEvents,
 };

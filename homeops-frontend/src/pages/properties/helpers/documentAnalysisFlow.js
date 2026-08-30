@@ -10,7 +10,7 @@ export const OPEN_DOCUMENT_FINDINGS_EVENT = "document-analysis:open-findings";
 export const REQUEST_INSPECTION_OPSYMIZATION_EVENT =
   "document-analysis:request-opsymization";
 
-/** @typedef {{ id, document_name?, document_key?, system_key?, document_type?, document_date?, mime_type? }} FiledDocument */
+/** @typedef {{ id, document_name?, document_key?, system_key?, document_type?, document_date?, mime_type?, checklist_item_id?, declaredAnalysisCategory? }} FiledDocument */
 
 /**
  * Heuristic: filed doc is probably a property inspection report.
@@ -64,6 +64,8 @@ export function emitDocumentAnalysisUpdated(propertyId) {
 /** Normalize a UI or API document row for analysis orchestration. */
 export function toFiledDocumentForAnalysis(doc) {
   if (!doc?.id) return null;
+  const declaredAnalysisCategory =
+    doc.declaredAnalysisCategory || doc.declared_analysis_category || null;
   return {
     id: doc.id,
     document_name: doc.document_name || doc.name,
@@ -72,6 +74,8 @@ export function toFiledDocumentForAnalysis(doc) {
     document_type: doc.document_type || doc.type,
     document_date: doc.document_date,
     mime_type: doc.mime_type,
+    checklist_item_id: doc.checklist_item_id ?? doc.checklistItemId ?? null,
+    declaredAnalysisCategory: declaredAnalysisCategory || null,
   };
 }
 
@@ -90,7 +94,13 @@ export function emitRequestDocumentAnalysis(propertyId, document) {
 
 export function emitOpenDocumentFindings(
   propertyId,
-  { systemKey, systemLabel, categoryFilter = null, initialCategory = null } = {},
+  {
+    systemKey,
+    systemLabel,
+    categoryFilter = null,
+    initialCategory = null,
+    checklistItemId = null,
+  } = {},
 ) {
   if (typeof window === "undefined" || !propertyId || !systemKey) return;
   window.dispatchEvent(
@@ -101,6 +111,7 @@ export function emitOpenDocumentFindings(
         systemLabel: systemLabel || null,
         categoryFilter,
         initialCategory: initialCategory || categoryFilter || null,
+        checklistItemId,
       },
     }),
   );

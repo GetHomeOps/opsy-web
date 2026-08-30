@@ -37,6 +37,7 @@ const { initialsFromFullName } = require("../utils/nameInitials");
 const { isSafeS3Key } = require("../helpers/presignedUrls");
 const AgentAffiliation = require("../models/agentAffiliation");
 const { APP_BASE_URL, BACKEND_URL } = require("../config");
+const { applyInvitationContactTag } = require("./contactTagService");
 
 /** Stable Opsy mark for account invitation emails when the inviter has no photo. */
 function getAccountInvitationBrandMarkUrl() {
@@ -365,6 +366,7 @@ async function ensureInviteeContactAutoCreated({
   trimmedInviteeName,
   accountId,
   inviterUserRole,
+  intendedPropertyRole,
 }) {
   const existingContact = await db.query(
     `SELECT c.id, c.name FROM contacts c
@@ -374,10 +376,11 @@ async function ensureInviteeContactAutoCreated({
     [emailLower, accountId]
   );
   if (existingContact.rows.length > 0) {
+    const existingId = existingContact.rows[0].id;
     const existingName = (existingContact.rows[0].name || "").trim();
     if (!existingName && trimmedInviteeName) {
       try {
-        await Contact.update(existingContact.rows[0].id, {
+        await Contact.update(existingId, {
           name: trimmedInviteeName,
         });
       } catch (contactErr) {
@@ -387,7 +390,15 @@ async function ensureInviteeContactAutoCreated({
         );
       }
     }
-    return;
+    try {
+      await applyInvitationContactTag(existingId, accountId, intendedPropertyRole);
+    } catch (tagErr) {
+      console.error(
+        "[invitationService] Failed to tag existing invitee contact:",
+        tagErr.message
+      );
+    }
+    return existingId;
   }
   const tierCheck = await canAddContact(accountId, inviterUserRole);
   if (!tierCheck.allowed) return;
@@ -403,6 +414,8 @@ async function ensureInviteeContactAutoCreated({
       contactId: contact.id,
       accountId,
     });
+    await applyInvitationContactTag(contact.id, accountId, intendedPropertyRole);
+    return contact.id;
   } catch (contactErr) {
     console.error(
       "[invitationService] Failed to auto-create contact for invitee:",
@@ -456,12 +469,16 @@ async function createPropertyInvitation({
      super_admin are HomeOps internal users and don't occupy the agent slot). */
   await assertPropertyCanAcceptAgentInvite(propertyId, emailLower);
 
+  const normalizedIntendedPropertyRole =
+    normalizeIntendedPropertyRole(intendedPropertyRole);
+
   await ensureInviteeContactAutoCreated({
     emailLower,
     inviteeEmailTrimmed,
     trimmedInviteeName,
     accountId,
     inviterUserRole,
+    intendedPropertyRole: normalizedIntendedPropertyRole,
   });
 
   const { token, tokenHash } = generateInvitationToken();
@@ -475,7 +492,7 @@ async function createPropertyInvitation({
     accountId,
     propertyId,
     intendedRole: intendedRole || 'editor',
-    intendedPropertyRole: normalizeIntendedPropertyRole(intendedPropertyRole),
+    intendedPropertyRole: normalizedIntendedPropertyRole,
     permissions: normalizeInvitationPermissions(permissions),
     tokenHash,
     expiresAt,
@@ -662,19 +679,19 @@ async function createBulkPropertyInvitations({
 
   const trimmedInviteeName = (inviteeName || "").trim();
   const inviteeEmailTrimmed = inviteeEmail.trim();
+  const normalizedIntendedPropertyRole =
+    normalizeIntendedPropertyRole(intendedPropertyRole);
   await ensureInviteeContactAutoCreated({
     emailLower,
     inviteeEmailTrimmed,
     trimmedInviteeName,
     accountId,
     inviterUserRole,
+    intendedPropertyRole: normalizedIntendedPropertyRole,
   });
 
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + INVITATION_EXPIRY_HOURS);
-
-  const normalizedIntendedPropertyRole =
-    normalizeIntendedPropertyRole(intendedPropertyRole);
   const normalizedPermissions = normalizeInvitationPermissions(permissions);
 
   const createdRows = [];
@@ -1361,12 +1378,30 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
         invitation.inviteeEmail,
         accepted.accountId
       );
+      const inviteCategory =
+        accepted.intendedPropertyRole ?? invitation.intendedPropertyRole;
+      let inviterContactId = existingContact?.id || null;
       if (!existingContact) {
         const inviterContact = await Contact.create({
           name: user.name || invitation.inviteeEmail,
           email: invitation.inviteeEmail,
         });
         await Contact.addToAccount({ contactId: inviterContact.id, accountId: accepted.accountId });
+        inviterContactId = inviterContact.id;
+      }
+      if (inviterContactId) {
+        try {
+          await applyInvitationContactTag(
+            inviterContactId,
+            accepted.accountId,
+            inviteCategory
+          );
+        } catch (tagErr) {
+          console.error(
+            "[invitationService] Failed to tag invitee contact on accept:",
+            tagErr.message
+          );
+        }
       }
     }
 

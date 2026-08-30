@@ -5,7 +5,6 @@ import {registerSW} from "virtual:pwa-register";
 import ThemeProvider from "./utils/ThemeContext";
 import App from "./App";
 import {
-  CHUNK_RELOAD_KEY,
   hasChunkReloadBeenAttempted,
   isChunkLoadError,
   reloadOnceForStaleChunk,
@@ -45,13 +44,6 @@ function registerAppServiceWorker() {
 
 // Apply a deferred SW update before React mounts (brief spinner, no dashboard flash).
 applyDeferredPwaReload();
-
-// Successful load — allow one auto-reload on the next stale-chunk failure.
-try {
-  sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-} catch {
-  /* ignore storage errors */
-}
 
 function showChunkLoadFailure(rootMessage) {
   const root = document.getElementById("root");

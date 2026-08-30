@@ -15,6 +15,18 @@
 const db = require("../db");
 const { BadRequestError, NotFoundError } = require("../expressError");
 
+const DOCUMENT_COLUMNS = `id,
+                  property_id,
+                  document_name,
+                  document_date,
+                  document_key,
+                  document_type,
+                  system_key,
+                  maintenance_record_id,
+                  checklist_item_id,
+                  created_at,
+                  updated_at`;
+
 class PropertyDocument {
   /** Create a new property document.
    *
@@ -40,19 +52,20 @@ class PropertyDocument {
           document_key,
           document_type,
           system_key,
-          maintenance_record_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id,
-                  property_id,
-                  document_name,
-                  document_date,
-                  document_key,
-                  document_type,
-                  system_key,
-                  maintenance_record_id,
-                  created_at,
-                  updated_at`,
-        [property_id, document_name, document_date, document_key, document_type, system_key, maintenance_record_id ?? null]
+          maintenance_record_id,
+          checklist_item_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING ${DOCUMENT_COLUMNS}`,
+        [
+          property_id,
+          document_name,
+          document_date,
+          document_key,
+          document_type,
+          systemKey,
+          maintenance_record_id ?? null,
+          data.checklist_item_id ?? null,
+        ]
       );
       return result.rows[0];
     } catch (err) {
@@ -67,16 +80,7 @@ class PropertyDocument {
    */
   static async get(id) {
     const result = await db.query(
-      `SELECT id,
-              property_id,
-              document_name,
-              document_date,
-              document_key,
-              document_type,
-              system_key,
-              maintenance_record_id,
-              created_at,
-              updated_at
+      `SELECT ${DOCUMENT_COLUMNS}
        FROM property_documents
        WHERE id = $1`,
       [id]
@@ -94,16 +98,7 @@ class PropertyDocument {
    */
   static async getByPropertyId(propertyId) {
     const result = await db.query(
-      `SELECT id,
-              property_id,
-              document_name,
-              document_date,
-              document_key,
-              document_type,
-              system_key,
-              maintenance_record_id,
-              created_at,
-              updated_at
+      `SELECT ${DOCUMENT_COLUMNS}
        FROM property_documents
        WHERE property_id = $1
        ORDER BY document_date DESC, document_name`,
@@ -129,7 +124,13 @@ class PropertyDocument {
    * Updates updated_at to NOW(). Returns the updated row.
    */
   static async update(id, data) {
-    const allowed = ["document_name", "document_date", "document_type", "system_key"];
+    const allowed = [
+      "document_name",
+      "document_date",
+      "document_type",
+      "system_key",
+      "checklist_item_id",
+    ];
     const fields = [];
     const values = [];
     let i = 1;
@@ -146,8 +147,7 @@ class PropertyDocument {
       `UPDATE property_documents
        SET ${fields.join(", ")}
        WHERE id = $${i}
-       RETURNING id, property_id, document_name, document_date, document_key,
-                 document_type, system_key, maintenance_record_id, created_at, updated_at`,
+       RETURNING ${DOCUMENT_COLUMNS}`,
       values,
     );
     const row = result.rows[0];

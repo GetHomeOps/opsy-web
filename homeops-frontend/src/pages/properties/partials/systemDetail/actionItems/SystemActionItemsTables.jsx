@@ -43,7 +43,7 @@ export default function SystemActionItemsTables({
         eventsByChecklistItemId={eventsByChecklistItemId}
         handlers={handlers}
       />
-      {(recommendationItems.length > 0 || (propertyId && systemKey)) && (
+      {recommendationItems.length > 0 && (
         <RecommendedItemsTable
           items={recommendationItems}
           systemLabel={systemLabel}

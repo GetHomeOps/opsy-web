@@ -18,6 +18,13 @@ import {
   LineItemsList,
 } from "./documents/documentAnalysisModalShared";
 import { resolveFindingsModalConfig, pickQuoteSummary } from "../helpers/documentAnalysisUi";
+import {
+  bidStatusLabel,
+  groupBidsByActionItem,
+  priceRangeLabel,
+} from "../helpers/bidReview";
+import BidReviewPanel from "./systemDetail/bids/BidReviewPanel";
+import LinkBidToActionItemPanel from "./systemDetail/bids/LinkBidToActionItemPanel";
 
 function resolveCategory(item) {
   return item.detectedCategory || "other";
@@ -36,6 +43,7 @@ function SystemDocumentFindingsModal({
   onSystemsUpdated,
   initialCategory = "bid",
   categoryFilter = null,
+  initialChecklistItemId = null,
 }) {
   const modalConfig = resolveFindingsModalConfig({ categoryFilter, systemLabel });
   const [activeTab, setActiveTab] = useState(
@@ -47,7 +55,10 @@ function SystemDocumentFindingsModal({
   const [pendingCount, setPendingCount] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [applying, setApplying] = useState(false);
-  const { refreshContacts } = useContext(ContactContext) || {};
+  const [actionItems, setActionItems] = useState([]);
+  const [reviewItemId, setReviewItemId] = useState(null);
+  const [linkDoc, setLinkDoc] = useState(null);
+  const { refreshContacts, contacts } = useContext(ContactContext) || {};
 
   const analysis = useDocumentAnalysis(propertyId);
   const {
@@ -65,10 +76,16 @@ function SystemDocumentFindingsModal({
     if (!propertyId || !systemKey) return;
     setLoading(true);
     try {
-      const res = await AppApi.getDocumentAnalysisBySystem(propertyId, systemKey);
+      const [res, checklist] = await Promise.all([
+        AppApi.getDocumentAnalysisBySystem(propertyId, systemKey),
+        categoryFilter === "bid"
+          ? AppApi.getInspectionChecklist(propertyId, { systemKey }).catch(() => [])
+          : Promise.resolve([]),
+      ]);
       setItems(res.items ?? []);
       setPendingItems(res.pendingItems ?? []);
       setPendingCount(res.pendingCount ?? 0);
+      setActionItems(checklist || []);
     } catch (err) {
       console.warn("[SystemDocumentFindingsModal]", err.message);
       setItems([]);
@@ -83,8 +100,11 @@ function SystemDocumentFindingsModal({
   }, [open, load]);
 
   useEffect(() => {
-    if (open) setActiveTab(categoryFilter || initialCategory || "bid");
-  }, [open, categoryFilter, initialCategory]);
+    if (open) {
+      setActiveTab(categoryFilter || initialCategory || "bid");
+      setReviewItemId(initialChecklistItemId || null);
+    }
+  }, [open, categoryFilter, initialCategory, initialChecklistItemId]);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
@@ -144,6 +164,19 @@ function SystemDocumentFindingsModal({
     return allItems.filter((item) => resolveCategory(item) === categoryFilter)
       .length;
   }, [allItems, categoryFilter]);
+
+  const bidGroups = useMemo(() => {
+    if (categoryFilter !== "bid") return { grouped: [], unlinked: [] };
+    const bidItems = allItems.filter((item) => resolveCategory(item) === "bid");
+    return groupBidsByActionItem(
+      bidItems.map((item) => ({
+        ...item,
+        checklistItemId: item.checklistItemId,
+        total: pickQuoteSummary(item).total,
+      })),
+      actionItems,
+    );
+  }, [allItems, actionItems, categoryFilter]);
 
   const handleReviewPending = useCallback(
     async (item) => {
@@ -306,18 +339,43 @@ function SystemDocumentFindingsModal({
             <LineItemsList items={quote.lineItems} />
           </div>
         )}
-        {isPending && (
-          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-            <button
-              type="button"
-              onClick={() => handleReviewPending(item)}
-              className="btn-sm btn-primary-outline flex items-center gap-1.5 px-3 py-1.5 text-xs"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Review
-            </button>
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
+          {!item.checklistItemId && (
+            <span className="text-[10px] text-amber-700 dark:text-amber-400">
+              Not linked to an Action Item
+            </span>
+          )}
+          <div className="flex items-center gap-2 ml-auto">
+            {item.documentKey && (
+              <button
+                type="button"
+                onClick={() => handleOpenDocument(item.documentKey)}
+                className="text-xs text-[#456564] hover:underline"
+              >
+                Open PDF
+              </button>
+            )}
+            {!item.checklistItemId && (
+              <button
+                type="button"
+                onClick={() => setLinkDoc(item)}
+                className="text-xs font-medium text-[#456564] hover:underline"
+              >
+                Link to Action Item
+              </button>
+            )}
+            {isPending && (
+              <button
+                type="button"
+                onClick={() => handleReviewPending(item)}
+                className="btn-sm btn-primary-outline flex items-center gap-1.5 px-3 py-1.5 text-xs"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Review
+              </button>
+            )}
           </div>
-        )}
+        </div>
       </div>
     );
   }
@@ -444,6 +502,55 @@ function SystemDocumentFindingsModal({
                   <p className="text-sm text-gray-500 text-center py-8">
                     No documents in this category.
                   </p>
+                ) : categoryFilter === "bid" ? (
+                  <>
+                    {bidGroups.grouped.map((group) => (
+                      <button
+                        key={group.checklistItemId}
+                        type="button"
+                        onClick={() => setReviewItemId(group.checklistItemId)}
+                        className="w-full text-left rounded-xl border border-gray-200 dark:border-gray-700 p-3 hover:border-[#456564]/40 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                              {group.title}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {group.bidCount} bid{group.bidCount === 1 ? "" : "s"}
+                              {" · "}
+                              {group.priceRange || priceRangeLabel(group.priceMin, group.priceMax)}
+                            </p>
+                          </div>
+                          <span className="text-[10px] uppercase tracking-wide text-[#456564] shrink-0">
+                            {group.bidStatusLabel || bidStatusLabel(group.bidStatus)}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                    {bidGroups.unlinked.length > 0 && (
+                      <div>
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-600 mb-2">
+                          Not linked to an Action Item
+                        </h3>
+                        <div className="space-y-3">
+                          {bidGroups.unlinked.map((item) => renderQuoteCard(item))}
+                        </div>
+                      </div>
+                    )}
+                    {activePendingItems.length > 0 && (
+                      <div>
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-2">
+                          Pending review
+                        </h3>
+                        <div className="space-y-3">
+                          {activePendingItems
+                            .filter((item) => item.checklistItemId)
+                            .map((item) => renderQuoteCard(item))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <>
                     {activePendingItems.length > 0 && (
@@ -452,11 +559,7 @@ function SystemDocumentFindingsModal({
                           Pending review
                         </h3>
                         <div className="space-y-3">
-                          {activePendingItems.map((item) =>
-                            categoryFilter === "bid"
-                              ? renderQuoteCard(item)
-                              : renderDocumentCard(item),
-                          )}
+                          {activePendingItems.map((item) => renderDocumentCard(item))}
                         </div>
                       </div>
                     )}
@@ -469,9 +572,7 @@ function SystemDocumentFindingsModal({
                         )}
                         <div className="space-y-3">
                           {activeAppliedItems.map((item) =>
-                            categoryFilter === "bid"
-                              ? renderQuoteCard(item)
-                              : renderDocumentCard(item, { compact: true }),
+                            renderDocumentCard(item, { compact: true }),
                           )}
                         </div>
                       </div>
@@ -498,6 +599,30 @@ function SystemDocumentFindingsModal({
         applying={applying}
         backdropZClassName="z-[210]"
         dialogZClassName="z-[210]"
+      />
+
+      <BidReviewPanel
+        open={Boolean(reviewItemId)}
+        onClose={() => setReviewItemId(null)}
+        propertyId={propertyId}
+        itemId={reviewItemId}
+        contacts={contacts}
+        onOpenDocument={handleOpenDocument}
+      />
+
+      <LinkBidToActionItemPanel
+        open={Boolean(linkDoc)}
+        onClose={() => setLinkDoc(null)}
+        propertyId={propertyId}
+        systemKey={systemKey}
+        systemLabel={systemLabel}
+        documentId={linkDoc?.propertyDocumentId || linkDoc?.id}
+        documentName={linkDoc?.documentName}
+        onLinked={() => {
+          setLinkDoc(null);
+          load();
+        }}
+        onSkip={() => setLinkDoc(null)}
       />
     </>
   );

@@ -14,3 +14,8 @@ export {
 export { default as DocumentCaptureModal } from "./DocumentCaptureModal";
 export { default as useDocumentsInbox } from "./useDocumentsInbox";
 export { guessFromFilename } from "./filenameHeuristics";
+export {
+  inboxCardToUIDoc,
+  fileAllItemFromCard,
+  isInboxDoc,
+} from "./inboxDocuments";

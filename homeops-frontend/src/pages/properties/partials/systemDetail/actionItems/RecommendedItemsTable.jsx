@@ -1,119 +1,9 @@
-import React, { useRef, useState } from "react";
-import { Info, Plus, RefreshCw, Sparkles, Wrench } from "lucide-react";
+import React from "react";
+import { Info, RefreshCw, Sparkles, Wrench } from "lucide-react";
 import ActionItemTableRow from "./ActionItemTableRow";
-import AppApi from "../../../../../api/api";
 
 const TH_CLASS =
   "font-medium px-3 py-2 text-left text-[10px] uppercase tracking-[0.08em] text-neutral-400 dark:text-neutral-500";
-
-function AddCustomActionItemForm({ systemKey, propertyId, onItemCreated }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("medium");
-  const [saving, setSaving] = useState(false);
-  const inputRef = useRef(null);
-
-  const handleOpen = () => {
-    setIsOpen(true);
-    setTimeout(() => inputRef.current?.focus(), 50);
-  };
-
-  const handleCancel = () => {
-    setIsOpen(false);
-    setTitle("");
-    setDescription("");
-    setPriority("medium");
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!title.trim() || saving) return;
-    setSaving(true);
-    try {
-      const item = await AppApi.createChecklistItem(propertyId, {
-        systemKey,
-        title: title.trim(),
-        description: description.trim() || null,
-        priority,
-      });
-      onItemCreated(item);
-      handleCancel();
-    } catch (err) {
-      console.error("[AddCustomActionItemForm] Create failed:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!isOpen) {
-    return (
-      <div className="flex justify-end pt-2">
-        <button
-          type="button"
-          onClick={handleOpen}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#456564] dark:text-[#7aa3a2] border border-[#456564]/30 dark:border-[#7aa3a2]/30 rounded-lg hover:bg-[#456564]/5 dark:hover:bg-[#7aa3a2]/10 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Custom Action Item
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="mt-3 rounded-lg border border-neutral-200 dark:border-neutral-600 bg-neutral-50/50 dark:bg-neutral-800/30 p-3 space-y-2"
-    >
-      <input
-        ref={inputRef}
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="What needs to be done?"
-        maxLength={500}
-        className="w-full text-sm bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-600 rounded-md px-2.5 py-1.5 text-neutral-800 dark:text-neutral-200 placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#456564] dark:focus:ring-[#7aa3a2]"
-      />
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="Notes (optional)"
-        rows={2}
-        className="w-full text-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-600 rounded-md px-2.5 py-1.5 text-neutral-800 dark:text-neutral-200 placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#456564] dark:focus:ring-[#7aa3a2] resize-none"
-      />
-      <div className="flex items-center justify-between gap-2">
-        <select
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
-          className="text-xs bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-600 rounded-md px-2 py-1.5 text-neutral-700 dark:text-neutral-300"
-        >
-          <option value="low">Low priority</option>
-          <option value="medium">Medium priority</option>
-          <option value="high">High priority</option>
-          <option value="urgent">Urgent</option>
-        </select>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={saving}
-            className="text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 px-2 py-1"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!title.trim() || saving}
-            className="text-xs font-medium px-3 py-1.5 rounded-lg btn-primary disabled:opacity-50"
-          >
-            {saving ? "Adding…" : "Add"}
-          </button>
-        </div>
-      </div>
-    </form>
-  );
-}
 
 function ItemsTable({
   items,
@@ -132,11 +22,11 @@ function ItemsTable({
   eventsByChecklistItemId,
   handlers,
 }) {
-  if (items.length === 0 && variant !== "recommended") return null;
+  if (items.length === 0) return null;
 
   return (
     <section className="space-y-2">
-      {(items.length > 0 || variant === "recommended") && (
+      {items.length > 0 && (
         <div className="flex items-center gap-2 px-1">
           <SectionIcon
             className={`w-4 h-4 shrink-0 ${sectionIconClassName}`}
@@ -197,6 +87,7 @@ function ItemsTable({
                     onViewEvent={handlers.onViewEvent}
                     onViewItem={handlers.onViewItem}
                     onAddRecord={handlers.onAddRecord}
+                    onReviewBids={handlers.onReviewBids}
                     showSchedule={handlers.showSchedule}
                   />
                 ))}
@@ -212,13 +103,6 @@ function ItemsTable({
         </div>
       )}
 
-      {variant === "recommended" && propertyId && systemKey && (
-        <AddCustomActionItemForm
-          systemKey={systemKey}
-          propertyId={propertyId}
-          onItemCreated={onItemCreated}
-        />
-      )}
     </section>
   );
 }

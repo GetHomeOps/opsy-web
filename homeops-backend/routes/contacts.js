@@ -7,6 +7,10 @@ const { BadRequestError, ForbiddenError } = require("../expressError");
 const Contact = require("../models/contact");
 const Tag = require("../models/tag");
 const { canAddContact } = require("../services/tierService");
+const {
+  ensureDefaultAccountTags,
+  applyContactSourceTags,
+} = require("../services/contactTagService");
 const contactUpdateSchema = require("../schemas/contactUpdate.json");
 const { addPresignedUrlToItem, addPresignedUrlsToItems } = require("../helpers/presignedUrls");
 
@@ -26,6 +30,7 @@ router.get("/all", ensurePlatformAdmin, async function (req, res, next) {
 /** GET /account/:accountId/tags - List tags for an account. Requires account access. */
 router.get("/account/:accountId/tags", ensureLoggedIn, ensureUserCanAccessAccountByParam("accountId"), async function (req, res, next) {
   try {
+    await ensureDefaultAccountTags(req.params.accountId);
     const tags = await Tag.getByAccountId(req.params.accountId);
     return res.json({ tags });
   } catch (err) {
@@ -113,7 +118,7 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
       const errs = validator.errors.map(e => e.stack);
       throw new BadRequestError(errs);
     }
-    const { accountId, ...contactData } = req.body;
+    const { accountId, source, ...contactData } = req.body;
     if (accountId && res.locals.user?.role !== "super_admin" && res.locals.user?.role !== "admin") {
       const tierCheck = await canAddContact(accountId);
       if (!tierCheck.allowed) {
@@ -129,6 +134,10 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
         accountId,
         addedByUserId: res.locals.user?.id ?? null,
       });
+      const sourceTags = await applyContactSourceTags(contact.id, accountId, source);
+      if (sourceTags.length) {
+        contactWithUrl.tags = await Contact._getTagsForContact(contact.id);
+      }
     }
     const response = { contact: contactWithUrl };
     if (contactAccount) response.contactAccount = contactAccount;

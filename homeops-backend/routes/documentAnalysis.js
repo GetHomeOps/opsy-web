@@ -332,6 +332,7 @@ router.get("/jobs/:jobId", ensureLoggedIn, async function (req, res, next) {
         document_date: doc?.document_date,
         document_key: doc?.document_key,
         document_type: doc?.document_type,
+        checklist_item_id: doc?.checklist_item_id,
       };
     }
     const systemRow = await getSystemRow(job.property_id, job.system_key);
@@ -468,9 +469,10 @@ router.get("/results/:id", ensureLoggedIn, async function (req, res, next) {
       ...row,
       document_name: doc?.document_name,
       document_date: doc?.document_date,
-      document_key: doc?.document_key,
-      document_type: doc?.document_type,
-    };
+        document_key: doc?.document_key,
+        document_type: doc?.document_type,
+        checklist_item_id: doc?.checklist_item_id,
+      };
     const systemRow = await getSystemRow(row.property_id, row.system_key);
     return res.json({ result: await formatEnrichedResult(enriched, systemRow) });
   } catch (err) {
@@ -515,6 +517,7 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
         document_date: doc?.document_date,
         document_key: doc?.document_key,
         document_type: doc?.document_type,
+        checklist_item_id: doc?.checklist_item_id,
       };
       return res.json({
         result: formatResultForApi(enriched, systemRow, {
@@ -606,9 +609,10 @@ router.post("/results/:id/apply", ensureLoggedIn, async function (req, res, next
       ...updated,
       document_name: doc?.document_name,
       document_date: doc?.document_date,
-      document_key: doc?.document_key,
-      document_type: doc?.document_type,
-    };
+        document_key: doc?.document_key,
+        document_type: doc?.document_type,
+        checklist_item_id: doc?.checklist_item_id,
+      };
     const freshSystem = await getSystemRow(row.property_id, row.system_key);
 
     return res.json({
@@ -643,9 +647,10 @@ router.post("/results/:id/reject", ensureLoggedIn, async function (req, res, nex
       ...updated,
       document_name: doc?.document_name,
       document_date: doc?.document_date,
-      document_key: doc?.document_key,
-      document_type: doc?.document_type,
-    };
+        document_key: doc?.document_key,
+        document_type: doc?.document_type,
+        checklist_item_id: doc?.checklist_item_id,
+      };
     const systemRow = await getSystemRow(row.property_id, row.system_key);
 
     return res.json({ result: await formatEnrichedResult(enriched, systemRow) });

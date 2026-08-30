@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
-import { AlertTriangle, CalendarCheck, ClipboardList } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { AlertTriangle, CalendarCheck, ClipboardList, Plus } from "lucide-react";
+import { emitOpenDocumentFindings } from "../../helpers/documentAnalysisFlow";
 import SectionCard from "../passport/SectionCard";
 import InspectionChecklistPanel from "../InspectionChecklistPanel";
 import {
@@ -57,6 +58,7 @@ export function SystemActionItemsTab({
   onLinkExistingRecord,
   onLinkExistingDocument,
 }) {
+  const [addFormOpen, setAddFormOpen] = useState(false);
   const systemChecklistKey = systemName ?? systemId;
 
   const systemChecklistItems = useMemo(
@@ -170,9 +172,21 @@ export function SystemActionItemsTab({
           description="Track and manage both inspection-based and recommended maintenance tasks."
           icon={ClipboardList}
           action={
-            systemChecklistItems.length > 0 ? (
-              <PriorityLegend items={systemChecklistItems} />
-            ) : undefined
+            <div className="flex items-center gap-3">
+              {systemChecklistItems.length > 0 ? (
+                <PriorityLegend items={systemChecklistItems} />
+              ) : null}
+              {propertyId && (
+                <button
+                  type="button"
+                  onClick={() => setAddFormOpen((open) => !open)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#456564] dark:text-[#7aa3a2] border border-[#456564]/30 dark:border-[#7aa3a2]/30 rounded-lg hover:bg-[#456564]/5 dark:hover:bg-[#7aa3a2]/10"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Action Item
+                </button>
+              )}
+            </div>
           }
         >
           <InspectionChecklistPanel
@@ -190,6 +204,16 @@ export function SystemActionItemsTab({
             propertyDocuments={propertyDocuments}
             onLinkExistingRecord={onLinkExistingRecord}
             onLinkExistingDocument={onLinkExistingDocument}
+            addFormOpen={addFormOpen}
+            onReviewBids={(item) =>
+              emitOpenDocumentFindings(propertyId, {
+                systemKey: systemChecklistKey,
+                systemLabel,
+                categoryFilter: "bid",
+                initialCategory: "bid",
+                checklistItemId: item.id,
+              })
+            }
           />
         </SectionCard>
       )}

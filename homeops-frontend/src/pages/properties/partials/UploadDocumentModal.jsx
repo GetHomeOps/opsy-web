@@ -1,5 +1,5 @@
-import React, {useState, useRef} from "react";
-import {X, Upload, AlertCircle, CheckCircle2, Loader2} from "lucide-react";
+import React, {useMemo, useState, useRef} from "react";
+import {X, Upload, AlertCircle, Loader2, ClipboardList, FileText, Receipt} from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
 import AppApi from "../../../api/api";
@@ -17,20 +17,20 @@ import {
 import { emitDocumentsFiled } from "../helpers/documentAnalysisFlow";
 import { emitPropertyDocumentsChanged } from "../helpers/inspectionFlowSession";
 import { resolveUploadSystemKey } from "../helpers/systemKeyUtils";
+import {
+  ANALYSIS_PROMPT_TYPES,
+  UPLOAD_INVOICE_RECEIPT_TYPES,
+  UPLOAD_OTHER_DOCUMENT_TYPES,
+  filingTypeForAnalysisGroup,
+  guessAnalysisCategory,
+  resolveDeclaredAnalysisCategory,
+} from "../helpers/documentAnalysisUi";
 
-const documentTypes = [
-  {id: "contract", label: "Contract"},
-  {id: "warranty", label: "Warranty"},
-  {id: "invoice", label: "Invoice"},
-  {id: "bid", label: "Bid / Quote"},
-  {id: "receipt", label: "Receipt"},
-  {id: "inspection", label: "Inspection Report"},
-  {id: "permit", label: "Permit"},
-  {id: "manual", label: "Manual"},
-  {id: "insurance", label: "Insurance"},
-  {id: "mortgage", label: "Mortgage"},
-  {id: "other", label: "Other"},
-];
+const TYPE_ICONS = {
+  bid: ClipboardList,
+  installation_invoice: Receipt,
+  other: FileText,
+};
 
 function UploadDocumentModal({
   isOpen,
@@ -48,15 +48,16 @@ function UploadDocumentModal({
   /** Called with full property_document rows after each successful upload batch */
   onDocumentsFiled,
 }) {
+  const lockSystem = Boolean(systemType || systemLabel) && !inspectionReportOnly;
   const [upgradePromptOpen, setUpgradePromptOpen] = useState(false);
   const [upgradePromptMsg, setUpgradePromptMsg] = useState("");
   const [documentName, setDocumentName] = useState("");
   const [documentDate, setDocumentDate] = useState(
     new Date().toISOString().slice(0, 10),
   );
-  const [documentType, setDocumentType] = useState(
-    inspectionReportOnly ? "inspection" : "receipt",
-  );
+  const [typeGroup, setTypeGroup] = useState("");
+  const [invoiceSubtype, setInvoiceSubtype] = useState("invoice");
+  const [otherSubtype, setOtherSubtype] = useState("other");
   const resolvedInitialSystemKey = resolveUploadSystemKey(
     inspectionReportOnly ? "inspectionReport" : systemType,
     propertySystems,
@@ -70,13 +71,18 @@ function UploadDocumentModal({
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccessCount, setUploadSuccessCount] = useState(0);
   const fileInputRef = useRef(null);
-  const successBannerRef = useRef(null);
 
-  React.useEffect(() => {
-    if (uploadSuccessCount > 0) {
-      successBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [uploadSuccessCount]);
+  const documentType = useMemo(() => {
+    if (inspectionReportOnly) return "inspection";
+    return filingTypeForAnalysisGroup(
+      typeGroup,
+      typeGroup === "installation_invoice" ? invoiceSubtype : otherSubtype,
+    );
+  }, [inspectionReportOnly, typeGroup, invoiceSubtype, otherSubtype]);
+
+  const declaredAnalysisCategory = inspectionReportOnly
+    ? null
+    : resolveDeclaredAnalysisCategory(typeGroup);
 
   const {
     uploadDocument,
@@ -86,26 +92,31 @@ function UploadDocumentModal({
     clearError: clearUploadHookError,
   } = useDocumentUpload({ uploadFolder: S3_UPLOAD_FOLDER.PROPERTY_DOCUMENTS });
 
+  const resetForm = () => {
+    setDocumentName("");
+    setDocumentDate(new Date().toISOString().slice(0, 10));
+    setTypeGroup("");
+    setInvoiceSubtype("invoice");
+    setOtherSubtype("other");
+    setUploadSystemKey(
+      resolveUploadSystemKey(
+        inspectionReportOnly ? "inspectionReport" : systemType,
+        propertySystems,
+        customSystemNames.length
+          ? customSystemNames
+          : systemsToShow.map((s) => s.label),
+      ),
+    );
+    setUploadFiles([]);
+    setUploadError(null);
+    setUploadSuccessCount(0);
+    clearUploadHookError();
+  };
+
   const handleClose = () => {
-    if (!isUploading) {
-      setDocumentName("");
-      setDocumentDate(new Date().toISOString().slice(0, 10));
-      setDocumentType(inspectionReportOnly ? "inspection" : "receipt");
-      setUploadSystemKey(
-        resolveUploadSystemKey(
-          inspectionReportOnly ? "inspectionReport" : systemType,
-          propertySystems,
-          customSystemNames.length
-            ? customSystemNames
-            : systemsToShow.map((s) => s.label),
-        ),
-      );
-      setUploadFiles([]);
-      setUploadError(null);
-      setUploadSuccessCount(0);
-      clearUploadHookError();
-      onClose(false);
-    }
+    if (isUploading) return;
+    resetForm();
+    onClose(false);
   };
 
   const handleUpload = async () => {
@@ -123,6 +134,10 @@ function UploadDocumentModal({
     }
     if (!documentDate) {
       setUploadError("Please select a document date.");
+      return;
+    }
+    if (!inspectionReportOnly && !documentType) {
+      setUploadError("Please choose what kind of document this is.");
       return;
     }
 
@@ -158,7 +173,13 @@ function UploadDocumentModal({
           successCount++;
           setUploadSuccessCount(successCount);
           createdDocs.push({key: s3Key, name: file.name, type: file.type});
-          if (created) filedPropertyDocs.push(created);
+          if (created) {
+            filedPropertyDocs.push(
+              declaredAnalysisCategory
+                ? { ...created, declaredAnalysisCategory }
+                : created,
+            );
+          }
         } finally {
           AppApi._suppressTierEmit = prev;
         }
@@ -176,14 +197,14 @@ function UploadDocumentModal({
     }
 
     if (successCount === uploadFiles.length && successCount > 0) {
-      setUploadFiles([]);
-      setDocumentName("");
       onSuccess?.(createdDocs);
       if (filedPropertyDocs.length) {
         onDocumentsFiled?.(filedPropertyDocs);
         emitDocumentsFiled(propertyId, filedPropertyDocs);
         emitPropertyDocumentsChanged(propertyId);
       }
+      resetForm();
+      onClose(false);
     }
   };
 
@@ -191,15 +212,15 @@ function UploadDocumentModal({
     !isUploading &&
     uploadFiles.length > 0 &&
     documentName.trim() &&
-    documentDate;
+    documentDate &&
+    (inspectionReportOnly || Boolean(documentType));
 
   // Sync uploadSystemKey when systemType changes (e.g. modal opened for different system)
   React.useEffect(() => {
     if (isOpen) {
       if (inspectionReportOnly) {
         setUploadSystemKey("inspectionReport");
-        setDocumentType("inspection");
-        setDocumentName("Inspection report");
+        setDocumentName((prev) => prev || "Inspection report");
       } else {
         const valid = systemsToShow.some((s) => s.id === systemType);
         const fallback = systemsToShow[0]?.id ?? "general";
@@ -222,7 +243,7 @@ function UploadDocumentModal({
       id="upload-document-modal"
       modalOpen={isOpen}
       setModalOpen={handleClose}
-      contentClassName="max-w-md"
+      contentClassName={inspectionReportOnly ? "max-w-md" : "max-w-lg"}
     >
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -231,7 +252,7 @@ function UploadDocumentModal({
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
               {inspectionReportOnly ? "Upload Inspection Report" : "Upload Document"}
             </h2>
-            {!inspectionReportOnly && (
+            {!inspectionReportOnly && systemLabel && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 {systemLabel} System
               </p>
@@ -286,25 +307,6 @@ function UploadDocumentModal({
           </div>
         )}
 
-        {uploadSuccessCount > 0 && (
-          <div
-            ref={successBannerRef}
-            className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 flex items-start gap-2"
-          >
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-            <div className="text-emerald-800 dark:text-emerald-200 text-sm">
-              <p className="font-medium">
-                {uploadSuccessCount} file
-                {uploadSuccessCount !== 1 ? "s" : ""} uploaded successfully.
-              </p>
-              <p className="mt-1 text-emerald-700 dark:text-emerald-300">
-                You can find {uploadSuccessCount !== 1 ? "them" : "it"} in the
-                Documents tab.
-              </p>
-            </div>
-          </div>
-        )}
-
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Document Name
@@ -334,40 +336,114 @@ function UploadDocumentModal({
 
         {!inspectionReportOnly && (
           <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Document Type
-              </label>
-              <select
-                value={documentType}
-                onChange={(e) => setDocumentType(e.target.value)}
-                className="form-select w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                required
-              >
-                {documentTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                What is this document?
+              </legend>
+              <div className="space-y-2" role="radiogroup" aria-label="Document type">
+                {ANALYSIS_PROMPT_TYPES.map((option) => {
+                  const Icon = TYPE_ICONS[option.id] || FileText;
+                  const selected = typeGroup === option.id;
+                  return (
+                    <label
+                      key={option.id}
+                      className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
+                        selected
+                          ? "border-[#456564]/50 bg-[#456564]/5"
+                          : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="upload-document-category"
+                        value={option.id}
+                        checked={selected}
+                        onChange={() => setTypeGroup(option.id)}
+                        className="mt-1 text-[#456564] focus:ring-[#456564]"
+                      />
+                      <Icon className="w-4 h-4 mt-0.5 shrink-0 text-[#456564]" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {option.label}
+                        </span>
+                        <span className="block text-[11px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5">
+                          {option.description}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            {typeGroup === "installation_invoice" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Invoice or receipt
+                </label>
+                <div className="flex gap-2">
+                  {UPLOAD_INVOICE_RECEIPT_TYPES.map((option) => {
+                    const selected = invoiceSubtype === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setInvoiceSubtype(option.id)}
+                        className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                          selected
+                            ? "border-[#456564]/50 bg-[#456564]/5 text-gray-900 dark:text-gray-100"
+                            : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {typeGroup === "other" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Document type
+                </label>
+                <select
+                  value={otherSubtype}
+                  onChange={(e) => setOtherSubtype(e.target.value)}
+                  className="form-select w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                >
+                  {UPLOAD_OTHER_DOCUMENT_TYPES.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 System
               </label>
-              <select
-                value={uploadSystemKey}
-                onChange={(e) => setUploadSystemKey(e.target.value)}
-                className="form-select w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                required
-              >
-                {systemsToShow.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
+              {lockSystem ? (
+                <p className="text-sm text-gray-800 dark:text-gray-100 py-2">
+                  {systemLabel || "This system"}
+                </p>
+              ) : (
+                <select
+                  value={uploadSystemKey}
+                  onChange={(e) => setUploadSystemKey(e.target.value)}
+                  className="form-select w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                  required
+                >
+                  {systemsToShow.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </>
         )}
@@ -388,6 +464,10 @@ function UploadDocumentModal({
                 setDocumentName((prev) => {
                   if (prev.trim()) return prev;
                   return defaultDocumentLabelFromFile(files[0]);
+                });
+                setTypeGroup((prev) => {
+                  if (prev || inspectionReportOnly) return prev;
+                  return guessAnalysisCategory({ document_name: files[0].name });
                 });
               }
             }}
@@ -418,55 +498,30 @@ function UploadDocumentModal({
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-end">
-        {uploadSuccessCount > 0 && !isUploading ? (
-          <>
-            <button
-              onClick={() => {
-                setUploadSuccessCount(0);
-                setDocumentDate(new Date().toISOString().slice(0, 10));
-                setUploadError(null);
-                clearUploadHookError();
-              }}
-              className="btn bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
-            >
+        <button
+          onClick={handleClose}
+          disabled={isUploading}
+          className="btn border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleUpload}
+          disabled={!canUpload}
+          className="btn bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+        >
+          {isUploading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Uploading…
+            </>
+          ) : (
+            <>
               <Upload className="w-4 h-4" />
-              Add more
-            </button>
-            <button
-              onClick={handleClose}
-              className="btn border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300"
-            >
-              Done
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={handleClose}
-              disabled={isUploading}
-              className="btn border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleUpload}
-              disabled={!canUpload}
-              className="btn bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Uploading…
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" />
-                  Upload
-                </>
-              )}
-            </button>
-          </>
-        )}
+              Upload
+            </>
+          )}
+        </button>
       </div>
         </>
       )}

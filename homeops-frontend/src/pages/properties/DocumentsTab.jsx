@@ -54,6 +54,11 @@ import {
 } from "./partials/documents";
 import DocumentCaptureModal from "./partials/documents/DocumentCaptureModal";
 import {inferDocumentTypeFromFolder} from "./partials/documents/filenameHeuristics";
+import {
+  clientIdFromInboxDocId,
+  inboxCardToUIDoc,
+  isInboxDoc,
+} from "./partials/documents/inboxDocuments";
 import {PROPERTY_SYSTEMS, CUSTOM_SYSTEM_DEFAULT_ICON} from "./constants/propertySystems";
 import { buildCustomSystemsForUi } from "./helpers/systemKeyUtils";
 import {PROPERTY_DOCUMENTS_CHANGED_EVENT, emitPropertyDocumentsChanged} from "./helpers/inspectionFlowSession";
@@ -308,7 +313,7 @@ function DocumentsTab({
   const [inspectionUploadBlockedNotice, setInspectionUploadBlockedNotice] =
     useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const fileInputRef = useRef(null);
   const uploadSuccessBannerRef = useRef(null);
@@ -523,14 +528,28 @@ function DocumentsTab({
     });
   }, [documents, selectedType, searchQuery]);
 
+  const inboxUIDocs = useMemo(() => {
+    return inbox.cards
+      .map(inboxCardToUIDoc)
+      .filter(Boolean)
+      .filter((doc) => {
+        const matchesType = selectedType === "all" || doc.type === selectedType;
+        const matchesSearch =
+          searchQuery === "" ||
+          (doc.name || "").toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesType && matchesSearch;
+      });
+  }, [inbox.cards, selectedType, searchQuery]);
+
   useEffect(() => {
-    if (
-      selectedDocument &&
-      !filteredDocuments.find((d) => d.id === selectedDocument.id)
-    ) {
+    if (!selectedDocument) return;
+    const stillVisible =
+      filteredDocuments.some((d) => d.id === selectedDocument.id) ||
+      inboxUIDocs.some((d) => d.id === selectedDocument.id);
+    if (!stillVisible) {
       setSelectedDocument(null);
     }
-  }, [filteredDocuments, selectedDocument]);
+  }, [filteredDocuments, inboxUIDocs, selectedDocument]);
 
   const documentsBySystem = useMemo(() => {
     const grouped = {};
@@ -545,13 +564,13 @@ function DocumentsTab({
     return grouped;
   }, [documents]);
 
-  /** Docs shown in the table: filtered by search/type, then by selected folder. */
+  /** All Documents includes unfiled inbox items; folder views stay filed-only. */
   const tableDocuments = useMemo(
     () =>
       selectedFolder
         ? filteredDocuments.filter((doc) => doc.system === selectedFolder)
-        : filteredDocuments,
-    [filteredDocuments, selectedFolder],
+        : [...inboxUIDocs, ...filteredDocuments],
+    [filteredDocuments, inboxUIDocs, selectedFolder],
   );
 
   const openUploadModalWithSystem = useCallback(
@@ -646,21 +665,61 @@ function DocumentsTab({
     handleSelectDocument(uiDoc);
   }, [documentIdFromUrl, loading, documents, handleSelectDocument]);
 
-  const handleDelete = useCallback((docId) => {
-    setDeleteTargetId(docId);
-    setDeleteConfirmOpen(true);
-  }, []);
+  const handleDelete = useCallback(
+    (docOrId) => {
+      if (docOrId && typeof docOrId === "object") {
+        if (isInboxDoc(docOrId)) {
+          setDeleteTarget({
+            source: "inbox",
+            clientId: docOrId.clientId,
+            name: docOrId.name,
+            uiId: docOrId.id,
+          });
+        } else {
+          setDeleteTarget({
+            source: "filed",
+            id: docOrId.id,
+            name: docOrId.name || docOrId.document_name,
+          });
+        }
+      } else if (typeof docOrId === "string") {
+        const clientId = clientIdFromInboxDocId(docOrId);
+        if (clientId) {
+          const card = inbox.cards.find((c) => c.clientId === clientId);
+          setDeleteTarget({
+            source: "inbox",
+            clientId,
+            name: card?.proposed?.document_name || card?.name,
+            uiId: docOrId,
+          });
+        } else {
+          setDeleteTarget({source: "filed", id: docOrId});
+        }
+      } else {
+        setDeleteTarget({source: "filed", id: docOrId});
+      }
+      setDeleteConfirmOpen(true);
+    },
+    [inbox.cards],
+  );
 
   const confirmDeleteDocument = useCallback(async () => {
-    if (deleteTargetId == null) return;
+    if (!deleteTarget) return;
     setDeleteSubmitting(true);
     try {
-      await AppApi.deletePropertyDocument(deleteTargetId);
-      const id = deleteTargetId;
-      setDocuments((prev) => prev.filter((d) => d.id !== id));
-      setSelectedDocument((cur) => (cur?.id === id ? null : cur));
+      if (deleteTarget.source === "inbox") {
+        await inbox.removeStaged(deleteTarget.clientId);
+        setSelectedDocument((cur) =>
+          cur?.id === deleteTarget.uiId ? null : cur,
+        );
+      } else {
+        await AppApi.deletePropertyDocument(deleteTarget.id);
+        const id = deleteTarget.id;
+        setDocuments((prev) => prev.filter((d) => d.id !== id));
+        setSelectedDocument((cur) => (cur?.id === id ? null : cur));
+      }
       setDeleteConfirmOpen(false);
-      setDeleteTargetId(null);
+      setDeleteTarget(null);
     } catch (err) {
       const msg = Array.isArray(err)
         ? err.join(", ")
@@ -669,7 +728,7 @@ function DocumentsTab({
     } finally {
       setDeleteSubmitting(false);
     }
-  }, [deleteTargetId]);
+  }, [deleteTarget, inbox]);
 
   const setDeleteModalOpen = useCallback(
     (open) => {
@@ -679,17 +738,21 @@ function DocumentsTab({
       }
       if (deleteSubmitting) return;
       setDeleteConfirmOpen(false);
-      setDeleteTargetId(null);
+      setDeleteTarget(null);
     },
     [deleteSubmitting],
   );
 
   const deleteModalTitle = useMemo(() => {
-    if (deleteTargetId == null) return "Delete this document?";
-    const name = documents.find((d) => d.id === deleteTargetId)
-      ?.document_name;
-    return name ? `Delete “${name}”?` : "Delete this document?";
-  }, [documents, deleteTargetId]);
+    if (!deleteTarget) return "Delete this document?";
+    if (deleteTarget.name) return `Delete “${deleteTarget.name}”?`;
+    if (deleteTarget.source === "filed") {
+      const name = documents.find((d) => d.id === deleteTarget.id)
+        ?.document_name;
+      return name ? `Delete “${name}”?` : "Delete this document?";
+    }
+    return "Remove from inbox?";
+  }, [documents, deleteTarget]);
 
   const handleOpenInNewTab = async (doc) => {
     const key = doc.document_key;
@@ -1225,6 +1288,7 @@ function DocumentsTab({
                 systemsToShow={systemsToShow}
                 documentsBySystem={documentsBySystem}
                 totalCount={documents.length}
+                libraryCount={documents.length + inbox.cards.length}
                 inboxCount={inbox.cards.length}
                 allSelected={!selectedFolder && !inboxSelected}
                 inboxSelected={inboxSelected}
@@ -1307,10 +1371,22 @@ function DocumentsTab({
                 }
                 onOpenInNewTab={handleOpenInNewTab}
                 onDelete={handleDelete}
-                onOpenAIReport={onOpenAIReport}
-                onAnalyzeDocument={handleAnalyzeDocument}
-                documentAnalysisState={getDocumentAnalysisUiState(selectedDocument?.id)}
-                documentAnalysisItem={getAnalysisItem(selectedDocument?.id)}
+                onOpenAIReport={
+                  isInboxDoc(selectedDocument) ? undefined : onOpenAIReport
+                }
+                onAnalyzeDocument={
+                  isInboxDoc(selectedDocument) ? undefined : handleAnalyzeDocument
+                }
+                documentAnalysisState={
+                  isInboxDoc(selectedDocument)
+                    ? {showAnalyze: false}
+                    : getDocumentAnalysisUiState(selectedDocument?.id)
+                }
+                documentAnalysisItem={
+                  isInboxDoc(selectedDocument)
+                    ? null
+                    : getAnalysisItem(selectedDocument?.id)
+                }
                 getDocumentIcon={getDocumentIcon}
                 getFileTypeColor={getFileTypeColor}
                 systemCategories={systemCategories}
@@ -1364,6 +1440,11 @@ function DocumentsTab({
                   selectedFolderObj
                     ? () => openUploadModalWithSystem(selectedFolderObj.id)
                     : openDefaultUploadModal
+                }
+                emptyDescription={
+                  !selectedFolder && inbox.cards.length > 0
+                    ? "No filed documents match this view. Unfiled uploads are in Inbox — or clear search and filters."
+                    : undefined
                 }
               />
             )}
@@ -1707,8 +1788,9 @@ function DocumentsTab({
                 </div>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
-                Are you sure you want to delete this document? This action
-                cannot be undone.
+                {deleteTarget?.source === "inbox"
+                  ? "Remove this file from the inbox? This deletes the uploaded file."
+                  : "Are you sure you want to delete this document? This action cannot be undone."}
               </p>
               <div className="flex flex-wrap justify-end gap-2">
                 <button

@@ -59,6 +59,7 @@ export function DocumentThumbContent({
   localPreviewUrl,
   fetchEnabled = true,
   compact = false,
+  interactive = true,
 }) {
   const kind = detectKind(name, mimeType, documentKey);
 
@@ -137,14 +138,18 @@ export function DocumentThumbContent({
   }
 
   if (kind === "pdf" && resolvedUrl && !error && !compact) {
-    // Keep the PDF viewer interactive so its native scrollbar / wheel
-    // actually scroll. Card chrome (not this embed) owns click + drag.
+    // Inbox cards disable the embed so the whole card can be dragged.
+    // Filed-document chrome keeps the viewer scrollable.
     return (
-      <div className="absolute inset-0">
+      <div
+        className={`absolute inset-0 ${interactive ? "" : "pointer-events-none"}`}
+      >
         <object
           data={`${resolvedUrl}#toolbar=0&navpanes=0&view=FitH`}
           type="application/pdf"
-          className="block w-full h-full bg-white"
+          className={`block w-full h-full bg-white ${
+            interactive ? "" : "pointer-events-none"
+          }`}
           aria-label={name || "PDF preview"}
         >
           <FallbackIcon kind="pdf" compact={compact} label="PDF" />

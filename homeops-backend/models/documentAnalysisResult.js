@@ -80,14 +80,32 @@ class DocumentAnalysisResult {
               d.document_name,
               d.document_date,
               d.document_key,
-              d.document_type
+              d.document_type,
+              d.checklist_item_id
        FROM document_analysis_results r
        JOIN property_documents d ON d.id = r.property_document_id
        WHERE r.property_id = $1
-         AND r.system_key = $2
+         AND LOWER(r.system_key) = LOWER($2)
          AND r.review_status IN ('approved', 'partially_approved')
        ORDER BY r.updated_at DESC`,
       [propertyId, systemKey],
+    );
+    return result.rows;
+  }
+
+  static async listByChecklistItem(checklistItemId) {
+    const result = await db.query(
+      `SELECT r.*,
+              d.document_name,
+              d.document_date,
+              d.document_key,
+              d.document_type,
+              d.checklist_item_id
+       FROM document_analysis_results r
+       JOIN property_documents d ON d.id = r.property_document_id
+       WHERE d.checklist_item_id = $1
+       ORDER BY r.updated_at DESC`,
+      [checklistItemId],
     );
     return result.rows;
   }
@@ -98,6 +116,7 @@ class DocumentAnalysisResult {
               d.document_name,
               d.document_date,
               d.document_key,
+              d.checklist_item_id,
               j.status AS job_status,
               j.progress AS job_progress,
               j.error_message AS job_error

@@ -34,14 +34,15 @@ function CardThumbnail({card}) {
       documentKey={card.documentKey}
       localPreviewUrl={card.previewUrl}
       fetchEnabled={card.status === "uploaded" && !!card.documentKey}
+      interactive={false}
     />
   );
 }
 
 /**
- * One staged document card. Drag source for @dnd-kit (drop on a folder row
- * to file). Classification lives in a ⋮ menu; clicking the card toggles
- * selection for bulk actions.
+ * One staged document card. The whole card is a @dnd-kit drag source (drop
+ * on a folder row to file). Classification lives in a ⋮ menu; clicking the
+ * card toggles selection for bulk actions.
  */
 function InboxFileCard({
   card,
@@ -269,17 +270,20 @@ function InboxFileCard({
   return (
     <div
       ref={setNodeRef}
-      className={`relative flex flex-col bg-white dark:bg-gray-800 rounded-xl border ${ringClass} ${dragClass} transition-all shadow-sm hover:shadow-md overflow-hidden`}
+      {...(isReady ? {...attributes, ...listeners} : {})}
+      onClick={(e) => {
+        onToggleSelect?.(
+          card.clientId,
+          e.shiftKey || e.metaKey || e.ctrlKey,
+        );
+      }}
+      className={`relative flex flex-col bg-white dark:bg-gray-800 rounded-xl border ${ringClass} ${dragClass} transition-all shadow-sm hover:shadow-md overflow-hidden ${
+        isReady ? "cursor-grab active:cursor-grabbing" : ""
+      }`}
       style={{width: 220, minHeight: 280}}
     >
       <div className="relative flex-1 min-h-[280px] bg-gray-50 dark:bg-gray-900 overflow-hidden">
-        <div
-          className="absolute inset-0 overflow-y-auto overscroll-contain"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect?.(card.clientId, e.shiftKey || e.metaKey || e.ctrlKey);
-          }}
-        >
+        <div className="absolute inset-0 overflow-hidden">
           <CardThumbnail card={card} />
         </div>
 
@@ -310,6 +314,11 @@ function InboxFileCard({
               {folderLabel}
             </span>
           )}
+          {isReady && !folderLabel && (
+            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100/95 dark:bg-amber-900/80 text-amber-800 dark:text-amber-200 backdrop-blur-sm shadow-sm truncate max-w-full">
+              Needs a folder
+            </span>
+          )}
         </div>
 
         {/* Actions */}
@@ -319,6 +328,7 @@ function InboxFileCard({
               <button
                 ref={menuTriggerRef}
                 type="button"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
                   setMenuOpen((v) => !v);
@@ -340,6 +350,7 @@ function InboxFileCard({
           {isReady && card.documentKey && onOpenInNewTab && (
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenInNewTab(card);
@@ -352,6 +363,7 @@ function InboxFileCard({
           )}
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onRemove?.(card.clientId);
@@ -383,6 +395,7 @@ function InboxFileCard({
               {onRetry && card.file && (
                 <button
                   type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
                     onRetry(card.clientId);
@@ -395,19 +408,7 @@ function InboxFileCard({
             </div>
           )}
           {(isReady || card.status === "queued") && (
-            <div
-              {...(isReady ? {...attributes, ...listeners} : {})}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleSelect?.(
-                  card.clientId,
-                  e.shiftKey || e.metaKey || e.ctrlKey,
-                );
-              }}
-              className={`px-2 py-1.5 bg-gradient-to-t from-black/60 to-transparent pointer-events-auto ${
-                isReady ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
-              }`}
-            >
+            <div className="px-2 py-1.5 bg-gradient-to-t from-black/60 to-transparent pointer-events-none">
               <p
                 className="text-[10px] font-medium text-white truncate"
                 title={card.name}

@@ -53,6 +53,7 @@ import { isCompletedMaintenanceRecord } from "../helpers/maintenanceRecordMappin
 import SystemActionItemsTables from "./systemDetail/actionItems/SystemActionItemsTables";
 import RecommendationDateEditor from "./systemDetail/actionItems/RecommendationDateEditor";
 import ActionItemDetailModal from "./systemDetail/actionItems/ActionItemDetailModal";
+import AddActionItemForm from "./systemDetail/actionItems/AddActionItemForm";
 
 const INSPECTION_CHECKLIST_UPDATED_EVENT = "inspection-checklist:updated";
 
@@ -686,6 +687,8 @@ export default function InspectionChecklistPanel({
   propertyDocuments = [],
   onLinkExistingRecord,
   onLinkExistingDocument,
+  addFormOpen = false,
+  onReviewBids,
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1143,7 +1146,7 @@ export default function InspectionChecklistPanel({
     );
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && !systemKey) {
     return (
       <div className="flex flex-col items-center justify-center py-6 text-center">
         <ClipboardList className="w-8 h-8 text-gray-300 dark:text-gray-600 mb-2" />
@@ -1182,6 +1185,7 @@ export default function InspectionChecklistPanel({
         onCreateRecordForItem || onLinkExistingRecord || onLinkExistingDocument
           ? handleAddRecordFromRow
           : undefined,
+      onReviewBids,
       syncingItemId,
       showSchedule: Boolean(propertyId),
     };
@@ -1201,7 +1205,18 @@ export default function InspectionChecklistPanel({
             <p className="text-sm text-gray-500 dark:text-gray-400">
               No action items for this system yet.
             </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              Add your own, or upload an inspection report to generate a checklist.
+            </p>
           </div>
+        )}
+        {propertyId && systemKey && (
+          <AddActionItemForm
+            propertyId={propertyId}
+            systemKey={systemKey}
+            startOpen={addFormOpen}
+            onItemCreated={handleItemCreated}
+          />
         )}
         <SystemActionItemsTables
           findingItems={findingItems}
