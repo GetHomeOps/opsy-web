@@ -8,7 +8,8 @@ const EMAIL_REGEX =
 const VARIANT_DEFAULTS = {
   ses: {
     title: "Send test email",
-    description: "Delivers via the configured provider using sample merge data.",
+    description:
+      "Delivers a real test email via the saved provider using sample merge data.",
     submitLabel: "Send test",
     SubmitIcon: Send,
   },

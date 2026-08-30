@@ -333,6 +333,9 @@ const SWITCHABLE_EMAIL_TYPES = {
     description:
       "Congratulates a homeowner on another year with their property on the last-sale anniversary.",
     customerIoDefaultEvent: "homeaversary",
+    defaultProvider: "customer_io",
+    defaultShowFooter: false,
+    customerIoTemplateId: 34,
     mergeVariables: [
       { key: "audience", description: "homeowner or agent. Branch the Homeaversary Customer.io campaign on this." },
       { key: "recipientFirstName", description: "Homeowner first name (Hi {{ event.recipientFirstName }},)" },
@@ -363,6 +366,9 @@ const SWITCHABLE_EMAIL_TYPES = {
     description:
       "Reminds the property's agent one week before a Homeaversary so they can send a note.",
     customerIoDefaultEvent: "homeaversary",
+    defaultProvider: "customer_io",
+    defaultShowFooter: false,
+    customerIoTemplateId: 35,
     mergeVariables: [
       { key: "audience", description: "homeowner or agent. Branch the Homeaversary Customer.io campaign on this." },
       { key: "recipientFirstName", description: "Agent first name (Hi {{ event.recipientFirstName }},)" },
@@ -402,9 +408,30 @@ function isDemoOpsEmailType(emailType) {
   return DEMO_OPS_EMAIL_TYPES.has(emailType);
 }
 
+const CUSTOMER_IO_TEMPLATE_ID_ENV = {
+  homeaversary_homeowner: "CUSTOMER_IO_HOMEAVERSARY_HOMEOWNER_TEMPLATE_ID",
+  homeaversary_agent: "CUSTOMER_IO_HOMEAVERSARY_AGENT_TEMPLATE_ID",
+};
+
+/** Customer.io email template id used for admin test sends, if configured. */
+function getCustomerIoTemplateId(emailType) {
+  const envKey = CUSTOMER_IO_TEMPLATE_ID_ENV[emailType];
+  const fromEnv = envKey ? process.env[envKey] : null;
+  if (fromEnv && String(fromEnv).trim()) {
+    const parsed = Number(fromEnv);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  const meta = SWITCHABLE_EMAIL_TYPES[emailType];
+  const id = meta?.customerIoTemplateId;
+  if (id == null || id === "") return null;
+  const parsed = Number(id);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 module.exports = {
   SWITCHABLE_EMAIL_TYPES,
   EMAIL_TYPE_KEYS,
   DEMO_OPS_EMAIL_TYPES,
   isDemoOpsEmailType,
+  getCustomerIoTemplateId,
 };

@@ -195,6 +195,9 @@ function EmailDeliveryPage() {
       ? form.provider
       : selectedTemplate?.activeProvider || settings?.defaultProvider || "ses";
   const isCustomerIoActive = effectiveProvider === "customer_io";
+  const savedActiveProvider =
+    selectedTemplate?.activeProvider || settings?.defaultProvider || "ses";
+  const savedProviderIsCustomerIo = savedActiveProvider === "customer_io";
 
   const mergeVariables = useMemo(
     () => detail?.template?.mergeVariables || [],
@@ -974,23 +977,25 @@ function EmailDeliveryPage() {
                               </button>
                             </>
                           )}
-                          {!isCustomerIoActive && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTestSendKind("ses");
-                                setTestModalOpen(true);
-                              }}
-                              disabled={testing || saving}
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium hover:border-[#456564] disabled:opacity-50"
-                            >
-                              <Send className="w-4 h-4" />
-                              Send test email
-                            </button>
-                          )}
-                          {isCustomerIoActive &&
-                            settingsMeta?.customerIoConfigured &&
-                            !providerHasUnsavedChanges && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTestSendKind("ses");
+                              setTestModalOpen(true);
+                            }}
+                            disabled={testing || saving}
+                            title={
+                              savedProviderIsCustomerIo
+                                ? "Sends a real test of the Customer.io template with sample merge data."
+                                : "Delivers via the saved provider using sample merge data."
+                            }
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-medium hover:border-[#456564] disabled:opacity-50"
+                          >
+                            <Send className="w-4 h-4" />
+                            Send test email
+                          </button>
+                          {savedProviderIsCustomerIo &&
+                            settingsMeta?.customerIoConfigured && (
                               <button
                                 type="button"
                                 onClick={() => {

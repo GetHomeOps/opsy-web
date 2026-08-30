@@ -215,9 +215,18 @@ app.use("/assistants", assistantsRoutes);
 // Serve React SPA when frontend build is present (same-origin deployment)
 const publicPath = path.join(__dirname, 'public');
 if (fs.existsSync(publicPath)) {
+  // Helmet defaults CORP to same-origin. Email clients and Customer.io's composer
+  // load /email/* images from other origins, so those assets must be embeddable.
+  app.use("/email", (req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  });
   app.use(
     express.static(publicPath, {
       setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}email${path.sep}`)) {
+          res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        }
         if (filePath.includes(`${path.sep}assets${path.sep}`)) {
           // Fingerprinted build assets are content-hashed, so a URL never changes
           // meaning — cache them aggressively.

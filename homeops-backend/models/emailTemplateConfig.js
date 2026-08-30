@@ -66,17 +66,19 @@ class EmailTemplateConfig {
       await db.query(
         `INSERT INTO email_template_configs (
            email_type, provider, is_switchable, label, description,
-           ses_subject, ses_html_body, customer_io_mode, customer_io_event_name,
+           ses_subject, ses_html_body, show_footer, customer_io_mode, customer_io_event_name,
            merge_variables
          )
-         VALUES ($1, 'inherit', true, $2, $3, $4, $5, 'event', $6, $7::jsonb)
+         VALUES ($1, $2, true, $3, $4, $5, $6, $7, 'event', $8, $9::jsonb)
          ON CONFLICT (email_type) DO NOTHING`,
         [
           emailType,
+          meta.defaultProvider || "inherit",
           meta.label,
           meta.description,
           defaults.subject,
           defaults.htmlBody,
+          meta.defaultShowFooter !== false,
           meta.customerIoDefaultEvent,
           JSON.stringify(meta.mergeVariables),
         ]
@@ -123,6 +125,17 @@ class EmailTemplateConfig {
             'homeaversary_homeowner',
             'homeaversary_agent_preview'
           )`
+    );
+
+    // One-time: Homeaversary is designed for Customer.io and should not
+    // inherit the SES default or append the sales footer banner.
+    await db.query(
+      `UPDATE email_template_configs
+          SET provider = 'customer_io',
+              show_footer = false,
+              updated_at = NOW()
+        WHERE email_type IN ('homeaversary_homeowner', 'homeaversary_agent')
+          AND provider = 'inherit'`
     );
 
     seededOnce = true;
@@ -211,10 +224,11 @@ class EmailTemplateConfig {
     if (!defaults) {
       throw new BadRequestError(`No default template for: ${emailType}`);
     }
+    const meta = SWITCHABLE_EMAIL_TYPES[emailType] || {};
     return this.update(emailType, {
       sesSubject: defaults.subject,
       sesHtmlBody: defaults.htmlBody,
-      showFooter: true,
+      showFooter: meta.defaultShowFooter !== false,
       footerImageUrl: null,
       customerIoIcons: {},
     });

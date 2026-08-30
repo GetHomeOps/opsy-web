@@ -6,6 +6,7 @@
  * Usage:
  *   node scripts/update_customerio_homeaversary_templates.js --dry-run
  *   node scripts/update_customerio_homeaversary_templates.js
+ *   node scripts/update_customerio_homeaversary_templates.js --sample-data-only
  */
 
 require("dotenv").config({ path: require("path").join(__dirname, "../.env") });
@@ -13,6 +14,7 @@ require("dotenv").config({ path: require("path").join(__dirname, "../.env") });
 const {
   getHomeaversaryHtml,
 } = require("../data/homeaversaryEmailHtml");
+const { getSampleMergeData } = require("../data/emailTemplateDefaults");
 
 const ENVIRONMENT_ID = process.env.CUSTOMER_IO_ENVIRONMENT_ID || "218445";
 const TEMPLATE_IDS = {
@@ -61,6 +63,12 @@ const TEMPLATES = {
   },
 };
 
+function sampleEventData(audience) {
+  return getSampleMergeData(
+    audience === "agent" ? "homeaversary_agent" : "homeaversary_homeowner"
+  );
+}
+
 async function updateTemplate(audience, meta, dryRun) {
   const payload = {
     template: {
@@ -81,10 +89,29 @@ async function updateTemplate(audience, meta, dryRun) {
   console.info(`[homeaversary] updated ${audience} template ${meta.id}`);
 }
 
+async function updateSampleData(audience, templateId, dryRun) {
+  const sample_data = sampleEventData(audience);
+  if (dryRun) {
+    console.info(
+      `[homeaversary] dry-run ${audience} sample_data ${templateId} (${Object.keys(sample_data).length} keys)`
+    );
+    return;
+  }
+  await flyFetch(`/v1/environments/${ENVIRONMENT_ID}/sample_data/${templateId}`, {
+    method: "PUT",
+    body: JSON.stringify({ sample_data }),
+  });
+  console.info(`[homeaversary] updated ${audience} sample_data ${templateId}`);
+}
+
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
+  const sampleDataOnly = process.argv.includes("--sample-data-only");
   for (const [audience, meta] of Object.entries(TEMPLATES)) {
-    await updateTemplate(audience, meta, dryRun);
+    if (!sampleDataOnly) {
+      await updateTemplate(audience, meta, dryRun);
+    }
+    await updateSampleData(audience, meta.id, dryRun);
   }
 }
 
@@ -95,4 +122,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { TEMPLATES, updateTemplate };
+module.exports = { TEMPLATES, updateTemplate, updateSampleData, sampleEventData };

@@ -22,6 +22,7 @@ const {
 const { wrapEmailHtml } = require("../services/emailComposer");
 const { toPreviewHtml, toStorageHtml, getFooterPreviewUrl } = require("../services/emailPreviewHtml");
 const { getCustomerIoIconSlots, normalizeCustomerIoIcons } = require("../constants/emailIconSlots");
+const { getCustomerIoTemplateId } = require("../constants/emailTypes");
 const { attachTemplateIconMergeData } = require("../services/emailTemplateIcons");
 const settingsUpdateSchema = require("../schemas/emailDeliverySettingsUpdate.json");
 const templateUpdateSchema = require("../schemas/emailTemplateConfigUpdate.json");
@@ -225,12 +226,31 @@ router.post("/templates/:emailType/test", ensureLoggedIn, ensureSuperAdmin, asyn
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
       throw new BadRequestError("A valid recipient email is required.");
     }
-    const template = await EmailTemplateConfig.getByType(emailType);
+    const [settings, template] = await Promise.all([
+      PlatformEmailSettings.get(),
+      EmailTemplateConfig.getByType(emailType),
+    ]);
     const sampleMergeData = attachTemplateIconMergeData(
       emailType,
       enrichMergeData(getSampleMergeData(emailType)),
       template.customerIoIcons
     );
+    const activeProvider = resolveActiveProvider(template, settings);
+    const cioTemplateId = getCustomerIoTemplateId(emailType);
+
+    if (activeProvider === "customer_io" && cioTemplateId) {
+      const result = await customerIoProvider.sendTestTemplate({
+        to,
+        templateId: cioTemplateId,
+        eventData: sampleMergeData,
+      });
+      return res.json({
+        success: true,
+        result: { provider: "customer_io", ...result },
+        sentTo: to,
+      });
+    }
+
     const defaults = getDefaultSesTemplate(emailType);
     const subject = renderTemplate(
       template.sesSubject || defaults?.subject || "Test email",

@@ -322,6 +322,62 @@ function getCustomerIoWorkspaceUrl() {
   return `https://${host}/workspaces/${siteId}`;
 }
 
+function getFlyBaseUrl() {
+  return "https://fly.customer.io";
+}
+
+function getFlyAuthHeader() {
+  const token =
+    process.env.CUSTOMER_IO_WRITE_TOKEN || process.env.CUSTOMER_IO_APP_API_KEY;
+  if (!token) {
+    throw new Error(
+      "Customer.io not configured. Set CUSTOMER_IO_WRITE_TOKEN or CUSTOMER_IO_APP_API_KEY."
+    );
+  }
+  return `Bearer ${token}`;
+}
+
+/**
+ * Send a real test of a stored Customer.io email template (not just a Track event).
+ * Uses sample event_data so {{ event.* }} Liquid renders.
+ */
+async function sendTestTemplate({
+  to,
+  templateId,
+  eventData = {},
+  prependTest = true,
+  bypassDemoSuppression = false,
+}) {
+  if (!isCustomerIoConfigured()) {
+    throw new Error(
+      "Customer.io not configured. Set CUSTOMER_IO_SITE_ID, CUSTOMER_IO_TRACK_API_KEY, and CUSTOMER_IO_APP_API_KEY."
+    );
+  }
+  const environmentId = process.env.CUSTOMER_IO_ENVIRONMENT_ID || "218445";
+  const id = Number(templateId);
+  if (!id || Number.isNaN(id)) {
+    throw new Error("Customer.io template_id is required for a test send.");
+  }
+  return customerIoFetch(
+    `${getFlyBaseUrl()}/v1/environments/${environmentId}/verify/email_template`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: getFlyAuthHeader(),
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        template_id: id,
+        to: String(to).trim(),
+        event_data: eventData,
+        prepend_test: prependTest !== false,
+      }),
+    },
+    { bypassDemoSuppression }
+  );
+}
+
 /**
  * Track when a user adds a property (create or invitation accept).
  * Used in Customer.io journeys to exit / skip follow-ups (e.g. welcome nudge).
@@ -566,6 +622,7 @@ module.exports = {
   trackEvent,
   sendTransactional,
   deliverViaCustomerIo,
+  sendTestTemplate,
   trackPropertyInvitationAccepted,
   trackPropertyAdded,
   trackUserLoggedIn,
