@@ -801,6 +801,7 @@ function SharePropertyModal({
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [transferError, setTransferError] = useState("");
   const [resendingId, setResendingId] = useState(null);
+  const [resendError, setResendError] = useState("");
   const [platformAgents, setPlatformAgents] = useState([]);
   const [removeConfirmMember, setRemoveConfirmMember] = useState(null);
   const [removeError, setRemoveError] = useState("");
@@ -994,7 +995,13 @@ function SharePropertyModal({
     };
   }, [teamMembers, membersByTab, isAdminOrSuperAdmin]);
 
-  /* Only one agent per property - block adding when one already exists */
+  /* Only one agent per property - block adding when one already exists
+     (accepted members or a pending invite both count). */
+  const hasAcceptedAgent = useMemo(
+    () =>
+      (membersByTab.agent ?? []).some((m) => m && !m._pending && m.id != null),
+    [membersByTab],
+  );
   const hasAgent = useMemo(
     () => (membersByTab.agent ?? []).length > 0,
     [membersByTab],
@@ -1040,16 +1047,18 @@ function SharePropertyModal({
   }, [effectiveEmail]);
 
   const handleUpdateAgentPermissions = useCallback(() => {
-    if (!hasAgent || !onUpdateAgentPermissions) return;
-    const agent = membersByTab.agent[0];
-    if (!agent?.id) return;
-    const perms = {};
-    ACCESS_SECTIONS.forEach((s) => {
-      perms[s.id] = getPermission(s.id);
-    });
-    onUpdateAgentPermissions(agent.id, perms);
+    const agent = (membersByTab.agent ?? []).find(
+      (m) => m && !m._pending && m.id != null,
+    );
+    if (agent && onUpdateAgentPermissions) {
+      const perms = {};
+      ACCESS_SECTIONS.forEach((s) => {
+        perms[s.id] = getPermission(s.id);
+      });
+      onUpdateAgentPermissions(agent.id, perms);
+    }
     setModalOpen(false);
-  }, [hasAgent, membersByTab, onUpdateAgentPermissions, getPermission]);
+  }, [membersByTab, onUpdateAgentPermissions, getPermission]);
 
   const buildInviteRequestPayload = useCallback(() => {
     const perSystemPerms = {};
@@ -1375,13 +1384,15 @@ function SharePropertyModal({
     const invId = member.invitationId;
     if (!invId) return;
     setResendingId(invId);
-    setEmailError("");
+    setResendError("");
     try {
       await AppApi.resendInvitation(invId);
       setSuccessType("resend");
       setTimeout(() => setSuccessType(null), 2000);
     } catch (err) {
-      setEmailError(err?.message || "Failed to resend invitation");
+      setResendError(
+        getApiErrorMessage(err, "Failed to resend invitation"),
+      );
     } finally {
       setResendingId(null);
     }
@@ -1472,7 +1483,7 @@ function SharePropertyModal({
                 </div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-white text-center break-words w-full">
                   {successType === "resend"
-                    ? "Invitation email resent!"
+                    ? "Invitation resent. They'll get an email and an in-app notification."
                     : successType === "ownership_sent"
                       ? "Transfer request sent. They will be notified to accept or decline."
                       : sendInviteEmail
@@ -1548,6 +1559,22 @@ function SharePropertyModal({
               </div>
 
               <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
+                {resendError && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 mb-4">
+                    <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
+                    <p className="flex-1 min-w-0 text-xs text-red-700 dark:text-red-400 leading-relaxed">
+                      {resendError}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setResendError("")}
+                      className="shrink-0 text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-300"
+                      aria-label="Dismiss"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
                 {/* ===== Owner tab: show owner (once) + team members (excluding owner) ===== */}
                 {activeTab === "owner" && (
                   <div className="space-y-4">
@@ -1771,8 +1798,9 @@ function SharePropertyModal({
 
                     {activeTab === "agent" && hasAgent && (
                       <div className="p-3 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-xs text-gray-700 dark:text-gray-300">
-                        An agent has already been added to this property. Only
-                        one agent is allowed per property.
+                        {hasAcceptedAgent
+                          ? "An agent has already been added to this property. Only one agent is allowed per property."
+                          : "An agent invitation is already pending for this property. Only one agent is allowed per property."}
                       </div>
                     )}
 
@@ -1782,21 +1810,23 @@ function SharePropertyModal({
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                             Access restrictions
                           </label>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              Apply to all:
-                            </span>
-                            {PERMISSION_OPTIONS.map((opt) => (
-                              <button
-                                key={opt.id}
-                                type="button"
-                                onClick={() => applyToAll(opt.id)}
-                                className="px-2 py-1 text-xs font-medium rounded border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
+                          {hasAcceptedAgent ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                Apply to all:
+                              </span>
+                              {PERMISSION_OPTIONS.map((opt) => (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => applyToAll(opt.id)}
+                                  className="px-2 py-1 text-xs font-medium rounded border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="space-y-4">
                           {ACCESS_SECTIONS.map((s) => {
@@ -1810,6 +1840,7 @@ function SharePropertyModal({
                                 onChange={handlePermissionChange}
                                 aria-label={`${s.label} permission`}
                                 icon={Icon}
+                                disabled={!hasAcceptedAgent}
                               />
                             );
                           })}
@@ -2086,17 +2117,17 @@ function SharePropertyModal({
                       onClick={() => setModalOpen(false)}
                       className="btn btn-sm border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs"
                     >
-                      Cancel
+                      {activeTab === "agent" && hasAgent ? "Close" : "Cancel"}
                     </button>
                     {activeTab === "agent" &&
-                    hasAgent &&
+                    hasAcceptedAgent &&
                     onUpdateAgentPermissions ? (
                       <button
                         type="button"
                         onClick={handleUpdateAgentPermissions}
                         className="btn bg-[#456564] hover:bg-[#3d5857] dark:bg-[#5a7a78] dark:hover:bg-[#4d6a68] text-white"
                       >
-                        Accept
+                        Save
                       </button>
                     ) : null}
                     {!(activeTab === "agent" && hasAgent) &&

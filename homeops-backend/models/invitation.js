@@ -18,6 +18,10 @@
 const db = require("../db");
 const crypto = require("crypto");
 const { BadRequestError, NotFoundError, UnauthorizedError } = require("../expressError");
+const {
+  generateInvitationToken,
+  invitationExpiresAt,
+} = require("../helpers/invitationTokens");
 
 const INVITATION_SELECT_CORE = `
   id, type, inviter_user_id AS "inviterUserId", invitee_email AS "inviteeEmail",
@@ -301,20 +305,23 @@ class Invitation {
     return invitation;
   }
 
-  /** Regenerate token for a pending invitation. Returns { invitation, token }. */
+  /**
+   * Regenerate token for a pending invitation and reset its expiry window.
+   * Expired-but-still-pending rows are allowed so Resend can revive them.
+   * Returns { invitation, token }.
+   */
   static async regenerateToken(id) {
     const invitation = await this.get(id);
     if (invitation.status !== "pending") {
       throw new BadRequestError("Invitation is no longer pending");
     }
-    if (new Date(invitation.expiresAt) <= new Date()) {
-      throw new BadRequestError("Invitation has expired");
-    }
-    const token = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const { token, tokenHash } = generateInvitationToken();
+    const expiresAt = invitationExpiresAt();
     await db.query(
-      `UPDATE invitations SET token_hash = $1 WHERE id = $2 AND status = 'pending'`,
-      [tokenHash, id]
+      `UPDATE invitations
+       SET token_hash = $1, expires_at = $2
+       WHERE id = $3 AND status = 'pending'`,
+      [tokenHash, expiresAt, id]
     );
     return { invitation: await this.get(id), token };
   }

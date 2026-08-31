@@ -12,7 +12,10 @@
 
 const db = require("../db");
 const crypto = require("crypto");
-const { generateInvitationToken } = require("../helpers/invitationTokens");
+const {
+  generateInvitationToken,
+  invitationExpiresAt,
+} = require("../helpers/invitationTokens");
 const Invitation = require("../models/invitation");
 const Account = require("../models/account");
 const Contact = require("../models/contact");
@@ -107,11 +110,6 @@ async function assertInviterAuthorized({
     if (!allowed) throw new ForbiddenError("You do not have access to this property.");
   }
 }
-
-/** Hours until invitation links stop working (creation + acceptance). */
-
-/** Hours until invitation links stop working (creation + acceptance). */
-const INVITATION_EXPIRY_HOURS = 168;
 
 /** Allowed values for invitations.intended_property_role — the invitation
  *  category (which tab the invitee will appear under in the property team
@@ -531,8 +529,7 @@ async function createPropertyInvitation({
   });
 
   const { token, tokenHash } = generateInvitationToken();
-  const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + INVITATION_EXPIRY_HOURS);
+  const expiresAt = invitationExpiresAt();
 
   const invitation = await Invitation.create({
     type: 'property',
@@ -558,18 +555,7 @@ async function createPropertyInvitation({
   const inviteeUserRow = existingUserAny.rows[0] ?? null;
   const inviteeUserId = inviteeUserRow?.id ?? null;
   const inviteeUserIsActive = inviteeUserRow?.is_active === true;
-  if (inviteeUserId != null) {
-    try {
-      await Notification.create({
-        userId: inviteeUserId,
-        type: 'property_invitation',
-        title: "You've been invited to join a property",
-        invitationId: invitation.id,
-      });
-    } catch (notifErr) {
-      console.error("[invitationService] Failed to create notification for invitee:", notifErr.message);
-    }
-  }
+  await notifyExistingUserOfPropertyInvitation(invitation);
 
   if (!skipInviteEmail) {
     try {
@@ -762,8 +748,7 @@ async function createBulkPropertyInvitations({
     intendedPropertyRole: normalizedIntendedPropertyRole,
   });
 
-  const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + INVITATION_EXPIRY_HOURS);
+  const expiresAt = invitationExpiresAt();
   const normalizedPermissions = normalizeInvitationPermissions(permissions);
 
   const createdRows = [];
@@ -899,8 +884,7 @@ async function createAccountInvitation({
   });
 
   const { token, tokenHash } = generateInvitationToken();
-  const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + INVITATION_EXPIRY_HOURS);
+  const expiresAt = invitationExpiresAt();
 
   const invitation = await Invitation.create({
     type: 'account',
@@ -1667,10 +1651,48 @@ async function acceptInvitationForLoggedInUser(invitationId, userId, userEmail) 
   return acceptInvitation({ invitation, userId });
 }
 
-/** Resend invitation email. Generates new token and sends email. */
+/**
+ * Queue (or refresh) the in-app bell notification for an existing user invited
+ * to a property. Replaces any previous property_invitation rows for this
+ * invitation so Resend shows as a new unread item.
+ */
+async function notifyExistingUserOfPropertyInvitation(invitation) {
+  if (!invitation?.id || invitation.type !== "property") return;
+  const emailLower = (invitation.inviteeEmail || "").trim().toLowerCase();
+  if (!emailLower) return;
+  try {
+    const existingUserAny = await db.query(
+      `SELECT id FROM users WHERE LOWER(TRIM(email)) = $1`,
+      [emailLower]
+    );
+    const inviteeUserId = existingUserAny.rows[0]?.id ?? null;
+    if (inviteeUserId == null) return;
+    await Notification.deletePropertyInvitationNotifications(invitation.id);
+    await Notification.create({
+      userId: inviteeUserId,
+      type: "property_invitation",
+      title: "You've been invited to join a property",
+      invitationId: invitation.id,
+    });
+  } catch (notifErr) {
+    console.error(
+      "[invitationService] Failed to create notification for invitee:",
+      notifErr.message
+    );
+  }
+}
+
+/**
+ * Resend invitation email. Issues a new token, extends expiry (including
+ * expired-but-still-pending rows), and refreshes the invitee's in-app
+ * notification so they see a new unread invite.
+ */
 async function resendInvitation(invitationId, inviterUserId) {
   const { invitation, token } = await Invitation.regenerateToken(invitationId);
   const type = invitation.type || 'account';
+  if (type === "property") {
+    await notifyExistingUserOfPropertyInvitation(invitation);
+  }
   await sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type });
   await Invitation.markEmailSent(invitation.id);
   return { invitation, token };
@@ -1713,10 +1735,6 @@ async function sendPendingInvitations({ invitationIds, actorUserId, actorRole, a
       }
       if (accountId != null && Number(invitation.accountId) !== Number(accountId)) {
         failed.push({ id, error: "Invitation does not belong to this account" });
-        continue;
-      }
-      if (new Date(invitation.expiresAt) <= new Date()) {
-        failed.push({ id, error: "Invitation has expired" });
         continue;
       }
 
