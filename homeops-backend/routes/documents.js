@@ -6,6 +6,7 @@ const { ensureLoggedIn } = require("../middleware/auth");
 const { isAllowedCustomerIoIconSlot } = require("../constants/emailIconSlots");
 const { EMAIL_TYPE_KEYS } = require("../constants/emailTypes");
 const { BadRequestError } = require("../expressError");
+const { assertUserCanAccessS3Key } = require("../helpers/s3KeyAccess");
 const { uploadFile, getPresignedUrl, getPresignedUrlForImage } = require("../services/s3Service");
 const { AWS_S3_BUCKET } = require("../config");
 const { ulid } = require("ulid");
@@ -132,6 +133,7 @@ router.post("/upload", ensureLoggedIn, upload.single("file"), async (req, res, n
 router.get("/presigned-preview", ensureLoggedIn, async (req, res, next) => {
   try {
     const validKey = validateFileKey(req.query.key);
+    await assertUserCanAccessS3Key(res.locals.user, validKey);
     const url = await getPresignedUrl(validKey);
     return res.json({ url });
   } catch (err) {
@@ -146,6 +148,7 @@ router.get("/presigned-preview", ensureLoggedIn, async (req, res, next) => {
 router.get("/inline-image-url", ensureLoggedIn, async (req, res, next) => {
   try {
     const validKey = validateFileKey(req.query.key);
+    await assertUserCanAccessS3Key(res.locals.user, validKey);
     const url = await getPresignedUrlForImage(validKey);
     return res.json({ url });
   } catch (err) {

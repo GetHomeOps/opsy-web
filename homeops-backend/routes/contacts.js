@@ -2,7 +2,7 @@
 
 const express = require("express");
 const jsonschema = require("jsonschema");
-const { ensureSuperAdmin, ensurePlatformAdmin, ensureLoggedIn, ensureUserCanAccessAccountByParam, ensureContactBelongsToUserAccount } = require("../middleware/auth");
+const { ensureSuperAdmin, ensurePlatformAdmin, ensureLoggedIn, ensureUserCanAccessAccountByParam, ensureUserCanAccessAccountFromBody, ensureContactBelongsToUserAccount } = require("../middleware/auth");
 const { BadRequestError, ForbiddenError } = require("../expressError");
 const Contact = require("../models/contact");
 const Tag = require("../models/tag");
@@ -112,6 +112,13 @@ router.get("/:id/associations", ensureLoggedIn, ensureContactBelongsToUserAccoun
 
 /** POST / - Create contact. Optionally link to account via accountId in body. */
 router.post("/", ensureLoggedIn, async function (req, res, next) {
+  if (req.body?.accountId) {
+    return ensureUserCanAccessAccountFromBody("accountId")(req, res, () => createContact(req, res, next));
+  }
+  return createContact(req, res, next);
+});
+
+async function createContact(req, res, next) {
   try {
     const validator = jsonschema.validate(req.body, contactUpdateSchema);
     if (!validator.valid) {
@@ -145,10 +152,10 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
   } catch (err) {
     return next(err);
   }
-});
+}
 
 /** POST /account_contacts - Link contact to account. Body: { contactId, accountId }. */
-router.post("/account_contacts", ensureLoggedIn, async function (req, res, next) {
+router.post("/account_contacts", ensureLoggedIn, ensureUserCanAccessAccountFromBody("accountId"), async function (req, res, next) {
   try {
     const { accountId } = req.body || {};
     if (accountId && res.locals.user?.role !== "super_admin" && res.locals.user?.role !== "admin") {

@@ -88,10 +88,19 @@ router.get("/:id", ensureLoggedIn, ensureUserCanAccessAccountByParam("id"), asyn
   }
 });
 
-/** POST / - Create account. */
+/** POST / - Create account. Owner is the current user unless a platform admin sets otherwise. */
 router.post("/", ensureLoggedIn, async function (req, res, next) {
   try {
-    const account = await Account.create(req.body);
+    const role = res.locals.user?.role;
+    const requestedOwner = req.body.ownerUserId ?? req.body.owner_user_id;
+    const ownerUserId =
+      role === "super_admin" || role === "admin"
+        ? requestedOwner || res.locals.user.id
+        : res.locals.user.id;
+    const account = await Account.create({
+      name: req.body.name,
+      ownerUserId,
+    });
     return res.status(201).json({ account });
   } catch (err) {
     return next(err);

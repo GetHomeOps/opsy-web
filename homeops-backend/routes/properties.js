@@ -462,7 +462,7 @@ router.post(
 );
 
 /** GET /agent/account/:accountId - Get agents for account. */
-router.get("/agent/account/:accountId", ensureLoggedIn, async function (req, res, next) {
+router.get("/agent/account/:accountId", ensureLoggedIn, ensureUserCanAccessAccountByParam("accountId"), async function (req, res, next) {
   try {
     const users = await Property.getAgentByAccountId(req.params.accountId);
     return res.json({ users });

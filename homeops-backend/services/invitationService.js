@@ -61,12 +61,54 @@ const {
   propertyHasAgentMemberOrPendingAgentInvitation,
 } = require("./propertyAgentPolicy");
 const { isDemoEnvironment } = require("../helpers/demoEnvironment");
+const { isUserAuthorizedForProperty } = require("../helpers/propertyAccess");
 const {
   shouldAutoTransferOwnershipOnHomeownerInvite,
   transferPropertyOwnership,
 } = require("./propertyOwnershipService");
 
 const VALID_ACCOUNT_ROLES = new Set(["owner", "admin", "member", "view_only"]);
+
+/** Require account membership (and property access when propertyId is set). */
+async function assertInviterAuthorized({
+  inviterUserId,
+  inviterUserRole,
+  accountId,
+  propertyId = null,
+}) {
+  if (!inviterUserId || !accountId) {
+    throw new ForbiddenError("Not authorized to send this invitation.");
+  }
+  let role = inviterUserRole;
+  if (!role) {
+    const roleRes = await db.query(`SELECT role::text AS role FROM users WHERE id = $1`, [
+      inviterUserId,
+    ]);
+    role = roleRes.rows[0]?.role;
+  }
+  if (role === "super_admin" || role === "admin") return;
+
+  const linked = await Account.isUserLinkedToAccount(inviterUserId, accountId);
+  if (!linked) throw new ForbiddenError("Not authorized to access this account.");
+
+  if (propertyId) {
+    const belongs = await db.query(
+      `SELECT 1 FROM properties WHERE id = $1 AND account_id = $2`,
+      [propertyId, accountId],
+    );
+    if (!belongs.rows[0]) {
+      throw new BadRequestError("Property not found in this account.");
+    }
+    const allowed = await isUserAuthorizedForProperty({
+      userId: inviterUserId,
+      propertyId,
+      role,
+    });
+    if (!allowed) throw new ForbiddenError("You do not have access to this property.");
+  }
+}
+
+/** Hours until invitation links stop working (creation + acceptance). */
 
 /** Hours until invitation links stop working (creation + acceptance). */
 const INVITATION_EXPIRY_HOURS = 168;
@@ -444,6 +486,13 @@ async function createPropertyInvitation({
   const trimmedInviteeName = (inviteeName || "").trim();
   const inviteeEmailTrimmed = inviteeEmail.trim();
 
+  await assertInviterAuthorized({
+    inviterUserId,
+    inviterUserRole,
+    accountId,
+    propertyId,
+  });
+
   // Prevent duplicate: user already in property team
   const existingMember = await db.query(
     `SELECT 1 FROM property_users pu
@@ -561,6 +610,12 @@ async function createBulkPropertyInvitations({
   requireApproval = true,
   skipInviteEmail = false,
 }) {
+  await assertInviterAuthorized({
+    inviterUserId,
+    inviterUserRole,
+    accountId,
+  });
+
   const emailLower = (inviteeEmail || "").trim().toLowerCase();
   if (!emailLower) throw new BadRequestError("inviteeEmail is required");
   if (!Array.isArray(propertyIds) || propertyIds.length === 0) {
@@ -594,7 +649,24 @@ async function createBulkPropertyInvitations({
   }
 
   const toCheck = rawIds.filter((pid) => validInAccount.has(pid));
-  if (toCheck.length === 0) {
+  const authorized = [];
+  for (const pid of toCheck) {
+    try {
+      await assertInviterAuthorized({
+        inviterUserId,
+        inviterUserRole,
+        accountId,
+        propertyId: pid,
+      });
+      authorized.push(pid);
+    } catch (err) {
+      failed.push({
+        propertyId: pid,
+        message: err.message || "You do not have access to this property.",
+      });
+    }
+  }
+  if (authorized.length === 0) {
     return { succeeded, failed, autoAccepted: [] };
   }
 
@@ -603,12 +675,12 @@ async function createBulkPropertyInvitations({
       `SELECT pu.property_id FROM property_users pu
        JOIN users u ON u.id = pu.user_id
        WHERE pu.property_id = ANY($1::int[]) AND LOWER(TRIM(u.email)) = $2`,
-      [toCheck, emailLower]
+      [authorized, emailLower]
     ),
     db.query(
       `SELECT property_id FROM invitations
        WHERE property_id = ANY($1::int[]) AND status = 'pending' AND LOWER(TRIM(invitee_email)) = $2`,
-      [toCheck, emailLower]
+      [authorized, emailLower]
     ),
   ]);
 
@@ -620,7 +692,7 @@ async function createBulkPropertyInvitations({
   const inviteeIsAgent = await isEmailAnActiveAgentUser(emailLower);
   const blockedAgentExists = new Set();
   if (inviteeIsAgent) {
-    for (const pid of toCheck) {
+    for (const pid of authorized) {
       if (blockedMember.has(pid) || blockedPending.has(pid)) continue;
       if (await propertyHasAgentMemberOrPendingAgentInvitation(pid)) {
         blockedAgentExists.add(pid);
@@ -630,7 +702,7 @@ async function createBulkPropertyInvitations({
 
   const intents = intendedRole || "editor";
 
-  const notBlockedForTier = toCheck.filter(
+  const notBlockedForTier = authorized.filter(
     (pid) => !blockedMember.has(pid) && !blockedPending.has(pid)
   );
   const tierByProperty =
@@ -639,7 +711,7 @@ async function createBulkPropertyInvitations({
       : await getTeamMemberInviteEligibilityByProperty(accountId, notBlockedForTier, inviterUserRole);
 
   const eligible = [];
-  for (const pid of toCheck) {
+  for (const pid of authorized) {
     if (blockedMember.has(pid)) {
       failed.push({ propertyId: pid, message: "This person is already on the property team." });
       continue;
@@ -818,7 +890,14 @@ async function createAccountInvitation({
   accountId,
   intendedRole,
   skipEmail = false,
+  inviterUserRole,
 }) {
+  await assertInviterAuthorized({
+    inviterUserId,
+    inviterUserRole,
+    accountId,
+  });
+
   const { token, tokenHash } = generateInvitationToken();
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + INVITATION_EXPIRY_HOURS);
@@ -1669,4 +1748,5 @@ module.exports = {
   resendInvitation,
   sendPendingInvitations,
   resolvePropertyInvitationInviteUrl,
+  assertInviterAuthorized,
 };

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node helpers/propertyAccess.assistant.test.js && node routes/auth.test.js && node services/homeownerOwnershipTransfer.test.js && node models/user.remove.test.js && node models/platformMetrics.agentAnalytics.test.js && node services/homeAnniversaryService.test.js && node services/documentAnalysisClassification.test.js && node services/bidStatus.test.js && node services/bidComparisonService.test.js && node services/contactTagService.test.js",
+    "test": "node helpers/propertyAccess.assistant.test.js && node helpers/s3KeyAccess.test.js && node routes/auth.test.js && node services/homeownerOwnershipTransfer.test.js && node models/user.remove.test.js && node models/platformMetrics.agentAnalytics.test.js && node services/homeAnniversaryService.test.js && node services/documentAnalysisClassification.test.js && node services/bidStatus.test.js && node services/bidComparisonService.test.js && node services/contactTagService.test.js",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build": "node scripts/build-client.js",

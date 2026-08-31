@@ -14,6 +14,7 @@ const {
   resendInvitation,
   sendPendingInvitations,
   resolvePropertyInvitationInviteUrl,
+  assertInviterAuthorized,
 } = require("../services/invitationService");
 const { canInviteViewer, canAddTeamMember } = require("../services/tierService");
 const db = require("../db");
@@ -167,6 +168,13 @@ router.post("/property-invite-default-main", ensureLoggedIn, async function (req
       throw new BadRequestError("accountId must be a positive integer");
     }
 
+    await assertInviterAuthorized({
+      inviterUserId: res.locals.user.id,
+      inviterUserRole: res.locals.user.role,
+      accountId: aid,
+      propertyId: pid,
+    });
+
     const propRes = await db.query(
       `SELECT id, address FROM properties WHERE id = $1 AND account_id = $2`,
       [pid, aid],
@@ -255,7 +263,13 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
 
     let result;
     if (type === 'account') {
-      result = await createAccountInvitation({ inviterUserId, inviteeEmail, accountId, intendedRole });
+      result = await createAccountInvitation({
+        inviterUserId,
+        inviteeEmail,
+        accountId,
+        intendedRole,
+        inviterUserRole: userRole,
+      });
     } else {
       if (!propertyId) throw new BadRequestError("propertyId is required for property invitations");
       result = await createPropertyInvitation({
