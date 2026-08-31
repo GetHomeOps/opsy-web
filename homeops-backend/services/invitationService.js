@@ -913,15 +913,16 @@ async function createAccountInvitation({
   return { invitation, token, emailSent, emailQueued: false };
 }
 
-/** Send account invitation email without blocking the caller (e.g. admin user create). */
-function sendAccountInvitationEmailInBackground({ invitation, token, inviterUserId }) {
+/** Send invitation email without blocking the caller (account create, property resend). */
+function sendInvitationEmailInBackground({ invitation, token, inviterUserId, type }) {
   if (!invitation || !token) return Promise.resolve({ emailSent: false });
+  const emailType = type || invitation.type || "account";
 
   return sendInvitationEmailForInvitation({
     invitation,
     token,
     inviterUserId,
-    type: "account",
+    type: emailType,
   })
     .then(async () => {
       await Invitation.markEmailSent(invitation.id);
@@ -931,6 +932,16 @@ function sendAccountInvitationEmailInBackground({ invitation, token, inviterUser
       console.error("[invitationService] Background invitation email failed:", err.message);
       return { emailSent: false };
     });
+}
+
+/** Send account invitation email without blocking the caller (e.g. admin user create). */
+function sendAccountInvitationEmailInBackground({ invitation, token, inviterUserId }) {
+  return sendInvitationEmailInBackground({
+    invitation,
+    token,
+    inviterUserId,
+    type: "account",
+  });
 }
 
 /** Build invite URL and send email. Used after create and resend. */
@@ -1693,8 +1704,7 @@ async function resendInvitation(invitationId, inviterUserId) {
   if (type === "property") {
     await notifyExistingUserOfPropertyInvitation(invitation);
   }
-  await sendInvitationEmailForInvitation({ invitation, token, inviterUserId, type });
-  await Invitation.markEmailSent(invitation.id);
+  sendInvitationEmailInBackground({ invitation, token, inviterUserId, type });
   return { invitation, token };
 }
 
