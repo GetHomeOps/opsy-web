@@ -34,6 +34,8 @@ import usePersistListUiSession, {
   HYDRATE_LIST_UI,
 } from "../../hooks/usePersistListUiSession";
 import {getPropertyStreetLine} from "./helpers/preparePropertyValues";
+import {buildPropertyDetailPath} from "./helpers/pendingInvitation";
+import PendingInvitationBadge from "./partials/PendingInvitationBadge";
 import {
   HOMEAVERSARY_FILTER_TYPE,
   formatSaleDate,
@@ -349,12 +351,9 @@ const PropertyCard = ({
         )}
         {isPending && (
           <div className="absolute top-2.5 left-2.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {t("pendingInvitation", {defaultValue: "Pending Invitation"})}
-            </span>
+            <PendingInvitationBadge
+              label={t("pendingInvitation", {defaultValue: "Pending Invitation"})}
+            />
           </div>
         )}
         <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
@@ -871,7 +870,7 @@ function PropertiesList() {
     const propertyIndex = sortedProperties.findIndex(
       (p) => (p.property_uid ?? p.id) === uid,
     );
-    navigate(`/${accountUrl}/properties/${uid}`, {
+    navigate(buildPropertyDetailPath(accountUrl, property, uid), {
       state: {
         openAiSidebar: true,
         currentIndex: propertyIndex + 1,
@@ -885,10 +884,7 @@ function PropertiesList() {
     const propertyIndex = sortedProperties.findIndex(
       (p) => (p.property_uid ?? p.id) === property.property_uid,
     );
-    const invitationParam = property._pendingInvitation && property._invitationId
-      ? `?invitation=${property._invitationId}`
-      : "";
-    navigate(`/${accountUrl}/properties/${property.property_uid}${invitationParam}`, {
+    navigate(buildPropertyDetailPath(accountUrl, property), {
       state: {
         currentIndex: propertyIndex + 1,
         totalItems: sortedProperties.length,
@@ -1003,12 +999,9 @@ function PropertiesList() {
       sortable: true,
       render: (value, item) =>
         item?._pendingInvitation ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            {t("pendingInvitation", {defaultValue: "Pending Invitation"})}
-          </span>
+          <PendingInvitationBadge
+            label={t("pendingInvitation", {defaultValue: "Pending Invitation"})}
+          />
         ) : (
           <HealthBar value={value ?? 0} />
         ),

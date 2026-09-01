@@ -7,6 +7,7 @@ import {useAuth} from "../context/AuthContext";
 import PropertyContext from "../context/PropertyContext";
 import ContactContext from "../context/ContactContext";
 import {SIDEBAR_CONFIG} from "../partials/sidebarConfig";
+import {buildPropertyDetailPath} from "../pages/properties/helpers/pendingInvitation";
 
 /** Flatten nav config to { label, path, roles } items, respecting section-level roles */
 function flattenNavItems(config, parentRoles) {
@@ -224,9 +225,7 @@ function NavbarSearch({disabled = false}) {
   const handleSelectProperty = (p) => {
     const uid = p.property_uid ?? p.uid ?? p.id;
     if (uid) {
-      navigate(
-        accountUrl ? `/${accountUrl}/properties/${uid}` : `/properties/${uid}`,
-      );
+      navigate(buildPropertyDetailPath(accountUrl, p, uid));
     }
     setOpen(false);
     setQuery("");

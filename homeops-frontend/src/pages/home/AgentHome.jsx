@@ -48,6 +48,11 @@ const AgentHomeKpiCharts = lazyWithRetry(() =>
   import("./components/AgentHomeKpiCharts"),
 );
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
+import {
+  buildPropertyDetailPath,
+  isPendingInvitationProperty,
+} from "../properties/helpers/pendingInvitation";
+import PendingInvitationBadge from "../properties/partials/PendingInvitationBadge";
 import UpgradePrompt from "../../components/UpgradePrompt";
 import PaginationClassic from "../../components/PaginationClassic";
 import ModalBlank from "../../components/ModalBlank";
@@ -470,10 +475,15 @@ function AgentHome() {
     return property.hps_score ?? property.hpsScore ?? property.health ?? 0;
   };
 
+  const acceptedProperties = useMemo(
+    () => (properties || []).filter((p) => !isPendingInvitationProperty(p)),
+    [properties],
+  );
+
   // Health scores per property for bar chart
   const healthByPropertyData = useMemo(() => {
-    if (!properties?.length) return null;
-    const sorted = [...properties]
+    if (!acceptedProperties?.length) return null;
+    const sorted = [...acceptedProperties]
       .map((p) => ({
         label: p.address || p.passport_id || "Property",
         score: getHpsScore(p),
@@ -496,7 +506,7 @@ function AgentHome() {
         },
       ],
     };
-  }, [properties]);
+  }, [acceptedProperties]);
 
   // Team size per property for bar chart
   const teamByPropertyData = useMemo(() => {
@@ -757,16 +767,20 @@ function AgentHome() {
 
   // ─── Computed Stats ─────────────────────────────────────────────
   const stats = useMemo(() => {
-    if (!properties?.length) {
+    const pendingCount = (properties || []).filter(isPendingInvitationProperty)
+      .length;
+    if (!acceptedProperties?.length) {
       return {
         avgHealth: 0,
         totalHomeowners: 0,
         healthyCount: 0,
         needsAttentionCount: 0,
+        pendingCount,
+        acceptedCount: 0,
       };
     }
 
-    const scores = properties.map(getHpsScore);
+    const scores = acceptedProperties.map(getHpsScore);
     const avgHealth = Math.round(
       scores.reduce((a, b) => a + b, 0) / scores.length,
     );
@@ -778,11 +792,13 @@ function AgentHome() {
       totalHomeowners: acceptedHomeowners.length,
       healthyCount,
       needsAttentionCount,
+      pendingCount,
+      acceptedCount: acceptedProperties.length,
     };
-  }, [properties, acceptedHomeowners.length]);
+  }, [properties, acceptedProperties, acceptedHomeowners.length]);
 
   const healthDistribution = useMemo(() => {
-    if (!properties?.length) return [];
+    if (!acceptedProperties?.length) return [];
     const buckets = [
       {label: "0-20", min: 0, max: 20, count: 0, color: "#ef4444"},
       {label: "21-40", min: 21, max: 40, count: 0, color: "#f97316"},
@@ -790,7 +806,7 @@ function AgentHome() {
       {label: "61-80", min: 61, max: 80, count: 0, color: "#22c55e"},
       {label: "81-100", min: 81, max: 100, count: 0, color: "#10b981"},
     ];
-    properties.forEach((p) => {
+    acceptedProperties.forEach((p) => {
       const s = getHpsScore(p);
       const bucket = buckets.find((b) => s >= b.min && s <= b.max);
       if (bucket) bucket.count++;
@@ -800,7 +816,7 @@ function AgentHome() {
       value: b.count,
       color: b.color,
     }));
-  }, [properties]);
+  }, [acceptedProperties]);
 
   const healthDoughnutData = useMemo(() => {
     if (!healthDistribution?.length) return null;
@@ -822,8 +838,7 @@ function AgentHome() {
   // ─── Navigation ─────────────────────────────────────────────────
   const goToProperty = (property) => {
     if (!property) return;
-    const uid = property.property_uid ?? property.id;
-    navigate(`/${accountUrl}/properties/${uid}`);
+    navigate(buildPropertyDetailPath(accountUrl, property));
   };
 
   return (
@@ -1111,6 +1126,7 @@ function AgentHome() {
               const photoUrl = getMainPhotoUrl(property);
               const score = getHpsScore(property);
               const team = getTeamMembers(property);
+              const isPending = isPendingInvitationProperty(property);
               const address = [property.address, property.city, property.state]
                 .filter(Boolean)
                 .join(", ");
@@ -1119,7 +1135,11 @@ function AgentHome() {
                 <div
                   key={uid}
                   onClick={() => goToProperty(property)}
-                  className="group bg-white dark:bg-gray-800 rounded-xl border border-gray-200/60 dark:border-gray-700/50 overflow-hidden shadow-sm hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 transition-all cursor-pointer"
+                  className={`group bg-white dark:bg-gray-800 rounded-xl border overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer ${
+                    isPending
+                      ? "border-amber-300 dark:border-amber-500/50 ring-1 ring-amber-200 dark:ring-amber-500/20"
+                      : "border-gray-200/60 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600"
+                  }`}
                 >
                   {/* Photo */}
                   <div className="relative aspect-[16/10] overflow-hidden bg-gray-100 dark:bg-gray-700">
@@ -1127,19 +1147,29 @@ function AgentHome() {
                       <img
                         src={photoUrl}
                         alt={address || "Property"}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${isPending ? "opacity-75" : ""}`}
                       />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
                         <Home className="w-10 h-10 text-gray-400 dark:text-gray-500" />
                       </div>
                     )}
-                    {/* Health score overlay badge */}
-                    <div className="absolute top-3 right-3">
-                      <div className="px-2.5 py-1 rounded-lg text-xs font-bold backdrop-blur-sm shadow-sm bg-emerald-500/90 text-white">
-                        {score}%
+                    {isPending && (
+                      <div className="absolute top-3 left-3">
+                        <PendingInvitationBadge
+                          label={
+                            t("pendingInvitation") || "Pending Invitation"
+                          }
+                        />
                       </div>
-                    </div>
+                    )}
+                    {!isPending && (
+                      <div className="absolute top-3 right-3">
+                        <div className="px-2.5 py-1 rounded-lg text-xs font-bold backdrop-blur-sm shadow-sm bg-emerald-500/90 text-white">
+                          {score}%
+                        </div>
+                      </div>
+                    )}
                     {/* Passport ID overlay */}
                     {property.passport_id && (
                       <div className="absolute bottom-3 left-3">
@@ -1167,14 +1197,26 @@ function AgentHome() {
                       </div>
                     </div>
 
-                    {/* Health Score Bar */}
-                    <div className="mb-3">
-                      <HealthBadge score={score} />
-                    </div>
+                    {isPending ? (
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                        {t("agentHome.pendingInvitationHint") ||
+                          "Accept this invitation to join the property."}
+                      </p>
+                    ) : (
+                      <div className="mb-3">
+                        <HealthBadge score={score} />
+                      </div>
+                    )}
 
                     {/* Team */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
+                        {isPending ? (
+                          <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+                            {t("pendingInvitation") || "Pending Invitation"}
+                          </span>
+                        ) : (
+                          <>
                         {/* Avatar stack */}
                         <div className="flex -space-x-2">
                           {team.slice(0, 3).map((member, idx) => (
@@ -1209,6 +1251,8 @@ function AgentHome() {
                           {team.length}{" "}
                           {team.length === 1 ? "member" : "members"}
                         </span>
+                          </>
+                        )}
                       </div>
 
                       <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#456564] dark:group-hover:text-emerald-400 transition-colors" />

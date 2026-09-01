@@ -33,6 +33,11 @@ import useDemoFeatureGate from "../../hooks/useDemoFeatureGate";
 import DemoFeatureUnavailableModal from "../../components/DemoFeatureUnavailableModal";
 import useAddPropertyWithLimitCheck from "../../hooks/useAddPropertyWithLimitCheck";
 import {
+  buildPropertyDetailPath,
+  isPendingInvitationProperty,
+} from "../properties/helpers/pendingInvitation";
+import PendingInvitationBadge from "../properties/partials/PendingInvitationBadge";
+import {
   Bell,
   Calendar,
   CalendarClock,
@@ -545,8 +550,7 @@ function HomeownerHome() {
     setActiveIndex((prev) => Math.min(totalProperties - 1, prev + 1));
   const goToProperty = () => {
     if (!activeProperty) return;
-    const uid = activeProperty.property_uid ?? activeProperty.id;
-    navigate(`/${accountUrl}/properties/${uid}`);
+    navigate(buildPropertyDetailPath(accountUrl, activeProperty));
   };
 
   // ─── Computed values for active property ─────────────────────────────────────
@@ -776,6 +780,15 @@ function HomeownerHome() {
                   {currentAddress || "—"}
                 </span>
               </div>
+              {isPendingInvitationProperty(activeProperty) && (
+                <div className="mt-2">
+                  <PendingInvitationBadge
+                    label={
+                      t("pendingInvitation") || "Pending Invitation"
+                    }
+                  />
+                </div>
+              )}
               {/* Property dot indicators */}
               {totalProperties > 1 && (
                 <div className="flex items-center gap-2 mt-3">
@@ -1081,9 +1094,7 @@ function HomeownerHome() {
                   onClick={() =>
                     hasProperties &&
                     activeProperty &&
-                    navigate(
-                      `/${accountUrl}/properties/${activeProperty.property_uid ?? activeProperty.id}`,
-                    )
+                    navigate(buildPropertyDetailPath(accountUrl, activeProperty))
                   }
                   className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700"
                 >
@@ -1631,9 +1642,7 @@ function HomeownerHome() {
                 onClick={() => {
                   setRemindersModalOpen(false);
                   if (hasProperties && activeProperty) {
-                    navigate(
-                      `/${accountUrl}/properties/${activeProperty.property_uid ?? activeProperty.id}`,
-                    );
+                    navigate(buildPropertyDetailPath(accountUrl, activeProperty));
                   }
                 }}
                 className="px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors"

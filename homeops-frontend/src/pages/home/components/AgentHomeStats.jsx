@@ -19,7 +19,11 @@ function AgentHomeStats({
         icon={Building2}
         label={t("agentHome.totalProperties") || "Properties"}
         value={totalProperties}
-        subtitle={`${stats.healthyCount} ${t("agentHome.healthy") || "healthy"}`}
+        subtitle={
+          stats.pendingCount > 0
+            ? `${stats.pendingCount} ${t("agentHome.pendingInvitations") || "pending"}`
+            : `${stats.healthyCount} ${t("agentHome.healthy") || "healthy"}`
+        }
         color="bg-[#456564]"
         loading={propertiesLoading}
       />
@@ -48,7 +52,7 @@ function AgentHomeStats({
       <StatCard
         icon={Activity}
         label={t("agentHome.engagement") || "Engagement"}
-        value={`${Math.min(100, Math.round((stats.healthyCount / Math.max(totalProperties, 1)) * 100))}%`}
+        value={`${Math.min(100, Math.round((stats.healthyCount / Math.max(stats.acceptedCount ?? totalProperties, 1)) * 100))}%`}
         subtitle={t("agentHome.propertyCompletion") || "Portfolio health rate"}
         color="bg-purple-500"
         loading={propertiesLoading}

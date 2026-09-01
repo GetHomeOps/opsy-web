@@ -34,6 +34,10 @@ import HomeOpsTeam from "./partials/HomeOpsTeam";
 import PropertyPassportHeader from "./partials/passport/PropertyPassportHeader";
 import PropertyOverviewDashboard from "./partials/passport/PropertyOverviewDashboard";
 import EmptyStateCard from "./partials/passport/EmptyStateCard";
+import {
+  getPropertyInvitationId,
+  isPendingInvitationProperty,
+} from "./helpers/pendingInvitation";
 import SystemsSetupModal from "./partials/SystemsSetupModal";
 import ScheduleSystemModal from "./partials/ScheduleSystemModal";
 import SharePropertyModal from "./partials/SharePropertyModal";
@@ -580,13 +584,8 @@ function PropertyFormContainer() {
     searchParams.get("invitation")?.trim?.() || searchParams.get("invitation");
   const [validatedInvitationId, setValidatedInvitationId] = useState(null);
   const [isValidatingInvitationId, setIsValidatingInvitationId] =
-    useState(false);
+    useState(() => Boolean(invitationIdFromUrlRaw));
   const invitationIdFromUrl = validatedInvitationId;
-  const isInvitationView = Boolean(
-    invitationIdFromUrlRaw &&
-    uid !== "new" &&
-    (isValidatingInvitationId || invitationIdFromUrl),
-  );
   const tabFromUrl = searchParams.get("tab");
   const {t} = useTranslation();
   const {
@@ -610,6 +609,28 @@ function PropertyFormContainer() {
     deleteMaintenanceRecord,
     refreshProperties,
   } = useContext(PropertyContext);
+
+  const listedProperty = useMemo(() => {
+    if (!uid || uid === "new" || !Array.isArray(properties)) return null;
+    const uidStr = String(uid);
+    return (
+      properties.find((p) => String(p.property_uid ?? "") === uidStr) ||
+      properties.find((p) => String(p.id) === uidStr) ||
+      null
+    );
+  }, [properties, uid]);
+
+  const pendingFromList = isPendingInvitationProperty(listedProperty);
+  const invitationIdFromProperty = getPropertyInvitationId(listedProperty);
+  const isInvitationView = Boolean(
+    uid !== "new" &&
+      (pendingFromList ||
+        (invitationIdFromUrlRaw &&
+          (isValidatingInvitationId || invitationIdFromUrl))),
+  );
+  const effectiveInvitationId =
+    invitationIdFromUrl ||
+    (pendingFromList ? invitationIdFromProperty : null);
 
   const {users} = useContext(UserContext);
   const {contacts} = useContext(ContactContext);
@@ -1092,20 +1113,47 @@ function PropertyFormContainer() {
     (currentUser?.role ?? "").toLowerCase(),
   );
 
-  // Invitation mode is only enabled when the invitation belongs to the
-  // current user and targets the currently viewed property.
+  // Invitation mode is on when this viewer has a pending invite for the
+  // property — from the list payload and/or a validated ?invitation= id.
   useEffect(() => {
-    if (!invitationIdFromUrlRaw || uid === "new") {
+    if (uid === "new") {
       setValidatedInvitationId(null);
       setIsValidatingInvitationId(false);
       return;
     }
 
     let cancelled = false;
+    const listId = invitationIdFromProperty
+      ? String(invitationIdFromProperty)
+      : null;
 
-    async function validateInvitationAccess() {
+    function attachInvitationQuery(id) {
+      if (!id) return;
+      const current = searchParams.get("invitation")?.trim?.() || "";
+      if (current === String(id)) return;
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set("invitation", String(id));
+      const nextSearch = nextParams.toString();
+      navigate(`${location.pathname}?${nextSearch}`, {
+        replace: true,
+        state: location.state,
+      });
+    }
+
+    async function resolveInvitation() {
+      if (!invitationIdFromUrlRaw) {
+        if (pendingFromList && listId) {
+          setValidatedInvitationId(listId);
+          setIsValidatingInvitationId(false);
+          attachInvitationQuery(listId);
+        } else if (!pendingFromList) {
+          setValidatedInvitationId(null);
+          setIsValidatingInvitationId(false);
+        }
+        return;
+      }
+
       setIsValidatingInvitationId(true);
-      setValidatedInvitationId(null);
       try {
         const received = await AppApi.getReceivedInvitations({
           status: "pending",
@@ -1126,30 +1174,40 @@ function PropertyFormContainer() {
           setValidatedInvitationId(invitationIdFromUrlRaw);
           return;
         }
+
+        if (pendingFromList && listId) {
+          setValidatedInvitationId(listId);
+          attachInvitationQuery(listId);
+          return;
+        }
+
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete("invitation");
+        const nextSearch = nextParams.toString();
+        navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, {
+          replace: true,
+          state: location.state,
+        });
+        setValidatedInvitationId(null);
       } catch (err) {
         console.warn("Failed to validate invitation access:", err);
+        if (pendingFromList && listId) {
+          setValidatedInvitationId(listId);
+        }
+      } finally {
+        if (!cancelled) setIsValidatingInvitationId(false);
       }
-
-      if (cancelled) return;
-
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.delete("invitation");
-      const nextSearch = nextParams.toString();
-      navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`, {
-        replace: true,
-        state: location.state,
-      });
     }
 
-    validateInvitationAccess().finally(() => {
-      if (!cancelled) setIsValidatingInvitationId(false);
-    });
+    resolveInvitation();
 
     return () => {
       cancelled = true;
     };
   }, [
     invitationIdFromUrlRaw,
+    invitationIdFromProperty,
+    pendingFromList,
     uid,
     searchParams,
     navigate,
@@ -1176,13 +1234,23 @@ function PropertyFormContainer() {
     isCurrentUserAgent,
   ]);
 
-  /* Open invitation modal when viewing property from invitation notification */
+  /* Open invitation modal once when entering a pending-invitation property. */
+  const invitationModalOpenedRef = useRef(false);
   useEffect(() => {
-    if (isInvitationView && state.property && invitationIdFromUrl) {
+    if (!isInvitationView) {
+      invitationModalOpenedRef.current = false;
+      return;
+    }
+    if (
+      state.property &&
+      effectiveInvitationId &&
+      !invitationModalOpenedRef.current
+    ) {
+      invitationModalOpenedRef.current = true;
       setInvitationModalOpen(true);
       setInvitationReviewMode(false);
     }
-  }, [isInvitationView, state.property, invitationIdFromUrl]);
+  }, [isInvitationView, state.property, effectiveInvitationId]);
 
   const enrichPropertyTeamMembers = useCallback(
     (raw) =>
@@ -3843,7 +3911,7 @@ function PropertyFormContainer() {
       </div>
 
       {/* Persistent pending invitation banner */}
-      {isInvitationView && invitationIdFromUrl && (
+      {isInvitationView && effectiveInvitationId && (
         <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <svg
@@ -3873,9 +3941,9 @@ function PropertyFormContainer() {
                 if (invitationActionInProgressRef.current) return;
                 invitationActionInProgressRef.current = true;
                 setInvitationError(null);
-                setInvitationAcceptingId(invitationIdFromUrl);
+                setInvitationAcceptingId(effectiveInvitationId);
                 try {
-                  await AppApi.acceptInvitationInApp(invitationIdFromUrl);
+                  await AppApi.acceptInvitationInApp(effectiveInvitationId);
                   await afterPropertyInvitationAcceptedInApp();
                 } catch (err) {
                   console.error("Failed to accept invitation:", err);
@@ -3915,9 +3983,9 @@ function PropertyFormContainer() {
                 if (invitationActionInProgressRef.current) return;
                 invitationActionInProgressRef.current = true;
                 setInvitationError(null);
-                setInvitationDecliningId(invitationIdFromUrl);
+                setInvitationDecliningId(effectiveInvitationId);
                 try {
-                  await AppApi.declineInvitation(invitationIdFromUrl);
+                  await AppApi.declineInvitation(effectiveInvitationId);
                   navigate(`/${accountUrl}/properties`);
                 } catch (err) {
                   console.error("Failed to decline invitation:", err);
@@ -3968,6 +4036,7 @@ function PropertyFormContainer() {
           cardData={cardData}
           hasImage={Boolean(heroImageUrl)}
           imagePlaceholder={!heroImageUrl}
+          pendingInvitation={isInvitationView}
           sponsorshipOfferSlot={
             showSponsorshipOfferOnHero ? (
               <button
@@ -4553,7 +4622,7 @@ function PropertyFormContainer() {
       </div>
 
       {/* Invitation accept/decline modal */}
-      {isInvitationView && invitationIdFromUrl && (
+      {isInvitationView && effectiveInvitationId && (
         <ModalBlank
           modalOpen={invitationModalOpen}
           setModalOpen={setInvitationModalOpen}
@@ -4609,9 +4678,9 @@ function PropertyFormContainer() {
                   if (invitationActionInProgressRef.current) return;
                   invitationActionInProgressRef.current = true;
                   setInvitationError(null);
-                  setInvitationAcceptingId(invitationIdFromUrl);
+                  setInvitationAcceptingId(effectiveInvitationId);
                   try {
-                    await AppApi.acceptInvitationInApp(invitationIdFromUrl);
+                    await AppApi.acceptInvitationInApp(effectiveInvitationId);
                     await afterPropertyInvitationAcceptedInApp();
                   } catch (err) {
                     console.error("Failed to accept invitation:", err);
@@ -4653,9 +4722,9 @@ function PropertyFormContainer() {
                   if (invitationActionInProgressRef.current) return;
                   invitationActionInProgressRef.current = true;
                   setInvitationError(null);
-                  setInvitationDecliningId(invitationIdFromUrl);
+                  setInvitationDecliningId(effectiveInvitationId);
                   try {
-                    await AppApi.declineInvitation(invitationIdFromUrl);
+                    await AppApi.declineInvitation(effectiveInvitationId);
                     setInvitationModalOpen(false);
                     setInvitationReviewMode(false);
                     navigate(`/${accountUrl}/properties`);
@@ -4697,7 +4766,7 @@ function PropertyFormContainer() {
       )}
 
       {/* Invitation corner bar - Accept/Decline when in review mode */}
-      {isInvitationView && invitationIdFromUrl && invitationReviewMode && (
+      {isInvitationView && effectiveInvitationId && invitationReviewMode && (
         <div className="fixed bottom-6 right-6 z-[200] flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-800 shadow-lg p-2">
           <button
             type="button"
@@ -4705,9 +4774,9 @@ function PropertyFormContainer() {
               if (invitationActionInProgressRef.current) return;
               invitationActionInProgressRef.current = true;
               setInvitationError(null);
-              setInvitationAcceptingId(invitationIdFromUrl);
+              setInvitationAcceptingId(effectiveInvitationId);
               try {
-                await AppApi.acceptInvitationInApp(invitationIdFromUrl);
+                await AppApi.acceptInvitationInApp(effectiveInvitationId);
                 await afterPropertyInvitationAcceptedInApp();
               } catch (err) {
                 console.error("Failed to accept invitation:", err);
@@ -4750,9 +4819,9 @@ function PropertyFormContainer() {
               if (invitationActionInProgressRef.current) return;
               invitationActionInProgressRef.current = true;
               setInvitationError(null);
-              setInvitationDecliningId(invitationIdFromUrl);
+              setInvitationDecliningId(effectiveInvitationId);
               try {
-                await AppApi.declineInvitation(invitationIdFromUrl);
+                await AppApi.declineInvitation(effectiveInvitationId);
                 setInvitationReviewMode(false);
                 navigate(`/${accountUrl}/properties`);
               } catch (err) {

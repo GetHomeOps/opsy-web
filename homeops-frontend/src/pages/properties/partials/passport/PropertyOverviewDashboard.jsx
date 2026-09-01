@@ -482,7 +482,9 @@ function PropertyOverviewDashboard({
                       <div className="flex items-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4 text-[#456564] dark:text-[#7fa3a1] shrink-0" />
                         <p className="text-sm font-bold text-[#456564] dark:text-[#7fa3a1]">
-                          You're all set!
+                          {readOnly
+                            ? "Inspection details available"
+                            : "You're all set!"}
                         </p>
                       </div>
                       <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">

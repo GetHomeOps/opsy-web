@@ -13,6 +13,7 @@ import {
 import Tooltip from "../../../../utils/Tooltip";
 import OpsyHead from "../../../../images/opsy_head.png";
 import {PASSPORT_CARD_SHADOW} from "./SectionCard";
+import PendingInvitationBadge from "../PendingInvitationBadge";
 
 const currencyFormat = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -97,6 +98,7 @@ function PropertyPassportHeader({
   opsymizationSlot,
   /** Optional control shown top-right of the identity column (e.g. agent coverage offer). */
   sponsorshipOfferSlot = null,
+  pendingInvitation = false,
 }) {
   const [addressCopied, setAddressCopied] = useState(false);
 
@@ -144,11 +146,18 @@ function PropertyPassportHeader({
             <div className="flex items-center gap-2 min-w-0">
               <span className="relative inline-flex">
                 <Shield className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white dark:border-neutral-900" />
+                <span
+                  className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-white dark:border-neutral-900 ${
+                    pendingInvitation ? "bg-amber-500" : "bg-emerald-500"
+                  }`}
+                />
               </span>
               <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.12em]">
                 Opsy Digital Passport
               </span>
+              {pendingInvitation && (
+                <PendingInvitationBadge className="ml-1 shrink-0" />
+              )}
             </div>
             {sponsorshipOfferSlot}
           </div>
