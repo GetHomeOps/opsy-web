@@ -102,6 +102,8 @@
   "agentHome.mostVisitedProperties": "Most Visited Properties",
   "agentHome.mostVisitedPropertiesDesc": "Top properties visited by homeowners this week",
   "agentHome.needAttention": "need attention",
+  "agentHome.pendingInvitationHint": "Accept this invitation to join the property.",
+  "agentHome.pendingInvitations": "pending",
   "agentHome.newCommunication": "New communication",
   "agentHome.newsletterDescription": "Share updates, tips, and market insights with your homeowners.",
   "agentHome.noActivitiesData": "No property activities recorded yet.",

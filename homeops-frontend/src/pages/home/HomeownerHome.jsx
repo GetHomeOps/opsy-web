@@ -783,9 +783,9 @@ function HomeownerHome() {
               {isPendingInvitationProperty(activeProperty) && (
                 <div className="mt-2">
                   <PendingInvitationBadge
-                    label={
-                      t("pendingInvitation") || "Pending Invitation"
-                    }
+                    label={t("pendingInvitation", {
+                      defaultValue: "Pending Invitation",
+                    })}
                   />
                 </div>
               )}

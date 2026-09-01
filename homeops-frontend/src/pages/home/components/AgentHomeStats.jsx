@@ -21,7 +21,7 @@ function AgentHomeStats({
         value={totalProperties}
         subtitle={
           stats.pendingCount > 0
-            ? `${stats.pendingCount} ${t("agentHome.pendingInvitations") || "pending"}`
+            ? `${stats.pendingCount} ${t("agentHome.pendingInvitations", {defaultValue: "pending"})}`
             : `${stats.healthyCount} ${t("agentHome.healthy") || "healthy"}`
         }
         color="bg-[#456564]"

@@ -1157,9 +1157,9 @@ function AgentHome() {
                     {isPending && (
                       <div className="absolute top-3 left-3">
                         <PendingInvitationBadge
-                          label={
-                            t("pendingInvitation") || "Pending Invitation"
-                          }
+                          label={t("pendingInvitation", {
+                            defaultValue: "Pending Invitation",
+                          })}
                         />
                       </div>
                     )}
@@ -1199,8 +1199,10 @@ function AgentHome() {
 
                     {isPending ? (
                       <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
-                        {t("agentHome.pendingInvitationHint") ||
-                          "Accept this invitation to join the property."}
+                        {t("agentHome.pendingInvitationHint", {
+                          defaultValue:
+                            "Accept this invitation to join the property.",
+                        })}
                       </p>
                     ) : (
                       <div className="mb-3">
@@ -1213,7 +1215,9 @@ function AgentHome() {
                       <div className="flex items-center gap-2">
                         {isPending ? (
                           <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">
-                            {t("pendingInvitation") || "Pending Invitation"}
+                            {t("pendingInvitation", {
+                              defaultValue: "Pending Invitation",
+                            })}
                           </span>
                         ) : (
                           <>
