@@ -11,6 +11,7 @@ import AppApi, {AUTH_REQUEST_TIMEOUT_MS, isTransientApiError} from "../api/api";
 import {jwtDecode as decode} from "jwt-decode";
 import {markPostLogoutRedirectReset} from "../utils/authNavigation";
 import {clearFreeTierBannerDismissals} from "../components/FreeTierBanner";
+import {resetShellBrandingForSessionChange} from "../utils/brandingCss";
 
 /** Retry a time-boxed startup request a few times on transient network/timeout
  * errors. On a cold mobile/PWA launch the network often isn't ready for the first
@@ -161,6 +162,7 @@ export function AuthProvider({children}) {
   function finishPasswordLoginSession(accessToken, refreshToken, loadedUser, userAccounts) {
     clearFreeTierBannerDismissals();
     localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);
+    resetShellBrandingForSessionChange();
     setImpersonation(mergeImpersonation(loadedUser, accessToken));
     setCurrentUser({
       isLoading: false,
@@ -286,6 +288,7 @@ export function AuthProvider({children}) {
       }
       const userWithAccounts = {...loadedUser, accounts: userAccounts || []};
 
+      resetShellBrandingForSessionChange();
       setToken(accessToken);
       localStorage.setItem(REFRESH_TOKEN_STORAGE_ID, refreshToken);
       setImpersonation(mergeImpersonation(loadedUser, accessToken));
@@ -632,6 +635,7 @@ export function AuthProvider({children}) {
 
     keysToRemove.forEach((key) => localStorage.removeItem(key));
 
+    resetShellBrandingForSessionChange();
     setCurrentUser({
       isLoading: false,
       data: null,

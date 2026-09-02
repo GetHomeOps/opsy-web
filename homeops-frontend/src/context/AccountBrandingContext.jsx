@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -10,12 +11,23 @@ import React, {
 import AppApi from "../api/api";
 import {useAuth} from "./AuthContext";
 import useCurrentAccount from "../hooks/useCurrentAccount";
+import {
+  DEFAULT_ACCENT,
+  DEFAULT_ACCENT_HOVER,
+  applyBrandingCss,
+  applyDefaultBrandingCss,
+  darkenHex,
+  getBrandingSessionGen,
+} from "../utils/brandingCss";
 
-export const DEFAULT_ACCENT = "#456564";
-export const DEFAULT_ACCENT_HOVER = "#34514f";
-export const DEFAULT_SIDEBAR_TEXT = "#ffffff";
-export const DEFAULT_BUTTON = DEFAULT_ACCENT;
-export const DEFAULT_BUTTON_TEXT = "#ffffff";
+export {
+  DEFAULT_ACCENT,
+  DEFAULT_ACCENT_HOVER,
+  DEFAULT_SIDEBAR_TEXT,
+  DEFAULT_BUTTON,
+  DEFAULT_BUTTON_TEXT,
+  darkenHex,
+} from "../utils/brandingCss";
 
 const EMPTY_BRANDING = {
   id: null,
@@ -44,18 +56,6 @@ const AccountBrandingContext = createContext({
   effectiveAccentHover: DEFAULT_ACCENT_HOVER,
 });
 
-/** Darken a #RRGGBB hex by mixing toward black. */
-export function darkenHex(hex, amount = 0.18) {
-  if (!hex || typeof hex !== "string") return DEFAULT_ACCENT_HOVER;
-  const m = hex.trim().match(/^#([0-9A-Fa-f]{6})$/);
-  if (!m) return DEFAULT_ACCENT_HOVER;
-  const n = parseInt(m[1], 16);
-  const r = Math.round(((n >> 16) & 0xff) * (1 - amount));
-  const g = Math.round(((n >> 8) & 0xff) * (1 - amount));
-  const b = Math.round((n & 0xff) * (1 - amount));
-  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
-}
-
 /** Expand #RGB → #RRGGBB; return null if not a hex color. */
 function normalizeHexColor(hex) {
   const raw = String(hex || "").trim();
@@ -80,64 +80,24 @@ export function hexLuminance(hex) {
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
 
-/**
- * Apply shell accent + primary button CSS vars.
- * Button bg falls back to accent; button text defaults to white.
- */
-function applyCssVars({
-  accent,
-  sidebarText,
-  buttonColor,
-  buttonTextColor,
-} = {}) {
-  const root = document.documentElement;
-  const color = accent || DEFAULT_ACCENT;
-  const hover = darkenHex(color);
-  const fg = sidebarText || DEFAULT_SIDEBAR_TEXT;
-  const button = buttonColor || color || DEFAULT_BUTTON;
-  const buttonHover = darkenHex(button);
-  const buttonFg = buttonTextColor || DEFAULT_BUTTON_TEXT;
-  root.style.setProperty("--opsy-accent", color);
-  root.style.setProperty("--opsy-accent-hover", hover);
-  root.style.setProperty("--opsy-accent-fg", fg);
-  root.style.setProperty("--opsy-button", button);
-  root.style.setProperty("--opsy-button-hover", buttonHover);
-  root.style.setProperty("--opsy-button-fg", buttonFg);
-}
-
-function applyDefaults() {
-  applyCssVars({
-    accent: DEFAULT_ACCENT,
-    sidebarText: DEFAULT_SIDEBAR_TEXT,
-    buttonColor: DEFAULT_BUTTON,
-    buttonTextColor: DEFAULT_BUTTON_TEXT,
-  });
-}
-
-function applyFromBranding(data) {
-  applyCssVars({
-    accent: data?.accentColor || DEFAULT_ACCENT,
-    sidebarText: data?.sidebarTextColor || DEFAULT_SIDEBAR_TEXT,
-    buttonColor: data?.buttonColor || null,
-    buttonTextColor: data?.buttonTextColor || null,
-  });
-}
-
 export function AccountBrandingProvider({children}) {
-  const {currentUser} = useAuth();
+  const {currentUser, impersonation} = useAuth();
   const {currentAccount} = useCurrentAccount();
   const [branding, setBranding] = useState(EMPTY_BRANDING);
   const [loading, setLoading] = useState(false);
   const loadGenRef = useRef(0);
+  const desiredAccountIdRef = useRef(null);
+  desiredAccountIdRef.current = currentAccount?.id ?? null;
 
   const loadBranding = useCallback(async (accountId, {resetFirst = false} = {}) => {
     const gen = ++loadGenRef.current;
+    const sessionAtStart = getBrandingSessionGen();
 
     // Hard reset on user/account switch so a customized shell cannot linger
     // (e.g. after stopping impersonation) while the next fetch is in flight.
     if (resetFirst || !accountId) {
       setBranding(EMPTY_BRANDING);
-      applyDefaults();
+      applyDefaultBrandingCss();
     }
 
     if (!accountId) {
@@ -149,12 +109,16 @@ export function AccountBrandingProvider({children}) {
       // GET /accounts/:id/branding returns effective branding (agency / sponsor inheritance).
       const data = await AppApi.getAccountBranding(accountId);
       if (gen !== loadGenRef.current) return;
+      if (sessionAtStart !== getBrandingSessionGen()) return;
+      if (accountId !== desiredAccountIdRef.current) return;
       setBranding(data || EMPTY_BRANDING);
-      applyFromBranding(data);
+      applyBrandingCss(data);
     } catch {
       if (gen !== loadGenRef.current) return;
+      if (sessionAtStart !== getBrandingSessionGen()) return;
+      if (accountId !== desiredAccountIdRef.current) return;
       setBranding(EMPTY_BRANDING);
-      applyDefaults();
+      applyDefaultBrandingCss();
     } finally {
       if (gen === loadGenRef.current) {
         setLoading(false);
@@ -162,25 +126,30 @@ export function AccountBrandingProvider({children}) {
     }
   }, []);
 
-  // Reload when account or logged-in user changes (e.g. stop impersonation).
-  useEffect(() => {
+  // Reload before paint when account, user, or impersonation changes.
+  useLayoutEffect(() => {
     loadBranding(currentAccount?.id, {resetFirst: true});
-  }, [currentAccount?.id, currentUser?.id, loadBranding]);
+  }, [
+    currentAccount?.id,
+    currentUser?.id,
+    impersonation?.active,
+    loadBranding,
+  ]);
 
   const refreshBranding = useCallback(async () => {
-    await loadBranding(currentAccount?.id);
-  }, [currentAccount?.id, loadBranding]);
+    await loadBranding(desiredAccountIdRef.current);
+  }, [loadBranding]);
 
   // Sponsorship accept / plan changes can flip effective branding (sponsor inheritance).
   useEffect(() => {
     const onPlansUpdated = () => {
-      if (currentAccount?.id) {
-        loadBranding(currentAccount.id);
+      if (desiredAccountIdRef.current) {
+        loadBranding(desiredAccountIdRef.current);
       }
     };
     window.addEventListener("plans-updated", onPlansUpdated);
     return () => window.removeEventListener("plans-updated", onPlansUpdated);
-  }, [currentAccount?.id, loadBranding]);
+  }, [loadBranding]);
 
   const effectiveAccent = branding.accentColor || DEFAULT_ACCENT;
   const effectiveAccentHover = darkenHex(effectiveAccent);
@@ -201,7 +170,7 @@ export function AccountBrandingProvider({children}) {
             partial.buttonColor !== undefined ||
             partial.buttonTextColor !== undefined
           ) {
-            applyFromBranding(next);
+            applyBrandingCss(next);
           }
           return next;
         });

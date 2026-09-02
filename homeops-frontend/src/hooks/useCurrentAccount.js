@@ -1,8 +1,8 @@
-import {useEffect, useMemo} from "react";
+import {useEffect, useMemo, useState} from "react";
 import useLocalStorage from "./useLocalStorage";
 import {useAuth} from "../context/AuthContext";
 
-function normalizeAccount(account, userId) {
+export function normalizeAccount(account, userId) {
   if (!account) return null;
   return {
     id: account.id,
@@ -12,29 +12,46 @@ function normalizeAccount(account, userId) {
   };
 }
 
+/** Pick the active account, ignoring a selection that belongs to another user. */
+export function resolveCurrentAccount(currentUser, storedAccount) {
+  if (!currentUser?.accounts?.length) return null;
+
+  const storedForThisUser =
+    storedAccount?.id &&
+    storedAccount.userId === currentUser.id &&
+    currentUser.accounts.some((a) => a.id === storedAccount.id);
+
+  if (storedForThisUser) {
+    return normalizeAccount(storedAccount, currentUser.id);
+  }
+
+  return normalizeAccount(currentUser.accounts[0], currentUser.id);
+}
+
 export default function useCurrentAccount() {
   const {currentUser} = useAuth();
   const [storedAccount, setStoredAccount] = useLocalStorage(
     "current-account",
     null,
   );
+  const userId = currentUser?.id ?? null;
+  const [accountUserId, setAccountUserId] = useState(userId);
 
-  const currentAccount = useMemo(() => {
-    if (!currentUser?.accounts?.length) return null;
-
-    // Ignore a selection from a different user session (e.g. after stopping
-    // impersonation). AuthContext only clears localStorage, not React state.
-    const storedForThisUser =
-      storedAccount?.id &&
-      storedAccount.userId === currentUser.id &&
-      currentUser.accounts.some((a) => a.id === storedAccount.id);
-
-    if (storedForThisUser) {
-      return normalizeAccount(storedAccount, currentUser.id);
+  // Drop a selection from a previous session in the same render as the user
+  // change (e.g. stop impersonation). AuthContext only clears localStorage, not
+  // this hook's React state — and each caller has its own copy.
+  if (accountUserId !== userId) {
+    const previousUserId = accountUserId;
+    setAccountUserId(userId);
+    if (previousUserId != null && previousUserId !== userId && storedAccount) {
+      setStoredAccount(null);
     }
+  }
 
-    return normalizeAccount(currentUser.accounts[0], currentUser.id);
-  }, [currentUser, storedAccount]);
+  const currentAccount = useMemo(
+    () => resolveCurrentAccount(currentUser, storedAccount),
+    [currentUser, storedAccount],
+  );
 
   useEffect(() => {
     if (!currentUser) {
