@@ -1587,7 +1587,7 @@ CREATE TABLE attom_lookup_jobs (
     property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    trigger VARCHAR(30) NOT NULL CHECK (trigger IN ('bulk_import', 'manual_refresh')),
+    trigger VARCHAR(30) NOT NULL CHECK (trigger IN ('bulk_import', 'manual_refresh', 'financials_backfill')),
     status VARCHAR(30) NOT NULL DEFAULT 'queued'
         CHECK (status IN ('queued', 'processing', 'completed', 'failed', 'skipped')),
     attempts INTEGER NOT NULL DEFAULT 0,
@@ -1603,6 +1603,93 @@ CREATE TABLE attom_lookup_jobs (
 CREATE INDEX idx_attom_lookup_jobs_status ON attom_lookup_jobs(status, run_after);
 CREATE INDEX idx_attom_lookup_jobs_property ON attom_lookup_jobs(property_id);
 CREATE INDEX idx_attom_lookup_jobs_created ON attom_lookup_jobs(created_at DESC);
+
+-- Property financials: ATTOM snapshot + homeowner-verified overrides (1:1)
+CREATE TABLE property_financials (
+    property_id INTEGER PRIMARY KEY REFERENCES properties(id) ON DELETE CASCADE,
+
+    avm_value NUMERIC(14, 2),
+    avm_low NUMERIC(14, 2),
+    avm_high NUMERIC(14, 2),
+    avm_date DATE,
+    avm_source VARCHAR(40),
+
+    assessed_value NUMERIC(14, 2),
+    market_value NUMERIC(14, 2),
+    assessment_year INTEGER,
+
+    last_sale_price NUMERIC(14, 2),
+    last_sale_date DATE,
+
+    absentee_indicator VARCHAR(80),
+    owner_occupied BOOLEAN,
+    owner_type VARCHAR(120),
+    trust_indicator BOOLEAN,
+    corporate_indicator BOOLEAN,
+
+    annual_tax_amount NUMERIC(14, 2),
+    tax_year INTEGER,
+
+    mortgage_lender VARCHAR(255),
+    mortgage_loan_type VARCHAR(80),
+    mortgage_interest_rate NUMERIC(8, 4),
+    mortgage_original_amount NUMERIC(14, 2),
+    mortgage_term_months INTEGER,
+    mortgage_origination_date DATE,
+    mortgage_maturity_date DATE,
+    mortgage_deed_type VARCHAR(80),
+    second_lien_original_amount NUMERIC(14, 2),
+    modeled_balance NUMERIC(14, 2),
+
+    attom_fetched_at TIMESTAMPTZ,
+
+    verified_current_balance NUMERIC(14, 2),
+    verified_monthly_payment NUMERIC(14, 2),
+    verified_payment_due_day INTEGER,
+    verified_interest_rate NUMERIC(8, 4),
+    verified_escrow_included BOOLEAN,
+    mortgage_verified_at TIMESTAMPTZ,
+    mortgage_source_document_id INTEGER REFERENCES property_documents(id) ON DELETE SET NULL,
+
+    insurance_provider VARCHAR(255),
+    insurance_annual_premium NUMERIC(14, 2),
+    insurance_renewal_date DATE,
+    insurance_policy_number VARCHAR(120),
+    insurance_deductible NUMERIC(14, 2),
+    insurance_escrow_included BOOLEAN,
+    insurance_verified_at TIMESTAMPTZ,
+    insurance_source_document_id INTEGER REFERENCES property_documents(id) ON DELETE SET NULL,
+
+    hoa_association_name VARCHAR(255),
+    hoa_amount NUMERIC(14, 2),
+    hoa_frequency VARCHAR(20)
+        CHECK (hoa_frequency IS NULL OR hoa_frequency IN ('monthly', 'quarterly', 'annually')),
+    hoa_next_due_date DATE,
+    hoa_special_assessment NUMERIC(14, 2),
+    hoa_not_applicable BOOLEAN NOT NULL DEFAULT FALSE,
+    hoa_verified_at TIMESTAMPTZ,
+    hoa_source_document_id INTEGER REFERENCES property_documents(id) ON DELETE SET NULL,
+
+    verified_home_value NUMERIC(14, 2),
+    home_value_verified_at TIMESTAMPTZ,
+
+    plausibility_flags JSONB,
+    plausibility_reviewed_at TIMESTAMPTZ,
+
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE property_value_snapshots (
+    id SERIAL PRIMARY KEY,
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    avm_value NUMERIC(14, 2),
+    estimated_balance NUMERIC(14, 2)
+);
+
+CREATE INDEX idx_property_value_snapshots_property
+    ON property_value_snapshots(property_id, captured_at);
 
 -- ============================================================
 -- Platform email delivery (SES vs Customer.io)
@@ -1795,7 +1882,9 @@ CREATE TABLE pre_purchase_analyses (
     error_message TEXT,
     overall_condition_score INTEGER CHECK (overall_condition_score IS NULL OR (overall_condition_score >= 0 AND overall_condition_score <= 100)),
     overall_condition_rating VARCHAR(20)
-        CHECK (overall_condition_rating IS NULL OR overall_condition_rating IN ('excellent', 'good', 'fair', 'poor', 'unknown')),
+        CHECK (overall_condition_rating IS NULL OR overall_condition_rating IN (
+            'excellent', 'very_good', 'good', 'fair', 'needs_attention', 'poor', 'critical', 'unknown'
+        )),
     executive_summary TEXT,
     repair_cost_low NUMERIC(12, 2),
     repair_cost_high NUMERIC(12, 2),
@@ -1803,6 +1892,7 @@ CREATE TABLE pre_purchase_analyses (
         CHECK (repair_confidence IS NULL OR repair_confidence IN ('low', 'medium', 'high')),
     positive_findings JSONB DEFAULT '[]',
     top_concerns JSONB DEFAULT '[]',
+    scoring_audit JSONB DEFAULT NULL,
     disclaimer_version VARCHAR(20) DEFAULT 'v1',
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,

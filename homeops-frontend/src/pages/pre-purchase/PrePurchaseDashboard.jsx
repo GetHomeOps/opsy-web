@@ -11,6 +11,7 @@ import {
 import AppApi, {getApiErrorMessage} from "../../api/api";
 import useCurrentAccount from "../../hooks/useCurrentAccount";
 import ModalBlank from "../../components/ModalBlank";
+import Banner from "../../partials/containers/Banner";
 import FilterDropdown from "../../components/FilterDropdown";
 import SearchInput from "../../components/SearchInput";
 import DataTable from "../../components/DataTable";
@@ -23,6 +24,7 @@ import PrePurchaseShell from "./PrePurchaseShell";
 import {
   CONDITION_BADGE,
   STATUS_LABELS,
+  formatConditionRating,
   formatCostRange,
   formatDateTime,
   formatDisplayName,
@@ -56,9 +58,12 @@ const STATUS_FILTER_OPTIONS = [
 
 const CONDITION_FILTER_OPTIONS = [
   {value: "excellent", label: "Excellent"},
+  {value: "very_good", label: "Very Good"},
   {value: "good", label: "Good"},
   {value: "fair", label: "Fair"},
+  {value: "needs_attention", label: "Needs Attention"},
   {value: "poor", label: "Poor"},
+  {value: "critical", label: "Critical"},
   {value: "unknown", label: "Unknown"},
 ];
 
@@ -160,6 +165,14 @@ export default function PrePurchaseDashboard() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [banner, setBanner] = useState({
+    open: false,
+    type: "success",
+    message: "",
+  });
+  const handleBannerOpen = useCallback((open) => {
+    setBanner((prev) => ({...prev, open}));
+  }, []);
 
   const load = useCallback(async () => {
     if (!currentAccount?.id) return;
@@ -347,6 +360,7 @@ export default function PrePurchaseDashboard() {
     if (pendingDeleteIds.length === 0) return;
     setIsDeleting(true);
     setDeleteError(null);
+    setBanner((prev) => ({...prev, open: false}));
     const idsToDelete = [...pendingDeleteIds];
     const failed = [];
     try {
@@ -366,6 +380,14 @@ export default function PrePurchaseDashboard() {
       setDangerModalOpen(false);
       setPendingDeleteIds([]);
       await load();
+      if (deletedIds.length > 0) {
+        const n = deletedIds.length;
+        setBanner({
+          open: true,
+          type: "success",
+          message: `${n} ${n === 1 ? "analysis" : "analyses"} deleted successfully`,
+        });
+      }
       if (failed.length > 0) {
         setDeleteError(
           failed.length === idsToDelete.length
@@ -430,7 +452,7 @@ export default function PrePurchaseDashboard() {
           <StatusBadge
             tone={CONDITION_BADGE[item.overallConditionRating] || "neutral"}
           >
-            {item.overallConditionRating}
+            {formatConditionRating(item.overallConditionRating)}
           </StatusBadge>
         ) : (
           <span className="text-gray-400">—</span>
@@ -499,6 +521,18 @@ export default function PrePurchaseDashboard() {
 
   return (
     <PrePurchaseShell>
+      <div className="fixed right-0 w-auto sm:w-full z-50">
+        <Banner
+          type={banner.type}
+          open={banner.open}
+          setOpen={handleBannerOpen}
+          className={`transition-opacity duration-600 ${
+            banner.open ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          {banner.message}
+        </Banner>
+      </div>
       <div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
           <div>

@@ -310,6 +310,7 @@
   "invitationPending": "Pending",
   "invitationAccepted": "Accepted",
   "invitationNone": "None",
+  "invitedUser": "Invited User",
   "filterAgentAssignment": "Agent assignment",
   "filterWithAgentAssigned": "Tethered",
   "filterWithoutAgent": "Untethered",

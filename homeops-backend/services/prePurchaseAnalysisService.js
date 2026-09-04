@@ -14,9 +14,18 @@ const OpenAI = require("openai");
 const db = require("../db");
 const { getFile } = require("./s3Service");
 const PrePurchaseAnalysis = require("../models/prePurchaseAnalysis");
+const PrePurchaseTrueCost = require("../models/prePurchaseTrueCost");
 const Professional = require("../models/professional");
+const PropertyFinancials = require("../models/propertyFinancials");
 const { logAiUsage } = require("./usageService");
 const { analyzeInspectionText } = require("./inspectionAnalysisService");
+const { composeFromRow } = require("./propertyFinancialsCompose");
+const { fetchAttomAvm } = require("./attomLookupService");
+const { mapAttomAvm } = require("./attomFinancialsMapper");
+const {
+  computeOverallConditionScore,
+  scoreToRating,
+} = require("./scoutConditionScore");
 
 const MODEL = process.env.AI_PRE_PURCHASE_MODEL || process.env.AI_DOCUMENT_ANALYSIS_MODEL || "gpt-4o-mini";
 const VISION_MODEL =
@@ -72,6 +81,77 @@ Rules:
 - findingCosts.index must match the findings array index provided.
 - Sum of finding midpoints should roughly align with overall repairCostLow/High when both are present.
 - Do not invent new findings or systems.
+
+Structured analysis:
+`;
+
+const CONDITION_MODIFIERS_PROMPT = `You are evaluating qualitative inspection modifiers for a pre-purchase home analysis.
+
+PROPERTY CONDITION SCORING
+
+Do not derive property condition primarily from the number of inspection findings.
+Home inspection reports routinely document many minor or moderate defects.
+Estimated repair burden is the primary quantitative indicator of overall condition.
+
+Your role is to identify qualitative factors that justify a limited adjustment to the repair-based baseline.
+
+Focus particularly on:
+- Structural integrity
+- Safety
+- Active water intrusion
+- Habitability
+- Failure of essential systems
+- Remaining useful life of major systems
+- Unusual deterioration not adequately captured by estimated repair cost
+
+Avoid double-counting defects already reflected in the repair estimate.
+Ordinary deferred maintenance should not turn an otherwise functional property into a 30–50 score.
+A property requiring approximately $15,000–$30,000 in repairs will commonly fall around 70–80 unless there are unusually serious structural, safety, or habitability concerns.
+The count of major/moderate/minor findings should not independently determine the condition score.
+
+Modifier guidance (use 0 when the category does not apply):
+- Mostly cosmetic/minor findings: positiveConditionModifier 0 to +3
+- Major systems generally in good condition: majorSystemsModifier +2 to +5
+- One aging but functional major system: majorSystemsModifier -2 to -4
+- One major system needing replacement soon: majorSystemsModifier -4 to -7
+- Multiple major systems needing replacement: majorSystemsModifier -6 to -12
+- Active roof leak / meaningful water intrusion: waterDamageModifier -4 to -10
+- Serious electrical/fire-safety hazard: safetyModifier -5 to -10
+- Significant foundation/structural issue: structuralModifier -10 to -20
+- Serious habitability issue: habitabilityModifier significant negative
+
+Do not apply a large negative modifier simply because a defect is already priced into the repair range.
+Qualitative modifiers should reflect risk beyond what repair cost alone captures.
+Avoid double-counting the same defect across several categories.
+
+Set exceptionalCircumstances true ONLY for genuinely exceptional circumstances such as:
+- Severe structural instability
+- Major foundation failure
+- Extensive active water damage
+- Serious fire/electrical hazard
+- Unsafe occupancy
+- Failed essential utilities
+- Major environmental/habitability concern supported by the inspection
+
+A high number of findings alone must NEVER qualify as exceptionalCircumstances.
+
+Set unsafeOccupancy true only with strong evidence that the property is unsafe for normal occupancy.
+Set significantStructuralFailure true only with strong evidence of significant unresolved structural failure.
+
+Return ONLY valid JSON:
+{
+  "structuralModifier": number,
+  "safetyModifier": number,
+  "waterDamageModifier": number,
+  "majorSystemsModifier": number,
+  "habitabilityModifier": number,
+  "positiveConditionModifier": number,
+  "exceptionalCircumstances": false,
+  "exceptionalReason": null,
+  "unsafeOccupancy": false,
+  "significantStructuralFailure": false,
+  "reasoning": ["brief reason"]
+}
 
 Structured analysis:
 `;
@@ -175,147 +255,85 @@ async function extractViaVision(openai, buffer, mimeType, usageCtx) {
   return completion.choices[0]?.message?.content || "";
 }
 
-function scoreToRating(score) {
-  if (score == null) return "unknown";
-  // Conservative bands: new/near-new homes land excellent; typical older stock stays good
-  // unless findings/costs indicate serious disrepair.
-  if (score >= 90) return "excellent";
-  if (score >= 70) return "good";
-  if (score >= 55) return "fair";
-  return "poor";
-}
-
-/**
- * Age-based starting point. Newer homes start near the top of the scale;
- * older homes still start in the high 70s–80s before findings are applied.
- */
-function ageBaselineScore(yearBuilt, asOfYear = new Date().getFullYear()) {
-  const year = Number(yearBuilt);
-  if (!Number.isFinite(year) || year < 1800 || year > asOfYear + 1) {
-    // Unknown age: assume typical older stock, not a gut-reno candidate.
-    return 86;
-  }
-  const age = Math.max(0, asOfYear - year);
-  if (age <= 5) return 97;
-  if (age <= 15) return 93;
-  if (age <= 30) return 89;
-  if (age <= 50) return 85;
-  if (age <= 75) return 81;
-  return 78;
-}
-
-function midRepairCost(repairCostLow, repairCostHigh) {
-  const low = Number(repairCostLow);
-  const high = Number(repairCostHigh);
-  const hasLow = Number.isFinite(low);
-  const hasHigh = Number.isFinite(high);
-  if (hasLow && hasHigh) return (low + high) / 2;
-  if (hasHigh) return high;
-  if (hasLow) return low;
-  return null;
-}
-
-/**
- * Conservative overall condition score (0–100).
- * New properties target 90–100; older properties typically 70–90 unless
- * findings/costs indicate serious disrepair. Modest repair packages
- * (e.g. $3k–$6k) should not drag a typical home into the 50s.
- */
-function computeOverallConditionScore({
-  findings = [],
-  systems = [],
-  repairCostLow = null,
-  repairCostHigh = null,
-  yearBuilt = null,
-} = {}) {
-  let score = ageBaselineScore(yearBuilt);
-
-  let majorCount = 0;
-  let moderateCount = 0;
-  let minorCount = 0;
-  let immediateMajorCount = 0;
-  for (const f of findings) {
-    const sev = String(f.severity || "").toLowerCase();
-    const urgency = String(f.urgency || "").toLowerCase();
-    if (sev === "major") {
-      majorCount += 1;
-      if (urgency === "immediate") immediateMajorCount += 1;
-      // Light deductions: safety/immediate majors hurt more than routine majors.
-      score -= urgency === "immediate" ? 4.5 : 3;
-    } else if (sev === "moderate") {
-      moderateCount += 1;
-      score -= 1.25;
-    } else if (sev === "minor") {
-      minorCount += 1;
-      score -= 0.4;
-    }
-  }
-
-  const poorSystems = systems.filter(
-    (s) => String(s.condition || "").toLowerCase() === "poor"
-  ).length;
-  const fairSystems = systems.filter(
-    (s) => String(s.condition || "").toLowerCase() === "fair"
-  ).length;
-  score -= poorSystems * 2.5;
-  score -= Math.min(fairSystems, 4) * 0.75;
-
-  const repairMid = midRepairCost(repairCostLow, repairCostHigh);
-  // Absolute repair packages: small negotiation items barely move the needle.
-  if (repairMid != null) {
-    if (repairMid >= 75000) score -= 14;
-    else if (repairMid >= 40000) score -= 9;
-    else if (repairMid >= 20000) score -= 5;
-    else if (repairMid >= 10000) score -= 2.5;
-    else if (repairMid >= 7000) score -= 1;
-    // under ~$7k: no extra cost penalty (already reflected in findings)
-  }
-
-  const seriousDisrepair =
-    majorCount >= 5 ||
-    immediateMajorCount >= 3 ||
-    poorSystems >= 3 ||
-    (repairMid != null && repairMid >= 40000) ||
-    (majorCount >= 3 && repairMid != null && repairMid >= 25000);
-
-  score = Math.round(score);
-  score = Math.max(0, Math.min(100, score));
-
-  if (!seriousDisrepair) {
-    // Keep typical inventory in the intended bands.
-    const year = Number(yearBuilt);
-    const age = Number.isFinite(year) ? new Date().getFullYear() - year : null;
-    const floor = age != null && age <= 15 ? 88 : 70;
-    score = Math.max(score, floor);
-  }
-
-  return score;
-}
-
-function applyOverallConditionScore(structured, { yearBuilt = null } = {}) {
+function applyOverallConditionScore(structured, { estimatedPropertyValue = null } = {}) {
   if (!structured) return structured;
-  const score = computeOverallConditionScore({
-    findings: structured.findings || [],
-    systems: structured.systems || [],
+  const result = computeOverallConditionScore({
     repairCostLow: structured.repairCostLow,
     repairCostHigh: structured.repairCostHigh,
-    yearBuilt,
+    estimatedPropertyValue,
+    modifiers: structured.conditionModifiers,
   });
-  structured.overallConditionScore = score;
-  structured.overallConditionRating = scoreToRating(score);
+  structured.overallConditionScore = result.finalScore;
+  structured.overallConditionRating = result.rating;
+  structured.scoringAudit = result.audit;
   return structured;
 }
 
-function extractYearBuilt(analysis) {
-  const identity = analysis?.identity_data || analysis?.identityData || {};
-  const raw =
-    identity.yearBuilt ??
-    identity.year_built ??
-    analysis?.yearBuilt ??
-    analysis?.year_built ??
-    null;
-  const year = Number(raw);
-  return Number.isFinite(year) ? year : null;
+function toPositiveNumber(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * Resolve estimated property value for relative repair-burden scoring.
+ * Never substitutes assessed/market value for AVM.
+ */
+async function resolveEstimatedPropertyValue(analysis) {
+  if (!analysis) return null;
+
+  const propertyId = analysis.property_id ?? analysis.propertyId ?? null;
+  if (propertyId) {
+    try {
+      const row = await PropertyFinancials.get(propertyId);
+      if (row) {
+        const dto = composeFromRow(row, { attomStatus: "ready" });
+        const homeValue = toPositiveNumber(dto?.homeValue?.value);
+        if (homeValue != null) return homeValue;
+      }
+    } catch (err) {
+      console.warn("[prePurchaseAnalysis] financials value lookup failed:", err.message);
+    }
+  }
+
+  const street = analysis.street || analysis.addressLine1 || null;
+  const city = analysis.city || null;
+  const state = analysis.state || null;
+  const zip = analysis.zip || null;
+  if (street && (city || zip)) {
+    try {
+      const avmLookup = await fetchAttomAvm({
+        addressLine1: street,
+        city,
+        state,
+        zip,
+      });
+      if (avmLookup.status === "success") {
+        const mapped = mapAttomAvm(avmLookup.rawProperty);
+        const avmValue = toPositiveNumber(mapped?.avm_value);
+        if (avmValue != null) return avmValue;
+      }
+    } catch (err) {
+      console.warn("[prePurchaseAnalysis] AVM lookup failed:", err.message);
+    }
+  }
+
+  const identity = analysis.identity_data || analysis.identityData || {};
+  const identityValue = toPositiveNumber(identity.estimatedValue ?? identity.estimated_value);
+  if (identityValue != null) return identityValue;
+
+  const analysisId = analysis.id ?? null;
+  if (analysisId) {
+    try {
+      const trueCost = await PrePurchaseTrueCost.getByAnalysisId(analysisId);
+      const listing = toPositiveNumber(trueCost?.listing_price);
+      if (listing != null) return listing;
+    } catch (err) {
+      console.warn("[prePurchaseAnalysis] true-cost listing lookup failed:", err.message);
+    }
+  }
+
+  return null;
 }
 
 function normalizeSystemKey(raw) {
@@ -513,14 +531,13 @@ function mergeSystemsByKey(systems) {
 
 /**
  * Map shared inspection analysis output into Pre-Purchase structured shape.
+ * Scoring happens later in finalizeOverallCondition after costs and modifiers.
  * @param {object} analyzed
- * @param {{ yearBuilt?: number|null }} [opts]
  */
-function mapInspectionResultToPrePurchase(analyzed, opts = {}) {
+function mapInspectionResultToPrePurchase(analyzed) {
   const systemsDetected = analyzed.systemsDetected || [];
   const needsAttention = analyzed.needsAttention || [];
   const maintenanceSuggestions = analyzed.maintenanceSuggestions || [];
-  const yearBuilt = opts.yearBuilt ?? null;
 
   const calibrated = calibrateFindingSeverity(needsAttention);
 
@@ -631,22 +648,21 @@ function mapInspectionResultToPrePurchase(analyzed, opts = {}) {
     systemKey: f.systemKey,
   }));
 
-  return applyOverallConditionScore(
-    {
-      overallConditionScore: null,
-      overallConditionRating: null,
-      executiveSummary: analyzed.summary || null,
-      repairCostLow: null,
-      repairCostHigh: null,
-      repairConfidence: null,
-      positiveFindings,
-      topConcerns,
-      systems,
-      findings,
-      recommendations,
-    },
-    { yearBuilt }
-  );
+  return {
+    overallConditionScore: null,
+    overallConditionRating: null,
+    scoringAudit: null,
+    conditionModifiers: null,
+    executiveSummary: analyzed.summary || null,
+    repairCostLow: null,
+    repairCostHigh: null,
+    repairConfidence: null,
+    positiveFindings,
+    topConcerns,
+    systems,
+    findings,
+    recommendations,
+  };
 }
 
 async function enrichWithCostEstimates(openai, structured, usageCtx) {
@@ -745,11 +761,78 @@ async function enrichWithCostEstimates(openai, structured, usageCtx) {
   return structured;
 }
 
-/** Recompute score after costs (and optional identity) are known. */
-function finalizeOverallCondition(structured, analysis) {
-  return applyOverallConditionScore(structured, {
-    yearBuilt: extractYearBuilt(analysis),
-  });
+async function enrichWithConditionModifiers(openai, structured, usageCtx) {
+  if (!openai || !structured) return structured;
+
+  const payload = {
+    repairCostLow: structured.repairCostLow ?? null,
+    repairCostHigh: structured.repairCostHigh ?? null,
+    systems: (structured.systems || []).map((s) => ({
+      systemKey: s.systemKey,
+      condition: s.condition,
+      urgency: s.urgency,
+      evidenceSummary: s.evidenceSummary,
+      repairCostLow: s.repairCostLow ?? null,
+      repairCostHigh: s.repairCostHigh ?? null,
+    })),
+    findings: (structured.findings || []).slice(0, 40).map((f) => ({
+      systemKey: f.systemKey,
+      severity: f.severity,
+      urgency: f.urgency,
+      title: f.title,
+      description: f.description,
+    })),
+  };
+
+  try {
+    const completion = await chatCompletionWithRetry(
+      openai,
+      {
+        model: MODEL,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You output only valid JSON with qualitative condition modifiers. Do not invent a 0–100 score. Finding count must not drive modifiers.",
+          },
+          {
+            role: "user",
+            content: CONDITION_MODIFIERS_PROMPT + JSON.stringify(payload),
+          },
+        ],
+        temperature: 0.1,
+        max_tokens: 1200,
+        response_format: { type: "json_object" },
+      },
+      { label: "pre-purchase-condition-modifiers" }
+    );
+
+    if (usageCtx && completion.usage) {
+      logAiUsage({
+        accountId: usageCtx.accountId,
+        userId: usageCtx.userId,
+        model: `openai/${MODEL}`,
+        promptTokens: completion.usage.prompt_tokens,
+        completionTokens: completion.usage.completion_tokens,
+        endpoint: "pre-purchase/condition-modifiers",
+      }).catch(() => {});
+    }
+
+    const parsed = parseJsonContent(completion.choices[0]?.message?.content);
+    if (!parsed) return structured;
+    structured.conditionModifiers = parsed;
+  } catch (err) {
+    console.warn("[prePurchaseAnalysis] condition modifiers failed:", err.message);
+    structured.conditionModifiers = null;
+  }
+
+  return structured;
+}
+
+/** Recompute score after costs, modifiers, and optional property value are known. */
+async function finalizeOverallCondition(structured, analysis) {
+  const estimatedPropertyValue = await resolveEstimatedPropertyValue(analysis);
+  return applyOverallConditionScore(structured, { estimatedPropertyValue });
 }
 
 function buildPropertyContext(analysis) {
@@ -1001,6 +1084,7 @@ async function persistStructuredResult(analysisId, data) {
     repairConfidence: data.repairConfidence || data.repair_confidence || null,
     positiveFindings: data.positiveFindings || data.positive_findings || [],
     topConcerns: data.topConcerns || data.top_concerns || [],
+    scoringAudit: data.scoringAudit || data.scoring_audit || null,
   });
 }
 
@@ -1138,8 +1222,7 @@ async function runAnalysis(analysisId) {
       progressMessage: "Detecting issues",
     });
 
-    const yearBuilt = extractYearBuilt(analysis);
-    let structured = mapInspectionResultToPrePurchase(analyzed, { yearBuilt });
+    let structured = mapInspectionResultToPrePurchase(analyzed);
 
     await PrePurchaseAnalysis.updateProgress(analysisId, {
       status: "generating_recommendations",
@@ -1148,7 +1231,8 @@ async function runAnalysis(analysisId) {
     });
 
     structured = await enrichWithCostEstimates(openai, structured, usageCtx);
-    structured = finalizeOverallCondition(structured, analysis);
+    structured = await enrichWithConditionModifiers(openai, structured, usageCtx);
+    structured = await finalizeOverallCondition(structured, analysis);
 
     await persistStructuredResult(analysisId, structured);
 
@@ -1185,6 +1269,7 @@ module.exports = {
   mapInspectionResultToPrePurchase,
   computeOverallConditionScore,
   scoreToRating,
+  resolveEstimatedPropertyValue,
   SYSTEM_DEFS,
   normalizeSystemKey,
 };

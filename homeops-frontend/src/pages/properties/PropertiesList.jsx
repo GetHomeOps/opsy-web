@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -35,6 +36,11 @@ import usePersistListUiSession, {
 } from "../../hooks/usePersistListUiSession";
 import {getPropertyStreetLine} from "./helpers/preparePropertyValues";
 import {buildPropertyDetailPath} from "./helpers/pendingInvitation";
+import {
+  INVITED_USER_FILTER_TYPE,
+  buildInvitedUserFilterData,
+  propertyMatchesInvitedUserFilter,
+} from "./helpers/invitedUserFilter";
 import PendingInvitationBadge from "./partials/PendingInvitationBadge";
 import {
   HOMEAVERSARY_FILTER_TYPE,
@@ -54,6 +60,7 @@ const FILTER_CATEGORIES = [
   {type: "agent", labelKey: "agent"},
   {type: "agency", labelKey: "agency"},
   {type: "invitationStatus", labelKey: "invitationStatus"},
+  {type: INVITED_USER_FILTER_TYPE, labelKey: INVITED_USER_FILTER_TYPE},
   {type: "health", labelKey: "healthStatus"},
   {type: "agentAssignment", labelKey: "filterAgentAssignment"},
 ];
@@ -233,6 +240,12 @@ function reducer(state, action) {
       };
     case "CLEAR_FILTERS":
       return {...state, activeFilters: [], currentPage: 1};
+    case "SET_ACTIVE_FILTERS":
+      return {
+        ...state,
+        activeFilters: Array.isArray(action.payload) ? action.payload : [],
+        currentPage: 1,
+      };
     case "SET_SIDEBAR_OPEN":
       return {...state, sidebarOpen: action.payload};
     case "SET_SUBMITTING":
@@ -492,13 +505,23 @@ function PropertiesList() {
     deleteProperty,
   } = useContext(propertyContext);
 
-  const profileAgentUidFilter = useMemo(() => {
+  const [uidScopeOverride, setUidScopeOverride] = useState(() => {
     const uids = location.state?.filterPropertyUids;
+    return Array.isArray(uids) && uids.length > 0 ? uids : null;
+  });
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [invitationsStatus, setInvitationsStatus] = useState("idle");
+
+  const profileAgentUidFilter = useMemo(() => {
+    const uids = uidScopeOverride ?? location.state?.filterPropertyUids;
     if (!Array.isArray(uids) || uids.length === 0) return null;
     return new Set(uids.map((u) => String(u)));
-  }, [location.state?.filterPropertyUids]);
+  }, [uidScopeOverride, location.state?.filterPropertyUids]);
 
   const filterPropertyMessage = location.state?.filterPropertyMessage;
+  const hasInvitedUserFilter = state.activeFilters.some(
+    (f) => f.type === INVITED_USER_FILTER_TYPE,
+  );
 
   const listScopeId = accountUrl ? `properties:${accountUrl}` : "";
   usePersistListUiSession(listScopeId, {
@@ -510,6 +533,82 @@ function PropertiesList() {
     sortConfig,
     setSortConfig,
   });
+
+  const clearUidScope = useCallback(() => {
+    setUidScopeOverride(null);
+    if (
+      !location.state?.filterPropertyUids &&
+      !location.state?.filterPropertyMessage
+    ) {
+      return;
+    }
+    const {
+      filterPropertyUids: _ignoredUids,
+      filterPropertyMessage: _ignoredMessage,
+      ...rest
+    } = location.state || {};
+    navigate(location.pathname, {replace: true, state: rest});
+  }, [location.pathname, location.state, navigate]);
+
+  useLayoutEffect(() => {
+    const incoming = location.state?.applyFilters;
+    if (!Array.isArray(incoming) || incoming.length === 0) return;
+    dispatch({type: "SET_ACTIVE_FILTERS", payload: incoming});
+    const {applyFilters: _ignored, ...rest} = location.state;
+    navigate(location.pathname, {replace: true, state: rest});
+  }, [location.state, location.pathname, navigate]);
+
+  useEffect(() => {
+    const accountId = currentAccount?.id;
+    if (!accountId) {
+      setPendingInvitations([]);
+      setInvitationsStatus("idle");
+      return undefined;
+    }
+    let cancelled = false;
+    setInvitationsStatus("loading");
+    AppApi.getAccountInvitations(accountId, {status: "pending"})
+      .then((list) => {
+        if (cancelled) return;
+        setPendingInvitations(Array.isArray(list) ? list : []);
+        setInvitationsStatus("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPendingInvitations([]);
+        setInvitationsStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAccount?.id]);
+
+  const invitedUserFilterData = useMemo(
+    () => buildInvitedUserFilterData(pendingInvitations),
+    [pendingInvitations],
+  );
+
+  useEffect(() => {
+    if (invitationsStatus !== "ready") return;
+    const invitedEmails = state.activeFilters
+      .filter((f) => f.type === INVITED_USER_FILTER_TYPE)
+      .map((f) => String(f.value || "").trim().toLowerCase())
+      .filter(Boolean);
+    if (invitedEmails.length === 0) return;
+    const mapReady = invitedEmails.every((email) =>
+      invitedUserFilterData.uidsByEmail.has(email),
+    );
+    if (!mapReady) return;
+    if (!uidScopeOverride && !location.state?.filterPropertyUids) return;
+    clearUidScope();
+  }, [
+    invitationsStatus,
+    state.activeFilters,
+    invitedUserFilterData.uidsByEmail,
+    uidScopeOverride,
+    location.state?.filterPropertyUids,
+    clearUidScope,
+  ]);
 
   useEffect(() => {
     if (currentUser?.role !== "homeowner") return;
@@ -593,8 +692,17 @@ function PropertiesList() {
         value: a.value,
         label: t(a.labelKey),
       })),
+      [INVITED_USER_FILTER_TYPE]: invitedUserFilterData.options,
     }),
-    [uniqueCities, uniqueStates, uniqueOwners, uniqueAgents, uniqueAgencies, t],
+    [
+      uniqueCities,
+      uniqueStates,
+      uniqueOwners,
+      uniqueAgents,
+      uniqueAgencies,
+      invitedUserFilterData.options,
+      t,
+    ],
   );
 
   const filterCategories = useMemo(
@@ -788,6 +896,27 @@ function PropertiesList() {
         if (!filtersByType.invitationStatus.includes(status)) return false;
       }
 
+      if (filtersByType[INVITED_USER_FILTER_TYPE]) {
+        const invitedEmails = filtersByType[INVITED_USER_FILTER_TYPE];
+        const mapReady =
+          invitationsStatus === "ready" &&
+          invitedEmails.every((email) =>
+            invitedUserFilterData.uidsByEmail.has(
+              String(email || "").trim().toLowerCase(),
+            ),
+          );
+        if (
+          mapReady &&
+          !propertyMatchesInvitedUserFilter(
+            property,
+            invitedEmails,
+            invitedUserFilterData.uidsByEmail,
+          )
+        ) {
+          return false;
+        }
+      }
+
       if (filtersByType[HOMEAVERSARY_FILTER_TYPE]) {
         if (
           !matchesHomeaversaryFilter(
@@ -806,6 +935,8 @@ function PropertiesList() {
     state.searchTerm,
     state.activeFilters,
     profileAgentUidFilter,
+    invitationsStatus,
+    invitedUserFilterData.uidsByEmail,
   ]);
 
   const sortedProperties = useMemo(() => {
@@ -850,6 +981,29 @@ function PropertiesList() {
     dispatch({type: "SET_SEARCH_TERM", payload: event.target.value});
     dispatch({type: "SET_CURRENT_PAGE", payload: 1});
   };
+
+  const handleRemoveFilter = (filter) => {
+    dispatch({type: "REMOVE_FILTER", payload: filter});
+    if (filter?.type !== INVITED_USER_FILTER_TYPE) return;
+    const stillHasInvitedUser = state.activeFilters.some(
+      (f) =>
+        f.type === INVITED_USER_FILTER_TYPE &&
+        !(f.type === filter.type && f.value === filter.value),
+    );
+    if (!stillHasInvitedUser) clearUidScope();
+  };
+
+  const handleClearFilters = () => {
+    dispatch({type: "CLEAR_FILTERS"});
+    clearUidScope();
+  };
+
+  const listLoading =
+    propertiesLoading ||
+    (hasInvitedUserFilter &&
+      invitationsStatus !== "ready" &&
+      invitationsStatus !== "error" &&
+      !profileAgentUidFilter);
 
   const handleItemsPerPageChange = (value) => {
     dispatch({type: "SET_ITEMS_PER_PAGE", payload: Number(value)});
@@ -1280,7 +1434,9 @@ function PropertiesList() {
               </div>
             </div>
 
-            {profileAgentUidFilter && profileAgentUidFilter.size > 0 && (
+            {profileAgentUidFilter &&
+              profileAgentUidFilter.size > 0 &&
+              !hasInvitedUserFilter && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#456564]/30 bg-[#456564]/5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300">
                 <span>
                   {filterPropertyMessage ||
@@ -1289,12 +1445,13 @@ function PropertiesList() {
                 <button
                   type="button"
                   className="shrink-0 font-medium text-[#456564] dark:text-[#8fa3a2] hover:underline"
-                  onClick={() =>
+                  onClick={() => {
+                    setUidScopeOverride(null);
                     navigate(`/${accountUrl}/properties`, {
                       replace: true,
                       state: {},
-                    })
-                  }
+                    });
+                  }}
                 >
                   Show all properties
                 </button>
@@ -1318,9 +1475,7 @@ function PropertiesList() {
                     filterOptions={filterOptions}
                     activeFilters={state.activeFilters}
                     onAdd={(f) => dispatch({type: "ADD_FILTER", payload: f})}
-                    onRemove={(f) =>
-                      dispatch({type: "REMOVE_FILTER", payload: f})
-                    }
+                    onRemove={handleRemoveFilter}
                     customCategoryPanels={customCategoryPanels}
                     t={t}
                   />
@@ -1397,9 +1552,7 @@ function PropertiesList() {
                       {f.label}
                       <button
                         type="button"
-                        onClick={() =>
-                          dispatch({type: "REMOVE_FILTER", payload: f})
-                        }
+                        onClick={() => handleRemoveFilter(f)}
                         className="ml-0.5 p-0.5 rounded-full hover:bg-emerald-200 dark:hover:bg-emerald-500/20 transition-colors"
                       >
                         <svg
@@ -1420,7 +1573,7 @@ function PropertiesList() {
                   ))}
                   <button
                     type="button"
-                    onClick={() => dispatch({type: "CLEAR_FILTERS"})}
+                    onClick={handleClearFilters}
                     className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                   >
                     {t("clearAll", {defaultValue: "Clear all"})}
@@ -1431,7 +1584,7 @@ function PropertiesList() {
 
             {/* ─── Content: Table or Grid ─────────────────────── */}
             {viewMode === "list" ? (
-              propertiesLoading ? (
+              listLoading ? (
                 propertiesLoadingCard
               ) : (
                 <DataTable
@@ -1450,7 +1603,7 @@ function PropertiesList() {
               )
             ) : (
               <div>
-                {propertiesLoading ? (
+                {listLoading ? (
                   propertiesLoadingCard
                 ) : paginatedProperties.length === 0 ? (
                   <div className="bg-white dark:bg-gray-800 shadow-xs rounded-xl border border-gray-200 dark:border-gray-700/60">

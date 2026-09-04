@@ -16,18 +16,11 @@ import MatchedProfessionalsList from "../components/MatchedProfessionalsList";
 import ScoutNotesCard from "../components/ScoutNotesCard";
 import {
   PRE_PURCHASE_DISCLAIMER,
+  SCORE_BLURBS,
   SEVERITY_BADGE,
   formatCostRange,
   selectRailProfessionals,
 } from "../prePurchaseUtils";
-
-const SCORE_BLURBS = {
-  excellent: "The home appears well maintained with few notable deficiencies.",
-  good: "The home is in solid shape with mostly routine maintenance items.",
-  fair: "The home shows typical wear for its age with several items needing attention.",
-  poor: "The home has significant deferred maintenance that warrants careful review.",
-  unknown: "Condition scoring was limited by available document detail.",
-};
 
 function ViewAllLink({onClick, children}) {
   return (
@@ -111,9 +104,8 @@ export default function OverviewTab({
             {blurb}
           </p>
           <p className="text-[11px] text-center text-neutral-400 mt-2">
-            How we score: age-aware estimate from document findings and repair
-            ranges (0–100). Typical homes land 70–100 unless in serious
-            disrepair.
+            Score reflects estimated repair burden, system condition, safety,
+            and major inspection findings.
           </p>
         </SectionCard>
 

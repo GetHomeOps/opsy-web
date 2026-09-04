@@ -50,6 +50,8 @@ DROP TABLE IF EXISTS account_subscriptions CASCADE;
 DROP TABLE IF EXISTS subscription_products CASCADE;
 DROP TABLE IF EXISTS invitations CASCADE;
 DROP TABLE IF EXISTS document_chunks CASCADE;
+DROP TABLE IF EXISTS property_value_snapshots CASCADE;
+DROP TABLE IF EXISTS property_financials CASCADE;
 DROP TABLE IF EXISTS property_documents CASCADE;
 DROP TABLE IF EXISTS contractor_report_tokens CASCADE;
 DROP TABLE IF EXISTS property_maintenance CASCADE;

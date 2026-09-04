@@ -7,7 +7,8 @@
  * or subscription_products. Checks usage before allowing actions.
  *
  * Exports: getAccountLimits, getEffectiveLimits, canCreateProperty, canAddContact,
- *          canInviteViewer, canAddTeamMember, checkAiTokenQuota, checkAiFeaturesAllowed,
+ *          canInviteViewer, canAddTeamMember, countHomeownersForPropertyLimit,
+ *          isHomeownerCapacityInvite, checkAiTokenQuota, checkAiFeaturesAllowed,
  *          checkPrePurchaseAllowed, checkPrePurchaseCreateAllowed, canUploadDocumentToSystem
  */
 
@@ -634,6 +635,82 @@ async function canAddContact(accountId, userRole) {
   return { allowed: current < limits.maxContacts, current, max: limits.maxContacts };
 }
 
+/** True when an invite occupies a Max Home Owners seat (edit-access homeowner). */
+function isHomeownerCapacityInvite({ intendedRole, intendedPropertyRole } = {}) {
+  const access = String(intendedRole || "editor").trim().toLowerCase();
+  if (access === "viewer") return false;
+  const category = String(intendedPropertyRole || "homeowner").trim().toLowerCase();
+  return category === "homeowner";
+}
+
+/**
+ * Whether a team row or pending invite counts toward Max Home Owners.
+ * Homeowner-owners count; admin/agent/staff owners, viewers, and other roles do not.
+ * @param {{ kind?: "member"|"invite", userRole?: string, propertyRole?: string, intendedRole?: string, intendedPropertyRole?: string, invitationId?: string }} entry
+ */
+function countsTowardHomeownerLimit(entry, { excludeInvitationId } = {}) {
+  if (!entry) return false;
+  if (entry.kind === "invite") {
+    if (
+      excludeInvitationId != null &&
+      entry.invitationId != null &&
+      String(entry.invitationId) === String(excludeInvitationId)
+    ) {
+      return false;
+    }
+    return isHomeownerCapacityInvite({
+      intendedRole: entry.intendedRole,
+      intendedPropertyRole: entry.intendedPropertyRole,
+    });
+  }
+  const propertyRole = String(entry.propertyRole || entry.role || "").toLowerCase();
+  const userRole = String(entry.userRole || "").toLowerCase();
+  return propertyRole !== "viewer" && userRole === "homeowner";
+}
+
+function tallyHomeownerSeats(entries, options) {
+  if (!Array.isArray(entries)) return 0;
+  return entries.reduce(
+    (n, entry) => n + (countsTowardHomeownerLimit(entry, options) ? 1 : 0),
+    0
+  );
+}
+
+/**
+ * Accepted homeowners (non-viewer) + pending homeowner invites on a property.
+ * @param {number} propertyId
+ * @param {{ excludeInvitationId?: string, queryFn?: Function }} [options]
+ */
+async function countHomeownersForPropertyLimit(propertyId, options = {}) {
+  const query = options.queryFn || ((sql, params) => db.query(sql, params));
+  const params = [propertyId];
+  let excludeSql = "";
+  if (options.excludeInvitationId) {
+    params.push(options.excludeInvitationId);
+    excludeSql = `AND id != $${params.length}`;
+  }
+  const countRes = await query(
+    `SELECT
+       (SELECT COUNT(*)::int
+          FROM property_users pu
+          JOIN users u ON u.id = pu.user_id
+          WHERE pu.property_id = $1
+            AND pu.role != 'viewer'
+            AND u.role::text = 'homeowner')
+       +
+       (SELECT COUNT(*)::int
+          FROM invitations
+          WHERE property_id = $1
+            AND status = 'pending'
+            AND COALESCE(intended_role, 'editor') != 'viewer'
+            AND COALESCE(intended_property_role, 'homeowner') = 'homeowner'
+            ${excludeSql})
+       AS count`,
+    params
+  );
+  return countRes.rows[0]?.count ?? 0;
+}
+
 async function canInviteViewer(accountId, propertyId, userRole) {
   if (isAdminRole(userRole)) return { allowed: true, current: 0, max: 999999 };
   const limits = await getAccountLimits(accountId);
@@ -656,19 +733,10 @@ async function canInviteViewer(accountId, propertyId, userRole) {
 async function canAddTeamMember(accountId, propertyId, userRole, options = {}) {
   if (isAdminRole(userRole)) return { allowed: true, current: 0, max: 999999 };
   const limits = options.limits ?? (await getAccountLimits(accountId));
-  const countRes = await db.query(
-    `SELECT
-       (SELECT COUNT(*)::int FROM property_users
-          WHERE property_id = $1 AND role != 'viewer')
-       +
-       (SELECT COUNT(*)::int FROM invitations
-          WHERE property_id = $1
-            AND status = 'pending'
-            AND COALESCE(intended_role, 'editor') != 'viewer')
-       AS count`,
-    [propertyId]
-  );
-  const current = countRes.rows[0].count;
+  const current = await countHomeownersForPropertyLimit(propertyId, {
+    excludeInvitationId: options.excludeInvitationId,
+    queryFn: options.queryFn,
+  });
   return { allowed: current < limits.maxTeamMembers, current, max: limits.maxTeamMembers };
 }
 
@@ -689,16 +757,20 @@ async function getTeamMemberInviteEligibilityByProperty(accountId, propertyIds, 
   const max = limits.maxTeamMembers;
   const countRes = await db.query(
     `SELECT property_id, SUM(count)::int AS count FROM (
-       SELECT property_id, COUNT(*)::int AS count
-         FROM property_users
-         WHERE property_id = ANY($1::int[]) AND role != 'viewer'
-         GROUP BY property_id
+       SELECT pu.property_id, COUNT(*)::int AS count
+         FROM property_users pu
+         JOIN users u ON u.id = pu.user_id
+         WHERE pu.property_id = ANY($1::int[])
+           AND pu.role != 'viewer'
+           AND u.role::text = 'homeowner'
+         GROUP BY pu.property_id
        UNION ALL
        SELECT property_id, COUNT(*)::int AS count
          FROM invitations
          WHERE property_id = ANY($1::int[])
            AND status = 'pending'
            AND COALESCE(intended_role, 'editor') != 'viewer'
+           AND COALESCE(intended_property_role, 'homeowner') = 'homeowner'
          GROUP BY property_id
      ) t
      GROUP BY property_id`,
@@ -833,6 +905,10 @@ module.exports = {
   canAddContact,
   canInviteViewer,
   canAddTeamMember,
+  countHomeownersForPropertyLimit,
+  isHomeownerCapacityInvite,
+  countsTowardHomeownerLimit,
+  tallyHomeownerSeats,
   getTeamMemberInviteEligibilityByProperty,
   getViewerInviteEligibilityByProperty,
   checkAiTokenQuota,

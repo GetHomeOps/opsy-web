@@ -10,6 +10,7 @@ function EmptyStateCard({
   description,
   actionLabel,
   onAction,
+  iconClassName = "",
   className = "",
 }) {
   return (
@@ -18,7 +19,7 @@ function EmptyStateCard({
     >
       {Icon && (
         <div className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mb-2">
-          <Icon className="w-5 h-5 text-neutral-400 dark:text-neutral-500" />
+          <Icon className={`w-5 h-5 text-neutral-400 dark:text-neutral-500 ${iconClassName}`} />
         </div>
       )}
       <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">

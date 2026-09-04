@@ -25,6 +25,13 @@ const InspectionAnalysisResult = require("../models/inspectionAnalysisResult");
 const { enqueue } = require("../services/inspectionAnalysisQueue");
 const AttomLookupJob = require("../models/attomLookupJob");
 const { enqueue: enqueueAttomLookup } = require("../services/attomLookupQueue");
+const { getComposedFinancials } = require("../services/propertyFinancialsService");
+const { enqueueFinancialInsightsReview } = require("../services/ai/propertyFinancialsPlausibilityService");
+const PropertyFinancials = require("../models/propertyFinancials");
+const propertyFinancialsMortgagePatchSchema = require("../schemas/propertyFinancialsMortgagePatch.json");
+const propertyFinancialsInsurancePatchSchema = require("../schemas/propertyFinancialsInsurancePatch.json");
+const propertyFinancialsHoaPatchSchema = require("../schemas/propertyFinancialsHoaPatch.json");
+const propertyFinancialsAdminPatchSchema = require("../schemas/propertyFinancialsAdminPatch.json");
 const Contact = require("../models/contact");
 const SavedProfessional = require("../models/savedProfessional");
 const Invitation = require("../models/invitation");
@@ -1247,5 +1254,200 @@ router.delete(
     return next(err);
   }
 });
+
+function pickDefined(map) {
+  const out = {};
+  for (const [key, value] of Object.entries(map)) {
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
+function validateBody(schema, body) {
+  const validator = jsonschema.validate(body, schema, { required: true });
+  if (!validator.valid) {
+    throw new BadRequestError(validator.errors.map((e) => e.stack));
+  }
+}
+
+async function loadPropertyRow(propertyId) {
+  const propRes = await db.query(`SELECT * FROM properties WHERE id = $1`, [propertyId]);
+  if (propRes.rows.length === 0) {
+    throw new BadRequestError("Property not found.");
+  }
+  return propRes.rows[0];
+}
+
+/** GET /:propertyId/financials — composed financial dashboard. */
+router.get(
+  "/:propertyId/financials",
+  ensureLoggedIn,
+  resolvePropertyIdForInspection,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      const property = await loadPropertyRow(req.params.propertyId);
+      const financials = await getComposedFinancials(property);
+      return res.json({ financials });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** PATCH /:propertyId/financials/mortgage */
+router.patch(
+  "/:propertyId/financials/mortgage",
+  ensureLoggedIn,
+  resolvePropertyIdForInspection,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      validateBody(propertyFinancialsMortgagePatchSchema, req.body ?? {});
+      const body = req.body ?? {};
+      const row = await PropertyFinancials.updateVerified(
+        req.params.propertyId,
+        pickDefined({
+          verified_current_balance: body.currentBalance,
+          verified_monthly_payment: body.monthlyPayment,
+          verified_payment_due_day: body.paymentDueDay,
+          verified_interest_rate: body.interestRate,
+          verified_escrow_included: body.escrowIncluded,
+          mortgage_source_document_id: body.sourceDocumentId,
+          mortgage_verified_at: new Date(),
+        })
+      );
+      const property = await loadPropertyRow(req.params.propertyId);
+      enqueueFinancialInsightsReview(req.params.propertyId);
+      const financials = await getComposedFinancials(property);
+      return res.json({ financials, rowId: row.property_id });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** PATCH /:propertyId/financials/insurance */
+router.patch(
+  "/:propertyId/financials/insurance",
+  ensureLoggedIn,
+  resolvePropertyIdForInspection,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      validateBody(propertyFinancialsInsurancePatchSchema, req.body ?? {});
+      const body = req.body ?? {};
+      await PropertyFinancials.updateVerified(
+        req.params.propertyId,
+        pickDefined({
+          insurance_provider: body.provider,
+          insurance_annual_premium: body.annualPremium,
+          insurance_renewal_date: body.renewalDate,
+          insurance_policy_number: body.policyNumber,
+          insurance_deductible: body.deductible,
+          insurance_escrow_included: body.escrowIncluded,
+          insurance_source_document_id: body.sourceDocumentId,
+          insurance_verified_at: new Date(),
+        })
+      );
+      const property = await loadPropertyRow(req.params.propertyId);
+      enqueueFinancialInsightsReview(req.params.propertyId);
+      const financials = await getComposedFinancials(property);
+      return res.json({ financials });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** PATCH /:propertyId/financials/hoa */
+router.patch(
+  "/:propertyId/financials/hoa",
+  ensureLoggedIn,
+  resolvePropertyIdForInspection,
+  ensurePropertyAccess({ param: "propertyId" }),
+  async function (req, res, next) {
+    try {
+      validateBody(propertyFinancialsHoaPatchSchema, req.body ?? {});
+      const body = req.body ?? {};
+      const notApplicable = Boolean(body.notApplicable);
+      const patch = notApplicable
+        ? {
+            hoa_not_applicable: true,
+            hoa_association_name: null,
+            hoa_amount: null,
+            hoa_frequency: null,
+            hoa_next_due_date: null,
+            hoa_special_assessment: null,
+            hoa_source_document_id: null,
+            hoa_verified_at: new Date(),
+          }
+        : pickDefined({
+            hoa_not_applicable: false,
+            hoa_association_name: body.associationName,
+            hoa_amount: body.amount,
+            hoa_frequency: body.frequency,
+            hoa_next_due_date: body.nextDueDate,
+            hoa_special_assessment: body.specialAssessment,
+            hoa_source_document_id: body.sourceDocumentId,
+            hoa_verified_at: new Date(),
+          });
+      await PropertyFinancials.updateVerified(req.params.propertyId, patch);
+      const property = await loadPropertyRow(req.params.propertyId);
+      enqueueFinancialInsightsReview(req.params.propertyId);
+      const financials = await getComposedFinancials(property);
+      return res.json({ financials });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+/** PATCH /:propertyId/financials/admin — snapshot fields for admin/super_admin. */
+router.patch(
+  "/:propertyId/financials/admin",
+  ensureLoggedIn,
+  resolvePropertyIdForInspection,
+  ensurePropertyAccess({ param: "propertyId" }),
+  ensurePlatformAdmin,
+  async function (req, res, next) {
+    try {
+      validateBody(propertyFinancialsAdminPatchSchema, req.body ?? {});
+      const body = req.body ?? {};
+      const snapshot = pickDefined({
+        last_sale_price: body.lastSalePrice,
+        last_sale_date: body.lastSaleDate,
+        owner_occupied: body.ownerOccupied,
+        absentee_indicator: body.occupancy,
+        mortgage_lender: body.mortgageLender,
+        mortgage_original_amount: body.mortgageOriginalAmount,
+        mortgage_interest_rate: body.mortgageInterestRate,
+        mortgage_term_months: body.mortgageTermMonths,
+        mortgage_origination_date: body.mortgageOriginationDate,
+        annual_tax_amount: body.annualTaxAmount,
+        tax_year: body.taxYear,
+      });
+      const hasHomeValue = Object.prototype.hasOwnProperty.call(body, "homeValue");
+      if (Object.keys(snapshot).length === 0 && !hasHomeValue) {
+        throw new BadRequestError("No snapshot fields to update");
+      }
+      if (Object.keys(snapshot).length > 0) {
+        await PropertyFinancials.updateAdminSnapshot(req.params.propertyId, snapshot);
+      }
+      if (hasHomeValue) {
+        await PropertyFinancials.updateVerified(req.params.propertyId, {
+          verified_home_value: body.homeValue,
+          home_value_verified_at: new Date(),
+        });
+      }
+      const property = await loadPropertyRow(req.params.propertyId);
+      enqueueFinancialInsightsReview(req.params.propertyId);
+      const financials = await getComposedFinancials(property);
+      return res.json({ financials });
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
 
 module.exports = router;

@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "minProperties": 1,
+  "properties": {
+    "lastSalePrice": {
+      "anyOf": [{ "type": "null" }, { "type": "number", "minimum": 0 }]
+    },
+    "lastSaleDate": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+      ]
+    },
+    "ownerOccupied": {
+      "anyOf": [{ "type": "null" }, { "type": "boolean" }]
+    },
+    "occupancy": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 80 }]
+    },
+    "mortgageLender": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "maxLength": 255 }]
+    },
+    "mortgageOriginalAmount": {
+      "anyOf": [{ "type": "null" }, { "type": "number", "minimum": 0 }]
+    },
+    "mortgageInterestRate": {
+      "anyOf": [{ "type": "null" }, { "type": "number", "minimum": 0, "maximum": 100 }]
+    },
+    "mortgageTermMonths": {
+      "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 1, "maximum": 720 }]
+    },
+    "mortgageOriginationDate": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+      ]
+    },
+    "annualTaxAmount": {
+      "anyOf": [{ "type": "null" }, { "type": "number", "minimum": 0 }]
+    },
+    "taxYear": {
+      "anyOf": [{ "type": "null" }, { "type": "integer", "minimum": 1800, "maximum": 2100 }]
+    },
+    "homeValue": {
+      "anyOf": [{ "type": "null" }, { "type": "number", "minimum": 0 }]
+    }
+  }
+}

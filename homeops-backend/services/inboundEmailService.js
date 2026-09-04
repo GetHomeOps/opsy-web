@@ -324,6 +324,8 @@ function guessDocumentType({ filename, subject }) {
   if (/manual|guide/.test(text)) return "manual";
   if (/insurance|policy/.test(text)) return "insurance";
   if (/mortgage|loan/.test(text)) return "mortgage";
+  if (/\bhoa\b|association dues/.test(text)) return "hoa";
+  if (/property tax|tax bill/.test(text)) return "tax";
   return null;
 }
 

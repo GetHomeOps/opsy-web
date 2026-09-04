@@ -1,17 +1,11 @@
 import {
   PRE_PURCHASE_DISCLAIMER,
+  SCORE_BLURBS,
   formatAddress,
   formatCostRange,
   formatDisplayName,
+  formatConditionRating,
 } from "./prePurchaseUtils";
-
-const SCORE_BLURBS = {
-  excellent: "The home appears well maintained with few notable deficiencies.",
-  good: "The home is in solid shape with mostly routine maintenance items.",
-  fair: "The home shows typical wear for its age with several items needing attention.",
-  poor: "The home has significant deferred maintenance that warrants careful review.",
-  unknown: "Condition scoring was limited by available document detail.",
-};
 
 function formatAnalysisDate(iso) {
   if (!iso) return "—";
@@ -93,7 +87,7 @@ export function buildScoutTakeaways(analysis) {
     address,
     analysisDate,
     rating,
-    ratingLabel: rating.charAt(0).toUpperCase() + rating.slice(1),
+    ratingLabel: formatConditionRating(rating),
     score: analysis.overallConditionScore ?? null,
     scoreBlurb: SCORE_BLURBS[rating] || SCORE_BLURBS.unknown,
     executiveSummary: analysis.executiveSummary || "No summary available yet.",

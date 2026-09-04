@@ -32,6 +32,8 @@ const TYPE_KEYWORDS = [
   ["manual", ["manual", "guide", "instructions"]],
   ["insurance", ["insurance", "policy"]],
   ["mortgage", ["mortgage", "deed", "title"]],
+  ["hoa", ["hoa", "condo assoc", "association dues"]],
+  ["tax", ["tax bill", "property tax"]],
   ["contract", ["contract", "agreement"]],
 ];
 

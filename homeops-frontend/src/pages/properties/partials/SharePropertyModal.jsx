@@ -1050,13 +1050,12 @@ function SharePropertyModal({
     const agent = (membersByTab.agent ?? []).find(
       (m) => m && !m._pending && m.id != null,
     );
-    if (agent && onUpdateAgentPermissions) {
-      const perms = {};
-      ACCESS_SECTIONS.forEach((s) => {
-        perms[s.id] = getPermission(s.id);
-      });
-      onUpdateAgentPermissions(agent.id, perms);
-    }
+    if (!agent || !onUpdateAgentPermissions) return;
+    const perms = {};
+    ACCESS_SECTIONS.forEach((s) => {
+      perms[s.id] = getPermission(s.id);
+    });
+    onUpdateAgentPermissions(agent.id, perms);
     setModalOpen(false);
   }, [membersByTab, onUpdateAgentPermissions, getPermission]);
 

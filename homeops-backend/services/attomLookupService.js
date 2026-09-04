@@ -21,11 +21,17 @@
 
 const db = require("../db");
 const AttomLookupJob = require("../models/attomLookupJob");
+const PropertyFinancials = require("../models/propertyFinancials");
 const { ensureHomeAnniversaryEvents } = require("./homeAnniversaryService");
+const { mapAttomFinancials, mapAttomAvm } = require("./attomFinancialsMapper");
+const {
+  estimateRemainingBalance,
+} = require("./propertyFinancialsCalculations");
 
 const ATTOM_API_KEY = process.env.ATTOM_API_KEY;
 const ATTOM_BASE_URL = "https://api.gateway.attomdata.com/propertyapi/v1.0.0";
 const ATTOM_PROPERTY_ENDPOINT = "/property/expandedprofile";
+const ATTOM_AVM_ENDPOINT = "/avm/detail";
 
 /**
  * Allowlist of camelCase fields the worker may write onto a property.
@@ -485,6 +491,111 @@ async function fetchAttomExpandedProfile(input) {
   };
 }
 
+function buildAttomAddressQuery(input) {
+  const { address, addressLine1, city, state, zip } = input ?? {};
+  const streetAddress = (addressLine1 || address || "").trim();
+  if (!streetAddress) return { error: "Street address is required (address or addressLine1)" };
+
+  let cityStateZip = "";
+  if (city && state) {
+    cityStateZip = zip ? `${city}, ${state}, ${zip}` : `${city}, ${state}`;
+  } else if (zip) {
+    cityStateZip = zip;
+  }
+  if (!cityStateZip) return { error: "City/State or ZIP is required" };
+
+  return { address: `${streetAddress}, ${cityStateZip}` };
+}
+
+/**
+ * Fail-soft AVM lookup. 401/403/404 never fail the parent job.
+ *
+ * @returns {Promise<{ status: 'success' | 'skipped' | 'error', rawProperty?: Object }>}
+ */
+async function fetchAttomAvm(input) {
+  if (!ATTOM_API_KEY) return { status: "skipped" };
+
+  const built = buildAttomAddressQuery(input);
+  if (built.error) return { status: "skipped" };
+
+  const params = new URLSearchParams({ address: built.address });
+  const url = `${ATTOM_BASE_URL}${ATTOM_AVM_ENDPOINT}?${params.toString()}`;
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "GET",
+      headers: {
+        accept: "application/json",
+        apikey: ATTOM_API_KEY,
+      },
+    });
+  } catch (netErr) {
+    console.warn("[attomAvm] network error:", netErr?.message || "unknown");
+    return { status: "error" };
+  }
+
+  if (response.status === 401 || response.status === 403 || response.status === 404) {
+    return { status: "skipped" };
+  }
+  if (response.status === 429) {
+    return { status: "error" };
+  }
+  if (!response.ok) {
+    return { status: "skipped" };
+  }
+
+  const data = await response.json().catch(() => ({}));
+  const properties = data?.property ?? [];
+  if (!Array.isArray(properties) || properties.length === 0) {
+    return { status: "skipped" };
+  }
+  return { status: "success", rawProperty: properties[0] };
+}
+
+/**
+ * Persist ATTOM financial snapshot + optional AVM. Verified overrides are preserved.
+ */
+async function persistAttomFinancials(propertyId, rawProperty, addressInput) {
+  if (!propertyId || !rawProperty) return null;
+
+  const snapshot = mapAttomFinancials(rawProperty);
+  try {
+    const avmLookup = await fetchAttomAvm(addressInput);
+    if (avmLookup.status === "success") {
+      Object.assign(snapshot, mapAttomAvm(avmLookup.rawProperty));
+    }
+  } catch (avmErr) {
+    console.warn("[attomAvm] persist skipped:", avmErr?.message);
+  }
+
+  const row = await PropertyFinancials.upsertAttomSnapshot(propertyId, snapshot);
+
+  const estimatedBalance = estimateRemainingBalance({
+    originalAmount: row?.mortgage_original_amount,
+    annualInterestRate: row?.verified_interest_rate ?? row?.mortgage_interest_rate,
+    termMonths: row?.mortgage_term_months,
+    originationDate: row?.mortgage_origination_date,
+  });
+  try {
+    await PropertyFinancials.insertSnapshotIfChanged(propertyId, {
+      avmValue: row?.avm_value ?? null,
+      estimatedBalance,
+    });
+  } catch (snapErr) {
+    console.warn("[propertyFinancials] snapshot insert skipped:", snapErr?.message);
+  }
+
+  try {
+    const { enqueueFinancialInsightsReview } = require("./ai/propertyFinancialsPlausibilityService");
+    enqueueFinancialInsightsReview(propertyId);
+  } catch (reviewErr) {
+    console.error("[propertyFinancials] insight review:", reviewErr?.message);
+  }
+
+  return row;
+}
+
 /** Coerce a raw field value into the type required by the target DB column. */
 function coerceForColumn(column, value) {
   if (value === undefined || value === null || value === "") return null;
@@ -722,6 +833,18 @@ async function runAttomLookupJob(jobId) {
     }
   }
 
+  try {
+    await persistAttomFinancials(job.property_id, lookup.rawProperty, {
+      addressLine1: property.address_line_1,
+      address: property.address,
+      city: property.city,
+      state: property.state,
+      zip: property.zip,
+    });
+  } catch (finErr) {
+    console.error("[attomLookupService] financials persist:", finErr?.message);
+  }
+
   await AttomLookupJob.markCompleted(jobId, {
     populated_keys: writableCamelKeys,
   });
@@ -735,6 +858,8 @@ module.exports = {
   deriveStreetLine1,
   normalizeAttomDate,
   fetchAttomExpandedProfile,
+  fetchAttomAvm,
+  persistAttomFinancials,
   mapAttomToFields,
   buildColumnUpdatesFromPrediction,
   backfillPropertyStreetLine1,

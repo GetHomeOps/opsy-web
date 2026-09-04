@@ -34,9 +34,12 @@ class AttomLookupJob {
   }) {
     if (!property_id) throw new BadRequestError("property_id is required");
     if (!account_id) throw new BadRequestError("account_id is required");
-    if (!trigger || !["bulk_import", "manual_refresh"].includes(trigger)) {
+    if (
+      !trigger ||
+      !["bulk_import", "manual_refresh", "financials_backfill"].includes(trigger)
+    ) {
       throw new BadRequestError(
-        "trigger must be 'bulk_import' or 'manual_refresh'"
+        "trigger must be 'bulk_import', 'manual_refresh', or 'financials_backfill'"
       );
     }
     const result = await db.query(
@@ -183,14 +186,31 @@ class AttomLookupJob {
     return isAdminRole(role) ? null : MAX_LOOKUPS_PER_PROPERTY;
   }
 
-  /** Total lookup jobs ever created for a property (each job = one ATTOM call envelope). */
+  /** User-facing lookup jobs (excludes one-time financials backfill). */
   static async countForProperty(propertyId) {
     if (!propertyId) return 0;
     const result = await db.query(
-      `SELECT COUNT(*)::int AS count FROM attom_lookup_jobs WHERE property_id = $1`,
+      `SELECT COUNT(*)::int AS count
+       FROM attom_lookup_jobs
+       WHERE property_id = $1
+         AND trigger <> 'financials_backfill'`,
       [propertyId]
     );
     return result.rows[0]?.count ?? 0;
+  }
+
+  /** Most recent financials_backfill job for a property, if any. */
+  static async getLatestFinancialsBackfill(propertyId) {
+    if (!propertyId) return null;
+    const result = await db.query(
+      `SELECT id, property_id, trigger, status, error_code, error_message, created_at, updated_at
+       FROM attom_lookup_jobs
+       WHERE property_id = $1 AND trigger = 'financials_backfill'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [propertyId]
+    );
+    return result.rows[0] || null;
   }
 
   /** Most-recent active (queued/processing) job for a property, or null. */

@@ -2140,6 +2140,49 @@ class AppApi {
     return res;
   }
 
+  /* --------- Property Financials --------- */
+
+  static async getPropertyFinancials(propertyId) {
+    const res = await this.request(`properties/${propertyId}/financials`);
+    return res.financials;
+  }
+
+  static async patchPropertyFinancialsMortgage(propertyId, data) {
+    const res = await this.request(
+      `properties/${propertyId}/financials/mortgage`,
+      data,
+      "PATCH",
+    );
+    return res.financials;
+  }
+
+  static async patchPropertyFinancialsInsurance(propertyId, data) {
+    const res = await this.request(
+      `properties/${propertyId}/financials/insurance`,
+      data,
+      "PATCH",
+    );
+    return res.financials;
+  }
+
+  static async patchPropertyFinancialsHoa(propertyId, data) {
+    const res = await this.request(
+      `properties/${propertyId}/financials/hoa`,
+      data,
+      "PATCH",
+    );
+    return res.financials;
+  }
+
+  static async patchPropertyFinancialsAdmin(propertyId, data) {
+    const res = await this.request(
+      `properties/${propertyId}/financials/admin`,
+      data,
+      "PATCH",
+    );
+    return res.financials;
+  }
+
   /** Batch ATTOM job status for a set of properties in a single account. Used
    *  by the bulk-import review screen to poll per-row progress without firing
    *  one request per property. Scoped server-side to the given account.

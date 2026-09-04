@@ -13,6 +13,7 @@ import house5 from "../../images/house5.png";
 import {
   CONDITION_BADGE,
   formatAddress,
+  formatConditionRating,
   formatDisplayName,
 } from "./prePurchaseUtils";
 
@@ -164,9 +165,8 @@ export default function PrePurchaseAnalysisHeader({analysis, onPhotoChanged}) {
                 tone={
                   CONDITION_BADGE[analysis.overallConditionRating] || "neutral"
                 }
-                className="capitalize"
               >
-                {analysis.overallConditionRating}
+                {formatConditionRating(analysis.overallConditionRating)}
               </StatusBadge>
             )}
             <div className="flex flex-col gap-0.5 min-w-0">

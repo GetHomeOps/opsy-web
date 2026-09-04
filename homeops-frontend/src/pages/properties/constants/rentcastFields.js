@@ -91,6 +91,7 @@ export const ADJUSTABLE_FIELD_KEYS = new Set([
   "juniorHighSchool",
   "seniorHighSchool",
   "county",
+  "homeValue",
 ]);
 
 /** Human-readable labels for Data Adjustment Request field dropdown */
@@ -136,6 +137,7 @@ export const RENTCAST_FIELD_LABELS = {
   juniorHighSchool: "Junior High School",
   seniorHighSchool: "Senior High School",
   county: "County",
+  homeValue: "Estimated Home Value",
 };
 
 export const RENTCAST_VERIFIED_TOOLTIP =

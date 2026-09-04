@@ -1,11 +1,13 @@
 import React from "react";
 import {StatusBadge} from "../../properties/partials/passport/StatusBadge";
-import {CONDITION_BADGE} from "../prePurchaseUtils";
+import {CONDITION_BADGE, formatConditionRating} from "../prePurchaseUtils";
 
 function scoreColor(rating) {
-  if (rating === "excellent" || rating === "good") return "#059669";
-  if (rating === "fair") return "#d97706";
-  if (rating === "poor") return "#dc2626";
+  if (rating === "excellent" || rating === "very_good" || rating === "good") {
+    return "#059669";
+  }
+  if (rating === "fair" || rating === "needs_attention") return "#d97706";
+  if (rating === "poor" || rating === "critical") return "#dc2626";
   return "#6b7280";
 }
 
@@ -72,9 +74,9 @@ export default function ScoreGauge({score, rating, compact = false}) {
           {rating && (
             <StatusBadge
               tone={CONDITION_BADGE[rating] || "neutral"}
-              className="mt-1.5 capitalize"
+              className="mt-1.5"
             >
-              {rating}
+              {formatConditionRating(rating)}
             </StatusBadge>
           )}
         </div>

@@ -16,7 +16,7 @@ const {
   resolvePropertyInvitationInviteUrl,
   assertInviterAuthorized,
 } = require("../services/invitationService");
-const { canInviteViewer, canAddTeamMember } = require("../services/tierService");
+const { canInviteViewer, canAddTeamMember, isHomeownerCapacityInvite } = require("../services/tierService");
 const db = require("../db");
 const { buildPropertyInvitationDefaultMainPlain } = require("../services/emailService");
 const customerIoProvider = require("../services/emailProviders/customerIoProvider");
@@ -254,10 +254,13 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
       }
     }
 
-    if (propertyId && intendedRole !== 'viewer') {
+    if (
+      propertyId &&
+      isHomeownerCapacityInvite({ intendedRole, intendedPropertyRole })
+    ) {
       const teamCheck = await canAddTeamMember(accountId, propertyId, userRole);
       if (!teamCheck.allowed) {
-        throw new ForbiddenError(`Team member limit reached (${teamCheck.current}/${teamCheck.max}). Upgrade your plan.`);
+        throw new ForbiddenError(`Home owner limit reached (${teamCheck.current}/${teamCheck.max}). Upgrade your plan.`);
       }
     }
 

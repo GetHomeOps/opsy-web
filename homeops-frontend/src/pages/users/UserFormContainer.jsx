@@ -36,6 +36,8 @@ import {S3_UPLOAD_FOLDER} from "../../constants/s3UploadFolders";
 import usePresignedPreview from "../../hooks/usePresignedPreview";
 import ImageUploadField from "../../components/ImageUploadField";
 import {isDemoSite, canCreateUsersOnDemo} from "../../utils/demoSite";
+import {buildPropertyDetailPath} from "../properties/helpers/pendingInvitation";
+import {INVITED_USER_FILTER_TYPE} from "../properties/helpers/invitedUserFilter";
 
 function generateRandomPassword() {
   const length = 16;
@@ -523,6 +525,8 @@ function UsersFormContainer() {
         setOwnerPropertyCount(0);
         setOwnerPropertyUids([]);
         setInvitedPropertyCount(0);
+        setInvitedPropertyUids([]);
+        setInvitedPropertyRows([]);
         setAgentPropertyCount(0);
         setAgentPropertyUids([]);
         setPropertySummaryLoading(false);
@@ -532,6 +536,8 @@ function UsersFormContainer() {
         setOwnerPropertyCount(0);
         setOwnerPropertyUids([]);
         setInvitedPropertyCount(0);
+        setInvitedPropertyUids([]);
+        setInvitedPropertyRows([]);
         setAgentPropertyCount(0);
         setAgentPropertyUids([]);
         setPropertySummaryLoading(true);
@@ -547,7 +553,7 @@ function UsersFormContainer() {
             !p._pendingInvitation &&
             (p.property_role === "owner" || p.propertyRole === "owner"),
         );
-        const invited = rows.filter((p) => p._pendingInvitation).length;
+        const invitedRows = rows.filter((p) => p._pendingInvitation);
         const agentRows = rows.filter((p) => {
           if (p._pendingInvitation) return false;
           const pr = (p.property_role || p.propertyRole || "").toLowerCase();
@@ -560,7 +566,9 @@ function UsersFormContainer() {
             .map(String);
         setOwnerPropertyCount(ownerRows.length);
         setOwnerPropertyUids(toUids(ownerRows));
-        setInvitedPropertyCount(invited);
+        setInvitedPropertyCount(invitedRows.length);
+        setInvitedPropertyUids(toUids(invitedRows));
+        setInvitedPropertyRows(invitedRows);
         setAgentPropertyCount(agentRows.length);
         setAgentPropertyUids(toUids(agentRows));
       } catch {
@@ -568,6 +576,8 @@ function UsersFormContainer() {
           setOwnerPropertyCount(0);
           setOwnerPropertyUids([]);
           setInvitedPropertyCount(0);
+          setInvitedPropertyUids([]);
+          setInvitedPropertyRows([]);
           setAgentPropertyCount(0);
           setAgentPropertyUids([]);
         }
@@ -1687,6 +1697,8 @@ function UsersFormContainer() {
   const [ownerPropertyCount, setOwnerPropertyCount] = useState(0);
   const [ownerPropertyUids, setOwnerPropertyUids] = useState([]);
   const [invitedPropertyCount, setInvitedPropertyCount] = useState(0);
+  const [invitedPropertyUids, setInvitedPropertyUids] = useState([]);
+  const [invitedPropertyRows, setInvitedPropertyRows] = useState([]);
   const [agentPropertyCount, setAgentPropertyCount] = useState(0);
   const [agentPropertyUids, setAgentPropertyUids] = useState([]);
   const [resendingInvitation, setResendingInvitation] = useState(false);
@@ -2034,10 +2046,6 @@ function UsersFormContainer() {
     }
   };
 
-  const handleNavigateToProperties = () => {
-    navigate(`/${accountUrl}/properties`);
-  };
-
   const profileUserRoleKey =
     state.user?.role === "super_admin" || state.user?.role === "superAdmin"
       ? "super_admin"
@@ -2086,6 +2094,47 @@ function UsersFormContainer() {
       agentPropertyUids,
       `Showing properties where ${profileUserName} is on the team as agent (editor or viewer).`,
     );
+  };
+
+  const handleNavigateToInvitedProperties = () => {
+    const email = String(state.user?.email || "")
+      .trim()
+      .toLowerCase();
+    const applyFilters = email
+      ? [
+          {
+            type: INVITED_USER_FILTER_TYPE,
+            value: email,
+            label: profileUserName,
+          },
+        ]
+      : [];
+
+    if (!invitedPropertyUids.length) {
+      navigate(`/${accountUrl}/properties`, {
+        state: applyFilters.length ? {applyFilters} : undefined,
+      });
+      return;
+    }
+    if (invitedPropertyUids.length === 1) {
+      const uid = invitedPropertyUids[0];
+      const row = invitedPropertyRows[0];
+      navigate(buildPropertyDetailPath(accountUrl, row, uid), {
+        state: {
+          currentIndex: 1,
+          totalItems: 1,
+          visiblePropertyIds: [uid],
+        },
+      });
+      return;
+    }
+    navigate(`/${accountUrl}/properties`, {
+      state: {
+        applyFilters,
+        filterPropertyUids: invitedPropertyUids,
+        filterPropertyMessage: `Showing properties ${profileUserName} has been invited to.`,
+      },
+    });
   };
 
   // Add a helper function for label classes
@@ -2410,7 +2459,7 @@ function UsersFormContainer() {
                 invitedPropertyCount > 0 && !propertySummaryLoading ? (
                   <button
                     type="button"
-                    onClick={handleNavigateToProperties}
+                    onClick={handleNavigateToInvitedProperties}
                     className="shrink-0 flex items-center gap-2 px-3 py-2 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 transition-all duration-200"
                   >
                     <MailOpen className="w-4 h-4 flex-shrink-0" />

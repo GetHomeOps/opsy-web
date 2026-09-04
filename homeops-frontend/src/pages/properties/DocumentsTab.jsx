@@ -139,6 +139,8 @@ const documentTypes = [
   {id: "manual", label: "Manual", icon: FileText},
   {id: "insurance", label: "Insurance", icon: Shield},
   {id: "mortgage", label: "Mortgage", icon: FileText},
+  {id: "hoa", label: "HOA", icon: FileText},
+  {id: "tax", label: "Property Tax", icon: FileText},
   {id: "other", label: "Other", icon: File},
 ];
 
@@ -893,6 +895,10 @@ function DocumentsTab({
         "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
       mortgage:
         "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",
+      hoa:
+        "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+      tax:
+        "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
       other: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400",
     };
     return colors[type] || colors.other;

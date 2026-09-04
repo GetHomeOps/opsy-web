@@ -57,6 +57,8 @@ const {
   getTeamMemberInviteEligibilityByProperty,
   getViewerInviteEligibilityByProperty,
   getAccountLimits,
+  countHomeownersForPropertyLimit,
+  isHomeownerCapacityInvite,
 } = require("./tierService");
 const {
   assertPropertyCanAcceptAgentInvite,
@@ -687,6 +689,9 @@ async function createBulkPropertyInvitations({
   }
 
   const intents = intendedRole || "editor";
+  const applyHomeownerCap =
+    intents !== "viewer" &&
+    isHomeownerCapacityInvite({ intendedRole: intents, intendedPropertyRole });
 
   const notBlockedForTier = authorized.filter(
     (pid) => !blockedMember.has(pid) && !blockedPending.has(pid)
@@ -694,7 +699,11 @@ async function createBulkPropertyInvitations({
   const tierByProperty =
     intents === "viewer"
       ? await getViewerInviteEligibilityByProperty(accountId, notBlockedForTier, inviterUserRole)
-      : await getTeamMemberInviteEligibilityByProperty(accountId, notBlockedForTier, inviterUserRole);
+      : applyHomeownerCap
+        ? await getTeamMemberInviteEligibilityByProperty(accountId, notBlockedForTier, inviterUserRole)
+        : new Map(
+            notBlockedForTier.map((pid) => [pid, { allowed: true, current: 0, max: null }])
+          );
 
   const eligible = [];
   for (const pid of authorized) {
@@ -724,7 +733,7 @@ async function createBulkPropertyInvitations({
         message:
           intents === "viewer"
             ? `Viewer limit reached (${tier?.current ?? 0}/${tier?.max ?? 0}). Upgrade your plan.`
-            : `Team member limit reached (${tier?.current ?? 0}/${tier?.max ?? 0}). Upgrade your plan.`,
+            : `Home owner limit reached (${tier?.current ?? 0}/${tier?.max ?? 0}). Upgrade your plan.`,
       });
       continue;
     }
@@ -1245,31 +1254,40 @@ async function acceptInvitation({ rawToken, password, name, invitation: preFetch
     const limits = await getAccountLimits(invitation.accountId);
     const intendedRole = (invitation.intendedRole || "editor").toLowerCase();
     const isViewerInvite = intendedRole === "viewer";
-    const max = isViewerInvite ? limits.maxViewers : limits.maxTeamMembers;
-    if (max != null) {
-      const memberRolePredicate = isViewerInvite ? "role = 'viewer'" : "role != 'viewer'";
-      const inviteRolePredicate = isViewerInvite
-        ? "COALESCE(intended_role, 'editor') = 'viewer'"
-        : "COALESCE(intended_role, 'editor') != 'viewer'";
-      const cntRes = await db.query(
-        `SELECT
-           (SELECT COUNT(*)::int FROM property_users
-              WHERE property_id = $1 AND ${memberRolePredicate})
-           +
-           (SELECT COUNT(*)::int FROM invitations
-              WHERE property_id = $1
-                AND status = 'pending'
-                AND ${inviteRolePredicate}
-                AND id != $2)
-           AS count`,
-        [invitation.propertyId, invitation.id]
-      );
-      const current = cntRes.rows[0].count;
-      if (current >= max) {
-        const label = isViewerInvite ? "View-only user" : "Home owner";
-        throw new ForbiddenError(
-          `${label} limit reached (${current}/${max}) for this property. Ask the property owner to upgrade the plan before accepting.`
+    if (isViewerInvite) {
+      const max = limits.maxViewers;
+      if (max != null) {
+        const cntRes = await db.query(
+          `SELECT
+             (SELECT COUNT(*)::int FROM property_users
+                WHERE property_id = $1 AND role = 'viewer')
+             +
+             (SELECT COUNT(*)::int FROM invitations
+                WHERE property_id = $1
+                  AND status = 'pending'
+                  AND COALESCE(intended_role, 'editor') = 'viewer'
+                  AND id != $2)
+             AS count`,
+          [invitation.propertyId, invitation.id]
         );
+        const current = cntRes.rows[0].count;
+        if (current >= max) {
+          throw new ForbiddenError(
+            `View-only user limit reached (${current}/${max}) for this property. Ask the property owner to upgrade the plan before accepting.`
+          );
+        }
+      }
+    } else if (isHomeownerCapacityInvite(invitation)) {
+      const max = limits.maxTeamMembers;
+      if (max != null) {
+        const current = await countHomeownersForPropertyLimit(invitation.propertyId, {
+          excludeInvitationId: invitation.id,
+        });
+        if (current >= max) {
+          throw new ForbiddenError(
+            `Home owner limit reached (${current}/${max}) for this property. Ask the property owner to upgrade the plan before accepting.`
+          );
+        }
       }
     }
   }

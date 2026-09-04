@@ -10,7 +10,7 @@ const ANALYSIS_COLUMNS = `
   status, progress_pct, progress_message, error_message,
   overall_condition_score, overall_condition_rating, executive_summary,
   repair_cost_low, repair_cost_high, repair_confidence,
-  positive_findings, top_concerns, disclaimer_version,
+  positive_findings, top_concerns, scoring_audit, disclaimer_version,
   started_at, completed_at, created_at, updated_at
 `;
 
@@ -221,6 +221,7 @@ class PrePurchaseAnalysis {
       repairConfidence: "repair_confidence",
       positiveFindings: "positive_findings",
       topConcerns: "top_concerns",
+      scoringAudit: "scoring_audit",
       disclaimerVersion: "disclaimer_version",
       startedAt: "started_at",
       completedAt: "completed_at",
@@ -231,7 +232,9 @@ class PrePurchaseAnalysis {
       if (value !== undefined && mapping[key]) {
         // node-pg treats JS arrays as PG arrays; jsonb columns need JSON strings
         if (
-          (key === "positiveFindings" || key === "topConcerns") &&
+          (key === "positiveFindings" ||
+            key === "topConcerns" ||
+            key === "scoringAudit") &&
           value !== null &&
           typeof value === "object"
         ) {
@@ -296,6 +299,7 @@ class PrePurchaseAnalysis {
            repair_confidence = NULL,
            positive_findings = '[]'::jsonb,
            top_concerns = '[]'::jsonb,
+           scoring_audit = NULL,
            completed_at = NULL,
            error_message = NULL,
            updated_at = NOW()

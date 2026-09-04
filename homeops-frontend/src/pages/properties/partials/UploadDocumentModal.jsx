@@ -1,5 +1,5 @@
 import React, {useMemo, useState, useRef} from "react";
-import {X, Upload, AlertCircle, Loader2, ClipboardList, FileText, Receipt} from "lucide-react";
+import {X, Upload, AlertCircle, Loader2, ClipboardList, FileText, Receipt, Landmark, Shield, Home} from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import DatePickerInput from "../../../components/DatePickerInput";
 import AppApi from "../../../api/api";
@@ -25,6 +25,12 @@ import {
   guessAnalysisCategory,
   resolveDeclaredAnalysisCategory,
 } from "../helpers/documentAnalysisUi";
+import {guessFromFilename} from "./documents/filenameHeuristics";
+import {
+  FINANCIAL_UPLOAD_TYPES,
+  getFinancialUploadCopy,
+  isFinancialFilingType,
+} from "./financials/financialDocumentUpload";
 
 const TYPE_ICONS = {
   bid: ClipboardList,
@@ -32,17 +38,30 @@ const TYPE_ICONS = {
   other: FileText,
 };
 
+const FINANCIAL_TYPE_ICONS = {
+  mortgage: Landmark,
+  tax: FileText,
+  insurance: Shield,
+  hoa: Home,
+};
+
+const EMPTY_LIST = [];
+
 function UploadDocumentModal({
   isOpen,
   onClose,
   systemType,
   systemLabel,
   propertyId,
-  systemsToShow = [],
-  propertySystems = [],
-  customSystemNames = [],
+  systemsToShow = EMPTY_LIST,
+  propertySystems = EMPTY_LIST,
+  customSystemNames = EMPTY_LIST,
   /** When true, lock to inspection report (system + type fixed), hide system/type dropdowns */
   inspectionReportOnly = false,
+  /** Lock filing type for financial uploads (insurance, mortgage, hoa, tax) */
+  presetFilingType = null,
+  /** Tailor copy and (when type is unlocked) show a financial type picker */
+  financialUpload = false,
   /** Called after successful upload with created docs: [{key, name, type}] */
   onSuccess,
   /** Called with full property_document rows after each successful upload batch */
@@ -58,6 +77,7 @@ function UploadDocumentModal({
   const [typeGroup, setTypeGroup] = useState("");
   const [invoiceSubtype, setInvoiceSubtype] = useState("invoice");
   const [otherSubtype, setOtherSubtype] = useState("other");
+  const [financialType, setFinancialType] = useState("");
   const resolvedInitialSystemKey = resolveUploadSystemKey(
     inspectionReportOnly ? "inspectionReport" : systemType,
     propertySystems,
@@ -74,11 +94,17 @@ function UploadDocumentModal({
 
   const documentType = useMemo(() => {
     if (inspectionReportOnly) return "inspection";
+    if (presetFilingType) return presetFilingType;
+    if (financialUpload) return financialType || null;
     return filingTypeForAnalysisGroup(
       typeGroup,
       typeGroup === "installation_invoice" ? invoiceSubtype : otherSubtype,
     );
-  }, [inspectionReportOnly, typeGroup, invoiceSubtype, otherSubtype]);
+  }, [inspectionReportOnly, presetFilingType, financialUpload, financialType, typeGroup, invoiceSubtype, otherSubtype]);
+
+  const financialCopy = financialUpload
+    ? getFinancialUploadCopy(presetFilingType || financialType)
+    : null;
 
   const declaredAnalysisCategory = inspectionReportOnly
     ? null
@@ -98,6 +124,7 @@ function UploadDocumentModal({
     setTypeGroup("");
     setInvoiceSubtype("invoice");
     setOtherSubtype("other");
+    setFinancialType("");
     setUploadSystemKey(
       resolveUploadSystemKey(
         inspectionReportOnly ? "inspectionReport" : systemType,
@@ -136,7 +163,7 @@ function UploadDocumentModal({
       setUploadError("Please select a document date.");
       return;
     }
-    if (!inspectionReportOnly && !documentType) {
+    if (!inspectionReportOnly && !presetFilingType && !documentType) {
       setUploadError("Please choose what kind of document this is.");
       return;
     }
@@ -213,7 +240,7 @@ function UploadDocumentModal({
     uploadFiles.length > 0 &&
     documentName.trim() &&
     documentDate &&
-    (inspectionReportOnly || Boolean(documentType));
+    (inspectionReportOnly || presetFilingType || Boolean(documentType));
 
   // Sync uploadSystemKey when systemType changes (e.g. modal opened for different system)
   React.useEffect(() => {
@@ -250,9 +277,18 @@ function UploadDocumentModal({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-              {inspectionReportOnly ? "Upload Inspection Report" : "Upload Document"}
+              {inspectionReportOnly
+                ? "Upload Inspection Report"
+                : financialCopy
+                  ? financialCopy.title
+                  : "Upload Document"}
             </h2>
-            {!inspectionReportOnly && systemLabel && (
+            {financialCopy && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {financialCopy.subtitle}
+              </p>
+            )}
+            {!inspectionReportOnly && !financialUpload && systemLabel && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 {systemLabel} System
               </p>
@@ -315,7 +351,7 @@ function UploadDocumentModal({
             type="text"
             value={documentName}
             onChange={(e) => setDocumentName(e.target.value)}
-            placeholder="e.g. AC Maintenance Receipt 2024"
+            placeholder={financialCopy?.placeholder || "e.g. AC Maintenance Receipt 2024"}
             className="form-input w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
             required
           />
@@ -334,7 +370,49 @@ function UploadDocumentModal({
           />
         </div>
 
-        {!inspectionReportOnly && (
+        {financialUpload && !presetFilingType && (
+          <fieldset>
+            <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              What kind of financial document is this?
+            </legend>
+            <div className="space-y-2" role="group" aria-label="Financial document type">
+              {FINANCIAL_UPLOAD_TYPES.map((option) => {
+                const Icon = FINANCIAL_TYPE_ICONS[option.id] || FileText;
+                const selected = financialType === option.id;
+                return (
+                  <label
+                    key={option.id}
+                    className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors ${
+                      selected
+                        ? "border-[#456564]/50 bg-[#456564]/5"
+                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      name="upload-financial-document-type"
+                      value={option.id}
+                      checked={selected}
+                      onChange={() => setFinancialType(option.id)}
+                      className="form-checkbox mt-1 shrink-0"
+                    />
+                    <Icon className="w-4 h-4 mt-0.5 shrink-0 text-[#456564]" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {option.label}
+                      </span>
+                      <span className="block text-[11px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5">
+                        {option.description}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+
+        {!inspectionReportOnly && !presetFilingType && !financialUpload && (
           <>
             <fieldset>
               <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -466,9 +544,16 @@ function UploadDocumentModal({
                   return defaultDocumentLabelFromFile(files[0]);
                 });
                 setTypeGroup((prev) => {
-                  if (prev || inspectionReportOnly) return prev;
+                  if (prev || inspectionReportOnly || financialUpload) return prev;
                   return guessAnalysisCategory({ document_name: files[0].name });
                 });
+                if (financialUpload && !presetFilingType) {
+                  setFinancialType((prev) => {
+                    if (prev) return prev;
+                    const guessed = guessFromFilename(files[0].name)?.document_type;
+                    return isFinancialFilingType(guessed) ? guessed : prev;
+                  });
+                }
               }
             }}
           />

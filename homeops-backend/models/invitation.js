@@ -95,6 +95,7 @@ class Invitation {
       `SELECT i.id, i.type, i.inviter_user_id AS "inviterUserId",
               u.name AS "inviterName",
               i.invitee_email AS "inviteeEmail",
+              invitee.name AS "inviteeName",
               i.account_id AS "accountId", i.property_id AS "propertyId",
               p.property_uid AS "propertyUid",
               p.address AS "propertyAddress",
@@ -105,6 +106,7 @@ class Invitation {
               i.expires_at AS "expiresAt", i.created_at AS "createdAt"
        FROM invitations i
        LEFT JOIN users u ON u.id = i.inviter_user_id
+       LEFT JOIN users invitee ON LOWER(TRIM(invitee.email)) = LOWER(TRIM(i.invitee_email))
        LEFT JOIN properties p ON p.id = i.property_id
        WHERE ${clauses.join(" AND ")}
        ORDER BY i.created_at DESC`,

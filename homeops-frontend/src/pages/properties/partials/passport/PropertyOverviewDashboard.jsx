@@ -273,6 +273,8 @@ function PropertyOverviewDashboard({
   maintenanceRecords = [],
   maintenanceEvents = [],
   propertyDocuments = [],
+  propertyId = null,
+  attomRefresh = null,
   photosCount = 0,
   inspectionAnalysis = null,
   scoreCardSlot,
@@ -807,7 +809,11 @@ function PropertyOverviewDashboard({
         </div>
       </div>
 
-      <OverviewFinancialsPreview />
+      <OverviewFinancialsPreview
+        propertyId={propertyId}
+        attomRefresh={attomRefresh}
+        onNavigateTab={onNavigateTab}
+      />
 
       {!readOnly && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

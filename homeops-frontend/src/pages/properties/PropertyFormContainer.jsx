@@ -1860,10 +1860,28 @@ function PropertyFormContainer() {
   /** Set when user chooses "Save & pull" so we enqueue ATTOM after a successful save
    *  even if the address fingerprint did not change. */
   const pendingAttomPullAfterSaveRef = useRef(false);
+  const financialsPrefetchAttemptedRef = useRef(false);
   useEffect(() => {
     initialAttomPullAttemptedRef.current = false;
     pendingAttomPullAfterSaveRef.current = false;
+    financialsPrefetchAttemptedRef.current = false;
   }, [effectivePropertyId]);
+
+  /** Kick off financials backfill as soon as a saved property is open, even if
+   *  the user is still on Identity/Overview. GET /financials enqueues a
+   *  financials_backfill job when attom_fetched_at is null (does not count
+   *  against the 4-lookup limit). */
+  useEffect(() => {
+    if (uid === "new" || !effectivePropertyId) return;
+    if (financialsPrefetchAttemptedRef.current) return;
+    financialsPrefetchAttemptedRef.current = true;
+    void AppApi.getPropertyFinancials(effectivePropertyId).catch((err) => {
+      console.info(
+        "[PropertyForm] financials prefetch skipped:",
+        err?.message,
+      );
+    });
+  }, [uid, effectivePropertyId]);
 
   /** Auto-pull ATTOM when a saved property has never had a lookup and has a complete address.
    * Skip when vendor source is set AND non-address identity fields are already present
@@ -2990,6 +3008,8 @@ function PropertyFormContainer() {
       maintenanceRecords={state.formData.maintenanceRecords ?? []}
       maintenanceEvents={maintenanceEvents}
       propertyDocuments={overviewDocuments}
+      propertyId={effectivePropertyId}
+      attomRefresh={attomRefresh}
       photosCount={(state.formData.identity?.photos ?? []).length}
       inspectionAnalysis={inspectionAnalysis}
       onNavigateTab={
@@ -4565,7 +4585,9 @@ function PropertyFormContainer() {
 
                 {state.activeTab === "financials" && (
                   <FinancialsTab
+                    propertyId={effectivePropertyId}
                     propertyData={mergedFormData}
+                    attomRefresh={attomRefresh}
                     onNavigateTab={(tabId) =>
                       dispatch({type: "SET_ACTIVE_TAB", payload: tabId})
                     }

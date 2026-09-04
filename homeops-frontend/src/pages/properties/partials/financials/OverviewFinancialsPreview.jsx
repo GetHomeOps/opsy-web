@@ -1,223 +1,138 @@
-import React, {useMemo} from "react";
-import {Line} from "react-chartjs-2";
-import {Home, PiggyBank, CreditCard, Wallet} from "lucide-react";
+import React, {useCallback, useEffect, useState} from "react";
+import {Home, PiggyBank, CreditCard, ChevronRight} from "lucide-react";
 import SectionCard from "../passport/SectionCard";
-import {StatusBadge} from "../passport/StatusBadge";
-import FinancialKpiCard from "./FinancialKpiCard";
-import {
-  FINANCIALS_DEMO,
-  formatCurrency,
-  formatShortCurrency,
-} from "./financialsDemoData";
-import "../../../home/components/chartConfig";
+import ProvenanceBadge from "./ProvenanceBadge";
+import AttomSyncBanner from "./AttomSyncBanner";
+import AppApi from "../../../../api/api";
+import {formatCurrency, formatPercent} from "./financialsFormat";
 
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  interaction: {mode: "index", intersect: false},
-  plugins: {
-    legend: {display: false},
-    tooltip: {
-      callbacks: {
-        label: (ctx) => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}`,
-      },
-    },
-  },
-  scales: {
-    x: {
-      grid: {display: false},
-      ticks: {
-        font: {size: 10},
-        color: "#9ca3af",
-        maxRotation: 0,
-        maxTicksLimit: 6,
-      },
-    },
-    y: {
-      grid: {color: "rgba(0,0,0,0.06)"},
-      ticks: {
-        font: {size: 10},
-        color: "#9ca3af",
-        maxTicksLimit: 4,
-        callback: (v) => formatShortCurrency(v),
-      },
-    },
-  },
-};
-
-function buildLineChart(labels, label, data, borderColor, backgroundColor) {
-  return {
-    labels,
-    datasets: [
-      {
-        label,
-        data,
-        borderColor,
-        backgroundColor,
-        fill: true,
-        tension: 0.35,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-        borderWidth: 2,
-      },
-    ],
-  };
+function Kpi({icon: Icon, label, value, hint, source, loading}) {
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon className="w-3.5 h-3.5 text-neutral-400" />
+        <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.06em] truncate">
+          {label}
+        </span>
+      </div>
+      {loading ? (
+        <div className="h-6 w-24 rounded bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
+      ) : (
+        <p className="text-lg font-bold text-neutral-900 dark:text-white tabular-nums">
+          {value ?? "Not available"}
+        </p>
+      )}
+      {hint && <p className="text-[11px] text-neutral-500 mt-0.5">{hint}</p>}
+      {source && <div className="mt-1"><ProvenanceBadge source={source} /></div>}
+    </div>
+  );
 }
 
-function FinancialPreviewCard({title, icon: Icon, kpi, chartData}) {
-  return (
-    <SectionCard flat title={title} icon={Icon} className="min-w-0">
-      <div className="relative overflow-hidden rounded-xl border border-neutral-200/80 dark:border-neutral-700/50 bg-neutral-50/80 dark:bg-neutral-800/40 min-h-[14rem]">
-        <div
-          className="px-3 py-3 blur-[2px] saturate-[0.85] opacity-90 pointer-events-none select-none [mask-image:linear-gradient(to_bottom,#000_0%,#000_72%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,#000_0%,#000_72%,transparent_100%)]"
-          aria-hidden="true"
-        >
-          <FinancialKpiCard
-            icon={kpi.icon}
-            label={kpi.label}
-            value={kpi.value}
-            change={kpi.change}
-            changeTone={kpi.changeTone}
-            sparkline={kpi.sparkline}
-            suffix={kpi.suffix}
-            className="border-0 bg-transparent px-0 py-0 rounded-none shadow-none"
-          />
-          <div className="h-28 mt-2 px-1">
-            <Line data={chartData} options={chartOptions} />
-          </div>
-        </div>
+function OverviewFinancialsPreview({propertyId, attomRefresh, onNavigateTab}) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(Boolean(propertyId));
 
-        <div
-          className="absolute inset-0 z-10 flex items-center justify-center px-3 bg-white/55 dark:bg-neutral-950/60"
-          role="status"
-          aria-live="polite"
-        >
-          <div className="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-4 py-3 text-center shadow-[0_8px_32px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.06] dark:ring-white/10">
-            <StatusBadge tone="neutral" className="mb-1.5">
-              Coming Soon
-            </StatusBadge>
-            <p className="text-xs font-semibold text-neutral-900 dark:text-white">
-              {kpi.comingSoonTitle}
-            </p>
-          </div>
-        </div>
+  const load = useCallback(async () => {
+    if (!propertyId) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const financials = await AppApi.getPropertyFinancials(propertyId);
+      setData(financials);
+    } catch {
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [propertyId]);
+
+  useEffect(() => {
+    if (!propertyId) {
+      setLoading(false);
+      setData(null);
+      return undefined;
+    }
+    setLoading(true);
+    void load();
+    return undefined;
+  }, [propertyId, load]);
+
+  const attomInFlight =
+    data?.attomStatus === "loading" || Boolean(attomRefresh?.isActive);
+  const attomLoading = loading || attomInFlight;
+
+  useEffect(() => {
+    const inFlight =
+      data?.attomStatus === "loading" || Boolean(attomRefresh?.isActive);
+    if (!propertyId || !inFlight) return undefined;
+    const t = setInterval(() => {
+      void load();
+    }, 4000);
+    return () => clearInterval(t);
+  }, [propertyId, data?.attomStatus, attomRefresh?.isActive, load]);
+
+  useEffect(() => {
+    if (attomRefresh?.jobStatus === "completed") void load();
+  }, [attomRefresh?.jobStatus, load]);
+
+  const remainingLabel = formatCurrency(data?.remainingMortgage?.value)
+    ?? (data?.mortgage?.hasRecordedMortgage
+      ? "Not available"
+      : attomLoading
+        ? null
+        : data
+          ? "No mortgage on record"
+          : null);
+
+  return (
+    <SectionCard
+      flat
+      title="Financials"
+      description="Value, equity, and remaining mortgage for this property"
+      action={
+        onNavigateTab ? (
+          <button
+            type="button"
+            onClick={() => onNavigateTab("financials")}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#456564]"
+          >
+            View Financials
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        ) : null
+      }
+    >
+      {attomInFlight && <AttomSyncBanner compact className="mb-3" />}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Kpi
+          icon={Home}
+          label="Estimated Home Value"
+          value={formatCurrency(data?.homeValue?.value)}
+          source={data?.homeValue?.source}
+          loading={attomLoading && !data?.homeValue}
+        />
+        <Kpi
+          icon={PiggyBank}
+          label="Estimated Equity"
+          value={formatCurrency(data?.equity?.amount)}
+          hint={
+            data?.equity?.percent != null
+              ? `${formatPercent(data.equity.percent, 0)} of value`
+              : null
+          }
+          source={data?.equity?.source}
+          loading={attomLoading && !data?.equity}
+        />
+        <Kpi
+          icon={CreditCard}
+          label="Remaining Mortgage"
+          value={remainingLabel}
+          source={data?.remainingMortgage?.source}
+          loading={attomLoading && !data?.remainingMortgage}
+        />
       </div>
     </SectionCard>
-  );
-}
-
-/**
- * Coming Soon financial preview shown on the Overview tab. Three independent
- * cards for value, equity, and payments — each with a KPI and trend chart.
- */
-function OverviewFinancialsPreview() {
-  const data = FINANCIALS_DEMO;
-
-  const valueChart = useMemo(
-    () =>
-      buildLineChart(
-        data.trendLabels,
-        "Estimated Value",
-        data.valueTrend,
-        "#456564",
-        "rgba(69, 101, 100, 0.12)",
-      ),
-    [data.trendLabels, data.valueTrend],
-  );
-
-  const equityChart = useMemo(
-    () =>
-      buildLineChart(
-        data.trendLabels,
-        "Estimated Equity",
-        data.equityTrend,
-        "#10b981",
-        "rgba(16, 185, 129, 0.10)",
-      ),
-    [data.trendLabels, data.equityTrend],
-  );
-
-  const paymentChart = useMemo(
-    () =>
-      buildLineChart(
-        data.trendLabels,
-        "Monthly Payment",
-        data.paymentTrend,
-        "#5a8a88",
-        "rgba(90, 138, 136, 0.12)",
-      ),
-    [data.trendLabels, data.paymentTrend],
-  );
-
-  const cards = [
-    {
-      title: "Property Value",
-      icon: Home,
-      chartData: valueChart,
-      kpi: {
-        icon: Home,
-        label: "Estimated Property Value",
-        value: formatCurrency(data.propertyValue),
-        change: "+ 5.2% vs last year",
-        changeTone: "positive",
-        sparkline: [1095, 1102, 1110, 1125, 1140, 1155, 1162, 1170, 1180],
-        comingSoonTitle: "Live value tracking coming soon",
-      },
-    },
-    {
-      title: "Equity",
-      icon: PiggyBank,
-      chartData: equityChart,
-      kpi: {
-        icon: PiggyBank,
-        label: "Estimated Equity",
-        value: formatCurrency(data.equity),
-        change: "+ 8.3% vs last year",
-        changeTone: "positive",
-        sparkline: [415, 430, 445, 460, 478, 495, 510, 525, 537],
-        comingSoonTitle: "Live equity tracking coming soon",
-      },
-    },
-    {
-      title: "Payments",
-      icon: CreditCard,
-      chartData: paymentChart,
-      kpi: {
-        icon: CreditCard,
-        label: "Monthly Payment",
-        value: formatCurrency(data.monthlyPayment),
-        suffix: "/mo",
-        change: "No change vs last month",
-        changeTone: "neutral",
-        sparkline: [4167, 4167, 4167, 4167, 4167, 4167, 4167, 4167, 4167],
-        comingSoonTitle: "Live payment tracking coming soon",
-      },
-    },
-  ];
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-start gap-2 px-0.5">
-        <Wallet className="w-4 h-4 shrink-0 text-neutral-400 dark:text-neutral-500 mt-0.5" />
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-neutral-900 dark:text-white">
-              Financial Overview
-            </h3>
-            <StatusBadge tone="neutral">Coming Soon</StatusBadge>
-          </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Track your property&apos;s value, equity, and payments — coming soon.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {cards.map((card) => (
-          <FinancialPreviewCard key={card.title} {...card} />
-        ))}
-      </div>
-    </div>
   );
 }
 

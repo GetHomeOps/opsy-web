@@ -40,7 +40,7 @@ function SlideTitle({takeaways}) {
       ) : null}
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <span
-          className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold capitalize text-white"
+          className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold text-white"
           style={{backgroundColor: BRAND}}
         >
           {takeaways.ratingLabel}
@@ -72,7 +72,7 @@ function SlideSnapshot({takeaways}) {
           <p className="text-6xl sm:text-7xl font-bold tabular-nums text-neutral-900">
             {takeaways.score != null ? takeaways.score : "—"}
           </p>
-          <p className="mt-3 text-sm text-neutral-600 capitalize">
+          <p className="mt-3 text-sm text-neutral-600">
             {takeaways.ratingLabel}
           </p>
           <p className="mt-2 text-sm text-neutral-500 leading-relaxed max-w-xs">

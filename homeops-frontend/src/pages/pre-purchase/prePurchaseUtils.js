@@ -26,11 +26,41 @@ export function isTerminal(status) {
   return status === "completed" || status === "failed";
 }
 
+export const CONDITION_LABELS = {
+  excellent: "Excellent",
+  very_good: "Very Good",
+  good: "Good",
+  fair: "Fair",
+  needs_attention: "Needs Attention",
+  poor: "Poor",
+  critical: "Critical",
+  unknown: "Unknown",
+};
+
+export function formatConditionRating(rating) {
+  if (!rating) return CONDITION_LABELS.unknown;
+  return CONDITION_LABELS[rating] || String(rating).replace(/_/g, " ");
+}
+
+export const SCORE_BLURBS = {
+  excellent: "The home appears well maintained with few notable deficiencies.",
+  very_good: "The home is in very good condition with limited items needing attention.",
+  good: "The home is in solid shape with mostly routine maintenance items.",
+  fair: "The home shows typical wear with several items needing attention.",
+  needs_attention: "The home has notable issues that warrant attention before closing.",
+  poor: "The home has significant deferred maintenance that warrants careful review.",
+  critical: "The home has serious condition, safety, or habitability concerns.",
+  unknown: "Condition scoring was limited by available document detail.",
+};
+
 export const CONDITION_BADGE = {
   excellent: "emerald",
+  very_good: "emerald",
   good: "emerald",
   fair: "amber",
+  needs_attention: "amber",
   poor: "red",
+  critical: "red",
   unknown: "neutral",
 };
 
@@ -216,9 +246,12 @@ export const URGENCY_BADGE = {
 
 export const CONDITION_COLORS = {
   excellent: "#059669",
-  good: "#10b981",
+  very_good: "#10b981",
+  good: "#34d399",
   fair: "#d97706",
+  needs_attention: "#f59e0b",
   poor: "#dc2626",
+  critical: "#991b1b",
   unknown: "#9ca3af",
 };
 

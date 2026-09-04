@@ -310,6 +310,7 @@
   "invitationPending": "Pendiente",
   "invitationAccepted": "Aceptada",
   "invitationNone": "Ninguna",
+  "invitedUser": "Usuario invitado",
   "filterAgentAssignment": "Asignación de agente",
   "filterWithAgentAssigned": "Vinculado",
   "filterWithoutAgent": "Desvinculado",

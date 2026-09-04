@@ -42,6 +42,8 @@ export const UPLOAD_OTHER_DOCUMENT_TYPES = [
   { id: "manual", label: "Manual" },
   { id: "insurance", label: "Insurance" },
   { id: "mortgage", label: "Mortgage" },
+  { id: "hoa", label: "HOA" },
+  { id: "tax", label: "Property tax" },
   { id: "other", label: "Other" },
 ];
 
