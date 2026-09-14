@@ -12,6 +12,25 @@ import {jwtDecode as decode} from "jwt-decode";
 import {markPostLogoutRedirectReset} from "../utils/authNavigation";
 import {clearFreeTierBannerDismissals} from "../components/FreeTierBanner";
 import {resetShellBrandingForSessionChange} from "../utils/brandingCss";
+import {normalizeAccount} from "../utils/accountSelection";
+
+/** Persist the restored user's canonical account so every `useCurrentAccount`
+ * copy resolves to the same workspace after a session swap (e.g. stopping
+ * impersonation) instead of lingering on the impersonated account. */
+function persistCanonicalAccount(user) {
+  const firstAccount = user?.accounts?.[0];
+  const normalized =
+    user?.id != null ? normalizeAccount(firstAccount, user.id) : null;
+  try {
+    if (normalized) {
+      localStorage.setItem("current-account", JSON.stringify(normalized));
+    } else {
+      localStorage.removeItem("current-account");
+    }
+  } catch {
+    // ignore storage access errors
+  }
+}
 
 /** Retry a time-boxed startup request a few times on transient network/timeout
  * errors. On a cold mobile/PWA launch the network often isn't ready for the first
@@ -296,7 +315,9 @@ export function AuthProvider({children}) {
         isLoading: false,
         data: userWithAccounts,
       });
-      localStorage.removeItem("current-account");
+      // Canonicalize the account selection for the restored identity so branding
+      // and navigation cannot keep pointing at the impersonated workspace.
+      persistCanonicalAccount(userWithAccounts);
 
       return userWithAccounts;
     } catch (err) {

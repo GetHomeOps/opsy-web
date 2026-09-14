@@ -87,9 +87,13 @@ function Header({sidebarOpen, setSidebarOpen, variant = "default"}) {
     setStoppingImpersonation(true);
     try {
       const adminUser = await stopImpersonation();
-      const accountUrl =
-        adminUser?.accounts?.[0]?.url || currentAccount?.url || "";
-      navigate(accountUrl ? `/${accountUrl}/users` : "/");
+      // Navigate using only the restored admin account. `currentAccount` here is
+      // from the pre-stop render and may still be the impersonated workspace.
+      const restoredAccountUrl = (adminUser?.accounts?.[0]?.url || "").replace(
+        /^\/+/,
+        "",
+      );
+      navigate(restoredAccountUrl ? `/${restoredAccountUrl}/users` : "/");
     } catch (err) {
       console.error("Failed to stop impersonation:", err);
     } finally {

@@ -1,7 +1,7 @@
 import React from "react";
 import {useLocation} from "react-router-dom";
 import RoutesList from "./pages/routes-nav/RoutesList";
-import {AuthProvider} from "./context/AuthContext";
+import {AuthProvider, useAuth} from "./context/AuthContext";
 import {ContactProvider} from "./context/ContactContext";
 import {UserProvider} from "./context/UserContext";
 import {PropertyProvider} from "./context/PropertyContext";
@@ -14,6 +14,21 @@ import GoogleAnalyticsTracker from "./components/GoogleAnalyticsTracker";
 
 import "./css/style.css";
 
+/** Remount the branding provider whenever the logged-in identity or
+ * impersonation state changes, so a customized shell (logo, colors, "Powered
+ * by") from an impersonated account cannot linger after returning to the admin. */
+function BrandingBoundary({children}) {
+  const {currentUser, impersonation} = useAuth();
+  const brandingKey = `${currentUser?.id ?? "none"}-${
+    impersonation?.active ? "impersonating" : "self"
+  }`;
+  return (
+    <AccountBrandingProvider key={brandingKey}>
+      {children}
+    </AccountBrandingProvider>
+  );
+}
+
 function App() {
   const location = useLocation();
 
@@ -25,7 +40,7 @@ function App() {
 
   return (
     <AuthProvider>
-      <AccountBrandingProvider>
+      <BrandingBoundary>
         <ContactProvider>
           <UserProvider>
             <PropertyProvider>
@@ -39,7 +54,7 @@ function App() {
             </PropertyProvider>
           </UserProvider>
         </ContactProvider>
-      </AccountBrandingProvider>
+      </BrandingBoundary>
     </AuthProvider>
   );
 }

@@ -1,32 +1,10 @@
 import {useEffect, useMemo, useState} from "react";
 import useLocalStorage from "./useLocalStorage";
 import {useAuth} from "../context/AuthContext";
+import {normalizeAccount, resolveCurrentAccount} from "../utils/accountSelection";
 
-export function normalizeAccount(account, userId) {
-  if (!account) return null;
-  return {
-    id: account.id,
-    name: account.name,
-    url: account.url?.replace(/^\/+/, "") || account.name,
-    ...(userId != null ? {userId} : {}),
-  };
-}
-
-/** Pick the active account, ignoring a selection that belongs to another user. */
-export function resolveCurrentAccount(currentUser, storedAccount) {
-  if (!currentUser?.accounts?.length) return null;
-
-  const storedForThisUser =
-    storedAccount?.id &&
-    storedAccount.userId === currentUser.id &&
-    currentUser.accounts.some((a) => a.id === storedAccount.id);
-
-  if (storedForThisUser) {
-    return normalizeAccount(storedAccount, currentUser.id);
-  }
-
-  return normalizeAccount(currentUser.accounts[0], currentUser.id);
-}
+// Re-export the pure helpers so existing imports (and tests) keep working.
+export {normalizeAccount, resolveCurrentAccount};
 
 export default function useCurrentAccount() {
   const {currentUser} = useAuth();
@@ -38,12 +16,19 @@ export default function useCurrentAccount() {
   const [accountUserId, setAccountUserId] = useState(userId);
 
   // Drop a selection from a previous session in the same render as the user
-  // change (e.g. stop impersonation). AuthContext only clears localStorage, not
-  // this hook's React state — and each caller has its own copy.
+  // change (e.g. stop impersonation). AuthContext writes the restored user's
+  // canonical account to localStorage, but this hook keeps its own React copy —
+  // so only clear a selection that belongs to a *different* user, and keep one
+  // that already belongs to the new user (the canonical selection).
   if (accountUserId !== userId) {
     const previousUserId = accountUserId;
     setAccountUserId(userId);
-    if (previousUserId != null && previousUserId !== userId && storedAccount) {
+    if (
+      previousUserId != null &&
+      previousUserId !== userId &&
+      storedAccount &&
+      storedAccount.userId !== userId
+    ) {
       setStoredAccount(null);
     }
   }

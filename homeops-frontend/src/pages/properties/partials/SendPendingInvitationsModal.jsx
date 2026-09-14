@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {AlertCircle, Check, Loader2, Mail, Send} from "lucide-react";
 import ModalBlank from "../../../components/ModalBlank";
 import AppApi, {getApiErrorMessage} from "../../../api/api";
+import {useAuth} from "../../../context/AuthContext";
 
 function formatPlatformRole(role) {
   const r = String(role || "")
@@ -53,8 +54,15 @@ function SendPendingInvitationsModal({
   currentAccount,
   invitationType = "property",
 }) {
+  const {currentUser} = useAuth();
+  const isPlatformAdmin = ["super_admin", "admin"].includes(currentUser?.role);
   const accountId = currentAccount?.id;
   const isAccountType = invitationType === "account";
+  /* Platform admins send property invites across ALL accounts. Bulk agent
+     onboarding creates invites on each agent's account (not the admin's), so
+     an account-scoped lookup would miss them. Account-type is already
+     platform-wide via the pending-unsent endpoint. */
+  const isPlatformWide = isAccountType || isPlatformAdmin;
   const [invitations, setInvitations] = useState([]);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
@@ -63,7 +71,7 @@ function SendPendingInvitationsModal({
   const [results, setResults] = useState(null);
 
   const loadInvitations = useCallback(async () => {
-    if (!isAccountType && !accountId) {
+    if (!isPlatformWide && !accountId) {
       setInvitations([]);
       setLoadError("No account selected.");
       return;
@@ -74,6 +82,9 @@ function SendPendingInvitationsModal({
       let list;
       if (isAccountType) {
         list = await AppApi.getPendingUnsentInvitations({type: "account"});
+      } else if (isPlatformAdmin) {
+        /* Platform-wide: never-emailed property invites across all accounts. */
+        list = await AppApi.getPendingUnsentInvitations({type: "property"});
       } else {
         list = await AppApi.getAccountInvitations(accountId, {
           status: "pending",
@@ -94,7 +105,7 @@ function SendPendingInvitationsModal({
     } finally {
       setLoading(false);
     }
-  }, [accountId, isAccountType]);
+  }, [accountId, isAccountType, isPlatformAdmin, isPlatformWide]);
 
   useEffect(() => {
     if (!modalOpen) {
@@ -136,7 +147,7 @@ function SendPendingInvitationsModal({
 
   const handleSend = async () => {
     if (!someSelected || isSubmitting) return;
-    if (!isAccountType && !accountId) return;
+    if (!isPlatformWide && !accountId) return;
     setIsSubmitting(true);
     try {
       const invitationIds = invitations
@@ -144,7 +155,7 @@ function SendPendingInvitationsModal({
         .map((inv) => inv.id);
       const res = await AppApi.sendPendingInvitations({
         invitationIds,
-        ...(isAccountType ? {} : {accountId}),
+        ...(isPlatformWide ? {} : {accountId}),
       });
       const sentIds = new Set((res.sent || []).map((row) => row.id));
       setResults({

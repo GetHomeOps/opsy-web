@@ -89,34 +89,47 @@ export function AccountBrandingProvider({children}) {
   const desiredAccountIdRef = useRef(null);
   desiredAccountIdRef.current = currentAccount?.id ?? null;
 
+  // Platform admins (super_admin / admin) run the app on the default Opsy shell.
+  // Their own accounts aren't customizable, and they must never inherit a
+  // customer's branding — e.g. after stopping impersonation. Only apply custom
+  // branding for them while they are actively impersonating another user.
+  const suppressBrandingRef = useRef(false);
+  suppressBrandingRef.current =
+    (currentUser?.role === "super_admin" || currentUser?.role === "admin") &&
+    !impersonation?.active;
+
   const loadBranding = useCallback(async (accountId, {resetFirst = false} = {}) => {
     const gen = ++loadGenRef.current;
     const sessionAtStart = getBrandingSessionGen();
 
+    // Never fetch a customer's branding for a non-impersonating platform admin.
+    const effectiveAccountId = suppressBrandingRef.current ? null : accountId;
+
     // Hard reset on user/account switch so a customized shell cannot linger
     // (e.g. after stopping impersonation) while the next fetch is in flight.
-    if (resetFirst || !accountId) {
+    if (resetFirst || !effectiveAccountId) {
       setBranding(EMPTY_BRANDING);
       applyDefaultBrandingCss();
     }
 
-    if (!accountId) {
+    if (!effectiveAccountId) {
       return;
     }
 
     setLoading(true);
     try {
       // GET /accounts/:id/branding returns effective branding (agency / sponsor inheritance).
-      const data = await AppApi.getAccountBranding(accountId);
+      const data = await AppApi.getAccountBranding(effectiveAccountId);
       if (gen !== loadGenRef.current) return;
       if (sessionAtStart !== getBrandingSessionGen()) return;
-      if (accountId !== desiredAccountIdRef.current) return;
+      if (suppressBrandingRef.current) return;
+      if (effectiveAccountId !== desiredAccountIdRef.current) return;
       setBranding(data || EMPTY_BRANDING);
       applyBrandingCss(data);
     } catch {
       if (gen !== loadGenRef.current) return;
       if (sessionAtStart !== getBrandingSessionGen()) return;
-      if (accountId !== desiredAccountIdRef.current) return;
+      if (effectiveAccountId !== desiredAccountIdRef.current) return;
       setBranding(EMPTY_BRANDING);
       applyDefaultBrandingCss();
     } finally {
@@ -132,6 +145,7 @@ export function AccountBrandingProvider({children}) {
   }, [
     currentAccount?.id,
     currentUser?.id,
+    currentUser?.role,
     impersonation?.active,
     loadBranding,
   ]);
